@@ -1305,10 +1305,16 @@ impl MixerView {
         let mut doc = self.doc.borrow_mut();
         ui.horizontal_wrapped(|ui| {
             if ui.button(tr("Add track")).clicked() {
-                let n = doc.project().tracks.len() + 1;
-                doc.history_mut().edit(tr("Add track"), |p| {
-                    p.add_track(&trf!("Audio {n}", n = n));
-                });
+                self.requests.push(crate::actions::Action::AddTrack);
+            }
+            if ui
+                .button(tr("Add tracks…"))
+                .on_hover_text(tr(
+                    "Several audio tracks at once, with their name and color",
+                ))
+                .clicked()
+            {
+                self.requests.push(crate::actions::Action::AddTracks);
             }
             if ui
                 .button(tr("Add instrument track"))

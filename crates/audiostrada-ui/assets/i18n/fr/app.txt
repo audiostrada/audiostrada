@@ -999,3 +999,45 @@ Vérifier une fois par jour
 
 Never
 Jamais
+
+Add audio tracks…
+Ajouter des pistes audio…
+
+Add audio tracks
+Ajouter des pistes audio
+
+Above {name}
+Au-dessus de {name}
+
+Below {name}
+Sous {name}
+
+Add {count} tracks
+Ajouter {count} pistes
+
+After the last track
+Après la dernière piste
+
+Each track takes the next color
+Chaque piste prend la couleur suivante
+
+Number
+Nombre
+
+Place
+Position
+
+Varied
+Variées
+
+Add tracks…
+Ajouter des pistes…
+
+Several audio tracks at once, with their name and color
+Plusieurs pistes audio d'un coup, avec leur nom et leur couleur
+
+Add a track above
+Ajouter une piste au-dessus
+
+Add a track below
+Ajouter une piste en dessous

@@ -122,6 +122,7 @@ actions! {
     Preferences => ("View", "Preferences…"),
     AddTrack => ("Track", "Add audio track"),
     AddStereoTrack => ("Track", "Add stereo track"),
+    AddTracks => ("Track", "Add audio tracks…"),
     AddInstrumentTrack => ("Track", "Add instrument track"),
     AddDrumTrack => ("Track", "Add drum machine track"),
     NewMidiClip => ("Track", "New MIDI clip"),

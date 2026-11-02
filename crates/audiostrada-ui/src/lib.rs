@@ -1,6 +1,7 @@
 //! AudioStrada user interface (egui + wgpu).
 
 mod actions;
+mod add_tracks;
 mod browser;
 mod captures;
 mod chains;
@@ -1011,6 +1012,7 @@ impl AudioStradaApp {
                     )
                 };
                 let mut created = None;
+                let at = add_tracks::below_selection(&doc);
                 doc.history_mut().edit(label, |p| {
                     let t = p.add_track(&name);
                     audiostrada_core::routing::add_insert(
@@ -1019,6 +1021,7 @@ impl AudioStradaApp {
                         effect,
                         Default::default(),
                     );
+                    add_tracks::place(p, &[t], at);
                     created = Some(t);
                 });
                 if let Some(t) = created {
@@ -1030,15 +1033,13 @@ impl AudioStradaApp {
             }
             Action::Quantize => self.views.borrow_mut().piano.quantize(&self.edit),
             Action::AddTrack | Action::AddStereoTrack => {
-                let stereo = action == Action::AddStereoTrack;
                 let mut doc = self.doc.borrow_mut();
-                let n = doc.project().tracks.len() + 1;
-                doc.history_mut().edit(tr("Add track"), |p| {
-                    let id = p.add_track(&trf!("Audio {n}", n = n));
-                    if let Some(t) = p.track_mut(id) {
-                        t.stereo = stereo;
-                    }
-                });
+                let at = add_tracks::below_selection(&doc);
+                add_tracks::add_one(&mut doc, action == Action::AddStereoTrack, at);
+            }
+            Action::AddTracks => {
+                let at = add_tracks::below_selection(&self.doc.borrow());
+                add_tracks::open(ctx, at);
             }
             Action::ModeSlip => self.edit.mode = EditMode::Slip,
             Action::ModeShuffle => self.edit.mode = EditMode::Shuffle,
@@ -1413,6 +1414,7 @@ impl AudioStradaApp {
                         asked |= views.has_requests();
                         if let Ok(mut doc) = views.doc.try_borrow_mut() {
                             mixer::save_chain_dialog(&ctx, &mut doc);
+                            add_tracks::dialog(&ctx, &mut doc);
                         }
                     }
                 });
@@ -1833,6 +1835,7 @@ impl AudioStradaApp {
                 for action in [
                     Action::AddTrack,
                     Action::AddStereoTrack,
+                    Action::AddTracks,
                     Action::AddInstrumentTrack,
                     Action::AddDrumTrack,
                     Action::AddVca,
@@ -1996,6 +1999,7 @@ impl AudioStradaApp {
     fn dialogs(&mut self, ctx: &egui::Context) {
         if let Ok(mut doc) = self.doc.try_borrow_mut() {
             mixer::save_chain_dialog(ctx, &mut doc);
+            add_tracks::dialog(ctx, &mut doc);
         }
         if let Some(pending) = self.pending.clone() {
             let title = self.doc.borrow().title();

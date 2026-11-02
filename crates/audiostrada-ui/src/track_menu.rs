@@ -117,6 +117,20 @@ pub fn show(ui: &mut Ui, doc: &mut Document, id: TrackId) -> Vec<Request> {
             &track.name,
         );
     }
+    ui.separator();
+    if ui.button(tr("Add a track above")).clicked() {
+        crate::add_tracks::add_one(doc, false, Some((id, false)));
+        ui.close();
+    }
+    if ui.button(tr("Add a track below")).clicked() {
+        crate::add_tracks::add_one(doc, false, Some((id, true)));
+        ui.close();
+    }
+    if ui.button(tr("Add tracks…")).clicked() {
+        crate::add_tracks::open(ui.ctx(), Some((id, true)));
+        ui.close();
+    }
+    ui.separator();
     if track.kind != TrackKind::Vca && ui.button(tr("Import audio file…")).clicked() {
         doc.select_track(id, SelectMode::Only);
         requests.push(Request::Action(Action::ImportAudio));

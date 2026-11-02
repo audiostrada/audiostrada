@@ -737,6 +737,7 @@ impl TimelineView {
         for action in [
             Action::AddTrack,
             Action::AddStereoTrack,
+            Action::AddTracks,
             Action::AddInstrumentTrack,
             Action::AddDrumTrack,
         ] {
