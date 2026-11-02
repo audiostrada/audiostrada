@@ -7,6 +7,7 @@
 #[cfg(target_os = "macos")]
 pub mod au;
 pub mod clap;
+pub mod guard;
 pub mod lv2;
 pub mod sandbox;
 pub mod scan;
@@ -211,6 +212,20 @@ pub fn sandbox_host() -> Option<PathBuf> {
     SANDBOX.lock().ok().and_then(|s| s.clone())
 }
 
+/// For the processes that load plugins (scanner, sandbox host): on Windows a plugin that
+/// crashes, or misses a DLL, would otherwise open a system dialog and keep the process alive
+/// until it is answered, instead of failing at once.
+pub fn quiet_failures() {
+    #[cfg(windows)]
+    // SAFETY: plain Win32 call on this process's own error mode.
+    unsafe {
+        use windows::Win32::System::Diagnostics::Debug::{
+            SEM_FAILCRITICALERRORS, SEM_NOGPFAULTERRORBOX, SEM_NOOPENFILEERRORBOX, SetErrorMode,
+        };
+        SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+    }
+}
+
 static ENABLED: AtomicBool = AtomicBool::new(true);
 
 /// Allows or forbids loading third-party plugins; built-in effects are not concerned.
@@ -230,6 +245,10 @@ pub fn instantiate(descriptor: &PluginDescriptor) -> Result<Box<dyn PluginInstan
     match sandbox_host() {
         Some(exe) => sandbox::SandboxInstance::new(&exe, descriptor)
             .map(|i| Box::new(i) as Box<dyn PluginInstance>),
+        None if guard::crashed(descriptor) => Err(
+            "this plugin crashed AudioStrada while loading; turn the plugin sandbox on to use it"
+                .into(),
+        ),
         None => instantiate_in_process(descriptor),
     }
 }

@@ -236,3 +236,9 @@ Retirer la piste de référence
 
 Reference loudness
 Loudness de la référence
+
+{name} crashed AudioStrada while loading: it is ignored while the plugin sandbox is off
+{name} a fait planter AudioStrada pendant son chargement : il est ignoré tant que le sandbox des plugins est désactivé
+
+{count} plugin file(s) could not be loaded and are ignored: see Preferences, Plugins
+{count} fichier(s) de plugins n'ont pas pu être chargés et sont ignorés : voir Préférences, Plugins

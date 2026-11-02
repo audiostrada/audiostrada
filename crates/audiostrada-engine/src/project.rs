@@ -112,6 +112,8 @@ impl Plugins {
             .find(&insert.effect)
             .cloned()
             .ok_or_else(|| format!("plugin {} is not installed", insert.effect))?;
+        // Until activated: a plugin that crashes AudioStrada meanwhile is refused next time.
+        let _loading = audiostrada_plugins::guard::loading(&descriptor);
         let mut instance = audiostrada_plugins::instantiate(&descriptor)?;
         let state = self
             .pending_state

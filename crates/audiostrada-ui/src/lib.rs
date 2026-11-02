@@ -2215,6 +2215,13 @@ impl eframe::App for AudioStradaApp {
             self.prefs.keymap.upgrade();
             self.prefs.apply(ctx);
             self.prefs_applied = true;
+            if let Some(name) = audiostrada_plugins::guard::take_report() {
+                self.doc.borrow_mut().notify(trf!(
+                    "{name} crashed AudioStrada while loading: it is ignored while the plugin \
+                     sandbox is off",
+                    name = name
+                ));
+            }
             let auto = self.prefs.auto_monitoring;
             self.doc.borrow_mut().player_mut().set_auto_monitoring(auto);
             self.open_midi_inputs();
@@ -2229,7 +2236,26 @@ impl eframe::App for AudioStradaApp {
         if self.plugin_scan.as_ref().is_some_and(|h| h.is_finished())
             && let Some(Ok(database)) = self.plugin_scan.take().map(|h| h.join())
         {
-            self.doc.borrow_mut().set_plugins(database);
+            let mut doc = self.doc.borrow_mut();
+            // Files that failed before were already told about.
+            let known = doc
+                .player()
+                .plugins()
+                .failures()
+                .map(|(p, _)| p.to_path_buf());
+            let known: Vec<_> = known.collect();
+            let failed = database
+                .failures()
+                .filter(|(p, _)| !known.iter().any(|k| k == p))
+                .count();
+            doc.set_plugins(database);
+            if failed > 0 {
+                doc.notify(trf!(
+                    "{count} plugin file(s) could not be loaded and are ignored: see Preferences, \
+                     Plugins",
+                    count = failed
+                ));
+            }
         }
         let inputs = self.host.stream().map_or(0, |s| s.info().inputs as usize);
         self.doc.borrow_mut().set_stream_inputs(inputs);

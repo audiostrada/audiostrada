@@ -41,8 +41,12 @@ fn main() -> ExitCode {
         Command::Latency(args) => audio::latency(&args),
         Command::Compare(args) => audio::compare(&args),
         Command::Plugins { rescan } => plugins::list(rescan),
-        Command::PluginScan(format, path) => plugins::scan_one(&format, &path),
+        Command::PluginScan(format, path) => {
+            audiostrada_plugins::quiet_failures();
+            plugins::scan_one(&format, &path)
+        }
         Command::PluginHost => {
+            audiostrada_plugins::quiet_failures();
             audiostrada_plugins::sandbox::run_host();
             Ok(())
         }
@@ -110,6 +114,9 @@ fn run_ui(run: &cli::RunArgs) -> anyhow::Result<()> {
         audio::load_document(files, dirs.clone())?
     };
     prefs.borrow().ui.apply_sandbox();
+    if let Some(dir) = dirs::data_dir() {
+        audiostrada_plugins::guard::set_dir(dir.join("audiostrada"));
+    }
     audiostrada_plugins::set_enabled(!run.disable_plugins && !prefs.borrow().ui.disable_plugins);
     if let Some(cache) = plugins::database_path() {
         doc.set_plugins(audiostrada_plugins::scan::Database::load(&cache));
