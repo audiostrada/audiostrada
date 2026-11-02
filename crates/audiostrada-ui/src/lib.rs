@@ -2185,6 +2185,16 @@ fn set_plugin_window_parent(frame: &eframe::Frame) {
     audiostrada_plugins::window::set_parent(parent);
 }
 
+/// On macOS the detached panels and editors float above the main window while AudioStrada is
+/// in use, so that they stay in front when it takes the focus.
+#[cfg(target_os = "macos")]
+fn keep_windows_above(frame: &eframe::Frame) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    if let Ok(RawWindowHandle::AppKit(h)) = frame.window_handle().map(|h| h.as_raw()) {
+        audiostrada_plugins::window::keep_windows_above(h.ns_view.as_ptr());
+    }
+}
+
 impl eframe::App for AudioStradaApp {
     /// Everything that must go on while the main window is hidden (covered, minimized) and
     /// a detached panel is used: the engine, devices, and what the panels ask for.
@@ -2203,6 +2213,8 @@ impl eframe::App for AudioStradaApp {
             self.restore_tabs();
         }
         self.watch_devices();
+        #[cfg(target_os = "macos")]
+        keep_windows_above(frame);
         if self.plugin_scan.as_ref().is_some_and(|h| h.is_finished())
             && let Some(Ok(database)) = self.plugin_scan.take().map(|h| h.join())
         {

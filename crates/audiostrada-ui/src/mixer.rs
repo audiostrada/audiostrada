@@ -326,9 +326,13 @@ fn editor_window(
     if raise {
         ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Focus);
     }
-    // Above AudioStrada's windows while AudioStrada is in use, not above other applications.
+    // Above AudioStrada's windows while AudioStrada is in use, not above other applications
+    // (on macOS the application lowers it itself, plugin windows taking the focus too).
     let focused = |v| ctx.input_for(v, |i| i.viewport().focused.unwrap_or(false));
-    let in_use = focused(egui::ViewportId::ROOT) || focused(ctx.viewport_id()) || focused(id);
+    let in_use = cfg!(target_os = "macos")
+        || focused(egui::ViewportId::ROOT)
+        || focused(ctx.viewport_id())
+        || focused(id);
     let position = ctx.data_mut(|d| {
         let p = d.get_temp_mut_or_default::<WindowPlaces>(places);
         let last = p.last.get(&id).copied();

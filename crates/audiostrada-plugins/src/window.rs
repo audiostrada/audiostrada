@@ -491,13 +491,57 @@ mod imp {
 mod imp {
     use objc2::rc::Retained;
     use objc2::{MainThreadMarker, MainThreadOnly};
-    use objc2_app_kit::{NSApplication, NSBackingStoreType, NSWindow, NSWindowStyleMask};
+    use objc2_app_kit::{
+        NSApplication, NSBackingStoreType, NSFloatingWindowLevel, NSNormalWindowLevel,
+        NSRunningApplication, NSView, NSWindow, NSWindowStyleMask, NSWorkspace,
+    };
     use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
 
     use super::NativeHandle;
 
+    /// True while AudioStrada is the active application: the application itself or one of its
+    /// plugin hosts (the same executable), whose windows take the focus from it.
+    fn audiostrada_active() -> bool {
+        let Some(front) = NSWorkspace::sharedWorkspace().frontmostApplication() else {
+            return false;
+        };
+        let ours = NSRunningApplication::currentApplication().executableURL();
+        ours.is_some() && front.executableURL() == ours
+    }
+
+    /// Above AudioStrada's main window while AudioStrada is in use, without taking the focus
+    /// from it; at the normal level behind other applications.
+    fn keep_above(window: &NSWindow, active: bool) {
+        let level = if active {
+            NSFloatingWindowLevel
+        } else {
+            NSNormalWindowLevel
+        };
+        if window.level() != level {
+            window.setLevel(level);
+        }
+    }
+
+    /// Keeps the application's other windows (winit's: detached panels, editors) above its main
+    /// window, given by its content view, as [`HostWindow`] does for plugin windows.
+    pub fn keep_windows_above(main: *mut std::ffi::c_void) {
+        let Some(mtm) = MainThreadMarker::new() else {
+            return;
+        };
+        // SAFETY: the main window's live content view, used on the main thread.
+        let main = unsafe { main.cast::<NSView>().as_ref() }.and_then(|v| v.window());
+        let active = audiostrada_active();
+        for window in NSApplication::sharedApplication(mtm).windows() {
+            if Some(&window) != main.as_ref() && window.class().name().to_bytes() == b"WinitWindow"
+            {
+                keep_above(&window, active);
+            }
+        }
+    }
+
     /// An AppKit window whose content view holds the plugin's editor. Its process cannot be
-    /// owned by AudioStrada's window (another process), so it simply opens in front.
+    /// owned by AudioStrada's window (another process): it floats above AudioStrada's windows
+    /// while AudioStrada is in use instead.
     pub struct HostWindow {
         window: Retained<NSWindow>,
         mtm: MainThreadMarker,
@@ -524,6 +568,7 @@ mod imp {
             unsafe { window.setReleasedWhenClosed(false) };
             window.setTitle(&NSString::from_str(title));
             window.center();
+            keep_above(&window, true);
             let mut host = Self { window, mtm };
             host.raise();
             Ok(host)
@@ -554,6 +599,7 @@ mod imp {
 
         /// True once the user closed the window (ordered out, not merely minimized).
         pub fn poll(&mut self) -> bool {
+            keep_above(&self.window, audiostrada_active());
             !self.window.isVisible() && !self.window.isMiniaturized()
         }
     }
@@ -566,6 +612,8 @@ mod imp {
 }
 
 pub use imp::HostWindow;
+#[cfg(target_os = "macos")]
+pub use imp::keep_windows_above;
 
 impl std::fmt::Debug for HostWindow {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
