@@ -1,5 +1,5 @@
 //! Native top-level windows that host embedded plugin editors (X11 on Linux and BSDs, Win32 on
-//! Windows). Closing the window is reported by [`HostWindow::poll`].
+//! Windows, AppKit on macOS). Closing the window is reported by [`HostWindow::poll`].
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -46,6 +46,8 @@ pub fn grabbed_keys() -> Vec<(u32, u16)> {
 pub enum NativeHandle {
     X11(u32),
     Win32(*mut std::ffi::c_void),
+    /// The window's content view (`NSView`).
+    Cocoa(*mut std::ffi::c_void),
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
@@ -487,29 +489,78 @@ mod imp {
 
 #[cfg(target_os = "macos")]
 mod imp {
+    use objc2::rc::Retained;
+    use objc2::{MainThreadMarker, MainThreadOnly};
+    use objc2_app_kit::{NSApplication, NSBackingStoreType, NSWindow, NSWindowStyleMask};
+    use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
+
     use super::NativeHandle;
 
-    pub struct HostWindow;
+    /// An AppKit window whose content view holds the plugin's editor. Its process cannot be
+    /// owned by AudioStrada's window (another process), so it simply opens in front.
+    pub struct HostWindow {
+        window: Retained<NSWindow>,
+        mtm: MainThreadMarker,
+    }
 
     impl HostWindow {
-        pub fn new(_title: &str, _width: u32, _height: u32) -> Result<Self, String> {
-            Err("embedded plugin windows are not supported on macOS yet".into())
+        pub fn new(title: &str, width: u32, height: u32) -> Result<Self, String> {
+            let mtm = MainThreadMarker::new().ok_or("plugin windows open on the main thread")?;
+            let size = NSSize::new(f64::from(width.max(1)), f64::from(height.max(1)));
+            let style = NSWindowStyleMask::Titled
+                | NSWindowStyleMask::Closable
+                | NSWindowStyleMask::Miniaturizable;
+            // SAFETY: a plain window created on the main thread.
+            let window = unsafe {
+                NSWindow::initWithContentRect_styleMask_backing_defer(
+                    NSWindow::alloc(mtm),
+                    NSRect::new(NSPoint::new(0.0, 0.0), size),
+                    style,
+                    NSBackingStoreType::Buffered,
+                    false,
+                )
+            };
+            // SAFETY: we keep our own reference; closing only orders the window out.
+            unsafe { window.setReleasedWhenClosed(false) };
+            window.setTitle(&NSString::from_str(title));
+            window.center();
+            let mut host = Self { window, mtm };
+            host.raise();
+            Ok(host)
         }
 
         pub fn handle(&self) -> NativeHandle {
-            NativeHandle::Win32(std::ptr::null_mut())
+            let view = self.window.contentView();
+            NativeHandle::Cocoa(view.map_or(std::ptr::null_mut(), |v| {
+                Retained::as_ptr(&v).cast_mut().cast()
+            }))
         }
 
-        pub fn resize(&mut self, _width: u32, _height: u32) {}
+        pub fn resize(&mut self, width: u32, height: u32) {
+            let size = NSSize::new(f64::from(width.max(1)), f64::from(height.max(1)));
+            self.window.setContentSize(size);
+        }
 
-        pub fn raise(&mut self) {}
+        pub fn raise(&mut self) {
+            self.window.makeKeyAndOrderFront(None);
+            // `activate` only exists from macOS 14 on.
+            #[allow(deprecated)]
+            NSApplication::sharedApplication(self.mtm).activateIgnoringOtherApps(true);
+        }
 
         pub fn take_keys(&mut self) -> Vec<(u32, u16)> {
             Vec::new()
         }
 
+        /// True once the user closed the window (ordered out, not merely minimized).
         pub fn poll(&mut self) -> bool {
-            true
+            !self.window.isVisible() && !self.window.isMiniaturized()
+        }
+    }
+
+    impl Drop for HostWindow {
+        fn drop(&mut self) {
+            self.window.close();
         }
     }
 }

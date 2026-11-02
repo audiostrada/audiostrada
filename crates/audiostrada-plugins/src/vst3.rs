@@ -113,50 +113,81 @@ fn module(bundle: &Path) -> Result<&'static Module, String> {
     if let Some((_, m)) = modules.iter().find(|(p, _)| p == bundle) {
         return Ok(m);
     }
-    if cfg!(target_os = "macos") {
-        return Err("VST3 plugins are not supported on macOS yet".into());
+    #[cfg(target_os = "macos")]
+    return bundle_module(&mut modules, bundle);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let path = library_path(bundle);
+        if !path.exists() && !cfg!(windows) && bundle.join("Contents").join("x86_64-win").exists() {
+            return Err("this bundle only holds a Windows plugin, it cannot run on Linux".into());
+        }
+        crate::check_binary(&path)?;
+        // SAFETY: loading a plugin library runs its initialisers, as in any host.
+        let library = unsafe { libloading::Library::new(&path) }
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        #[cfg(unix)]
+        {
+            type Entry = unsafe extern "C" fn(*mut c_void) -> bool;
+            // SAFETY: symbol types follow the VST3 module ABI.
+            let entry: Option<Entry> = unsafe { library.get::<Entry>(b"ModuleEntry\0") }
+                .ok()
+                .map(|f| *f);
+            if let Some(entry) = entry {
+                let raw: libloading::os::unix::Library = library.into();
+                let handle = raw.into_raw();
+                // SAFETY: the handle comes from dlopen and stays loaded.
+                let ok = unsafe { entry(handle) };
+                // SAFETY: rebuilding the library from the same handle.
+                let library: libloading::Library =
+                    unsafe { libloading::os::unix::Library::from_raw(handle) }.into();
+                if !ok {
+                    return Err("ModuleEntry failed".into());
+                }
+                return finish(&mut modules, bundle, library);
+            }
+        }
+        #[cfg(windows)]
+        {
+            type Init = unsafe extern "system" fn() -> bool;
+            // SAFETY: symbol types follow the VST3 module ABI.
+            if let Ok(init) = unsafe { library.get::<Init>(b"InitDll\0") }
+                // SAFETY: InitDll takes no arguments.
+                && !unsafe { init() }
+            {
+                return Err("InitDll failed".into());
+            }
+        }
+        finish(&mut modules, bundle, library)
     }
-    let path = library_path(bundle);
-    if !path.exists() && !cfg!(windows) && bundle.join("Contents").join("x86_64-win").exists() {
-        return Err("this bundle only holds a Windows plugin, it cannot run on Linux".into());
-    }
+}
+
+/// A macOS bundle: its executable comes from Info.plist, and `bundleEntry` takes the bundle.
+#[cfg(target_os = "macos")]
+fn bundle_module(
+    modules: &mut Vec<(PathBuf, &'static Module)>,
+    bundle: &Path,
+) -> Result<&'static Module, String> {
+    use objc2_core_foundation::{CFBundle, CFRetained, CFURL};
+    let url = CFURL::from_directory_path(bundle).ok_or("this bundle path is not valid")?;
+    let cf = CFBundle::new(None, Some(&url)).ok_or("this is not a plugin bundle")?;
+    let path = cf
+        .executable_url()
+        .and_then(|u| u.to_file_path())
+        .unwrap_or_else(|| library_path(bundle));
     crate::check_binary(&path)?;
     // SAFETY: loading a plugin library runs its initialisers, as in any host.
     let library = unsafe { libloading::Library::new(&path) }
         .map_err(|e| format!("{}: {e}", path.display()))?;
-    #[cfg(unix)]
+    type Entry = unsafe extern "C" fn(*mut c_void) -> bool;
+    // SAFETY: symbol types follow the VST3 module ABI.
+    if let Ok(entry) = unsafe { library.get::<Entry>(b"bundleEntry\0") }
+        // SAFETY: the bundle stays alive with the module, for the life of the process.
+        && !unsafe { entry(CFRetained::as_ptr(&cf).as_ptr().cast()) }
     {
-        type Entry = unsafe extern "C" fn(*mut c_void) -> bool;
-        // SAFETY: symbol types follow the VST3 module ABI.
-        let entry: Option<Entry> = unsafe { library.get::<Entry>(b"ModuleEntry\0") }
-            .ok()
-            .map(|f| *f);
-        if let Some(entry) = entry {
-            let raw: libloading::os::unix::Library = library.into();
-            let handle = raw.into_raw();
-            // SAFETY: the handle comes from dlopen and stays loaded.
-            let ok = unsafe { entry(handle) };
-            // SAFETY: rebuilding the library from the same handle.
-            let library: libloading::Library =
-                unsafe { libloading::os::unix::Library::from_raw(handle) }.into();
-            if !ok {
-                return Err("ModuleEntry failed".into());
-            }
-            return finish(&mut modules, bundle, library);
-        }
+        return Err("bundleEntry failed".into());
     }
-    #[cfg(windows)]
-    {
-        type Init = unsafe extern "system" fn() -> bool;
-        // SAFETY: symbol types follow the VST3 module ABI.
-        if let Ok(init) = unsafe { library.get::<Init>(b"InitDll\0") }
-            // SAFETY: InitDll takes no arguments.
-            && !unsafe { init() }
-        {
-            return Err("InitDll failed".into());
-        }
-    }
-    finish(&mut modules, bundle, library)
+    std::mem::forget(cf);
+    finish(modules, bundle, library)
 }
 
 fn finish(
@@ -1014,7 +1045,9 @@ struct Editor {
 
 #[cfg(windows)]
 const PLATFORM: FIDString = kPlatformTypeHWND;
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+const PLATFORM: FIDString = kPlatformTypeNSView;
+#[cfg(all(not(windows), not(target_os = "macos")))]
 const PLATFORM: FIDString = kPlatformTypeX11EmbedWindowID;
 
 /// Main-thread side of a VST3 plugin.
@@ -1496,7 +1529,7 @@ impl crate::PluginInstance for Vst3Instance {
         let frame = ComWrapper::new(PlugFrame::default());
         let parent = match window.handle() {
             NativeHandle::X11(id) => id as usize as *mut c_void,
-            NativeHandle::Win32(hwnd) => hwnd,
+            NativeHandle::Win32(hwnd) | NativeHandle::Cocoa(hwnd) => hwnd,
         };
         // SAFETY: the frame and window outlive the attachment (kept in the editor).
         unsafe {

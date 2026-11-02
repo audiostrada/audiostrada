@@ -814,13 +814,15 @@ mod messages {
     #[cfg(not(windows))]
     impl Waker {
         pub fn new() -> Self {
+            #[cfg(target_os = "macos")]
+            cocoa::start();
             Self
         }
 
         pub fn wake(&self) {}
     }
 
-    #[cfg(not(windows))]
+    #[cfg(all(not(windows), not(target_os = "macos")))]
     pub fn next_request<T>(
         requests: &mpsc::Receiver<T>,
         timeout: Duration,
@@ -874,6 +876,71 @@ mod messages {
         }
         dispatch();
         take()
+    }
+
+    /// On macOS the plugin windows need AppKit's events: they are handled while waiting, and a
+    /// request waits at most until the timeout.
+    #[cfg(target_os = "macos")]
+    pub fn next_request<T>(
+        requests: &mpsc::Receiver<T>,
+        timeout: Duration,
+    ) -> Result<T, RecvTimeoutError> {
+        let take = || {
+            requests.try_recv().map_err(|e| match e {
+                mpsc::TryRecvError::Empty => RecvTimeoutError::Timeout,
+                mpsc::TryRecvError::Disconnected => RecvTimeoutError::Disconnected,
+            })
+        };
+        if let r @ (Ok(_) | Err(RecvTimeoutError::Disconnected)) = take() {
+            return r;
+        }
+        if !cocoa::dispatch(timeout) {
+            return requests.recv_timeout(timeout);
+        }
+        take()
+    }
+
+    #[cfg(target_os = "macos")]
+    mod cocoa {
+        use std::time::Duration;
+
+        use objc2::MainThreadMarker;
+        use objc2::rc::autoreleasepool;
+        use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSEventMask};
+        use objc2_foundation::{NSDate, NSDefaultRunLoopMode};
+
+        /// Makes the plugin host an AppKit application without a Dock icon.
+        pub fn start() {
+            if let Some(mtm) = MainThreadMarker::new() {
+                let app = NSApplication::sharedApplication(mtm);
+                app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+                app.finishLaunching();
+            }
+        }
+
+        /// Handles AppKit events for up to `timeout`; false off the main thread.
+        pub fn dispatch(timeout: Duration) -> bool {
+            let Some(mtm) = MainThreadMarker::new() else {
+                return false;
+            };
+            let app = NSApplication::sharedApplication(mtm);
+            autoreleasepool(|_| {
+                // SAFETY: an AppKit constant, valid for the life of the process.
+                let mode = unsafe { NSDefaultRunLoopMode };
+                let mut until = NSDate::dateWithTimeIntervalSinceNow(timeout.as_secs_f64());
+                while let Some(event) = app.nextEventMatchingMask_untilDate_inMode_dequeue(
+                    NSEventMask::Any,
+                    Some(&until),
+                    mode,
+                    true,
+                ) {
+                    app.sendEvent(&event);
+                    until = NSDate::distantPast();
+                }
+                app.updateWindows();
+            });
+            true
+        }
     }
 
     #[cfg(windows)]

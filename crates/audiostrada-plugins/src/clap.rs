@@ -400,10 +400,7 @@ impl ClapInstance {
                 api_type: api,
                 is_floating,
             })
-            .find(|c| {
-                gui.is_api_supported(&handle, *c)
-                    && (c.is_floating || cfg!(not(target_os = "macos")))
-            })
+            .find(|c| gui.is_api_supported(&handle, *c))
     }
 }
 
@@ -610,6 +607,8 @@ impl crate::PluginInstance for ClapInstance {
                 NativeHandle::X11(id) => Window::from_x11_handle(std::ffi::c_ulong::from(id)),
                 // SAFETY: the window stays alive until the editor is destroyed.
                 NativeHandle::Win32(hwnd) => unsafe { Window::from_win32_hwnd(hwnd) },
+                // SAFETY: as above.
+                NativeHandle::Cocoa(view) => unsafe { Window::from_cocoa_nsview(view) },
             };
             // SAFETY: the host window outlives the editor (destroyed in close_gui first).
             if let Err(e) = unsafe { gui.set_parent(&handle, parent) } {

@@ -11,7 +11,9 @@ use crate::window::{HostWindow, NativeHandle};
 
 #[cfg(windows)]
 const UI_CLASS: &str = "http://lv2plug.in/ns/extensions/ui#WindowsUI";
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+const UI_CLASS: &str = "http://lv2plug.in/ns/extensions/ui#CocoaUI";
+#[cfg(all(not(windows), not(target_os = "macos")))]
 const UI_CLASS: &str = "http://lv2plug.in/ns/extensions/ui#X11UI";
 const IDLE_INTERFACE: &CStr = c"http://lv2plug.in/ns/extensions/ui#idleInterface";
 
@@ -201,7 +203,7 @@ impl Lv2Ui {
         let window = HostWindow::new(title, 640, 480)?;
         let parent = match window.handle() {
             NativeHandle::X11(id) => id as usize as *mut c_void,
-            NativeHandle::Win32(hwnd) => hwnd,
+            NativeHandle::Win32(hwnd) | NativeHandle::Cocoa(hwnd) => hwnd,
         };
         let mut bridge = Box::<Bridge>::default();
         let bridge_ptr = &mut *bridge as *mut Bridge as *mut c_void;
