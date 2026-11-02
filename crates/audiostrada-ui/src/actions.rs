@@ -115,6 +115,7 @@ actions! {
     ShowMarkers => ("View", "Show markers"),
     ShowPianoRoll => ("View", "Show piano roll"),
     ResetLayout => ("View", "Reset layout"),
+    ToggleFullscreen => ("View", "Full screen"),
     DetachMixer => ("View", "Mixer in its own window"),
     DetachPianoRoll => ("View", "Piano roll in its own window"),
     CommandPalette => ("View", "Command palette…"),

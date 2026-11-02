@@ -149,7 +149,7 @@ pub struct Keymap {
 }
 
 /// Bumped when default bindings are added, so saved keymaps get them.
-const VERSION: u32 = 7;
+const VERSION: u32 = 8;
 
 impl Default for Keymap {
     fn default() -> Self {
@@ -209,6 +209,7 @@ const COMMON: &[Binding] = &[
     (k(PLAIN, true, true, Key::R), Action::ArmTracks),
     (k(CMD, false, false, Key::M), Action::DetachMixer),
     (k(CMD, false, false, Key::P), Action::DetachPianoRoll),
+    (k(PLAIN, false, false, Key::F11), Action::ToggleFullscreen),
 ];
 
 /// Panels: Alt and a number shows or hides them (added in version 1). Vertical zoom (added
@@ -390,6 +391,12 @@ impl Keymap {
                 }
             }
         }
+        if self.version < 8 {
+            let f11 = Shortcut::new(false, false, false, Key::F11);
+            if !self.bindings.iter().any(|(s, _)| *s == f11) {
+                self.bindings.push((f11, Action::ToggleFullscreen));
+            }
+        }
         if self.version < VERSION {
             for &((command, shift, alt, key), action) in PANELS {
                 let shortcut = Shortcut::new(command, shift, alt, key);
@@ -544,6 +551,21 @@ mod tests {
         assert_eq!(keymap.action_for(Key::Num1, alt), Some(Action::ShowMixer));
         assert_eq!(keymap.action_for(Key::Num2, alt), Some(Action::Undo));
         assert_eq!(keymap.version, VERSION);
+    }
+
+    #[test]
+    fn saved_keymaps_get_full_screen_on_f11() {
+        let mut keymap = Keymap::preset(Preset::AudioStrada);
+        keymap
+            .bindings
+            .retain(|(_, a)| *a != Action::ToggleFullscreen);
+        keymap.version = 7;
+        keymap.upgrade();
+        let none = mods(false, false, false);
+        assert_eq!(
+            keymap.action_for(Key::F11, none),
+            Some(Action::ToggleFullscreen)
+        );
     }
 
     #[test]

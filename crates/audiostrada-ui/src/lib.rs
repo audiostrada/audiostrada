@@ -1081,6 +1081,10 @@ impl AudioStradaApp {
                 self.prefs.detached.clear();
                 self.ui_changed();
             }
+            Action::ToggleFullscreen => {
+                let on = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!on));
+            }
             Action::CommandPalette => self.palette.open(),
             Action::Preferences => self.preferences.open(),
             Action::Record => {
@@ -1874,6 +1878,8 @@ impl AudioStradaApp {
                     self.detached.contains(&Pane::PianoRoll),
                 );
                 item(ui, &mut chosen, Action::ResetLayout, None, true);
+                let fullscreen = ui.input(|i| i.viewport().fullscreen.unwrap_or(false));
+                check(ui, &mut chosen, Action::ToggleFullscreen, fullscreen);
                 ui.separator();
                 for action in [
                     Action::ZoomIn,

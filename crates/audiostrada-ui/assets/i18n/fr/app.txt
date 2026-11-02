@@ -263,6 +263,9 @@ Afficher le piano roll
 Reset layout
 Réinitialiser la disposition
 
+Full screen
+Plein écran
+
 Mixer in its own window
 Mixer dans sa propre fenêtre
 

@@ -373,6 +373,7 @@ shortcut. A few defaults (AudioStrada preset):
 | Ctrl+M | Mixer in its own window (again to dock it) |
 | Ctrl+P | Piano roll in its own window (again to dock it) |
 | Alt+1 … Alt+5 | Show or hide the mixer, piano roll, browser, inspector, markers |
+| F11 | Full screen (View › *Full screen*) |
 | Ctrl+Shift+Up / Down, Alt+wheel | Taller / shorter tracks, keeping the track under the pointer in place |
 | Alt+Shift+Up / Down, Alt+Shift+wheel | Waveform zoom in / out |
 | Ctrl+U / Ctrl+H / Ctrl+Shift+C | Strip silence / heal / consolidate |
