@@ -29,6 +29,9 @@ const STRIP_WIDTH: f32 = 104.0;
 const MIN_FADER: f32 = 60.0;
 /// Name plate and the space after it.
 const PLATE: f32 = 26.0;
+/// Strip height from which a docked mixer shows the insert and send slots, as in its own
+/// window: room for the fader and both lists.
+const FULL_STRIPS_HEIGHT: f32 = 560.0;
 const FADER_MIN_DB: f32 = -60.0;
 const FADER_MAX_DB: f32 = audiostrada_core::model::MAX_TRACK_GAIN_DB;
 
@@ -90,9 +93,11 @@ pub struct MixerView {
     /// Tallest top part of the last frame: strips drawn before a taller one still line up.
     top_last: f32,
     bottom_height: f32,
-    /// In its own window the strips show their insert and send slots; docked, buttons beside
-    /// the fader open them in windows, leaving the height to the fader.
-    pub windowed: bool,
+    /// The mixer is in its own window rather than docked.
+    pub detached: bool,
+    /// The strips show their insert and send slots (own window, or docked and tall enough);
+    /// else buttons beside the fader open them in windows, leaving the height to the fader.
+    full_strips: bool,
     /// Insert, send and monitor lists open in their own windows (docked mixer).
     lists: Vec<(Channel, List)>,
 }
@@ -1258,7 +1263,8 @@ impl MixerView {
             row_height: 0.0,
             top_last: 0.0,
             bottom_height: 0.0,
-            windowed: true,
+            detached: true,
+            full_strips: true,
             lists: Vec::new(),
         }
     }
@@ -1293,6 +1299,11 @@ impl MixerView {
         let master_width = STRIP_WIDTH + 40.0;
         // Strips fill the panel: the fader takes what the other sections leave.
         let available = ui.available_height() - 30.0;
+        self.full_strips = self.detached || available >= FULL_STRIPS_HEIGHT;
+        if self.full_strips {
+            // The strips show the lists opened in windows from the buttons.
+            self.lists.clear();
+        }
         // Height of the strip without the fader and the lists, as measured last frame.
         let fixed = if self.top_height > 0.0 {
             (self.top_height + self.bottom_height + PLATE - self.sizes.lists()).max(120.0)
@@ -1302,7 +1313,7 @@ impl MixerView {
         // Whole pixels, changed by a pixel at least: measuring last frame's layout must not make
         // this one drift or swing (the name plates would shake).
         let mut sizes = StripSizes::new(available, fixed).rounded();
-        if !self.windowed {
+        if !self.full_strips {
             sizes.fx = 0.0;
             sizes.sends = None;
         }
@@ -1586,7 +1597,7 @@ impl MixerView {
                         });
                     }
                 } else {
-                    if self.windowed {
+                    if self.full_strips {
                         section(ui, None, sizes.fx, ("inserts", id.0), |ui| {
                             self.inserts_section(
                                 ui,
@@ -1680,7 +1691,7 @@ impl MixerView {
                     );
                     if !vca {
                         widgets::meter(ui, &mut levels, fader_height);
-                        if !self.windowed {
+                        if !self.full_strips {
                             ui.vertical(|ui| self.list_buttons(ui, track));
                         }
                     }
@@ -2792,7 +2803,7 @@ impl MixerView {
         let width = STRIP_WIDTH + 24.0;
         Self::strip_frame(ui, width, Color32::from_gray(200), false, |ui| {
             let top = ui.cursor().top();
-            if self.windowed {
+            if self.full_strips {
                 section(ui, None, sizes.fx, "master-inserts", |ui| {
                     self.inserts_section(
                         ui,

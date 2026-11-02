@@ -207,9 +207,10 @@ impl Views {
 impl PaneContent for Views {
     fn pane_ui(&mut self, ui: &mut egui::Ui, pane: Pane) {
         match pane {
-            // The mixer scrolls its strips itself; in its own window it shows its lists.
+            // The mixer scrolls its strips itself; in its own window, or tall enough, it shows
+            // its lists.
             Pane::Mixer => {
-                self.mixer.windowed = ui.ctx().viewport_id() != egui::ViewportId::ROOT;
+                self.mixer.detached = ui.ctx().viewport_id() != egui::ViewportId::ROOT;
                 self.mixer.show(ui);
             }
             Pane::Timeline => self.timeline.show(ui, &self.edit),
