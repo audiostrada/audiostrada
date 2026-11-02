@@ -638,3 +638,18 @@ VCA {n}
 
 Mix {letter}
 Mix {letter}
+
+Bypassed: click to enable
+Bypassé : cliquer pour l'activer
+
+Playing: click to bypass
+Actif : cliquer pour le bypasser
+
++ Add an effect or a plugin
++ Ajouter un effet ou un plugin
+
+Drag an effect to reorder the chain. Click to edit, right-click for more.
+Glisser un effet pour réordonner la chaîne. Clic pour l'éditer, clic droit pour plus d'options.
+
+{name} and {n} more
+{name} et {n} autre(s)

@@ -65,6 +65,8 @@ pub struct MixerView {
     dragging: Option<Vec<TrackId>>,
     /// Insert being dragged (its channel, id and name), and where it would land.
     fx_drag: Option<(Channel, InsertId, String)>,
+    /// Window the insert drag started in: it is dropped there.
+    fx_viewport: egui::ViewportId,
     fx_target: Option<FxTarget>,
     /// The strip under the pointer, when not over its insert list: the end of that list.
     fx_fallback: Option<FxTarget>,
@@ -1164,6 +1166,7 @@ impl MixerView {
             editors: Vec::new(),
             dragging: None,
             fx_drag: None,
+            fx_viewport: egui::ViewportId::ROOT,
             fx_target: None,
             fx_fallback: None,
             raise: None,
@@ -1274,7 +1277,9 @@ impl MixerView {
                 })
             });
         self.drop_insert(ui, &mut doc);
-        if !ui.input(|i| i.pointer.any_down()) {
+        if ui.input(|i| i.pointer.any_down()) {
+            self.track_drag_ghost(ui, &project);
+        } else {
             self.dragging = None;
         }
         self.levels.retain(|id, _| project.track(*id).is_some());
@@ -1450,8 +1455,10 @@ impl MixerView {
         let fader_height = self.fader_height;
         let sizes = self.sizes;
         let selected = doc.is_track_selected(id);
-        // Clicks on the strip's background select the track; its controls come first.
-        let strip = ui.scope_builder(egui::UiBuilder::new().sense(Sense::click()), |ui| {
+        // Clicks on the strip's background select the track, drags move it; its controls come
+        // first.
+        let background = egui::UiBuilder::new().sense(Sense::click_and_drag());
+        let strip = ui.scope_builder(background, |ui| {
             Self::strip_frame(ui, width, color(track), selected, |ui| {
                 let folder = routing::has_children(project, id);
                 let top = ui.cursor().top();
@@ -1685,15 +1692,10 @@ impl MixerView {
                         crate::document::SelectMode::from_modifiers(ui.input(|i| i.modifiers));
                     doc.select_track(id, mode);
                 }
+                #[cfg(test)]
+                tests::seen(format!("plate {}", id.0), plate.rect);
                 if plate.drag_started() {
-                    let dragged = if selected {
-                        doc.selected_tracks().to_vec()
-                    } else {
-                        vec![id]
-                    };
-                    // Our own drag state: egui's drag and drop is cleared by the other windows'
-                    // frames when the mixer is detached.
-                    self.dragging = Some(dragged);
+                    self.start_track_drag(doc, id, selected);
                 }
                 plate.context_menu(|ui| self.track_menu(ui, doc, id));
             })
@@ -1708,6 +1710,9 @@ impl MixerView {
         if strip.response.clicked() {
             let mode = crate::document::SelectMode::from_modifiers(ui.input(|i| i.modifiers));
             doc.select_track(id, mode);
+        }
+        if strip.response.drag_started() {
+            self.start_track_drag(doc, id, selected);
         }
         strip
             .response
@@ -1732,6 +1737,55 @@ impl MixerView {
             routing::remove_insert(p, channel, id)
         });
         self.editors.retain(|e| *e != (channel, id));
+    }
+
+    /// Drags a track, with the others selected along with it.
+    fn start_track_drag(&mut self, doc: &Document, id: TrackId, selected: bool) {
+        let dragged = if selected {
+            doc.selected_tracks().to_vec()
+        } else {
+            vec![id]
+        };
+        // Our own drag state: egui's drag and drop is cleared by the other windows' frames when
+        // the mixer is detached.
+        self.dragging = Some(dragged);
+    }
+
+    /// The names of the dragged tracks under the pointer.
+    fn track_drag_ghost(&self, ui: &Ui, project: &Project) {
+        let Some(dragged) = &self.dragging else {
+            return;
+        };
+        let Some(pos) = ui.input(|i| i.pointer.latest_pos()) else {
+            return;
+        };
+        let names: Vec<&str> = dragged
+            .iter()
+            .filter_map(|id| project.track(*id))
+            .map(|t| t.name.as_str())
+            .collect();
+        let text = match names.as_slice() {
+            [] => return,
+            [one] => (*one).to_owned(),
+            [first, rest @ ..] => trf!("{name} and {n} more", name = first, n = rest.len()),
+        };
+        let p = theme::current(ui);
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+        let painter = ui.ctx().layer_painter(egui::LayerId::new(
+            egui::Order::Tooltip,
+            egui::Id::unique("track-drag"),
+        ));
+        let galley = painter.layout_no_wrap(text, egui::FontId::proportional(11.0), p.text);
+        let rect = Rect::from_min_size(pos + vec2(14.0, 6.0), galley.size() + vec2(10.0, 4.0));
+        painter.rect_filled(rect, 3.0, p.surface);
+        painter.rect_stroke(
+            rect,
+            3.0,
+            egui::Stroke::new(1.0, p.accent),
+            egui::StrokeKind::Inside,
+        );
+        painter.galley(rect.min + vec2(5.0, 2.0), galley, p.text);
+        ui.ctx().request_repaint();
     }
 
     /// Tracks dropped on a strip move before or after it, from the side of the pointer.
@@ -1819,6 +1873,8 @@ impl MixerView {
         height: Option<f32>,
     ) {
         let start = ui.cursor().top();
+        // Without a height, the list has a window of its own: wider rows with their buttons.
+        let wide = height.is_none();
         let project = doc.project();
         let all_off = project.all_fx_off;
         let channel_off = match channel {
@@ -1830,15 +1886,18 @@ impl MixerView {
             inserts.iter().filter(|i| i.monitor == monitor).collect();
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 2.0;
-            let response = ui
-                .add(egui::Button::new(
-                    RichText::new(tr("+ insert")).size(11.0).weak(),
-                ))
-                .on_hover_text(tr("Add an effect or a plugin"));
-            if response.clicked() {
-                self.browser.borrow_mut().open((channel, monitor));
+            // A list in its own window has its add button below.
+            if !wide {
+                let response = ui
+                    .add(egui::Button::new(
+                        RichText::new(tr("+ insert")).size(11.0).weak(),
+                    ))
+                    .on_hover_text(tr("Add an effect or a plugin"));
+                if response.clicked() {
+                    self.browser.borrow_mut().open((channel, monitor));
+                }
+                self.insert_drop_row(ui, (channel, monitor, 0), response.rect, false);
             }
-            self.insert_drop_row(ui, (channel, monitor, 0), response.rect, false);
             if monitor {
                 return;
             }
@@ -1924,22 +1983,68 @@ impl MixerView {
                 ),
             };
             let plugin = audiostrada_dsp::info(&insert.effect).is_none();
-            let response = ui
-                .add_sized(
-                    [STRIP_WIDTH - 12.0, 18.0],
-                    egui::Button::new(text)
-                        .wrap_mode(egui::TextWrapMode::Truncate)
-                        .sense(Sense::click_and_drag()),
-                )
-                .on_hover_text(hint);
+            let mut button = egui::Button::new(text)
+                .wrap_mode(egui::TextWrapMode::Truncate)
+                .sense(Sense::click_and_drag());
+            if wide {
+                button = button.right_text("");
+            }
+            let (response, row_rect, toggled, removed) = if wide {
+                let row = ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 3.0;
+                    ui.add_sized(
+                        [16.0, 22.0],
+                        egui::Label::new(RichText::new(format!("{}", row + 1)).size(10.0).weak()),
+                    );
+                    let name = ui
+                        .add_sized([ui.available_width() - 72.0, 22.0], button)
+                        .on_hover_text(hint);
+                    let lit = !(insert.bypass || off);
+                    let p = theme::current(ui);
+                    let label = RichText::new(tr("On")).size(10.0);
+                    let power = if lit {
+                        egui::Button::new(label.color(Color32::WHITE))
+                            .fill(p.accent.gamma_multiply(0.85))
+                    } else {
+                        egui::Button::new(label.color(p.weak))
+                    }
+                    .min_size(vec2(32.0, 22.0));
+                    let toggled = ui
+                        .add(power)
+                        .on_hover_text(if insert.bypass {
+                            tr("Bypassed: click to enable")
+                        } else {
+                            tr("Playing: click to bypass")
+                        })
+                        .clicked();
+                    let removed = ui
+                        .add(egui::Button::new("✕").min_size(vec2(22.0, 22.0)))
+                        .on_hover_text(tr("Remove"))
+                        .clicked();
+                    (name, toggled, removed)
+                });
+                let (name, toggled, removed) = row.inner;
+                (name, row.response.rect, toggled, removed)
+            } else {
+                let name = ui
+                    .add_sized([STRIP_WIDTH - 12.0, 18.0], button)
+                    .on_hover_text(hint);
+                let rect = name.rect;
+                (name, rect, false, false)
+            };
             if response.drag_started() {
                 self.fx_drag = Some((channel, id, name.clone()));
+                self.fx_viewport = ui.ctx().viewport_id();
             }
             #[cfg(test)]
             tests::seen(format!("insert {}", id.0), response.rect);
-            self.insert_drop_row(ui, (channel, monitor, row), response.rect, true);
+            self.insert_drop_row(ui, (channel, monitor, row), row_rect, true);
             let modifiers = ui.input(|i| i.modifiers);
-            if response.clicked() && modifiers.shift {
+            if removed {
+                self.remove_insert(doc, channel, id);
+                continue;
+            }
+            if toggled || (response.clicked() && modifiers.shift) {
                 let bypass = !insert.bypass;
                 doc.history_mut().edit(tr("Bypass insert"), |p| {
                     routing::set_bypass(p, channel, id, bypass)
@@ -2044,9 +2149,34 @@ impl MixerView {
                 }
             });
         }
-        // Empty slots down to the bottom of the section, one at least.
-        let free = height.map_or(1.0, |h| ((h - (ui.cursor().top() - start)) / SLOT).floor());
-        for _ in 0..(free.max(1.0) as usize) {
+        if wide {
+            ui.add_space(4.0);
+            let add = ui.add_sized(
+                [ui.available_width(), 24.0],
+                egui::Button::new(RichText::new(tr("+ Add an effect or a plugin")).size(11.0)),
+            );
+            if add.clicked() {
+                self.browser.borrow_mut().open((channel, monitor));
+            }
+            self.insert_drop_row(ui, (channel, monitor, shown.len()), add.rect, false);
+            if !shown.is_empty() {
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new(tr(
+                        "Drag an effect to reorder the chain. Click to edit, right-click for \
+                         more.",
+                    ))
+                    .size(10.0)
+                    .weak(),
+                );
+            }
+        }
+        // Empty slots down to the bottom of the section, one at least in a strip.
+        let least = if wide { 0.0 } else { 1.0 };
+        let free = height.map_or(least, |h| {
+            ((h - (ui.cursor().top() - start)) / SLOT).floor()
+        });
+        for _ in 0..(free.max(least) as usize) {
             let slot = empty_slot(ui, STRIP_WIDTH - 12.0, tr("Add an effect or a plugin"));
             if slot.clicked() {
                 self.browser.borrow_mut().open((channel, monitor));
@@ -2070,7 +2200,7 @@ impl MixerView {
         rect: Rect,
         row: bool,
     ) {
-        if self.fx_drag.is_none() {
+        if self.fx_drag.is_none() || self.fx_viewport != ui.ctx().viewport_id() {
             return;
         }
         let Some(pos) = ui.input(|i| i.pointer.hover_pos()) else {
@@ -2097,7 +2227,10 @@ impl MixerView {
 
     /// A dragged insert over a strip but not over its list goes at the end of the list.
     fn insert_drop_strip(&mut self, ui: &Ui, channel: Channel, count: usize, rect: Rect) {
-        if self.fx_drag.is_none() || !ui.rect_contains_pointer(rect) {
+        if self.fx_drag.is_none()
+            || self.fx_viewport != ui.ctx().viewport_id()
+            || !ui.rect_contains_pointer(rect)
+        {
             return;
         }
         self.fx_fallback = Some(FxTarget {
@@ -2115,6 +2248,9 @@ impl MixerView {
         let Some((from, id, name)) = self.fx_drag.clone() else {
             return;
         };
+        if self.fx_viewport != ui.ctx().viewport_id() {
+            return;
+        }
         let p = theme::current(ui);
         let (pointer, released, alt) = ui.input(|i| {
             (
@@ -2758,13 +2894,19 @@ impl MixerView {
                         List::Inserts | List::Monitor => {
                             let inserts = track.map_or(&project.master.inserts, |t| &t.inserts);
                             let monitor = list == List::Monitor;
+                            self.fx_target = None;
+                            self.fx_fallback = None;
                             self.inserts_section(ui, doc, channel, inserts, owner, monitor, None);
+                            self.drop_insert(ui, doc);
                             save_chain_dialog(ui.ctx(), doc);
                         }
                     },
                 );
             if !open {
                 closed.push((channel, list));
+                if self.fx_viewport == egui::ViewportId::from_hash_of(key) {
+                    self.fx_drag = None;
+                }
             }
         }
         self.lists.retain(|l| !closed.contains(l));
@@ -3449,5 +3591,47 @@ mod tests {
         let below = rect(&format!("insert {}", inserts[1].0)).center() + vec2(0.0, 6.0);
         drag(&ctx, &mut view, eq, below, false);
         assert_eq!(effects(a), ["compressor", "eq"]);
+    }
+
+    #[test]
+    fn tracks_drag_to_a_new_place() {
+        let doc = Rc::new(RefCell::new(Document::new(AppDirs::default())));
+        let mut ids = Vec::new();
+        doc.borrow_mut().history_mut().edit("Setup", |p| {
+            ids = ["A", "B", "C"].map(|n| p.add_track(n)).to_vec();
+        });
+        let mut view = MixerView::new(Rc::clone(&doc));
+        let ctx = egui::Context::default();
+        frame(&ctx, &mut view, vec![]);
+        frame(&ctx, &mut view, vec![]);
+        let names = || {
+            doc.borrow()
+                .project()
+                .tracks
+                .iter()
+                .map(|t| t.name.clone())
+                .collect::<Vec<_>>()
+        };
+        let plate = rect(&format!("plate {}", ids[0].0)).center();
+        let c = rect(&format!("strip {}", ids[2].0));
+        drag(
+            &ctx,
+            &mut view,
+            plate,
+            c.center() + vec2(c.width() / 4.0, 0.0),
+            false,
+        );
+        assert_eq!(names(), ["B", "C", "A"]);
+        // From the strip's background as well.
+        let b = rect(&format!("strip {}", ids[1].0));
+        let a = rect(&format!("strip {}", ids[0].0));
+        drag(
+            &ctx,
+            &mut view,
+            egui::pos2(b.center().x, b.top() + 8.0),
+            a.center() + vec2(a.width() / 4.0, 0.0),
+            false,
+        );
+        assert_eq!(names(), ["C", "A", "B"]);
     }
 }
