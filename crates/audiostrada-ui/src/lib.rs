@@ -1943,6 +1943,11 @@ impl AudioStradaApp {
                 let version = concat!("AudioStrada ", env!("CARGO_PKG_VERSION"));
                 ui.label(egui::RichText::new("AudioStrada").strong().size(15.0))
                     .on_hover_text(version);
+                // Right to left: the logo goes before the name.
+                if let Some(logo) = logo(ui.ctx()) {
+                    ui.add(egui::Image::new(&logo).fit_to_exact_size(egui::vec2(18.0, 16.5)))
+                        .on_hover_text(version);
+                }
                 if let Some(release) = self.updates.found.clone() {
                     let covered = match self.license.license() {
                         Some(license) if license.covers(&release.date) => {
