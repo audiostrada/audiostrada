@@ -41,6 +41,8 @@ workspace = true
 ureq = { workspace = true, features = ["rustls"] }
 # The version eframe uses, to choose its X11 backend.
 winit = { version = "0.30.13", default-features = false, features = ["x11"] }
+# The screens (RandR), to put each window in full screen on its own.
+x11rb = { workspace = true, features = ["randr"] }
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
 ureq = { workspace = true, features = ["native-tls"] }

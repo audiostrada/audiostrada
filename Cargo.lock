@@ -705,6 +705,7 @@ dependencies = [
  "tracing",
  "ureq",
  "winit",
+ "x11rb",
 ]
 
 [[package]]

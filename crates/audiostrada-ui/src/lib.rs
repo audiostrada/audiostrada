@@ -28,6 +28,7 @@ mod preferences;
 mod presets;
 mod reference_window;
 mod rig_editor;
+mod screens;
 mod settings;
 mod synth_editor;
 mod tabs;
@@ -1082,17 +1083,13 @@ impl AudioStradaApp {
                 self.ui_changed();
             }
             Action::ToggleFullscreen => {
-                // Follows the main window; detached panels (mixer, piano roll) go with it.
+                // Follows the main window; detached panels (mixer, piano roll) go with it, each
+                // on its own screen.
                 let on = !fullscreen(ctx);
-                ctx.send_viewport_cmd_to(
-                    egui::ViewportId::ROOT,
-                    egui::ViewportCommand::Fullscreen(on),
-                );
-                for &pane in &self.detached {
-                    ctx.send_viewport_cmd_to(
-                        pane_window(pane),
-                        egui::ViewportCommand::Fullscreen(on),
-                    );
+                let windows = std::iter::once(egui::ViewportId::ROOT)
+                    .chain(self.detached.iter().map(|&pane| pane_window(pane)));
+                for window in windows {
+                    ctx.send_viewport_cmd_to(window, screens::fullscreen(ctx, window, on));
                 }
             }
             Action::CommandPalette => self.palette.open(),
@@ -2430,11 +2427,16 @@ pub fn run(mut app: AudioStradaApp) -> eframe::Result {
     // windows only draw when asked, at the meters' pace.
     options.wgpu_options.surface.present_mode = eframe::wgpu::PresentMode::AutoNoVsync;
     #[cfg(target_os = "linux")]
-    if app.prefs.x11_windows && std::env::var_os("DISPLAY").is_some() {
-        use winit::platform::x11::EventLoopBuilderExtX11;
-        options.event_loop_builder = Some(Box::new(|builder| {
-            builder.with_x11();
-        }));
+    {
+        let display = std::env::var_os("DISPLAY").is_some();
+        let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
+        if app.prefs.x11_windows && display {
+            use winit::platform::x11::EventLoopBuilderExtX11;
+            options.event_loop_builder = Some(Box::new(|builder| {
+                builder.with_x11();
+            }));
+        }
+        screens::set_x11(display && (app.prefs.x11_windows || !wayland));
     }
     eframe::run_native("AudioStrada", options, Box::new(|_cc| Ok(Box::new(app))))
 }
