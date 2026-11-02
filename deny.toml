@@ -1,5 +1,7 @@
 [advisories]
 ignore = []
+# Unmaintained crates only matter among our own dependencies, not deep in egui or winit.
+unmaintained = "workspace"
 
 [licenses]
 allow = [
@@ -10,6 +12,8 @@ allow = [
     "BSD-3-Clause",
     "BSL-1.0",
     "CC0-1.0",
+    # Root certificates of webpki-roots (TONE3000 and update checks over HTTPS).
+    "CDLA-Permissive-2.0",
     "GPL-3.0-only",
     "GPL-3.0-or-later",
     "ISC",
@@ -20,11 +24,20 @@ allow = [
     "LGPL-3.0-or-later",
     "MIT",
     "MPL-2.0",
+    # Fonts bundled by egui.
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
     "Unicode-3.0",
     "Unlicense",
     "Zlib",
 ]
 confidence-threshold = 0.8
+
+# shine-rs declares the deprecated "LGPL-2.0", which means version 2.0 only.
+[[licenses.clarify]]
+crate = "shine-rs"
+expression = "LGPL-2.0-only"
+license-files = []
 
 [licenses.private]
 ignore = true
