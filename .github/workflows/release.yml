@@ -147,6 +147,9 @@ jobs:
         run: |
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
           date=$(git log -1 --format=%cs)
+          # The Linux artifact keeps its target/ subfolders: one flat folder for the release.
+          find dist -mindepth 2 -type f -exec mv -t dist {} +
+          find dist -mindepth 1 -type d -empty -delete
           (cd dist && sha256sum -- * > SHA256SUMS)
           # Read by the update check of the official builds (crates/audiostrada-ui/src/updates.rs).
           printf '{"version":"%s","date":"%s","url":"%s/download"}\n' "$version" "$date" "$SITE_URL" > dist/latest.json
