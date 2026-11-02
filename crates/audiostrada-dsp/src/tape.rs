@@ -1,5 +1,9 @@
 //! Tape machine: saturation with a touch of memory (soft hysteresis), the head bump in the
 //! lows, the high-frequency loss of the chosen speed, wow and flutter, and hiss.
+//!
+//! Subtle by default: the tape has headroom above full scale, the drive changes the color and
+//! not the level, and the highs are emphasized before the tape and restored after it, as on a
+//! real machine, so they saturate first while the lows stay clear.
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::drive::{Oversampler, TAPS, kernel};
@@ -20,10 +24,10 @@ pub const INFO: EffectInfo = EffectInfo {
 const SPEEDS: [&str; 3] = ["7.5 ips", "15 ips", "30 ips"];
 
 const PARAMS: [ParamInfo; 8] = [
-    param("drive", "Drive", -12.0, 18.0, 3.0, "dB"),
+    param("drive", "Drive", -12.0, 24.0, 0.0, "dB"),
     choice("speed", "Speed", &SPEEDS, 1.0),
-    param("bump", "Head bump", 0.0, 6.0, 2.0, "dB"),
-    param("wow", "Wow & flutter", 0.0, 100.0, 15.0, "%"),
+    param("bump", "Head bump", 0.0, 6.0, 1.5, "dB"),
+    param("wow", "Wow & flutter", 0.0, 100.0, 0.0, "%"),
     param("hiss", "Hiss", 0.0, 100.0, 0.0, "%"),
     param("bias", "Bias", -100.0, 100.0, 0.0, "%"),
     param("output", "Output", -18.0, 12.0, 0.0, "dB"),
@@ -33,6 +37,11 @@ const PARAMS: [ParamInfo; 8] = [
 /// Head bump frequency and high-frequency roll-off for each speed.
 const SPEED_SHAPE: [(f32, f32); 3] = [(55.0, 11_000.0), (85.0, 17_000.0), (110.0, 21_000.0)];
 const MAX_WOW_MS: f32 = 6.0;
+/// Level where the tape starts to bend, above full scale.
+const HEADROOM: f32 = 1.6;
+/// Highs lifted before the tape and lowered after it.
+const EMPHASIS_HZ: f64 = 3_000.0;
+const EMPHASIS_DB: f64 = 6.0;
 
 #[derive(Debug)]
 pub struct Tape {
@@ -44,7 +53,9 @@ pub struct Tape {
     memory: [f32; 2],
     bump: Coefficients,
     rolloff: Coefficients,
-    filters: [[Biquad; 2]; 2],
+    emphasis: Coefficients,
+    deemphasis: Coefficients,
+    filters: [[Biquad; 4]; 2],
     wow: [Line; 2],
     phase: [f32; 2],
     noise: u32,
@@ -61,7 +72,9 @@ impl Default for Tape {
             memory: [0.0; 2],
             bump: Coefficients::IDENTITY,
             rolloff: Coefficients::IDENTITY,
-            filters: [[Biquad::default(); 2]; 2],
+            emphasis: Coefficients::IDENTITY,
+            deemphasis: Coefficients::IDENTITY,
+            filters: [[Biquad::default(); 4]; 2],
             wow: Default::default(),
             phase: [0.0, 1.7],
             noise: 0x1234_5678,
@@ -72,10 +85,12 @@ impl Default for Tape {
     }
 }
 
-/// Saturation with memory: the previous output pulls the curve, a soft hysteresis.
+/// Saturation with memory: the previous output pulls the curve a little, a soft hysteresis.
+/// Linear at low levels, it bends gently towards the headroom.
 #[inline]
 fn saturate(x: f32, memory: &mut f32, bias: f32) -> f32 {
-    let y = (x + 0.12 * *memory + bias).tanh() - bias.tanh();
+    let v = (x + 0.03 * *memory) / HEADROOM + bias;
+    let y = (v.tanh() - bias.tanh()) * HEADROOM;
     *memory = y;
     y
 }
@@ -105,6 +120,10 @@ impl Tape {
             0.0,
             rate,
         );
+        self.emphasis =
+            Coefficients::design(FilterKind::HighShelf, EMPHASIS_HZ, 0.7, EMPHASIS_DB, rate);
+        self.deemphasis =
+            Coefficients::design(FilterKind::HighShelf, EMPHASIS_HZ, 0.7, -EMPHASIS_DB, rate);
     }
 
     #[inline]
@@ -133,11 +152,12 @@ impl Effect for Tape {
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         let [drive, _, _, wow, hiss, bias, output, mix] = self.values;
         let gain = db_to_gain(drive);
-        // Saturation is level-compensated so the drive changes the color more than the level.
-        let makeup = db_to_gain(output) / gain.sqrt();
+        // Level-compensated: the drive changes the color, not the level.
+        let makeup = db_to_gain(output) / gain;
         let bias = bias / 100.0 * 0.3;
-        let hiss = hiss / 100.0 * db_to_gain(-58.0);
-        let depth = wow / 100.0 * MAX_WOW_MS * 0.001 * self.rate;
+        // Both grow slowly at first, so small settings stay subtle and the top end goes far.
+        let hiss = (hiss / 100.0).powi(2) * db_to_gain(-36.0);
+        let depth = (wow / 100.0).powi(2) * MAX_WOW_MS * 0.001 * self.rate;
         let base = depth + 2.0;
         let (wow_step, flutter_step) = (
             std::f32::consts::TAU * 0.6 / self.rate,
@@ -154,7 +174,8 @@ impl Effect for Tape {
             let mut out = [0.0f32; 2];
             for ch in 0..2 {
                 let memory = std::cell::Cell::new(self.memory[ch]);
-                let x = dry[ch] * gain;
+                let x =
+                    self.filters[ch][2].process(&self.emphasis, f64::from(dry[ch])) as f32 * gain;
                 let y = self.stages[ch].run(&kernel, x, |v| {
                     let mut m = memory.get();
                     let y = saturate(v, &mut m, bias);
@@ -162,6 +183,7 @@ impl Effect for Tape {
                     y
                 });
                 self.memory[ch] = memory.get();
+                let y = self.filters[ch][3].process(&self.deemphasis, f64::from(y)) as f32;
                 let y = self.filters[ch][0].process(&self.bump, f64::from(y)) as f32;
                 let y = self.filters[ch][1].process(&self.rolloff, f64::from(y)) as f32;
                 // Wow and flutter: the signal goes through a gently modulated delay.
@@ -183,7 +205,7 @@ impl Effect for Tape {
     fn reset(&mut self) {
         self.stages = [Oversampler::new(), Oversampler::new()];
         self.memory = [0.0; 2];
-        self.filters = [[Biquad::default(); 2]; 2];
+        self.filters = [[Biquad::default(); 4]; 2];
         for line in &mut self.wow {
             line.clear();
         }
@@ -203,20 +225,60 @@ mod tests {
         l
     }
 
+    fn sine(f: f32, a: f32) -> Vec<f32> {
+        (0..48_000)
+            .map(|i| a * (i as f32 * f * std::f32::consts::TAU / 48_000.0).sin())
+            .collect()
+    }
+
+    fn peak(x: &[f32]) -> f32 {
+        x[24_000..].iter().fold(0.0f32, |m, s| m.max(s.abs()))
+    }
+
+    /// Energy left once the input sine is removed, relative to it (distortion and noise).
+    fn residue(out: &[f32], f: f32) -> f32 {
+        let part = &out[24_000..];
+        let (mut c, mut s) = (0.0f32, 0.0f32);
+        for (i, v) in part.iter().enumerate() {
+            let t = (24_000 + i) as f32 * f * std::f32::consts::TAU / 48_000.0;
+            c += v * t.cos();
+            s += v * t.sin();
+        }
+        let n = part.len() as f32;
+        let (c, s) = (2.0 * c / n, 2.0 * s / n);
+        let fitted: f32 = part
+            .iter()
+            .enumerate()
+            .map(|(i, v)| {
+                let t = (24_000 + i) as f32 * f * std::f32::consts::TAU / 48_000.0;
+                (v - c * t.cos() - s * t.sin()).powi(2)
+            })
+            .sum();
+        (fitted / (c * c + s * s) / n * 2.0).sqrt()
+    }
+
     #[test]
-    fn saturates_bumps_the_lows_and_stays_finite() {
-        let sine = |f: f32, a: f32| -> Vec<f32> {
-            (0..48_000)
-                .map(|i| a * (i as f32 * f * std::f32::consts::TAU / 48_000.0).sin())
-                .collect()
-        };
+    fn subtle_by_default_and_strong_when_pushed() {
+        let input = sine(1000.0, 0.5);
+        let gentle = run(&mut Tape::default(), &input);
+        let level = peak(&gentle) / 0.5;
+        assert!((0.9..1.1).contains(&level), "same level: {level}");
+        assert!(residue(&gentle, 1000.0) < 0.01, "clean by default");
+        let mut pushed = Tape::default();
+        pushed.set_param(0, 18.0);
+        pushed.prepare(48_000, 256);
+        let hot = run(&mut pushed, &input);
+        assert!(residue(&hot, 1000.0) > 0.05, "saturated when driven");
+        assert!(peak(&hot) < 1.2, "the drive keeps the level");
+    }
+
+    #[test]
+    fn bumps_the_lows_and_stays_finite() {
         let mut tape = Tape::default();
-        tape.set_param(3, 0.0);
         tape.set_param(2, 6.0);
         tape.prepare(48_000, 256);
         let low = run(&mut tape, &sine(85.0, 0.05));
         let mid = run(&mut Tape::default(), &sine(1000.0, 0.05));
-        let peak = |x: &[f32]| x[24_000..].iter().fold(0.0f32, |m, s| m.max(s.abs()));
         assert!(
             peak(&low) > peak(&mid),
             "head bump: {} vs {}",
@@ -224,7 +286,7 @@ mod tests {
             peak(&mid)
         );
         let mut hot = Tape::default();
-        hot.set_param(0, 18.0);
+        hot.set_param(0, 24.0);
         hot.set_param(4, 100.0);
         hot.set_param(3, 100.0);
         hot.prepare(48_000, 256);

@@ -1040,23 +1040,11 @@ fn factory(effect: &str) -> Vec<Preset> {
             ),
             preset(
                 tr("Keys: warm 7.5 ips"),
-                &[
-                    ("drive", 5.0),
-                    ("speed", 0.0),
-                    ("bump", 3.0),
-                    ("wow", 25.0),
-                    ("output", -2.0),
-                ],
+                &[("drive", 5.0), ("speed", 0.0), ("bump", 3.0), ("wow", 25.0)],
             ),
             preset(
                 tr("Bass: fat 7.5 ips"),
-                &[
-                    ("drive", 6.0),
-                    ("speed", 0.0),
-                    ("bump", 4.0),
-                    ("wow", 8.0),
-                    ("output", -3.0),
-                ],
+                &[("drive", 6.0), ("speed", 0.0), ("bump", 4.0), ("wow", 8.0)],
             ),
             preset(
                 tr("Drums: saturated"),
@@ -1065,7 +1053,6 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("speed", 1.0),
                     ("bump", 3.0),
                     ("bias", 30.0),
-                    ("output", -4.0),
                 ],
             ),
             preset(
@@ -1086,7 +1073,6 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("bump", 3.0),
                     ("wow", 90.0),
                     ("hiss", 50.0),
-                    ("output", -4.0),
                 ],
             ),
         ],
