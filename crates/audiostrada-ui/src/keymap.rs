@@ -149,7 +149,7 @@ pub struct Keymap {
 }
 
 /// Bumped when default bindings are added, so saved keymaps get them.
-const VERSION: u32 = 9;
+const VERSION: u32 = 10;
 
 impl Default for Keymap {
     fn default() -> Self {
@@ -192,6 +192,7 @@ const COMMON: &[Binding] = &[
     (k(CMD, false, false, Key::Comma), Action::Preferences),
     (k(CMD, true, false, Key::T), Action::AddTrack),
     (k(CMD, true, false, Key::N), Action::AddTracks),
+    (k(CMD, true, false, Key::G), Action::ToggleGroups),
     (k(CMD, true, false, Key::D), Action::DuplicateTracks),
     (k(CMD, false, false, Key::Delete), Action::DeleteTracks),
     (k(CMD, false, false, Key::Backspace), Action::DeleteTracks),
@@ -398,10 +399,13 @@ impl Keymap {
                 self.bindings.push((f11, Action::ToggleFullscreen));
             }
         }
-        if self.version < 9 {
-            let shortcut = Shortcut::new(true, true, false, Key::N);
-            if !self.bindings.iter().any(|(s, _)| *s == shortcut) {
-                self.bindings.push((shortcut, Action::AddTracks));
+        for (version, key, action) in [
+            (9, Key::N, Action::AddTracks),
+            (10, Key::G, Action::ToggleGroups),
+        ] {
+            let shortcut = Shortcut::new(true, true, false, key);
+            if self.version < version && !self.bindings.iter().any(|(s, _)| *s == shortcut) {
+                self.bindings.push((shortcut, action));
             }
         }
         if self.version < VERSION {

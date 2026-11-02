@@ -388,10 +388,11 @@ impl TimelineView {
         self.range = None;
     }
 
-    /// Clips a clip menu acts on: the selection when it holds the clicked clip.
-    fn menu_targets(&mut self, clip: ClipId) -> Vec<ClipId> {
+    /// Clips a clip menu acts on: the selection when it holds the clicked clip, else the clip
+    /// with those edited along with it.
+    fn menu_targets(&mut self, project: &Project, clip: ClipId) -> Vec<ClipId> {
         if !self.selection.contains(&clip) {
-            self.selection = vec![clip];
+            self.selection = audiostrada_core::groups::edit_clips(project, &[clip]);
         }
         self.selection.clone()
     }
@@ -402,7 +403,7 @@ impl TimelineView {
             ui.close();
             return;
         };
-        let ids = self.menu_targets(clip);
+        let ids = self.menu_targets(doc.project(), clip);
         let many = ids.len() > 1;
         ui.label(
             RichText::new(if many {

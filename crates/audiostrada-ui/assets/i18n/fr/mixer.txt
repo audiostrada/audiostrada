@@ -653,3 +653,60 @@ Glisser un effet pour réordonner la chaîne. Clic pour l'éditer, clic droit po
 
 {name} and {n} more
 {name} et {n} autre(s)
+
+Groups on or off
+Activer ou suspendre les groupes
+
+Groups off: every track behaves on its own
+Groupes suspendus : chaque piste agit seule
+
+Groups on
+Groupes actifs
+
+Auto
+Auto
+
+Bypass of the inserts
+Bypass des inserts
+
+Clicking a clip or a track in the timeline selects the members' too: cuts, moves, trims and fades apply to all
+Cliquer un clip ou une piste dans la timeline sélectionne aussi ceux des membres : coupes, déplacements, rognages et fondus s'appliquent à tous
+
+Ctrl+Shift+G. Off, every track behaves on its own. To move one track alone, hold Ctrl while using its control
+Ctrl+Maj+G. Décoché, chaque piste agit seule. Pour bouger une seule piste, maintenir Ctrl en utilisant sa commande
+
+Faders move together, keeping their balance
+Les faders bougent ensemble en gardant leur équilibre
+
+Folder group
+Groupe de dossier
+
+Folder {name}: {members}
+Dossier {name} : {members}
+
+Groups (off)
+Groupes (suspendus)
+
+Its members are the tracks of its folder
+Ses membres sont les pistes de son dossier
+
+No groups yet. Members of a group share level changes, mute, solo, arm, editing and more. A folder can also act as a group, from its menu.
+Aucun groupe. Les membres d'un groupe partagent niveau, mute, solo, armement, édition et plus. Un dossier peut aussi servir de groupe, depuis son menu.
+
+Pans move together, by as much
+Les panoramiques bougent ensemble, d'autant
+
+Sends
+Départs
+
+Sends to the same bus move together, keeping their balance
+Les départs vers le même bus bougent ensemble en gardant leur équilibre
+
+Tracks whose level, mute, solo, arm, editing and more move together
+Pistes dont niveau, mute, solo, armement, édition et plus vont ensemble
+
+Folder acts as a group
+Le dossier sert de groupe
+
+Its tracks move, mute, solo and edit together, as set in Groups; tracks moved in or out of the folder join or leave
+Ses pistes bougent, se coupent, passent en solo et s'éditent ensemble, selon les réglages de Groupes ; les pistes entrées ou sorties du dossier rejoignent ou quittent le groupe

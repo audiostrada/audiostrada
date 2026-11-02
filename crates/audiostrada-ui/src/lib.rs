@@ -905,6 +905,16 @@ impl AudioStradaApp {
             }
             Action::AddVca => mixer::add_vca(&mut self.doc.borrow_mut()),
             Action::GroupTracks => mixer::group_selection(&mut self.doc.borrow_mut()),
+            Action::ToggleGroups => {
+                let mut doc = self.doc.borrow_mut();
+                let off = !doc.project().groups_off;
+                doc.history_mut().modify_unrecorded(|p| p.groups_off = off);
+                doc.notify(if off {
+                    tr("Groups off: every track behaves on its own").into()
+                } else {
+                    tr("Groups on").into()
+                });
+            }
             Action::DuplicateTracks => {
                 let mut doc = self.doc.borrow_mut();
                 let tracks = doc.selected_tracks().to_vec();
@@ -1849,6 +1859,7 @@ impl AudioStradaApp {
                     Action::DuplicateTracks,
                     Action::DeleteTracks,
                     Action::GroupTracks,
+                    Action::ToggleGroups,
                     Action::MuteTracks,
                     Action::SoloTracks,
                     Action::ArmTracks,

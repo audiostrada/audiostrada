@@ -215,9 +215,13 @@ panel leaves.
   the send to every selected track; tick *Cut the output to the master* first for tracks heard
   only through the bus.
 - **Folders**: a track can hold others; its strip is their bus.
-- **Groups**: select tracks and press Ctrl+G; the Groups menu sets what they share (level,
-  mute, solo, arm). **VCAs**: Add VCA with tracks selected makes a fader that moves their
-  levels together.
+- **Groups**: select tracks and press Ctrl+G, or tick *Folder acts as a group* in a folder's
+  menu. The Groups menu sets what members share: level, pan and sends (relative), mute, solo,
+  arm, inserts bypass, automation mode, polarity, and editing (a click on a clip or a track in
+  the timeline takes the members' too, so cuts, moves, trims and fades apply to all). Hold Ctrl
+  to use one track's control or select one clip alone; Ctrl+Shift+G switches every group off
+  and on. **VCAs**: Add VCA with tracks selected makes a fader that moves their levels
+  together.
 - **Snapshots** save and recall the console; the master's **MONITOR** section holds effects
   you hear but that are not exported (room correction, reference).
 - **Master**: loudness (LUFS) and the highest sample peak beside the meter, restarted by
@@ -370,6 +374,8 @@ shortcut. A few defaults (AudioStrada preset):
 | Ctrl+Up / Down, Alt+Up / Down | Select / move tracks |
 | Shift+Alt+M / S / R | Mute / solo / arm the selected tracks |
 | Ctrl+G | Group the selected tracks |
+| Ctrl+Shift+G | Groups on or off |
+| Ctrl+Shift+T / Ctrl+Shift+N | Add an audio track below the selection / add several |
 | Ctrl+M | Mixer in its own window (again to dock it) |
 | Ctrl+P | Piano roll in its own window (again to dock it) |
 | Alt+1 … Alt+5 | Show or hide the mixer, piano roll, browser, inspector, markers |

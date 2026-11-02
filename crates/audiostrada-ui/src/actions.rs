@@ -138,6 +138,7 @@ actions! {
     SoloTracks => ("Track", "Solo selected tracks"),
     ArmTracks => ("Track", "Arm selected tracks"),
     GroupTracks => ("Track", "Group selected tracks"),
+    ToggleGroups => ("Track", "Groups on or off"),
     NewPlaylist => ("Track", "New playlist on selected track"),
     NextPlaylist => ("Track", "Next playlist on selected track"),
 }

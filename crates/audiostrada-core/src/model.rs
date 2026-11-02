@@ -456,6 +456,9 @@ pub struct Project {
     /// Track groups.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub groups: Vec<crate::groups::TrackGroup>,
+    /// Every group suspended: members behave on their own.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub groups_off: bool,
     /// Mix snapshots, recalled from the console.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub snapshots: Vec<crate::snapshot::MixSnapshot>,
@@ -627,6 +630,7 @@ impl Project {
             metronome: MetronomeSettings::default(),
             snapshots: Vec::new(),
             groups: Vec::new(),
+            groups_off: false,
             all_fx_off: false,
             loop_off: false,
             loop_fixed: false,
@@ -753,6 +757,8 @@ impl Project {
         };
         self.metronome.count_in = self.metronome.count_in.min(8);
         let ids: Vec<TrackId> = self.tracks.iter().map(|t| t.id).collect();
+        self.groups
+            .retain(|g| g.folder.is_none_or(|f| ids.contains(&f)));
         for g in &mut self.groups {
             let mut kept = Vec::with_capacity(g.tracks.len());
             for t in g.tracks.drain(..) {
@@ -865,6 +871,7 @@ impl Project {
         self.tracks.retain(|t| t.id != id);
         self.midi_map
             .retain(|m| m.track != Some(id) && m.target != AutomationTarget::Send(id));
+        self.groups.retain(|g| g.folder != Some(id));
         for g in &mut self.groups {
             g.tracks.retain(|t| *t != id);
         }

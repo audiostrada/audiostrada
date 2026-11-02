@@ -1759,24 +1759,30 @@ impl TimelineView {
             if row.bottom() - 26.0 > header.top() {
                 if button(ui, 10.0, "M", track.mute, crate::theme::MUTE) {
                     let mute = !track.mute;
+                    let alone = crate::mixer::clutch(ui);
                     doc.history_mut().edit(tr("Mute"), |p| {
-                        audiostrada_core::groups::set_switch(
-                            p,
-                            id,
-                            audiostrada_core::groups::Link::Mute,
-                            mute,
-                        )
+                        audiostrada_core::groups::maybe_alone(p, alone, |p| {
+                            audiostrada_core::groups::set_switch(
+                                p,
+                                id,
+                                audiostrada_core::groups::Link::Mute,
+                                mute,
+                            )
+                        })
                     });
                 }
                 if button(ui, 38.0, "S", track.solo, crate::theme::SOLO) {
                     let solo = !track.solo;
+                    let alone = crate::mixer::clutch(ui);
                     doc.history_mut().edit(tr("Solo"), |p| {
-                        audiostrada_core::groups::set_switch(
-                            p,
-                            id,
-                            audiostrada_core::groups::Link::Solo,
-                            solo,
-                        )
+                        audiostrada_core::groups::maybe_alone(p, alone, |p| {
+                            audiostrada_core::groups::set_switch(
+                                p,
+                                id,
+                                audiostrada_core::groups::Link::Solo,
+                                solo,
+                            )
+                        })
                     });
                 }
                 let arm = Rect::from_min_size(pos2(row.left() + 66.0, y), vec2(24.0, 20.0));
@@ -1788,13 +1794,16 @@ impl TimelineView {
                 });
                 if arm_response.is_some_and(|r| r.clicked()) {
                     let armed = !track.armed;
+                    let alone = crate::mixer::clutch(ui);
                     doc.history_mut().modify_unrecorded(|p| {
-                        audiostrada_core::groups::set_switch(
-                            p,
-                            id,
-                            audiostrada_core::groups::Link::Arm,
-                            armed,
-                        )
+                        audiostrada_core::groups::maybe_alone(p, alone, |p| {
+                            audiostrada_core::groups::set_switch(
+                                p,
+                                id,
+                                audiostrada_core::groups::Link::Arm,
+                                armed,
+                            )
+                        })
                     });
                 }
                 let input_label = if track.stereo {
@@ -1830,6 +1839,9 @@ impl TimelineView {
             if response.clicked() {
                 let mode = SelectMode::from_modifiers(ui.input(|i| i.modifiers));
                 doc.select_track(id, mode);
+                if mode != SelectMode::Toggle {
+                    self.follow_groups(doc);
+                }
             }
             if response.secondary_clicked() && !doc.is_track_selected(id) {
                 doc.select_track(id, SelectMode::Only);
@@ -2065,6 +2077,22 @@ impl TimelineView {
     }
 
     /// Lanes that can be added to a track (shown again if hidden).
+    /// Adds to the selection the clips and tracks edited along with it (groups), the tracks
+    /// chosen staying last (focused).
+    fn follow_groups(&mut self, doc: &mut Document) {
+        let project = doc.project();
+        self.selection = audiostrada_core::groups::edit_clips(project, &self.selection);
+        let chosen = doc.selected_tracks().to_vec();
+        let mut tracks: Vec<TrackId> = audiostrada_core::groups::edit_tracks(project, &chosen)
+            .into_iter()
+            .filter(|t| !chosen.contains(t))
+            .collect();
+        if !tracks.is_empty() {
+            tracks.extend(chosen);
+            doc.set_track_selection(tracks);
+        }
+    }
+
     /// Clips from the last clicked one to `clip`: those overlapping the time between them, on the
     /// shown tracks between theirs.
     fn clips_between(&self, project: &Project, clip: ClipId) -> Vec<ClipId> {
@@ -2434,6 +2462,10 @@ impl TimelineView {
                             self.selection.clear();
                         }
                         self.selection.push(clip);
+                        if !modifiers.command {
+                            self.selection =
+                                audiostrada_core::groups::edit_clips(project, &self.selection);
+                        }
                     }
                     (kind, Some(clip))
                 }
@@ -2443,6 +2475,9 @@ impl TimelineView {
                 && !doc.is_track_selected(track)
             {
                 doc.select_track(track, SelectMode::Only);
+                if !modifiers.command {
+                    self.follow_groups(doc);
+                }
             }
             self.drag = Some(Drag {
                 kind,
@@ -2636,7 +2671,12 @@ impl TimelineView {
                         .enumerate()
                         .filter(|(i, _)| *i >= first && *i <= last)
                         .map(|(_, &(index, _))| project.tracks[index].id)
-                        .collect();
+                        .collect::<Vec<_>>();
+                    let tracks = if modifiers.command {
+                        tracks
+                    } else {
+                        audiostrada_core::groups::edit_tracks(project, &tracks)
+                    };
                     self.range = (b > a).then_some(Range {
                         start: a,
                         end: b,
@@ -2692,6 +2732,10 @@ impl TimelineView {
                                 .map(|c| c.id)
                         })
                         .collect();
+                    if !modifiers.command {
+                        self.selection =
+                            audiostrada_core::groups::edit_clips(project, &self.selection);
+                    }
                 }
             }
             if !matches!(
@@ -2902,6 +2946,10 @@ impl TimelineView {
                         }
                     } else {
                         doc.select_track(track, SelectMode::Only);
+                    }
+                    // Ctrl takes or leaves the clip alone.
+                    if !modifiers.command {
+                        self.follow_groups(doc);
                     }
                 }
                 None => {
@@ -3500,6 +3548,32 @@ mod tests {
                 .map(|&t| doc.borrow().project().track(t).unwrap().clips[0].fade_in)
                 .collect();
             assert!(fades[0] > 0 && fades[0] == fades[1], "{fades:?}");
+        }
+
+        #[test]
+        fn a_group_selects_and_edits_its_members_clips_unless_ctrl() {
+            let (mut h, doc, tracks) = harness();
+            doc.borrow_mut().history_mut().edit("Group", |p| {
+                p.groups
+                    .push(audiostrada_core::groups::TrackGroup::new("G", [0; 3]));
+                for &t in &tracks {
+                    audiostrada_core::groups::set_group(p, t, Some(0));
+                }
+            });
+            let lanes = h.view.lanes_rect;
+            let a = lanes.top() + h.view.tops[0] + 25.0;
+            h.click(pos2(lanes.left() + 20.0, a), Modifiers::NONE);
+            assert_eq!(h.view.selection.len(), 2, "the member's clip too");
+            assert_eq!(doc.borrow().selected_tracks(), [tracks[1], tracks[0]]);
+            h.view.selection.clear();
+            h.click(pos2(lanes.left() + 20.0, a), Modifiers::COMMAND);
+            assert_eq!(h.view.selection.len(), 1, "Ctrl: the clip alone");
+            doc.borrow_mut()
+                .history_mut()
+                .modify_unrecorded(|p| p.groups_off = true);
+            h.view.selection.clear();
+            h.click(pos2(lanes.left() + 20.0, a), Modifiers::NONE);
+            assert_eq!(h.view.selection.len(), 1, "groups off");
         }
     }
 

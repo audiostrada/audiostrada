@@ -22,7 +22,7 @@ use crate::settings::{ERROR, METER_FLOOR_DB, OK, WARN};
 use crate::theme;
 use crate::trf;
 use crate::widgets::{self, MeterState};
-use audiostrada_core::groups::Link;
+use audiostrada_core::groups::{self, Link};
 
 const METER_FALL_DB_PER_S: f32 = 24.0;
 const STRIP_WIDTH: f32 = 104.0;
@@ -267,6 +267,11 @@ pub(crate) fn save_chain_dialog(ctx: &egui::Context, doc: &mut Document) {
     } else {
         ctx.data_mut(|d| d.insert_temp(id, dialog));
     }
+}
+
+/// Ctrl (Cmd) held: the control moves its own track alone, out of its group.
+pub(crate) fn clutch(ui: &Ui) -> bool {
+    ui.input(|i| i.modifiers.command)
 }
 
 /// The other selected tracks when `id` is part of a selection of several, else none.
@@ -634,9 +639,37 @@ fn db_label(db: f32) -> String {
     }
 }
 
+/// What each column of the groups table links, with its help.
+fn link_labels(link: Link) -> (&'static str, &'static str) {
+    match link {
+        Link::Gain => (
+            tr("Level"),
+            tr("Faders move together, keeping their balance"),
+        ),
+        Link::Pan => (tr("Pan"), tr("Pans move together, by as much")),
+        Link::Sends => (
+            tr("Sends"),
+            tr("Sends to the same bus move together, keeping their balance"),
+        ),
+        Link::Mute => (tr("Mute"), tr("Mute")),
+        Link::Solo => (tr("Solo"), tr("Solo")),
+        Link::Arm => (tr("Arm"), tr("Record arm")),
+        Link::Fx => (tr("FX"), tr("Bypass of the inserts")),
+        Link::Automation => (tr("Auto"), tr("Automation mode")),
+        Link::Polarity => ("Ø", tr("Polarity")),
+        Link::Edit => (
+            tr("Edit"),
+            tr(
+                "Clicking a clip or a track in the timeline selects the members' too: cuts, \
+                 moves, trims and fades apply to all",
+            ),
+        ),
+    }
+}
+
 /// Track groups: create, rename, choose what they link, switch off or delete.
 fn groups_menu(ui: &mut Ui, doc: &mut Document) {
-    ui.set_min_width(520.0);
+    ui.set_min_width(760.0);
     ui.horizontal(|ui| {
         let selected = doc.selected_tracks().len();
         if ui
@@ -649,32 +682,43 @@ fn groups_menu(ui: &mut Ui, doc: &mut Document) {
             group_selection(doc);
         }
         ui.weak(trf!("{count} track(s) selected", count = selected));
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            let mut on = !doc.project().groups_off;
+            if ui
+                .checkbox(&mut on, tr("Groups on"))
+                .on_hover_text(tr(
+                    "Ctrl+Shift+G. Off, every track behaves on its own. To move one track \
+                     alone, hold Ctrl while using its control",
+                ))
+                .changed()
+            {
+                doc.history_mut().modify_unrecorded(|p| p.groups_off = !on);
+            }
+        });
     });
     let groups = doc.project().groups.clone();
     if groups.is_empty() {
         ui.weak(tr(
-            "No groups yet. Members of a group share level changes, mute, solo and arm.",
+            "No groups yet. Members of a group share level changes, mute, solo, arm, editing \
+             and more. A folder can also act as a group, from its menu.",
         ));
         return;
     }
     let project = doc.project().clone();
     egui::Grid::new("groups-matrix")
-        .num_columns(9)
-        .spacing([8.0, 6.0])
+        .num_columns(15)
+        .spacing([6.0, 6.0])
         .show(ui, |ui| {
-            for header in [
-                "",
-                tr("Name"),
-                tr("On"),
-                tr("Level"),
-                tr("Mute"),
-                tr("Solo"),
-                tr("Arm"),
-                tr("Members"),
-                "",
-            ] {
-                ui.label(RichText::new(header).size(10.0).weak());
+            ui.label("");
+            ui.label(RichText::new(tr("Name")).size(10.0).weak());
+            ui.label(RichText::new(tr("On")).size(10.0).weak());
+            for link in Link::ALL {
+                let (label, help) = link_labels(link);
+                ui.label(RichText::new(label).size(10.0).weak())
+                    .on_hover_text(help);
             }
+            ui.label(RichText::new(tr("Members")).size(10.0).weak());
+            ui.label("");
             ui.end_row();
             for (i, group) in groups.iter().enumerate() {
                 let (rect, _) = ui.allocate_exact_size(vec2(12.0, 12.0), Sense::hover());
@@ -685,7 +729,7 @@ fn groups_menu(ui: &mut Ui, doc: &mut Document) {
                 );
                 let mut name = group.name.clone();
                 if ui
-                    .add(egui::TextEdit::singleline(&mut name).desired_width(100.0))
+                    .add(egui::TextEdit::singleline(&mut name).desired_width(90.0))
                     .changed()
                 {
                     doc.history_mut()
@@ -696,15 +740,13 @@ fn groups_menu(ui: &mut Ui, doc: &mut Document) {
                         });
                 }
                 let mut g = group.clone();
-                let mut changed = false;
-                for flag in [
-                    &mut g.active,
-                    &mut g.gain,
-                    &mut g.mute,
-                    &mut g.solo,
-                    &mut g.arm,
-                ] {
-                    changed |= ui.checkbox(flag, "").changed();
+                let mut changed = ui.checkbox(&mut g.active, "").changed();
+                for link in Link::ALL {
+                    let help = link_labels(link).1;
+                    changed |= ui
+                        .checkbox(g.link_mut(link), "")
+                        .on_hover_text(help)
+                        .changed();
                 }
                 if changed {
                     doc.history_mut().edit(tr("Group links"), |p| {
@@ -713,15 +755,20 @@ fn groups_menu(ui: &mut Ui, doc: &mut Document) {
                         }
                     });
                 }
-                let names: Vec<&str> = group
-                    .tracks
+                let tracks = groups::members(&project, group);
+                let names: Vec<&str> = tracks
                     .iter()
                     .filter_map(|t| project.track(*t).map(|t| t.name.as_str()))
                     .collect();
                 let summary = match names.len() {
                     0 => tr("none").to_owned(),
-                    1..=3 => names.join(", "),
+                    1..=2 => names.join(", "),
                     n => format!("{}, … ({n})", names[..2].join(", ")),
+                };
+                let folder = group.folder.and_then(|f| project.track(f));
+                let summary = match folder {
+                    Some(f) => trf!("Folder {name}: {members}", name = f.name, members = summary),
+                    None => summary,
                 };
                 ui.label(RichText::new(summary).size(11.0))
                     .on_hover_text(names.join("\n"));
@@ -731,19 +778,20 @@ fn groups_menu(ui: &mut Ui, doc: &mut Document) {
                         .on_hover_text(tr("Select the members"))
                         .clicked()
                     {
-                        doc.set_track_selection(group.tracks.clone());
+                        doc.set_track_selection(tracks.clone());
                     }
                     let selected = doc.selected_tracks().to_vec();
-                    if ui
-                        .add_enabled(
-                            !selected.is_empty(),
-                            egui::Button::new(tr("Add selected")).small(),
-                        )
-                        .clicked()
+                    if folder.is_none()
+                        && ui
+                            .add_enabled(
+                                !selected.is_empty(),
+                                egui::Button::new(tr("Add selected")).small(),
+                            )
+                            .clicked()
                     {
                         doc.history_mut().edit(tr("Join group"), |p| {
                             for &t in &selected {
-                                audiostrada_core::groups::set_group(p, t, Some(i));
+                                groups::set_group(p, t, Some(i));
                             }
                         });
                     }
@@ -756,6 +804,27 @@ fn groups_menu(ui: &mut Ui, doc: &mut Document) {
                     }
                 });
                 ui.end_row();
+            }
+        });
+}
+
+/// Makes a folder act as a group of its tracks, or stop.
+pub(crate) fn toggle_folder_group(doc: &mut Document, folder: TrackId) {
+    let project = doc.project();
+    let existing = groups::folder_group(project, folder);
+    let Some(track) = project.track(folder) else {
+        return;
+    };
+    let (name, color) = (track.name.clone(), track.color);
+    doc.history_mut()
+        .edit(tr("Folder group"), |p| match existing {
+            Some(i) => {
+                p.groups.remove(i);
+            }
+            None => {
+                let mut group = groups::TrackGroup::new(&name, color);
+                group.folder = Some(folder);
+                p.groups.push(group);
             }
         });
 }
@@ -807,12 +876,12 @@ fn group_tracks(doc: &mut Document, tracks: &[TrackId]) {
     let n = doc.project().groups.len();
     let color = crate::timeline::TRACK_COLORS[(n * 5 + 2) % crate::timeline::TRACK_COLORS.len()];
     doc.history_mut().edit(tr("Group tracks"), |p| {
-        p.groups.push(audiostrada_core::groups::TrackGroup::new(
+        p.groups.push(groups::TrackGroup::new(
             &trf!("Group {n}", n = n + 1),
             color,
         ));
         for &t in tracks {
-            audiostrada_core::groups::set_group(p, t, Some(n));
+            groups::set_group(p, t, Some(n));
         }
     });
 }
@@ -858,7 +927,7 @@ pub(crate) fn input_choices(ui: &mut Ui, doc: &mut Document, track: &Track) {
 
 /// Group choice for one track, in its menus.
 pub(crate) fn group_submenu(ui: &mut Ui, doc: &mut Document, track: TrackId) {
-    let current = audiostrada_core::groups::group_of(doc.project(), track);
+    let current = groups::group_of(doc.project(), track);
     // The selection when it holds this track, else this track alone.
     let tracks = if doc.selected_tracks().contains(&track) {
         doc.selected_tracks().to_vec()
@@ -885,22 +954,27 @@ pub(crate) fn group_submenu(ui: &mut Ui, doc: &mut Document, track: TrackId) {
         {
             doc.history_mut().edit(tr("Leave group"), |p| {
                 for &t in &tracks {
-                    audiostrada_core::groups::set_group(p, t, None);
+                    groups::set_group(p, t, None);
                 }
             });
             ui.close();
         }
-        let names: Vec<String> = doc
+        let names: Vec<(String, bool)> = doc
             .project()
             .groups
             .iter()
-            .map(|g| g.name.clone())
+            .map(|g| (g.name.clone(), g.folder.is_some()))
             .collect();
-        for (i, name) in names.iter().enumerate() {
+        for (i, (name, folder)) in names.iter().enumerate() {
+            if *folder {
+                ui.add_enabled(false, egui::Button::selectable(current == Some(i), name))
+                    .on_disabled_hover_text(tr("Its members are the tracks of its folder"));
+                continue;
+            }
             if ui.selectable_label(current == Some(i), name).clicked() {
                 doc.history_mut().edit(tr("Join group"), |p| {
                     for &t in &tracks {
-                        audiostrada_core::groups::set_group(p, t, Some(i));
+                        groups::set_group(p, t, Some(i));
                     }
                 });
                 ui.close();
@@ -1141,10 +1215,9 @@ fn mode_selector(ui: &mut Ui, doc: &mut Document, track: &Track, width: f32) {
         ui.label(RichText::new(tr("Automation mode")).strong());
         for m in AutomationMode::ALL {
             if ui.selectable_label(mode == m, mode_help(m)).clicked() && mode != m {
+                let alone = clutch(ui);
                 doc.history_mut().edit(tr("Automation mode"), |p| {
-                    if let Some(t) = p.track_mut(id) {
-                        t.automation_mode = m;
-                    }
+                    groups::maybe_alone(p, alone, |p| groups::set_automation_mode(p, id, m))
                 });
                 ui.close();
             }
@@ -1338,9 +1411,16 @@ impl MixerView {
             {
                 add_vca(&mut doc);
             }
-            ui.menu_button(tr("Groups"), |ui| groups_menu(ui, &mut doc))
+            let label = if doc.project().groups_off {
+                tr("Groups (off)")
+            } else {
+                tr("Groups")
+            };
+            ui.menu_button(label, |ui| groups_menu(ui, &mut doc))
                 .response
-                .on_hover_text(tr("Tracks whose level, mute, solo and arm move together"));
+                .on_hover_text(tr(
+                    "Tracks whose level, mute, solo, arm, editing and more move together",
+                ));
             ui.menu_button(tr("Snapshots"), |ui| snapshots_menu(ui, &mut doc))
                 .response
                 .on_hover_text(tr("Save and recall the console settings"));
@@ -1542,6 +1622,7 @@ impl MixerView {
                         pan = pan_label(pan)
                     ));
                     let name = track.name.clone();
+                    let alone = clutch(ui);
                     automated_control(
                         doc,
                         channel,
@@ -1552,11 +1633,7 @@ impl MixerView {
                             doc.history_mut().edit_merged(
                                 &trf!("Pan {name}", name = name),
                                 &format!("pan:{}", id.0),
-                                |p| {
-                                    if let Some(t) = p.track_mut(id) {
-                                        t.pan = pan;
-                                    }
-                                },
+                                |p| groups::maybe_alone(p, alone, |p| groups::set_pan(p, id, pan)),
                             );
                         },
                     );
@@ -1570,7 +1647,12 @@ impl MixerView {
                 ui.horizontal(|ui| {
                     let (changed, response) = widgets::fader(ui, shown_gain, fader_height, true);
                     let name = track.name.clone();
-                    let also = selection_with(doc, id);
+                    let alone = clutch(ui);
+                    let also = if alone {
+                        Vec::new()
+                    } else {
+                        selection_with(doc, id)
+                    };
                     automated_control(
                         doc,
                         channel,
@@ -1581,7 +1663,11 @@ impl MixerView {
                             doc.history_mut().edit_merged(
                                 &trf!("Gain {name}", name = name),
                                 &format!("gain:{}", id.0),
-                                |p| audiostrada_core::groups::set_gain_with(p, id, db, &also),
+                                |p| {
+                                    groups::maybe_alone(p, alone, |p| {
+                                        groups::set_gain_with(p, id, db, &also)
+                                    })
+                                },
                             );
                         },
                     );
@@ -1603,8 +1689,7 @@ impl MixerView {
                 self.row_height = bottom - row_top;
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 3.0;
-                    let group =
-                        audiostrada_core::groups::group_of(project, id).map(|g| &project.groups[g]);
+                    let group = groups::group_of(project, id).map(|g| &project.groups[g]);
                     let others =
                         if vca { 0.0 } else { 27.0 } + if group.is_some() { 19.0 } else { 0.0 };
                     readout(ui, width - 4.0 - others, &db_label(shown_gain));
@@ -1631,7 +1716,7 @@ impl MixerView {
                             ))
                             .clicked()
                         {
-                            doc.set_track_selection(g.tracks.clone());
+                            doc.set_track_selection(groups::members(project, g));
                         }
                     }
                 });
@@ -1659,17 +1744,23 @@ impl MixerView {
                                 doc.automation_gesture(channel, &AutomationTarget::Mute, None);
                             }
                         } else {
+                            let alone = clutch(ui);
                             doc.history_mut()
                                 .edit(&trf!("Mute {name}", name = track.name), |p| {
-                                    audiostrada_core::groups::set_switch(p, id, Link::Mute, mute)
+                                    groups::maybe_alone(p, alone, |p| {
+                                        groups::set_switch(p, id, Link::Mute, mute)
+                                    })
                                 });
                         }
                     }
                     if toggle(ui, "S", track.solo, theme::SOLO, tr("Solo")) {
                         let solo = !track.solo;
+                        let alone = clutch(ui);
                         doc.history_mut()
                             .edit(&trf!("Solo {name}", name = track.name), |p| {
-                                audiostrada_core::groups::set_switch(p, id, Link::Solo, solo)
+                                groups::maybe_alone(p, alone, |p| {
+                                    groups::set_switch(p, id, Link::Solo, solo)
+                                })
                             });
                     }
                     if !vca
@@ -1678,8 +1769,11 @@ impl MixerView {
                             .clicked()
                     {
                         let armed = !track.armed;
+                        let alone = clutch(ui);
                         doc.history_mut().modify_unrecorded(|p| {
-                            audiostrada_core::groups::set_switch(p, id, Link::Arm, armed)
+                            groups::maybe_alone(p, alone, |p| {
+                                groups::set_switch(p, id, Link::Arm, armed)
+                            })
                         });
                     }
                 });
@@ -1862,10 +1956,11 @@ impl MixerView {
                 .on_hover_text(tr("Invert polarity"))
                 .changed()
             {
+                let alone = clutch(ui);
                 doc.history_mut().edit(tr("Polarity"), |p| {
-                    if let Some(t) = p.track_mut(id) {
-                        t.invert = invert;
-                    }
+                    groups::maybe_alone(p, alone, |p| {
+                        groups::set_switch(p, id, Link::Polarity, invert)
+                    })
                 });
             }
         });
@@ -1938,13 +2033,12 @@ impl MixerView {
                 (false, true, _) => tr("Every effect is bypassed by ALL on the master"),
             };
             if toggle(ui, tr("FX"), channel_off || all_off, hint) {
+                let alone = clutch(ui);
                 doc.history_mut()
                     .edit(tr("Bypass inserts"), |p| match channel {
-                        Channel::Track(t) => {
-                            if let Some(t) = p.track_mut(t) {
-                                t.fx_off = !t.fx_off;
-                            }
-                        }
+                        Channel::Track(t) => groups::maybe_alone(p, alone, |p| {
+                            groups::set_switch(p, t, Link::Fx, !channel_off)
+                        }),
                         Channel::Master => p.master.fx_off = !p.master.fx_off,
                     });
             }
@@ -2452,6 +2546,7 @@ impl MixerView {
                         .speed(0.2)
                         .fixed_decimals(1),
                 );
+                let alone = clutch(ui);
                 automated_control(
                     doc,
                     Channel::Track(id),
@@ -2463,12 +2558,9 @@ impl MixerView {
                             tr("Send level"),
                             &format!("send:{}:{}", id.0, target.0),
                             |p| {
-                                if let Some(s) = p
-                                    .track_mut(id)
-                                    .and_then(|t| t.sends.iter_mut().find(|s| s.target == target))
-                                {
-                                    s.gain_db = db;
-                                }
+                                groups::maybe_alone(p, alone, |p| {
+                                    groups::set_send_gain(p, id, target, db)
+                                })
                             },
                         );
                     },
