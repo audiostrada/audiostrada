@@ -19,7 +19,9 @@ sur le `PATH`, [Inno Setup 6](https://jrsoftware.org/isinfo.php) sous Windows, X
   `application/x-audiostrada-project` pour les fichiers `.strada`, les métadonnées AppStream et les
   icônes de 16 à 512 px. PipeWire, ALSA et JACK viennent du système (le `.deb` dépend de
   `libpipewire`, recommande `pipewire` et `liblilv-0-0` pour les plugins LV2). L'AppImage
-  n'embarque pas ces bibliothèques non plus : leurs démons doivent correspondre.
+  n'embarque pas ces bibliothèques non plus : leurs démons doivent correspondre. Les paquets
+  sont construits sur Ubuntu 24.04 et demandent une distribution aussi récente (glibc 2.39 :
+  Ubuntu 24.04, Debian 13, Fedora 40 ou plus). Ailleurs, compiler depuis les sources.
 - **Windows** : installation dans `Program Files\AudioStrada` (ou par utilisateur), menu Démarrer,
   icône de bureau en option, association des fichiers `.strada` en option, désinstalleur.
   L'icône est intégrée à l'exécutable ; lancé depuis le menu, AudioStrada referme la console que

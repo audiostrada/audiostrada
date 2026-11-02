@@ -18,8 +18,9 @@ env:
 
 jobs:
   linux:
-    # The oldest supported runner, so the packages work on older glibc.
-    runs-on: ubuntu-22.04
+    # The pipewire crate needs PipeWire headers newer than Ubuntu 22.04 has: the packages need
+    # glibc 2.39 (Ubuntu 24.04, Debian 13, Fedora 40 or later).
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - name: Release date
