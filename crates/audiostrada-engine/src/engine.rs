@@ -332,7 +332,13 @@ impl Engine {
         self.commands = Some(commands);
         self.garbage = Some(garbage);
         EngineProcessor {
-            pool: WorkerPool::new(self.config.worker_count(), self.config.workers.is_none()),
+            pool: WorkerPool::new(
+                self.config.worker_count(),
+                self.config.workers.is_none(),
+                std::time::Duration::from_secs_f64(
+                    self.max_frames as f64 / f64::from(sample_rate.max(1)),
+                ),
+            ),
             schedule: Some(Box::new(schedule)),
             commands: commands_rx,
             garbage: garbage_tx,

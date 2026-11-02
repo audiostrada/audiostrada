@@ -661,7 +661,12 @@ struct AudioThread {
 }
 
 impl AudioThread {
-    fn start(mut processor: Box<dyn PluginProcessor>, region: Region) -> Result<Self, String> {
+    /// `period`: the duration of a block, for the thread's real-time scheduling.
+    fn start(
+        mut processor: Box<dyn PluginProcessor>,
+        region: Region,
+        period: Duration,
+    ) -> Result<Self, String> {
         let stop = Arc::new(AtomicBool::new(false));
         let region = Arc::new(region);
         let (s, r) = (Arc::clone(&stop), Arc::clone(&region));
@@ -670,9 +675,7 @@ impl AudioThread {
         let handle = std::thread::Builder::new()
             .name("plugin audio".into())
             .spawn(move || {
-                let _ = audiostrada_rt::thread::promote_current_thread(
-                    audiostrada_rt::thread::AUDIO_PRIORITY,
-                );
+                let _ = audiostrada_rt::thread::promote_audio_thread(period);
                 let mut changes = Vec::with_capacity(MAX_CHANGES);
                 let mut events = Vec::with_capacity(MAX_MIDI);
                 while !s.load(Ordering::Relaxed) {
@@ -1030,7 +1033,9 @@ impl Host {
                     Ok(p) => p,
                     Err(e) => return Response::Failed(e),
                 };
-                match AudioThread::start(processor, region) {
+                let period =
+                    Duration::from_secs_f64(max_frames as f64 / f64::from(sample_rate.max(1)));
+                match AudioThread::start(processor, region, period) {
                     Ok(audio) => {
                         self.audio = Some(audio);
                         Response::Done

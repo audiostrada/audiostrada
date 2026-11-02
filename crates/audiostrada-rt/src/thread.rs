@@ -47,3 +47,67 @@ mod tests {
 pub fn promote_current_thread(_priority: i32) -> Result<(), String> {
     Err("real-time promotion is not implemented on this platform".into())
 }
+
+/// Makes the current thread a real-time audio thread that runs once per `period` (a device
+/// block): time-constraint scheduling on macOS, [`AUDIO_PRIORITY`] elsewhere.
+#[cfg(not(target_os = "macos"))]
+pub fn promote_audio_thread(_period: std::time::Duration) -> Result<(), String> {
+    promote_current_thread(AUDIO_PRIORITY)
+}
+
+/// Makes the current thread a real-time audio thread that runs once per `period` (a device
+/// block): time-constraint scheduling, like Core Audio's own I/O thread, so that the system's
+/// load (indexing, other applications) does not delay it.
+#[cfg(target_os = "macos")]
+#[allow(
+    deprecated,
+    reason = "libc's mach timebase rather than the mach2 crate for one call"
+)]
+pub fn promote_audio_thread(period: std::time::Duration) -> Result<(), String> {
+    use std::time::Duration;
+    let mut timebase = libc::mach_timebase_info { numer: 0, denom: 0 };
+    // SAFETY: fills a valid struct.
+    unsafe { libc::mach_timebase_info(&mut timebase) };
+    if timebase.numer == 0 {
+        return Err("no mach timebase".into());
+    }
+    let ticks = |d: Duration| {
+        (d.as_nanos() * u128::from(timebase.denom) / u128::from(timebase.numer))
+            .min(u32::MAX as u128) as u32
+    };
+    // The kernel takes 50 µs to 50 ms of computation per period.
+    let period = period.clamp(Duration::from_micros(500), Duration::from_millis(100));
+    let computation = (period / 2).clamp(Duration::from_micros(50), Duration::from_millis(50));
+    let mut policy = libc::thread_time_constraint_policy {
+        period: ticks(period),
+        computation: ticks(computation),
+        constraint: ticks(period),
+        preemptible: 1,
+    };
+    // SAFETY: the current thread's port and a policy of the flavor and count given.
+    let result = unsafe {
+        libc::thread_policy_set(
+            libc::pthread_mach_thread_np(libc::pthread_self()),
+            libc::THREAD_TIME_CONSTRAINT_POLICY as libc::thread_policy_flavor_t,
+            (&raw mut policy).cast(),
+            libc::THREAD_TIME_CONSTRAINT_POLICY_COUNT,
+        )
+    };
+    match result {
+        0 => Ok(()),
+        err => Err(format!("thread_policy_set failed ({err})")),
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod macos_tests {
+    #[test]
+    fn audio_threads_get_time_constraints() {
+        let result = std::thread::spawn(|| {
+            super::promote_audio_thread(std::time::Duration::from_micros(2_667))
+        })
+        .join()
+        .unwrap();
+        assert_eq!(result, Ok(()));
+    }
+}
