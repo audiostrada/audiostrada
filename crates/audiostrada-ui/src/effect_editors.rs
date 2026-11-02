@@ -933,13 +933,15 @@ fn eq(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState)
         .iter()
         .map(|(b, band)| (*b, handle_of(*b, band)))
         .collect();
-    let hovered = pointer.and_then(|q| {
+    // The nearest handle within reach of a point: generous, the dots are small.
+    let pick = |q: Pos2| {
         handles
             .iter()
-            .filter(|(_, c)| c.distance(q) < 11.0)
+            .filter(|(_, c)| c.distance(q) < 18.0)
             .min_by(|a, b| a.1.distance(q).total_cmp(&b.1.distance(q)))
             .map(|h| h.0)
-    });
+    };
+    let hovered = pointer.and_then(pick);
     for (&(b, band), &(_, center)) in bands.iter().zip(&handles) {
         let color = band_color(b);
         // A dynamic band: its range as a line, the gain it has now as a ring.
@@ -995,8 +997,12 @@ fn eq(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState)
     // Mouse: drag a band (frequency and gain), wheel for Q, double-click to add or remove.
     let id = ui.scope_id().with(("eq-drag", params.insert.0));
     let drag = ui.interact(rect, id, Sense::click_and_drag());
+    // Picked where the button went down: the drag starts once the pointer has moved off it.
     if drag.drag_started()
-        && let Some(b) = hovered
+        && let Some(b) = ui
+            .input(|i| i.pointer.press_origin())
+            .and_then(pick)
+            .or(hovered)
     {
         state.selected = b;
         ui.data_mut(|d| d.insert_temp(id, b));
