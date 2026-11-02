@@ -1054,7 +1054,7 @@ impl AudioStradaApp {
                 if let Some(pane) = Pane::from_action(action) {
                     if self.detached.contains(&pane) {
                         // Brings its window forward; Detach or closing the window docks it back.
-                        let window = egui::ViewportId::from_hash_of(("audiostrada-pane", pane));
+                        let window = pane_window(pane);
                         ctx.send_viewport_cmd_to(window, egui::ViewportCommand::Minimized(false));
                         ctx.send_viewport_cmd_to(window, egui::ViewportCommand::Focus);
                     } else {
@@ -1082,8 +1082,18 @@ impl AudioStradaApp {
                 self.ui_changed();
             }
             Action::ToggleFullscreen => {
-                let on = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!on));
+                // Follows the main window; detached panels (mixer, piano roll) go with it.
+                let on = !fullscreen(ctx);
+                ctx.send_viewport_cmd_to(
+                    egui::ViewportId::ROOT,
+                    egui::ViewportCommand::Fullscreen(on),
+                );
+                for &pane in &self.detached {
+                    ctx.send_viewport_cmd_to(
+                        pane_window(pane),
+                        egui::ViewportCommand::Fullscreen(on),
+                    );
+                }
             }
             Action::CommandPalette => self.palette.open(),
             Action::Preferences => self.preferences.open(),
@@ -1223,7 +1233,7 @@ impl AudioStradaApp {
         self.views.borrow_mut().timeline.selection = vec![id];
         let pane = Pane::PianoRoll;
         if self.detached.contains(&pane) {
-            let window = egui::ViewportId::from_hash_of(("audiostrada-pane", pane));
+            let window = pane_window(pane);
             ctx.send_viewport_cmd_to(window, egui::ViewportCommand::Focus);
         } else {
             if !layout::is_visible(&self.tree, pane) {
@@ -1387,60 +1397,54 @@ impl AudioStradaApp {
                     .with_min_inner_size([240.0, 160.0]),
             );
             let shared = MainThread((Rc::clone(&self.views), Rc::clone(&self.inbox)));
-            ctx.show_viewport_deferred(
-                egui::ViewportId::from_hash_of(("audiostrada-pane", pane)),
-                builder,
-                move |ui, _class| {
-                    let (views, inbox) = shared.get();
-                    let ctx = ui.ctx().clone();
-                    let mut asked = false;
-                    // Shortcuts first, so the panel's widgets do not take their keys.
-                    {
-                        let mut inbox = inbox.borrow_mut();
-                        if !inbox.blocked {
-                            let keys = pressed_actions(&ctx, &inbox.keymap);
-                            asked |= !keys.is_empty();
-                            inbox.actions.extend(keys);
-                        }
-                    }
-                    egui::CentralPanel::default().show(ui, |ui| {
-                        if let Ok(mut views) = views.try_borrow_mut() {
-                            views.pane_ui(ui, pane);
-                            asked |= views.has_requests();
-                            if let Ok(mut doc) = views.doc.try_borrow_mut() {
-                                mixer::save_chain_dialog(&ctx, &mut doc);
-                            }
-                        }
-                    });
+            ctx.show_viewport_deferred(pane_window(pane), builder, move |ui, _class| {
+                let (views, inbox) = shared.get();
+                let ctx = ui.ctx().clone();
+                let mut asked = false;
+                // Shortcuts first, so the panel's widgets do not take their keys.
+                {
                     let mut inbox = inbox.borrow_mut();
-                    let previous = inbox
-                        .windows
-                        .iter()
-                        .find(|(p, _)| *p == pane)
-                        .map(|(_, s)| *s);
-                    if let Some(state) =
-                        ui_prefs::WindowState::read(&ctx, previous.or(Some(opened)))
-                    {
-                        inbox.windows.retain(|(p, _)| *p != pane);
-                        inbox.windows.push((pane, state));
+                    if !inbox.blocked {
+                        let keys = pressed_actions(&ctx, &inbox.keymap);
+                        asked |= !keys.is_empty();
+                        inbox.actions.extend(keys);
                     }
-                    if ctx.input(|i| i.viewport().close_requested()) {
-                        inbox.closed.push(pane);
-                        asked = true;
+                }
+                egui::CentralPanel::default().show(ui, |ui| {
+                    if let Ok(mut views) = views.try_borrow_mut() {
+                        views.pane_ui(ui, pane);
+                        asked |= views.has_requests();
+                        if let Ok(mut doc) = views.doc.try_borrow_mut() {
+                            mixer::save_chain_dialog(&ctx, &mut doc);
+                        }
                     }
-                    // The main window's logic runs the requests, even while it is hidden.
-                    if asked {
-                        ctx.request_repaint_of(egui::ViewportId::ROOT);
-                    }
-                    // Meters and playheads move on their own: nothing else repaints this window.
-                    if matches!(pane, Pane::Mixer | Pane::PianoRoll) {
-                        ctx.request_repaint_after(match inbox.refresh {
-                            Duration::ZERO => REFRESH,
-                            refresh => refresh,
-                        });
-                    }
-                },
-            );
+                });
+                let mut inbox = inbox.borrow_mut();
+                let previous = inbox
+                    .windows
+                    .iter()
+                    .find(|(p, _)| *p == pane)
+                    .map(|(_, s)| *s);
+                if let Some(state) = ui_prefs::WindowState::read(&ctx, previous.or(Some(opened))) {
+                    inbox.windows.retain(|(p, _)| *p != pane);
+                    inbox.windows.push((pane, state));
+                }
+                if ctx.input(|i| i.viewport().close_requested()) {
+                    inbox.closed.push(pane);
+                    asked = true;
+                }
+                // The main window's logic runs the requests, even while it is hidden.
+                if asked {
+                    ctx.request_repaint_of(egui::ViewportId::ROOT);
+                }
+                // Meters and playheads move on their own: nothing else repaints this window.
+                if matches!(pane, Pane::Mixer | Pane::PianoRoll) {
+                    ctx.request_repaint_after(match inbox.refresh {
+                        Duration::ZERO => REFRESH,
+                        refresh => refresh,
+                    });
+                }
+            });
         }
     }
 
@@ -1539,6 +1543,18 @@ pub(crate) fn window_shortcuts(ctx: &egui::Context) {
 
 /// While a synth editor plays from the computer keyboard, its letters go to it instead of the
 /// shortcuts.
+/// The window of a panel detached from the main one.
+fn pane_window(pane: Pane) -> egui::ViewportId {
+    egui::ViewportId::from_hash_of(("audiostrada-pane", pane))
+}
+
+/// Whether the main window is in full screen, whichever window asks.
+fn fullscreen(ctx: &egui::Context) -> bool {
+    ctx.input_for(egui::ViewportId::ROOT, |i| {
+        i.viewport().fullscreen.unwrap_or(false)
+    })
+}
+
 fn take_piano_keys(ctx: &egui::Context) {
     let viewport = ctx.viewport_id();
     let claimed = ctx.data(|d| d.get_temp::<bool>(synth_editor::claim_id(viewport)));
@@ -1878,8 +1894,12 @@ impl AudioStradaApp {
                     self.detached.contains(&Pane::PianoRoll),
                 );
                 item(ui, &mut chosen, Action::ResetLayout, None, true);
-                let fullscreen = ui.input(|i| i.viewport().fullscreen.unwrap_or(false));
-                check(ui, &mut chosen, Action::ToggleFullscreen, fullscreen);
+                check(
+                    ui,
+                    &mut chosen,
+                    Action::ToggleFullscreen,
+                    fullscreen(ui.ctx()),
+                );
                 ui.separator();
                 for action in [
                     Action::ZoomIn,
