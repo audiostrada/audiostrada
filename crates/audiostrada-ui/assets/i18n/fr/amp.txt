@@ -1,0 +1,503 @@
+# French: amp
+# Amp, pedal and cabinet model names and the knob labels printed on pedals stay in English.
+
+Amps
+Amplis
+
+Amps + cab
+Amplis + baffle
+
+Effects
+Effets
+
+Cabs (IR)
+Baffles (IR)
+
+Other
+Autres
+
+no configuration folder
+aucun dossier de configuration
+
+no NAM captures among these files
+aucune capture NAM parmi ces fichiers
+
+Full rigs
+Rigs complets
+
+Preamps
+Préamplis
+
+Pedals
+Pédales
+
+Outboard
+Périphériques
+
+Cabinets (IR)
+Baffles (IR)
+
+by {name}
+par {name}
+
+Close
+Fermer
+
+All  {n}
+Tous  {n}
+
+Add folder…
+Ajouter un dossier…
+
+Rescan
+Rescanner
+
+lost
+perdu
+
+TONE3000 sign-in failed: {text}
+Échec de la connexion à TONE3000: {text}
+
+not signed in to TONE3000
+pas connecté à TONE3000
+
+the TONE3000 session has expired: sign in again
+la session TONE3000 a expiré: reconnectez-vous
+
+TONE3000 answered {status}
+TONE3000 a répondu {status}
+
+cannot listen on port {port} for TONE3000's answer: {error}
+impossible d'écouter le port {port} pour la réponse de TONE3000: {error}
+
+Opening {title}
+Ouverture de {title}
+
+no answer from TONE3000 (the browser page was not completed)
+pas de réponse de TONE3000 (la page du navigateur n'a pas été terminée)
+
+Back to AudioStrada
+Retour à AudioStrada
+
+You can close this page and go back to AudioStrada.
+Vous pouvez fermer cette page et revenir à AudioStrada.
+
+the TONE3000 sign-in was cancelled
+la connexion à TONE3000 a été annulée
+
+TONE3000 refused: {reason}
+TONE3000 a refusé: {reason}
+
+the TONE3000 page was closed
+la page TONE3000 a été fermée
+
+TONE3000's answer did not match the request
+la réponse de TONE3000 ne correspond pas à la demande
+
+TONE3000 did not sign in
+la connexion à TONE3000 n'a pas abouti
+
+Signing in
+Connexion
+
+Listing the models of {title}
+Liste des modèles de {title}
+
+{title} has no model AudioStrada can download
+{title} n'a aucun modèle qu'AudioStrada puisse télécharger
+
+Downloading {title}: {n} of {count}
+Téléchargement de {title}: {n} sur {count}
+
+cannot download {name}: {status}
+impossible de télécharger {name}: {status}
+
+Trending
+Tendances
+
+Latest
+Récents
+
+My favorites
+Mes favoris
+
+My downloads
+Mes téléchargements
+
+Cabs
+Baffles
+
+INPUT
+ENTRÉE
+
+Input
+Entrée
+
+Gate
+Gate
+
+Browse TONE3000…
+Parcourir TONE3000…
+
+Free amp, effect and cabinet captures, downloaded and loaded in one click
+Captures gratuites d'amplis, d'effets et de baffles, téléchargées et chargées en un clic
+
+PEDALBOARD
+PÉDALIER
+
+Effect captures…
+Captures d'effets…
+
+Effects on TONE3000…
+Effets sur TONE3000…
+
+The pedalboard is full: remove a pedal first.
+Le pédalier est plein: retirez d'abord une pédale.
+
+AMP
+AMPLI
+
+All amps…
+Tous les amplis…
+
+Amps on TONE3000…
+Amplis sur TONE3000…
+
+CAB
+BAFFLE
+
+Impulses…
+Impulsions…
+
+Cabs on TONE3000…
+Baffles sur TONE3000…
+
+Move pedals
+Déplacer les pédales
+
+Add a pedal
+Ajouter une pédale
+
+Capture
+Capture
+
+Bypass
+Bypass
+
+Turn on
+Activer
+
+Change this pedal
+Changer cette pédale
+
+Remove this pedal
+Retirer cette pédale
+
+a NAM capture of your library
+une capture NAM de votre bibliothèque
+
+Based on the {gear}\nDrag to move it on the pedalboard
+D'après {gear}\nGlisser pour la déplacer sur le pédalier
+
+Drive
+Drive
+
+Dynamics and filter
+Dynamique et filtre
+
+Delay and reverb
+Delay et réverb
+
+Based on the {gear}
+D'après {gear}
+
+Capture from the library…
+Capture de la bibliothèque…
+
+Move left
+Déplacer à gauche
+
+Move right
+Déplacer à droite
+
+Remove pedal
+Retirer la pédale
+
+Previous amp
+Ampli précédent
+
+Next amp
+Ampli suivant
+
+Choose an amp
+Choisir un ampli
+
+Built-in · {n} of {count} · click for the list
+Intégré · {n} sur {count} · cliquer pour la liste
+
+Built-in · click for the list
+Intégré · cliquer pour la liste
+
+No amp loaded · click to choose one
+Aucun ampli chargé · cliquer pour en choisir un
+
+Cannot load: {error}
+Chargement impossible: {error}
+
+{style} style · {captures} · click to change
+style {style} · {captures} · cliquer pour changer
+
+{n} captures
+{n} captures
+
+1 capture
+1 capture
+
+Based on the {gear}\nClick to choose the amp
+D'après {gear}\nCliquer pour choisir l'ampli
+
+{name}\nClick to choose the amp
+{name}\nCliquer pour choisir l'ampli
+
+Choose the amp
+Choisir l'ampli
+
+GAIN
+GAIN
+
+BASS
+GRAVES
+
+MIDDLE
+MÉDIUMS
+
+TREBLE
+AIGUS
+
+PRESENCE
+PRÉSENCE
+
+MASTER
+MASTER
+
+Gain
+Gain
+
+Gain: steps through the {n} captures of this amp
+Gain: parcourt les {n} captures de cet ampli
+
+Gain: this amp has a single capture (load a pack with several gains)
+Gain: cet ampli n'a qu'une capture (chargez un pack à plusieurs gains)
+
+Master {value} dB
+Master {value} dB
+
+{label}: {value} (applied after the amp)
+{label}: {value} (appliqué après l'ampli)
+
+Previous cabinet
+Baffle précédent
+
+Next cabinet
+Baffle suivant
+
+Click to choose the cabinet
+Cliquer pour choisir le baffle
+
+Load impulse…
+Charger une impulsion…
+
+Impulse response
+Réponse impulsionnelle
+
+Cannot load {file}: {error}
+Impossible de charger {file}: {error}
+
+Downloaded into the library: the pedalboard is full.
+Téléchargé dans la bibliothèque: le pédalier est plein.
+
+Choose an effect capture
+Choisir une capture d'effet
+
+Choose a cabinet impulse
+Choisir une impulsion de baffle
+
+Built-in
+Intégrés
+
+My library
+Ma bibliothèque
+
+TONE3000: finish in your browser…
+TONE3000: terminez dans votre navigateur…
+
+Search
+Rechercher
+
+Add captures…
+Ajouter des captures…
+
+Copy .nam files into AudioStrada's library, sorted by gear
+Copier des fichiers .nam dans la bibliothèque d'AudioStrada, triés par matériel
+
+NAM captures
+Captures NAM
+
+Added: {names}. Right-click a card to rename it or change its category.
+Ajouté: {names}. Clic droit sur une carte pour la renommer ou changer sa catégorie.
+
+Use the captures of a folder where they are
+Utiliser les captures d'un dossier sans les déplacer
+
+Rename:
+Renommer:
+
+OK
+OK
+
+Cancel
+Annuler
+
+Looking for captures…
+Recherche des captures…
+
+★ Favorites  {n}
+★ Favoris  {n}
+
+Nothing here yet: Add captures… copies .nam files into the library, the TONE3000 tab downloads tones.
+Rien ici pour l'instant: Ajouter des captures… copie des fichiers .nam dans la bibliothèque, Parcourir TONE3000… télécharge des sons.
+
+American clean
+Clean américains
+
+British
+Britanniques
+
+High gain
+High gain
+
+Bass amps
+Amplis basse
+
+Amps modeled by AudioStrada after the most played ones: preamp, tone stack and power stage. For the exact sound of one amp, load its NAM captures (My library, TONE3000).
+Amplis modélisés par AudioStrada d'après les plus joués: préampli, correcteur de tonalité et étage de puissance. Pour le son exact d'un ampli, chargez ses captures NAM (Ma bibliothèque, TONE3000).
+
+Huge clean headroom, sparkling highs, scooped mids.
+Énorme réserve en son clair, aigus brillants, médiums creusés.
+
+The most downloaded capture: clean that breaks up when you dig in.
+La capture la plus téléchargée: un son clair qui sature quand on attaque fort.
+
+Small combo, sweet early breakup, the studio favourite.
+Petit combo, saturation douce et précoce, le favori des studios.
+
+Fat, raw, compressed breakup that cleans up with the guitar volume.
+Saturation grasse, brute et compressée, qui s'éclaircit avec le volume de la guitare.
+
+Punchy mids and smooth drive: the root of the British amps.
+Médiums percutants et drive doux: l'ancêtre des amplis britanniques.
+
+Chiming upper mids, class A compression, jangle to crunch.
+Haut-médiums cristallins, compression de classe A, du son clair carillonnant au crunch.
+
+Warm, round crunch with a soft attack.
+Crunch chaud et rond, à l'attaque douce.
+
+The classic rock roar: crank it for crunch and sustain.
+Le rugissement du rock classique: poussez-le pour le crunch et le sustain.
+
+Hard rock and metal crunch with a forward midrange.
+Crunch hard rock et metal, aux médiums en avant.
+
+A modded Plexi with more gain and tighter lows.
+Un Plexi modifié, avec plus de gain et des graves plus serrés.
+
+Smooth, vocal overdrive over a clean, deep foundation.
+Overdrive doux et chantant sur une base claire et profonde.
+
+Thick, saturated modern metal with a deep low end.
+Metal moderne épais et saturé, aux graves profonds.
+
+Aggressive, tight high gain: the modern metal reference.
+High gain agressif et serré: la référence du metal moderne.
+
+Dense, articulate saturation with a big, tight bottom.
+Saturation dense et articulée, aux graves amples et serrés.
+
+The rock bass amp: warm, huge, growls when pushed.
+L'ampli basse du rock: chaud, énorme, il gronde quand on le pousse.
+
+Round, vintage studio bass tone.
+Son de basse rond et vintage, de studio.
+
+Sign out
+Se déconnecter
+
+Search all of TONE3000…
+Chercher dans tout TONE3000…
+
+Search the whole catalog in your browser; the tone you pick is downloaded and loaded here
+Chercher dans tout le catalogue depuis votre navigateur; le son choisi est téléchargé et chargé ici
+
+TONE3000 shares thousands of free amp, effect and cabinet captures. Sign in (free account) to browse them here.
+TONE3000 partage des milliers de captures gratuites d'amplis, d'effets et de baffles. Connectez-vous (compte gratuit) pour les parcourir ici.
+
+Sign in to TONE3000…
+Se connecter à TONE3000…
+
+Refresh
+Actualiser
+
+Loading…
+Chargement…
+
+Nothing in this list.
+Rien dans cette liste.
+
+Full rig
+Rig complet
+
+Amp
+Ampli
+
+Pedal
+Pédale
+
+Cabinet
+Baffle
+
+{gear} · {format} · {models} models · {license}
+{gear} · {format} · {models} modèles · {license}
+
+{count} downloads
+{count} téléchargements
+
+Download and load\n{url}
+Télécharger et charger\n{url}
+
+Download and load
+Télécharger et charger
+
+Remove from favorites
+Retirer des favoris
+
+Add to favorites: favourite amps come after the built-in ones under the amp arrows
+Ajouter aux favoris: les amplis favoris suivent les amplis intégrés sous les flèches de l'ampli
+
+Add to favorites
+Ajouter aux favoris
+
+Rename…
+Renommer…
+
+Category
+Catégorie
+
+Delete from the library
+Supprimer de la bibliothèque
+
+Hide (the files stay in their folder)
+Masquer (les fichiers restent dans leur dossier)
+
+{path}\nRight-click to rename, recategorize or remove
+{path}\nClic droit pour renommer, changer de catégorie ou retirer

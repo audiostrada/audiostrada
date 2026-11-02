@@ -1,0 +1,47 @@
+[package]
+name = "audiostrada-ui"
+description = "AudioStrada user interface (egui + wgpu)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+dirs.workspace = true
+eframe.workspace = true
+egui_tiles.workspace = true
+flate2.workspace = true
+tar.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+getrandom.workspace = true
+image.workspace = true
+# The version eframe uses, to give plugin windows AudioStrada's window as their parent.
+raw-window-handle.workspace = true
+rfd.workspace = true
+audiostrada-core.workspace = true
+audiostrada-dsp.workspace = true
+audiostrada-engine.workspace = true
+audiostrada-io.workspace = true
+audiostrada-license.workspace = true
+audiostrada-media.workspace = true
+audiostrada-midi.workspace = true
+audiostrada-plugins.workspace = true
+audiostrada-rt.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true
+
+# rustls on Linux; the system's TLS elsewhere (no C toolchain needed to cross-check).
+[target.'cfg(target_os = "linux")'.dependencies]
+ureq = { workspace = true, features = ["rustls"] }
+# The version eframe uses, to choose its X11 backend.
+winit = { version = "0.30.13", default-features = false, features = ["x11"] }
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+ureq = { workspace = true, features = ["native-tls"] }
+

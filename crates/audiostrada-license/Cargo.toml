@@ -1,0 +1,23 @@
+[package]
+name = "audiostrada-license"
+description = "AudioStrada licenses of the official builds: signed, checked offline."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[features]
+# Official builds only: without a license, they run in evaluation mode.
+official = []
+
+[dependencies]
+base64.workspace = true
+ed25519-dalek.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+dirs.workspace = true
+
+[lints]
+workspace = true

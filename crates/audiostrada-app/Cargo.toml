@@ -1,0 +1,94 @@
+[package]
+name = "audiostrada-app"
+description = "AudioStrada digital audio workstation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "audiostrada"
+path = "src/main.rs"
+
+[features]
+# Release builds of the CI: evaluation mode without a license.
+official = ["audiostrada-license/official"]
+
+[dependencies]
+anyhow.workspace = true
+dirs.workspace = true
+getrandom.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+audiostrada-core.workspace = true
+audiostrada-engine.workspace = true
+audiostrada-io.workspace = true
+audiostrada-license.workspace = true
+audiostrada-media.workspace = true
+audiostrada-plugins.workspace = true
+audiostrada-rt.workspace = true
+audiostrada-ui.workspace = true
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = ["Win32_System_Console"] }
+
+[build-dependencies]
+winresource.workspace = true
+
+[target.'cfg(unix)'.dev-dependencies]
+libc.workspace = true
+
+[package.metadata.deb]
+name = "audiostrada"
+maintainer = "AudioStrada contributors"
+copyright = "AudioStrada contributors"
+license-file = ["../../LICENSE", "0"]
+extended-description = """\
+Digital audio workstation: multitrack recording and editing, mixing console, automation, \
+CLAP, VST3 and LV2 plugins in sandboxed processes, MIDI instruments, built-in effects with a \
+Neural Amp Modeler amp, time stretching, WAV and FLAC export. Plays through PipeWire with no \
+configuration, and also supports JACK and ALSA."""
+section = "sound"
+priority = "optional"
+depends = "$auto"
+recommends = "pipewire, liblilv-0-0"
+profile = "dist"
+assets = [
+    ["target/release/audiostrada", "usr/bin/", "755"],
+    ["../../packaging/linux/audiostrada.desktop", "usr/share/applications/", "644"],
+    ["../../packaging/linux/audiostrada.xml", "usr/share/mime/packages/", "644"],
+    ["../../packaging/linux/audiostrada.metainfo.xml", "usr/share/metainfo/", "644"],
+    ["../../packaging/icons/audiostrada-16.png", "usr/share/icons/hicolor/16x16/apps/audiostrada.png", "644"],
+    ["../../packaging/icons/audiostrada-32.png", "usr/share/icons/hicolor/32x32/apps/audiostrada.png", "644"],
+    ["../../packaging/icons/audiostrada-48.png", "usr/share/icons/hicolor/48x48/apps/audiostrada.png", "644"],
+    ["../../packaging/icons/audiostrada-64.png", "usr/share/icons/hicolor/64x64/apps/audiostrada.png", "644"],
+    ["../../packaging/icons/audiostrada-128.png", "usr/share/icons/hicolor/128x128/apps/audiostrada.png", "644"],
+    ["../../packaging/icons/audiostrada-256.png", "usr/share/icons/hicolor/256x256/apps/audiostrada.png", "644"],
+    ["../../packaging/icons/audiostrada-512.png", "usr/share/icons/hicolor/512x512/apps/audiostrada.png", "644"],
+    ["../../README.md", "usr/share/doc/audiostrada/README.md", "644"],
+]
+
+[package.metadata.generate-rpm]
+name = "audiostrada"
+summary = "Digital audio workstation"
+assets = [
+    { source = "target/release/audiostrada", dest = "/usr/bin/audiostrada", mode = "755" },
+    { source = "../../packaging/linux/audiostrada.desktop", dest = "/usr/share/applications/audiostrada.desktop", mode = "644" },
+    { source = "../../packaging/linux/audiostrada.xml", dest = "/usr/share/mime/packages/audiostrada.xml", mode = "644" },
+    { source = "../../packaging/linux/audiostrada.metainfo.xml", dest = "/usr/share/metainfo/audiostrada.metainfo.xml", mode = "644" },
+    { source = "../../packaging/icons/audiostrada-256.png", dest = "/usr/share/icons/hicolor/256x256/apps/audiostrada.png", mode = "644" },
+    { source = "../../packaging/icons/audiostrada-512.png", dest = "/usr/share/icons/hicolor/512x512/apps/audiostrada.png", mode = "644" },
+    { source = "../../packaging/icons/audiostrada-48.png", dest = "/usr/share/icons/hicolor/48x48/apps/audiostrada.png", mode = "644" },
+]
+
+[package.metadata.generate-rpm.recommends]
+pipewire = "*"
+lilv-libs = "*"
+
+[lints]
+workspace = true

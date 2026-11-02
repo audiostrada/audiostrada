@@ -1,0 +1,2820 @@
+# French: effects
+
+# effect_editors.rs
+
+Turn on
+Activer
+
+Bypass
+Bypass
+
+Presets
+Presets
+
+No presets yet
+Aucun preset
+
+Preset {name}
+Preset {name}
+
+Save…
+Enregistrer…
+
+Save the current settings as a preset
+Enregistrer les réglages actuels comme preset
+
+Delete
+Supprimer
+
+Cannot delete the preset: {error}
+Impossible de supprimer le preset: {error}
+
+Compare two settings: each slot keeps its own
+Comparer deux réglages: chaque emplacement garde le sien
+
+Compare {slot}
+Comparer {slot}
+
+Copy the settings being edited to the other slot
+Copier les réglages en cours dans l'autre emplacement
+
+Name
+Nom
+
+Save
+Enregistrer
+
+Cannot save the preset: {error}
+Impossible d'enregistrer le preset: {error}
+
+No configuration folder for presets
+Aucun dossier de configuration pour les presets
+
+Cancel
+Annuler
+
+Off (own signal)
+Désactivé (signal propre)
+
+Sidechain
+Sidechain
+
+Detect on another track's output, e.g. duck the bass with the kick
+Détecter sur la sortie d'une autre piste, par exemple pour baisser la basse avec la grosse caisse
+
+{name}: {value}. Drag, Shift for fine, double-click to reset
+{name}: {value}. Glisser, Maj pour affiner, double-clic pour réinitialiser
+
+On
+Activé
+
+Play a note
+Jouez une note
+
+{note} at {bpm} BPM = {ms} ms
+{note} à {bpm} BPM = {ms} ms
+
+Model
+Modèle
+
+Space
+Espace
+
+Decay
+Déclin
+
+Highs
+Aigus
+
+OPEN
+OUVERT
+
+CLOSED
+FERMÉ
+
+Drag up or down to move the threshold
+Glisser vers le haut ou le bas pour déplacer le seuil
+
+GAIN REDUCTION
+RÉDUCTION DE GAIN
+
+Character
+Caractère
+
+VCA bus compressor: glue for mixes and groups, auto release
+Compresseur de bus VCA: cohésion des mixes et des groupes, relâchement auto
+
+Optical leveler: smooth, program-dependent, great on vocals and bass
+Niveleur optique: doux, dépendant du programme, idéal sur les voix et la basse
+
+Fast and punchy with color; the top ratio is the 'all buttons' mode
+Rapide et percutant, avec de la couleur; le ratio maximal est le mode 'all buttons'
+
+GR
+GR
+
+Auto release
+Relâchement auto
+
+Fast recovery after peaks, slow after sustained compression
+Retour rapide après les crêtes, lent après une compression prolongée
+
+Drive
+Drive
+
+Head bump
+Head bump
+
+Wow & flutter
+Wow & flutter
+
+Speed
+Vitesse
+
+Stages
+Étages
+
+Correlation
+Corrélation
+
+LOW
+GRAVE
+
+MID
+MÉDIUM
+
+HIGH
+AIGU
+
+ATTACK
+ATTAQUE
+
+SUSTAIN
+MAINTIEN
+
+Sibilance around {frequency}
+Sibilance autour de {frequency}
+
+Mode
+Mode
+
+TUBE
+LAMPE
+
+Type
+Type
+
+OUT
+SORTIE
+
+IN
+ENTRÉE
+
+Drag sideways to move the threshold
+Glisser latéralement pour déplacer le seuil
+
+THRESHOLD
+SEUIL
+
+Drag down to push the input harder into the ceiling
+Glisser vers le bas pour pousser davantage l'entrée dans le plafond
+
+CEILING
+PLAFOND
+
+Drag to set the highest level the output reaches
+Glisser pour régler le niveau maximal atteint par la sortie
+
+OUTPUT PEAK
+CRÊTE SORTIE
+
+SHORT-TERM
+COURT TERME
+
+LOUDER BY
+PLUS FORT DE
+
+Shift for fine, double-click to reset
+Maj pour affiner, double-clic pour réinitialiser
+
+TARGET
+CIBLE
+
+Learning
+Apprentissage
+
+Learn
+Apprendre
+
+Play the loudest part: the threshold moves until the output reaches the target loudness
+Jouez le passage le plus fort: le seuil bouge jusqu'à ce que la sortie atteigne la loudness cible
+
+Output
+Sortie
+
+Gain after the effect, kept in the mix and the export. Double-click to type
+Gain après l'effet, conservé dans le mix et l'export. Double-clic pour saisir
+
+Insert gain
+Gain de l'insert
+
+Match
+Match
+
+Listening aid: while on, the output is brought to the input's loudness, so that bypassing compares the effect at equal level. Not saved, not exported; it turns off when this window closes
+Aide à l'écoute: tant qu'il est actif, la sortie est amenée à la loudness de l'entrée, pour que le bypass compare l'effet à niveau égal. Ni enregistré, ni exporté; il se désactive à la fermeture de cette fenêtre
+
+Keep
+Garder
+
+Put this correction into Output, to keep it in the mix
+Reporter cette correction dans Sortie, pour la garder dans le mix
+
+Keep matched gain
+Garder le gain égalisé
+
+# effect_browser.rs
+
+Add an effect
+Ajouter un effet
+
+Search effects and plugins
+Rechercher des effets et des plugins
+
+Close
+Fermer
+
+All
+Tout
+
+Nothing matches. Plugin folders are set in Preferences › Plugins.
+Aucun résultat. Les dossiers de plugins se règlent dans Préférences › Plugins.
+
+Delete chain
+Supprimer la chaîne
+
+# presets.rs
+
+give the preset a name
+donnez un nom au preset
+
+Lead
+Lead
+
+Fuzz
+Fuzz
+
+Wide
+Large
+
+Flanger
+Flanger
+
+Wah
+Wah
+
+Clean
+Clair
+
+Edge of breakup
+Limite de saturation
+
+Jangle
+Jangle
+
+Blues
+Blues
+
+Crunch
+Crunch
+
+Metal
+Metal
+
+Fuzz rock
+Rock fuzz
+
+Bass
+Basses
+
+Default: flat
+Par défaut : neutre
+
+Vocal: presence
+Voix : présence
+
+Vocal: air 12 kHz
+Voix : air 12 kHz
+
+Kick: punch
+Grosse caisse : punch
+
+Snare: crack
+Caisse claire : claquante
+
+Overheads: cymbal air
+Overheads : air des cymbales
+
+Bass: definition
+Basse : définition
+
+Guitar: fit in the mix
+Guitare : place dans le mix
+
+Acoustic guitar: sparkle
+Guitare acoustique : brillance
+
+Mix bus: smile
+Bus de mix : courbe en sourire
+
+Fix: low cut 100 Hz
+Correction : coupe-bas 100 Hz
+
+FX: telephone
+Effet : téléphone
+
+Vocal: gentle
+Voix : en douceur
+
+Vocal: smooth opto
+Voix : opto douce
+
+Vocal: radio-ready
+Voix : prête pour la radio
+
+Bass: control
+Basse : contrôle
+
+Bass: opto leveler
+Basse : nivellement opto
+
+Drum bus: glue
+Bus batterie : cohésion
+
+Drum bus: smash
+Bus batterie : écrasé
+
+Drums: parallel crush
+Batterie : écrasement parallèle
+
+Room mics: all buttons
+Micros d'ambiance : all buttons
+
+Mix bus: glue
+Bus de mix : cohésion
+
+Vocal: plate
+Voix : plaque
+
+Vocal: ducked hall
+Voix : salle en ducking
+
+Drums: small room
+Batterie : petite pièce
+
+Drums: live room
+Batterie : pièce live
+
+Snare: bright plate
+Caisse claire : plaque brillante
+
+Keys: dark plate
+Claviers : plaque sombre
+
+Strings: concert hall
+Cordes : salle de concert
+
+Guitar: amp spring
+Guitare : ressort d'ampli
+
+Guitar: surf spring
+Guitare : ressort surf
+
+Pads: vast space
+Nappes : espace immense
+
+Pads: shimmer
+Nappes : shimmer
+
+Ambient: long shimmer
+Ambient : long shimmer
+
+Vocal: slapback 90 ms
+Voix : slapback 90 ms
+
+Vocal: analog slap 110 ms
+Voix : slapback analogique 110 ms
+
+Vocal: dark 1/8 echo
+Voix : écho sombre à la croche
+
+Vocal: 1/4 throw
+Voix : écho ponctuel à la noire
+
+Guitar: dotted eighth
+Guitare : croche pointée
+
+Guitar: tape echo 330 ms
+Guitare : écho à bande 330 ms
+
+Lead: analog 1/8
+Solo : analogique à la croche
+
+Synth: 1/4 ping-pong
+Synthé : ping-pong à la noire
+
+Drums: 1/16 ping-pong
+Batterie : ping-pong à la double croche
+
+Dub: runaway tape
+Dub : bande qui s'emballe
+
+Kick: tight
+Grosse caisse : serrée
+
+Snare: bleed control
+Caisse claire : contrôle de la repisse
+
+Toms: hits only
+Toms : frappes seules
+
+Drums: tight
+Batterie : serrée
+
+Reverb: 80s gated
+Réverbe : gated années 80
+
+Vocal: breath reducer
+Voix : moins de respirations
+
+Voice-over: room noise
+Voix off : bruit de la pièce
+
+Guitar: high-gain silence
+Guitare : silence en high gain
+
+Fix: noise floor
+Correction : bruit de fond
+
+Master: safety -1 dB
+Master : sécurité -1 dB
+
+Master: streaming -1 dB
+Master : streaming -1 dB
+
+Master: broadcast -2 dB
+Master : diffusion -2 dB
+
+Master: loud -0.3 dB
+Master : fort -0,3 dB
+
+Vocal: peak catcher
+Voix : capture des crêtes
+
+Bass: even level
+Basse : niveau régulier
+
+Drum bus: peak shave
+Bus batterie : crêtes rabotées
+
+Kick: clipper-style
+Grosse caisse : façon clipper
+
+Mix bus: tape warmth
+Bus de mix : chaleur de bande
+
+Keys: warm tube
+Claviers : lampe chaude
+
+Bass: thick transformer
+Basse : transformateur épais
+
+Bass: parallel grit
+Basse : grain en parallèle
+
+Bass: growl
+Basse : grondement
+
+Vocal: parallel grit
+Voix : grain en parallèle
+
+Drums: parallel crunch
+Batterie : crunch en parallèle
+
+Guitar: light crunch
+Guitare : crunch léger
+
+Guitar: lead
+Guitare : solo
+
+Guitar: tight metal
+Guitare : metal serré
+
+Guitar: fuzz
+Guitare : fuzz
+
+Guitar: octave fuzz
+Guitare : fuzz à l'octave
+
+Vocal: subtle thickening
+Voix : épaississement subtil
+
+Acoustic guitar: 12-string
+Guitare acoustique : 12 cordes
+
+Guitar: clean 80s
+Guitare : son clair années 80
+
+Keys: electric piano
+Claviers : piano électrique
+
+Synth: lush ensemble
+Synthé : ensemble luxuriant
+
+Pads: wide
+Nappes : larges
+
+Bass: fretless shimmer
+Basse : fretless chatoyante
+
+FX: vibrato
+Effet : vibrato
+
+FX: flanger-style
+Effet : façon flanger
+
+Master: acoustic, gentle
+Master : acoustique, en douceur
+
+Master: transparent -1 dBTP
+Master : transparent -1 dBTP
+
+Master: streaming -1 dBTP
+Master : streaming -1 dBTP
+
+Master: broadcast -2 dBTP
+Master : diffusion -2 dBTP
+
+Master: punchy pop
+Master : pop percutante
+
+Master: CD -0.3 dBTP
+Master : CD -0,3 dBTP
+
+Master: dense rock
+Master : rock dense
+
+Master: EDM maximum
+Master : EDM au maximum
+
+Drum bus: peak control
+Bus batterie : contrôle des crêtes
+
+Mix bus: subtle 30 ips
+Bus de mix : 30 ips subtil
+
+Mix bus: classic 15 ips
+Bus de mix : 15 ips classique
+
+Vocal: soft tape
+Voix : bande douce
+
+Keys: warm 7.5 ips
+Claviers : 7,5 ips chaud
+
+Bass: fat 7.5 ips
+Basse : 7,5 ips gras
+
+Drums: saturated
+Batterie : saturée
+
+Lo-fi: cassette
+Lo-fi : cassette
+
+Lo-fi: worn tape
+Lo-fi : bande usée
+
+Guitar: subtle motion
+Guitare : mouvement subtil
+
+Guitar: jet
+Guitare : jet
+
+Vocal: psychedelic sweep
+Voix : balayage psychédélique
+
+Bass: slow flange
+Basse : flanger lent
+
+Pads: wide motion
+Nappes : mouvement large
+
+Hi-hats: swirl
+Charleston : tourbillon
+
+Synth: metallic
+Synthé : métallique
+
+Drum bus: through-zero
+Bus batterie : through zero
+
+Vocal: subtle movement
+Voix : mouvement léger
+
+Guitar: classic 4-stage
+Guitare : 4 étages classique
+
+Guitar: funk rhythm
+Guitare : rythmique funk
+
+Guitar: fast vibe
+Guitare : vibe rapide
+
+Keys: electric piano swirl
+Claviers : tourbillon de piano électrique
+
+Synth: deep swirl
+Synthé : tourbillon profond
+
+Pads: slow 12-stage
+Nappes : 12 étages lent
+
+Drums: breakbeat sweep
+Batterie : balayage breakbeat
+
+Master: mono bass 150 Hz
+Master : graves mono sous 150 Hz
+
+Master: wide top
+Master : aigus élargis
+
+Drum bus: wide overheads
+Bus batterie : overheads élargis
+
+Guitars: wide doubles
+Guitares : doublages élargis
+
+Bass: mono lows
+Basse : graves en mono
+
+Pads: super wide
+Nappes : très larges
+
+Fix: tame a too-wide source
+Correction : source trop large
+
+Check: mono
+Contrôle : mono
+
+Snare: fat sustain
+Caisse claire : sustain épais
+
+Toms: shorter ring
+Toms : résonance raccourcie
+
+Drums: more room
+Batterie : plus de pièce
+
+Acoustic guitar: pick attack
+Guitare acoustique : attaque du médiator
+
+Bass: pluck definition
+Basse : définition des notes
+
+Fix: soften attacks
+Correction : attaques adoucies
+
+Female vocal: standard
+Voix féminine : standard
+
+Female vocal: bright and harsh
+Voix féminine : brillante et dure
+
+Male vocal: standard
+Voix masculine : standard
+
+Male vocal: gentle
+Voix masculine : en douceur
+
+Vocal: wide-band, natural
+Voix : pleine bande, naturel
+
+Backing vocals: strong
+Chœurs : appuyé
+
+Voice-over: broadcast
+Voix off : diffusion
+
+Cymbals: harsh
+Cymbales : agressives
+
+Kick: low end trick
+Grosse caisse : astuce du grave
+
+Bass: low end trick 60 Hz
+Basse : astuce du grave 60 Hz
+
+Snare: snap
+Caisse claire : claque
+
+Vocal: presence 5 kHz
+Voix : présence 5 kHz
+
+Vocal: air
+Voix : air
+
+Bus: warm and dark
+Bus : chaud et sombre
+
+Master: sheen
+Master : brillance
+
+FX: slow sweep
+Effet : balayage lent
+
+Transition: high-pass build-up
+Transition : montée au passe-haut
+
+Transition: low-pass breakdown
+Transition : break au passe-bas
+
+Synth: 1/16 filter gate
+Synthé : filtre haché à la double croche
+
+Guitar: auto-wah
+Guitare : auto-wah
+
+Bass: envelope funk
+Basse : enveloppe funk
+
+Vocal: radio
+Voix : radio
+
+Drums: next room
+Batterie : pièce d'à côté
+
+Fix: flip polarity
+Correction : inverser la polarité
+
+Fix: flip left polarity
+Correction : inverser la polarité gauche
+
+Fix: flip right polarity
+Correction : inverser la polarité droite
+
+Fix: swap channels
+Correction : permuter les canaux
+
+Gain: -6 dB headroom
+Gain : -6 dB de marge
+
+Gain: +6 dB
+Gain : +6 dB
+
+Width: narrow 50%
+Largeur : étroite 50 %
+
+Width: wide 130%
+Largeur : large 130 %
+
+# chains.rs
+
+Vocal
+Voix
+
+Drum bus
+Bus batterie
+
+Acoustic guitar
+Guitare acoustique
+
+Master for streaming
+Master pour le streaming
+
+give the chain a name
+donnez un nom à la chaîne
+
+there are no effects to save
+il n'y a aucun effet à enregistrer
+
+# shown through tr() of constants (families, EQ bands, Learn targets, Maximizer styles)
+
+Chains
+Chaînes
+
+Plugins
+Plugins
+
+Low cut
+Coupe-bas
+
+Low shelf
+Plateau bas
+
+High shelf
+Plateau haut
+
+High cut
+Coupe-haut
+
+-9 LUFS (loud)
+-9 LUFS (fort)
+
+-11 LUFS
+-11 LUFS
+
+-14 LUFS (streaming)
+-14 LUFS (streaming)
+
+-16 LUFS (Apple Music)
+-16 LUFS (Apple Music)
+
+-23 LUFS (broadcast)
+-23 LUFS (diffusion)
+
+Cleanest: no clipping, slower release
+Le plus propre: pas d'écrêtage, relâchement plus lent
+
+Shaves the tallest peaks first, faster release
+Rase d'abord les plus hautes crêtes, relâchement plus rapide
+
+Loudest: more clipping, fastest release
+Le plus fort: plus d'écrêtage, relâchement le plus rapide
+
+# audiostrada_dsp: categories
+
+Dynamics
+Dynamique
+
+EQ & Filter
+EQ et filtres
+
+Modulation
+Modulation
+
+Color
+Couleur
+
+Stereo
+Stéréo
+
+Amp & Cab
+Ampli et baffle
+
+Utility
+Utilitaire
+
+Instrument
+Instrument
+
+# audiostrada_dsp: synth
+
+Synth
+Synthé
+
+Polyphonic subtractive synthesizer, MPE-aware.
+Synthétiseur soustractif polyphonique, compatible MPE.
+
+Waveform
+Forme d'onde
+
+Saw
+Dent de scie
+
+Square
+Carré
+
+Sine
+Sinus
+
+Triangle
+Triangle
+
+Attack
+Attaque
+
+Sustain
+Maintien
+
+Release
+Relâchement
+
+Cutoff
+Coupure
+
+Resonance
+Résonance
+
+Filter envelope
+Enveloppe du filtre
+
+Detune
+Désaccord
+
+Velocity sensitivity
+Sensibilité à la vélocité
+
+Volume
+Volume
+
+Pitch bend range
+Plage du pitch bend
+
+MPE (channel 1 global, 48 st per note)
+MPE (canal 1 global, 48 dt par note)
+
+# audiostrada_dsp: eq
+
+EQ
+EQ
+
+Band 1 frequency
+Fréquence bande 1
+
+Band 1 gain
+Gain bande 1
+
+Band 1 Q
+Q bande 1
+
+Band 2 frequency
+Fréquence bande 2
+
+Band 2 gain
+Gain bande 2
+
+Band 2 Q
+Q bande 2
+
+Band 3 frequency
+Fréquence bande 3
+
+Band 3 gain
+Gain bande 3
+
+Band 3 Q
+Q bande 3
+
+Band 4 frequency
+Fréquence bande 4
+
+Band 4 gain
+Gain bande 4
+
+Band 4 Q
+Q bande 4
+
+# audiostrada_dsp: vintage_eq
+
+Vintage EQ
+EQ vintage
+
+Passive tube program EQ: the low boost and cut trick, silky highs, warmth.
+EQ passif à lampes: l'astuce du boost et de la coupe dans le grave, des aigus soyeux, de la chaleur.
+
+Low frequency
+Fréquence basse
+
+20 Hz
+20 Hz
+
+30 Hz
+30 Hz
+
+60 Hz
+60 Hz
+
+100 Hz
+100 Hz
+
+Low boost
+Boost grave
+
+Low atten
+Atténuation grave
+
+High frequency
+Fréquence haute
+
+3 kHz
+3 kHz
+
+4 kHz
+4 kHz
+
+5 kHz
+5 kHz
+
+8 kHz
+8 kHz
+
+10 kHz
+10 kHz
+
+12 kHz
+12 kHz
+
+16 kHz
+16 kHz
+
+High boost
+Boost aigu
+
+Bandwidth
+Largeur de bande
+
+Atten select
+Choix atténuation
+
+20 kHz
+20 kHz
+
+High atten
+Atténuation aigu
+
+Tube warmth
+Chaleur lampe
+
+# audiostrada_dsp: filter
+
+Filter
+Filtre
+
+Resonant sweeping filter with drive, LFO and envelope: from subtle to wild.
+Filtre résonant balayé avec drive, LFO et enveloppe: du subtil au sauvage.
+
+Low-pass
+Passe-bas
+
+High-pass
+Passe-haut
+
+Band-pass
+Passe-bande
+
+Notch
+Coupe-bande
+
+LFO rate
+Vitesse LFO
+
+LFO depth
+Profondeur LFO
+
+Sync to tempo
+Synchro au tempo
+
+LFO note
+Note LFO
+
+1/16
+1/16
+
+1/8
+1/8
+
+1/4
+1/4
+
+1/2
+1/2
+
+1 bar
+1 mesure
+
+2 bars
+2 mesures
+
+Envelope
+Enveloppe
+
+Mix
+Mix
+
+# audiostrada_dsp: compressor
+
+Compressor
+Compresseur
+
+Clean, Bus, Opto and FET: transparent control, glue, smooth leveling or punch.
+Clean, Bus, Opto et FET : contrôle transparent, cohésion, nivellement doux ou punch.
+
+Clean and modern: transparent, with a soft knee
+Propre et moderne : transparent, avec un genou doux
+
+Threshold
+Seuil
+
+Ratio
+Ratio
+
+Knee
+Genou
+
+Makeup
+Compensation
+
+Gain reduction
+Réduction de gain
+
+Input
+Entrée
+
+# audiostrada_dsp: vintage_comp
+
+Bus
+Bus
+
+Opto
+Opto
+
+FET
+FET
+
+Sidechain HPF
+Passe-haut sidechain
+
+# audiostrada_dsp: gate
+
+Gate
+Gate
+
+Noise gate with hold, range and sidechain.
+Noise gate avec tenue, étendue et sidechain.
+
+Range
+Étendue
+
+Hold
+Tenue
+
+Gain
+Gain
+
+# audiostrada_dsp: transient
+
+Transient Shaper
+Modeleur de transitoires
+
+More or less punch and sustain on drums and plucks, without a threshold.
+Plus ou moins d'attaque et de maintien sur les batteries et les cordes pincées, sans seuil.
+
+Soft clip
+Écrêtage doux
+
+Attack gain
+Gain d'attaque
+
+Sustain gain
+Gain de maintien
+
+# audiostrada_dsp: deesser
+
+De-esser
+De-esser
+
+Tames harsh S and T sounds on vocals, on the highs only or the whole voice.
+Adoucit les S et T agressifs des voix, sur les aigus seuls ou sur toute la voix.
+
+Frequency
+Fréquence
+
+Split
+Bande seule
+
+Listen
+Écouter
+
+Sibilance
+Sibilance
+
+# audiostrada_dsp: pitch_correct
+
+Pitch Correct
+Correction de justesse
+
+Automatic pitch correction for voice, from natural to the robot effect.
+Correction automatique de la justesse des voix, du naturel à l'effet robot.
+
+Key
+Tonalité
+
+Scale
+Gamme
+
+Chromatic
+Chromatique
+
+Retune speed
+Vitesse de correction
+
+Amount
+Quantité
+
+Transpose
+Transposer
+
+Input pitch
+Hauteur entrante
+
+Output pitch
+Hauteur corrigée
+
+Target note
+Note visée
+
+C
+C
+
+C#
+C#
+
+D
+D
+
+D#
+D#
+
+E
+E
+
+F
+F
+
+F#
+F#
+
+G
+G
+
+G#
+G#
+
+A
+A
+
+A#
+A#
+
+B
+B
+
+Robot: hard tune
+Robot: correction instantanée
+
+Pop vocal: tight
+Voix pop: serrée
+
+Natural: keeps the vibrato
+Naturel: garde le vibrato
+
+Subtle: light touch
+Discret: touche légère
+
+Backing vocals: locked
+Chœurs: verrouillés
+
+Octave down
+Octave en dessous
+
+# audiostrada_dsp: limiter
+
+Limiter
+Limiteur
+
+Brickwall peak limiter with input gain and ceiling.
+Limiteur de crêtes brickwall avec gain d'entrée et plafond.
+
+Input gain
+Gain d'entrée
+
+Ceiling
+Plafond
+
+Output peak
+Crête de sortie
+
+Input L
+Entrée L
+
+Input R
+Entrée R
+
+Output L
+Sortie L
+
+Output R
+Sortie R
+
+Input loudness
+Loudness d'entrée
+
+Output loudness
+Loudness de sortie
+
+# audiostrada_dsp: maximizer
+
+Maximizer
+Maximiseur
+
+Mastering limiter: louder without clipping, true-peak ceiling, look-ahead.
+Limiteur de mastering: plus fort sans écrêter, plafond true-peak, anticipation.
+
+Style
+Style
+
+Transparent
+Transparent
+
+Punchy
+Percutant
+
+Loud
+Fort
+
+Stereo link
+Lien stéréo
+
+# audiostrada_dsp: reverb
+
+Reverb
+Réverb
+
+Room, hall, space, plate, spring and shimmer, with freeze and ducking.
+Pièce, salle, espace, plaque, ressort et shimmer, avec gel et ducking.
+
+Room
+Pièce
+
+Hall
+Salle
+
+Plate
+Plaque
+
+Spring
+Ressort
+
+Shimmer
+Shimmer
+
+A room: close early reflections, a short and natural tail
+Une pièce : premières réflexions proches, queue courte et naturelle
+
+A concert hall: wide, with a long and soft tail
+Une salle de concert : large, avec une queue longue et douce
+
+A vast space: huge, with long reflections and a dark, endless tail
+Un espace immense : longues réflexions et queue sombre, sans fin
+
+A studio plate: dense and bright from the start, no early reflections
+Une plaque de studio : dense et brillante d'emblée, sans premières réflexions
+
+A spring tank, as in guitar amps: twangy, with a metallic splash
+Une cuve à ressorts, comme dans les amplis guitare : claquante, avec une éclaboussure métallique
+
+A vast space whose tail rises an octave as it rings, for pads and ambient sounds
+Un espace immense dont la queue monte d'une octave en résonnant, pour les nappes et l'ambient
+
+Pre-delay
+Pré-délai
+
+Width
+Largeur
+
+Ducking
+Ducking
+
+Size
+Taille
+
+Early / late
+Précoces / tardives
+
+Treble decay
+Déclin des aigus
+
+Bass decay
+Déclin des graves
+
+Diffusion
+Diffusion
+
+Freeze
+Geler
+
+# audiostrada_dsp: delay
+
+Delay
+Delay
+
+Digital, tape or analog echoes, ping-pong and tempo sync.
+Échos numériques, à bande ou analogiques, ping-pong et synchro au tempo.
+
+Time
+Temps
+
+Feedback
+Réinjection
+
+Ping-pong
+Ping-pong
+
+Note
+Note
+
+1/32
+1/32
+
+1/16 T
+1/16 T
+
+1/16 D
+1/16 P
+
+1/8 T
+1/8 T
+
+1/8 D
+1/8 P
+
+1/4 T
+1/4 T
+
+1/4 D
+1/4 P
+
+Digital
+Numérique
+
+Tape
+Bande
+
+Analog
+Analogique
+
+# audiostrada_dsp: imager
+
+Stereo Imager
+Imageur stéréo
+
+Width per band, mono lows and a goniometer: wide mixes that stay solid.
+Largeur par bande, graves en mono et goniomètre: des mixes larges qui restent solides.
+
+Low width
+Largeur grave
+
+Mid width
+Largeur médium
+
+High width
+Largeur aigu
+
+Low split
+Séparation grave
+
+High split
+Séparation aigu
+
+Mono below
+Mono en dessous de
+
+# audiostrada_dsp: utility
+
+Gain, width, mono, polarity and channel swap.
+Gain, largeur, mono, polarité et permutation des canaux.
+
+Mono
+Mono
+
+Invert left
+Inverser gauche
+
+Invert right
+Inverser droite
+
+Swap channels
+Permuter les canaux
+
+# audiostrada_dsp: analyzer
+
+Analyzer
+Analyseur
+
+Spectrum analyzer.
+Analyseur de spectre.
+
+# audiostrada_dsp: amp_rig
+
+Amp
+Ampli
+
+Pick an amp, add pedals, choose a cabinet: a whole guitar or bass rig.
+Choisissez un ampli, ajoutez des pédales, prenez un baffle: un rig complet de guitare ou de basse.
+
+Gate (-100 = off)
+Gate (-100 = coupé)
+
+Middle
+Médiums
+
+Treble
+Aigus
+
+Presence
+Présence
+
+Master
+Master
+
+Cabinet
+Baffle
+
+4x12 V30
+4x12 V30
+
+4x12 Greenback
+4x12 Greenback
+
+2x12 Blue (open)
+2x12 Blue (ouvert)
+
+2x12 US (open)
+2x12 US (ouvert)
+
+4x10 US (open)
+4x10 US (ouvert)
+
+1x12 US (open)
+1x12 US (ouvert)
+
+4x10 bass
+4x10 basse
+
+8x10 bass
+8x10 basse
+
+1x15 bass
+1x15 basse
+
+Direct
+Direct
+
+Impulse response
+Réponse impulsionnelle
+
+Normalize loudness
+Normaliser la loudness
+
+Pedal 1
+Pédale 1
+
+Empty
+Vide
+
+Clean Boost
+Clean Boost
+
+Green Drive
+Green Drive
+
+Orange Dist
+Orange Dist
+
+Vintage Fuzz
+Vintage Fuzz
+
+Chorus
+Chorus
+
+Phaser
+Phaser
+
+Tremolo
+Trémolo
+
+Tape Delay
+Tape Delay
+
+Capture
+Capture
+
+Gold Drive
+Gold Drive
+
+Blue Drive
+Blue Drive
+
+Black Dist
+Black Dist
+
+Big Fuzz
+Big Fuzz
+
+Metal Dist
+Metal Dist
+
+Treble Boost
+Treble Boost
+
+Analog Delay
+Analog Delay
+
+Yellow Drive
+Yellow Drive
+
+Pedal 1 on
+Pédale 1 active
+
+Pedal 1 knob 1
+Pédale 1 bouton 1
+
+Pedal 1 knob 2
+Pédale 1 bouton 2
+
+Pedal 1 knob 3
+Pédale 1 bouton 3
+
+Pedal 2
+Pédale 2
+
+Pedal 2 on
+Pédale 2 active
+
+Pedal 2 knob 1
+Pédale 2 bouton 1
+
+Pedal 2 knob 2
+Pédale 2 bouton 2
+
+Pedal 2 knob 3
+Pédale 2 bouton 3
+
+Pedal 3
+Pédale 3
+
+Pedal 3 on
+Pédale 3 active
+
+Pedal 3 knob 1
+Pédale 3 bouton 1
+
+Pedal 3 knob 2
+Pédale 3 bouton 2
+
+Pedal 3 knob 3
+Pédale 3 bouton 3
+
+Pedal 4
+Pédale 4
+
+Pedal 4 on
+Pédale 4 active
+
+Pedal 4 knob 1
+Pédale 4 bouton 1
+
+Pedal 4 knob 2
+Pédale 4 bouton 2
+
+Pedal 4 knob 3
+Pédale 4 bouton 3
+
+Amp model
+Modèle d'ampli
+
+US Twin
+US Twin
+
+US Super 4x10
+US Super 4x10
+
+US Deluxe
+US Deluxe
+
+Tweed Deluxe 57
+Tweed Deluxe 57
+
+Tweed Bass 59
+Tweed Bass 59
+
+Voxy 30 Top Boost
+Voxy 30 Top Boost
+
+Brit 45 Bluesbreaker
+Brit 45 Bluesbreaker
+
+Brit Plexi 100
+Brit Plexi 100
+
+Brit 800
+Brit 800
+
+Brit Hot Mod
+Brit Hot Mod
+
+Boutique ODS
+Boutique ODS
+
+Cali Recto
+Cali Recto
+
+Panama 51
+Panama 51
+
+German Lead
+German Lead
+
+Bass Classic
+Bass Classic
+
+Bass Flip 15
+Bass Flip 15
+
+Pedal 5
+Pédale 5
+
+Pedal 5 on
+Pédale 5 active
+
+Pedal 5 knob 1
+Pédale 5 bouton 1
+
+Pedal 5 knob 2
+Pédale 5 bouton 2
+
+Pedal 5 knob 3
+Pédale 5 bouton 3
+
+Pedal 6
+Pédale 6
+
+Pedal 6 on
+Pédale 6 active
+
+Pedal 6 knob 1
+Pédale 6 bouton 1
+
+Pedal 6 knob 2
+Pédale 6 bouton 2
+
+Pedal 6 knob 3
+Pédale 6 bouton 3
+
+Pedal 7
+Pédale 7
+
+Pedal 7 on
+Pédale 7 active
+
+Pedal 7 knob 1
+Pédale 7 bouton 1
+
+Pedal 7 knob 2
+Pédale 7 bouton 2
+
+Pedal 7 knob 3
+Pédale 7 bouton 3
+
+Pedal 8
+Pédale 8
+
+Pedal 8 on
+Pédale 8 active
+
+Pedal 8 knob 1
+Pédale 8 bouton 1
+
+Pedal 8 knob 2
+Pédale 8 bouton 2
+
+Pedal 8 knob 3
+Pédale 8 bouton 3
+
+Amp captures
+Captures d'ampli
+
+Pedal 1 captures
+Captures pédale 1
+
+Pedal 2 captures
+Captures pédale 2
+
+Pedal 3 captures
+Captures pédale 3
+
+Pedal 4 captures
+Captures pédale 4
+
+Pedal 5 captures
+Captures pédale 5
+
+Pedal 6 captures
+Captures pédale 6
+
+Pedal 7 captures
+Captures pédale 7
+
+Pedal 8 captures
+Captures pédale 8
+
+Cabinet IR
+IR du baffle
+
+# audiostrada_dsp: tuner
+
+Tuner
+Accordeur
+
+Chromatic tuner for guitar, bass and voice.
+Accordeur chromatique pour guitare, basse et voix.
+
+Reference A4
+Référence A4
+
+Mute while tuning
+Muet pendant l'accordage
+
+Clarity
+Clarté
+
+# audiostrada_dsp: drive
+
+Overdrive, distortion, fuzz, tube, tape, transformer and rectifier, oversampled.
+Overdrive, distorsion, fuzz, lampe, bande, transformateur et redresseur, suréchantillonnés.
+
+Overdrive
+Overdrive
+
+Distortion
+Distorsion
+
+Tone
+Tonalité
+
+Level
+Niveau
+
+Tube
+Lampe
+
+Transformer
+Transformateur
+
+Rectifier
+Redresseur
+
+Soft diode clipping, as in a Tube Screamer: a warm, mid-forward crunch
+Écrêtage doux par diodes, comme une Tube Screamer : un crunch chaud, centré sur les médiums
+
+Hard clipping: tight and aggressive
+Écrêtage dur : serré et agressif
+
+Squared-off and sputtering, with long sustain
+Carré et crachotant, avec un long sustain
+
+A triode stage: asymmetric, rich in even harmonics, round
+Un étage triode : asymétrique, riche en harmoniques paires, rond
+
+Tape saturation: the highs saturate first, the peaks are rounded off
+Saturation de bande : les aigus saturent en premier, les crêtes sont arrondies
+
+An output transformer: the lows thicken and saturate first
+Un transformateur de sortie : les graves s'épaississent et saturent en premier
+
+Rectified fuzz: an octave up, ring-like
+Fuzz redressée : une octave au-dessus, métallique
+
+# audiostrada_dsp: tape
+
+Tape machine: warm saturation, head bump, wow and flutter, hiss.
+Magnétophone à bande: saturation chaude, head bump, wow and flutter, souffle.
+
+7.5 ips
+7.5 ips
+
+15 ips
+15 ips
+
+30 ips
+30 ips
+
+Hiss
+Souffle
+
+Bias
+Polarisation
+
+# audiostrada_dsp: chorus
+
+Short modulated delays for width and shimmer; turns into a flanger with feedback.
+Courts délais modulés pour la largeur et le scintillement; devient un flanger avec réinjection.
+
+Rate
+Vitesse
+
+Depth
+Profondeur
+
+# audiostrada_dsp: flanger
+
+Classic jet flanger with positive or negative feedback and stereo sweep.
+Flanger jet classique avec réinjection positive ou négative et balayage stéréo.
+
+Manual
+Manuel
+
+# audiostrada_dsp: phaser
+
+Swirling 4 to 12 stage phaser with feedback and stereo spread.
+Phaser tourbillonnant de 4 à 12 étages avec réinjection et écart stéréo.
+
+Low
+Grave
+
+High
+Aigu
+
+4 stages
+4 étages
+
+6 stages
+6 étages
+
+8 stages
+8 étages
+
+12 stages
+12 étages
+
+Vendor
+Éditeur
+
+Show only this vendor's plugins
+Afficher seulement les plugins de cet éditeur
+
+Family
+Famille
+
+The family the plugin declares
+La famille que le plugin déclare
+
+Playing
+Jeu
+
+Band 1 in use
+Bande 1 active
+
+Band 1 bypass
+Contournement bande 1
+
+Band 1 type
+Type bande 1
+
+Band 1 slope
+Pente bande 1
+
+Band 1 dynamic
+Bande 1 dynamique
+
+Band 1 threshold
+Seuil bande 1
+
+Band 1 range
+Plage bande 1
+
+Band 2 in use
+Bande 2 active
+
+Band 2 bypass
+Contournement bande 2
+
+Band 2 type
+Type bande 2
+
+Band 2 slope
+Pente bande 2
+
+Band 2 dynamic
+Bande 2 dynamique
+
+Band 2 threshold
+Seuil bande 2
+
+Band 2 range
+Plage bande 2
+
+Band 3 in use
+Bande 3 active
+
+Band 3 bypass
+Contournement bande 3
+
+Band 3 type
+Type bande 3
+
+Band 3 slope
+Pente bande 3
+
+Band 3 dynamic
+Bande 3 dynamique
+
+Band 3 threshold
+Seuil bande 3
+
+Band 3 range
+Plage bande 3
+
+Band 4 in use
+Bande 4 active
+
+Band 4 bypass
+Contournement bande 4
+
+Band 4 type
+Type bande 4
+
+Band 4 slope
+Pente bande 4
+
+Band 4 dynamic
+Bande 4 dynamique
+
+Band 4 threshold
+Seuil bande 4
+
+Band 4 range
+Plage bande 4
+
+Band 5 in use
+Bande 5 active
+
+Band 5 bypass
+Contournement bande 5
+
+Band 5 type
+Type bande 5
+
+Band 5 frequency
+Fréquence bande 5
+
+Band 5 gain
+Gain bande 5
+
+Band 5 Q
+Q bande 5
+
+Band 5 slope
+Pente bande 5
+
+Band 5 dynamic
+Bande 5 dynamique
+
+Band 5 threshold
+Seuil bande 5
+
+Band 5 range
+Plage bande 5
+
+Band 6 in use
+Bande 6 active
+
+Band 6 bypass
+Contournement bande 6
+
+Band 6 type
+Type bande 6
+
+Band 6 frequency
+Fréquence bande 6
+
+Band 6 gain
+Gain bande 6
+
+Band 6 Q
+Q bande 6
+
+Band 6 slope
+Pente bande 6
+
+Band 6 dynamic
+Bande 6 dynamique
+
+Band 6 threshold
+Seuil bande 6
+
+Band 6 range
+Plage bande 6
+
+Band 7 in use
+Bande 7 active
+
+Band 7 bypass
+Contournement bande 7
+
+Band 7 type
+Type bande 7
+
+Band 7 frequency
+Fréquence bande 7
+
+Band 7 gain
+Gain bande 7
+
+Band 7 Q
+Q bande 7
+
+Band 7 slope
+Pente bande 7
+
+Band 7 dynamic
+Bande 7 dynamique
+
+Band 7 threshold
+Seuil bande 7
+
+Band 7 range
+Plage bande 7
+
+Band 8 in use
+Bande 8 active
+
+Band 8 bypass
+Contournement bande 8
+
+Band 8 type
+Type bande 8
+
+Band 8 frequency
+Fréquence bande 8
+
+Band 8 gain
+Gain bande 8
+
+Band 8 Q
+Q bande 8
+
+Band 8 slope
+Pente bande 8
+
+Band 8 dynamic
+Bande 8 dynamique
+
+Band 8 threshold
+Seuil bande 8
+
+Band 8 range
+Plage bande 8
+
+Band 9 in use
+Bande 9 active
+
+Band 9 bypass
+Contournement bande 9
+
+Band 9 type
+Type bande 9
+
+Band 9 frequency
+Fréquence bande 9
+
+Band 9 gain
+Gain bande 9
+
+Band 9 Q
+Q bande 9
+
+Band 9 slope
+Pente bande 9
+
+Band 9 dynamic
+Bande 9 dynamique
+
+Band 9 threshold
+Seuil bande 9
+
+Band 9 range
+Plage bande 9
+
+Band 10 in use
+Bande 10 active
+
+Band 10 bypass
+Contournement bande 10
+
+Band 10 type
+Type bande 10
+
+Band 10 frequency
+Fréquence bande 10
+
+Band 10 gain
+Gain bande 10
+
+Band 10 Q
+Q bande 10
+
+Band 10 slope
+Pente bande 10
+
+Band 10 dynamic
+Bande 10 dynamique
+
+Band 10 threshold
+Seuil bande 10
+
+Band 10 range
+Plage bande 10
+
+Band 11 in use
+Bande 11 active
+
+Band 11 bypass
+Contournement bande 11
+
+Band 11 type
+Type bande 11
+
+Band 11 frequency
+Fréquence bande 11
+
+Band 11 gain
+Gain bande 11
+
+Band 11 Q
+Q bande 11
+
+Band 11 slope
+Pente bande 11
+
+Band 11 dynamic
+Bande 11 dynamique
+
+Band 11 threshold
+Seuil bande 11
+
+Band 11 range
+Plage bande 11
+
+Band 12 in use
+Bande 12 active
+
+Band 12 bypass
+Contournement bande 12
+
+Band 12 type
+Type bande 12
+
+Band 12 frequency
+Fréquence bande 12
+
+Band 12 gain
+Gain bande 12
+
+Band 12 Q
+Q bande 12
+
+Band 12 slope
+Pente bande 12
+
+Band 12 dynamic
+Bande 12 dynamique
+
+Band 12 threshold
+Seuil bande 12
+
+Band 12 range
+Plage bande 12
+
+Band 13 in use
+Bande 13 active
+
+Band 13 bypass
+Contournement bande 13
+
+Band 13 type
+Type bande 13
+
+Band 13 frequency
+Fréquence bande 13
+
+Band 13 gain
+Gain bande 13
+
+Band 13 Q
+Q bande 13
+
+Band 13 slope
+Pente bande 13
+
+Band 13 dynamic
+Bande 13 dynamique
+
+Band 13 threshold
+Seuil bande 13
+
+Band 13 range
+Plage bande 13
+
+Band 14 in use
+Bande 14 active
+
+Band 14 bypass
+Contournement bande 14
+
+Band 14 type
+Type bande 14
+
+Band 14 frequency
+Fréquence bande 14
+
+Band 14 gain
+Gain bande 14
+
+Band 14 Q
+Q bande 14
+
+Band 14 slope
+Pente bande 14
+
+Band 14 dynamic
+Bande 14 dynamique
+
+Band 14 threshold
+Seuil bande 14
+
+Band 14 range
+Plage bande 14
+
+Band 15 in use
+Bande 15 active
+
+Band 15 bypass
+Contournement bande 15
+
+Band 15 type
+Type bande 15
+
+Band 15 frequency
+Fréquence bande 15
+
+Band 15 gain
+Gain bande 15
+
+Band 15 Q
+Q bande 15
+
+Band 15 slope
+Pente bande 15
+
+Band 15 dynamic
+Bande 15 dynamique
+
+Band 15 threshold
+Seuil bande 15
+
+Band 15 range
+Plage bande 15
+
+Band 16 in use
+Bande 16 active
+
+Band 16 bypass
+Contournement bande 16
+
+Band 16 type
+Type bande 16
+
+Band 16 frequency
+Fréquence bande 16
+
+Band 16 gain
+Gain bande 16
+
+Band 16 Q
+Q bande 16
+
+Band 16 slope
+Pente bande 16
+
+Band 16 dynamic
+Bande 16 dynamique
+
+Band 16 threshold
+Seuil bande 16
+
+Band 16 range
+Plage bande 16
+
+Add EQ band
+Ajouter une bande d'EQ
+
+Band
+Bande
+
+Band {band} alone
+Bande {band} seule
+
+Bypass EQ band
+Contourner une bande d'EQ
+
+Double-click the curve to add a band
+Double-cliquer sur la courbe pour ajouter une bande
+
+Double-click to add a band
+Double-cliquer pour ajouter une bande
+
+Double-click to add a band, drag a band to move it
+Double-cliquer pour ajouter une bande, glisser une bande pour la déplacer
+
+Drag to move, Ctrl+drag or wheel for Q, double-click to remove, right-click for more
+Glisser pour déplacer, Ctrl+glisser ou molette pour le Q, double-clic pour retirer, clic droit pour le reste
+
+Dynamic
+Dynamique
+
+Dynamic EQ band
+Bande d'EQ dynamique
+
+Dynamic band
+Bande dynamique
+
+EQ band type
+Type de bande d'EQ
+
+Hear only the frequencies this band works on
+N'écouter que les fréquences sur lesquelles agit cette bande
+
+Remove EQ band
+Retirer une bande d'EQ
+
+Static band
+Bande statique
+
+Stop solo
+Arrêter le solo
+
+The EQ has 16 bands at most
+L'EQ a 16 bandes au plus
+
+The gain moves by up to the range while these frequencies are above the threshold
+Le gain varie jusqu'à la plage tant que ces fréquences dépassent le seuil
+
+6 dB/oct
+6 dB/oct
+
+12 dB/oct
+12 dB/oct
+
+18 dB/oct
+18 dB/oct
+
+24 dB/oct
+24 dB/oct
+
+36 dB/oct
+36 dB/oct
+
+48 dB/oct
+48 dB/oct
+
+Band pass
+Passe-bande
+
+Bell
+Cloche
+
+Tilt shelf
+Pente inclinée
+
+Solo band
+Bande en solo
+
+Equalizer with up to 16 bands: bells, shelves, steep cuts, notches, dynamic bands, band solo and an analyzer.
+Égaliseur jusqu'à 16 bandes : cloches, plateaux, coupes raides, coupe-bandes, bandes dynamiques, solo de bande et analyseur.
+
+Curve
+Courbe
+
+Bars
+Barres
+
+Spectrogram
+Spectrogramme
+
+Left
+Gauche
+
+Right
+Droite
+
+Side
+Side
+
+Source
+Source
+
+60 dB
+60 dB
+
+90 dB
+90 dB
+
+120 dB
+120 dB
+
+Fall speed
+Retombée
+
+Tilt
+Pente
+
+Peak hold
+Maintien des crêtes
+
+How fast the display falls back after a peak
+Vitesse à laquelle l'affichage redescend après une crête
+
+Slow speeds show the average tone, fast ones every hit
+Lente, elle montre le timbre moyen ; rapide, chaque attaque
+
+Keeps the highest level of each band; click the display to clear it
+Garde le niveau le plus haut de chaque bande ; un clic sur l'affichage l'efface
+
+Raises the highs, so that a balanced mix looks flat
+Relève les aigus, pour qu'un mix équilibré paraisse plat
+
+Both channels together
+Les deux canaux ensemble
+
+Left channel
+Canal gauche
+
+Right channel
+Canal droit
+
+What differs between the channels
+Ce qui diffère entre les canaux
+
+# audiostrada_dsp: drums
+
+Drum Machine
+Boîte à rythmes
+
+Analog drum machine in the spirit of the 808, on the General MIDI drum notes.
+Boîte à rythmes analogique dans l'esprit de la 808, sur les notes de batterie General MIDI.
+
+Accent
+Accent
+
+Kick
+Grosse caisse
+
+Kick level
+Grosse caisse : niveau
+
+Kick tune
+Grosse caisse : accord
+
+Kick decay
+Grosse caisse : déclin
+
+Kick tone
+Grosse caisse : timbre
+
+Rim shot
+Rim shot
+
+Rim shot level
+Rim shot : niveau
+
+Rim shot tune
+Rim shot : accord
+
+Rim shot decay
+Rim shot : déclin
+
+Rim shot tone
+Rim shot : timbre
+
+Snare
+Caisse claire
+
+Snare level
+Caisse claire : niveau
+
+Snare tune
+Caisse claire : accord
+
+Snare decay
+Caisse claire : déclin
+
+Snare tone
+Caisse claire : timbre
+
+Clap
+Clap
+
+Clap level
+Clap : niveau
+
+Clap tune
+Clap : accord
+
+Clap decay
+Clap : déclin
+
+Clap tone
+Clap : timbre
+
+Closed hat
+Charley fermé
+
+Closed hat level
+Charley fermé : niveau
+
+Closed hat tune
+Charley fermé : accord
+
+Closed hat decay
+Charley fermé : déclin
+
+Closed hat tone
+Charley fermé : timbre
+
+Open hat
+Charley ouvert
+
+Open hat level
+Charley ouvert : niveau
+
+Open hat tune
+Charley ouvert : accord
+
+Open hat decay
+Charley ouvert : déclin
+
+Open hat tone
+Charley ouvert : timbre
+
+Low tom
+Tom grave
+
+Low tom level
+Tom grave : niveau
+
+Low tom tune
+Tom grave : accord
+
+Low tom decay
+Tom grave : déclin
+
+Low tom tone
+Tom grave : timbre
+
+Mid tom
+Tom médium
+
+Mid tom level
+Tom médium : niveau
+
+Mid tom tune
+Tom médium : accord
+
+Mid tom decay
+Tom médium : déclin
+
+Mid tom tone
+Tom médium : timbre
+
+High tom
+Tom aigu
+
+High tom level
+Tom aigu : niveau
+
+High tom tune
+Tom aigu : accord
+
+High tom decay
+Tom aigu : déclin
+
+High tom tone
+Tom aigu : timbre
+
+Cymbal
+Cymbale
+
+Cymbal level
+Cymbale : niveau
+
+Cymbal tune
+Cymbale : accord
+
+Cymbal decay
+Cymbale : déclin
+
+Cymbal tone
+Cymbale : timbre
+
+Cowbell level
+Cloche : niveau
+
+Cowbell tune
+Cloche : accord
+
+Cowbell decay
+Cloche : déclin
+
+Cowbell tone
+Cloche : timbre
+
+Clave level
+Claves : niveau
+
+Clave tune
+Claves : accord
+
+Clave decay
+Claves : déclin
+
+Clave tone
+Claves : timbre
+
+Kit: classic
+Kit : classique
+
+Kit: boom (long kick)
+Kit : boom (grosse caisse longue)
+
+Kit: trap
+Kit : trap
+
+Kit: electro
+Kit : électro
+
+Kit: tight and dry
+Kit : serré et sec
+
+Kit: dusty lo-fi
+Kit : lo-fi poussiéreux
+
+Kit: tuned up
+Kit : accordé haut
+
+Tune
+Accord
+
+Add to the piano roll
+Ajouter au piano roll
+
+Click to play and show its settings; lower on the pad plays louder
+Cliquez pour jouer et afficher ses réglages ; plus bas sur le pad, plus fort
+
+Kit
+Kit
+
+Rhythm {name}
+Rythme {name}
+
+Rhythms
+Rythmes
+
+Writes the rhythm into a new MIDI clip at the playhead, then opens it in the piano roll; the project tempo stays as it is
+Écrit le rythme dans un nouveau clip MIDI à la tête de lecture, puis l'ouvre dans le piano roll ; le tempo du projet ne change pas
+
+{n} bars
+{n} mesures
+
+Hip hop: boom bap
+Hip hop : boom bap
+
+Hip hop: lo-fi
+Hip hop : lo-fi
+
+Trap
+Trap
+
+Drill
+Drill
+
+House
+House
+
+Techno
+Techno
+
+Electro: 808 funk
+Électro : funk 808
+
+Reggaeton: dembow
+Reggaeton : dembow
+
+Funk
+Funk
+
+Rock
+Rock
+
+Drum and bass
+Drum and bass

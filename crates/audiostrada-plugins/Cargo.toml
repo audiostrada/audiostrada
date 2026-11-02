@@ -1,0 +1,36 @@
+[package]
+name = "audiostrada-plugins"
+description = "AudioStrada plugin hosting (CLAP, VST3, LV2, AU)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+clack-extensions.workspace = true
+clack-host.workspace = true
+vst3.workspace = true
+libloading.workspace = true
+serde.workspace = true
+audiostrada-midi.workspace = true
+audiostrada-rt.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+x11rb.workspace = true
+
+# XTest presses keys in the window tests.
+[target.'cfg(all(unix, not(target_os = "macos")))'.dev-dependencies]
+x11rb = { workspace = true, features = ["xtest"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_System_JobObjects", "Win32_System_LibraryLoader", "Win32_System_Memory", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
+
+[lints]
+workspace = true

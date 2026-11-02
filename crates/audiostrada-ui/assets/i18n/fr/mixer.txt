@@ -1,0 +1,640 @@
+# French: mixer
+
+Add chain {name}
+Ajouter la chaîne {name}
+
+This track cannot hold effects
+Cette piste ne peut pas recevoir d'effets
+
+Save effects as a chain
+Enregistrer les effets comme chaîne
+
+Save effects as a chain…
+Enregistrer les effets comme chaîne…
+
+Chain name
+Nom de la chaîne
+
+{count} effect(s)
+{count} effet(s)
+
+Save
+Enregistrer
+
+no configuration folder
+aucun dossier de configuration
+
+Chain "{name}" saved
+Chaîne « {name} » enregistrée
+
+Cannot save the chain: {e}
+Impossible d'enregistrer la chaîne: {e}
+
+None
+Aucun
+
+Load…
+Charger…
+
+Cannot load {file}: {e}
+Impossible de charger {file}: {e}
+
+Remove
+Retirer
+
+L: {amount}%
+G : {amount} %
+
+R: {amount}%
+D : {amount} %
+
+Group selected tracks
+Grouper les pistes sélectionnées
+
+Ctrl+G. Select tracks first (click, Ctrl or Shift on their names)
+Ctrl+G. Sélectionnez d'abord des pistes (clic, Ctrl ou Shift sur leur nom)
+
+{count} track(s) selected
+{count} piste(s) sélectionnée(s)
+
+No groups yet. Members of a group share level changes, mute, solo and arm.
+Aucun groupe pour l'instant. Les membres d'un groupe partagent les changements de niveau, le muet, le solo et l'armement.
+
+Name
+Nom
+
+On
+Activé
+
+Level
+Niveau
+
+Mute
+Muet
+
+Solo
+Solo
+
+Arm
+Armer
+
+Members
+Membres
+
+Rename group
+Renommer le groupe
+
+Group links
+Liens du groupe
+
+none
+aucun
+
+Select
+Sélectionner
+
+Select the members
+Sélectionner les membres
+
+Add selected
+Ajouter la sélection
+
+Join group
+Rejoindre le groupe
+
+Delete
+Supprimer
+
+Delete group
+Supprimer le groupe
+
+Add VCA
+Ajouter un VCA
+
+VCA added: assign tracks from their output menu (→ Master)
+VCA ajouté: assignez-lui des pistes depuis leur menu de sortie (→ Master)
+
+Group tracks
+Grouper les pistes
+
+In {first}-{second}
+Ent. {first}-{second}
+
+In {input}
+Ent. {input}
+
+Track input
+Entrée de la piste
+
+Group
+Groupe
+
+New group from the selected tracks
+Nouveau groupe avec les pistes sélectionnées
+
+New group with this track
+Nouveau groupe avec cette piste
+
+No group
+Aucun groupe
+
+Leave group
+Quitter le groupe
+
+Save snapshot
+Enregistrer l'instantané
+
+Snapshots keep the levels, pans, mutes, sends and effect settings.
+Les instantanés gardent les niveaux, les pans, les muets, les envois et les réglages des effets.
+
+Rename snapshot
+Renommer l'instantané
+
+Recall these settings
+Rappeler ces réglages
+
+Recall {name}
+Rappeler {name}
+
+Rename
+Renommer
+
+Update
+Mettre à jour
+
+Replace with the current settings
+Remplacer par les réglages actuels
+
+Update snapshot
+Mettre à jour l'instantané
+
+Delete snapshot
+Supprimer l'instantané
+
+MIDI learn
+Apprentissage MIDI
+
+Forget MIDI mapping (CC {controller}, ch {channel})
+Oublier l'assignation MIDI (CC {controller}, canal {channel})
+
+Off: the automation lanes are ignored
+Off: les pistes d'automation sont ignorées
+
+Read: the lanes play; moving a control overrides them while held
+Read: les pistes d'automation sont lues, bouger un contrôle les remplace tant qu'il est tenu
+
+Touch: records while a control is held, then returns to the lane
+Touch: enregistre tant qu'un contrôle est tenu, puis revient à la piste d'automation
+
+Latch: records from the first touch and keeps the last value until stop
+Latch: enregistre dès le premier contact et garde la dernière valeur jusqu'à l'arrêt
+
+Write: records every control during the whole playback
+Write: enregistre tous les contrôles pendant toute la lecture
+
+Trim: moving a control offsets the lane instead of replacing it
+Trim: bouger un contrôle décale la piste d'automation au lieu de la remplacer
+
+Automation: {mode}. {help}
+Automation: {mode}. {help}
+
+Automation mode
+Mode d'automation
+
+No tracks yet. Import audio, or add a track with the buttons above.
+Aucune piste pour l'instant. Importez de l'audio ou ajoutez une piste avec les boutons ci-dessus.
+
+Add track
+Ajouter une piste
+
+Add instrument track
+Ajouter une piste instrument
+
+A MIDI track with the built-in synth, ready to play
+Une piste MIDI avec le synthé intégré, prête à jouer
+
+A fader without audio that moves the level and mute of the selected tracks together, keeping their balance
+Un fader sans audio qui déplace ensemble le niveau et le muet des pistes sélectionnées, en gardant leur équilibre
+
+Groups
+Groupes
+
+Tracks whose level, mute, solo and arm move together
+Pistes dont le niveau, le muet, le solo et l'armement bougent ensemble
+
+Snapshots
+Instantanés
+
+Save and recall the console settings
+Enregistrer et rappeler les réglages de la console
+
+importing {count} file(s)…
+import de {count} fichier(s)…
+
+{count} media file(s) cannot be found
+{count} fichier(s) média introuvable(s)
+
+Locate…
+Localiser…
+
+Moves the level and mute of {members} track(s), keeping their balance.
+Déplace le niveau et le muet de {members} piste(s), en gardant leur équilibre.
+
+Assign selected
+Assigner la sélection
+
+Make this VCA control the selected tracks
+Faire contrôler les pistes sélectionnées par ce VCA
+
+Assign VCA
+Assigner le VCA
+
+Pan {name}
+Pan {name}
+
+Gain {name}
+Gain {name}
+
+Group {name}. Click to select its tracks
+Groupe {name}. Cliquer pour sélectionner ses pistes
+
+Mute {name}
+Muet {name}
+
+Solo {name}
+Solo {name}
+
+Record arm
+Armer l'enregistrement
+
+VCA. Click to select, drag to reorder, right-click for options
+VCA. Cliquer pour sélectionner, glisser pour réordonner, clic droit pour les options
+
+Folder. Click to select, drag to reorder, right-click for options
+Dossier. Cliquer pour sélectionner, glisser pour réordonner, clic droit pour les options
+
+Click to select (Ctrl adds, Shift extends), drag to reorder, right-click for options
+Cliquer pour sélectionner (Ctrl ajoute, Shift étend), glisser pour réordonner, clic droit pour les options
+
+Move tracks
+Déplacer les pistes
+
+Input trim
+Trim d'entrée
+
+Trim
+Trim
+
+Invert polarity
+Inverser la polarité
+
+Polarity
+Polarité
+
++ insert
++ insert
+
+Add an effect or a plugin
+Ajouter un effet ou un plugin
+
+Effects on: click to bypass the master's inserts
+Effets actifs: cliquer pour bypasser les inserts du master
+
+Effects on: click to bypass every insert of this track
+Effets actifs: cliquer pour bypasser tous les inserts de cette piste
+
+Effects bypassed: click to turn the master's inserts back on
+Effets bypassés: cliquer pour réactiver les inserts du master
+
+Effects bypassed: click to turn every insert of this track back on
+Effets bypassés: cliquer pour réactiver tous les inserts de cette piste
+
+Every effect is bypassed by ALL on the master
+Tous les effets sont bypassés par TOUT sur le master
+
+FX
+FX
+
+Bypass inserts
+Bypasser les inserts
+
+ALL
+TOUT
+
+Every effect bypassed: click to turn them back on
+Tous les effets bypassés: cliquer pour les réactiver
+
+Effects on: click to bypass every insert of every track and of the master (an instrument leading a track keeps playing)
+Effets actifs: cliquer pour bypasser tous les inserts de toutes les pistes et du master (un instrument en tête de piste continue de jouer)
+
+Bypass all inserts
+Bypasser tous les inserts
+
+{owner}: {name} cannot be loaded: {e}
+{owner}: {name} ne peut pas être chargé: {e}
+
+{owner}: {name}. Click to edit, Shift+click to bypass, Ctrl+click to remove; drag to reorder, onto another track to copy (Alt: move)
+{owner}: {name}. Clic pour éditer, Shift+clic pour bypasser, Ctrl+clic pour retirer, glisser pour réordonner, sur une autre piste pour copier (Alt: déplacer)
+
+Bypass insert
+Bypasser l'insert
+
+Remove insert
+Retirer l'insert
+
+Enable
+Activer
+
+Bypass
+Bypass
+
+Move up
+Monter
+
+Move insert
+Déplacer l'insert
+
+Move down
+Descendre
+
+Move to the mix (exported)
+Déplacer dans le mix (exporté)
+
+Move to monitoring only
+Déplacer dans le monitoring seul
+
+Reload plugin
+Recharger le plugin
+
+Copy insert
+Copier l'insert
+
+Insert {name}
+Insérer {name}
+
+Send to {name} (pre-fader). Right-click for options
+Envoi vers {name} (pré-fader). Clic droit pour les options
+
+Send to {name} (post-fader). Right-click for options
+Envoi vers {name} (post-fader). Clic droit pour les options
+
+Send level
+Niveau d'envoi
+
+pre
+pré
+
+Post-fader
+Post-fader
+
+Pre-fader
+Pré-fader
+
+Send position
+Position de l'envoi
+
+Unmute
+Rétablir le son
+
+Mute send
+Envoi muet
+
+Remove send
+Retirer l'envoi
+
+Cut the output to the master
+Couper la sortie vers le master
+
+The track is then heard only through the send (its folder or master output is turned off)
+La piste ne s'entend plus que par l'envoi (sa sortie vers le dossier ou le master est coupée)
+
+Add a bus first
+Ajoutez d'abord un bus
+
+Would create a feedback loop
+Créerait une boucle de réinjection
+
+Add send
+Ajouter un envoi
+
+No output
+Pas de sortie
+
+→ Master
+→ Master
+
+Output: {label}
+Sortie: {label}
+
+{count} tracks selected
+{count} pistes sélectionnées
+
+VCA (its fader and mute act on this track)
+VCA (son fader et son muet agissent sur cette piste)
+
+Send to folder / master
+Envoyer au dossier / master
+
+Output
+Sortie
+
+Folder
+Dossier
+
+None (top level)
+Aucun (niveau supérieur)
+
+Move to folder
+Déplacer dans le dossier
+
+MONITOR (NOT EXPORTED)
+MONITORING (NON EXPORTÉ)
+
+Monitor
+Monitoring
+
+Master gain
+Gain du master
+
+Integrated loudness since reset, LUFS
+Loudness intégrée depuis la remise à zéro, LUFS
+
+Highest sample since reset, dBFS
+Échantillon le plus haut depuis la remise à zéro, dBFS
+
+Momentary loudness (400 ms), LUFS
+Loudness momentanée (400 ms), LUFS
+
+Short-term loudness (3 s), LUFS
+Loudness à court terme (3 s), LUFS
+
+{hint}. Click Reset to restart
+{hint}. Cliquer sur RAZ pour recommencer
+
+Reset
+Réinit.
+
+Restart the loudness measurement
+Recommencer la mesure de loudness
+
+REF
+RÉF
+
+Click to hear the reference track instead of the mix, at the same loudness; right-click for its settings
+Cliquer pour écouter la piste de référence au lieu du mix, à la même loudness, clic droit pour ses réglages
+
+Choose a reference track to compare the mix with
+Choisir une piste de référence à comparer au mix
+
+This plugin cannot be loaded: {error}
+Ce plugin ne peut pas être chargé: {error}
+
+Close plugin window
+Fermer la fenêtre du plugin
+
+Open plugin window
+Ouvrir la fenêtre du plugin
+
+Plugin window
+Fenêtre du plugin
+
+Presets, levels and parameters…
+Presets, niveaux et paramètres…
+
+AudioStrada's window for this plugin: presets, A/B, input and output levels, Match, every parameter
+La fenêtre d'AudioStrada pour ce plugin : presets, A/B, niveaux d'entrée et de sortie, Match, tous les paramètres
+
+This plugin has no window AudioStrada can open yet
+Ce plugin n'a pas encore de fenêtre qu'AudioStrada peut ouvrir
+
+Filter parameters
+Filtrer les paramètres
+
+This plugin exposes no parameters.
+Ce plugin n'expose aucun paramètre.
+
+Rename track
+Renommer la piste
+
+Track color
+Couleur de la piste
+
+Stereo track
+Piste stéréo
+
+Records two inputs side by side (In 1-2); stereo files play in stereo either way
+Enregistre deux entrées côte à côte (Entrée 1-2), les fichiers stéréo sont lus en stéréo dans tous les cas
+
+Convert to a stereo track
+Convertir en piste stéréo
+
+The two tracks become one stereo track: left and right are told by the names (L, R, Left, Right), else the upper track is the left one
+Les deux pistes deviennent une piste stéréo: la gauche et la droite sont reconnues par les noms (L, R, Left, Right), sinon la piste du haut est la gauche
+
+Cannot convert to a stereo track: {e}
+Impossible de convertir en piste stéréo: {e}
+
+Import audio file…
+Importer un fichier audio…
+
+Duplicate tracks
+Dupliquer les pistes
+
+Duplicate track
+Dupliquer la piste
+
+Delete tracks
+Supprimer les pistes
+
+Delete track
+Supprimer la piste
+
+Unfreeze
+Dégeler
+
+Freeze
+Geler
+
+Render with the inserts and play that instead, to save processing
+Faire le rendu avec les inserts et lire celui-ci à la place, pour économiser le calcul
+
+Cannot freeze: {e}
+Impossible de geler: {e}
+
+Bounce to a new track
+Bounce sur une nouvelle piste
+
+Render with the inserts onto a new track and mute this one
+Faire le rendu avec les inserts sur une nouvelle piste et rendre celle-ci muette
+
+Cannot bounce: {e}
+Bounce impossible: {e}
+
+Export track…
+Exporter la piste…
+
+New playlist
+Nouvelle playlist
+
+Hide take lanes
+Masquer les prises
+
+Show take lanes
+Afficher les prises
+
+Show the other playlists under the track; drag on one to comp
+Afficher les autres playlists sous la piste, glisser sur l'une pour faire du comping
+
+Hide automation
+Masquer l'automation
+
+Show automation
+Afficher l'automation
+
+MIDI output
+Sortie MIDI
+
+Change instrument…
+Changer d'instrument…
+
+The built-in synth or an installed instrument plugin (CLAP, VST3, LV2) in its place
+Le synthé intégré ou un plugin instrument installé (CLAP, VST3, LV2) à sa place
+
+Add a send
+Ajouter un envoi
+
+Effects: {count}. Click to open the list
+Effets : {count}. Cliquez pour ouvrir la liste
+
+Mon
+Mon
+
+Monitoring effects (not exported): {count}. Click to open the list
+Effets d'écoute (non exportés) : {count}. Cliquez pour ouvrir la liste
+
+Pan {pan}. Drag (Shift for fine steps) or use the wheel; double-click to center
+Balance {pan}. Glissez (Maj pour le réglage fin) ou utilisez la molette ; double-clic pour centrer
+
+Send
+Envoi
+
+Sends: {count}. Click to open the list
+Envois : {count}. Cliquez pour ouvrir la liste
+
+{owner}: effects
+{owner} : effets
+
+{owner}: monitoring
+{owner} : écoute
+
+{owner}: sends
+{owner} : envois
+
+Group {n}
+Groupe {n}
+
+VCA {n}
+VCA {n}
+
+Mix {letter}
+Mix {letter}

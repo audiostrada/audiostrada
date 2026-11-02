@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=AudioStrada
+GenericName=Digital Audio Workstation
+Comment=Record, edit and mix music
+Exec=audiostrada %F
+Icon=audiostrada
+Terminal=false
+Categories=AudioVideo;Audio;Recorder;Mixer;Midi;
+MimeType=application/x-audiostrada-project;
+Keywords=DAW;audio;music;recording;mixing;MIDI;plugins;
+StartupWMClass=audiostrada

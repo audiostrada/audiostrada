@@ -1,0 +1,5 @@
+/target
+**/*.rs.bk
+.DS_Store
+/target-i18n
+/.claude/worktrees

@@ -1,0 +1,155 @@
+name: Release
+
+# Builds the official packages and installers for a version tag and drafts a GitHub release.
+# Official builds run in evaluation mode without a license (feature `official`); the license
+# public key comes from the repository variable AUDIOSTRADA_LICENSE_KEY. Signing steps run only
+# when their secrets are set (see docs/distribution.md).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  AUDIOSTRADA_FEATURES: official
+  AUDIOSTRADA_LICENSE_KEY: ${{ vars.AUDIOSTRADA_LICENSE_KEY }}
+  # Web site serving the download page, as in crates/audiostrada-license (SITE).
+  SITE_URL: https://audiostrada.com
+
+jobs:
+  linux:
+    # The oldest supported runner, so the packages work on older glibc.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Release date
+        run: echo "AUDIOSTRADA_RELEASE_DATE=$(git log -1 --format=%cs)" >> "$GITHUB_ENV"
+      - run: sudo apt-get update && sudo apt-get install -y libpipewire-0.3-dev libspa-0.2-dev libclang-dev libasound2-dev libjack-jackd2-dev libfuse2
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install cargo-deb --version 3.8.0 --locked
+      - run: cargo install cargo-generate-rpm --version 0.21.1 --locked
+      - run: cargo deb -p audiostrada-app --locked --features "$AUDIOSTRADA_FEATURES"
+      - run: cargo generate-rpm -p crates/audiostrada-app --profile dist
+      - name: AppImage
+        run: |
+          curl -sSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          sudo mv appimagetool /usr/local/bin/
+          APPIMAGE_EXTRACT_AND_RUN=1 sh packaging/linux/build-appimage.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux
+          path: |
+            target/debian/*.deb
+            target/generate-rpm/*.rpm
+            target/appimage/*.AppImage
+
+  windows:
+    runs-on: windows-latest
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Release date
+        shell: bash
+        run: echo "AUDIOSTRADA_RELEASE_DATE=$(git log -1 --format=%cs)" >> "$GITHUB_ENV"
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build -p audiostrada-app --profile dist --locked --features $env:AUDIOSTRADA_FEATURES
+      - name: Sign the program
+        if: env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          files: ${{ github.workspace }}\target\dist\audiostrada.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+      - run: choco install innosetup -y --no-progress
+      - name: Installer
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"').Matches[0].Groups[1].Value
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DVersion=$version" packaging\windows\audiostrada.iss
+      - name: Sign the installer
+        if: env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          files-folder: ${{ github.workspace }}\target\installer
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: target/installer/*.exe
+
+  macos:
+    runs-on: macos-latest
+    env:
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+      AUDIOSTRADA_BUNDLE_ID: ${{ vars.AUDIOSTRADA_BUNDLE_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Release date
+        run: echo "AUDIOSTRADA_RELEASE_DATE=$(git log -1 --format=%cs)" >> "$GITHUB_ENV"
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: Signing certificate
+        if: env.MACOS_CERTIFICATE != ''
+        env:
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p ci build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p ci build.keychain
+          security import certificate.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci build.keychain
+          xcrun notarytool store-credentials audiostrada --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+          echo "AUDIOSTRADA_SIGN_IDENTITY=$(security find-identity -v -p codesigning build.keychain | sed -n 's/.*"\(Developer ID Application.*\)"/\1/p' | head -n 1)" >> "$GITHUB_ENV"
+          echo "AUDIOSTRADA_NOTARY_PROFILE=audiostrada" >> "$GITHUB_ENV"
+      - run: sh packaging/macos/bundle.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos
+          path: target/macos/*.dmg
+
+  release:
+    needs: [linux, windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums and version file
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          date=$(git log -1 --format=%cs)
+          (cd dist && sha256sum -- * > SHA256SUMS)
+          # Read by the update check of the official builds (crates/audiostrada-ui/src/updates.rs).
+          printf '{"version":"%s","date":"%s","url":"%s/download"}\n' "$version" "$date" "$SITE_URL" > dist/latest.json
+      - uses: softprops/action-gh-release@v3
+        with:
+          draft: true
+          files: dist/**/*

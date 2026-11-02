@@ -1,0 +1,30 @@
+[package]
+name = "audiostrada-rt"
+description = "AudioStrada real-time safety tooling: allocation checks, lock-free channels, RT logging."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+assert_no_alloc.workspace = true
+rtrb.workspace = true
+tracing.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = ["Win32_Foundation", "Win32_System_Threading"] }
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "rt"
+harness = false
+
+[lints]
+workspace = true

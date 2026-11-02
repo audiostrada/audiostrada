@@ -1,0 +1,44 @@
+[package]
+name = "audiostrada-io"
+description = "AudioStrada audio backends (PipeWire, JACK, ALSA, WASAPI, ASIO, CoreAudio)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[features]
+default = ["pipewire", "jack", "alsa"]
+alsa = ["dep:alsa"]
+jack = ["dep:jack"]
+pipewire = ["dep:pipewire"]
+
+[dependencies]
+audiostrada-rt.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+alsa = { workspace = true, optional = true }
+jack = { workspace = true, optional = true }
+pipewire = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+coreaudio-rs.workspace = true
+objc2-audio-toolbox.workspace = true
+objc2-core-audio.workspace = true
+objc2-core-audio-types.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+wasapi.workspace = true
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[lints]
+workspace = true

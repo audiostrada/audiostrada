@@ -1,0 +1,23 @@
+[package]
+name = "audiostrada-media"
+description = "AudioStrada media decoding, encoding, resampling and peak files."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+rubato.workspace = true
+shine-rs.workspace = true
+opus-rs.workspace = true
+ogg.workspace = true
+serde.workspace = true
+symphonia.workspace = true
+flacenc.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>audiostrada</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>AudioStrada</name>
+  <summary>Record, edit and mix music</summary>
+  <description>
+    <p>
+      AudioStrada is a digital audio workstation: multitrack recording and editing, a mixing
+      console with buses and VCAs, automation, CLAP, VST3 and LV2 plugins running in their own
+      processes, MIDI instruments with a piano roll, built-in effects including a Neural Amp
+      Modeler amp, time stretching, and export to WAV and FLAC.
+    </p>
+    <p>
+      On Linux it plays through PipeWire with no configuration, and also supports JACK and
+      ALSA.
+    </p>
+  </description>
+  <launchable type="desktop-id">audiostrada.desktop</launchable>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+  </categories>
+  <provides>
+    <binary>audiostrada</binary>
+    <mediatype>application/x-audiostrada-project</mediatype>
+  </provides>
+  <content_rating type="oars-1.1"/>
+</component>

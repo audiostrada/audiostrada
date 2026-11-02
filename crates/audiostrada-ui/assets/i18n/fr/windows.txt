@@ -1,0 +1,642 @@
+# French: windows
+
+Stream rate
+Fréquence du flux
+
+WAV 16-bit
+WAV 16 bits
+
+WAV 24-bit
+WAV 24 bits
+
+WAV 32-bit float
+WAV 32 bits flottant
+
+FLAC 16-bit
+FLAC 16 bits
+
+FLAC 24-bit
+FLAC 24 bits
+
+Export
+Exporter
+
+Cancel
+Annuler
+
+Format
+Format
+
+Sample rate
+Fréquence d'échantillonnage
+
+Custom
+Personnalisé
+
+Dither
+Dither
+
+Triangular (TPDF)
+Triangulaire (TPDF)
+
+Normalize
+Normaliser
+
+Off
+Désactivé
+
+Peak
+Crête
+
+Loudness
+Loudness
+
+Streaming services: about -14 LUFS; broadcast: -23 LUFS.
+Plateformes de streaming: environ -14 LUFS; diffusion: -23 LUFS.
+
+Range
+Étendue
+
+Whole project
+Projet entier
+
+Loop range
+Boucle
+
+Set a loop range first
+Définissez d'abord une boucle
+
+Tail
+Traîne
+
+Files
+Fichiers
+
+Mix
+Mix
+
+Stems (one file per track, soloed)
+Stems (un fichier par piste, en solo)
+
+Export…
+Exporter…
+
+Add to queue…
+Mettre en file…
+
+Keep these settings and the project as it is now, to render later with other exports
+Garder ces réglages et le projet tel qu'il est, pour en faire le rendu plus tard avec d'autres exports
+
+Add to the render queue
+Ajouter à la file de rendu
+
+Render queue
+File de rendu
+
+Remove
+Retirer
+
+{files} files
+{files} fichiers
+
+Render queue ({count})
+Lancer la file ({count})
+
+Beep
+Bip
+
+Wood block
+Wood block
+
+Clave
+Clave
+
+Cowbell
+Cloche
+
+Hi-hat
+Charleston
+
+Metronome
+Métronome
+
+Click
+Clic
+
+On
+Activé
+
+Volume
+Volume
+
+Sound
+Son
+
+Clicks per beat
+Clics par temps
+
+One click per beat
+Un clic par temps
+
+Eighths: a softer click between the beats
+Croches: un clic plus doux entre les temps
+
+Triplets
+Triolets
+
+Sixteenths
+Doubles croches
+
+Accents
+Accents
+
+Accent the first beat of the bar
+Accentuer le premier temps de la mesure
+
+Beat in dotted quarters (6/8, 9/8, 12/8: 2, 3 or 4 beats per bar)
+Battre à la noire pointée (6/8, 9/8, 12/8: 2, 3 ou 4 temps par mesure)
+
+Groups
+Groupes
+
+none
+aucun
+
+Clear
+Effacer
+
+The groups must add up to {beats} beats, the bar of {beats}/{unit}.
+Les groupes doivent totaliser {beats} temps, la mesure en {beats}/{unit}.
+
+Groups accent the first beat of each group, for odd meters (7/8 as 2+2+3).
+Les groupes accentuent le premier temps de chacun, pour les mesures asymétriques (7/8 en 2+2+3).
+
+When
+Quand
+
+Playing and recording
+En lecture et en enregistrement
+
+Only while recording
+Seulement en enregistrement
+
+Count-in before recording
+Décompte avant l'enregistrement
+
+1 bar
+1 mesure
+
+2 bars
+2 mesures
+
+4 bars
+4 mesures
+
+Time signature at the playhead: {beats}/{unit} (change it in the transport bar).
+Métrique à la tête de lecture: {beats}/{unit} (à changer dans la barre de transport).
+
+just now
+à l'instant
+
+{minutes} min ago
+il y a {minutes} min
+
+{hours} h ago
+il y a {hours} h
+
+yesterday
+hier
+
+{days} days ago
+il y a {days} jours
+
+Project versions
+Versions du projet
+
+Each save keeps the file it replaces (the last 30). Restoring one is a single step: Ctrl+Z comes back.
+Chaque enregistrement garde le fichier qu'il remplace (les 30 derniers). En restaurer un est une seule étape: Ctrl+Z revient en arrière.
+
+Save the project once to start keeping versions.
+Enregistrez le projet une première fois pour commencer à garder des versions.
+
+No earlier version yet: they appear from the second save.
+Pas encore de version antérieure: elles apparaissent dès le deuxième enregistrement.
+
+Version {number}
+Version {number}
+
+Restore
+Restaurer
+
+Cannot restore this version: {error}
+Impossible de restaurer cette version: {error}
+
+Reference track
+Piste de référence
+
+A finished song to compare your mix with: heard instead of the mix, at the same place in the song, never exported.
+Un morceau fini auquel comparer votre mix: entendu à la place du mix, au même endroit du morceau, jamais exporté.
+
+No reference
+Aucune référence
+
+Choose…
+Choisir…
+
+Reference
+Référence
+
+Integrated since the meters were reset, else short-term
+Intégrée depuis la remise à zéro des vu-mètres, sinon à court terme
+
+Match the mix's loudness
+Aligner sur la loudness du mix
+
+Plays the reference as loud as the mix, so you compare the sound and not the level
+Joue la référence aussi fort que le mix, pour comparer le son et non le niveau
+
+The reference plays {gain} dB
+La référence est jouée à {gain} dB
+
+You hear the reference.
+Vous entendez la référence.
+
+Parent folder
+Dossier parent
+
+Home folder
+Dossier personnel
+
+Refresh
+Actualiser
+
+Filter files
+Filtrer les fichiers
+
+Listen
+Écouter
+
+Drag onto the timeline, or double-click to add a track
+Glisser sur la timeline, ou double-cliquer pour ajouter une piste
+
+No audio files here
+Aucun fichier audio ici
+
+Import
+Importer
+
+Play on select
+Lire à la sélection
+
+Stop
+Stop
+
+Add marker at playhead
+Ajouter un marqueur à la tête de lecture
+
+Add marker
+Ajouter un marqueur
+
+No markers. Add one at the playhead with the button above or its shortcut.
+Aucun marqueur. Ajoutez-en un à la tête de lecture avec le bouton ci-dessus ou son raccourci.
+
+Rename marker
+Renommer le marqueur
+
+Delete marker
+Supprimer le marqueur
+
+Equal power
+Puissance constante
+
+Linear
+Linéaire
+
+Fast
+Rapide
+
+Slow
+Lent
+
+S-curve
+Courbe en S
+
+Select a clip to see its properties.
+Sélectionnez un clip pour voir ses propriétés.
+
+{count} clips selected
+{count} clips sélectionnés
+
+Click a track header to see the track.
+Cliquez sur l'en-tête d'une piste pour la voir.
+
+Clip
+Clip
+
+Name
+Nom
+
+Rename clip
+Renommer le clip
+
+Start
+Début
+
+Length
+Durée
+
+Gain
+Gain
+
+Clip gain
+Gain du clip
+
+Fade in
+Fondu d'entrée
+
+Fade out
+Fondu de sortie
+
+Fade-in shape
+Forme du fondu d'entrée
+
+Fade-out shape
+Forme du fondu de sortie
+
+Fade shape
+Forme du fondu
+
+Stretch
+Étirement
+
+Length relative to the original, pitch kept. Alt-drag the clip's right edge too
+Durée par rapport à l'original, hauteur conservée. Aussi en glissant le bord droit du clip avec Alt
+
+Stretch clip
+Étirer le clip
+
+Pitch
+Hauteur
+
+st
+dt
+
+Transposition in semitones, length kept
+Transposition en demi-tons, durée conservée
+
+Transpose clip
+Transposer le clip
+
+File
+Fichier
+
+Track
+Piste
+
+Rename track
+Renommer la piste
+
+Color
+Couleur
+
+Track color
+Couleur de la piste
+
+Input
+Entrée
+
+In
+Entrée
+
+Stereo
+Stéréo
+
+Track input
+Entrée de la piste
+
+Playlist
+Playlist
+
+Move up
+Monter
+
+Move track
+Déplacer la piste
+
+Move down
+Descendre
+
+Frozen
+Gelée
+
+Unfreeze
+Dégeler
+
+Play the clips and inserts again
+Rejouer les clips et les inserts
+
+Freeze
+Geler
+
+Render the track with its inserts to a file and play that instead, to save processing
+Faire le rendu de la piste avec ses inserts dans un fichier et lire celui-ci à la place, pour économiser le calcul
+
+New playlist
+Nouvelle playlist
+
+Next playlist
+Playlist suivante
+
+Switch playlist
+Changer de playlist
+
+Other playlists and takes
+Autres playlists et prises
+
+Copy a clip into the current playlist to build a comp.
+Copiez un clip dans la playlist courante pour construire un comp.
+
+{name}  ({count} clips)
+{name}  ({count} clips)
+
+Use this playlist
+Utiliser cette playlist
+
+Copy to current
+Copier dans la courante
+
+Comp take
+Ajouter la prise au comp
+
+Velocity
+Vélocité
+
+Modulation (CC 1)
+Modulation (CC 1)
+
+Breath (CC 2)
+Souffle (CC 2)
+
+Volume (CC 7)
+Volume (CC 7)
+
+Pan (CC 10)
+Pan (CC 10)
+
+Expression (CC 11)
+Expression (CC 11)
+
+Sustain (CC 64)
+Sustain (CC 64)
+
+Slide (CC 74)
+Slide (CC 74)
+
+Pitch bend
+Pitch bend
+
+Channel pressure
+Pression de canal
+
+Delete notes
+Supprimer les notes
+
+Quantize notes
+Quantifier les notes
+
+Select a MIDI clip to edit its notes.\nCreate one with Track › New MIDI clip, or by double-clicking an empty part of a track.
+Sélectionnez un clip MIDI pour éditer ses notes.\nCréez-en un avec Piste › Nouveau clip MIDI, ou en double-cliquant sur une partie vide d'une piste.
+
+{count} notes
+{count} notes
+
+Quantize
+Quantifier
+
+Selected notes, or all, to the grid
+Les notes sélectionnées, ou toutes, sur la grille
+
+Select all
+Tout sélectionner
+
+Delete
+Supprimer
+
+What the lane under the notes edits; with notes of one channel selected, controllers of that channel (MPE per-note expression)
+Ce que modifie la zone sous les notes; avec des notes d'un seul canal sélectionnées, les contrôleurs de ce canal (expression par note MPE)
+
+Ch {channel}
+Can. {channel}
+
+Ch mixed
+Can. mixtes
+
+Ch
+Can.
+
+MIDI channel of the selected notes
+Canal MIDI des notes sélectionnées
+
+Note channel
+Canal des notes
+
+Give overlapping notes their own channel (2 to 16) so each can be bent and shaped alone
+Donne aux notes qui se chevauchent leur propre canal (2 à 16) pour que chacune puisse être courbée et modelée seule
+
+Spread notes over MPE channels
+Répartir les notes sur les canaux MPE
+
+{lane}, channel {channel}
+{lane}, canal {channel}
+
+Draw controller
+Dessiner un contrôleur
+
+Delete controller point
+Supprimer un point de contrôleur
+
+Add controller point
+Ajouter un point de contrôleur
+
+Move notes
+Déplacer les notes
+
+Resize notes
+Redimensionner les notes
+
+Note velocity
+Vélocité des notes
+
+Add note
+Ajouter une note
+
+# synth editor
+
+Init
+Neutre
+
+Soft keys
+Piano doux
+
+Warm pad
+Nappe chaude
+
+Strings
+Cordes
+
+Brass
+Cuivres
+
+Pluck
+Pincé
+
+Square lead
+Lead carré
+
+Sub bass
+Sub basse
+
+Acid bass
+Basse acid
+
+Hollow pad
+Nappe creuse
+
+Brightness
+Brillance
+
+Shape
+Forme
+
+Bright and buzzy: brass, strings, leads
+Brillant et riche : cuivres, cordes, leads
+
+Hollow: clarinet, retro games
+Creux : clarinette, jeux rétro
+
+Pure: sub bass, soft flutes
+Pur : sub basse, flûtes douces
+
+Soft and round: mellow keys
+Doux et rond : claviers feutrés
+
+KEYBOARD
+CLAVIER
+
+Octave down (Z)
+Octave inférieure (Z)
+
+Octave up (X)
+Octave supérieure (X)
+
+Computer keyboard
+Clavier de l'ordinateur
+
+Play with the letters: A S D F G H J K for the white keys, W E T Y U for the black ones, Z and X for the octave
+Jouez avec les lettres (positions d'un clavier QWERTY) : A S D F G H J K pour les touches blanches, W E T Y U pour les noires, Z et X pour l'octave
+
+MPE controller
+Contrôleur MPE
+
+For MPE controllers (Roli Seaboard, LinnStrument, Osmose...), which send each note on its own MIDI channel: bend, pressure and slide then shape every note on its own. Leave it off for an ordinary keyboard.
+Pour les contrôleurs MPE (Roli Seaboard, LinnStrument, Osmose...), qui envoient chaque note sur son propre canal MIDI : le pitch bend, la pression et le glissement agissent alors sur chaque note séparément. À laisser éteint pour un clavier ordinaire.

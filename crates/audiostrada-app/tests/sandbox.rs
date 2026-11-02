@@ -1,0 +1,140 @@
+//! Sandboxed plugins against the real `audiostrada plugin-host`, with the plugins of
+//! AUDIOSTRADA_TEST_CLAP and AUDIOSTRADA_TEST_INSTRUMENTS.
+
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+use audiostrada_plugins::sandbox::SandboxInstance;
+use audiostrada_plugins::{Format, MidiEvent, PluginInstance, PluginRequest, scan};
+
+fn exe() -> &'static Path {
+    Path::new(env!("CARGO_BIN_EXE_audiostrada"))
+}
+
+fn plugins(var: &str, instrument: bool) -> Vec<audiostrada_plugins::PluginDescriptor> {
+    let Some(dir) = std::env::var_os(var) else {
+        eprintln!("{var} not set, skipping");
+        return Vec::new();
+    };
+    let dirs = [PathBuf::from(dir)];
+    let mut found = Vec::new();
+    for format in [Format::Clap, Format::Vst3, Format::Lv2] {
+        for file in scan::find_files(format, &dirs) {
+            found.extend(
+                audiostrada_plugins::scan_file(format, &file)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|d| d.instrument == instrument)
+                    .take(1),
+            );
+        }
+    }
+    found
+}
+
+#[test]
+fn sandboxed_effect_matches_in_process() {
+    for descriptor in plugins("AUDIOSTRADA_TEST_CLAP", false).into_iter().take(2) {
+        let input: Vec<f32> = (0..256).map(|i| ((i as f32) * 0.05).sin() * 0.5).collect();
+        let render = |instance: &mut dyn PluginInstance| {
+            let mut processor = instance.activate(48_000, 256).unwrap();
+            let mut out = Vec::new();
+            for _ in 0..20 {
+                let (mut l, mut r) = (input.clone(), input.clone());
+                processor.process(&mut l, &mut r, &[], &[], &mut |_, _| {});
+                out.extend(l);
+            }
+            drop(processor);
+            assert!(instance.try_deactivate());
+            out
+        };
+        let mut local = audiostrada_plugins::instantiate_in_process(&descriptor).unwrap();
+        let expected = render(local.as_mut());
+        let mut sandboxed = SandboxInstance::new(exe(), &descriptor).unwrap();
+        assert_eq!(sandboxed.params().len(), local.params().len());
+        let got = render(&mut sandboxed);
+        let diff = expected
+            .iter()
+            .zip(&got)
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0, f32::max);
+        eprintln!("{}: max difference {diff}", descriptor.name);
+        assert!(diff < 1e-4, "{}: {diff}", descriptor.name);
+        let state = sandboxed.save_state().expect("state");
+        assert!(sandboxed.load_state(&state));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn crashed_host_is_reported_and_bypassed() {
+    let Some(descriptor) = plugins("AUDIOSTRADA_TEST_INSTRUMENTS", true)
+        .into_iter()
+        .next()
+    else {
+        return;
+    };
+    let mut instance = SandboxInstance::new(exe(), &descriptor).unwrap();
+    let mut processor = instance.activate(48_000, 256).unwrap();
+    let mut energy = 0.0;
+    for block in 0..20 {
+        let (mut l, mut r) = (vec![0.0f32; 256], vec![0.0f32; 256]);
+        let notes = [MidiEvent::note_on(0, 0, 60, 110)];
+        let midi: &[MidiEvent] = if block == 0 { &notes } else { &[] };
+        processor.process(&mut l, &mut r, &[], midi, &mut |_, _| {});
+        energy += l.iter().map(|s| s * s).sum::<f32>();
+    }
+    assert!(
+        energy > 0.01,
+        "{} played through the sandbox",
+        descriptor.name
+    );
+    assert!(instance.poll().is_empty() || !instance.crashed());
+
+    // SAFETY: plain kill(2) of our own child process.
+    unsafe { libc::kill(instance.pid() as i32, libc::SIGKILL) };
+    let start = Instant::now();
+    let mut requests = Vec::new();
+    while !requests.contains(&PluginRequest::Crashed) && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(20));
+        requests = instance.poll();
+    }
+    assert!(requests.contains(&PluginRequest::Crashed));
+    assert!(instance.poll().is_empty(), "reported once");
+    let (mut l, mut r) = (vec![0.25f32; 256], vec![0.25f32; 256]);
+    let t = Instant::now();
+    processor.process(&mut l, &mut r, &[], &[], &mut |_, _| {});
+    assert!(
+        t.elapsed() < Duration::from_millis(5),
+        "no waiting after a crash"
+    );
+    assert!(l.iter().all(|&s| s == 0.25), "dry signal passes");
+    drop(processor);
+    assert!(instance.try_deactivate());
+}
+
+#[test]
+#[ignore = "needs a display"]
+fn sandboxed_editor_opens() {
+    for descriptor in plugins("AUDIOSTRADA_TEST_CLAP", false).into_iter().take(1) {
+        let mut instance = SandboxInstance::new(exe(), &descriptor).unwrap();
+        let processor = instance.activate(48_000, 256).unwrap();
+        assert!(instance.has_gui());
+        instance.open_gui(&descriptor.name).unwrap();
+        assert!(instance.gui_open());
+        for _ in 0..50 {
+            instance.poll();
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        if let Ok(path) = std::env::var("AUDIOSTRADA_TEST_SCREENSHOT_CMD") {
+            let _ = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(path)
+                .status();
+        }
+        instance.close_gui();
+        assert!(!instance.gui_open());
+        drop(processor);
+        assert!(instance.try_deactivate());
+    }
+}

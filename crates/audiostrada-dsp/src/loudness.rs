@@ -1,0 +1,251 @@
+//! Loudness after ITU-R BS.1770 (K-weighting, LUFS) and level meters for effect displays.
+
+use crate::gain_to_db;
+
+/// Short-term loudness spans 3 s of 100 ms blocks.
+const BLOCKS: usize = 30;
+/// Peaks are held this long, so a display reading them 30 times a second misses none.
+const HOLD_MS: f32 = 40.0;
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Biquad {
+    b: [f64; 3],
+    a: [f64; 2],
+    z: [f64; 2],
+}
+
+impl Biquad {
+    #[inline]
+    pub fn run(&mut self, x: f64) -> f64 {
+        let y = self.b[0] * x + self.z[0];
+        self.z[0] = self.b[1] * x - self.a[0] * y + self.z[1];
+        self.z[1] = self.b[2] * x - self.a[1] * y;
+        y
+    }
+}
+
+/// The two K-weighting stages (high shelf, then high pass) for `rate`.
+pub fn k_weighting(rate: u32) -> [Biquad; 2] {
+    let fs = f64::from(rate);
+    let (f0, gain_db, q) = (1681.974450955533, 3.999843853973347, 0.7071752369554196);
+    let k = (std::f64::consts::PI * f0 / fs).tan();
+    let vh = 10f64.powf(gain_db / 20.0);
+    let vb = vh.powf(0.4996667741545416);
+    let a0 = 1.0 + k / q + k * k;
+    let shelf = Biquad {
+        b: [
+            (vh + vb * k / q + k * k) / a0,
+            2.0 * (k * k - vh) / a0,
+            (vh - vb * k / q + k * k) / a0,
+        ],
+        a: [2.0 * (k * k - 1.0) / a0, (1.0 - k / q + k * k) / a0],
+        z: [0.0; 2],
+    };
+    let (f0, q) = (38.13547087602444, 0.5003270373238773);
+    let k = (std::f64::consts::PI * f0 / fs).tan();
+    let a0 = 1.0 + k / q + k * k;
+    let high_pass = Biquad {
+        b: [1.0, -2.0, 1.0],
+        a: [2.0 * (k * k - 1.0) / a0, (1.0 - k / q + k * k) / a0],
+        z: [0.0; 2],
+    };
+    [shelf, high_pass]
+}
+
+pub fn lufs(mean_square: f64) -> f64 {
+    if mean_square <= 0.0 {
+        f64::NEG_INFINITY
+    } else {
+        -0.691 + 10.0 * mean_square.log10()
+    }
+}
+
+/// The highest value pushed over the last 40 to 80 ms.
+#[derive(Clone, Copy, Debug)]
+pub struct Hold {
+    current: f32,
+    last: f32,
+    count: u32,
+    length: u32,
+}
+
+impl Hold {
+    pub fn new(rate: u32) -> Self {
+        Self {
+            current: 0.0,
+            last: 0.0,
+            count: 0,
+            length: ((rate as f32 * HOLD_MS / 1000.0) as u32).max(1),
+        }
+    }
+
+    #[inline]
+    pub fn push(&mut self, value: f32) {
+        self.current = self.current.max(value);
+        self.count += 1;
+        if self.count >= self.length {
+            self.last = self.current;
+            self.current = 0.0;
+            self.count = 0;
+        }
+    }
+
+    pub fn value(&self) -> f32 {
+        self.current.max(self.last)
+    }
+
+    pub fn reset(&mut self) {
+        self.current = 0.0;
+        self.last = 0.0;
+        self.count = 0;
+    }
+}
+
+/// Held peaks and short-term loudness of a stereo signal; never allocates.
+#[derive(Clone, Debug)]
+pub struct LevelMeter {
+    filters: [[Biquad; 2]; 2],
+    sum: f64,
+    count: u32,
+    block: u32,
+    blocks: [f64; BLOCKS],
+    at: usize,
+    filled: usize,
+    peaks: [Hold; 2],
+}
+
+impl LevelMeter {
+    pub fn new(rate: u32) -> Self {
+        Self {
+            filters: [k_weighting(rate); 2],
+            sum: 0.0,
+            count: 0,
+            block: (rate / 10).max(1),
+            blocks: [0.0; BLOCKS],
+            at: 0,
+            filled: 0,
+            peaks: [Hold::new(rate); 2],
+        }
+    }
+
+    #[inline]
+    pub fn push(&mut self, left: f32, right: f32) {
+        for (ch, x) in [left, right].into_iter().enumerate() {
+            self.peaks[ch].push(x.abs());
+            let [shelf, high_pass] = &mut self.filters[ch];
+            let y = high_pass.run(shelf.run(f64::from(x)));
+            self.sum += y * y;
+        }
+        self.count += 1;
+        if self.count == self.block {
+            self.blocks[self.at] = self.sum / f64::from(self.block);
+            self.at = (self.at + 1) % BLOCKS;
+            self.filled = (self.filled + 1).min(BLOCKS);
+            self.sum = 0.0;
+            self.count = 0;
+        }
+    }
+
+    /// Left and right peaks, in dBFS.
+    pub fn peaks(&self) -> [f32; 2] {
+        self.peaks.map(|p| gain_to_db(p.value()))
+    }
+
+    /// Loudness of the last 3 s (less right after a reset), in LUFS; -120 for silence.
+    pub fn short_term(&self) -> f32 {
+        if self.filled == 0 {
+            return -120.0;
+        }
+        let energy = self.blocks.iter().sum::<f64>() / self.filled as f64;
+        (lufs(energy) as f32).max(-120.0)
+    }
+
+    pub fn reset(&mut self) {
+        for f in self.filters.iter_mut().flatten() {
+            f.z = [0.0; 2];
+        }
+        self.sum = 0.0;
+        self.count = 0;
+        self.blocks = [0.0; BLOCKS];
+        self.at = 0;
+        self.filled = 0;
+        for p in &mut self.peaks {
+            p.reset();
+        }
+    }
+}
+
+/// Meters of the limiters, in this order: gain reduction (dB), output peak, input left and
+/// right, output left and right peaks (dBFS), input and output short-term loudness (LUFS).
+pub const LIMITER_METERS: &[&str] = &[
+    "Gain reduction",
+    "Output peak",
+    "Input L",
+    "Input R",
+    "Output L",
+    "Output R",
+    "Input loudness",
+    "Output loudness",
+];
+
+/// Writes [`LIMITER_METERS`]; `reduction` holds how far under 1 the gain went.
+pub(crate) fn limiter_meters(
+    out: &mut [f32],
+    reduction: &Hold,
+    input: &LevelMeter,
+    output: &LevelMeter,
+) {
+    let [il, ir] = input.peaks();
+    let [ol, or] = output.peaks();
+    let values = [
+        gain_to_db(1.0 - reduction.value()),
+        ol.max(or),
+        il,
+        ir,
+        ol,
+        or,
+        input.short_term(),
+        output.short_term(),
+    ];
+    for (o, v) in out.iter_mut().zip(values) {
+        *o = v;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_sine_at_minus_20_dbfs_reads_minus_20_lufs_and_its_peak() {
+        let mut meter = LevelMeter::new(48_000);
+        for n in 0..48_000 * 4 {
+            let s = 0.1 * (std::f32::consts::TAU * 997.0 * n as f32 / 48_000.0).sin();
+            meter.push(s, s);
+        }
+        assert!(
+            (meter.short_term() + 20.0).abs() < 0.1,
+            "{}",
+            meter.short_term()
+        );
+        for p in meter.peaks() {
+            assert!((p + 20.0).abs() < 0.05, "{p}");
+        }
+        meter.reset();
+        assert_eq!(meter.short_term(), -120.0);
+    }
+
+    #[test]
+    fn a_peak_stays_visible_for_the_hold_time() {
+        let mut hold = Hold::new(1000);
+        hold.push(0.8);
+        for _ in 0..39 {
+            hold.push(0.1);
+        }
+        assert_eq!(hold.value(), 0.8, "still there after 40 ms");
+        for _ in 0..40 {
+            hold.push(0.1);
+        }
+        assert_eq!(hold.value(), 0.1);
+    }
+}

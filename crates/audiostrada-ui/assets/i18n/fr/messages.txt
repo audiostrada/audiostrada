@@ -1,0 +1,238 @@
+# French: messages
+
+Cannot play {path}: {error}
+Impossible de lire {path}: {error}
+
+Cannot copy {path}: {error}
+Impossible de copier {path}: {error}
+
+Import {name}
+Importer {name}
+
+Imported {path}
+{path} importé
+
+Cannot import {path}: {error}
+Impossible d'importer {path}: {error}
+
+Relink media
+Relier les médias
+
+Arm a track with its R button to record on it.
+Armez une piste avec son bouton R pour enregistrer dessus.
+
+The audio stream has no inputs. Enable some in Preferences › Audio.
+Le flux audio n'a aucune entrée. Activez-en dans Préférences › Audio.
+
+Track "{name}" records input {input}, but the stream has {inputs} input(s).
+La piste « {name} » enregistre l'entrée {input}, mais le flux a {inputs} entrée(s).
+
+No MIDI was received while recording
+Aucun MIDI reçu pendant l'enregistrement
+
+Record MIDI
+Enregistrer du MIDI
+
+Recorded {count} MIDI note(s)
+{count} note(s) MIDI enregistrée(s)
+
+Recorded {count} MIDI note(s) in loop
+{count} note(s) MIDI enregistrée(s) en boucle
+
+Recording error: {error}
+Erreur d'enregistrement: {error}
+
+{count} frames were lost while recording: the disk did not keep up.
+{count} trames perdues pendant l'enregistrement: le disque n'a pas suivi.
+
+Record
+Enregistrer
+
+Recorded {count} take(s)
+{count} prise(s) enregistrée(s)
+
+Write automation
+Écrire l'automation
+
+Normalize
+Normaliser
+
+not a file
+ce n'est pas un fichier
+
+Load file
+Charger un fichier
+
+Remove file
+Retirer le fichier
+
+the file has no notes
+le fichier ne contient aucune note
+
+Import MIDI
+Importer du MIDI
+
+there are no MIDI notes to export
+il n'y a aucune note MIDI à exporter
+
+MIDI learn: move a controller
+MIDI learn: bougez un contrôleur
+
+Forget MIDI mapping
+Oublier l'assignation MIDI
+
+Change control
+Modifier un réglage
+
+MIDI learn
+Apprentissage MIDI
+
+Mapped controller {controller} (channel {channel})
+Contrôleur {controller} assigné (canal {channel})
+
+Autosave failed: {error}
+Échec de la sauvegarde automatique: {error}
+
+an export is already running
+un export est déjà en cours
+
+, stems
+, stems
+
+the render queue is empty
+la file de rendu est vide
+
+there is nothing to export
+il n'y a rien à exporter
+
+choose the mix, the stems or both
+choisissez le mix, les stems ou les deux
+
+wait for the current export to finish
+attendez la fin de l'export en cours
+
+unknown track
+piste inconnue
+
+wait for the current render to finish
+attendez la fin du rendu en cours
+
+nothing to consolidate
+rien à consolider
+
+select two audio tracks
+sélectionnez deux pistes audio
+
+folder tracks cannot be converted
+les pistes dossier ne peuvent pas être converties
+
+the tracks hold no audio
+les pistes ne contiennent pas d'audio
+
+Convert to a stereo track
+Convertir en piste stéréo
+
+Converted to a stereo track
+Converti en piste stéréo
+
+unknown effect
+effet inconnu
+
+select audio clips to process
+sélectionnez des clips audio à traiter
+
+Consolidate
+Consolider
+
+Clips consolidated
+Clips consolidés
+
+Cannot reverse: {error}
+Impossible d'inverser: {error}
+
+Process clip
+Traiter le clip
+
+Unfreeze track
+Dégeler la piste
+
+Rendering {file}
+Rendu de {file}
+
+Writing files
+Écriture des fichiers
+
+Export cancelled
+Export annulé
+
+the export thread crashed
+le thread d'export a planté
+
+Export failed: {error}
+Échec de l'export: {error}
+
+Exported {count} file(s)
+{count} fichier(s) exporté(s)
+
+Bounce track
+Bouncer la piste
+
+Track bounced to a new track
+Piste bouncée sur une nouvelle piste
+
+Freeze track
+Geler la piste
+
+Track frozen
+Piste gelée
+
+Strip silence
+Supprimer les silences
+
+Extract silence
+Extraire les silences
+
+Separate at silences
+Séparer aux silences
+
+Heal
+Recoller
+
+Conform to the grid
+Caler sur la grille
+
+Separate at hits
+Séparer aux attaques
+
+save the project first
+enregistrez d'abord le projet
+
+Collect media
+Rassembler les médias
+
+an archive is already being written
+une archive est déjà en cours d'écriture
+
+missing file: {path}
+fichier manquant: {path}
+
+Project archived to {path}
+Projet archivé dans {path}
+
+Cannot archive the project: {error}
+Impossible d'archiver le projet : {error}
+
+Cannot archive the project: the archive thread crashed
+Impossible d'archiver le projet: le thread d'archivage a planté
+
+Restore {version}
+Restaurer {version}
+
+Reference track
+Piste de référence
+
+Remove reference track
+Retirer la piste de référence
+
+Reference loudness
+Loudness de la référence

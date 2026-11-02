@@ -1,0 +1,639 @@
+# French: timeline
+
+Delete range
+Supprimer la sélection
+
+Split range
+Scinder la sélection
+
+Loop range
+Boucle
+
+Delete clips
+Supprimer les clips
+
+Split clips
+Scinder les clips
+
+Nudge
+Décaler
+
+Loop selection
+Boucler la sélection
+
+Add marker
+Ajouter un marqueur
+
+New playlist
+Nouvelle playlist
+
+Switch playlist
+Changer de playlist
+
+VCA controlling {members} track(s)
+VCA contrôlant {members} piste(s)
+
+Drop audio files here, or use File › Import audio
+Déposez des fichiers audio ici, ou utilisez Fichier › Importer de l'audio
+
+(rendering…)
+(rendu en cours…)
+
+(muted)
+(muet)
+
+Volume
+Volume
+
+Pan
+Pan
+
+Mute
+Muet
+
+Send → {name}
+Envoi → {name}
+
+Show or hide the folder contents
+Afficher ou masquer le contenu du dossier
+
+Frozen
+Gelée
+
+Solo
+Solo
+
+In {first}-{second}
+Ent. {first}-{second}
+
+In {input}
+Ent. {input}
+
+Move tracks
+Déplacer les pistes
+
+Click to select (Ctrl adds, Shift extends), double-click the name to rename, drag to reorder, right-click for options
+Cliquer pour sélectionner (Ctrl ajoute, Shift étend), double-cliquer sur le nom pour renommer, glisser pour réordonner, clic droit pour les options
+
+Show automation lanes
+Afficher les pistes d'automation
+
+Add an automation lane
+Ajouter une piste d'automation
+
+Use
+Choisir
+
+Play this playlist instead of the current one
+Lire cette playlist au lieu de l'actuelle
+
+Select playlist
+Choisir la playlist
+
+Play this lane
+Lire cette piste d'automation
+
+Automation lane
+Piste d'automation
+
+Hide
+Masquer
+
+Delete this lane
+Supprimer cette piste d'automation
+
+Delete automation lane
+Supprimer la piste d'automation
+
+Add automation lane
+Ajouter une piste d'automation
+
+Copy clips
+Copier les clips
+
+Move clips
+Déplacer les clips
+
+Trim clip
+Rogner le clip
+
+Stretch clip
+Étirer le clip
+
+Fade
+Fondu
+
+Clip gain
+Gain du clip
+
+Set punch range
+Définir le punch
+
+Set loop
+Définir la boucle
+
+Move marker
+Déplacer le marqueur
+
+Move automation point
+Déplacer le point d'automation
+
+Comp takes
+Comping des prises
+
+Comp take
+Ajouter la prise au comp
+
+Delete automation point
+Supprimer le point d'automation
+
+Add automation point
+Ajouter un point d'automation
+
+Curve to the next point
+Courbe jusqu'au point suivant
+
+Linear
+Linéaire
+
+Smooth
+Lisse
+
+Step
+Palier
+
+Automation curve
+Courbe d'automation
+
+Delete point
+Supprimer le point
+
+Punch off
+Punch désactivé
+
+Loop off
+Boucle désactivée
+
+Click to add points, or write them during playback
+Cliquer pour ajouter des points, ou les écrire pendant la lecture
+
+{seconds} s on {count} track(s)
+{seconds} s sur {count} piste(s)
+
+Delete and close the gap
+Supprimer et refermer le vide
+
+Split at the edges
+Scinder aux bords
+
+Consolidate
+Consolider
+
+Process…
+Traiter…
+
+Loop this range
+Boucler cette sélection
+
+Insert silence here
+Insérer du silence ici
+
+Push everything after the range start by the range length, on all tracks
+Repousser tout ce qui suit le début de la sélection de sa longueur, sur toutes les pistes
+
+Insert silence
+Insérer du silence
+
+Clear the range
+Retirer la sélection
+
+Paste
+Coller
+
+{count} clips
+{count} clips
+
+Rename clip
+Renommer le clip
+
+Split here
+Scinder ici
+
+Normalize, reverse, or render through an effect
+Normaliser, inverser ou faire passer dans un effet
+
+Find the hits of the selected clips, cut or conform them to the grid
+Trouver les attaques des clips sélectionnés, les couper ou les caler sur la grille
+
+Fade in
+Fondu d'entrée
+
+Fade out
+Fondu de sortie
+
+None
+Aucun
+
+1 beat
+1 temps
+
+1 bar
+1 mesure
+
+Equal power
+Puissance constante
+
+Fast
+Rapide
+
+Slow
+Lent
+
+S-curve
+Courbe en S
+
+Fade shape
+Forme du fondu
+
+Gain
+Gain
+
+Reset to 0 dB
+Remettre à 0 dB
+
+Normalize to {target} dBFS
+Normaliser à {target} dBFS
+
+Stretch
+Étirement
+
+Original speed
+Vitesse d'origine
+
+Match project tempo ({found} → {bpm} BPM)
+Caler sur le tempo du projet ({found} → {bpm} BPM)
+
+Stretch so the clip's detected tempo becomes the project tempo
+Étirer pour que le tempo détecté du clip devienne celui du projet
+
+Match tempo
+Caler le tempo
+
+No clear tempo detected
+Aucun tempo net détecté
+
+Or Alt-drag the right edge
+Ou glisser le bord droit avec Alt
+
+Pitch
+Hauteur
+
+Original pitch
+Hauteur d'origine
+
+Transpose clip
+Transposer le clip
+
+Unmute
+Rétablir le son
+
+Mute clips
+Clips muets
+
+Loop these clips
+Boucler ces clips
+
+Open in piano roll
+Ouvrir dans le piano roll
+
+Add marker here
+Ajouter un marqueur ici
+
+New MIDI clip here
+Nouveau clip MIDI ici
+
+Select all clips of the track
+Sélectionner tous les clips de la piste
+
+Rename marker
+Renommer le marqueur
+
+Delete marker
+Supprimer le marqueur
+
+Go here
+Aller ici
+
+Start punch here
+Début du punch ici
+
+Start loop here
+Début de la boucle ici
+
+End punch here
+Fin du punch ici
+
+End loop here
+Fin de la boucle ici
+
+Remove punch
+Retirer le punch
+
+Remove loop
+Retirer la boucle
+
+Select clips, or a range (Shift+drag across the tracks), first
+Sélectionnez d'abord des clips, ou une sélection temporelle (Shift+glisser sur les pistes)
+
+Nothing to heal: select clips cut from the same audio, still in place
+Rien à recoller: sélectionnez des clips coupés dans le même audio, restés en place
+
+Cannot consolidate: {error}
+Consolidation impossible: {error}
+
+Beat Detective
+Beat Detective
+
+{count} track(s): hits are looked for on all of them together, so the microphones of a kit are cut at the same places.
+{count} piste(s): les attaques sont cherchées sur toutes à la fois, pour que les micros d'une batterie soient coupés aux mêmes endroits.
+
+Sensitivity
+Sensibilité
+
+{count} hit(s), marked in red
+{count} attaque(s), marquée(s) en rouge
+
+Looking for the hits…
+Recherche des attaques…
+
+Separate at the hits
+Séparer aux attaques
+
+Cut the clips where the hits start
+Couper les clips au début des attaques
+
+Strength
+Intensité
+
+Separate and conform to the grid ({grid})
+Séparer et caler sur la grille ({grid})
+
+Cut at the hits and move each slice toward the nearest grid line, joining the slices with short crossfades
+Couper aux attaques et rapprocher chaque tranche de la ligne de grille la plus proche, en les raccordant par de courts fondus enchaînés
+
+Strip Silence
+Strip Silence
+
+Threshold
+Seuil
+
+Shortest silence
+Silence minimal
+
+Keep before
+Garder avant
+
+Keep after
+Garder après
+
+Keep
+Garder
+
+The sound
+Le son
+
+Remove the silences
+Retirer les silences
+
+The silences
+Les silences
+
+Remove the sound, keep the room noise
+Retirer le son, garder le bruit de la pièce
+
+Both, cut
+Les deux, coupés
+
+Only cut the clips where the silences start and end
+Seulement couper les clips au début et à la fin des silences
+
+{clips} clip(s): {pieces} part(s) with sound. The darkened parts go.
+{clips} clip(s): {pieces} partie(s) avec du son. Les parties assombries disparaissent.
+
+Strip
+Retirer
+
+Process Clips
+Traiter les clips
+
+Renders {count} clip(s) through the process and puts the result in their place (undo restores them).
+Calcule {count} clip(s) avec le traitement et met le résultat à leur place (annuler les rétablit).
+
+Process
+Traitement
+
+Reverse
+Inverser
+
+Normalize
+Normaliser
+
+Peak
+Crête
+
+Plays the clips backwards.
+Lit les clips à l'envers.
+
+Keep the tail (what rings after the clip)
+Garder la queue (ce qui résonne après le clip)
+
+Render
+Calculer le rendu
+
+Cannot process: {error}
+Traitement impossible: {error}
+
+Copy notes
+Copier des notes
+
+Drag to paint a note per grid step, click a note to remove it
+Glissez pour peindre une note par pas de grille, cliquez une note pour l'enlever
+
+Draw notes
+Dessiner des notes
+
+Duplicate notes
+Dupliquer des notes
+
+Humanize
+Humaniser
+
+Humanize notes
+Humaniser des notes
+
+Legato
+Legato
+
+Lengthen the selected notes, or all, up to the next note
+Allonge les notes sélectionnées, ou toutes, jusqu'à la note suivante
+
+No scale
+Aucune gamme
+
+Nudge notes
+Décaler des notes
+
+Paste notes
+Coller des notes
+
+Shades the keys outside the scale
+Assombrit les notes hors de la gamme
+
+Transpose notes
+Transposer des notes
+
+Vary the timing and velocity of the selected notes, or all, a little
+Varie un peu le placement et la vélocité des notes sélectionnées, ou de toutes
+
+✏ Draw
+✏ Crayon
+
+Major
+Majeure
+
+Minor
+Mineure
+
+Harmonic minor
+Mineure harmonique
+
+Dorian
+Dorienne
+
+Pentatonic major
+Pentatonique majeure
+
+Pentatonic minor
+Pentatonique mineure
+
+# Groove
+
+Groove
+Groove
+
+nothing to groove
+rien à caler
+
+the reference holds no audio
+la référence ne contient pas d'audio
+
+{clip} is still loading, try again
+{clip} est encore en chargement, réessayez
+
+{count} track(s) grooved, as a new playlist
+{count} piste(s) calée(s), dans une nouvelle playlist
+
+{name} groove
+{name} groove
+
+Move the hits of the selected tracks onto those of the drums (or any track)
+Caler les attaques des pistes sélectionnées sur celles de la batterie (ou d'une autre piste)
+
+Below 100 %, some of the feel of the take stays
+Sous 100 %, une part du jeu de la prise reste
+
+Choose the track to follow
+Choisissez la piste à suivre
+
+Follow
+Suivre
+
+Hits to follow
+Attaques à suivre
+
+All hits
+Toutes
+
+Kick (lows)
+Grosse caisse (graves)
+
+Snare and hi-hats (highs)
+Caisse claire et charleston (aigus)
+
+How far a hit may be from the one it follows; farther ones stay
+Écart maximal entre une attaque et celle qu'elle suit ; au-delà, elle ne bouge pas
+
+In the clips: each hit goes from the grey line to the colored one.
+Dans les clips : chaque attaque va du trait gris au trait coloré.
+
+Moves the hits of {count} track(s) onto those of another one, stretching the audio between them. The tracks move together, cut at the same places, so their phase is kept (a DI and its amp, several microphones).
+Cale les attaques de {count} piste(s) sur celles d'une autre, en étirant l'audio entre elles. Les pistes bougent ensemble, coupées aux mêmes endroits, donc leur phase est gardée (une DI et son ampli, plusieurs micros).
+
+Stretch the tracks into a new playlist; the current one stays as an alternate
+Étirer les pistes dans une nouvelle playlist ; l'actuelle reste en alternative
+
+Stretching…
+Étirement…
+
+Tolerance
+Tolérance
+
+the stretching stopped
+l'étirement s'est arrêté
+
+{moved} of the {hits} hits of the tracks move, by {largest} ms at most ({reference} hits in the reference)
+{moved} des {hits} attaques des pistes bougent, de {largest} ms au plus ({reference} attaques dans la référence)
+
+{name} (folder)
+{name} (dossier)
+
+Groove preview
+Pré-écoute du groove
+
+The Groove preview stays in the project: it was edited meanwhile (undo it if needed)
+La pré-écoute du groove reste dans le projet : il a été modifié entre-temps (annulez-la si besoin)
+
+Hear the tracks grooved while you adjust; nothing stays until you press Groove
+Entendre les pistes calées pendant les réglages ; rien n'est gardé avant d'appuyer sur Groove
+
+Pre-listen
+Pré-écouter
+
+Preparing the pre-listen…
+Préparation de la pré-écoute…
+
+You hear the grooved tracks
+Vous entendez les pistes calées
+
+Select a passage first: Shift+drag across the tracks, or set a loop
+Sélectionnez d'abord un passage : Maj+glisser sur les pistes, ou posez une boucle
+
+Whole project, every track
+Tout le projet, toutes les pistes
+
+Keep only this passage, which then starts the project
+Ne garder que ce passage, qui devient le début du projet
+
+Take this passage out: what follows moves back, markers, automation and tempo with it
+Retirer ce passage : la suite recule pour combler, avec les marqueurs, l'automation et le tempo
+
+Empty this passage on every track: the time stays, silent
+Vider ce passage sur toutes les pistes : le temps reste, en silence
+
+{start} → {end}   {seconds} s, {beats} beats
+{start} → {end}   {seconds} s, {beats} temps
+
+Select clips first
+Sélectionnez d'abord des clips
+
+Set a loop first
+Posez d'abord une boucle
+
+Select a passage first: Shift+drag across the tracks
+Sélectionnez d'abord un passage : Maj+glisser sur les pistes
+
+Select the time these clips cover, on their tracks
+Sélectionner le temps que couvrent ces clips, sur leurs pistes
+
+Off, the loop stays where it is while you select elsewhere
+Décochée, la boucle reste en place pendant que vous sélectionnez ailleurs
