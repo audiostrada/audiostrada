@@ -15,7 +15,7 @@ cp target/dist/audiostrada "$app/usr/bin/"
 cp packaging/linux/audiostrada.desktop "$app/usr/share/applications/"
 cp packaging/linux/audiostrada.desktop "$app/"
 cp packaging/linux/audiostrada.xml "$app/usr/share/mime/packages/"
-cp packaging/linux/audiostrada.metainfo.xml "$app/usr/share/metainfo/audiostrada.appdata.xml"
+cp packaging/linux/com.audiostrada.AudioStrada.metainfo.xml "$app/usr/share/metainfo/com.audiostrada.AudioStrada.metainfo.xml"
 for size in 16 32 48 64 128 256 512; do
     mkdir -p "$app/usr/share/icons/hicolor/${size}x${size}/apps"
     cp "packaging/icons/audiostrada-$size.png" "$app/usr/share/icons/hicolor/${size}x${size}/apps/audiostrada.png"
