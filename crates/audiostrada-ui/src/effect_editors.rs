@@ -16,6 +16,7 @@ use crate::document::Document;
 use crate::i18n::tr;
 use crate::mixer::{automated_control, learn_menu};
 use crate::theme;
+use crate::trf;
 use crate::widgets;
 
 /// Reads and writes the parameters of one insert, through automation when it applies.
@@ -481,6 +482,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Editor
         "tape" => tape(ui, params),
         "flanger" | "phaser" | "chorus" => modulation(ui, params),
         "imager" => imager(ui, params, meters),
+        "utility" => utility(ui, params, meters),
         "transient" => transient(ui, params, meters),
         "deesser" => deesser(ui, params, meters, state),
         "vintage_eq" => vintage_eq(ui, params),
@@ -2255,6 +2257,118 @@ fn modulation(ui: &mut Ui, params: &mut Params) {
             p.accent,
         ),
     }
+}
+
+/// Utility: the phase correlation and the left/right balance read live, then the level and
+/// stereo controls, then the phase tools.
+fn utility(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
+    let p = theme::current(ui);
+    let correlation = meters.first().copied().unwrap_or(1.0);
+    let lean = meters.get(1).copied().unwrap_or(0.0);
+    let (rect, painter) = display(ui, 86.0);
+    // Two scales: correlation from -1 to +1, balance from left to right (12 dB each way).
+    let bar = |row: usize, at: f32, left: &str, right: &str, title: String, warn: bool| {
+        let y = rect.top() + 30.0 + row as f32 * 38.0;
+        let line = Rect::from_min_max(
+            pos2(rect.left() + 60.0, y - 3.0),
+            pos2(rect.right() - 60.0, y + 3.0),
+        );
+        painter.rect_filled(line, 3.0, p.panel);
+        painter.line_segment(
+            [
+                pos2(line.center().x, line.top() - 4.0),
+                pos2(line.center().x, line.bottom() + 4.0),
+            ],
+            Stroke::new(1.0, p.weak.gamma_multiply(0.5)),
+        );
+        let x = line.left() + at.clamp(0.0, 1.0) * line.width();
+        painter.circle_filled(
+            pos2(x, line.center().y),
+            6.0,
+            if warn { theme::RECORD } else { theme::PLAY },
+        );
+        let small = FontId::proportional(10.0);
+        painter.text(
+            pos2(line.left() - 10.0, y),
+            Align2::RIGHT_CENTER,
+            left,
+            small.clone(),
+            p.weak,
+        );
+        painter.text(
+            pos2(line.right() + 10.0, y),
+            Align2::LEFT_CENTER,
+            right,
+            small,
+            p.weak,
+        );
+        painter.text(
+            pos2(line.center().x, line.top() - 6.0),
+            Align2::CENTER_BOTTOM,
+            title,
+            FontId::proportional(11.0),
+            p.text,
+        );
+    };
+    bar(
+        0,
+        (correlation + 1.0) / 2.0,
+        "-1",
+        "+1",
+        format!("{} {correlation:+.2}", tr("Correlation")),
+        correlation < 0.0,
+    );
+    let side = match lean {
+        l if l > 0.5 => trf!("{db} dB to the right", db = format!("{l:.1}")),
+        l if l < -0.5 => trf!("{db} dB to the left", db = format!("{:.1}", -l)),
+        _ => tr("Centered").to_owned(),
+    };
+    bar(
+        1,
+        (lean / 12.0 + 1.0) / 2.0,
+        tr("L"),
+        tr("R"),
+        format!("{} {side}", tr("Balance")),
+        lean.abs() > 3.0,
+    );
+    ui.add_space(8.0);
+    let heading = |ui: &mut Ui, text: &'static str| {
+        ui.label(RichText::new(tr(text)).size(10.5).color(p.weak));
+    };
+    heading(ui, "Level and stereo");
+    ui.horizontal(|ui| {
+        for (id, name) in [("mono", "Mono"), ("swap", "Swap channels")] {
+            params.toggle(ui, id, |ui, on| ui.toggle_value(on, tr(name)));
+        }
+    });
+    ui.horizontal(|ui| knobs(ui, params, &["gain", "balance", "width"], 50.0, p.accent));
+    ui.add_space(6.0);
+    heading(ui, "Phase");
+    ui.horizontal(|ui| {
+        for (id, name) in [
+            ("invert_left", "Invert left"),
+            ("invert_right", "Invert right"),
+        ] {
+            params.toggle(ui, id, |ui, on| ui.toggle_value(on, tr(name)));
+        }
+    });
+    ui.horizontal(|ui| {
+        knobs(
+            ui,
+            params,
+            &["rotation", "rotation_freq", "delay_left", "delay_right"],
+            50.0,
+            p.accent,
+        )
+    });
+    ui.label(
+        RichText::new(tr(
+            "Delay a side to line up two microphones; turn the phase to match the lows of two \
+             sources (DI and amp, two kick mics) where polarity alone is too much.",
+        ))
+        .size(10.5)
+        .color(p.weak),
+    );
 }
 
 fn imager(ui: &mut Ui, params: &mut Params, meters: &[f32]) {

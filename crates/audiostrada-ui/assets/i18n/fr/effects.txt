@@ -2818,3 +2818,39 @@ Rock
 
 Drum and bass
 Drum and bass
+
+Balance
+Balance
+
+Centered
+Centré
+
+Delay a side to line up two microphones; turn the phase to match the lows of two sources (DI and amp, two kick mics) where polarity alone is too much.
+Retardez un côté pour aligner deux micros ; tournez la phase pour accorder le bas de deux sources (DI et ampli, deux micros de grosse caisse) quand inverser la polarité est trop radical.
+
+L
+G
+
+R
+D
+
+{db} dB to the left
+{db} dB à gauche
+
+{db} dB to the right
+{db} dB à droite
+
+Delay left
+Retard gauche
+
+Delay right
+Retard droite
+
+Gain, balance, width, mono, polarity, time alignment and phase rotation.
+Gain, balance, largeur, mono, polarité, alignement temporel et rotation de phase.
+
+Phase rotation
+Rotation de phase
+
+Rotation at
+Rotation à
