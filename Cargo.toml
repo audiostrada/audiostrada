@@ -48,7 +48,7 @@ objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std"
 objc2-audio-toolbox = "0.3.2"
 objc2-core-audio = "0.3.2"
 objc2-core-audio-types = "0.3.2"
-objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFBundle", "CFURL"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFArray", "CFBundle", "CFData", "CFDictionary", "CFError", "CFNumber", "CFPropertyList", "CFString", "CFURL"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSDate", "NSGeometry", "NSRunLoop", "NSString"] }
 pipewire = "0.10.1"
 rfd = "0.17.2"

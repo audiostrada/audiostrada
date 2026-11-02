@@ -4,6 +4,8 @@
 //! state) that stays on the UI thread, and an audio side ([`PluginProcessor`]) that the engine
 //! runs on its audio threads.
 
+#[cfg(target_os = "macos")]
+pub mod au;
 pub mod clap;
 pub mod lv2;
 pub mod sandbox;
@@ -246,6 +248,11 @@ pub fn instantiate_in_process(
         Format::Lv2 => {
             lv2::Lv2Instance::new(descriptor).map(|i| Box::new(i) as Box<dyn PluginInstance>)
         }
+        #[cfg(target_os = "macos")]
+        Format::Au => {
+            au::AuInstance::new(descriptor).map(|i| Box::new(i) as Box<dyn PluginInstance>)
+        }
+        #[cfg(not(target_os = "macos"))]
         other => Err(format!("{} plugins are not supported yet", other.name())),
     }
 }
@@ -257,6 +264,9 @@ pub fn scan_file(format: Format, path: &std::path::Path) -> Result<Vec<PluginDes
         Format::Clap => clap::scan(path),
         Format::Vst3 => vst3::scan(path),
         Format::Lv2 => lv2::scan(path),
+        #[cfg(target_os = "macos")]
+        Format::Au => au::scan(path),
+        #[cfg(not(target_os = "macos"))]
         other => Err(format!("{} plugins are not supported yet", other.name())),
     }
 }

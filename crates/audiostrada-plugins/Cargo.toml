@@ -29,10 +29,12 @@ x11rb.workspace = true
 [target.'cfg(all(unix, not(target_os = "macos")))'.dev-dependencies]
 x11rb = { workspace = true, features = ["xtest"] }
 
-# AppKit windows for plugin editors, CoreFoundation bundles for VST3.
+# AppKit windows for plugin editors, CoreFoundation bundles for VST3, AudioToolbox for AU.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2.workspace = true
 objc2-app-kit.workspace = true
+objc2-audio-toolbox.workspace = true
+objc2-core-audio-types.workspace = true
 objc2-core-foundation.workspace = true
 objc2-foundation.workspace = true
 
