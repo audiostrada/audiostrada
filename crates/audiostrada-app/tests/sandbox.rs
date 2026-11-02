@@ -2,10 +2,14 @@
 //! AUDIOSTRADA_TEST_CLAP and AUDIOSTRADA_TEST_INSTRUMENTS.
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(unix)]
+use std::time::Instant;
 
 use audiostrada_plugins::sandbox::SandboxInstance;
-use audiostrada_plugins::{Format, MidiEvent, PluginInstance, PluginRequest, scan};
+use audiostrada_plugins::{Format, PluginInstance, scan};
+#[cfg(unix)]
+use audiostrada_plugins::{MidiEvent, PluginRequest};
 
 fn exe() -> &'static Path {
     Path::new(env!("CARGO_BIN_EXE_audiostrada"))
