@@ -3172,3 +3172,42 @@ Baisse le son sous le seuil selon le ratio : plus doux qu'un gate
 
 Lowers the sound by the range while the key is above the threshold
 Baisse le son de la plage tant que la clé dépasse le seuil
+
+Delta
+Delta
+
+Detector
+Détecteur
+
+Relative
+Relatif
+
+Trigger
+Déclencheur
+
+Drag sideways to move the frequency
+Glisser latéralement pour déplacer la fréquence
+
+Turns down only the highs, above the crossover: the voice keeps its body
+Baisse seulement les aigus, au-dessus du filtre de séparation : la voix garde son corps
+
+Turns down the whole voice for a moment: more natural on soft sibilance
+Baisse toute la voix un court instant : plus naturel sur des sifflantes légères
+
+Everything above the frequency: catches every S
+Tout au-dessus de la fréquence : attrape chaque S
+
+Only around the frequency: leaves the air above alone
+Seulement autour de la fréquence : laisse l'air au-dessus
+
+The de-essed sound
+Le son traité
+
+What the detector hears
+Ce qu'entend le détecteur
+
+Only what is removed
+Seulement ce qui est retiré
+
+Compares the sibilance with the whole voice, so the threshold holds whether the singer is loud or soft
+Compare les sifflantes à toute la voix : le seuil tient que le chanteur soit fort ou doux

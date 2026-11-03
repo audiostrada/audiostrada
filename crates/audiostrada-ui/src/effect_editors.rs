@@ -1908,18 +1908,6 @@ fn push_history(state: &mut EditorState, values: (f32, f32)) {
     }
 }
 
-/// Points of one history value across `rect`, newest at the right.
-fn history_line(state: &EditorState, rect: Rect, y: impl Fn((f32, f32)) -> f32) -> Vec<Pos2> {
-    let step = rect.width() / HISTORY as f32;
-    let x0 = rect.right() - state.history.len() as f32 * step;
-    state
-        .history
-        .iter()
-        .enumerate()
-        .map(|(i, &v)| pos2(x0 + i as f32 * step, y(v)))
-        .collect()
-}
-
 /// The on/off parameters of the effect as a row of buttons.
 fn switches(ui: &mut Ui, params: &mut Params) {
     ui.horizontal(|ui| toggles(ui, params));
@@ -3514,61 +3502,155 @@ fn transient(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
 }
 
 fn deesser(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState) {
-    let p = theme::current(ui);
+    use audiostrada_dsp::deesser::{MODE_HINTS, MODES};
     let reduction = meters.first().copied().unwrap_or(0.0);
     let level = meters.get(1).copied().unwrap_or(-120.0);
-    let threshold = params.get("threshold");
-    push_history(state, (reduction, level));
-    let (rect, painter) = display(ui, 150.0);
-    let to_y = |db: f32| {
-        rect.bottom() - 10.0 - ((db + 70.0) / 70.0).clamp(0.0, 1.0) * (rect.height() - 20.0)
-    };
-    let levels = history_line(state, rect, |(_, l)| to_y(l));
-    painter.add(fill_under(
-        &levels,
-        rect.bottom(),
-        p.weak.gamma_multiply(0.25),
-    ));
-    painter.add(Shape::line(
-        history_line(state, rect, |(gr, _)| {
-            rect.top() + 10.0 + (-gr / 24.0).clamp(0.0, 1.0) * 60.0
-        }),
-        Stroke::new(2.0, theme::RECORD),
-    ));
-    painter.line_segment(
-        [
-            pos2(rect.left(), to_y(threshold)),
-            pos2(rect.right(), to_y(threshold)),
-        ],
-        Stroke::new(1.5, theme::SOLO),
-    );
-    painter.text(
-        rect.right_top() + vec2(-10.0, 8.0),
-        Align2::RIGHT_TOP,
-        format!("{reduction:.1} dB"),
-        theme::strong(16.0),
-        theme::RECORD,
-    );
-    painter.text(
-        rect.left_top() + vec2(10.0, 8.0),
-        Align2::LEFT_TOP,
-        crate::trf!(
-            "Sibilance around {frequency}",
-            frequency = format_value(
-                params.param("frequency").unwrap_or(&params.info.params[0]),
-                params.get("frequency")
-            )
-        ),
-        FontId::proportional(11.0),
-        p.weak,
-    );
+    state
+        .dynamics
+        .push_back([reduction, level, level + reduction]);
+    while state.dynamics.len() > HISTORY {
+        state.dynamics.pop_front();
+    }
+    cards(ui, params, "mode", &MODES, &MODE_HINTS);
     ui.add_space(8.0);
+    let threshold = params.get("threshold");
+    let height = 210.0;
     ui.horizontal(|ui| {
-        ui.label(RichText::new(tr("Mode")).size(10.5).color(p.weak));
-        choice_box(ui, params, "mode");
-        switches(ui, params);
+        ui.spacing_mut().item_spacing.x = 8.0;
+        let side = 300.0;
+        let width = (ui.available_width() - side - 52.0).max(260.0);
+        dynamics_history(
+            ui,
+            params,
+            state,
+            vec2(width, height),
+            (threshold, None),
+            (reduction, 24.0),
+        );
+        detection_curve(ui, params, vec2(side, height));
+        reduction_meter(ui, reduction, height);
     });
-    knob_row(ui, params, &["frequency", "threshold", "range"], p.accent);
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        let weak = theme::current(ui).weak;
+        ui.label(RichText::new(tr("Detector")).size(11.0).color(weak));
+        segmented(
+            ui,
+            params,
+            "detector",
+            &[
+                "Everything above the frequency: catches every S",
+                "Only around the frequency: leaves the air above alone",
+            ],
+        );
+        ui.add_space(16.0);
+        ui.label(RichText::new(tr("Listen")).size(11.0).color(weak));
+        segmented(
+            ui,
+            params,
+            "listen",
+            &[
+                "The de-essed sound",
+                "What the detector hears",
+                "Only what is removed",
+            ],
+        );
+    });
+    ui.add_space(6.0);
+    knob_sections(
+        ui,
+        params,
+        &[
+            (
+                "Detection",
+                &["frequency", "threshold", "range"],
+                Some((
+                    "relative",
+                    "Relative",
+                    "Compares the sibilance with the whole voice, so the threshold holds \
+                     whether the singer is loud or soft",
+                )),
+            ),
+            ("Time", &["attack", "release", "lookahead"], None),
+        ],
+        &|_| true,
+    );
+}
+
+/// What the detector hears, from 1 to 20 kHz, with the frequency to drag sideways; in split
+/// mode, the highs that are turned down are shaded.
+fn detection_curve(ui: &mut Ui, params: &mut Params, size: egui::Vec2) {
+    let p = theme::current(ui);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::drag());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 8.0, p.base);
+    let inner = rect.shrink2(vec2(10.0, 14.0));
+    let (low, high) = (1000.0f32, 20_000.0f32);
+    let to_x = |f: f32| inner.left() + (f / low).ln() / (high / low).ln() * inner.width();
+    let of_x =
+        |x: f32| low * (high / low).powf(((x - inner.left()) / inner.width()).clamp(0.0, 1.0));
+    let to_y = |db: f32| inner.top() + ((6.0 - db) / 36.0).clamp(0.0, 1.0) * inner.height();
+    let grid = p.weak.gamma_multiply(0.14);
+    for f in [2000.0, 5000.0, 10_000.0] {
+        painter.line_segment(
+            [pos2(to_x(f), inner.top()), pos2(to_x(f), inner.bottom())],
+            Stroke::new(1.0, grid),
+        );
+        painter.text(
+            pos2(to_x(f) + 3.0, rect.bottom() - 3.0),
+            Align2::LEFT_BOTTOM,
+            format!("{}k", f / 1000.0),
+            FontId::proportional(9.0),
+            p.weak,
+        );
+    }
+    let rate = f64::from(params.doc.player().engine().sample_rate().max(1));
+    let frequency = params.get("frequency");
+    if params.get("mode") < 0.5 {
+        let x = to_x(frequency * audiostrada_dsp::deesser::SPLIT as f32);
+        painter.rect_filled(
+            Rect::from_min_max(pos2(x, rect.top()), rect.max),
+            0.0,
+            theme::RECORD.gamma_multiply(0.08),
+        );
+    }
+    let filter = audiostrada_dsp::deesser::detector(&params.values, rate);
+    let points: Vec<Pos2> = (0..=160)
+        .map(|i| {
+            let f = low * (high / low).powf(i as f32 / 160.0);
+            pos2(
+                to_x(f),
+                to_y(filter.magnitude_db(f64::from(f), rate) as f32),
+            )
+        })
+        .collect();
+    painter.add(fill_under(
+        &points,
+        inner.bottom(),
+        p.accent.gamma_multiply(0.16),
+    ));
+    painter.add(Shape::line(points, Stroke::new(2.0, p.accent)));
+    let hot = response.hovered() || response.dragged();
+    let x = to_x(frequency);
+    painter.line_segment(
+        [pos2(x, rect.top() + 4.0), pos2(x, rect.bottom() - 4.0)],
+        Stroke::new(if hot { 2.0 } else { 1.2 }, theme::SOLO),
+    );
+    painter.text(
+        pos2(x + 5.0, rect.top() + 6.0),
+        Align2::LEFT_TOP,
+        format_hz(frequency),
+        theme::strong(11.0),
+        theme::SOLO,
+    );
+    if hot {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+    }
+    let response = response.on_hover_text(tr("Drag sideways to move the frequency"));
+    let changed = response
+        .dragged()
+        .then(|| of_x(x + response.drag_delta().x));
+    params.set("frequency", changed, &response);
 }
 
 /// A frequency response from 20 Hz to 20 kHz on a dB range, with labeled grid lines.
