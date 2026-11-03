@@ -7,6 +7,7 @@ pub mod amp;
 pub mod analysis;
 pub mod analyzer;
 pub mod biquad;
+pub mod channel;
 pub mod chorus;
 pub mod compressor;
 pub mod convolver;
@@ -243,6 +244,7 @@ pub fn gain_to_db(gain: f32) -> f32 {
 pub const EFFECTS: &[&EffectInfo] = &[
     &synth::INFO,
     &drums::INFO,
+    &channel::INFO,
     &eq::INFO,
     &vintage_eq::INFO,
     &filter::INFO,
@@ -280,6 +282,7 @@ pub fn create(id: &str) -> Option<Box<dyn Effect>> {
     match id {
         "utility" => Some(Box::new(utility::Utility::default())),
         "imager" => Some(Box::new(imager::Imager::default())),
+        "channel" => Some(Box::new(channel::Channel::default())),
         "eq" => Some(Box::new(eq::Equalizer::default())),
         "vintage_eq" => Some(Box::new(vintage_eq::VintageEq::default())),
         "filter" => Some(Box::new(filter::Filter::default())),
@@ -335,7 +338,9 @@ mod tests {
     #[test]
     fn every_effect_has_a_family_and_a_description() {
         for info in EFFECTS {
-            assert!(CATEGORIES.contains(&info.category), "{}", info.id);
+            // The channel strip lives on the strips, not in the browser.
+            let family = CATEGORIES.contains(&info.category) || info.id == "channel";
+            assert!(family, "{}", info.id);
             assert!(info.description.len() > 10, "{}", info.id);
         }
     }

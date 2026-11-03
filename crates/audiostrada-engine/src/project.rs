@@ -1649,6 +1649,20 @@ impl ProjectPlayer {
         true
     }
 
+    /// Samples of delay an insert adds (its own, bypassed or not).
+    pub fn insert_latency(&self, channel: Channel, id: InsertId) -> u32 {
+        let nodes = match channel {
+            Channel::Master => [&self.master, &self.monitor]
+                .into_iter()
+                .find_map(|c| c.inserts.iter().find(|n| n.id == id)),
+            Channel::Track(t) => self
+                .tracks
+                .get(&t)
+                .and_then(|t| t.channel.inserts.iter().find(|n| n.id == id)),
+        };
+        nodes.map_or(0, |n| n.latency)
+    }
+
     /// Values reported by a built-in insert (gain reduction, spectrum...).
     pub fn insert_meters(&mut self, channel: Channel, id: InsertId) -> Option<Vec<f32>> {
         let slot = self

@@ -424,6 +424,30 @@ pub fn inserts(project: &Project, channel: Channel) -> &[Insert] {
     }
 }
 
+/// Effect of the channel strip, the insert ahead of the others (see [`ensure_strip`]).
+pub const STRIP: &str = "channel";
+
+/// The channel strip of a channel, if it has one.
+pub fn strip(project: &Project, channel: Channel) -> Option<&Insert> {
+    inserts(project, channel).iter().find(|i| i.effect == STRIP)
+}
+
+/// The channel strip of a channel, added ahead of its inserts if missing (after the first one
+/// when it leads the channel: an instrument). Returns its id.
+pub fn ensure_strip(
+    project: &mut Project,
+    channel: Channel,
+    after_first: bool,
+) -> Option<InsertId> {
+    if let Some(strip) = strip(project, channel) {
+        return Some(strip.id);
+    }
+    let id = add_insert(project, channel, STRIP, BTreeMap::new())?;
+    let has_first = inserts(project, channel).len() > 1;
+    let index = usize::from(after_first && has_first);
+    place_insert(project, (channel, id), (channel, false, index), false)
+}
+
 pub fn add_insert(
     project: &mut Project,
     channel: Channel,
@@ -618,6 +642,27 @@ pub fn set_bypass(project: &mut Project, channel: Channel, id: InsertId, bypass:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_strip_goes_ahead_of_the_inserts_once() {
+        let mut p = Project::new("t", 48_000);
+        let t = p.add_track("Keys");
+        let synth = add_insert(&mut p, Channel::Track(t), "synth", BTreeMap::new()).unwrap();
+        add_insert(&mut p, Channel::Track(t), "reverb", BTreeMap::new()).unwrap();
+        let strip = ensure_strip(&mut p, Channel::Track(t), true).unwrap();
+        let order: Vec<InsertId> = inserts(&p, Channel::Track(t))
+            .iter()
+            .map(|i| i.id)
+            .collect();
+        assert_eq!(order[..2], [synth, strip], "after the instrument");
+        assert_eq!(
+            ensure_strip(&mut p, Channel::Track(t), true),
+            Some(strip),
+            "only one"
+        );
+        let master = ensure_strip(&mut p, Channel::Master, false).unwrap();
+        assert_eq!(p.master.inserts.first().map(|i| i.id), Some(master));
+    }
 
     #[test]
     fn inserts_move_and_copy_with_their_automation() {

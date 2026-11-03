@@ -767,3 +767,117 @@ Pistes audio, instrument ou boîte à rythmes, et VCA
 
 Plays the MIDI it receives while armed: keyboards and controllers, its instrument's own keyboard or pads
 Joue le MIDI qu'elle reçoit quand elle est armée : claviers et contrôleurs, le clavier ou les pads de son instrument
+
+Before the compressor
+Avant le compresseur
+
+bypassed
+bypassé
+
+Channel strip
+Tranche de console
+
+Channel strip: click to open it
+Tranche de console : cliquer pour l'ouvrir
+
+Channel strip: filters, gate, compressor, EQ and drive, ahead of the inserts. Click to open
+Tranche de console : filtres, gate, compresseur, EQ et drive, avant les inserts. Cliquer pour l'ouvrir
+
+Channel strip module off
+Module de tranche désactivé
+
+Channel strip module on
+Module de tranche activé
+
+Drive amount
+Quantité de drive
+
+EQ before the compressor
+EQ avant le compresseur
+
+Filters
+Filtres
+
+Filters, gate, compressor, four-band EQ and drive, as on a console channel.
+Filtres, gate, compresseur, EQ quatre bandes et drive, comme sur une voie de console.
+
+Gate attack
+Attaque du gate
+
+Gate range
+Plage du gate
+
+Gate release
+Relâchement du gate
+
+Gate threshold
+Seuil du gate
+
+High mid
+Haut-médium
+
+High mid gain
+Gain haut-médium
+
+High mid Q
+Q haut-médium
+
+High pass
+Passe-haut
+
+INSERTS
+INSERTS
+
+Low gain
+Gain grave
+
+Low mid
+Bas-médium
+
+Low mid gain
+Gain bas-médium
+
+Low mid Q
+Q bas-médium
+
+Low pass
+Passe-bas
+
+{name}: {state}. Click to switch it, right-click to open it
+{name} : {state}. Cliquer pour l'activer ou le bypasser, clic droit pour l'ouvrir
+
+playing
+actif
+
+POST
+POST
+
+Post-fader: the level follows the fader. Click for pre-fader
+Post-fader : le niveau suit le fader. Cliquer pour passer en pré-fader
+
+PRE
+PRÉ
+
+ (pre-fader)
+ (pré-fader)
+
+Pre-fader: the level does not follow the fader. Click for post-fader
+Pré-fader : le niveau ne suit pas le fader. Cliquer pour passer en post-fader
+
+SENDS
+ENVOIS
+
+Send to {name}: {db} dB{pre}
+Envoi vers {name} : {db} dB{pre}
+
+Slope
+Pente
+
+Four-band EQ
+EQ quatre bandes
+
+Filters: high pass and low pass
+Filtres : passe-haut et passe-bas
+
+Drive: a gentle saturation
+Drive : une saturation douce

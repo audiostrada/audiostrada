@@ -483,6 +483,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Editor
         "flanger" | "phaser" | "chorus" => modulation(ui, params),
         "imager" => imager(ui, params, meters),
         "utility" => utility(ui, params, meters),
+        "channel" => channel_strip(ui, params, meters),
         "transient" => transient(ui, params, meters),
         "deesser" => deesser(ui, params, meters, state),
         "vintage_eq" => vintage_eq(ui, params),
@@ -2050,6 +2051,306 @@ fn knobs(ui: &mut Ui, params: &mut Params, ids: &[&str], size: f32, tint: Color3
     for id in ids {
         param_knob(ui, params, id, size, tint);
     }
+}
+
+/// The channel strip: its curve with handles to drag (EQ bands, high and low pass), the gate
+/// and the compressor's meters, then each module with its switch, in the order they play.
+fn channel_strip(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
+    use audiostrada_dsp::Effect;
+    let p = theme::current(ui);
+    let (rect, painter) = display(ui, 170.0);
+    let graph = Rect::from_min_max(rect.min + vec2(40.0, 12.0), rect.max - vec2(70.0, 18.0));
+    let x_of = |f: f32| graph.left() + graph.width() * ((f / 20.0).max(1e-3).log10() / 3.0);
+    let f_of =
+        |x: f32| 20.0 * 10f32.powf(((x - graph.left()) / graph.width()).clamp(0.0, 1.0) * 3.0);
+    let y_of = |db: f32| graph.center().y - db / 18.0 * graph.height() * 0.5;
+    let db_of =
+        |y: f32| ((graph.center().y - y) / (graph.height() * 0.5) * 18.0).clamp(-15.0, 15.0);
+    let small = FontId::proportional(9.0);
+    for db in [-12.0f32, -6.0, 0.0, 6.0, 12.0] {
+        let y = y_of(db);
+        painter.line_segment(
+            [pos2(graph.left(), y), pos2(graph.right(), y)],
+            Stroke::new(
+                1.0,
+                p.weak.gamma_multiply(if db == 0.0 { 0.35 } else { 0.12 }),
+            ),
+        );
+        painter.text(
+            pos2(graph.left() - 6.0, y),
+            Align2::RIGHT_CENTER,
+            format!("{db:+.0}"),
+            small.clone(),
+            p.weak,
+        );
+    }
+    for (f, label) in [
+        (50.0, "50"),
+        (100.0, "100"),
+        (500.0, "500"),
+        (1000.0, "1k"),
+        (5000.0, "5k"),
+        (10_000.0, "10k"),
+    ] {
+        let x = x_of(f);
+        painter.line_segment(
+            [pos2(x, graph.top()), pos2(x, graph.bottom())],
+            Stroke::new(1.0, p.weak.gamma_multiply(0.1)),
+        );
+        painter.text(
+            pos2(x, graph.bottom() + 3.0),
+            Align2::CENTER_TOP,
+            label,
+            small.clone(),
+            p.weak,
+        );
+    }
+    // The response of what is on.
+    let mut dsp = audiostrada_dsp::channel::Channel::default();
+    dsp.prepare(48_000, 64);
+    for (i, v) in params.values.iter().enumerate() {
+        dsp.set_param(i, *v);
+    }
+    let points: Vec<Pos2> = (0..=160)
+        .map(|i| {
+            let x = graph.left() + graph.width() * i as f32 / 160.0;
+            let db = dsp.eq_response_db(f64::from(f_of(x))).clamp(-18.0, 18.0) as f32;
+            pos2(x, y_of(db))
+        })
+        .collect();
+    painter.add(egui::Shape::line(points, Stroke::new(2.0, p.accent)));
+    // Handles: each band's frequency across and gain up and down; the filters across only.
+    let eq_on = params.get("eq") >= 0.5;
+    let filters_on = params.get("filters") >= 0.5;
+    let handles: [(&str, Option<&str>, &str, Color32); 6] = [
+        ("hpf", None, "filters", theme::family_color("EQ & Filter")),
+        (
+            "low_freq",
+            Some("low_gain"),
+            "eq",
+            Color32::from_rgb(236, 120, 90),
+        ),
+        (
+            "lmf_freq",
+            Some("lmf_gain"),
+            "eq",
+            Color32::from_rgb(230, 190, 80),
+        ),
+        (
+            "hmf_freq",
+            Some("hmf_gain"),
+            "eq",
+            Color32::from_rgb(110, 200, 120),
+        ),
+        (
+            "high_freq",
+            Some("high_gain"),
+            "eq",
+            Color32::from_rgb(110, 170, 240),
+        ),
+        ("lpf", None, "filters", theme::family_color("EQ & Filter")),
+    ];
+    for (freq, gain, module, color) in handles {
+        let on = if module == "eq" { eq_on } else { filters_on };
+        let center = pos2(
+            x_of(params.get(freq)),
+            gain.map_or(y_of(0.0), |g| y_of(params.get(g))),
+        );
+        let response = ui.interact(
+            Rect::from_center_size(center, vec2(16.0, 16.0)),
+            ui.scope_id().with(("strip-handle", freq)),
+            Sense::drag(),
+        );
+        let hot = response.hovered() || response.dragged();
+        painter.circle_filled(
+            center,
+            if hot { 7.0 } else { 5.5 },
+            if on { color } else { color.gamma_multiply(0.3) },
+        );
+        painter.circle_stroke(
+            center,
+            if hot { 7.0 } else { 5.5 },
+            Stroke::new(1.0, Color32::BLACK.gamma_multiply(0.5)),
+        );
+        if hot {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+        }
+        if response.drag_started() && !on {
+            // Grabbing a handle switches its module on.
+            params.set(module, Some(1.0), &response);
+        }
+        if let Some(pos) = response
+            .interact_pointer_pos()
+            .filter(|_| response.dragged())
+        {
+            let range = params
+                .param(freq)
+                .map_or((20.0, 20_000.0), |p| (p.min, p.max));
+            params.set(freq, Some(f_of(pos.x).clamp(range.0, range.1)), &response);
+            if let Some(g) = gain {
+                params.set(g, Some(db_of(pos.y)), &response);
+            }
+        } else {
+            params.set(freq, None, &response);
+        }
+    }
+    // Gate and gain reduction meters at the right.
+    let gate = meters.first().copied().unwrap_or(0.0).clamp(-40.0, 0.0);
+    let reduction = meters.get(1).copied().unwrap_or(0.0).abs().min(24.0);
+    for (k, (value, full, label, color)) in [
+        (-gate, 40.0, tr("Gate"), theme::PLAY),
+        (reduction, 24.0, tr("GR"), theme::family_color("Dynamics")),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let x = rect.right() - 50.0 + k as f32 * 24.0;
+        let bar = Rect::from_min_max(pos2(x, graph.top()), pos2(x + 10.0, graph.bottom()));
+        painter.rect_filled(bar, 3.0, p.panel);
+        let h = bar.height() * (value / full).clamp(0.0, 1.0);
+        painter.rect_filled(
+            Rect::from_min_max(bar.min, pos2(bar.right(), bar.top() + h)),
+            3.0,
+            color,
+        );
+        painter.text(
+            pos2(bar.center().x, bar.bottom() + 3.0),
+            Align2::CENTER_TOP,
+            label,
+            small.clone(),
+            p.weak,
+        );
+    }
+    ui.add_space(8.0);
+    // The modules, in the order they play.
+    let eq_first = params.get("eq_first") >= 0.5;
+    let mut order: Vec<&str> = vec!["filters", "gate", "comp", "eq", "drive"];
+    if eq_first {
+        order.swap(2, 3);
+    }
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        for module in order {
+            let (title, family) = match module {
+                "filters" => ("Filters", "EQ & Filter"),
+                "gate" => ("Gate", "Dynamics"),
+                "comp" => ("Compressor", "Dynamics"),
+                "eq" => ("EQ", "EQ & Filter"),
+                _ => ("Drive", "Color"),
+            };
+            let tint = theme::family_color(family);
+            egui::Frame::new()
+                .fill(p.base)
+                .corner_radius(8.0)
+                .inner_margin(egui::Margin::same(8))
+                .show(ui, |ui| {
+                    ui.vertical(|ui| {
+                        params.toggle(ui, module, |ui, on| {
+                            let text = RichText::new(tr(title)).strong();
+                            ui.toggle_value(
+                                on,
+                                if *on {
+                                    text.color(theme::text_on(tint))
+                                } else {
+                                    text
+                                },
+                            )
+                        });
+                        let on = params.get(module) >= 0.5;
+                        let tint = if on { tint } else { p.weak };
+                        let row =
+                            |ui: &mut Ui, params: &mut Params, list: &[(&str, &'static str)]| {
+                                ui.horizontal(|ui| {
+                                    for (id, label) in list {
+                                        named_knob(ui, params, id, tr(label), 40.0, tint);
+                                    }
+                                });
+                            };
+                        match module {
+                            "filters" => {
+                                row(ui, params, &[("hpf", "High pass"), ("lpf", "Low pass")]);
+                                ui.horizontal(|ui| segmented(ui, params, "slope", &[]));
+                            }
+                            "gate" => {
+                                row(
+                                    ui,
+                                    params,
+                                    &[("gate_threshold", "Threshold"), ("gate_range", "Range")],
+                                );
+                                row(
+                                    ui,
+                                    params,
+                                    &[("gate_attack", "Attack"), ("gate_release", "Release")],
+                                );
+                            }
+                            "comp" => {
+                                ui.horizontal(|ui| {
+                                    segmented(
+                                        ui,
+                                        params,
+                                        "comp_type",
+                                        &audiostrada_dsp::compressor::TYPE_HINTS,
+                                    )
+                                });
+                                row(
+                                    ui,
+                                    params,
+                                    &[
+                                        ("comp_threshold", "Threshold"),
+                                        ("comp_ratio", "Ratio"),
+                                        ("comp_makeup", "Makeup"),
+                                    ],
+                                );
+                                row(
+                                    ui,
+                                    params,
+                                    &[
+                                        ("comp_attack", "Attack"),
+                                        ("comp_release", "Release"),
+                                        ("comp_mix", "Mix"),
+                                    ],
+                                );
+                            }
+                            "eq" => {
+                                row(
+                                    ui,
+                                    params,
+                                    &[
+                                        ("low_freq", "Low"),
+                                        ("lmf_freq", "Low mid"),
+                                        ("hmf_freq", "High mid"),
+                                        ("high_freq", "High"),
+                                    ],
+                                );
+                                row(
+                                    ui,
+                                    params,
+                                    &[
+                                        ("low_gain", "Gain"),
+                                        ("lmf_gain", "Gain"),
+                                        ("hmf_gain", "Gain"),
+                                        ("high_gain", "Gain"),
+                                    ],
+                                );
+                                ui.horizontal(|ui| {
+                                    ui.add_space(58.0 + ui.spacing().item_spacing.x);
+                                    named_knob(ui, params, "lmf_q", "Q", 40.0, tint);
+                                    named_knob(ui, params, "hmf_q", "Q", 40.0, tint);
+                                    params.toggle(ui, "eq_first", |ui, on| {
+                                        ui.toggle_value(on, tr("Before the compressor"))
+                                    });
+                                });
+                            }
+                            _ => row(
+                                ui,
+                                params,
+                                &[("drive_amount", "Amount"), ("output", "Output")],
+                            ),
+                        }
+                    });
+                });
+        }
+    });
 }
 
 /// A dark display area with a subtle frame.

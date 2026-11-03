@@ -30,6 +30,8 @@ const PLATE: f32 = 26.0;
 /// Strip height from which a docked mixer shows the insert and send slots, as in its own
 /// window: room for the fader and both lists.
 const FULL_STRIPS_HEIGHT: f32 = 560.0;
+/// Height of the channel strip section of tall strips.
+const STRIP_SECTION: f32 = 40.0;
 const FADER_MIN_DB: f32 = -60.0;
 const FADER_MAX_DB: f32 = audiostrada_core::model::MAX_TRACK_GAIN_DB;
 
@@ -93,6 +95,258 @@ enum List {
     Inserts,
     Sends,
     Monitor,
+}
+
+/// How an insert's slot looks.
+struct Slot<'a> {
+    name: &'a str,
+    color: Color32,
+    lit: bool,
+    error: bool,
+    /// The delay it adds, when it adds one.
+    latency: Option<&'a str>,
+}
+
+/// An insert's slot: its family's color, an on/off button, its name and the delay it adds.
+/// Returns the name's response (click, drag, menu) and the button's.
+fn insert_slot(ui: &mut Ui, size: egui::Vec2, salt: u64, slot: &Slot) -> (Response, Response) {
+    let p = theme::current(ui);
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    let power_rect = Rect::from_min_size(rect.min, vec2(size.y, size.y));
+    let name_rect = Rect::from_min_max(pos2(power_rect.right(), rect.top()), rect.max);
+    let name = ui.interact(
+        name_rect,
+        ui.scope_id().with(("slot", salt)),
+        Sense::click_and_drag(),
+    );
+    let power = ui.interact(
+        power_rect,
+        ui.scope_id().with(("power", salt)),
+        Sense::click(),
+    );
+    let painter = ui.painter();
+    let fill = if name.hovered() || power.hovered() {
+        p.hover
+    } else {
+        p.surface
+    };
+    painter.rect_filled(rect, 3.0, fill);
+    painter.rect_filled(
+        Rect::from_min_size(rect.min, vec2(3.0, rect.height())),
+        egui::CornerRadius {
+            nw: 3,
+            sw: 3,
+            ..Default::default()
+        },
+        slot.color.gamma_multiply(if slot.lit { 1.0 } else { 0.3 }),
+    );
+    let glyph = if slot.lit {
+        theme::PLAY
+    } else if power.hovered() {
+        p.text
+    } else {
+        p.weak.gamma_multiply(0.7)
+    };
+    theme::paint_power(painter, power_rect.shrink(3.0), glyph);
+    let ink = if slot.error {
+        ERROR
+    } else if slot.lit {
+        p.text
+    } else {
+        p.weak
+    };
+    let mut text_rect = name_rect.shrink2(vec2(2.0, 0.0));
+    if let Some(latency) = slot.latency {
+        let galley =
+            painter.layout_no_wrap(latency.to_owned(), egui::FontId::proportional(8.5), p.weak);
+        let at = pos2(
+            text_rect.right() - galley.size().x,
+            text_rect.center().y - galley.size().y / 2.0,
+        );
+        text_rect.max.x = at.x - 3.0;
+        painter.galley(at, galley, p.weak);
+    }
+    let font = egui::FontId::proportional(if size.y >= 20.0 { 11.5 } else { 10.5 });
+    let galley = painter.layout_no_wrap(slot.name.to_owned(), font, ink);
+    let width = galley.size().x.min(text_rect.width());
+    let at = pos2(
+        text_rect.left(),
+        text_rect.center().y - galley.size().y / 2.0,
+    );
+    painter.with_clip_rect(text_rect).galley(at, galley, ink);
+    if !slot.lit {
+        let y = text_rect.center().y;
+        painter.line_segment(
+            [pos2(at.x, y), pos2(at.x + width, y)],
+            egui::Stroke::new(1.0, p.weak.gamma_multiply(0.7)),
+        );
+    }
+    (name, power)
+}
+
+/// A send's level as a bar in its destination's color: drag (Shift for fine steps), wheel,
+/// double-click for 0 dB.
+fn send_level(
+    ui: &mut Ui,
+    width: f32,
+    db: f32,
+    color: Color32,
+    muted: bool,
+) -> (Option<f32>, Response) {
+    let p = theme::current(ui);
+    let (rect, response) = ui.allocate_exact_size(vec2(width, 14.0), Sense::click_and_drag());
+    let position = widgets::fader_position(db);
+    let mut changed = None;
+    let fine = ui.input(|i| i.modifiers.shift);
+    if response.dragged() {
+        let delta = response.drag_delta().x / width * if fine { 0.2 } else { 1.0 };
+        changed = Some(widgets::fader_db(position + delta));
+    }
+    if response.hovered() {
+        let wheel = ui.input(|i| i.smooth_scroll_delta.y);
+        if wheel != 0.0 {
+            changed = Some(
+                (db + wheel.signum() * if fine { 0.1 } else { 0.5 })
+                    .clamp(FADER_MIN_DB, FADER_MAX_DB),
+            );
+        }
+    }
+    if response.double_clicked() {
+        changed = Some(0.0);
+    }
+    let painter = ui.painter();
+    painter.rect_filled(rect, 3.0, p.base);
+    let shown = changed.map_or(position, widgets::fader_position);
+    let fill = Rect::from_min_size(rect.min, vec2(rect.width() * shown, rect.height()));
+    painter.rect_filled(
+        fill,
+        3.0,
+        color.gamma_multiply(if muted { 0.25 } else { 0.7 }),
+    );
+    let unity = rect.left() + rect.width() * widgets::fader_position(0.0);
+    painter.line_segment(
+        [
+            pos2(unity, rect.top() + 2.0),
+            pos2(unity, rect.bottom() - 2.0),
+        ],
+        egui::Stroke::new(1.0, p.text.gamma_multiply(0.35)),
+    );
+    let value = changed.unwrap_or(db);
+    let text = if value <= FADER_MIN_DB + 0.05 {
+        "-∞".to_owned()
+    } else {
+        format!("{value:.1}")
+    };
+    painter.text(
+        pos2(rect.right() - 3.0, rect.center().y),
+        egui::Align2::RIGHT_CENTER,
+        text,
+        egui::FontId::proportional(8.5),
+        p.text.gamma_multiply(if muted { 0.5 } else { 0.9 }),
+    );
+    (changed, response)
+}
+
+/// The modules of the channel strip: label, help and family.
+const STRIP_MODULES: [(&str, &str, &str); 5] = [
+    ("HP", "Filters: high pass and low pass", "EQ & Filter"),
+    ("GT", "Gate", "Dynamics"),
+    ("CP", "Compressor", "Dynamics"),
+    ("EQ", "Four-band EQ", "EQ & Filter"),
+    ("DR", "Drive: a gentle saturation", "Color"),
+];
+
+/// Each module of a channel's strip (its switch parameter) and whether it is on.
+fn strip_modules(project: &Project, channel: Channel) -> [(&'static str, bool); 5] {
+    let strip = routing::strip(project, channel);
+    ["filters", "gate", "comp", "eq", "drive"].map(|m| {
+        (
+            m,
+            strip.is_some_and(|s| !s.bypass && s.params.get(m).is_some_and(|&v| v >= 0.5)),
+        )
+    })
+}
+
+/// A thin bar per send of a compact strip, as long as its level, in its destination's color.
+fn send_pills(ui: &mut Ui, project: &Project, track: &Track, width: f32) {
+    let p = theme::current(ui);
+    if track.sends.is_empty() {
+        return;
+    }
+    ui.add_space(2.0);
+    for send in track.sends.iter().take(6) {
+        let color = project.track(send.target).map_or(Color32::GRAY, |t| {
+            Color32::from_rgb(t.color[0], t.color[1], t.color[2])
+        });
+        let (rect, response) = ui.allocate_exact_size(vec2(width, 4.0), Sense::hover());
+        ui.painter().rect_filled(rect, 2.0, p.base);
+        let level = widgets::fader_position(send.gain_db);
+        let fill = Rect::from_min_size(rect.min, vec2(rect.width() * level, rect.height()));
+        ui.painter().rect_filled(
+            fill,
+            2.0,
+            color.gamma_multiply(if send.mute { 0.25 } else { 0.85 }),
+        );
+        let name = project.track(send.target).map_or("?", |t| t.name.as_str());
+        response.on_hover_text(trf!(
+            "Send to {name}: {db} dB{pre}",
+            name = name,
+            db = format!("{:.1}", send.gain_db),
+            pre = if send.pre_fader {
+                tr(" (pre-fader)")
+            } else {
+                ""
+            }
+        ));
+    }
+}
+
+/// Where the `shown`-th insert of a list (as shown, without the channel strip) is in the whole
+/// list; past the last one for a larger index.
+fn listed_index(project: &Project, channel: Channel, monitor: bool, shown: usize) -> usize {
+    let list: Vec<&audiostrada_core::Insert> = routing::inserts(project, channel)
+        .iter()
+        .filter(|i| i.monitor == monitor)
+        .collect();
+    let visible: Vec<usize> = (0..list.len())
+        .filter(|&i| list[i].effect != routing::STRIP)
+        .collect();
+    match visible.get(shown) {
+        Some(&i) => i,
+        None => visible.last().map_or(list.len(), |&i| i + 1).max(
+            list.iter()
+                .position(|i| i.effect == routing::STRIP)
+                .map_or(0, |s| s + 1),
+        ),
+    }
+}
+
+/// The family of an insert's effect (built-in or plugin), for its color.
+fn family(doc: &Document, effect: &str) -> &'static str {
+    match audiostrada_dsp::info(effect) {
+        Some(info) => info.category,
+        None => doc.player().plugins().find(effect).map_or("", |d| {
+            if d.instrument {
+                "Instrument"
+            } else {
+                crate::plugin_categories::guess(&d.tags)
+            }
+        }),
+    }
+}
+
+/// The delay an insert adds, as a short label, when it adds one.
+fn latency_label(doc: &Document, channel: Channel, id: InsertId) -> Option<String> {
+    let samples = doc.player().insert_latency(channel, id);
+    let rate = doc.player().engine().sample_rate().max(1);
+    (samples > 0).then(|| {
+        let ms = samples as f32 * 1000.0 / rate as f32;
+        if ms < 10.0 {
+            format!("{ms:.1} ms")
+        } else {
+            format!("{ms:.0} ms")
+        }
+    })
 }
 
 /// Height of an insert or send slot, with its spacing.
@@ -381,7 +635,8 @@ impl StripSizes {
     /// Splits the strip height: the fader gets its share first, the insert and send lists
     /// what is left (`fixed` is the height of everything else).
     fn new(available: f32, fixed: f32) -> Self {
-        let fader = (available * 0.4).clamp(120.0, 320.0);
+        // The channel strip section is taken from the fader, not from the lists.
+        let fader = ((available * 0.4).clamp(120.0, 320.0) - STRIP_SECTION).max(120.0);
         let lists = available - fixed - fader;
         let fx = (available * 0.22).clamp(46.0, 150.0);
         let sends = (available * 0.11).clamp(34.0, 90.0);
@@ -1655,7 +1910,9 @@ impl MixerView {
                     }
                 } else {
                     if self.full_strips {
-                        section(ui, None, sizes.fx, ("inserts", id.0), |ui| {
+                        ui.add_space(3.0);
+                        self.channel_section(ui, doc, channel, width);
+                        section(ui, Some(tr("INSERTS")), sizes.fx, ("inserts", id.0), |ui| {
                             self.inserts_section(
                                 ui,
                                 doc,
@@ -1667,7 +1924,7 @@ impl MixerView {
                             );
                         });
                         if let Some(height) = sizes.sends {
-                            section(ui, None, height, ("sends", id.0), |ui| {
+                            section(ui, Some(tr("SENDS")), height, ("sends", id.0), |ui| {
                                 self.sends_section(ui, doc, project, track, Some(height));
                             });
                         }
@@ -1749,7 +2006,7 @@ impl MixerView {
                     if !vca {
                         widgets::meter(ui, &mut levels, fader_height);
                         if !self.full_strips {
-                            ui.vertical(|ui| self.list_buttons(ui, track));
+                            ui.vertical(|ui| self.list_buttons(ui, doc, track));
                         }
                     }
                 });
@@ -2077,8 +2334,11 @@ impl MixerView {
             Channel::Master => project.master.fx_off,
         };
         let off = all_off || (channel_off && !monitor);
-        let shown: Vec<&audiostrada_core::Insert> =
-            inserts.iter().filter(|i| i.monitor == monitor).collect();
+        // The channel strip has its own section.
+        let shown: Vec<&audiostrada_core::Insert> = inserts
+            .iter()
+            .filter(|i| i.monitor == monitor && i.effect != routing::STRIP)
+            .collect();
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 2.0;
             // A list in its own window has its add button below.
@@ -2156,13 +2416,6 @@ impl MixerView {
             let name = effect_name(doc, &insert.effect);
             let error = doc.player().plugin_error(id).map(str::to_owned);
             let forced = doc.player().low_latency_bypassed().contains(&id);
-            let mut text = RichText::new(&name).size(11.0);
-            if insert.bypass || off || forced {
-                text = text.weak().strikethrough();
-            }
-            if error.is_some() {
-                text = text.color(ERROR);
-            }
             let hint = match &error {
                 None if forced => trf!(
                     "{owner}: {name}, bypassed by the low latency mode (it adds more than 1 ms)",
@@ -2183,12 +2436,21 @@ impl MixerView {
                 ),
             };
             let plugin = audiostrada_dsp::info(&insert.effect).is_none();
-            let mut button = egui::Button::new(text)
-                .wrap_mode(egui::TextWrapMode::Truncate)
-                .sense(Sense::click_and_drag());
-            if wide {
-                button = button.right_text("");
-            }
+            let lit = !(insert.bypass || off || forced);
+            let color = theme::family_color(family(doc, &insert.effect));
+            let latency = latency_label(doc, channel, id);
+            let power_hint = if insert.bypass {
+                tr("Bypassed: click to enable")
+            } else {
+                tr("Playing: click to bypass")
+            };
+            let look = Slot {
+                name: &name,
+                color,
+                lit,
+                error: error.is_some(),
+                latency: latency.as_deref(),
+            };
             let (response, row_rect, toggled, removed) = if wide {
                 let row = ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 3.0;
@@ -2196,27 +2458,10 @@ impl MixerView {
                         [16.0, 22.0],
                         egui::Label::new(RichText::new(format!("{}", row + 1)).size(10.0).weak()),
                     );
-                    let name = ui
-                        .add_sized([ui.available_width() - 72.0, 22.0], button)
-                        .on_hover_text(hint);
-                    let lit = !(insert.bypass || off);
-                    let p = theme::current(ui);
-                    let label = RichText::new(tr("On")).size(10.0);
-                    let power = if lit {
-                        egui::Button::new(label.color(Color32::WHITE))
-                            .fill(p.accent.gamma_multiply(0.85))
-                    } else {
-                        egui::Button::new(label.color(p.weak))
-                    }
-                    .min_size(vec2(32.0, 22.0));
-                    let toggled = ui
-                        .add(power)
-                        .on_hover_text(if insert.bypass {
-                            tr("Bypassed: click to enable")
-                        } else {
-                            tr("Playing: click to bypass")
-                        })
-                        .clicked();
+                    let size = vec2(ui.available_width() - 26.0, 22.0);
+                    let (name, power) = insert_slot(ui, size, id.0, &look);
+                    let name = name.on_hover_text(hint);
+                    let toggled = power.on_hover_text(power_hint).clicked();
                     let removed = ui
                         .add(egui::Button::new("✕").min_size(vec2(22.0, 22.0)))
                         .on_hover_text(tr("Remove"))
@@ -2226,11 +2471,14 @@ impl MixerView {
                 let (name, toggled, removed) = row.inner;
                 (name, row.response.rect, toggled, removed)
             } else {
-                let name = ui
-                    .add_sized([STRIP_WIDTH - 12.0, 18.0], button)
-                    .on_hover_text(hint);
-                let rect = name.rect;
-                (name, rect, false, false)
+                let (name, power) = insert_slot(ui, vec2(STRIP_WIDTH - 12.0, 18.0), id.0, &look);
+                let name = name.on_hover_text(hint);
+                let toggled = power.on_hover_text(power_hint).clicked();
+                let rect = name.rect.union(Rect::from_min_size(
+                    name.rect.min - vec2(18.0, 0.0),
+                    vec2(18.0, 18.0),
+                ));
+                (name, rect, toggled, false)
             };
             if response.drag_started() {
                 self.fx_drag = Some((channel, id, name.clone()));
@@ -2491,6 +2739,8 @@ impl MixerView {
         let Some(t) = target else {
             return;
         };
+        // The lists show the inserts without the channel strip: the drop goes among those.
+        let index = listed_index(doc.project(), t.channel, t.monitor, t.index);
         // Dropped where it already is.
         let list = routing::inserts(doc.project(), from);
         let monitor = list.iter().find(|i| i.id == id).is_some_and(|i| i.monitor);
@@ -2501,7 +2751,7 @@ impl MixerView {
         if !copy
             && t.channel == from
             && t.monitor == monitor
-            && at.is_some_and(|a| t.index == a || t.index == a + 1)
+            && at.is_some_and(|a| index == a || index == a + 1)
         {
             return;
         }
@@ -2512,7 +2762,7 @@ impl MixerView {
             tr("Move insert")
         };
         doc.history_mut().edit(label, |p| {
-            placed = routing::place_insert(p, (from, id), (t.channel, t.monitor, t.index), copy);
+            placed = routing::place_insert(p, (from, id), (t.channel, t.monitor, index), copy);
         });
         if placed.is_none() {
             doc.notify(tr("This track cannot hold effects").into());
@@ -2606,18 +2856,29 @@ impl MixerView {
                 }
             });
         };
+        let wide = height.is_none();
         for send in &track.sends {
             let target = send.target;
             let name = project.track(target).map_or("?", |t| t.name.as_str());
+            let color = project.track(target).map_or(Color32::GRAY, |t| {
+                Color32::from_rgb(t.color[0], t.color[1], t.color[2])
+            });
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
+                // The destination's color, then its name: a send reads as where it goes.
+                let (bar, _) = ui.allocate_exact_size(vec2(3.0, 16.0), Sense::hover());
+                ui.painter().rect_filled(
+                    bar,
+                    1.5,
+                    color.gamma_multiply(if send.mute { 0.3 } else { 1.0 }),
+                );
                 let mut text = RichText::new(name).size(10.0);
                 if send.mute {
                     text = text.strikethrough().weak();
                 }
                 let label = ui
                     .add_sized(
-                        [40.0, 16.0],
+                        [if wide { 90.0 } else { 34.0 }, 16.0],
                         egui::Label::new(text).truncate().sense(Sense::click()),
                     )
                     .on_hover_text(if send.pre_fader {
@@ -2635,13 +2896,13 @@ impl MixerView {
                 let shown = doc
                     .automation_value(Channel::Track(id), &lane)
                     .unwrap_or(send.gain_db);
-                let mut db = shown;
-                let response = ui.add(
-                    egui::DragValue::new(&mut db)
-                        .range(FADER_MIN_DB..=FADER_MAX_DB)
-                        .speed(0.2)
-                        .fixed_decimals(1),
-                );
+                let level_width = if wide {
+                    (ui.available_width() - 24.0).max(60.0)
+                } else {
+                    40.0
+                };
+                let (changed, response) = send_level(ui, level_width, shown, color, send.mute);
+                let db = changed.unwrap_or(shown);
                 let alone = clutch(ui);
                 automated_control(
                     doc,
@@ -2668,8 +2929,28 @@ impl MixerView {
                     &lane,
                     (FADER_MIN_DB, FADER_MAX_DB),
                 );
-                if send.pre_fader {
-                    ui.label(RichText::new(tr("pre")).size(9.0).color(WARN));
+                let badge = if send.pre_fader {
+                    tr("PRE")
+                } else {
+                    tr("POST")
+                };
+                let badge = RichText::new(badge).size(7.5).color(if send.pre_fader {
+                    WARN
+                } else {
+                    theme::current(ui).weak
+                });
+                if ui
+                    .add(egui::Label::new(badge).sense(Sense::click()))
+                    .on_hover_text(if send.pre_fader {
+                        tr("Pre-fader: the level does not follow the fader. Click for post-fader")
+                    } else {
+                        tr("Post-fader: the level follows the fader. Click for pre-fader")
+                    })
+                    .clicked()
+                {
+                    edit_send(doc, tr("Send position"), target, &|s| {
+                        s.pre_fader = !s.pre_fader
+                    });
                 }
                 label.context_menu(|ui| {
                     let position = if send.pre_fader {
@@ -2890,7 +3171,9 @@ impl MixerView {
         Self::strip_frame(ui, width, Color32::from_gray(200), false, |ui| {
             let top = ui.cursor().top();
             if self.full_strips {
-                section(ui, None, sizes.fx, "master-inserts", |ui| {
+                ui.add_space(3.0);
+                self.channel_section(ui, doc, Channel::Master, width);
+                section(ui, Some(tr("INSERTS")), sizes.fx, "master-inserts", |ui| {
                     self.inserts_section(
                         ui,
                         doc,
@@ -2924,7 +3207,10 @@ impl MixerView {
                 ui.horizontal(|ui| {
                     let inserts = &project.master.inserts;
                     let monitor = inserts.iter().filter(|i| i.monitor).count();
-                    let fx = inserts.len() - monitor;
+                    let fx = inserts
+                        .iter()
+                        .filter(|i| !i.monitor && i.effect != routing::STRIP)
+                        .count();
                     self.list_button(ui, Channel::Master, List::Inserts, fx, vec2(54.0, 22.0));
                     self.list_button(
                         ui,
@@ -2933,6 +3219,9 @@ impl MixerView {
                         monitor,
                         vec2(54.0, 22.0),
                     );
+                });
+                ui.horizontal(|ui| {
+                    self.strip_button(ui, doc, Channel::Master, vec2(54.0, 22.0));
                 });
             }
             self.align_top(ui, top);
@@ -2998,11 +3287,267 @@ impl MixerView {
     }
 
     /// The buttons beside a docked strip's fader that open its inserts and sends.
-    fn list_buttons(&mut self, ui: &mut Ui, track: &Track) {
+    fn list_buttons(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track) {
         let channel = Channel::Track(track.id);
         let size = vec2(34.0, 22.0);
-        self.list_button(ui, channel, List::Inserts, track.inserts.len(), size);
+        let fx = track
+            .inserts
+            .iter()
+            .filter(|i| i.effect != routing::STRIP)
+            .count();
+        self.list_button(ui, channel, List::Inserts, fx, size);
         self.list_button(ui, channel, List::Sends, track.sends.len(), size);
+        self.strip_button(ui, doc, channel, size);
+        self.insert_pills(ui, doc, channel, size.x);
+        send_pills(ui, doc.project(), track, size.x);
+    }
+
+    /// The button of the channel strip, lit when one of its modules is on; opens it.
+    fn strip_button(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        channel: Channel,
+        size: egui::Vec2,
+    ) {
+        let p = theme::current(ui);
+        let on = strip_modules(doc.project(), channel)
+            .iter()
+            .any(|&(_, on)| on);
+        let mut button = egui::Button::new("").min_size(size);
+        if on {
+            button = button.fill(p.accent.gamma_multiply(0.35));
+        }
+        let response = ui.add(button);
+        // A small EQ curve: the strip.
+        let r = response.rect.shrink2(vec2(8.0, 7.0));
+        let points: Vec<egui::Pos2> = (0..=12)
+            .map(|i| {
+                let t = i as f32 / 12.0;
+                let bump = (-(t - 0.6).powi(2) / 0.02).exp() * 0.8 - (1.0 - t).powi(6) * 0.9;
+                pos2(
+                    r.left() + r.width() * t,
+                    r.center().y - bump * r.height() * 0.5,
+                )
+            })
+            .collect();
+        ui.painter().add(egui::Shape::line(
+            points,
+            egui::Stroke::new(1.5, if on { p.text } else { p.weak }),
+        ));
+        if response
+            .on_hover_text(tr(
+                "Channel strip: filters, gate, compressor, EQ and drive, ahead of the inserts. \
+                 Click to open",
+            ))
+            .clicked()
+        {
+            self.open_strip(doc, channel);
+        }
+    }
+
+    /// A pill per insert of a compact strip, in its family's color: lit while it plays, a click
+    /// bypasses it or plays it again, a right-click opens it.
+    fn insert_pills(&mut self, ui: &mut Ui, doc: &mut Document, channel: Channel, width: f32) {
+        let p = theme::current(ui);
+        let project = doc.project().clone();
+        let off = project.all_fx_off
+            || match channel {
+                Channel::Track(t) => project.track(t).is_some_and(|t| t.fx_off),
+                Channel::Master => project.master.fx_off,
+            };
+        let inserts: Vec<&audiostrada_core::Insert> = routing::inserts(&project, channel)
+            .iter()
+            .filter(|i| !i.monitor && i.effect != routing::STRIP)
+            .collect();
+        if inserts.is_empty() {
+            return;
+        }
+        ui.add_space(2.0);
+        for insert in inserts.iter().take(8) {
+            let (rect, response) = ui.allocate_exact_size(vec2(width, 7.0), Sense::click());
+            let lit = !(insert.bypass || off);
+            let color = theme::family_color(family(doc, &insert.effect));
+            let fill = if lit {
+                color.gamma_multiply(0.9)
+            } else {
+                p.surface
+            };
+            ui.painter().rect_filled(rect, 3.0, fill);
+            if !lit {
+                ui.painter().rect_stroke(
+                    rect,
+                    3.0,
+                    egui::Stroke::new(1.0, color.gamma_multiply(0.5)),
+                    egui::StrokeKind::Inside,
+                );
+            }
+            if response.hovered() {
+                ui.painter().rect_stroke(
+                    rect,
+                    3.0,
+                    egui::Stroke::new(1.0, p.text),
+                    egui::StrokeKind::Inside,
+                );
+            }
+            let name = effect_name(doc, &insert.effect);
+            let response = response.on_hover_text(trf!(
+                "{name}: {state}. Click to switch it, right-click to open it",
+                name = name,
+                state = if lit { tr("playing") } else { tr("bypassed") }
+            ));
+            let id = insert.id;
+            if response.clicked() {
+                let bypass = !insert.bypass;
+                doc.history_mut().edit(tr("Bypass insert"), |p| {
+                    routing::set_bypass(p, channel, id, bypass)
+                });
+            }
+            if response.secondary_clicked() {
+                if audiostrada_dsp::info(&insert.effect).is_some() {
+                    self.show_editor(channel, id);
+                } else if !self.open_gui.contains(&(channel, id)) {
+                    self.open_gui.push((channel, id));
+                }
+            }
+        }
+        if inserts.len() > 8 {
+            ui.label(
+                RichText::new(format!("+{}", inserts.len() - 8))
+                    .size(8.5)
+                    .color(p.weak),
+            );
+        }
+    }
+
+    /// Opens the channel strip of a channel, adding it if it has none yet.
+    fn open_strip(&mut self, doc: &mut Document, channel: Channel) {
+        let id = match routing::strip(doc.project(), channel) {
+            Some(strip) => Some(strip.id),
+            None => {
+                let after_first =
+                    matches!(channel, Channel::Track(t) if doc.is_instrument_track(t));
+                let mut id = None;
+                doc.history_mut().edit(tr("Channel strip"), |p| {
+                    id = routing::ensure_strip(p, channel, after_first)
+                });
+                id
+            }
+        };
+        if let Some(id) = id {
+            self.show_editor(channel, id);
+        }
+    }
+
+    /// Switches a module of the channel strip, adding the strip if it has none yet.
+    fn set_strip_module(&mut self, doc: &mut Document, channel: Channel, module: &str, on: bool) {
+        let after_first = matches!(channel, Channel::Track(t) if doc.is_instrument_track(t));
+        let label = if on {
+            tr("Channel strip module on")
+        } else {
+            tr("Channel strip module off")
+        };
+        doc.history_mut().edit(label, |p| {
+            if let Some(id) = routing::ensure_strip(p, channel, after_first) {
+                routing::set_insert_param(p, channel, id, module, if on { 1.0 } else { 0.0 });
+            }
+        });
+    }
+
+    /// The channel strip on a tall strip: its modules, lit when on (a click switches one), and
+    /// its curve and gain reduction (a click opens it).
+    fn channel_section(&mut self, ui: &mut Ui, doc: &mut Document, channel: Channel, width: f32) {
+        let p = theme::current(ui);
+        let modules = strip_modules(doc.project(), channel);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 2.0;
+            let w = ((width - 8.0) / modules.len() as f32).floor();
+            for (k, &(module, on)) in modules.iter().enumerate() {
+                let (label, hint, family) = STRIP_MODULES[k];
+                let (rect, response) = ui.allocate_exact_size(vec2(w, 14.0), Sense::click());
+                let color = theme::family_color(family);
+                let fill = if on {
+                    color.gamma_multiply(0.85)
+                } else if response.hovered() {
+                    p.hover
+                } else {
+                    p.surface
+                };
+                ui.painter().rect_filled(rect, 3.0, fill);
+                ui.painter().text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    label,
+                    egui::FontId::proportional(8.5),
+                    if on { theme::text_on(fill) } else { p.weak },
+                );
+                if response.on_hover_text(tr(hint)).clicked() {
+                    self.set_strip_module(doc, channel, module, !on);
+                }
+            }
+        });
+        let (rect, response) = ui.allocate_exact_size(vec2(width - 4.0, 22.0), Sense::click());
+        ui.painter().rect_filled(rect, 3.0, p.base);
+        let strip = routing::strip(doc.project(), channel).cloned();
+        if let Some(strip) = &strip {
+            // The response of its filters and EQ.
+            let info = &audiostrada_dsp::channel::INFO;
+            use audiostrada_dsp::Effect;
+            let mut dsp = audiostrada_dsp::channel::Channel::default();
+            dsp.prepare(48_000, 64);
+            for (i, param) in info.params.iter().enumerate() {
+                if let Some(&v) = strip.params.get(param.id) {
+                    dsp.set_param(i, v);
+                }
+            }
+            let mid = rect.center().y;
+            ui.painter().line_segment(
+                [pos2(rect.left(), mid), pos2(rect.right(), mid)],
+                egui::Stroke::new(1.0, p.weak.gamma_multiply(0.2)),
+            );
+            let points: Vec<egui::Pos2> = (0..=40)
+                .map(|i| {
+                    let t = i as f32 / 40.0;
+                    let freq = 20.0 * 1000f64.powf(f64::from(t));
+                    let db = dsp.eq_response_db(freq).clamp(-18.0, 18.0) as f32;
+                    pos2(
+                        rect.left() + rect.width() * t,
+                        mid - db / 18.0 * rect.height() * 0.45,
+                    )
+                })
+                .collect();
+            let lit = !strip.bypass;
+            ui.painter().add(egui::Shape::line(
+                points,
+                egui::Stroke::new(1.5, if lit { p.accent } else { p.weak }),
+            ));
+            if let Some(meters) = doc.player_mut().insert_meters(channel, strip.id) {
+                let reduction = meters.get(1).copied().unwrap_or(0.0).abs().min(24.0);
+                if reduction > 0.1 {
+                    let bar = Rect::from_min_max(
+                        pos2(rect.right() - 4.0, rect.top() + 2.0),
+                        pos2(
+                            rect.right() - 1.0,
+                            rect.top() + 2.0 + (rect.height() - 4.0) * reduction / 24.0,
+                        ),
+                    );
+                    ui.painter()
+                        .rect_filled(bar, 1.0, theme::family_color("Dynamics"));
+                }
+            }
+        } else {
+            let mid = rect.center().y;
+            ui.painter().line_segment(
+                [pos2(rect.left() + 4.0, mid), pos2(rect.right() - 4.0, mid)],
+                egui::Stroke::new(1.0, p.weak.gamma_multiply(0.35)),
+            );
+        }
+        if response
+            .on_hover_text(tr("Channel strip: click to open it"))
+            .clicked()
+        {
+            self.open_strip(doc, channel);
+        }
     }
 
     /// A button opening (or closing) one list of a strip in its own window; lit when the list
@@ -3263,6 +3808,7 @@ impl MixerView {
             let size = match info.id {
                 "eq" => [900.0, 620.0],
                 "amp_rig" => [960.0, 820.0],
+                "channel" => [1000.0, 700.0],
                 "synth" => [820.0, 640.0],
                 "drums" => [900.0, 470.0],
                 _ => [760.0, 560.0],

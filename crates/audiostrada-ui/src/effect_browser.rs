@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use audiostrada_core::routing::Channel;
+use audiostrada_core::routing::{self, Channel};
 use eframe::egui::{self, Color32, Sense, Ui, vec2};
 
 use crate::document::Document;
@@ -486,7 +486,7 @@ fn entries(
     });
     let mut out: Vec<Entry> = audiostrada_dsp::EFFECTS
         .iter()
-        .filter(|i| instruments || !i.instrument)
+        .filter(|i| (instruments || !i.instrument) && i.id != routing::STRIP)
         .map(|i| Entry {
             key: i.id.to_owned(),
             name: tr(i.name).to_owned(),

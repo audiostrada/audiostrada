@@ -645,6 +645,41 @@ pub fn paint_letter_toggle(
     );
 }
 
+/// An on/off sign: a ring open at the top with a bar through the gap.
+pub fn paint_power(painter: &Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let r = rect.width().min(rect.height()) * 0.36;
+    let stroke = Stroke::new((r * 0.32).max(1.2), color);
+    let points: Vec<Pos2> = (0..=20)
+        .map(|i| {
+            let a = -std::f32::consts::FRAC_PI_2
+                + 0.6
+                + (std::f32::consts::TAU - 1.2) * i as f32 / 20.0;
+            pos2(c.x + r * a.cos(), c.y + r * a.sin())
+        })
+        .collect();
+    painter.add(Shape::line(points, stroke));
+    painter.line_segment(
+        [pos2(c.x, c.y - r * 1.15), pos2(c.x, c.y - r * 0.15)],
+        stroke,
+    );
+}
+
+/// The color of an effect family (as the effect browser names them).
+pub fn family_color(family: &str) -> Color32 {
+    match family {
+        "Dynamics" => Color32::from_rgb(236, 152, 64),
+        "EQ & Filter" => Color32::from_rgb(86, 164, 244),
+        "Color" => Color32::from_rgb(226, 98, 84),
+        "Amp & Cab" => Color32::from_rgb(204, 78, 78),
+        "Modulation" => Color32::from_rgb(170, 116, 234),
+        "Space" => Color32::from_rgb(72, 192, 196),
+        "Stereo" => Color32::from_rgb(120, 204, 140),
+        "Instrument" => Color32::from_rgb(226, 194, 84),
+        _ => Color32::from_rgb(140, 150, 164),
+    }
+}
+
 /// Lit while the track hears its input.
 pub const MONITOR: Color32 = Color32::from_rgb(70, 190, 200);
 
