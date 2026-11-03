@@ -3211,3 +3211,12 @@ Seulement ce qui est retiré
 
 Compares the sibilance with the whole voice, so the threshold holds whether the singer is loud or soft
 Compare les sifflantes à toute la voix : le seuil tient que le chanteur soit fort ou doux
+
+Out
+Sortie
+
+Guard
+Garde
+
+Limit
+Limiteur

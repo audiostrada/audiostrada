@@ -536,7 +536,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Editor
         "imager" => imager(ui, params, meters),
         "utility" => utility(ui, params, meters),
         "channel" => channel_strip(ui, params, meters),
-        "transient" => transient(ui, params, meters),
+        "transient" => transient(ui, params, meters, state),
         "deesser" => deesser(ui, params, meters, state),
         "vintage_eq" => vintage_eq(ui, params),
         "filter" => filter(ui, params, meters),
@@ -3414,91 +3414,149 @@ fn bipolar(painter: &egui::Painter, rect: Rect, db: f32, color: Color32, base: C
     );
 }
 
-fn transient(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
+fn transient(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState) {
     let p = theme::current(ui);
-    let (attack, sustain) = (params.get("attack") / 100.0, params.get("sustain") / 100.0);
-    let (rect, painter) = display(ui, 160.0);
-    let plot = rect
-        .shrink2(vec2(16.0, 18.0))
-        .with_max_x(rect.right() - 200.0);
-    // A drum hit's envelope before (grey) and after shaping (accent).
-    let envelope = |t: f32, shaped: bool| -> f32 {
-        let base = if t < 0.03 {
-            t / 0.03
-        } else {
-            (-(t - 0.03) * 8.0).exp()
-        };
-        if !shaped {
-            return base;
+    let at = |i: usize, floor: f32| meters.get(i).copied().unwrap_or(floor);
+    state
+        .dynamics
+        .push_back([at(2, 0.0), at(3, -120.0), at(4, -120.0)]);
+    while state.dynamics.len() > HISTORY {
+        state.dynamics.pop_front();
+    }
+    let height = 220.0;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        let width = (ui.available_width() - 190.0).max(300.0);
+        transient_view(ui, state, vec2(width, height));
+        // What the shaper does now, attack and sustain apart.
+        let (rect, _) = ui.allocate_exact_size(vec2(182.0, height), Sense::hover());
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, 8.0, p.base);
+        for (i, (name, db, color)) in [
+            (tr("Attack"), at(0, 0.0), p.accent),
+            (tr("Sustain"), at(1, 0.0), theme::SOLO),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let y = rect.top() + 46.0 + i as f32 * 74.0;
+            painter.text(
+                pos2(rect.left() + 12.0, y - 24.0),
+                Align2::LEFT_TOP,
+                name,
+                FontId::proportional(11.0),
+                p.weak,
+            );
+            painter.text(
+                pos2(rect.right() - 12.0, y - 26.0),
+                Align2::RIGHT_TOP,
+                format!("{:+.1} dB", db + 0.0),
+                theme::strong(14.0),
+                color,
+            );
+            bipolar(
+                &painter,
+                Rect::from_min_size(pos2(rect.left() + 12.0, y), vec2(158.0, 12.0)),
+                db,
+                color,
+                p.panel,
+            );
         }
-        let punch = if t < 0.06 {
-            1.0 + attack * 0.8 * (1.0 - t / 0.06)
-        } else {
-            1.0
-        };
-        let tail = if t > 0.08 {
-            1.0 + sustain * 0.9 * ((t - 0.08) * 3.0).min(1.0)
-        } else {
-            1.0
-        };
-        (base * punch * tail).min(1.6)
-    };
-    for (shaped, color, width) in [
-        (false, p.weak.gamma_multiply(0.5), 1.5),
-        (true, p.accent, 2.5),
-    ] {
-        let line: Vec<Pos2> = (0..=160)
-            .map(|i| {
-                let t = i as f32 / 160.0 * 0.5;
-                pos2(
-                    plot.left() + t / 0.5 * plot.width(),
-                    plot.bottom() - envelope(t, shaped) / 1.6 * plot.height(),
-                )
-            })
-            .collect();
-        painter.add(Shape::line(line, Stroke::new(width, color)));
-    }
-    let meters_x = rect.right() - 180.0;
-    for (i, (name, db, color)) in [
-        (
-            tr("ATTACK"),
-            meters.first().copied().unwrap_or(0.0),
-            p.accent,
-        ),
-        (
-            tr("SUSTAIN"),
-            meters.get(1).copied().unwrap_or(0.0),
-            theme::SOLO,
-        ),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let y = rect.top() + 40.0 + i as f32 * 56.0;
         painter.text(
-            pos2(meters_x, y - 18.0),
-            Align2::LEFT_TOP,
-            format!("{name} {db:+.1} dB"),
-            FontId::proportional(11.0),
-            p.text,
+            pos2(rect.center().x, rect.bottom() - 12.0),
+            Align2::CENTER_BOTTOM,
+            format!("{} {:.1} dBFS", tr("Out"), at(4, -120.0).max(-99.0)),
+            FontId::monospace(10.5),
+            p.weak,
         );
-        bipolar(
-            &painter,
-            Rect::from_min_size(pos2(meters_x, y), vec2(160.0, 12.0)),
-            db,
-            color,
-            p.panel,
-        );
-    }
+    });
     ui.ctx().request_repaint();
     ui.add_space(8.0);
-    switches(ui, params);
-    knob_row(
+    knob_sections(
         ui,
         params,
-        &["attack", "sustain", "speed", "output"],
-        p.accent,
+        &[
+            (
+                "Shape",
+                &["attack", "sustain", "speed", "sensitivity"],
+                None,
+            ),
+            ("Detection", &["sc_hpf"], None),
+            ("Output", &["mix", "output", "clip"], None),
+        ],
+        &|_| true,
     );
+}
+
+/// The sound over time, mirrored like a waveform: the input in grey, the output over it, and
+/// the gain the shaper applies as a line around 0 dB.
+fn transient_view(ui: &mut Ui, state: &EditorState, size: egui::Vec2) {
+    let p = theme::current(ui);
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 8.0, p.base);
+    let mid = rect.center().y;
+    let half = rect.height() / 2.0 - 10.0;
+    // Levels from -48 dBFS (the middle) to 0 (the edges).
+    let amp = |db: f32| ((db + 48.0) / 48.0).clamp(0.0, 1.0) * half;
+    let step = rect.width() / HISTORY as f32;
+    let x0 = rect.right() - state.dynamics.len() as f32 * step;
+    let points = |k: usize| -> Vec<(f32, f32)> {
+        state
+            .dynamics
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (x0 + i as f32 * step, amp(v[k])))
+            .collect()
+    };
+    painter.add(mirrored(&points(1), mid, p.weak.gamma_multiply(0.3)));
+    painter.add(mirrored(&points(2), mid, p.accent.gamma_multiply(0.45)));
+    // Gain: +12 dB at the top, -12 at the bottom.
+    let gain_y = |db: f32| mid - (db / 12.0).clamp(-1.0, 1.0) * half;
+    painter.line_segment(
+        [pos2(rect.left(), mid), pos2(rect.right(), mid)],
+        Stroke::new(1.0, p.weak.gamma_multiply(0.25)),
+    );
+    let gain: Vec<Pos2> = state
+        .dynamics
+        .iter()
+        .enumerate()
+        .map(|(i, v)| pos2(x0 + i as f32 * step, gain_y(v[0])))
+        .collect();
+    painter.add(Shape::line(gain, Stroke::new(1.8, theme::SOLO)));
+    let legend = [
+        (tr("Input"), p.weak),
+        (tr("Output"), p.accent),
+        (tr("Gain"), theme::SOLO),
+    ];
+    let mut x = rect.left() + 10.0;
+    for (name, color) in legend {
+        painter.rect_filled(
+            Rect::from_min_size(pos2(x, rect.bottom() - 14.0), vec2(8.0, 3.0)),
+            1.0,
+            color,
+        );
+        let galley = painter.layout_no_wrap(name.to_owned(), FontId::proportional(9.5), p.weak);
+        let w = galley.size().x;
+        painter.galley(pos2(x + 12.0, rect.bottom() - 19.0), galley, p.weak);
+        x += w + 26.0;
+    }
+    for (db, label) in [(12.0, "+12"), (-12.0, "-12")] {
+        painter.text(
+            pos2(
+                rect.right() - 6.0,
+                gain_y(db) + if db > 0.0 { 2.0 } else { -2.0 },
+            ),
+            if db > 0.0 {
+                Align2::RIGHT_TOP
+            } else {
+                Align2::RIGHT_BOTTOM
+            },
+            label,
+            FontId::proportional(8.5),
+            theme::SOLO.gamma_multiply(0.7),
+        );
+    }
 }
 
 fn deesser(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState) {
