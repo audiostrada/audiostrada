@@ -2854,3 +2854,93 @@ Rotation de phase
 
 Rotation at
 Rotation à
+
+Strada-Amp
+Strada-Amp
+
+Strada-Scope
+Strada-Scope
+
+Strada-Channel
+Strada-Channel
+
+Strada-Chorus
+Strada-Chorus
+
+Auto gain
+Gain auto
+
+Lookahead
+Anticipation
+
+Sidechain listen
+Écoute du sidechain
+
+Strada-Comp
+Strada-Comp
+
+Strada-DeEss
+Strada-DeEss
+
+Strada-Delay
+Strada-Delay
+
+Strada-Drive
+Strada-Drive
+
+Strada-Drums
+Strada-Drums
+
+Drag up and down to move the threshold
+Glisser vers le haut ou le bas pour déplacer le seuil
+
+Reduction
+Réduction
+
+Strada-EQ
+Strada-EQ
+
+Strada-Filter
+Strada-Filter
+
+Strada-Flanger
+Strada-Flanger
+
+Strada-Gate
+Strada-Gate
+
+Strada-Wide
+Strada-Wide
+
+Strada-Limit
+Strada-Limit
+
+Strada-Max
+Strada-Max
+
+Strada-Phaser
+Strada-Phaser
+
+Strada-Pitch
+Strada-Pitch
+
+Strada-Verb
+Strada-Verb
+
+Strada-Synth
+Strada-Synth
+
+Strada-Tape
+Strada-Tape
+
+Strada-Transient
+Strada-Transient
+
+Strada-Tuner
+Strada-Tuner
+
+Strada-Utility
+Strada-Utility
+
+Strada-Tube EQ
+Strada-Tube EQ

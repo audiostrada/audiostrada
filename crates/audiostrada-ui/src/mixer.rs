@@ -4391,6 +4391,7 @@ impl MixerView {
                 "channel" => [1000.0, 700.0],
                 "synth" => [820.0, 640.0],
                 "drums" => [900.0, 470.0],
+                "compressor" => [980.0, 720.0],
                 _ => [760.0, 560.0],
             };
             // The rig picks its own files.

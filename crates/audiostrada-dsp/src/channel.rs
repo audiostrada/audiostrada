@@ -389,7 +389,18 @@ impl Effect for Channel {
     }
 
     fn latency(&self) -> u32 {
-        self.gate.latency() + self.comp.latency()
+        // A module off is not processed: it adds nothing.
+        let comp = if self.on(p::COMP) {
+            self.comp.latency()
+        } else {
+            0
+        };
+        let gate = if self.on(p::GATE) {
+            self.gate.latency()
+        } else {
+            0
+        };
+        comp + gate
     }
 
     fn meters(&self, out: &mut [f32]) {

@@ -647,6 +647,15 @@ impl ProjectPlayer {
                         && n.effect == insert.effect
                         && n.first == first
                         && n.files == insert.files
+                        // Settings that change its delay make it again, compensated anew.
+                        && audiostrada_dsp::info(&insert.effect).is_none_or(|info| {
+                            audiostrada_dsp::declared_latency(
+                                info.id,
+                                &insert_values(insert, info, character),
+                                engine.sample_rate(),
+                            )
+                            .is_none_or(|l| l == n.latency)
+                        })
                 })
                 .map(|i| old.remove(i));
             let mut midi = None;
@@ -679,6 +688,13 @@ impl ProjectPlayer {
                         plugins.files.insert((insert.id, slot.clone()), result);
                     }
                     effect.prepare(engine.sample_rate(), 1024);
+                    // Its delay depends on its settings: apply them first.
+                    for (i, v) in insert_values(insert, info, character)
+                        .into_iter()
+                        .enumerate()
+                    {
+                        effect.set_param(i, v);
+                    }
                     let latency = effect.latency();
                     let (node, controls) = Insert::new(
                         effect,
@@ -2489,6 +2505,31 @@ mod tests {
         });
         let own = play(&mut f, &mut processor);
         assert!(!differs(&clean, &own));
+        std::fs::remove_dir_all(&f.dir).unwrap();
+    }
+
+    #[test]
+    fn a_compressor_s_lookahead_sets_its_latency() {
+        let mut f = fixture("comp-latency", vec![0.5; 4_800]);
+        let t = f.history.project().tracks[0].id;
+        let c = Channel::Track(t);
+        let mut id = None;
+        f.history.edit("Comp", |p| {
+            id = routing::add_insert(p, c, "compressor", Default::default());
+            routing::set_insert_param(p, c, id.unwrap(), "lookahead", 5.0);
+        });
+        let id = id.unwrap();
+        f.player.sync(f.history.project(), None, &f.media);
+        assert_eq!(f.player.insert_latency(c, id), 240);
+        f.history.edit("Comp", |p| {
+            routing::set_insert_param(p, c, id, "lookahead", 10.0);
+            routing::set_insert_param(p, c, id, "type", 1.0);
+        });
+        f.player.sync(f.history.project(), None, &f.media);
+        assert_eq!(
+            f.player.insert_latency(c, id),
+            480 + audiostrada_dsp::compressor::COLOR_LATENCY
+        );
         std::fs::remove_dir_all(&f.dir).unwrap();
     }
 

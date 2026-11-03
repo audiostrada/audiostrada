@@ -270,6 +270,31 @@ pub const EFFECTS: &[&EffectInfo] = &[
     &phaser::INFO,
 ];
 
+/// The delay an effect adds with these parameter values (in its order), when its settings
+/// change it; `None` when it never changes.
+pub fn declared_latency(id: &str, values: &[f32], rate: u32) -> Option<u32> {
+    match id {
+        "compressor" => Some(compressor::latency_of(values, rate as f32)),
+        "channel" => {
+            let index = |id: &str| channel::INFO.params.iter().position(|p| p.id == id);
+            let value = |id: &str| {
+                index(id)
+                    .and_then(|i| values.get(i))
+                    .copied()
+                    .unwrap_or(0.0)
+            };
+            let colored =
+                value("comp") >= 0.5 && value("comp_type").round() as usize != compressor::CLEAN;
+            Some(if colored {
+                compressor::COLOR_LATENCY
+            } else {
+                0
+            })
+        }
+        _ => None,
+    }
+}
+
 /// Effects whose detection can listen to another track.
 pub fn supports_sidechain(id: &str) -> bool {
     matches!(id, "compressor" | "gate")

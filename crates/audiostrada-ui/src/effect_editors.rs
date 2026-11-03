@@ -112,6 +112,8 @@ pub struct EditorState {
     selected: usize,
     /// Gain reduction of the last frames, newest last.
     history: VecDeque<(f32, f32)>,
+    /// Gain reduction, input and output of the last frames (dB), newest last.
+    dynamics: VecDeque<[f32; 3]>,
     /// Position of an analog meter's needle, with its ballistics.
     needle: f32,
     rig: crate::rig_editor::RigState,
@@ -2099,20 +2101,6 @@ fn vu_meter(ui: &mut Ui, reduction: f32, needle: &mut f32, size: egui::Vec2) {
     ui.ctx().request_repaint();
 }
 
-/// VU meter of the gain reduction, for the vintage characters.
-fn vintage_view(ui: &mut Ui, meters: &[f32], state: &mut EditorState) {
-    let reduction = meters.first().copied().unwrap_or(0.0);
-    ui.horizontal(|ui| {
-        vu_meter(ui, reduction, &mut state.needle, vec2(300.0, 170.0));
-        ui.add_space(10.0);
-        ui.label(
-            RichText::new(format!("{} {reduction:.1} dB", tr("GR")))
-                .font(theme::strong(16.0))
-                .color(theme::RECORD),
-        );
-    });
-}
-
 // ---------------------------------------------------------------- New effects
 
 /// A row of knobs for parameter ids, the first one larger.
@@ -3405,152 +3393,421 @@ const HISTORY: usize = 240;
 
 /// The compressor: its character, the clean curve or the vintage VU meter, and its knobs.
 fn compressor(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState) {
-    use audiostrada_dsp::compressor::{CLEAN, TYPE_HINTS, TYPES, uses};
+    use audiostrada_dsp::compressor::{TYPE_HINTS, TYPES, uses};
+    let p = theme::current(ui);
     let kind = (params.get("type").round().max(0.0) as usize).min(TYPES.len() - 1);
-    mode_buttons(ui, params, "type", &TYPE_HINTS);
-    ui.add_space(6.0);
-    if kind == CLEAN {
-        clean_view(ui, params, meters, state);
-    } else {
-        vintage_view(ui, meters, state);
+    let reduction = meters.first().copied().unwrap_or(0.0);
+    let input = meters.get(1).copied().unwrap_or(-120.0);
+    let output = meters.get(2).copied().unwrap_or(-120.0);
+    state.dynamics.push_back([reduction, input, output]);
+    while state.dynamics.len() > HISTORY {
+        state.dynamics.pop_front();
     }
-    let accent = theme::current(ui).accent;
-    ui.add_space(8.0);
+    // The characters, as cards: their name and what they do.
+    #[cfg(test)]
+    tests::SHOWN.with_borrow_mut(|shown| shown.push("type".to_owned()));
     ui.horizontal(|ui| {
-        for id in [
-            "threshold",
-            "ratio",
-            "attack",
-            "release",
-            "knee",
-            "makeup",
-            "color",
-            "sc_hpf",
-            "mix",
-        ] {
-            let tint = if id == "color" { theme::SOLO } else { accent };
-            ui.add_enabled_ui(uses(kind, id), |ui| param_knob(ui, params, id, 50.0, tint));
+        ui.spacing_mut().item_spacing.x = 6.0;
+        let width = ((ui.available_width() - 18.0) / 4.0).max(120.0);
+        for (k, name) in TYPES.iter().enumerate() {
+            let on = k == kind;
+            let (rect, response) = ui.allocate_exact_size(vec2(width, 58.0), Sense::click());
+            let fill = if on {
+                p.accent.gamma_multiply(0.22)
+            } else if response.hovered() {
+                p.hover
+            } else {
+                p.base
+            };
+            let painter = ui.painter();
+            painter.rect_filled(rect, 8.0, fill);
+            painter.rect_stroke(
+                rect,
+                8.0,
+                Stroke::new(
+                    if on { 1.5 } else { 1.0 },
+                    if on { p.accent } else { p.border },
+                ),
+                egui::StrokeKind::Inside,
+            );
+            painter.text(
+                rect.left_top() + vec2(12.0, 7.0),
+                Align2::LEFT_TOP,
+                tr(name),
+                theme::strong(13.5),
+                if on {
+                    p.text
+                } else {
+                    p.text.gamma_multiply(0.8)
+                },
+            );
+            // Two lines at most of what it does.
+            let mut job = egui::text::LayoutJob::simple(
+                tr(TYPE_HINTS[k]).to_owned(),
+                FontId::proportional(9.5),
+                p.weak,
+                rect.width() - 24.0,
+            );
+            job.wrap.max_rows = 2;
+            job.wrap.overflow_character = Some('…');
+            let hint = ui.fonts_mut(|f| f.layout_job(job));
+            ui.painter()
+                .galley(rect.left_top() + vec2(12.0, 26.0), hint, p.weak);
+            let response = response.on_hover_text(tr(TYPE_HINTS[k]));
+            if response.clicked() && !on {
+                params.set("type", Some(k as f32), &response);
+            }
         }
     });
-    ui.add_enabled_ui(uses(kind, "auto"), |ui| {
-        params.toggle(ui, "auto", |ui, on| {
-            ui.toggle_value(on, tr("Auto release")).on_hover_text(tr(
-                "Fast recovery after peaks, slow after sustained compression",
-            ))
-        });
+    ui.add_space(8.0);
+    // The display: levels and reduction over time, the curve, the reduction meter.
+    let threshold = params.get("threshold");
+    let curve = (threshold, params.get("ratio"), params.get("knee"));
+    let range = params.get("range");
+    let makeup = params.get("makeup")
+        + if params.get("auto_gain") >= 0.5 {
+            audiostrada_dsp::compressor::auto_makeup(curve.0, curve.1)
+        } else {
+            0.0
+        };
+    let height = 230.0;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        let width = (ui.available_width() - height - 52.0).max(260.0);
+        dynamics_history(ui, params, state, vec2(width, height), threshold, reduction);
+        // Modern: the curve; vintage: a needle, as on the hardware.
+        if kind == audiostrada_dsp::compressor::CLEAN {
+            transfer_curve(ui, params, kind, (curve, range, makeup), input, height);
+        } else {
+            vu_meter(ui, reduction, &mut state.needle, vec2(height, height));
+        }
+        reduction_meter(ui, reduction, height);
+    });
+    ui.add_space(8.0);
+    // The controls, by what they act on, in sections of one height.
+    let accent = p.accent;
+    let sections: [(&str, &[&str]); 4] = [
+        ("Dynamics", &["threshold", "ratio", "knee", "range"]),
+        ("Time", &["attack", "release", "hold", "lookahead"]),
+        ("Sidechain", &["sc_hpf", "link"]),
+        ("Output", &["makeup", "mix", "color"]),
+    ];
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        for (title, ids) in sections {
+            egui::Frame::new()
+                .fill(p.base)
+                .corner_radius(8.0)
+                .inner_margin(egui::Margin::symmetric(10, 8))
+                .show(ui, |ui| {
+                    ui.set_min_height(118.0);
+                    ui.vertical(|ui| {
+                        ui.label(RichText::new(tr(title)).strong().size(11.5).color(p.weak));
+                        ui.add_space(2.0);
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 4.0;
+                            for &id in ids {
+                                let tint = if id == "color" { theme::SOLO } else { accent };
+                                let name = match id {
+                                    "sc_hpf" => tr("High pass"),
+                                    _ => params.param(id).map_or("", |q| tr(q.name)),
+                                };
+                                ui.add_enabled_ui(uses(kind, id), |ui| {
+                                    wide_knob(ui, params, id, name, 44.0, tint)
+                                });
+                            }
+                        });
+                        // Each section's switch under its knobs.
+                        let switch = match title {
+                            "Time" => Some((
+                                "auto",
+                                "Auto release",
+                                "Fast recovery after peaks, slow after sustained compression",
+                            )),
+                            "Sidechain" => Some((
+                                "listen",
+                                "Listen",
+                                "Hear what the detector hears: the key through its high-pass",
+                            )),
+                            "Output" => Some((
+                                "auto_gain",
+                                "Auto gain",
+                                "Makeup from the threshold and ratio, so the level stays about \
+                                 the same",
+                            )),
+                            _ => None,
+                        };
+                        if let Some((id, label, hint)) = switch {
+                            ui.add_space(4.0);
+                            ui.add_enabled_ui(uses(kind, id), |ui| {
+                                params.toggle(ui, id, |ui, on| {
+                                    let response =
+                                        pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
+                                    if response.clicked() {
+                                        *on = !*on;
+                                    }
+                                    response
+                                });
+                            });
+                        }
+                    });
+                });
+        }
     });
 }
 
-/// Transfer curve and gain reduction history of the clean character.
-fn clean_view(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState) {
+/// A switch as a pill: its light and its name, lit in the accent while on.
+fn pill_switch(ui: &mut Ui, on: bool, label: &str) -> Response {
     let p = theme::current(ui);
-    let reduction = meters.first().copied().unwrap_or(0.0);
-    let input = meters.get(1).copied().unwrap_or(-120.0);
-    push_history(state, (reduction, input));
-    let (threshold, ratio, knee, makeup) = (
-        params.get("threshold"),
-        params.get("ratio"),
-        params.get("knee"),
-        params.get("makeup"),
+    let galley = ui
+        .painter()
+        .layout_no_wrap(label.to_owned(), FontId::proportional(11.5), p.text);
+    let size = vec2(galley.size().x + 34.0, 22.0);
+    let (rect, mut response) = ui.allocate_exact_size(size, Sense::click());
+    let fill = match (on, response.hovered()) {
+        (true, _) => p.accent.gamma_multiply(0.3),
+        (false, true) => p.hover,
+        (false, false) => p.surface,
+    };
+    let painter = ui.painter();
+    painter.rect_filled(rect, 11.0, fill);
+    painter.rect_stroke(
+        rect,
+        11.0,
+        Stroke::new(1.0, if on { p.accent } else { p.border }),
+        egui::StrokeKind::Inside,
     );
-    ui.horizontal(|ui| {
-        // Transfer curve, -60 to 0 dB in and out.
-        let (rect, response) = ui.allocate_exact_size(vec2(220.0, 220.0), Sense::click_and_drag());
-        let painter = ui.painter_at(rect);
-        painter.rect_filled(rect, 6.0, p.base);
-        let to_x = |db: f32| rect.left() + (db + 60.0) / 60.0 * rect.width();
-        let to_y = |db: f32| rect.bottom() - (db + 60.0) / 60.0 * rect.height();
-        let grid = p.weak.gamma_multiply(0.18);
-        for db in [-48.0, -36.0, -24.0, -12.0] {
-            painter.line_segment(
-                [pos2(to_x(db), rect.top()), pos2(to_x(db), rect.bottom())],
-                Stroke::new(1.0, grid),
-            );
-            painter.line_segment(
-                [pos2(rect.left(), to_y(db)), pos2(rect.right(), to_y(db))],
-                Stroke::new(1.0, grid),
-            );
-        }
-        painter.line_segment(
-            [pos2(to_x(-60.0), to_y(-60.0)), pos2(to_x(0.0), to_y(0.0))],
-            Stroke::new(1.0, grid.gamma_multiply(2.0)),
-        );
-        let at = |level: f32| {
-            let out = level
-                + audiostrada_dsp::compressor::gain_computer(level, threshold, ratio, knee)
-                + makeup;
-            pos2(to_x(level), to_y(out.clamp(-60.0, 0.0)))
-        };
-        let curve: Vec<Pos2> = (0..=120).map(|i| at(-60.0 + i as f32 * 0.5)).collect();
-        painter.add(Shape::line(curve, Stroke::new(2.2, p.accent)));
-        let tx = to_x(threshold);
-        painter.line_segment(
-            [pos2(tx, rect.top()), pos2(tx, rect.bottom())],
-            Stroke::new(1.0, theme::SOLO.gamma_multiply(0.6)),
-        );
-        if input > -60.0 {
-            painter.circle_filled(at(input.min(0.0)), 5.0, theme::SOLO);
-        }
-        painter.text(
-            rect.left_top() + vec2(6.0, 4.0),
-            Align2::LEFT_TOP,
-            tr("OUT"),
-            FontId::proportional(9.0),
-            p.weak,
-        );
-        painter.text(
-            rect.right_bottom() - vec2(6.0, 4.0),
-            Align2::RIGHT_BOTTOM,
-            tr("IN"),
-            FontId::proportional(9.0),
-            p.weak,
-        );
-        // Dragging the curve horizontally moves the threshold.
-        if response.dragged() {
-            let delta = response.drag_delta().x / rect.width() * 60.0;
-            params.set("threshold", Some(threshold + delta), &response);
+    let light = pos2(rect.left() + 13.0, rect.center().y);
+    painter.circle_filled(light, 4.0, theme::power_ink(on, &p));
+    painter.galley(
+        pos2(rect.left() + 24.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        if on {
+            p.text
         } else {
-            params.set("threshold", None, &response);
-        }
-        response.on_hover_text(tr("Drag sideways to move the threshold"));
+            p.text.gamma_multiply(0.8)
+        },
+    );
+    if response.clicked() {
+        response.mark_changed();
+    }
+    response
+}
 
-        // Gain reduction over time.
-        let width = (ui.available_width() - 4.0).max(240.0);
-        let (rect, _) = ui.allocate_exact_size(vec2(width, 220.0), Sense::hover());
-        let painter = ui.painter_at(rect);
-        painter.rect_filled(rect, 6.0, p.base);
-        let gr_y = |db: f32| rect.top() + (-db / 24.0).clamp(0.0, 1.0) * rect.height();
-        let in_y = |db: f32| rect.bottom() - ((db + 60.0) / 60.0).clamp(0.0, 1.0) * rect.height();
-        for db in [-6.0, -12.0, -18.0] {
-            let y = gr_y(db);
-            painter.line_segment(
-                [pos2(rect.left(), y), pos2(rect.right(), y)],
-                Stroke::new(1.0, grid),
-            );
-            painter.text(
-                pos2(rect.right() - 4.0, y),
-                Align2::RIGHT_BOTTOM,
-                format!("{db}"),
-                FontId::proportional(9.0),
-                p.weak,
-            );
-        }
-        let levels = history_line(state, rect, |(_, input)| in_y(input));
-        painter.add(fill_under(
-            &levels,
-            rect.bottom(),
-            p.weak.gamma_multiply(0.25),
-        ));
-        let gr = history_line(state, rect, |(gr, _)| gr_y(gr));
-        painter.add(Shape::line(gr, Stroke::new(2.0, theme::RECORD)));
+/// Input (filled), output (line) and gain reduction (from the top) over time, with the
+/// threshold as a line to drag.
+fn dynamics_history(
+    ui: &mut Ui,
+    params: &mut Params,
+    state: &EditorState,
+    size: egui::Vec2,
+    threshold: f32,
+    reduction: f32,
+) {
+    let p = theme::current(ui);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::drag());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 8.0, p.base);
+    // Levels from -60 to 0 dBFS; the reduction from 0 down to -24 dB.
+    let level_y = |db: f32| rect.bottom() - ((db + 60.0) / 60.0).clamp(0.0, 1.0) * rect.height();
+    let gr_y = |db: f32| rect.top() + (-db / 24.0).clamp(0.0, 1.0) * rect.height();
+    let grid = p.weak.gamma_multiply(0.14);
+    for db in [-6.0f32, -12.0, -18.0, -24.0, -36.0, -48.0] {
+        let y = level_y(db);
+        painter.line_segment(
+            [pos2(rect.left(), y), pos2(rect.right(), y)],
+            Stroke::new(1.0, grid),
+        );
         painter.text(
+            pos2(rect.right() - 6.0, y - 1.0),
+            Align2::RIGHT_BOTTOM,
+            format!("{db:.0}"),
+            FontId::proportional(8.5),
+            p.weak.gamma_multiply(0.7),
+        );
+    }
+    let step = rect.width() / HISTORY as f32;
+    let x0 = rect.right() - state.dynamics.len() as f32 * step;
+    let line = |pick: &dyn Fn(&[f32; 3]) -> f32| -> Vec<Pos2> {
+        state
+            .dynamics
+            .iter()
+            .enumerate()
+            .map(|(i, v)| pos2(x0 + i as f32 * step, pick(v)))
+            .collect()
+    };
+    let input = line(&|v| level_y(v[1]));
+    painter.add(fill_under(
+        &input,
+        rect.bottom(),
+        p.weak.gamma_multiply(0.22),
+    ));
+    painter.add(Shape::line(
+        line(&|v| level_y(v[2])),
+        Stroke::new(1.4, p.text.gamma_multiply(0.75)),
+    ));
+    let gr = line(&|v| gr_y(v[0]));
+    // The reduction hangs from the top, filled.
+    if gr.len() > 1 {
+        let mut mesh = egui::Mesh::default();
+        let color = theme::RECORD.gamma_multiply(0.22);
+        for (k, point) in gr.iter().enumerate() {
+            mesh.colored_vertex(pos2(point.x, rect.top()), color);
+            mesh.colored_vertex(*point, color);
+            if k > 0 {
+                let i = (k * 2) as u32;
+                mesh.add_triangle(i - 2, i - 1, i);
+                mesh.add_triangle(i - 1, i, i + 1);
+            }
+        }
+        painter.add(Shape::mesh(mesh));
+    }
+    painter.add(Shape::line(gr, Stroke::new(2.0, theme::RECORD)));
+    // The threshold, to drag up and down.
+    let ty = level_y(threshold);
+    let hot = response.hovered() || response.dragged();
+    painter.add(Shape::dashed_line(
+        &[pos2(rect.left(), ty), pos2(rect.right(), ty)],
+        Stroke::new(if hot { 2.0 } else { 1.2 }, theme::SOLO),
+        6.0,
+        4.0,
+    ));
+    painter.text(
+        pos2(rect.left() + 10.0, ty + 3.0),
+        Align2::LEFT_TOP,
+        format!("{} {threshold:.1} dB", tr("Threshold")),
+        FontId::proportional(10.0),
+        theme::SOLO,
+    );
+    painter.text(
+        rect.left_top() + vec2(10.0, 8.0),
+        Align2::LEFT_TOP,
+        format!("{} {reduction:.1} dB", tr("GR")),
+        theme::strong(15.0),
+        theme::RECORD,
+    );
+    // Legend.
+    let legend = [
+        (tr("Input"), p.weak),
+        (tr("Output"), p.text),
+        (tr("Reduction"), theme::RECORD),
+    ];
+    let mut x = rect.left() + 10.0;
+    for (name, color) in legend {
+        painter.rect_filled(
+            Rect::from_min_size(pos2(x, rect.bottom() - 14.0), vec2(8.0, 3.0)),
+            1.0,
+            color,
+        );
+        let galley = painter.layout_no_wrap(name.to_owned(), FontId::proportional(9.5), p.weak);
+        let w = galley.size().x;
+        painter.galley(pos2(x + 12.0, rect.bottom() - 19.0), galley, p.weak);
+        x += w + 26.0;
+    }
+    if hot {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+    }
+    let response = response.on_hover_text(tr("Drag up and down to move the threshold"));
+    let changed = response
+        .dragged()
+        .then(|| threshold - response.drag_delta().y / rect.height() * 60.0);
+    params.set("threshold", changed, &response);
+}
+
+/// The static curve of the character, with where the input is now.
+fn transfer_curve(
+    ui: &mut Ui,
+    params: &mut Params,
+    kind: usize,
+    (curve, range, makeup): ((f32, f32, f32), f32, f32),
+    input: f32,
+    size: f32,
+) {
+    let p = theme::current(ui);
+    let (rect, response) = ui.allocate_exact_size(vec2(size, size), Sense::drag());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 8.0, p.base);
+    let to_x = |db: f32| rect.left() + (db + 60.0) / 60.0 * rect.width();
+    let to_y = |db: f32| rect.bottom() - (db + 60.0) / 60.0 * rect.height();
+    let grid = p.weak.gamma_multiply(0.14);
+    for db in [-48.0, -36.0, -24.0, -12.0] {
+        painter.line_segment(
+            [pos2(to_x(db), rect.top()), pos2(to_x(db), rect.bottom())],
+            Stroke::new(1.0, grid),
+        );
+        painter.line_segment(
+            [pos2(rect.left(), to_y(db)), pos2(rect.right(), to_y(db))],
+            Stroke::new(1.0, grid),
+        );
+    }
+    painter.line_segment(
+        [pos2(to_x(-60.0), to_y(-60.0)), pos2(to_x(0.0), to_y(0.0))],
+        Stroke::new(1.0, grid.gamma_multiply(2.0)),
+    );
+    let at = |level: f32| {
+        let out =
+            level + audiostrada_dsp::compressor::reduction_at(kind, level, curve, range) + makeup;
+        pos2(to_x(level), to_y(out.clamp(-60.0, 0.0)))
+    };
+    let points: Vec<Pos2> = (0..=120).map(|i| at(-60.0 + i as f32 * 0.5)).collect();
+    painter.add(Shape::line(points, Stroke::new(2.2, p.accent)));
+    let tx = to_x(curve.0);
+    painter.line_segment(
+        [pos2(tx, rect.top()), pos2(tx, rect.bottom())],
+        Stroke::new(1.0, theme::SOLO.gamma_multiply(0.6)),
+    );
+    if input > -60.0 {
+        let dot = at(input.min(0.0));
+        painter.circle_filled(dot, 7.0, theme::SOLO.gamma_multiply(0.25));
+        painter.circle_filled(dot, 4.5, theme::SOLO);
+    }
+    for (text, anchor, align) in [
+        (
+            tr("OUT"),
             rect.left_top() + vec2(8.0, 6.0),
             Align2::LEFT_TOP,
-            format!("{} {reduction:.1} dB", tr("GR")),
-            theme::strong(13.0),
-            theme::RECORD,
+        ),
+        (
+            tr("IN"),
+            rect.right_bottom() - vec2(8.0, 6.0),
+            Align2::RIGHT_BOTTOM,
+        ),
+    ] {
+        painter.text(anchor, align, text, FontId::proportional(9.0), p.weak);
+    }
+    let response = response.on_hover_text(tr("Drag sideways to move the threshold"));
+    let changed = response
+        .dragged()
+        .then(|| curve.0 + response.drag_delta().x / rect.width() * 60.0);
+    params.set("threshold", changed, &response);
+}
+
+/// The gain reduction as a bar from the top, with its scale.
+fn reduction_meter(ui: &mut Ui, reduction: f32, height: f32) {
+    let p = theme::current(ui);
+    let (rect, _) = ui.allocate_exact_size(vec2(36.0, height), Sense::hover());
+    let painter = ui.painter_at(rect);
+    let bar = Rect::from_min_max(
+        rect.left_top() + vec2(4.0, 0.0),
+        pos2(rect.left() + 14.0, rect.bottom()),
+    );
+    painter.rect_filled(bar, 4.0, p.base);
+    let depth = (-reduction / 24.0).clamp(0.0, 1.0);
+    painter.rect_filled(
+        Rect::from_min_max(bar.min, pos2(bar.right(), bar.top() + depth * bar.height())),
+        4.0,
+        theme::RECORD,
+    );
+    for db in [0.0f32, -3.0, -6.0, -12.0, -18.0, -24.0] {
+        let y = bar.top() + (-db / 24.0) * bar.height();
+        painter.text(
+            pos2(rect.right(), y.clamp(rect.top() + 5.0, rect.bottom() - 5.0)),
+            Align2::RIGHT_CENTER,
+            format!("{:.0}", db.abs()),
+            FontId::proportional(8.5),
+            p.weak,
         );
-    });
+    }
 }
 
 // ---------------------------------------------------------------- Limiter and Maximizer
