@@ -1082,19 +1082,29 @@ impl PianoRoll {
         if !matches!(drag.kind, DragKind::Select { .. }) {
             self.preview = Some(edited);
         }
-        // Keeps the dragged notes in view near the edges.
-        {
-            let edge = 24.0;
-            if pos.x > area.right() - edge {
-                self.view.scroll += 4.0 * self.view.zoom;
-            } else if pos.x < area.left() + edge && pos.x > area.left() - 200.0 {
-                self.view.scroll -= 4.0 * self.view.zoom;
+        // Past an edge the view follows, faster the further the pointer goes; what was grabbed
+        // stays under it.
+        let dt = ui.input(|i| i.stable_dt).min(0.05);
+        let speed = |past: f32| {
+            if past > -2.0 {
+                (past + 2.0).min(60.0) * 12.0 * dt
+            } else {
+                0.0
             }
-            if pos.y > area.bottom() - edge && pos.y < area.bottom() + 20.0 {
-                self.view.scroll_y += 4.0;
-            } else if pos.y < area.top() + edge && pos.y > area.top() - 20.0 {
-                self.view.scroll_y -= 4.0;
-            }
+        };
+        let (before_x, before_y) = (self.view.scroll, self.view.scroll_y);
+        let dx = speed(pos.x - area.right()) - speed(area.left() - pos.x);
+        let dy = speed(pos.y - area.bottom()) - speed(area.top() - pos.y);
+        self.view.scroll = (self.view.scroll + f64::from(dx) * self.view.zoom).max(0.0);
+        self.view.scroll_y = (self.view.scroll_y + dy)
+            .clamp(0.0, (self.view.content_height() - area.height()).max(0.0));
+        let moved = vec2(
+            ((self.view.scroll - before_x) / self.view.zoom) as f32,
+            self.view.scroll_y - before_y,
+        );
+        drag.origin -= moved;
+        if let DragKind::Select { anchor } = &mut drag.kind {
+            *anchor -= moved;
         }
         drag.last = pos;
         self.drag = Some(drag);

@@ -269,3 +269,37 @@ fn thousands_of_notes_draw_quickly() {
     println!("{per_frame:.2} ms a frame");
     assert!(per_frame < 30.0, "{per_frame:.2} ms a frame");
 }
+
+#[test]
+fn a_rubber_band_past_the_edge_scrolls_and_keeps_its_corner() {
+    let (mut roll, _doc, _clip) = roll(vec![note(2_400, 60, 0), note(0, 60, 0)]);
+    let ctx = egui::Context::default();
+    let f = framed(&mut roll, &ctx);
+    // The second note just past the right edge.
+    let far = f.t(f.area.right() + 150.0);
+    roll.commit(
+        "Setup",
+        vec![
+            note(2_400, 60, 0),
+            Note {
+                start: far,
+                ..note(0, 60, 0)
+            },
+        ],
+    );
+    let f = framed(&mut roll, &ctx);
+    let y = f.y(60).unwrap();
+    let from = pos2(f.x(1_000), y - 30.0);
+    let out = pos2(f.area.right() + 60.0, y + 30.0);
+    frame(&mut roll, &ctx, vec![egui::Event::PointerMoved(from)]);
+    frame(&mut roll, &ctx, vec![button(from, true)]);
+    for _ in 0..40 {
+        frame(&mut roll, &ctx, vec![egui::Event::PointerMoved(out)]);
+    }
+    assert!(roll.view.scroll > 0.0, "the view followed");
+    assert_eq!(roll.selected.len(), 2, "both notes, the first one kept");
+    frame(&mut roll, &ctx, vec![button(out, false)]);
+    roll.view.scroll = -5_000.0;
+    roll.view.clamp(400.0);
+    assert_eq!(roll.view.scroll, 0.0, "nothing before the start");
+}

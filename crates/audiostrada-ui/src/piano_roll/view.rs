@@ -86,7 +86,8 @@ impl View {
         self.scroll_y = self
             .scroll_y
             .clamp(0.0, (self.content_height() - height).max(0.0));
-        self.scroll = self.scroll.max(-1.0e9);
+        // Nothing before the start of the project.
+        self.scroll = self.scroll.max(0.0);
     }
 
     /// Zooms time by `factor` keeping the time under `x` (pixels from the left) in place.
