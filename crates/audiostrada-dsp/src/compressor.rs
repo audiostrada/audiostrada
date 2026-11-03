@@ -3,7 +3,7 @@
 //! a filtered and audible sidechain, stereo link, auto gain and an aligned dry mix.
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
-use crate::drive::{Oversampler, TAPS, kernel};
+use crate::drive::{Oversampler, Taps};
 use crate::{
     Effect, EffectInfo, ParamInfo, choice, db_to_gain, gain_to_db, key_peak, param, switch,
     time_coefficient,
@@ -57,7 +57,7 @@ const UNIFIED: [ParamInfo; 17] = [
 /// Longest lookahead.
 pub const MAX_LOOKAHEAD_MS: f32 = 20.0;
 /// Delay of the vintage characters' oversampled color stage, rounded to a sample.
-pub const COLOR_LATENCY: u32 = 8;
+pub const COLOR_LATENCY: u32 = crate::drive::LATENCY;
 
 /// Indices into [`INFO`]'s parameters.
 mod p {
@@ -118,7 +118,6 @@ pub fn auto_makeup(threshold: f32, ratio: f32) -> f32 {
 pub struct Compressor {
     values: [f32; 17],
     rate: f32,
-    kernel: [f32; TAPS],
     hpf: Coefficients,
     hpf_state: [Biquad; 2],
     /// Gain change per side in dB: fast and slow envelopes, the one applied, hold left.
@@ -146,7 +145,6 @@ impl Default for Compressor {
         let mut c = Self {
             values: UNIFIED.map(|p| p.default),
             rate: 48_000.0,
-            kernel: kernel(),
             hpf: Coefficients::IDENTITY,
             hpf_state: Default::default(),
             envelope: [0.0; 2],
@@ -160,8 +158,8 @@ impl Default for Compressor {
             line: [Vec::new(), Vec::new()],
             at: 0,
             delay: 0,
-            wet: [Oversampler::new(), Oversampler::new()],
-            dry: [Oversampler::new(), Oversampler::new()],
+            wet: [Oversampler::new(Taps::Long), Oversampler::new(Taps::Long)],
+            dry: [Oversampler::new(Taps::Long), Oversampler::new(Taps::Long)],
             reduction: 0.0,
             levels: [-120.0; 2],
         };
@@ -215,8 +213,9 @@ impl Compressor {
         for line in &mut self.line {
             line.fill(0.0);
         }
-        self.wet = [Oversampler::new(), Oversampler::new()];
-        self.dry = [Oversampler::new(), Oversampler::new()];
+        for stage in self.wet.iter_mut().chain(&mut self.dry) {
+            stage.clear();
+        }
     }
 
     fn run(&mut self, left: &mut [f32], right: &mut [f32], key: Option<(&[f32], &[f32])>) {
@@ -236,7 +235,6 @@ impl Compressor {
         let makeup = db_to_gain(makeup);
         let (amount, wet, link, listen) =
             (v[8] / 100.0, v[10] / 100.0, v[15] / 100.0, v[16] >= 0.5);
-        let kernel = self.kernel;
         let size = self.line[0].len().max(1);
         let mut deepest = 0.0f32;
         let (mut peak_in, mut peak_out) = (0.0f32, 0.0f32);
@@ -303,10 +301,9 @@ impl Compressor {
                 let gain = db_to_gain(self.current[ch]) * makeup;
                 let (mut processed, mut dry) = (delayed[ch] * gain, delayed[ch]);
                 if vintage {
-                    processed = self.wet[ch].run(&kernel, processed, |x| {
-                        crate::vintage::color(model, amount, x)
-                    });
-                    dry = self.dry[ch].run(&kernel, dry, |x| x);
+                    processed =
+                        self.wet[ch].run(processed, |x| crate::vintage::color(model, amount, x));
+                    dry = self.dry[ch].run(dry, |x| x);
                 }
                 out[ch] = if listen {
                     heard[ch]

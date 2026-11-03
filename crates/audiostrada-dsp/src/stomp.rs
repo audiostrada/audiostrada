@@ -2,7 +2,7 @@
 //! transistors, tone control), run four times oversampled, and a wah.
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
-use crate::drive::{FACTOR, Oversampler, TAPS, kernel};
+use crate::drive::{FACTOR, Oversampler, Taps};
 use crate::{db_to_gain, time_coefficient};
 
 /// How a circuit clips.
@@ -190,7 +190,6 @@ pub const TREBLE: Circuit = circuit(
 /// A drive pedal running one of the circuits; knobs drive, tone and level from 0 to 1.
 #[derive(Debug)]
 pub struct Stomp {
-    kernel: [f32; TAPS],
     stage: Oversampler,
     pre: [(Coefficients, Biquad); 2],
     band: (Coefficients, Biquad),
@@ -207,8 +206,7 @@ impl Default for Stomp {
     fn default() -> Self {
         let filter = || (Coefficients::IDENTITY, Biquad::default());
         Self {
-            kernel: kernel(),
-            stage: Oversampler::new(),
+            stage: Oversampler::new(Taps::Short),
             pre: [filter(), filter()],
             band: filter(),
             tone: [filter(), filter()],
@@ -269,7 +267,7 @@ impl Stomp {
         let (gain, clean, kind) = (self.gain, self.clean, self.clip);
         let (pre, band) = (&mut self.pre, &mut self.band);
         for s in buffer.iter_mut() {
-            *s = self.stage.run(&self.kernel, *s, |x| {
+            *s = self.stage.run(*s, |x| {
                 let mut v = f64::from(x);
                 for (c, f) in pre.iter_mut() {
                     v = f.process(c, v);
@@ -294,7 +292,7 @@ impl Stomp {
     }
 
     pub fn reset(&mut self) {
-        self.stage = Oversampler::new();
+        self.stage.clear();
         for (_, f) in self.pre.iter_mut().chain(self.tone.iter_mut()) {
             *f = Biquad::default();
         }

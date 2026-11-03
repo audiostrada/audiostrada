@@ -6,7 +6,7 @@
 //! real machine, so they saturate first while the lows stay clear.
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
-use crate::drive::{Oversampler, TAPS, kernel};
+use crate::drive::{Delay, LATENCY, Oversampler, Taps};
 use crate::line::Line;
 use crate::{Effect, EffectInfo, ParamInfo, choice, db_to_gain, param};
 
@@ -47,8 +47,9 @@ const EMPHASIS_DB: f64 = 6.0;
 pub struct Tape {
     rate: f32,
     values: [f32; 8],
-    kernel: [f32; TAPS],
     stages: [Oversampler; 2],
+    /// The dry signal, delayed as much as the taped one without wow.
+    dry: [Delay; 2],
     /// Last output of the saturator per channel, its memory.
     memory: [f32; 2],
     bump: Coefficients,
@@ -67,8 +68,8 @@ impl Default for Tape {
         let mut tape = Self {
             rate: 48_000.0,
             values: PARAMS.map(|p| p.default),
-            kernel: kernel(),
-            stages: [Oversampler::new(), Oversampler::new()],
+            stages: [Oversampler::new(Taps::Long), Oversampler::new(Taps::Long)],
+            dry: [Delay::default(); 2],
             memory: [0.0; 2],
             bump: Coefficients::IDENTITY,
             rolloff: Coefficients::IDENTITY,
@@ -164,7 +165,6 @@ impl Effect for Tape {
             std::f32::consts::TAU * 6.3 / self.rate,
         );
         let wet = mix / 100.0;
-        let kernel = self.kernel;
         for (l, r) in left.iter_mut().zip(right.iter_mut()) {
             let dry = [*l, *r];
             self.phase[0] = (self.phase[0] + wow_step) % std::f32::consts::TAU;
@@ -176,7 +176,7 @@ impl Effect for Tape {
                 let memory = std::cell::Cell::new(self.memory[ch]);
                 let x =
                     self.filters[ch][2].process(&self.emphasis, f64::from(dry[ch])) as f32 * gain;
-                let y = self.stages[ch].run(&kernel, x, |v| {
+                let y = self.stages[ch].run(x, |v| {
                     let mut m = memory.get();
                     let y = saturate(v, &mut m, bias);
                     memory.set(m);
@@ -197,13 +197,26 @@ impl Effect for Tape {
                     *o += (n - self.hiss_lp[ch] * 0.5) * hiss;
                 }
             }
+            let aligned = self.latency() as usize;
+            let dry = [
+                self.dry[0].tick(dry[0], aligned),
+                self.dry[1].tick(dry[1], aligned),
+            ];
             *l = dry[0] * (1.0 - wet) + out[0] * makeup * wet;
             *r = dry[1] * (1.0 - wet) + out[1] * makeup * wet;
         }
     }
 
+    /// The oversampling, and the 2 samples the wow line reads behind when still.
+    fn latency(&self) -> u32 {
+        LATENCY + 2
+    }
+
     fn reset(&mut self) {
-        self.stages = [Oversampler::new(), Oversampler::new()];
+        for stage in &mut self.stages {
+            stage.clear();
+        }
+        self.dry = [Delay::default(); 2];
         self.memory = [0.0; 2];
         self.filters = [[Biquad::default(); 4]; 2];
         for line in &mut self.wow {
@@ -292,5 +305,29 @@ mod tests {
         hot.prepare(48_000, 256);
         let out = run(&mut hot, &sine(200.0, 0.9));
         assert!(out.iter().all(|s| s.is_finite() && s.abs() < 2.0));
+    }
+
+    #[test]
+    fn the_dry_signal_lines_up_with_the_processed_one() {
+        let mut fx = Tape::default();
+        fx.set_param(7, 0.0);
+        fx.prepare(48_000, 256);
+        let impulse = |fx: &mut Tape| {
+            let (mut l, mut r) = (vec![0.0f32; 64], vec![0.0f32; 64]);
+            l[0] = 0.1;
+            r[0] = 0.1;
+            fx.process(&mut l, &mut r);
+            (0..64).max_by(|&a, &b| l[a].abs().total_cmp(&l[b].abs()))
+        };
+        let latency = fx.latency() as usize;
+        assert_eq!(impulse(&mut fx), Some(latency), "dry");
+        fx.set_param(7, 100.0);
+        fx.reset();
+        // Its tone filters move the peak a little.
+        let wet = impulse(&mut fx).unwrap();
+        assert!(
+            wet.abs_diff(latency) <= 3,
+            "wet at {wet}, latency {latency}"
+        );
     }
 }

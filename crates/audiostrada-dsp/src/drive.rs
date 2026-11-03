@@ -63,78 +63,155 @@ const MID: usize = 5;
 const FILTERS: usize = 6;
 
 pub(crate) const FACTOR: usize = 4;
-pub(crate) const TAPS: usize = 32;
+const MAX_TAPS: usize = 96;
 
-/// Low-pass FIR at a quarter of the band, for up- and downsampling by four.
-pub(crate) fn kernel() -> [f32; TAPS] {
-    let mut k = [0.0f32; TAPS];
-    let centre = (TAPS - 1) as f32 / 2.0;
-    let cutoff = 0.9 / FACTOR as f32;
+/// Length of the oversampling filters: long for the studio processors (flat to 18 kHz at
+/// 48 kHz, 24 samples of delay), short for the guitar rig, where the delay of each stage adds
+/// up (8 samples).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Taps {
+    Short = 32,
+    Long = 96,
+}
+
+impl Taps {
+    /// Delay of a run through an [`Oversampler`] at the base rate, rounded.
+    pub(crate) const fn latency(self) -> u32 {
+        (self as u32 - 1).div_ceil(FACTOR as u32)
+    }
+}
+
+/// Delay of the studio processors' oversampling, in samples.
+pub(crate) const LATENCY: u32 = Taps::Long.latency();
+
+/// Low-pass FIR for up- and downsampling by four: a windowed sinc just below the edge of the
+/// base band (Blackman for the short one, Kaiser for the long one).
+fn kernel(taps: Taps) -> [f32; MAX_TAPS] {
+    let n = taps as usize;
+    let centre = (n - 1) as f64 / 2.0;
+    let cutoff = if taps == Taps::Long { 0.95 } else { 0.9 } / FACTOR as f64;
+    let bessel = |x: f64| {
+        let (mut term, mut sum) = (1.0, 1.0);
+        for k in 1..32 {
+            term *= (x / (2.0 * f64::from(k))).powi(2);
+            sum += term;
+        }
+        sum
+    };
+    let mut k = [0.0f32; MAX_TAPS];
     let mut sum = 0.0;
-    for (i, v) in k.iter_mut().enumerate() {
-        let x = i as f32 - centre;
-        let sinc = if x.abs() < 1e-6 {
+    for (i, v) in k.iter_mut().take(n).enumerate() {
+        let x = i as f64 - centre;
+        let sinc = if x.abs() < 1e-9 {
             1.0
         } else {
-            (std::f32::consts::PI * cutoff * x).sin() / (std::f32::consts::PI * cutoff * x)
+            (std::f64::consts::PI * cutoff * x).sin() / (std::f64::consts::PI * cutoff * x)
         };
-        let window = 0.42 - 0.5 * (std::f32::consts::TAU * i as f32 / (TAPS - 1) as f32).cos()
-            + 0.08 * (2.0 * std::f32::consts::TAU * i as f32 / (TAPS - 1) as f32).cos();
-        *v = sinc * window;
-        sum += *v;
+        let t = i as f64 / (n - 1) as f64;
+        let window = match taps {
+            Taps::Short => {
+                0.42 - 0.5 * (std::f64::consts::TAU * t).cos()
+                    + 0.08 * (2.0 * std::f64::consts::TAU * t).cos()
+            }
+            Taps::Long => {
+                let r = 2.0 * t - 1.0;
+                bessel(7.0 * (1.0 - r * r).max(0.0).sqrt()) / bessel(7.0)
+            }
+        };
+        *v = (sinc * window) as f32;
+        sum += sinc * window;
     }
     for v in &mut k {
-        *v /= sum;
+        *v /= sum as f32;
     }
     k
 }
 
+/// Runs a nonlinearity at four times the rate (polyphase: only the samples that are not
+/// stuffed zeros are filtered, and only the kept ones are decimated).
 #[derive(Debug, Clone)]
 pub(crate) struct Oversampler {
-    up: [f32; TAPS],
-    down: [f32; TAPS],
-    at_up: usize,
-    at_down: usize,
+    taps: Taps,
+    kernel: [f32; MAX_TAPS],
+    /// Inputs then shaped samples, newest first, each written twice to read a window in one
+    /// slice.
+    input: [f32; 2 * MAX_TAPS / FACTOR],
+    at_input: usize,
+    shaped: [f32; 2 * MAX_TAPS],
+    at_shaped: usize,
 }
 
 impl Oversampler {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(taps: Taps) -> Self {
         Self {
-            up: [0.0; TAPS],
-            down: [0.0; TAPS],
-            at_up: 0,
-            at_down: 0,
+            taps,
+            kernel: kernel(taps),
+            input: [0.0; 2 * MAX_TAPS / FACTOR],
+            at_input: 0,
+            shaped: [0.0; 2 * MAX_TAPS],
+            at_shaped: 0,
         }
     }
 
-    fn filter(line: &mut [f32; TAPS], at: &mut usize, k: &[f32; TAPS], x: f32) -> f32 {
-        line[*at] = x;
-        *at = (*at + 1) % TAPS;
-        let mut y = 0.0;
-        for (j, c) in k.iter().enumerate() {
-            y += c * line[(*at + j) % TAPS];
-        }
-        y
+    pub(crate) fn clear(&mut self) {
+        self.input.fill(0.0);
+        self.shaped.fill(0.0);
+    }
+
+    pub(crate) fn latency(&self) -> u32 {
+        self.taps.latency()
     }
 
     /// Runs `shape` at four times the rate on one sample.
-    pub(crate) fn run(
-        &mut self,
-        k: &[f32; TAPS],
-        x: f32,
-        mut shape: impl FnMut(f32) -> f32,
-    ) -> f32 {
-        let mut out = 0.0;
+    pub(crate) fn run(&mut self, x: f32, mut shape: impl FnMut(f32) -> f32) -> f32 {
+        let n = self.taps as usize;
+        let per_phase = n / FACTOR;
+        self.at_input = (self.at_input + per_phase - 1) % per_phase;
+        self.input[self.at_input] = x;
+        self.input[self.at_input + per_phase] = x;
+        let history = &self.input[self.at_input..self.at_input + per_phase];
         for phase in 0..FACTOR {
-            // Zero stuffing, gain restored by the factor.
-            let v = if phase == 0 { x * FACTOR as f32 } else { 0.0 };
-            let up = Self::filter(&mut self.up, &mut self.at_up, k, v);
-            let shaped = shape(up);
-            let down = Self::filter(&mut self.down, &mut self.at_down, k, shaped);
-            if phase == FACTOR - 1 {
-                out = down;
-            }
+            // The zero-stuffed signal, gain restored by the factor.
+            let up: f32 = history
+                .iter()
+                .enumerate()
+                .map(|(i, v)| self.kernel[i * FACTOR + phase] * v)
+                .sum();
+            let y = shape(up * FACTOR as f32);
+            self.at_shaped = (self.at_shaped + n - 1) % n;
+            self.shaped[self.at_shaped] = y;
+            self.shaped[self.at_shaped + n] = y;
         }
+        self.shaped[self.at_shaped..self.at_shaped + n]
+            .iter()
+            .zip(&self.kernel[..n])
+            .map(|(v, k)| v * k)
+            .sum()
+    }
+}
+
+/// A short whole-sample delay, to line the dry signal up with an oversampled one.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Delay {
+    line: [f32; 64],
+    at: usize,
+}
+
+impl Default for Delay {
+    fn default() -> Self {
+        Self {
+            line: [0.0; 64],
+            at: 0,
+        }
+    }
+}
+
+impl Delay {
+    /// `x` in, the sample of `delay` (below 64) frames ago out.
+    pub(crate) fn tick(&mut self, x: f32, delay: usize) -> f32 {
+        self.line[self.at] = x;
+        let out = self.line[(self.at + 64 - delay.min(63)) % 64];
+        self.at = (self.at + 1) % 64;
         out
     }
 }
@@ -143,8 +220,9 @@ impl Oversampler {
 pub struct Drive {
     rate: f32,
     values: [f32; 9],
-    kernel: [f32; TAPS],
     stages: [Oversampler; 2],
+    /// The dry signal, delayed as much as the oversampled one.
+    dry: [Delay; 2],
     coefficients: [Coefficients; FILTERS],
     filters: [[Biquad; FILTERS]; 2],
     dc: [(f32, f32); 2],
@@ -155,8 +233,8 @@ impl Default for Drive {
         Self {
             rate: 48_000.0,
             values: PARAMS.map(|p| p.default),
-            kernel: kernel(),
-            stages: [Oversampler::new(), Oversampler::new()],
+            stages: [Oversampler::new(Taps::Long), Oversampler::new(Taps::Long)],
+            dry: [Delay::default(); 2],
             coefficients: [Coefficients::IDENTITY; FILTERS],
             filters: [[Biquad::default(); FILTERS]; 2],
             dc: [(0.0, 0.0); 2],
@@ -221,7 +299,6 @@ impl Effect for Drive {
         let [mode, drive, _, level, mix, _, bias, ..] = self.values;
         let mode = mode.round() as u32;
         let (gain, out, wet) = (db_to_gain(drive), db_to_gain(level), mix / 100.0);
-        let kernel = self.kernel;
         let c = &self.coefficients;
         for (ch, buffer) in [left, right].into_iter().enumerate() {
             let f = &mut self.filters[ch];
@@ -231,8 +308,7 @@ impl Effect for Drive {
                 for i in [LOW_CUT, EMPHASIS] {
                     x = f[i].process(&c[i], x);
                 }
-                let clipped =
-                    self.stages[ch].run(&kernel, x as f32 * gain, |x| transfer(mode, bias, x));
+                let clipped = self.stages[ch].run(x as f32 * gain, |x| transfer(mode, bias, x));
                 let clipped = f[DE_EMPHASIS].process(&c[DE_EMPHASIS], f64::from(clipped)) as f32;
                 // DC blocker for the asymmetric shapes, then tone, bass and middle.
                 let (x1, y1) = self.dc[ch];
@@ -242,13 +318,21 @@ impl Effect for Drive {
                 for i in [TONE, BASS, MID] {
                     toned = f[i].process(&c[i], toned);
                 }
+                let dry = self.dry[ch].tick(dry, LATENCY as usize);
                 *s = dry * (1.0 - wet) + toned as f32 * out * wet;
             }
         }
     }
 
+    fn latency(&self) -> u32 {
+        LATENCY
+    }
+
     fn reset(&mut self) {
-        self.stages = [Oversampler::new(), Oversampler::new()];
+        for stage in &mut self.stages {
+            stage.clear();
+        }
+        self.dry = [Delay::default(); 2];
         self.filters = [[Biquad::default(); FILTERS]; 2];
         self.dc = [(0.0, 0.0); 2];
     }
@@ -402,5 +486,29 @@ mod tests {
         assert!(lows(&[(1, 0.0), (3, 0.0), (7, 12.0)]) > plain * 2.0, "bass");
         let mids = |mid: f32| level(&render(&[(1, 0.0), (3, 0.0), (8, mid)], 800.0), 800.0);
         assert!(mids(12.0) > mids(0.0) * 3.0, "middle");
+    }
+
+    #[test]
+    fn the_dry_signal_lines_up_with_the_processed_one() {
+        let mut fx = Drive::default();
+        fx.set_param(4, 0.0);
+        fx.prepare(48_000, 256);
+        let impulse = |fx: &mut Drive| {
+            let (mut l, mut r) = (vec![0.0f32; 64], vec![0.0f32; 64]);
+            l[0] = 0.1;
+            r[0] = 0.1;
+            fx.process(&mut l, &mut r);
+            (0..64).max_by(|&a, &b| l[a].abs().total_cmp(&l[b].abs()))
+        };
+        let latency = fx.latency() as usize;
+        assert_eq!(impulse(&mut fx), Some(latency), "dry");
+        fx.set_param(4, 100.0);
+        fx.reset();
+        // Its tone filters move the peak a little.
+        let wet = impulse(&mut fx).unwrap();
+        assert!(
+            wet.abs_diff(latency) <= 3,
+            "wet at {wet}, latency {latency}"
+        );
     }
 }

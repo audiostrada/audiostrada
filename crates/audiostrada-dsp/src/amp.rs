@@ -4,7 +4,7 @@
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::db_to_gain;
-use crate::drive::{FACTOR, Oversampler, TAPS, kernel};
+use crate::drive::{FACTOR, Oversampler, Taps};
 
 /// Passive treble/middle/bass network: treble pot R1, bass pot R2, middle pot R3, slope
 /// resistor R4 and capacitors C1 (treble), C2, C3.
@@ -646,7 +646,6 @@ impl Chain {
 /// A built-in amp running one of `MODELS`.
 #[derive(Debug)]
 pub struct AmpSim {
-    kernel: [f32; TAPS],
     stage: Oversampler,
     chain: Chain,
     model: Option<usize>,
@@ -655,8 +654,7 @@ pub struct AmpSim {
 impl Default for AmpSim {
     fn default() -> Self {
         Self {
-            kernel: kernel(),
-            stage: Oversampler::new(),
+            stage: Oversampler::new(Taps::Short),
             chain: Chain::default(),
             model: None,
         }
@@ -735,12 +733,12 @@ impl AmpSim {
     pub fn process(&mut self, buffer: &mut [f32]) {
         let chain = &mut self.chain;
         for s in buffer {
-            *s = self.stage.run(&self.kernel, *s, |x| chain.tick(x));
+            *s = self.stage.run(*s, |x| chain.tick(x));
         }
     }
 
     pub fn reset(&mut self) {
-        self.stage = Oversampler::new();
+        self.stage.clear();
         let c = &mut self.chain;
         c.stack.s = [0.0; 3];
         for p in c.hp.iter_mut().chain(c.lp.iter_mut()) {
