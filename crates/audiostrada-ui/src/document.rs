@@ -146,6 +146,7 @@ fn midi_from_events(
                 key,
                 velocity,
                 channel,
+                ..Default::default()
             });
         }
     }
@@ -156,6 +157,7 @@ fn midi_from_events(
             key,
             velocity,
             channel,
+            ..Default::default()
         });
     }
     notes.sort_by_key(|n| (n.start, n.key));
@@ -1524,6 +1526,7 @@ impl Document {
                         key: n.key,
                         velocity: n.velocity,
                         channel: n.channel,
+                        ..Default::default()
                     })
                     .collect();
                 let controls: Vec<audiostrada_core::ControlPoint> = track
@@ -2713,6 +2716,7 @@ mod tests {
             key: 62,
             velocity: 99,
             channel: 0,
+            ..Default::default()
         };
         doc.history_mut().edit("Keys", |p| {
             let t = p.add_track("Keys");

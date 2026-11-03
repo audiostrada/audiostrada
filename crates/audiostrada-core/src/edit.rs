@@ -1476,6 +1476,7 @@ mod tests {
             key: 60,
             velocity: 100,
             channel: 0,
+            ..Default::default()
         };
         let id = p.add_midi_clip(t, 96_000, 96_000, vec![note(0)]).unwrap();
         fit_clip_to_notes(&mut p, id);
@@ -1501,6 +1502,7 @@ mod tests {
             key: 36,
             velocity: 100,
             channel: 9,
+            ..Default::default()
         };
         let id = p
             .add_midi_clip(t, 96_000, 96_000, vec![note(0, 6000), note(24_000, 6000)])
@@ -1545,6 +1547,7 @@ mod tests {
             key: 60,
             velocity: 100,
             channel: 0,
+            ..Default::default()
         };
         set_notes(&mut p, id, vec![note(25_000), note(11_000)]);
         let notes = clip(&p, id).unwrap().notes.clone().unwrap();
@@ -1603,6 +1606,7 @@ mod tests {
             key: 60,
             velocity: 100,
             channel: 0,
+            ..Default::default()
         };
         let mut notes = vec![note(0, 100), note(50, 100), note(120, 10), note(200, 10)];
         spread_mpe_channels(&mut notes);

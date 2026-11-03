@@ -69,6 +69,7 @@ fn seed_project() -> Project {
             key: 60,
             velocity: 100,
             channel: 0,
+            ..Default::default()
         }],
     );
     let t = p.track_mut(kick).unwrap();

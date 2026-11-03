@@ -198,6 +198,7 @@ pub(crate) fn rhythm_notes(rhythm: &Rhythm, bars: u32, samples_per_beat: f64) ->
                     key,
                     velocity,
                     channel: 9,
+                    ..Default::default()
                 })
             };
             match pattern[index % pattern.len()] {

@@ -1,0 +1,347 @@
+Another draw
+Un autre tirage
+
+Accent the beats
+Accentuer les temps
+
+Add chord
+Ajouter un accord
+
+Adds a second voice, in the scale when there is one
+Ajoute une seconde voix, dans la gamme s'il y en a une
+
+All at 100
+Toutes à 100
+
+Alternate
+Alterné
+
+Always play
+Toujours jouer
+
+A new take on the rhythm and the melody
+Une nouvelle version du rythme et de la mélodie
+
+A ramp of velocities, more or less contrasted
+Une rampe de vélocités, plus ou moins contrastée
+
+Arpeggiate
+Arpéger
+
+As played
+Dans l'ordre joué
+
+Between notes
+Entre les notes
+
+Brush
+Pinceau
+
+Channel
+Canal
+
+Channel {channel}
+Canal {channel}
+
+Chord
+Accord
+
+Chord kind, inversion and voicing
+Type d'accord, renversement et disposition
+
+Chords
+Accords
+
+Chords from notes
+Accords à partir des notes
+
+Chords: the pencil and the brush add a whole chord instead of a note
+Accords : le crayon et le pinceau ajoutent un accord entier au lieu d'une note
+
+Click a note to cut it there (all the selected ones under it)
+Cliquer une note pour la couper à cet endroit (toutes les notes sélectionnées dessous)
+
+Click or drag over notes to remove them
+Cliquer ou glisser sur des notes pour les retirer
+
+Click or drag to move the playhead
+Cliquer ou glisser pour déplacer la tête de lecture
+
+Click to add a note, drag right to set its length
+Cliquer pour ajouter une note, glisser vers la droite pour régler sa durée
+
+Click to hear a key, double-click to select its notes
+Cliquer pour entendre une touche, double-cliquer pour sélectionner ses notes
+
+Click to select, drag to move (Alt: copy), drag an edge to resize, drag the empty space to select, double-click to add
+Cliquer pour sélectionner, glisser pour déplacer (Alt : copier), glisser un bord pour redimensionner, glisser dans le vide pour sélectionner, double-cliquer pour ajouter
+
+Compress (closer together)
+Compresser (plus resserrées)
+
+Contrast
+Contraste
+
+Crescendo
+Crescendo
+
+Decrescendo
+Decrescendo
+
+Detect from the notes
+Détecter d'après les notes
+
+Diatonic
+Diatonique
+
+Diatonic 7th
+7e diatonique
+
+Double length
+Doubler la durée
+
+Down
+Descendant
+
+Drag to paint a note on each grid step, up and down too
+Glisser pour peindre une note à chaque pas de la grille, en montant et descendant aussi
+
+Drop 2
+Drop 2
+
+Each note up to the next one
+Chaque note jusqu'à la suivante
+
+Erase notes
+Effacer des notes
+
+Eraser
+Gomme
+
+Expand (further apart)
+Étendre (plus écartées)
+
+Factor
+Facteur
+
+Fold: only the scale's keys and those in use
+Replier : seulement les touches de la gamme et celles utilisées
+
+Frame the notes
+Cadrer les notes
+
+From
+De
+
+From the scale
+D'après la gamme
+
+Ghost notes: the other MIDI clips, faint (double-click one to edit its clip)
+Notes fantômes : les autres clips MIDI, en transparence (double-cliquer une note pour éditer son clip)
+
+Give each note its own channel (2 to 16), so that its expression is its own (MPE)
+Donner à chaque note son propre canal (2 à 16), pour que son expression lui soit propre (MPE)
+
+Glue
+Souder
+
+Grid of the piano roll; hold Ctrl to place freely
+Grille du piano roll ; maintenir Ctrl pour placer librement
+
+Half the time
+Une fois sur deux
+
+Harmonize
+Harmoniser
+
+Interval, in semitones
+Intervalle, en demi-tons
+
+Interval, in the scale
+Intervalle, dans la gamme
+
+Inversion
+Renversement
+
+Joins the touching notes of the same key
+Réunit les notes jointives de même hauteur
+
+Keep the notes in the scale
+Garder les notes dans la gamme
+
+Longer or shorter, from the first note
+Plus long ou plus court, depuis la première note
+
+Lowest chance
+Probabilité minimale
+
+Melody
+Mélodie
+
+Mirror
+Miroir
+
+Muted notes stay but do not play
+Les notes muettes restent mais ne jouent pas
+
+Mute or unmute
+Rendre muet ou rétablir
+
+Note pitch (MPE)
+Hauteur de la note (MPE)
+
+Note pressure (MPE)
+Pression de la note (MPE)
+
+Note timbre (MPE)
+Timbre de la note (MPE)
+
+Octaves
+Octaves
+
+Open
+Ouvert
+
+Overlapping notes on their own channel (2 to 16), each shaped alone
+Les notes qui se chevauchent sur leur propre canal (2 à 16), chacune façonnée seule
+
+Own channels
+Canaux propres
+
+Own channels (MPE)
+Canaux propres (MPE)
+
+Paint notes
+Peindre des notes
+
+Paste at the playhead
+Coller à la tête de lecture
+
+Pencil
+Crayon
+
+Played backwards
+Joué à l'envers
+
+Plays the chords one note after another
+Joue les accords une note après l'autre
+
+Pointer
+Pointeur
+
+Previewed on the notes. Enter applies, Escape cancels.
+Aperçu sur les notes. Entrée applique, Échap annule.
+
+Probability
+Probabilité
+
+Random
+Aléatoire
+
+Random chances (50 to 100 %)
+Probabilités aléatoires (50 à 100 %)
+
+Randomize
+Aléatoire
+
+Randomize slightly
+Varier légèrement
+
+Random velocities and chances of playing
+Vélocités et probabilités de jeu aléatoires
+
+Rhythm
+Rythme
+
+Root
+Tonique
+
+Scale: shades the keys outside it, can fold the keyboard and keep the notes in it
+Gamme : assombrit les touches hors gamme, peut replier le clavier et y garder les notes
+
+Scissors
+Ciseaux
+
+Select a note to shape its own expression
+Sélectionner une note pour façonner sa propre expression
+
+{selected} of {count} notes
+{selected} sur {count} notes
+
+Select the same key
+Sélectionner la même hauteur
+
+Sevenths
+Septièmes
+
+Slice notes
+Couper des notes
+
+Small variations of timing, velocity and length
+Petites variations de placement, de vélocité et de durée
+
+Snap to the grid
+Aimanter à la grille
+
+Spread
+Écarté
+
+Spreads the chords like a guitar strum
+Étale les accords comme un coup de médiator
+
+Strum
+Strum
+
+Swing
+Swing
+
+The ends too
+Les fins aussi
+
+Timing
+Placement
+
+To
+À
+
+To the grid, with a strength and a swing
+Sur la grille, avec une force et un swing
+
+Transform
+Transformer
+
+Transformations of the selected notes (or all), previewed before they are applied
+Transformations des notes sélectionnées (ou de toutes), en aperçu avant d'être appliquées
+
+Triads
+Triades
+
+Turns each note into the chord the scale builds on it
+Change chaque note en l'accord que la gamme construit dessus
+
+Twice as long, from the first note
+Deux fois plus long, depuis la première note
+
+Up
+Montant
+
+Up and down
+Montant et descendant
+
+Upside down
+À l'envers, de haut en bas
+
+Variation
+Variation
+
+Velocity shape
+Forme des vélocités
+
+Voicing
+Disposition
+
+What the lane edits: velocity, chance of playing, a controller, or the selected note's own pitch, pressure or timbre (MPE)
+Ce que la piste édite : vélocité, probabilité de jeu, un contrôleur, ou la hauteur, la pression ou le timbre propres à la note sélectionnée (MPE)
+
+Without a scale: major chords. Choose a scale for chords that fit.
+Sans gamme : accords majeurs. Choisir une gamme pour des accords qui s'accordent.

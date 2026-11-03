@@ -67,6 +67,8 @@ pub struct MidiPlayer {
     expected: Option<u64>,
     was_playing: bool,
     events: Vec<MidiEvent>,
+    /// Draws whether the notes with a probability play (xorshift, no allocation).
+    seed: u32,
 }
 
 impl std::fmt::Debug for MidiPlayer {
@@ -98,6 +100,7 @@ impl MidiPlayer {
                 expected: None,
                 was_playing: false,
                 events: Vec::with_capacity(MAX_EVENTS),
+                seed: 0x9E37_79B9,
             },
             MidiControls {
                 sequences: tx,
@@ -113,6 +116,17 @@ impl MidiPlayer {
         if self.events.len() < MAX_EVENTS {
             self.events.push(event);
         }
+    }
+
+    /// Whether a note with this chance (percent) plays this time.
+    fn plays(&mut self, probability: u8) -> bool {
+        if probability >= 100 {
+            return true;
+        }
+        self.seed ^= self.seed << 13;
+        self.seed ^= self.seed >> 17;
+        self.seed ^= self.seed << 5;
+        (self.seed % 100) < u32::from(probability)
     }
 
     fn release_all(&mut self) {
@@ -200,6 +214,9 @@ impl MidiPlayer {
                     let off = (on + note.length).min(end);
                     let (ch, key) = (usize::from(note.channel & 15), note.key & 127);
                     if on >= start && on < end && on >= from && on < to {
+                        if note.muted || !self.plays(note.probability) {
+                            continue;
+                        }
                         self.push(MidiEvent::note_on(
                             time(on),
                             note.channel,
@@ -300,6 +317,7 @@ mod tests {
             key,
             velocity: 100,
             channel: 0,
+            ..Default::default()
         };
         controls.set(Sequence {
             clips: vec![MidiClip {
@@ -323,6 +341,45 @@ mod tests {
         live.push([0x90, 72, 80], 0);
         let events = player.collect(&transport(64, false), 64).to_vec();
         assert_eq!(events, vec![MidiEvent::note_on(0, 0, 72, 80)]);
+    }
+
+    #[test]
+    fn muted_notes_stay_silent_and_chances_are_drawn() {
+        let live = audiostrada_midi::live::LiveMidi::default();
+        let (mut player, mut controls) = MidiPlayer::new(live.reader());
+        let notes: Vec<Note> = (0..200)
+            .map(|i| Note {
+                start: i * 10,
+                length: 5,
+                key: 60,
+                probability: if i == 0 { 100 } else { 50 },
+                muted: i == 1,
+                ..Default::default()
+            })
+            .collect();
+        controls.set(Sequence {
+            clips: vec![MidiClip {
+                start: 0,
+                offset: 0,
+                length: 2000,
+                notes: Arc::new(notes),
+                controls: Arc::default(),
+            }],
+            ratio: 1.0,
+        });
+        let mut ons = Vec::new();
+        for block in 0..32u64 {
+            let events = player.collect(&transport(block * 64, true), 64).to_vec();
+            ons.extend(
+                events
+                    .iter()
+                    .filter(|e| e.as_note_on().is_some())
+                    .map(|e| block * 64 + u64::from(e.time)),
+            );
+        }
+        assert_eq!(ons.first(), Some(&0), "a sure note plays");
+        assert!(!ons.contains(&10), "a muted note does not");
+        assert!((60..140).contains(&ons.len()), "about half: {}", ons.len());
     }
 
     #[test]

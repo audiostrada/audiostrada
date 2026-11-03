@@ -2467,6 +2467,7 @@ mod tests {
                     key: 60 + i as u8 * 4,
                     velocity: 100,
                     channel: 0,
+                    ..Default::default()
                 })
                 .collect();
             p.add_midi_clip(t, 0, 48_000, notes);
@@ -2607,6 +2608,7 @@ mod tests {
                 key: 60,
                 velocity: 110,
                 channel: 0,
+                ..Default::default()
             };
             p.add_midi_clip(t, 0, 48_000, vec![note]);
         });
@@ -2638,6 +2640,7 @@ mod tests {
                 key: 64,
                 velocity: 90,
                 channel: 2,
+                ..Default::default()
             };
             p.add_midi_clip(t, 0, 48_000, vec![note]);
         });

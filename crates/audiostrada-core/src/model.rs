@@ -259,6 +259,34 @@ pub struct Note {
     pub velocity: u8,
     #[serde(default)]
     pub channel: u8,
+    /// Chance of playing at each pass, in percent.
+    #[serde(default = "always", skip_serializing_if = "is_always")]
+    pub probability: u8,
+    /// Kept but silent.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub muted: bool,
+}
+
+fn always() -> u8 {
+    100
+}
+
+fn is_always(p: &u8) -> bool {
+    *p >= 100
+}
+
+impl Default for Note {
+    fn default() -> Self {
+        Self {
+            start: 0,
+            length: 0,
+            key: 60,
+            velocity: 100,
+            channel: 0,
+            probability: 100,
+            muted: false,
+        }
+    }
 }
 
 impl Clip {

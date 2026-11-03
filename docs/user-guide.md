@@ -146,15 +146,38 @@ track › *Add marker here*; . and , jump between markers.
 Track › Add instrument track creates a track with the built-in Synth; any CLAP, VST3 or LV2
 instrument can replace it: right-click the Synth insert › *Change instrument…*, or *+ insert* ›
 *Instrument*. An instrument always goes first on its track, in place of the one there. Double-click an empty part of an instrument
-track (or Track › New MIDI clip) to create a clip, then edit it in the **Piano roll**: click
-adds a note, drag moves it or resizes it from its right edge, Alt-drag copies it, double-click
-deletes, drag in the velocity lane, rubber-band selection, Edit › Quantize. Notes sound while
-you click the keys on the left, add a note or drag one. With the piano roll focused: Ctrl+C,
-Ctrl+X, Ctrl+V (at the playhead), Ctrl+D (duplicates right after), Left/Right nudge by the grid,
-Up/Down transpose (Shift: an octave). **Draw** paints a note per grid step as you drag, and a
-click removes a note. **Legato** lengthens notes up to the next one, **Humanize** varies their
-timing and velocity a little, and a **scale** (root and mode) shades the keys outside it. A
-clip grows to hold notes pasted past its end. File › Import MIDI file creates a
+track (or Track › New MIDI clip) to create a clip, then edit it in the **Piano roll**.
+
+- **Tools** (keys 1 to 5): the *pointer* selects, moves (Alt-drag copies) and resizes from
+  either edge, drags a rubber band in the empty space and adds a note with a double-click; the
+  *pencil* adds a note and drags its length; the *brush* paints a note per grid step; the
+  *scissors* cut notes where they are clicked; the *eraser* removes what it passes over.
+- **Grid**: the piano roll has its own (down to 1/32, triplets too); hold Ctrl to place freely.
+- **Navigation**: the wheel scrolls through the keys (Shift: in time), Ctrl+wheel zooms time
+  and Alt+wheel the keys, around the pointer; the middle button drags the view; the frame
+  button fits the notes. The view follows the playhead while playing; click the ruler to move it.
+- **Scale**: shades the keys outside it, can *fold* the keyboard to the scale's keys and those
+  in use, and *keep the notes in it* when they are drawn, moved or transposed. *Detect from the
+  notes* finds it.
+- **Chords**: the chord button makes the pencil and the brush add a whole chord: the one the
+  scale builds on the key (triad or seventh), or a chosen kind, inverted and voiced (close,
+  open, drop 2, spread). The strip above the ruler names the chords the notes make.
+- **Ghost notes**: the other MIDI clips show faintly; double-click one to edit its clip.
+- **Transform** (also on the right-click menu): quantize (strength, swing, ends), humanize,
+  strum, arpeggiate, harmonize, chords from notes, variation, randomize, velocity shape and
+  stretch open a panel that previews the result on the notes; Enter applies, Escape cancels.
+  Legato, reverse, mirror, glue and mute apply at once.
+- **The lane** under the notes edits velocity or the **probability** of each note (a note
+  under 100 % plays only some of the times), as bars: drag one (the selected ones follow),
+  drag across to paint, Shift-drag for a straight ramp, right-click for shapes (crescendo,
+  compress, accents). It also draws controllers, and with one note selected its own pitch,
+  pressure or timbre (MPE), drawn inside the note; *Own channels* gives each note its channel.
+- With the piano roll focused: Ctrl+C, Ctrl+X, Ctrl+V (at the playhead), Ctrl+D (duplicates
+  right after), Left/Right nudge by the grid, Up/Down transpose (Shift: an octave), Q quantizes.
+  Notes sound while you click the keys on the left (double-click selects a key's notes), add a
+  note or drag one; the keys light up as notes play.
+
+A clip grows to hold notes pasted past its end. File › Import MIDI file creates a
 track per part; File › Export MIDI file writes the selected track or all of them.
 
 The Synth's presets hold ready-made sounds (soft keys, pads, strings, brass, pluck, bell,
