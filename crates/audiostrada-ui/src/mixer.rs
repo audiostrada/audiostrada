@@ -634,7 +634,7 @@ fn editor_window(
         .with_title(format!("{title} — AudioStrada"))
         .with_inner_size(size)
         .with_min_inner_size([280.0, 180.0])
-        .with_window_level(crate::floating_level(ctx));
+        .with_window_level(crate::floating_level(ctx, crate::Floating::Editor(id)));
     let builder = match position {
         Some(p) => builder.with_position(p),
         None => builder,

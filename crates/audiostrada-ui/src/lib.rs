@@ -1480,7 +1480,7 @@ impl AudioStradaApp {
                 egui::ViewportBuilder::default()
                     .with_title(format!("{} — AudioStrada", pane.title()))
                     .with_min_inner_size([240.0, 160.0])
-                    .with_window_level(floating_level(ctx)),
+                    .with_window_level(floating_level(ctx, Floating::Panel)),
             );
             let shared = MainThread((Rc::clone(&self.views), Rc::clone(&self.inbox)));
             ctx.show_viewport_deferred(pane_window(pane), builder, move |ui, _class| {
@@ -2329,19 +2329,37 @@ fn keep_windows_above(ctx: &egui::Context, frame: &eframe::Frame) {
     }
 }
 
-/// Level of AudioStrada's windows besides the main one: above it while AudioStrada is in use,
-/// at the normal level behind other applications. macOS and Windows move them themselves (see
-/// [`keep_windows_above`]); elsewhere the level follows the focus of AudioStrada's windows.
-pub(crate) fn floating_level(ctx: &egui::Context) -> egui::WindowLevel {
+/// What a window besides the main one is, for its level.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Floating {
+    /// The effect browser.
+    Browser,
+    /// An effect's editor, shown from the viewport drawing it.
+    Editor(egui::ViewportId),
+    /// A detached panel.
+    Panel,
+}
+
+/// Level of AudioStrada's windows besides the main one. macOS and Windows keep them above it
+/// themselves while AudioStrada is in use (see [`keep_windows_above`]). Elsewhere the browser
+/// floats, an editor floats while the main window, its own or the one drawing it has the
+/// focus, and panels stay normal.
+pub(crate) fn floating_level(ctx: &egui::Context, kind: Floating) -> egui::WindowLevel {
     if cfg!(windows) {
         return egui::WindowLevel::Normal;
     }
     if cfg!(target_os = "macos") {
         return egui::WindowLevel::AlwaysOnTop;
     }
-    // From the windows that exist: asking egui about a closed one creates it again.
-    let in_use = ctx.input(|i| i.raw.viewports.values().any(|v| v.focused == Some(true)));
-    if in_use {
+    let focused = |v| ctx.input_for(v, |i| i.viewport().focused.unwrap_or(false));
+    let floats = match kind {
+        Floating::Browser => true,
+        Floating::Editor(id) => {
+            focused(egui::ViewportId::ROOT) || focused(ctx.viewport_id()) || focused(id)
+        }
+        Floating::Panel => false,
+    };
+    if floats {
         egui::WindowLevel::AlwaysOnTop
     } else {
         egui::WindowLevel::Normal
