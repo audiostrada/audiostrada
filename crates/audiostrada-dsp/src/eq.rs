@@ -1,7 +1,9 @@
 //! Parametric equalizer: up to 16 bands placed anywhere, each a bell, shelf, cut (6 to
 //! 48 dB per octave), notch, band pass or tilt. A band can be dynamic (its gain moves by up to
-//! its range while its frequencies are above a threshold) and soloed (only its range is heard).
-//! Parameter changes glide over a few milliseconds, coefficients are updated every 32 samples.
+//! its range while its frequencies are above a threshold), placed on both channels, one side,
+//! the mid or the sides, and soloed (only its range is heard). Bells, shelves and high cuts
+//! follow their analog curves up to Nyquist. Parameter changes glide over a few milliseconds,
+//! coefficients are updated every 32 samples.
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::{
@@ -9,6 +11,9 @@ use crate::{
 };
 
 pub const BANDS: usize = 16;
+/// Spectrum of the output, dynamic gain of each band, spectrum of the input.
+pub const METERS: usize = 2 * crate::analyzer::BANDS + BANDS;
+pub const INPUT_SPECTRUM: usize = crate::analyzer::BANDS + BANDS;
 /// Parameters of each band, in the order of the `USED`..`RANGE` offsets.
 const PER_BAND: usize = 10;
 const USED: usize = 0;
@@ -24,11 +29,16 @@ const RANGE: usize = 9;
 const OUTPUT: usize = BANDS * PER_BAND;
 /// 1-based band heard alone, 0 for none; set by the editor without being saved.
 const SOLO: usize = OUTPUT + 1;
-const COUNT: usize = SOLO + 1;
+/// Settings added after the first ones, three per band: placement, attack and release.
+const EXTRA: usize = SOLO + 1;
+const PER_BAND_EXTRA: usize = 3;
+const PLACE: usize = 0;
+const ATTACK: usize = 1;
+const RELEASE: usize = 2;
+const AUTO_GAIN: usize = EXTRA + BANDS * PER_BAND_EXTRA;
+const COUNT: usize = AUTO_GAIN + 1;
 const SUB_BLOCK: usize = 32;
 const GLIDE_MS: f32 = 20.0;
-const ATTACK_MS: f32 = 5.0;
-const RELEASE_MS: f32 = 120.0;
 /// Most filter sections of a band (a 48 dB per octave cut).
 const SECTIONS: usize = 4;
 
@@ -50,6 +60,7 @@ pub const SLOPES: [&str; 6] = [
     "36 dB/oct",
     "48 dB/oct",
 ];
+pub const PLACES: [&str; 5] = ["Stereo", "Left", "Right", "Mid", "Side"];
 /// Filter order of each slope.
 const ORDERS: [usize; 6] = [1, 2, 3, 4, 6, 8];
 
@@ -57,7 +68,7 @@ pub const INFO: EffectInfo = EffectInfo {
     id: "eq",
     name: "Strada-EQ",
     params: &PARAMS,
-    meters: &[""; crate::analyzer::BANDS + BANDS],
+    meters: &[""; METERS],
     instrument: false,
     files: &[],
     category: "EQ & Filter",
@@ -139,9 +150,40 @@ macro_rules! band {
     };
 }
 
+macro_rules! band_extra {
+    ($n:literal) => {
+        [
+            choice(
+                concat!("b", $n, "_place"),
+                concat!("Band ", $n, " placement"),
+                &PLACES,
+                0.0,
+            ),
+            param(
+                concat!("b", $n, "_attack"),
+                concat!("Band ", $n, " attack"),
+                0.1,
+                200.0,
+                5.0,
+                "ms",
+            ),
+            param(
+                concat!("b", $n, "_release"),
+                concat!("Band ", $n, " release"),
+                5.0,
+                2000.0,
+                120.0,
+                "ms",
+            ),
+        ]
+    };
+}
+
 const fn flatten(
     bands: [[ParamInfo; PER_BAND]; BANDS],
     tail: [ParamInfo; 2],
+    extra: [[ParamInfo; PER_BAND_EXTRA]; BANDS],
+    last: ParamInfo,
 ) -> [ParamInfo; COUNT] {
     let mut out = [tail[0]; COUNT];
     let mut b = 0;
@@ -155,10 +197,20 @@ const fn flatten(
     }
     out[OUTPUT] = tail[0];
     out[SOLO] = tail[1];
+    b = 0;
+    while b < BANDS {
+        let mut k = 0;
+        while k < PER_BAND_EXTRA {
+            out[EXTRA + b * PER_BAND_EXTRA + k] = extra[b][k];
+            k += 1;
+        }
+        b += 1;
+    }
+    out[AUTO_GAIN] = last;
     out
 }
 
-const PARAMS: [ParamInfo; COUNT] = flatten(
+static PARAMS: [ParamInfo; COUNT] = flatten(
     [
         band!("1"),
         band!("2"),
@@ -181,6 +233,25 @@ const PARAMS: [ParamInfo; COUNT] = flatten(
         param("output", "Output", -30.0, 30.0, 0.0, "dB"),
         param("solo", "Solo band", 0.0, BANDS as f32, 0.0, ""),
     ],
+    [
+        band_extra!("1"),
+        band_extra!("2"),
+        band_extra!("3"),
+        band_extra!("4"),
+        band_extra!("5"),
+        band_extra!("6"),
+        band_extra!("7"),
+        band_extra!("8"),
+        band_extra!("9"),
+        band_extra!("10"),
+        band_extra!("11"),
+        band_extra!("12"),
+        band_extra!("13"),
+        band_extra!("14"),
+        band_extra!("15"),
+        band_extra!("16"),
+    ],
+    switch("auto_gain", "Auto gain", 0.0),
 );
 
 /// Identifier of a band's parameter, e.g. `param_id(2, "gain")` is `b3_gain`.
@@ -240,6 +311,40 @@ impl BandType {
     }
 }
 
+/// Which part of the stereo signal a band works on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Place {
+    Stereo,
+    Left,
+    Right,
+    Mid,
+    Side,
+}
+
+impl Place {
+    pub const ALL: [Place; 5] = [
+        Place::Stereo,
+        Place::Left,
+        Place::Right,
+        Place::Mid,
+        Place::Side,
+    ];
+
+    pub fn from_value(v: f32) -> Self {
+        Self::ALL[(v.round().max(0.0) as usize).min(Self::ALL.len() - 1)]
+    }
+
+    /// The part of `(left, right)` the band hears.
+    fn pick(self, left: f32, right: f32) -> f32 {
+        match self {
+            Place::Stereo | Place::Mid => 0.5 * (left + right),
+            Place::Left => left,
+            Place::Right => right,
+            Place::Side => 0.5 * (left - right),
+        }
+    }
+}
+
 /// Settings of one band in use.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Band {
@@ -251,6 +356,9 @@ pub struct Band {
     pub slope: usize,
     /// Threshold and range in dB, for a dynamic band.
     pub dynamic: Option<(f32, f32)>,
+    pub place: Place,
+    /// Attack and release of a dynamic band, in ms.
+    pub times: (f32, f32),
 }
 
 /// Band `b` of `values` (in [`INFO`] order), `None` when not in use.
@@ -260,6 +368,10 @@ pub fn band(values: &[f32], b: usize) -> Option<Band> {
         return None;
     }
     let kind = BandType::from_value(v[TYPE]);
+    let extra = |k: usize| {
+        let i = EXTRA + b * PER_BAND_EXTRA + k;
+        values.get(i).copied().unwrap_or(PARAMS[i].default)
+    };
     Some(Band {
         kind,
         bypass: v[BYPASS] >= 0.5,
@@ -268,6 +380,8 @@ pub fn band(values: &[f32], b: usize) -> Option<Band> {
         q: v[Q],
         slope: (v[SLOPE].round().max(0.0) as usize).min(ORDERS.len() - 1),
         dynamic: (kind.can_be_dynamic() && v[DYNAMIC] >= 0.5).then_some((v[THRESHOLD], v[RANGE])),
+        place: Place::from_value(extra(PLACE)),
+        times: (extra(ATTACK), extra(RELEASE)),
     })
 }
 
@@ -275,7 +389,7 @@ pub fn band(values: &[f32], b: usize) -> Option<Band> {
 fn sections(band: &Band, gain: f32, rate: f64) -> ([Coefficients; SECTIONS], usize) {
     let mut out = [Coefficients::IDENTITY; SECTIONS];
     let (f, q, g) = (f64::from(band.freq), f64::from(band.q), f64::from(gain));
-    let design = |kind, q| Coefficients::design(kind, f, q, g, rate);
+    let design = |kind, q| Coefficients::matched(kind, f, q, g, rate);
     let n = match band.kind {
         BandType::Bell => {
             out[0] = design(FilterKind::Peak, q);
@@ -299,8 +413,8 @@ fn sections(band: &Band, gain: f32, rate: f64) -> ([Coefficients; SECTIONS], usi
         }
         BandType::Tilt => {
             let q = q.clamp(0.3, 1.0);
-            out[0] = Coefficients::design(FilterKind::LowShelf, f, q, -g / 2.0, rate);
-            out[1] = Coefficients::design(FilterKind::HighShelf, f, q, g / 2.0, rate);
+            out[0] = Coefficients::matched(FilterKind::LowShelf, f, q, -g / 2.0, rate);
+            out[1] = Coefficients::matched(FilterKind::HighShelf, f, q, g / 2.0, rate);
             2
         }
         BandType::LowCut | BandType::HighCut => {
@@ -326,7 +440,7 @@ fn sections(band: &Band, gain: f32, rate: f64) -> ([Coefficients; SECTIONS], usi
                 } else {
                     butterworth
                 };
-                out[n] = Coefficients::design(kind, f, q, 0.0, rate);
+                out[n] = Coefficients::matched(kind, f, q, 0.0, rate);
                 n += 1;
             }
             n
@@ -368,6 +482,27 @@ pub fn response_db(values: &[f32], offsets: &[f32], freq: f64, rate: f64) -> f64
         })
         .sum();
     f64::from(values[OUTPUT]) + bands
+}
+
+/// Level change that makes up for the boosts and cuts of the bells, shelves and tilts: their
+/// curve averaged over the spectrum (log spaced, 30 Hz to 16 kHz), negated.
+pub fn auto_gain_db(values: &[f32], rate: f64) -> f32 {
+    const POINTS: usize = 24;
+    let mut sum = 0.0;
+    for b in 0..BANDS {
+        let Some(band) = band(values, b).filter(|b| !b.bypass && b.kind.has_gain()) else {
+            continue;
+        };
+        let (sections, n) = sections(&band, band.gain, rate);
+        for i in 0..POINTS {
+            let f = 30.0 * (16_000.0f64 / 30.0).powf(i as f64 / (POINTS - 1) as f64);
+            sum += sections[..n]
+                .iter()
+                .map(|c| c.magnitude_db(f, rate))
+                .sum::<f64>();
+        }
+    }
+    -(sum / POINTS as f64) as f32
 }
 
 /// Where the editor puts a new band: a cut near the ends of the range, a bell elsewhere.
@@ -423,8 +558,9 @@ pub struct Equalizer {
     /// The soloed band's range, as heard alone.
     audition: Option<Coefficients>,
     audition_state: [Biquad; 2],
-    /// Spectrum of the output, reported as meters.
+    /// Spectra of the output and the input, reported as meters.
     analyzer: crate::analyzer::Analyzer,
+    input_analyzer: crate::analyzer::Analyzer,
 }
 
 impl Default for Equalizer {
@@ -440,6 +576,7 @@ impl Default for Equalizer {
             audition: None,
             audition_state: [Biquad::default(); 2],
             analyzer: crate::analyzer::Analyzer::default(),
+            input_analyzer: crate::analyzer::Analyzer::default(),
         }
     }
 }
@@ -468,7 +605,7 @@ impl Equalizer {
         let rate = f64::from(self.rate);
         for (b, state) in self.bands.iter_mut().enumerate() {
             let band = band(&self.current, b).filter(|band| !band.bypass);
-            if band.is_some() && state.band.is_none() {
+            if band.is_some() && state.band.map(|b| b.place) != band.map(|b| b.place) {
                 state.filters = [[Biquad::default(); SECTIONS]; 2];
                 state.detector_state.reset();
                 state.envelope = 0.0;
@@ -484,7 +621,12 @@ impl Equalizer {
                 state.offset = 0.0;
             }
         }
-        self.output = db_to_gain(self.current[OUTPUT]);
+        let auto = if self.current[AUTO_GAIN] >= 0.5 {
+            auto_gain_db(&self.current, rate)
+        } else {
+            0.0
+        };
+        self.output = db_to_gain(self.current[OUTPUT] + auto);
         let solo = self.current[SOLO].round() as usize;
         let soloed = solo
             .checked_sub(1)
@@ -520,18 +662,19 @@ impl Equalizer {
         true
     }
 
-    /// Detects the level of each dynamic band over `mono` and redesigns the bands whose gain
-    /// changed.
-    fn dynamics(&mut self, mono: &[f32]) {
+    /// Detects the level of each dynamic band over the input (the part of it the band works
+    /// on) and redesigns the bands whose gain changed.
+    fn dynamics(&mut self, left: &[f32], right: &[f32]) {
         let rate = f64::from(self.rate);
-        let attack = time_coefficient(ATTACK_MS, self.rate);
-        let release = time_coefficient(RELEASE_MS, self.rate);
         for state in &mut self.bands {
             let Some(band) = state.band else {
                 continue;
             };
             if let Some((threshold, range)) = band.dynamic {
-                for &x in mono {
+                let attack = time_coefficient(band.times.0, self.rate);
+                let release = time_coefficient(band.times.1, self.rate);
+                for (&l, &r) in left.iter().zip(right) {
+                    let x = band.place.pick(l, r);
                     let level = state
                         .detector_state
                         .process(&state.detector, f64::from(x))
@@ -570,6 +713,7 @@ impl Effect for Equalizer {
         }
         self.update();
         self.analyzer.prepare(sample_rate, max_frames);
+        self.input_analyzer.prepare(sample_rate, max_frames);
     }
 
     fn set_param(&mut self, index: usize, value: f32) {
@@ -581,44 +725,59 @@ impl Effect for Equalizer {
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         let n = left.len().min(right.len());
-        let mut mono = [0.0f32; SUB_BLOCK];
+        self.input_analyzer.process(left, right);
         let mut start = 0;
         while start < n {
             let end = (start + SUB_BLOCK).min(n);
             if self.glide(end - start) {
                 self.update();
             }
-            for (m, (l, r)) in mono
-                .iter_mut()
-                .zip(left[start..end].iter().zip(&right[start..end]))
-            {
-                *m = 0.5 * (l + r);
-            }
-            self.dynamics(&mono[..end - start]);
-            for (ch, buffer) in [&mut left[start..end], &mut right[start..end]]
-                .into_iter()
-                .enumerate()
-            {
-                if let Some(audition) = &self.audition {
+            self.dynamics(&left[start..end], &right[start..end]);
+            let (left, right) = (&mut left[start..end], &mut right[start..end]);
+            if let Some(audition) = &self.audition {
+                for (ch, buffer) in [left, right].into_iter().enumerate() {
                     let state = &mut self.audition_state[ch];
                     for sample in buffer.iter_mut() {
                         *sample = state.process(audition, f64::from(*sample)) as f32;
                     }
-                    continue;
                 }
-                for sample in buffer.iter_mut() {
-                    let mut x = f64::from(*sample);
-                    for state in self.bands.iter_mut().filter(|s| s.band.is_some()) {
-                        for (filter, c) in state.filters[ch]
+                start = end;
+                continue;
+            }
+            for (l, r) in left.iter_mut().zip(right.iter_mut()) {
+                let (mut x, mut y) = (f64::from(*l), f64::from(*r));
+                for state in self.bands.iter_mut() {
+                    let Some(band) = state.band else {
+                        continue;
+                    };
+                    let [first, second] = &mut state.filters;
+                    let run = |filters: &mut [Biquad; SECTIONS], v: f64| {
+                        filters
                             .iter_mut()
                             .zip(&state.sections)
                             .take(state.count)
-                        {
-                            x = filter.process(c, x);
+                            .fold(v, |v, (f, c)| f.process(c, v))
+                    };
+                    match band.place {
+                        Place::Stereo => {
+                            x = run(first, x);
+                            y = run(second, y);
+                        }
+                        Place::Left => x = run(first, x),
+                        Place::Right => y = run(second, y),
+                        Place::Mid | Place::Side => {
+                            let (mut mid, mut side) = (0.5 * (x + y), 0.5 * (x - y));
+                            if band.place == Place::Mid {
+                                mid = run(first, mid);
+                            } else {
+                                side = run(first, side);
+                            }
+                            (x, y) = (mid + side, mid - side);
                         }
                     }
-                    *sample = x as f32 * self.output;
                 }
+                *l = x as f32 * self.output;
+                *r = y as f32 * self.output;
             }
             start = end;
         }
@@ -639,6 +798,9 @@ impl Effect for Equalizer {
         self.analyzer.meters(out);
         for (slot, state) in out.iter_mut().skip(crate::analyzer::BANDS).zip(&self.bands) {
             *slot = state.offset;
+        }
+        if let Some(input) = out.get_mut(INPUT_SPECTRUM..) {
+            self.input_analyzer.meters(input);
         }
     }
 }
@@ -726,7 +888,7 @@ mod tests {
         );
         let loud = sine_gain(&mut eq, 1000.0, 0.5);
         assert!((loud + 9.0).abs() < 0.5, "loud: the whole range, {loud}");
-        let mut meters = [0.0; crate::analyzer::BANDS + BANDS];
+        let mut meters = [0.0; METERS];
         eq.meters(&mut meters);
         assert!((meters[crate::analyzer::BANDS] + 9.0).abs() < 0.5);
     }
@@ -748,5 +910,116 @@ mod tests {
         assert!(sine_gain(&mut eq, 100.0, 0.5) < -20.0);
         set(&mut eq, &mut values, "solo", 0.0);
         assert!(sine_gain(&mut eq, 100.0, 0.5).abs() < 0.1);
+    }
+
+    #[test]
+    fn bands_work_on_their_part_of_the_stereo_signal() {
+        let mut eq = Equalizer::default();
+        eq.prepare(48_000, 256);
+        let mut values = PARAMS.map(|p| p.default);
+        for (id, v) in [
+            ("b1_used", 1.0),
+            ("b1_freq", 1000.0),
+            ("b1_gain", 6.0),
+            ("b1_place", 1.0),
+        ] {
+            set(&mut eq, &mut values, id, v);
+        }
+        let gains = |eq: &mut Equalizer, side: bool| {
+            let (mut peak_l, mut peak_r) = (0.0f32, 0.0f32);
+            for block in 0..200 {
+                let x: Vec<f32> = (0..256)
+                    .map(|i| {
+                        0.25 * (std::f32::consts::TAU * 1000.0 * (block * 256 + i) as f32
+                            / 48_000.0)
+                            .sin()
+                    })
+                    .collect();
+                let mut l = x.clone();
+                let mut r: Vec<f32> = x.iter().map(|v| if side { -v } else { *v }).collect();
+                eq.process(&mut l, &mut r);
+                if block > 150 {
+                    peak_l = l.iter().fold(peak_l, |p, s| p.max(s.abs()));
+                    peak_r = r.iter().fold(peak_r, |p, s| p.max(s.abs()));
+                }
+            }
+            (
+                crate::gain_to_db(peak_l / 0.25),
+                crate::gain_to_db(peak_r / 0.25),
+            )
+        };
+        let (l, r) = gains(&mut eq, false);
+        assert!(
+            (l - 6.0).abs() < 0.1 && r.abs() < 0.05,
+            "left only: {l} {r}"
+        );
+        set(&mut eq, &mut values, "b1_place", 3.0);
+        let (l, r) = gains(&mut eq, false);
+        assert!(
+            (l - 6.0).abs() < 0.1 && (r - 6.0).abs() < 0.1,
+            "mid, mono: {l} {r}"
+        );
+        let (l, r) = gains(&mut eq, true);
+        assert!(l.abs() < 0.05 && r.abs() < 0.05, "mid, sides only: {l} {r}");
+        set(&mut eq, &mut values, "b1_place", 4.0);
+        let (l, r) = gains(&mut eq, true);
+        assert!(
+            (l - 6.0).abs() < 0.1 && (r - 6.0).abs() < 0.1,
+            "side: {l} {r}"
+        );
+    }
+
+    #[test]
+    fn a_dynamic_band_follows_its_attack() {
+        let reached = |attack: f32| {
+            let mut eq = Equalizer::default();
+            let mut values = PARAMS.map(|p| p.default);
+            for (id, v) in [
+                ("b1_used", 1.0),
+                ("b1_freq", 1000.0),
+                ("b1_dyn", 1.0),
+                ("b1_thresh", -40.0),
+                ("b1_range", -12.0),
+                ("b1_attack", attack),
+            ] {
+                set(&mut eq, &mut values, id, v);
+            }
+            eq.prepare(48_000, 256);
+            let mut l: Vec<f32> = (0..480)
+                .map(|i| 0.5 * (std::f32::consts::TAU * 1000.0 * i as f32 / 48_000.0).sin())
+                .collect();
+            let mut r = l.clone();
+            eq.process(&mut l, &mut r);
+            let mut meters = [0.0; METERS];
+            eq.meters(&mut meters);
+            meters[crate::analyzer::BANDS]
+        };
+        let (fast, slow) = (reached(0.5), reached(200.0));
+        assert!(fast < -11.0, "10 ms in, a fast band has its range: {fast}");
+        assert!(slow > -6.0, "a slow one is still on its way: {slow}");
+    }
+
+    #[test]
+    fn auto_gain_makes_up_for_the_curve() {
+        let mut eq = Equalizer::default();
+        eq.prepare(48_000, 256);
+        let mut values = PARAMS.map(|p| p.default);
+        for (id, v) in [
+            ("b1_used", 1.0),
+            ("b1_type", BandType::LowShelf.index() as f32),
+            ("b1_freq", 200.0),
+            ("b1_gain", 9.0),
+        ] {
+            set(&mut eq, &mut values, id, v);
+        }
+        let auto = auto_gain_db(&values, 48_000.0);
+        assert!(auto < -1.0 && auto > -6.0, "{auto}");
+        let before = sine_gain(&mut eq, 5000.0, 0.5);
+        set(&mut eq, &mut values, "auto_gain", 1.0);
+        let after = sine_gain(&mut eq, 5000.0, 0.5);
+        assert!(
+            (after - before - auto).abs() < 0.1,
+            "{before} {after} {auto}"
+        );
     }
 }

@@ -4386,7 +4386,7 @@ impl MixerView {
             };
             let title = format!("{owner}: {}", tr(info.name));
             let size = match info.id {
-                "eq" => [900.0, 620.0],
+                "eq" => [1040.0, 800.0],
                 "amp_rig" => [960.0, 820.0],
                 "channel" => [1000.0, 700.0],
                 "synth" => [820.0, 640.0],

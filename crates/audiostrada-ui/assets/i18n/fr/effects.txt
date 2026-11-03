@@ -2944,3 +2944,189 @@ Strada-Utility
 
 Strada-Tube EQ
 Strada-Tube EQ
+
+Band 1 placement
+Placement bande 1
+
+Band 1 attack
+Attaque bande 1
+
+Band 1 release
+Relâchement bande 1
+
+Band 2 placement
+Placement bande 2
+
+Band 2 attack
+Attaque bande 2
+
+Band 2 release
+Relâchement bande 2
+
+Band 3 placement
+Placement bande 3
+
+Band 3 attack
+Attaque bande 3
+
+Band 3 release
+Relâchement bande 3
+
+Band 4 placement
+Placement bande 4
+
+Band 4 attack
+Attaque bande 4
+
+Band 4 release
+Relâchement bande 4
+
+Band 5 placement
+Placement bande 5
+
+Band 5 attack
+Attaque bande 5
+
+Band 5 release
+Relâchement bande 5
+
+Band 6 placement
+Placement bande 6
+
+Band 6 attack
+Attaque bande 6
+
+Band 6 release
+Relâchement bande 6
+
+Band 7 placement
+Placement bande 7
+
+Band 7 attack
+Attaque bande 7
+
+Band 7 release
+Relâchement bande 7
+
+Band 8 placement
+Placement bande 8
+
+Band 8 attack
+Attaque bande 8
+
+Band 8 release
+Relâchement bande 8
+
+Band 9 placement
+Placement bande 9
+
+Band 9 attack
+Attaque bande 9
+
+Band 9 release
+Relâchement bande 9
+
+Band 10 placement
+Placement bande 10
+
+Band 10 attack
+Attaque bande 10
+
+Band 10 release
+Relâchement bande 10
+
+Band 11 placement
+Placement bande 11
+
+Band 11 attack
+Attaque bande 11
+
+Band 11 release
+Relâchement bande 11
+
+Band 12 placement
+Placement bande 12
+
+Band 12 attack
+Attaque bande 12
+
+Band 12 release
+Relâchement bande 12
+
+Band 13 placement
+Placement bande 13
+
+Band 13 attack
+Attaque bande 13
+
+Band 13 release
+Relâchement bande 13
+
+Band 14 placement
+Placement bande 14
+
+Band 14 attack
+Attaque bande 14
+
+Band 14 release
+Relâchement bande 14
+
+Band 15 placement
+Placement bande 15
+
+Band 15 attack
+Attaque bande 15
+
+Band 15 release
+Relâchement bande 15
+
+Band 16 placement
+Placement bande 16
+
+Band 16 attack
+Attaque bande 16
+
+Band 16 release
+Relâchement bande 16
+
+Mid
+Mid
+
+Bells and shelves can be dynamic
+Les cloches et les plateaux peuvent être dynamiques
+
+EQ band placement
+Placement de bande d'EQ
+
+Makes up for the boosts and cuts, so the level stays about the same
+Compense les accentuations et les atténuations, pour que le niveau reste à peu près le même
+
+In + out
+Entrée + sortie
+
+No spectrum
+Pas de spectre
+
+The spectrum of the output
+Le spectre de la sortie
+
+The input as a line, the output filled
+L'entrée en trait, la sortie remplie
+
+Keep the highest level of the output spectrum; click again to clear
+Garde le niveau le plus haut du spectre de sortie ; cliquer à nouveau pour l'effacer
+
+Both channels
+Les deux canaux
+
+Left channel only
+Canal gauche seulement
+
+Right channel only
+Canal droit seulement
+
+Mid only: what both channels share
+Mid seulement : ce que les deux canaux ont en commun
+
+Sides only: what differs between the channels
+Side seulement : ce qui diffère entre les canaux

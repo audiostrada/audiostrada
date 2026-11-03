@@ -127,6 +127,28 @@ pub struct EditorState {
     pub matching: bool,
     /// EQ band heard alone (listening only; stopped when the window closes).
     pub eq_solo: Option<usize>,
+    eq_view: EqView,
+}
+
+/// How the EQ display looks: its range and its spectra.
+#[derive(Debug)]
+struct EqView {
+    /// Index in [`EQ_RANGES`].
+    range: usize,
+    /// Index in [`ANALYZER_MODES`].
+    analyzer: usize,
+    /// Highest level of each band of the output spectrum while holding.
+    hold: Option<Vec<f32>>,
+}
+
+impl Default for EqView {
+    fn default() -> Self {
+        Self {
+            range: 2,
+            analyzer: 2,
+            hold: None,
+        }
+    }
 }
 
 /// Parameters and plugin state of an insert, as A/B slots and presets hold them.
@@ -762,10 +784,108 @@ fn knob_with(
 
 // ---------------------------------------------------------------- EQ
 
-use audiostrada_dsp::eq::{BANDS as EQ_BANDS, BandType};
+use audiostrada_dsp::eq::{BANDS as EQ_BANDS, BandType, Place};
 
-/// Height of the EQ display in dB above and below 0.
-const DB_RANGE: f32 = 24.0;
+/// Placements of a band as on its handle, and what they mean.
+const PLACE_SHORT: [&str; 5] = ["St", "L", "R", "M", "S"];
+const PLACE_HINTS: [&str; 5] = [
+    "Both channels",
+    "Left channel only",
+    "Right channel only",
+    "Mid only: what both channels share",
+    "Sides only: what differs between the channels",
+];
+
+/// Small buttons in a row, the current one lit; the index of the one clicked.
+fn chips(
+    ui: &mut Ui,
+    labels: &[&str],
+    hints: &[&'static str],
+    current: Option<usize>,
+) -> Option<usize> {
+    let p = theme::current(ui);
+    let mut clicked = None;
+    ui.spacing_mut().item_spacing.x = 3.0;
+    for (i, label) in labels.iter().enumerate() {
+        let galley =
+            ui.painter()
+                .layout_no_wrap((*label).to_owned(), FontId::proportional(11.0), p.text);
+        let size = vec2((galley.size().x + 16.0).max(30.0), 22.0);
+        let (r, mut response) = ui.allocate_exact_size(size, Sense::click());
+        let on = current == Some(i);
+        let fill = match (on, response.hovered()) {
+            (true, _) => p.accent.gamma_multiply(0.3),
+            (false, true) => p.hover,
+            (false, false) => p.surface,
+        };
+        let painter = ui.painter();
+        painter.rect_filled(r, 6.0, fill);
+        painter.rect_stroke(
+            r,
+            6.0,
+            Stroke::new(1.0, if on { p.accent } else { p.border }),
+            egui::StrokeKind::Inside,
+        );
+        painter.galley(
+            r.center() - galley.size() / 2.0,
+            galley,
+            if on { p.text } else { p.weak },
+        );
+        if let Some(hint) = hints.get(i) {
+            response = response.on_hover_text(tr(hint));
+        }
+        if response.clicked() {
+            clicked = Some(i);
+        }
+    }
+    clicked
+}
+
+/// Above the EQ display: what the analyzer shows, and the range in dB.
+fn eq_toolbar(ui: &mut Ui, state: &mut EditorState) {
+    let view = &mut state.eq_view;
+    let weak = theme::current(ui).weak;
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(tr("Analyzer")).size(11.0).color(weak));
+        let modes = ANALYZER_MODES.map(tr);
+        let hints = [
+            "No spectrum",
+            "The spectrum of the output",
+            "The input as a line, the output filled",
+        ];
+        if let Some(m) = chips(ui, &modes, &hints, Some(view.analyzer)) {
+            view.analyzer = m;
+        }
+        ui.add_space(6.0);
+        let hold = [tr("Hold")];
+        let lit = view.hold.is_some().then_some(0);
+        let hint = ["Keep the highest level of the output spectrum; click again to clear"];
+        if chips(ui, &hold, &hint, lit).is_some() {
+            view.hold = match view.hold {
+                Some(_) => None,
+                None => Some(Vec::new()),
+            };
+        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let labels: Vec<String> = EQ_RANGES
+                .iter()
+                .rev()
+                .map(|(r, _)| format!("±{r}"))
+                .collect();
+            let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
+            let n = EQ_RANGES.len();
+            let current = Some(n - 1 - view.range.min(n - 1));
+            if let Some(i) = chips(ui, &labels, &[], current) {
+                view.range = n - 1 - i;
+            }
+            ui.label(RichText::new(tr("Range")).size(11.0).color(weak));
+        });
+    });
+}
+
+/// Heights of the EQ display in dB above and below 0, and the step of their grid.
+const EQ_RANGES: [(f32, f32); 4] = [(3.0, 1.0), (6.0, 2.0), (12.0, 3.0), (30.0, 6.0)];
+const ANALYZER_MODES: [&str; 3] = ["Off", "Output", "In + out"];
 
 /// Color of an EQ band, spread around the wheel.
 fn band_color(band: usize) -> Color32 {
@@ -794,7 +914,10 @@ pub(crate) fn automatable(
             params
                 .get(&format!("b{band}_used"))
                 .is_some_and(|&u| u >= 0.5)
-                && matches!(field, "freq" | "gain" | "q" | "thresh" | "range" | "bypass")
+                && matches!(
+                    field,
+                    "freq" | "gain" | "q" | "thresh" | "range" | "bypass" | "attack" | "release"
+                )
         }
         None => true,
     }
@@ -836,14 +959,17 @@ fn eq(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState)
     let p = theme::current(ui);
     let rate = f64::from(params.doc.player().engine().sample_rate().max(1));
     let width = ui.available_width().max(600.0);
-    let (rect, _) = ui.allocate_exact_size(vec2(width, 300.0), Sense::hover());
+    eq_toolbar(ui, state);
+    ui.add_space(4.0);
+    let (rect, _) = ui.allocate_exact_size(vec2(width, 340.0), Sense::hover());
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 8.0, p.base);
     let x_of = |f: f32| rect.left() + (f / 20.0).log10() / 3.0 * rect.width();
     let f_of = |x: f32| 20.0 * 1000f32.powf(((x - rect.left()) / rect.width()).clamp(0.0, 1.0));
     let half = rect.height() / 2.0 - 14.0;
-    let y_of = |db: f32| rect.center().y - db / DB_RANGE * half;
-    let db_of = |y: f32| ((rect.center().y - y) / half * DB_RANGE).clamp(-30.0, 30.0);
+    let (db_range, db_step) = EQ_RANGES[state.eq_view.range.min(EQ_RANGES.len() - 1)];
+    let y_of = |db: f32| rect.center().y - db / db_range * half;
+    let db_of = |y: f32| ((rect.center().y - y) / half * db_range).clamp(-30.0, 30.0);
     let grid = p.weak.gamma_multiply(0.16);
     for f in [
         30.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10_000.0,
@@ -866,8 +992,10 @@ fn eq(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState)
             p.weak,
         );
     }
-    for db in [-18.0, -12.0, -6.0, 0.0, 6.0, 12.0, 18.0] {
-        let y = y_of(db);
+    let lines = (db_range / db_step).round() as i32;
+    for k in -lines..=lines {
+        let db = k as f32 * db_step;
+        let y = y_of(db).clamp(rect.top() + 12.0, rect.bottom() - 2.0);
         painter.line_segment(
             [pos2(rect.left(), y), pos2(rect.right(), y)],
             Stroke::new(
@@ -888,10 +1016,9 @@ fn eq(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState)
         );
     }
 
-    // Spectrum of the output, -90 to 0 dBFS over the full height.
-    let analyzer = &meters[..meters.len().min(audiostrada_dsp::analyzer::BANDS)];
-    if !analyzer.is_empty() {
-        let mut points: Vec<Pos2> = analyzer
+    // Spectra, -90 to 0 dBFS over the full height: the input as a line, the output filled.
+    let spectrum = |levels: &[f32]| -> Vec<Pos2> {
+        levels
             .iter()
             .enumerate()
             .map(|(i, m)| {
@@ -899,18 +1026,48 @@ fn eq(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState)
                 let level = ((m + 90.0) / 90.0).clamp(0.0, 1.0);
                 pos2(x_of(f), rect.bottom() - level * rect.height())
             })
-            .collect();
+            .collect()
+    };
+    let bins = audiostrada_dsp::analyzer::BANDS;
+    let analyzer = &meters[..meters.len().min(bins)];
+    let mode = state.eq_view.analyzer;
+    if mode == 2
+        && let Some(input) = meters.get(audiostrada_dsp::eq::INPUT_SPECTRUM..)
+        && input.len() >= bins
+    {
+        let mut points = spectrum(&input[..bins]);
+        points.dedup_by(|a, b| (a.x - b.x).abs() < 0.5);
+        painter.add(Shape::line(
+            points,
+            Stroke::new(1.0, p.weak.gamma_multiply(0.45)),
+        ));
+    }
+    if let Some(hold) = &mut state.eq_view.hold {
+        hold.resize(analyzer.len(), -120.0);
+        for (h, m) in hold.iter_mut().zip(analyzer) {
+            *h = h.max(*m);
+        }
+        let mut points = spectrum(hold);
+        points.dedup_by(|a, b| (a.x - b.x).abs() < 0.5);
+        painter.add(Shape::line(
+            points,
+            Stroke::new(1.0, theme::SOLO.gamma_multiply(0.7)),
+        ));
+    }
+    if mode > 0 && !analyzer.is_empty() {
+        let mut points = spectrum(analyzer);
+        // Filled from the spectrum down, fading toward the bottom.
         let mut mesh = egui::Mesh::default();
-        let fill = p.weak.gamma_multiply(0.14);
+        let (top, bottom) = (p.accent.gamma_multiply(0.18), p.accent.gamma_multiply(0.02));
         for pair in points.windows(2) {
             let i = mesh.vertices.len() as u32;
-            for q in [
-                pair[0],
-                pair[1],
-                pos2(pair[1].x, rect.bottom()),
-                pos2(pair[0].x, rect.bottom()),
+            for (q, c) in [
+                (pair[0], top),
+                (pair[1], top),
+                (pos2(pair[1].x, rect.bottom()), bottom),
+                (pos2(pair[0].x, rect.bottom()), bottom),
             ] {
-                mesh.colored_vertex(q, fill);
+                mesh.colored_vertex(q, c);
             }
             mesh.add_triangle(i, i + 1, i + 2);
             mesh.add_triangle(i, i + 2, i + 3);
@@ -919,7 +1076,7 @@ fn eq(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState)
         points.dedup_by(|a, b| (a.x - b.x).abs() < 0.5);
         painter.add(Shape::line(
             points,
-            Stroke::new(1.0, p.weak.gamma_multiply(0.4)),
+            Stroke::new(1.0, p.accent.gamma_multiply(0.45)),
         ));
     }
 
@@ -1008,7 +1165,7 @@ fn eq(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState)
         };
         pos2(
             x_of(band.freq),
-            y_of(db.clamp(-DB_RANGE, DB_RANGE)).clamp(rect.top() + 9.0, rect.bottom() - 9.0),
+            y_of(db.clamp(-db_range, db_range)).clamp(rect.top() + 9.0, rect.bottom() - 9.0),
         )
     };
     let handles: Vec<(usize, Pos2)> = bands
@@ -1028,14 +1185,14 @@ fn eq(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState)
         let color = band_color(b);
         // A dynamic band: its range as a line, the gain it has now as a ring.
         if let Some((_, range)) = band.dynamic {
-            let reach = y_of((band.gain + range).clamp(-DB_RANGE, DB_RANGE));
+            let reach = y_of((band.gain + range).clamp(-db_range, db_range));
             painter.line_segment(
                 [center, pos2(center.x, reach)],
                 Stroke::new(3.0, color.gamma_multiply(0.35)),
             );
             let now = pos2(
                 center.x,
-                y_of((band.gain + offsets[b]).clamp(-DB_RANGE, DB_RANGE)),
+                y_of((band.gain + offsets[b]).clamp(-db_range, db_range)),
             );
             painter.circle_stroke(now, 6.0, Stroke::new(2.0, color));
         }
@@ -1065,6 +1222,15 @@ fn eq(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState)
                 Color32::from_rgb(20, 20, 24)
             },
         );
+        if band.place != Place::Stereo {
+            painter.text(
+                center + vec2(0.0, r + 7.0),
+                Align2::CENTER_CENTER,
+                PLACE_SHORT[band.place as usize],
+                theme::strong(9.0),
+                color,
+            );
+        }
     }
     if bands.is_empty() {
         painter.text(
@@ -1073,6 +1239,37 @@ fn eq(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState)
             tr("Double-click to add a band"),
             theme::strong(14.0),
             p.weak,
+        );
+    }
+    // Where the pointer is: its frequency, note and gain, in the corner.
+    if let Some(at) = pointer.filter(|q| rect.contains(*q)) {
+        let f = f_of(at.x);
+        let note = {
+            const NAMES: [&str; 12] = [
+                "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+            ];
+            let n = (69.0 + 12.0 * (f / 440.0).log2()).round() as i32;
+            format!(
+                "{}{}",
+                NAMES[n.rem_euclid(12) as usize],
+                n.div_euclid(12) - 1
+            )
+        };
+        let freq = if f >= 1000.0 {
+            format!("{:.2} kHz", f / 1000.0)
+        } else {
+            format!("{f:.0} Hz")
+        };
+        painter.text(
+            rect.left_top() + vec2(10.0, 8.0),
+            Align2::LEFT_TOP,
+            format!("{freq}  {note}  {:+.1} dB", db_of(at.y)),
+            FontId::monospace(11.0),
+            p.weak,
+        );
+        painter.line_segment(
+            [pos2(at.x, rect.top()), pos2(at.x, rect.bottom())],
+            Stroke::new(1.0, p.weak.gamma_multiply(0.18)),
         );
     }
 
@@ -1339,86 +1536,139 @@ fn band_panel(
             ui.colored_label(theme::SOLO, crate::trf!("Band {band} alone", band = b + 1));
         }
     });
-    ui.add_space(4.0);
+    ui.add_space(6.0);
+    let accent = p.accent;
     ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
         if let Some(&(b, band)) = bands.iter().find(|(b, _)| *b == state.selected) {
             let color = band_color(b);
             let id = |field: &str| audiostrada_dsp::eq::param_id(b, field);
-            ui.vertical(|ui| {
-                ui.set_width(150.0);
-                ui.label(
-                    RichText::new(format!("{} {}", tr("Band"), b + 1))
-                        .strong()
-                        .color(color),
-                );
-                choice_box(ui, params, &id("type"));
-                if band.kind.has_slope() {
-                    choice_box(ui, params, &id("slope"));
-                }
+            let title = format!("{} {}", tr("Band"), b + 1);
+            eq_section(ui, &title, color, |ui| {
                 ui.horizontal(|ui| {
-                    let soloed = state.eq_solo == Some(b);
-                    let response = ui
-                        .add(egui::Button::new(tr("Solo")).selected(soloed))
-                        .on_hover_text(tr("Hear only the frequencies this band works on"));
-                    if response.clicked() {
-                        state.eq_solo = (!soloed).then_some(b);
-                        solo_band(params, state.eq_solo);
+                    choice_box(ui, params, &id("type"));
+                    if band.kind.has_slope() {
+                        choice_box(ui, params, &id("slope"));
                     }
+                });
+                ui.add_space(2.0);
+                ui.horizontal(|ui| {
+                    let current = Some(band.place as usize);
+                    if let Some(i) = chips(ui, &PLACE_SHORT, &PLACE_HINTS, current) {
+                        edit_params(params, tr("EQ band placement"), &[(id("place"), i as f32)]);
+                    }
+                });
+                ui.add_space(2.0);
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
                     let mut on = !band.bypass;
-                    let response = ui.toggle_value(&mut on, tr("On"));
-                    if response.changed() {
+                    if pill_switch(ui, on, tr("On")).clicked() {
+                        on = !on;
                         edit_params(
                             params,
                             tr("Bypass EQ band"),
                             &[(id("bypass"), if on { 0.0 } else { 1.0 })],
                         );
                     }
+                    let soloed = state.eq_solo == Some(b);
+                    let response = pill_switch(ui, soloed, tr("Solo"))
+                        .on_hover_text(tr("Hear only the frequencies this band works on"));
+                    if response.clicked() {
+                        state.eq_solo = (!soloed).then_some(b);
+                        solo_band(params, state.eq_solo);
+                    }
                     if ui.button("✕").on_hover_text(tr("Remove")).clicked() {
                         remove_band(params, state, b);
                     }
                 });
             });
-            named_knob(ui, params, &id("freq"), tr("Frequency"), 52.0, color);
-            if band.kind.has_gain() {
-                named_knob(ui, params, &id("gain"), tr("Gain"), 52.0, color);
-            }
-            named_knob(ui, params, &id("q"), "Q", 52.0, color);
-            if band.kind.can_be_dynamic() {
-                ui.add_space(6.0);
-                ui.vertical(|ui| {
-                    let mut dynamic = band.dynamic.is_some();
-                    let response = ui.checkbox(&mut dynamic, tr("Dynamic")).on_hover_text(tr(
-                        "The gain moves by up to the range while these frequencies are \
-                             above the threshold",
-                    ));
-                    if response.changed() {
-                        edit_params(
-                            params,
-                            tr("Dynamic EQ band"),
-                            &[(id("dyn"), if dynamic { 1.0 } else { 0.0 })],
-                        );
+            eq_section(ui, tr("Shape"), p.weak, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    wide_knob(ui, params, &id("freq"), tr("Frequency"), 44.0, color);
+                    if band.kind.has_gain() {
+                        wide_knob(ui, params, &id("gain"), tr("Gain"), 44.0, color);
                     }
+                    wide_knob(ui, params, &id("q"), "Q", 44.0, color);
                 });
-                if band.dynamic.is_some() {
-                    named_knob(
-                        ui,
-                        params,
-                        &id("thresh"),
-                        tr("Threshold"),
-                        46.0,
-                        theme::SOLO,
-                    );
-                    named_knob(ui, params, &id("range"), tr("Range"), 46.0, theme::SOLO);
+            });
+            eq_section(ui, tr("Dynamics"), p.weak, |ui| {
+                if !band.kind.can_be_dynamic() {
+                    ui.weak(tr("Bells and shelves can be dynamic"));
+                    return;
                 }
-            }
+                let dynamic = band.dynamic.is_some();
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    ui.add_enabled_ui(dynamic, |ui| {
+                        for (field, name) in [
+                            ("thresh", tr("Threshold")),
+                            ("range", tr("Range")),
+                            ("attack", tr("Attack")),
+                            ("release", tr("Release")),
+                        ] {
+                            wide_knob(ui, params, &id(field), name, 44.0, theme::SOLO);
+                        }
+                    });
+                });
+                ui.add_space(4.0);
+                let response = pill_switch(ui, dynamic, tr("Dynamic")).on_hover_text(tr(
+                    "The gain moves by up to the range while these frequencies are above the \
+                     threshold",
+                ));
+                if response.clicked() {
+                    edit_params(
+                        params,
+                        tr("Dynamic EQ band"),
+                        &[(id("dyn"), if dynamic { 0.0 } else { 1.0 })],
+                    );
+                }
+            });
         }
         // The output at the right end.
-        let rest = ui.available_width() - 72.0;
-        if rest > 0.0 {
-            ui.add_space(rest);
-        }
-        param_knob(ui, params, "output", 52.0, p.accent);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+            eq_section(ui, tr("Output"), p.weak, |ui| {
+                ui.horizontal(|ui| {
+                    wide_knob(ui, params, "output", tr("Gain"), 44.0, accent);
+                });
+                ui.add_space(4.0);
+                let values = params.values.clone();
+                let rate = f64::from(params.doc.player().engine().sample_rate().max(1));
+                params.toggle(ui, "auto_gain", |ui, on| {
+                    let auto = audiostrada_dsp::eq::auto_gain_db(&values, rate);
+                    let label = if *on {
+                        format!("{} {auto:+.1} dB", tr("Auto"))
+                    } else {
+                        tr("Auto gain").to_owned()
+                    };
+                    let response = pill_switch(ui, *on, &label).on_hover_text(tr(
+                        "Makes up for the boosts and cuts, so the level stays about the same",
+                    ));
+                    if response.clicked() {
+                        *on = !*on;
+                    }
+                    response
+                });
+            });
+        });
     });
+}
+
+/// A titled panel of the EQ's controls, all of one height.
+fn eq_section(ui: &mut Ui, title: &str, color: Color32, add: impl FnOnce(&mut Ui)) {
+    let p = theme::current(ui);
+    egui::Frame::new()
+        .fill(p.base)
+        .corner_radius(8.0)
+        .inner_margin(egui::Margin::symmetric(10, 8))
+        .show(ui, |ui| {
+            ui.set_min_height(112.0);
+            ui.vertical(|ui| {
+                ui.label(RichText::new(title).strong().size(11.5).color(color));
+                ui.add_space(2.0);
+                add(ui);
+            });
+        });
 }
 
 // ---------------------------------------------------------------- Tuner
