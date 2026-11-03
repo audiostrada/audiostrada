@@ -55,7 +55,13 @@ pub const SLOPES: [&str; 2] = ["12 dB/oct", "24 dB/oct"];
 
 /// The drive's and the EQ's character: soft, or that of a console (as in
 /// [`crate::console::MODELS`]).
-pub const CHARACTERS: [&str; 5] = ["Soft", "Iron", "Imperial", "Discrete", "Velvet"];
+pub const CHARACTERS: [&str; 5] = [
+    "Soft",
+    "British Warm",
+    "British Bright",
+    "American Punch",
+    "Nashville",
+];
 
 /// The modules, by the id of their switch, in their default order.
 pub const MODULES: [&str; 5] = ["filters", "gate", "comp", "eq", "drive"];

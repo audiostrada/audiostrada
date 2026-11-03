@@ -1793,14 +1793,20 @@ impl MixerView {
             if console != audiostrada_core::console::ConsoleModel::Clean {
                 label = label.color(crate::console_ui::color(console));
             }
-            if doc.player().console_off() {
+            if doc.project().console_off {
                 label = label.strikethrough();
             }
-            ui.menu_button(label, |ui| crate::console_ui::console_menu(ui, &mut doc))
-                .response
-                .on_hover_text(tr(
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+                crate::console_ui::power_switch(ui, &mut doc);
+                let button = ui.button(label).on_hover_text(tr(
                     "The character of an analog console on every track, the buses and the master",
                 ));
+                // Stays open while its settings change.
+                egui::Popup::menu(&button)
+                    .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                    .show(|ui| crate::console_ui::console_menu(ui, &mut doc));
+            });
             let importing = doc.importing();
             if importing > 0 {
                 ui.spinner();
@@ -3458,7 +3464,7 @@ impl MixerView {
         ));
         // The console's color along the bottom of the button.
         let console = crate::console_ui::of_channel(doc, channel);
-        if console.colors() && !doc.player().console_off() {
+        if console.colors() && !doc.project().console_off {
             let r = response.rect.shrink2(vec2(6.0, 3.0));
             ui.painter().line_segment(
                 [r.left_bottom(), r.right_bottom()],
@@ -3472,10 +3478,12 @@ impl MixerView {
         if response.clicked() {
             self.open_strip(doc, channel);
         }
-        response.context_menu(|ui| match channel {
-            Channel::Track(t) => crate::console_ui::track_menu(ui, doc, t),
-            Channel::Master => crate::console_ui::console_menu(ui, doc),
-        });
+        egui::Popup::context_menu(&response)
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+            .show(|ui| match channel {
+                Channel::Track(t) => crate::console_ui::track_menu(ui, doc, t),
+                Channel::Master => crate::console_ui::console_menu(ui, doc),
+            });
     }
 
     /// A pill per insert of a compact strip, in its family's color: lit while it plays, a click
@@ -3580,7 +3588,7 @@ impl MixerView {
         };
         let (rect, response) = ui.allocate_exact_size(vec2(13.0, 13.0), Sense::click());
         let tint = crate::console_ui::color(console.model);
-        let lit = console.colors() && !doc.player().console_off();
+        let lit = console.colors() && !doc.project().console_off;
         let center = rect.center();
         if lit {
             ui.painter().circle_filled(center, 3.5, tint);

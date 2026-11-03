@@ -237,7 +237,7 @@ pub struct ProjectPlayer {
     overrides: HashMap<(Channel, AutomationTarget), Arc<AtomicBool>>,
     /// Live MIDI input, read by the instruments of armed tracks.
     live: LiveMidi,
-    /// Every console color off, to compare (live only, never saved).
+    /// Every console color off, shared by the input stages.
     console_off: Arc<AtomicBool>,
 }
 
@@ -500,15 +500,6 @@ impl ProjectPlayer {
         }
     }
 
-    /// Every console color off (true) or heard, to compare at equal level.
-    pub fn set_console_off(&mut self, off: bool) {
-        self.console_off.store(off, Ordering::Relaxed);
-    }
-
-    pub fn console_off(&self) -> bool {
-        self.console_off.load(Ordering::Relaxed)
-    }
-
     pub fn engine(&self) -> &Engine {
         &self.engine
     }
@@ -756,6 +747,8 @@ impl ProjectPlayer {
     /// Brings the graph up to date with `project`; cheap when nothing changed.
     pub fn sync(&mut self, project: &Project, paths: Option<&ProjectPaths>, media: &MediaPool) {
         self.sync_reference(project, paths, media);
+        self.console_off
+            .store(project.console_off, Ordering::Relaxed);
         self.plugins.paths = paths.cloned();
         self.plugins.forced.clear();
         let click = &project.metronome;
@@ -2344,11 +2337,11 @@ mod tests {
                 .any(|(x, y)| (x - y).abs() > 1e-3)
         };
         assert!(differs(&clean, &colored));
-        // Compared without it: as clean.
-        f.player.set_console_off(true);
+        // Switched off: as clean.
+        f.history.edit("Console", |p| p.console_off = true);
         let compared = play(&mut f, &mut processor);
         assert!(!differs(&clean, &compared));
-        f.player.set_console_off(false);
+        f.history.edit("Console", |p| p.console_off = false);
         // A track of its own stays clean.
         f.history.edit("Console", |p| {
             let t = p.tracks[0].id;

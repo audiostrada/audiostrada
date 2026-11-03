@@ -7,7 +7,13 @@
 use crate::biquad::{Biquad, Coefficients, FilterKind};
 
 /// The consoles, in the order of the project model; the first colors nothing.
-pub const MODELS: [&str; 5] = ["Clean", "Iron", "Imperial", "Discrete", "Velvet"];
+pub const MODELS: [&str; 5] = [
+    "Clean",
+    "British Warm",
+    "British Bright",
+    "American Punch",
+    "Nashville",
+];
 
 /// What makes a console sound like itself, at an amount of 50 %.
 #[derive(Clone, Copy, Debug)]

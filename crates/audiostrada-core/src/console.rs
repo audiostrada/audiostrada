@@ -34,13 +34,14 @@ impl ConsoleModel {
         Self::ALL.iter().position(|&m| m == self).unwrap_or(0)
     }
 
+    /// Its name as shown; the variants keep their first names in project files.
     pub fn name(self) -> &'static str {
         match self {
             Self::Clean => "Clean",
-            Self::Iron => "Iron",
-            Self::Imperial => "Imperial",
-            Self::Discrete => "Discrete",
-            Self::Velvet => "Velvet",
+            Self::Iron => "British Warm",
+            Self::Imperial => "British Bright",
+            Self::Discrete => "American Punch",
+            Self::Velvet => "Nashville",
         }
     }
 }

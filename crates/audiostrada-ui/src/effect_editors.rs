@@ -2239,15 +2239,17 @@ fn channel_strip(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
             text = text.color(crate::console_ui::color(console.model));
         }
         let channel = params.channel;
-        ui.menu_button(text, |ui| match channel {
-            Channel::Track(t) => crate::console_ui::track_menu(ui, params.doc, t),
-            Channel::Master => crate::console_ui::console_menu(ui, params.doc),
-        })
-        .response
-        .on_hover_text(tr(
+        let button = ui.button(text).on_hover_text(tr(
             "The console this channel plays through: its preamp colors the track, and the EQ \
              and the drive take its character",
         ));
+        // Stays open while its settings change.
+        egui::Popup::menu(&button)
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+            .show(|ui| match channel {
+                Channel::Track(t) => crate::console_ui::track_menu(ui, params.doc, t),
+                Channel::Master => crate::console_ui::console_menu(ui, params.doc),
+            });
     });
     ui.add_space(6.0);
     // The modules, in the order they play; dragged by their grip to reorder them.

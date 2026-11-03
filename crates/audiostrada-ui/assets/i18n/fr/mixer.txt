@@ -918,17 +918,29 @@ Le navigateur d'effets : effets intégrés et plugins installés
 Soft
 Doux
 
-Iron
-Iron
+British Warm
+British Warm
 
-Imperial
-Imperial
+British Bright
+British Bright
 
-Discrete
-Discrete
+American Punch
+American Punch
 
-Velvet
-Velvet
+Nashville
+Nashville
+
+Inspired by Neve consoles
+Inspirée des consoles Neve
+
+Inspired by SSL consoles
+Inspirée des consoles SSL
+
+Inspired by API consoles
+Inspirée des consoles API
+
+Inspired by Harrison consoles
+Inspirée des consoles Harrison
 
 50 %: the console as it is. 100 %: pushed harder, more harmonics
 50 % : la console telle quelle. 100 % : poussée plus fort, plus d'harmoniques
@@ -939,11 +951,8 @@ Le caractère d'une console dépend du niveau qu'elle reçoit. Règle le gain d'
 As the project ({name})
 Comme le projet ({name})
 
-Bars: its harmonics, 2nd to 6th (even ones brighter), on a tone at -12 dBFS
-Barres : ses harmoniques, de la 2e à la 6e (les paires plus vives), sur un son à -12 dBFS
-
-Compare without the color
-Comparer sans la couleur
+{inspiration}. Bars: its harmonics, 2nd to 6th (even ones brighter), on a tone at -12 dBFS
+{inspiration}. Barres : ses harmoniques, de la 2e à la 6e (les paires plus vives), sur un son à -12 dBFS
 
 Console amount
 Dosage de la console
@@ -966,9 +975,6 @@ Le souffle de chaque voie, et les deux côtés des bus qui débordent un peu l'u
 Gain staging
 Réglage des gains
 
-Hearing without the color
-Écoute sans la couleur
-
 Hiss and crosstalk
 Souffle et diaphonie
 
@@ -980,9 +986,6 @@ Régler les gains d'entrée
 
 Smooth and warm, very low distortion
 Doux et chaud, très peu de distorsion
-
-Switches every console color off and back on, at the same level: the color keeps the working level unchanged
-Coupe et rétablit toutes les couleurs de console, au même niveau : la couleur ne change pas le niveau de travail
 
 The character of an analog console on every track (its preamp), the buses and the master (their summing). A track can have its own.
 Le caractère d'une console analogique sur chaque piste (son préampli), les bus et le master (leur sommation). Une piste peut avoir la sienne.
@@ -1016,3 +1019,15 @@ Le caractère d'une console analogique sur chaque piste, les bus et le master
 
 Neutral
 Neutre
+
+Console colors off: click to hear them again
+Couleurs de console coupées : cliquer pour les réentendre
+
+Console colors on: click to switch them all off, at the same level
+Couleurs de console actives : cliquer pour toutes les couper, au même niveau
+
+Console colors on
+Couleurs de console activées
+
+Console colors off
+Couleurs de console coupées

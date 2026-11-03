@@ -531,6 +531,9 @@ pub struct Project {
     /// The consoles' hiss and crosstalk are heard too.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub console_noise: bool,
+    /// Every console color switched off (the settings are kept).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub console_off: bool,
     next_id: u64,
 }
 
@@ -694,6 +697,7 @@ impl Project {
             loop_fixed: false,
             console: Default::default(),
             console_noise: false,
+            console_off: false,
             reference: None,
             next_id: 1,
         }

@@ -40,6 +40,25 @@ fn hint(model: ConsoleModel) -> &'static str {
     }
 }
 
+/// What a console is inspired by.
+fn inspiration(model: ConsoleModel) -> Option<&'static str> {
+    match model {
+        ConsoleModel::Clean => None,
+        ConsoleModel::Iron => Some(tr("Inspired by Neve consoles")),
+        ConsoleModel::Imperial => Some(tr("Inspired by SSL consoles")),
+        ConsoleModel::Discrete => Some(tr("Inspired by API consoles")),
+        ConsoleModel::Velvet => Some(tr("Inspired by Harrison consoles")),
+    }
+}
+
+/// A console's character, and what inspired it.
+fn description(model: ConsoleModel) -> String {
+    match inspiration(model) {
+        Some(source) => format!("{}\n{source}", hint(model)),
+        None => hint(model).to_owned(),
+    }
+}
+
 /// The 2nd to 6th harmonics of a console at an amount, worked out once.
 fn fingerprint(ui: &Ui, model: ConsoleModel, amount: f32) -> [f32; 5] {
     let key = egui::Id::unique(("console-fingerprint", model, (amount / 5.0).round() as i32));
@@ -60,10 +79,55 @@ pub fn button_label(doc: &Document) -> String {
 /// The console of the project: a card per console with its harmonics, its amount, its hiss,
 /// a comparison without it and gain staging.
 pub fn console_menu(ui: &mut Ui, doc: &mut Document) {
+    egui::Frame::new()
+        .inner_margin(egui::Margin::same(10))
+        .show(ui, |ui| menu_contents(ui, doc));
+}
+
+/// The console's on/off switch: every color off at once, at the same level (the color keeps
+/// the working level), the settings kept.
+pub fn power_switch(ui: &mut Ui, doc: &mut Document) -> egui::Response {
+    let p = theme::current(ui);
+    let off = doc.project().console_off;
+    let (rect, response) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
+    let model = doc.project().console.model;
+    let fill = if response.hovered() {
+        p.hover
+    } else {
+        p.surface
+    };
+    ui.painter().rect_filled(rect, 4.0, fill);
+    let ink = match (off, model) {
+        (true, _) => p.weak.gamma_multiply(0.7),
+        (false, ConsoleModel::Clean) => p.text,
+        (false, model) => color(model),
+    };
+    theme::paint_power(ui.painter(), rect.shrink(3.0), ink);
+    let response = response.on_hover_text(if off {
+        tr("Console colors off: click to hear them again")
+    } else {
+        tr("Console colors on: click to switch them all off, at the same level")
+    });
+    if response.clicked() {
+        let label = if off {
+            tr("Console colors on")
+        } else {
+            tr("Console colors off")
+        };
+        doc.history_mut().edit(label, |p| p.console_off = !off);
+    }
+    response
+}
+
+fn menu_contents(ui: &mut Ui, doc: &mut Document) {
     let p = theme::current(ui);
     let console = doc.project().console;
     ui.set_width(5.0 * 112.0);
-    ui.label(RichText::new(tr("Console color")).size(15.0).strong());
+    ui.horizontal(|ui| {
+        power_switch(ui, doc);
+        ui.label(RichText::new(tr("Console color")).size(15.0).strong());
+    });
+    ui.add_space(2.0);
     ui.label(
         RichText::new(tr(
             "The character of an analog console on every track (its preamp), the buses and the \
@@ -109,23 +173,6 @@ pub fn console_menu(ui: &mut Ui, doc: &mut Document) {
         doc.history_mut()
             .edit(tr("Console hiss"), |p| p.console_noise = noise);
     }
-    ui.add_space(4.0);
-    let off = doc.player().console_off();
-    let label = if off {
-        tr("Hearing without the color")
-    } else {
-        tr("Compare without the color")
-    };
-    if ui
-        .add(egui::Button::new(label).selected(off))
-        .on_hover_text(tr(
-            "Switches every console color off and back on, at the same level: the color keeps \
-             the working level unchanged",
-        ))
-        .clicked()
-    {
-        doc.player_mut().set_console_off(!off);
-    }
     ui.separator();
     ui.label(RichText::new(tr("Gain staging")).strong());
     ui.label(
@@ -155,7 +202,7 @@ pub fn console_menu(ui: &mut Ui, doc: &mut Document) {
 /// A console's card: its color, name and character, and its harmonics as bars.
 fn card(ui: &mut Ui, model: ConsoleModel, selected: bool, amount: f32) -> egui::Response {
     let p = theme::current(ui);
-    let (rect, response) = ui.allocate_exact_size(vec2(106.0, 132.0), Sense::click());
+    let (rect, response) = ui.allocate_exact_size(vec2(106.0, 176.0), Sense::click());
     let painter = ui.painter_at(rect.expand(2.0));
     let tint = color(model);
     let fill = if selected {
@@ -178,26 +225,42 @@ fn card(ui: &mut Ui, model: ConsoleModel, selected: bool, amount: f32) -> egui::
     if selected {
         painter.rect_stroke(rect, 8.0, Stroke::new(2.0, tint), egui::StrokeKind::Inside);
     }
-    painter.text(
-        pos2(rect.left() + 10.0, rect.top() + 12.0),
-        Align2::LEFT_TOP,
-        name(model),
+    // The name on two lines when it has two words.
+    let ink = if selected {
+        p.text
+    } else {
+        p.text.gamma_multiply(0.85)
+    };
+    let title = painter.layout(
+        name(model).replacen(' ', "\n", 1),
         FontId::proportional(14.0),
-        if selected {
-            p.text
-        } else {
-            p.text.gamma_multiply(0.85)
-        },
+        ink,
+        rect.width() - 18.0,
     );
+    let below = rect.top() + 12.0 + title.size().y + 4.0;
+    painter.galley(pos2(rect.left() + 10.0, rect.top() + 12.0), title, ink);
     let galley = painter.layout(
         hint(model).to_owned(),
         FontId::proportional(9.5),
         p.weak,
         rect.width() - 18.0,
     );
-    painter.galley(pos2(rect.left() + 10.0, rect.top() + 32.0), galley, p.weak);
+    painter.galley(pos2(rect.left() + 10.0, below), galley, p.weak);
     // Harmonics 2 to 6, from -90 dB (nothing) to -30 dB (a full bar).
-    let base = rect.bottom() - 16.0;
+    let base = rect.bottom() - 40.0;
+    if let Some(source) = inspiration(model) {
+        let galley = painter.layout(
+            source.to_owned(),
+            FontId::proportional(8.5),
+            p.weak.gamma_multiply(0.8),
+            rect.width() - 18.0,
+        );
+        painter.galley(
+            pos2(rect.left() + 10.0, base + 15.0),
+            galley,
+            p.weak.gamma_multiply(0.8),
+        );
+    }
     let h = fingerprint(ui, model, amount);
     for (k, db) in h.iter().enumerate() {
         let x = rect.left() + 12.0 + k as f32 * 18.0;
@@ -225,9 +288,14 @@ fn card(ui: &mut Ui, model: ConsoleModel, selected: bool, amount: f32) -> egui::
             p.weak,
         );
     }
-    response.on_hover_text(tr(
-        "Bars: its harmonics, 2nd to 6th (even ones brighter), on a tone at -12 dBFS",
-    ))
+    match inspiration(model) {
+        Some(source) => response.on_hover_text(trf!(
+            "{inspiration}. Bars: its harmonics, 2nd to 6th (even ones brighter), on a tone at \
+             -12 dBFS",
+            inspiration = source
+        )),
+        None => response,
+    }
 }
 
 /// Which console a track plays through: the project's, or its own.
@@ -251,7 +319,11 @@ pub fn track_menu(ui: &mut Ui, doc: &mut Document, track: TrackId) {
         } else {
             theme::current(ui).text
         });
-        if ui.radio(on, text).on_hover_text(hint(model)).clicked() {
+        if ui
+            .radio(on, text)
+            .on_hover_text(description(model))
+            .clicked()
+        {
             let amount = own.map_or(shared.amount, |c| c.amount);
             doc.history_mut().edit(tr("Track console"), |p| {
                 if let Some(t) = p.track_mut(track) {
