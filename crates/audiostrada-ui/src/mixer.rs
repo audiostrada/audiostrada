@@ -27,6 +27,10 @@ const STRIP_WIDTH: f32 = 104.0;
 const MIN_FADER: f32 = 60.0;
 /// Name plate and the space after it.
 const PLATE: f32 = 26.0;
+/// Width of a strip of the compact mixer.
+const NARROW_WIDTH: f32 = 46.0;
+/// Height kept above a narrow strip's fader for its name.
+const NAME_ROOM: f32 = 110.0;
 /// Strip height from which a docked mixer shows the insert and send slots, as in its own
 /// window: room for the fader and both lists.
 const FULL_STRIPS_HEIGHT: f32 = 560.0;
@@ -38,8 +42,11 @@ const FADER_MAX_DB: f32 = audiostrada_core::model::MAX_TRACK_GAIN_DB;
 #[derive(Debug)]
 pub struct MixerView {
     doc: Rc<RefCell<Document>>,
-    /// Compact strips whatever the panel's height.
+    /// Narrow strips, but for the one opened by a click.
     pub compact: bool,
+    expanded: Option<TrackId>,
+    /// Height under the fader rows, as measured last frame.
+    bottom_last: f32,
     master_levels: MeterState,
     last_frame: Instant,
     /// Plugins whose own window opens (or comes to the front) once they are loaded.
@@ -283,7 +290,7 @@ fn send_pills(ui: &mut Ui, project: &Project, track: &Track, width: f32) {
         return;
     }
     ui.add_space(2.0);
-    for send in track.sends.iter().take(6) {
+    for send in &track.sends {
         let color = project.track(send.target).map_or(Color32::GRAY, |t| {
             Color32::from_rgb(t.color[0], t.color[1], t.color[2])
         });
@@ -866,6 +873,11 @@ fn name_plate(
     );
     // The instrument at the left, the name centered in what is left.
     let mut text = rect.shrink2(vec2(5.0, 0.0));
+    if let Some(icon) = icon.filter(|_| name.is_empty()) {
+        let at = Rect::from_center_size(rect.center(), vec2(15.0, 15.0));
+        crate::track_icons::paint(ui, at, icon, ink);
+        return response;
+    }
     if let Some(icon) = icon {
         let at =
             Rect::from_center_size(pos2(rect.left() + 13.0, rect.center().y), vec2(14.0, 14.0));
@@ -891,6 +903,19 @@ fn name_plate(
         ink,
     );
     response
+}
+
+/// A track's name read upwards, in the room above a narrow strip's fader.
+fn upright_name(ui: &Ui, room: Rect, name: &str) {
+    let p = theme::current(ui);
+    let mut job =
+        egui::text::LayoutJob::simple_singleline(name.to_owned(), theme::strong(11.5), p.text);
+    job.wrap = egui::text::TextWrapping::truncate_at_width(room.height() - 8.0);
+    let galley = ui.fonts_mut(|f| f.layout_job(job));
+    let at = pos2(room.center().x - galley.size().y / 2.0, room.bottom() - 4.0);
+    ui.painter_at(room).add(
+        egui::epaint::TextShape::new(at, galley, p.text).with_angle(-std::f32::consts::FRAC_PI_2),
+    );
 }
 
 /// A value in a small well `width` wide.
@@ -1584,6 +1609,8 @@ impl MixerView {
         Self {
             doc,
             compact: false,
+            expanded: None,
+            bottom_last: 0.0,
             master_levels: MeterState::default(),
             last_frame: Instant::now(),
             open_gui: Vec::new(),
@@ -1648,8 +1675,8 @@ impl MixerView {
         let master_width = STRIP_WIDTH + 40.0;
         // Strips fill the panel: the fader takes what the other sections leave.
         let available = ui.available_height() - 30.0;
-        self.full_strips = !self.compact && (self.detached || available >= FULL_STRIPS_HEIGHT);
-        if self.full_strips {
+        self.full_strips = self.detached || available >= FULL_STRIPS_HEIGHT;
+        if self.full_strips && !self.compact {
             // The strips show the lists opened in windows from the buttons.
             self.lists.clear();
         }
@@ -1677,6 +1704,7 @@ impl MixerView {
         }
         self.top_last = self.top_height;
         self.top_height = 0.0;
+        self.bottom_last = self.bottom_height;
         self.bottom_height = 0.0;
         self.fx_target = None;
         self.fx_fallback = None;
@@ -1697,7 +1725,11 @@ impl MixerView {
                                     ui.horizontal_top(|ui| {
                                         for (index, depth) in routing::visible_tracks(&project) {
                                             let track = &project.tracks[index];
-                                            self.strip(ui, &mut doc, &project, track, depth);
+                                            if self.compact && self.expanded != Some(track.id) {
+                                                self.narrow_strip(ui, &mut doc, &project, track);
+                                            } else {
+                                                self.strip(ui, &mut doc, &project, track, depth);
+                                            }
                                         }
                                         if project.tracks.is_empty() {
                                             ui.weak(tr(
@@ -1840,7 +1872,7 @@ impl MixerView {
                 if ui
                     .selectable_label(self.compact, tr("Compact"))
                     .on_hover_text(trf!(
-                        "Compact strips, however tall the mixer ({keys})",
+                        "Narrow strips: a click opens one full width ({keys})",
                         keys = keys
                     ))
                     .clicked()
@@ -2026,35 +2058,8 @@ impl MixerView {
                         self.input_section(ui, doc, track);
                     }
                     ui.add_space(2.0);
-                    let shown = doc
-                        .automation_value(channel, &AutomationTarget::Pan)
-                        .unwrap_or(track.pan);
                     self.routing_section(ui, doc, project, track, width - 4.0);
-                    let (changed, response) =
-                        widgets::pan_slider(ui, shown, width - 4.0, &pan_label(shown));
-                    let pan = changed.unwrap_or(shown);
-                    let response = response.on_hover_text(trf!(
-                        "Pan {pan}. Drag (Shift for fine steps) or use the wheel; double-click \
-                         to center",
-                        pan = pan_label(pan)
-                    ));
-                    let name = track.name.clone();
-                    let alone = clutch(ui);
-                    automated_control(
-                        doc,
-                        channel,
-                        &AutomationTarget::Pan,
-                        (pan != shown).then_some(pan),
-                        &response,
-                        |doc, pan| {
-                            doc.history_mut().edit_merged(
-                                &trf!("Pan {name}", name = name),
-                                &format!("pan:{}", id.0),
-                                |p| groups::maybe_alone(p, alone, |p| groups::set_pan(p, id, pan)),
-                            );
-                        },
-                    );
-                    learn_menu(&response, doc, channel, &AutomationTarget::Pan, (-1.0, 1.0));
+                    self.pan_control(ui, doc, track, width - 4.0, true);
                 }
                 self.align_top(ui, top);
                 let shown_gain = doc
@@ -2063,39 +2068,7 @@ impl MixerView {
                 let row_top = ui.cursor().top();
                 let strip_right = ui.max_rect().right();
                 ui.horizontal(|ui| {
-                    let (changed, response) = widgets::fader(ui, shown_gain, fader_height, true);
-                    let name = track.name.clone();
-                    let alone = clutch(ui);
-                    let also = if alone {
-                        Vec::new()
-                    } else {
-                        selection_with(doc, id)
-                    };
-                    automated_control(
-                        doc,
-                        channel,
-                        &AutomationTarget::Gain,
-                        changed,
-                        &response,
-                        |doc, db| {
-                            doc.history_mut().edit_merged(
-                                &trf!("Gain {name}", name = name),
-                                &format!("gain:{}", id.0),
-                                |p| {
-                                    groups::maybe_alone(p, alone, |p| {
-                                        groups::set_gain_with(p, id, db, &also)
-                                    })
-                                },
-                            );
-                        },
-                    );
-                    learn_menu(
-                        &response,
-                        doc,
-                        channel,
-                        &AutomationTarget::Gain,
-                        (FADER_MIN_DB, FADER_MAX_DB),
-                    );
+                    self.gain_fader(ui, doc, track, shown_gain, fader_height, true);
                     // The switches stand in a column right of the meter.
                     if !vca {
                         widgets::meter(ui, &mut levels, fader_height);
@@ -2111,9 +2084,9 @@ impl MixerView {
                     } else {
                         ui.vertical(|ui| {
                             let top = ui.cursor().top();
-                            self.list_buttons(ui, doc, track);
                             // Two by two at the bottom of the column.
                             let rows = 2.0 * 21.0;
+                            self.list_buttons(ui, doc, track, fader_height - rows - 6.0);
                             let left = fader_height - (ui.cursor().top() - top) - rows;
                             if left > 0.0 {
                                 ui.add_space(left);
@@ -2164,6 +2137,7 @@ impl MixerView {
                 let name = format!("{}{}", "› ".repeat(depth), track.name);
                 // Height down to the name plate, which the master strip lines up with.
                 self.bottom_height = self.bottom_height.max(ui.cursor().top() - bottom);
+                self.pad_bottom(ui, bottom);
                 let icon = crate::track_icons::of(project, track);
                 let plate = name_plate(ui, width, &name, color(track), folder, Some(icon));
                 let plate = plate.on_hover_text(if vca {
@@ -2199,6 +2173,10 @@ impl MixerView {
         if strip.response.clicked() {
             let mode = crate::document::SelectMode::from_modifiers(ui.input(|i| i.modifiers));
             doc.select_track(id, mode);
+            // Compact: a click folds the opened strip back.
+            if self.compact {
+                self.expanded = None;
+            }
         }
         if strip.response.drag_started() {
             self.start_track_drag(doc, id, selected);
@@ -2208,6 +2186,188 @@ impl MixerView {
             .context_menu(|ui| self.track_menu(ui, doc, id));
         self.drop_tracks(ui, doc, &frame, id);
         doc.set_track_level(id, levels);
+    }
+
+    /// A narrow strip of the compact mixer: pan, fader, meter, switches and the track's icon,
+    /// its name upright above the fader. A click opens it full width.
+    fn narrow_strip(&mut self, ui: &mut Ui, doc: &mut Document, project: &Project, track: &Track) {
+        let id = track.id;
+        let width = NARROW_WIDTH;
+        let vca = track.kind == TrackKind::Vca;
+        let mut levels = doc.track_level(id);
+        let fader_height = self.fader_height;
+        let selected = doc.is_track_selected(id);
+        let icon = crate::track_icons::of(project, track);
+        let folder = routing::has_children(project, id);
+        let mut plate = None;
+        let background = egui::UiBuilder::new().sense(Sense::click_and_drag());
+        let strip = ui.scope_builder(background, |ui| {
+            Self::strip_frame(ui, width, color(track), selected, |ui| {
+                let top = ui.cursor().top();
+                if !vca {
+                    ui.add_space(2.0);
+                    self.pan_control(ui, doc, track, width, false);
+                }
+                // The room above the fader shows the name, upright.
+                let before = ui.cursor().top();
+                ui.allocate_exact_size(vec2(width, NAME_ROOM), Sense::hover());
+                self.align_top(ui, top);
+                let room = Rect::from_min_max(
+                    pos2(ui.max_rect().left(), before),
+                    pos2(ui.max_rect().right(), ui.cursor().top()),
+                );
+                if room.height() > 30.0 {
+                    upright_name(ui, room, &track.name);
+                }
+                let shown_gain = doc
+                    .automation_value(Channel::Track(id), &AutomationTarget::Gain)
+                    .unwrap_or(track.gain_db);
+                let row_top = ui.cursor().top();
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    self.gain_fader(ui, doc, track, shown_gain, fader_height, false);
+                    if !vca {
+                        widgets::meter(ui, &mut levels, fader_height);
+                    }
+                });
+                let bottom = ui.cursor().top();
+                self.row_height = bottom - row_top;
+                readout(ui, width, &db_label(shown_gain));
+                ui.horizontal_wrapped(|ui| {
+                    ui.set_max_width(width);
+                    ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
+                    self.track_switches(ui, doc, track, vec2(22.0, 18.0));
+                });
+                self.bottom_height = self.bottom_height.max(ui.cursor().top() - bottom);
+                self.pad_bottom(ui, bottom);
+                plate = Some(name_plate(ui, width, "", color(track), folder, Some(icon)));
+            })
+        });
+        let frame = strip.inner;
+        if track.kind == TrackKind::Audio {
+            let count = track.inserts.len();
+            self.insert_drop_strip(ui, Channel::Track(id), count, strip.response.rect);
+        }
+        #[cfg(test)]
+        tests::seen(format!("narrow {}", id.0), strip.response.rect);
+        let hint = trf!("{name}. Click to open the strip", name = track.name);
+        let response = strip.response.on_hover_text(&hint);
+        let plate = plate.map(|p| p.on_hover_text(&hint));
+        let clicked = response.clicked() || plate.as_ref().is_some_and(Response::clicked);
+        if clicked {
+            let mode = crate::document::SelectMode::from_modifiers(ui.input(|i| i.modifiers));
+            doc.select_track(id, mode);
+            self.expanded = Some(id);
+        }
+        let dragged = response.drag_started() || plate.as_ref().is_some_and(Response::drag_started);
+        if dragged {
+            self.start_track_drag(doc, id, selected);
+        }
+        response.context_menu(|ui| self.track_menu(ui, doc, id));
+        if let Some(plate) = &plate {
+            plate.context_menu(|ui| self.track_menu(ui, doc, id));
+        }
+        self.drop_tracks(ui, doc, &frame, id);
+        doc.set_track_level(id, levels);
+    }
+
+    /// Pads to the tallest part under the fader rows of the last frame, so the name plates
+    /// line up.
+    fn pad_bottom(&mut self, ui: &mut Ui, bottom: f32) {
+        let used = ui.cursor().top() - bottom;
+        let pad = self.bottom_last - used - ui.spacing().item_spacing.y;
+        if pad > 0.5 {
+            // add_space is ignored in this centered layout.
+            ui.allocate_exact_size(vec2(1.0, pad), Sense::hover());
+        }
+    }
+
+    /// A track's pan, automated, grouped and MIDI-learnable.
+    fn pan_control(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        track: &Track,
+        width: f32,
+        labelled: bool,
+    ) {
+        let id = track.id;
+        let channel = Channel::Track(id);
+        let shown = doc
+            .automation_value(channel, &AutomationTarget::Pan)
+            .unwrap_or(track.pan);
+        let label = if labelled {
+            pan_label(shown)
+        } else {
+            String::new()
+        };
+        let (changed, response) = widgets::pan_slider(ui, shown, width, &label);
+        let pan = changed.unwrap_or(shown);
+        let response = response.on_hover_text(trf!(
+            "Pan {pan}. Drag (Shift for fine steps) or use the wheel; double-click \
+             to center",
+            pan = pan_label(pan)
+        ));
+        let name = track.name.clone();
+        let alone = clutch(ui);
+        automated_control(
+            doc,
+            channel,
+            &AutomationTarget::Pan,
+            (pan != shown).then_some(pan),
+            &response,
+            |doc, pan| {
+                doc.history_mut().edit_merged(
+                    &trf!("Pan {name}", name = name),
+                    &format!("pan:{}", id.0),
+                    |p| groups::maybe_alone(p, alone, |p| groups::set_pan(p, id, pan)),
+                );
+            },
+        );
+        learn_menu(&response, doc, channel, &AutomationTarget::Pan, (-1.0, 1.0));
+    }
+
+    /// A track's fader, automated, grouped and MIDI-learnable.
+    fn gain_fader(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        track: &Track,
+        shown_gain: f32,
+        height: f32,
+        scale: bool,
+    ) {
+        let id = track.id;
+        let channel = Channel::Track(id);
+        let (changed, response) = widgets::fader(ui, shown_gain, height, scale);
+        let name = track.name.clone();
+        let alone = clutch(ui);
+        let also = if alone {
+            Vec::new()
+        } else {
+            selection_with(doc, id)
+        };
+        automated_control(
+            doc,
+            channel,
+            &AutomationTarget::Gain,
+            changed,
+            &response,
+            |doc, db| {
+                doc.history_mut().edit_merged(
+                    &trf!("Gain {name}", name = name),
+                    &format!("gain:{}", id.0),
+                    |p| groups::maybe_alone(p, alone, |p| groups::set_gain_with(p, id, db, &also)),
+                );
+            },
+        );
+        learn_menu(
+            &response,
+            doc,
+            channel,
+            &AutomationTarget::Gain,
+            (FADER_MIN_DB, FADER_MAX_DB),
+        );
     }
 
     /// Mute, solo, and for audio tracks arm and input monitoring, in the layout of `ui`.
@@ -3351,9 +3511,11 @@ impl MixerView {
         let sizes = self.sizes;
         let fader_height = self.fader_height;
         let width = STRIP_WIDTH + 24.0;
+        // Compact, the master stays short so the narrow faders get the height.
+        let full = self.full_strips && !self.compact;
         Self::strip_frame(ui, width, Color32::from_gray(200), false, |ui| {
             let top = ui.cursor().top();
-            if self.full_strips {
+            if full {
                 ui.add_space(3.0);
                 self.channel_section(ui, doc, Channel::Master, width);
                 self.inserts_title(ui, doc, Channel::Master, tr("INSERTS"), true);
@@ -3481,9 +3643,10 @@ impl MixerView {
     }
 
     /// The buttons beside a docked strip's fader that open its inserts and sends.
-    fn list_buttons(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track) {
+    fn list_buttons(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track, room: f32) {
+        let top = ui.cursor().top();
         let channel = Channel::Track(track.id);
-        let size = vec2(34.0, 22.0);
+        let size = vec2(48.0, 22.0);
         let fx = track
             .inserts
             .iter()
@@ -3492,8 +3655,17 @@ impl MixerView {
         self.list_button(ui, channel, List::Inserts, fx, size);
         self.list_button(ui, channel, List::Sends, track.sends.len(), size);
         self.strip_button(ui, doc, channel, size);
-        self.insert_pills(ui, doc, channel, size.x);
-        send_pills(ui, doc.project(), track, size.x);
+        // The pills scroll rather than make the strip taller.
+        let left = (room - (ui.cursor().top() - top)).max(0.0);
+        egui::ScrollArea::vertical()
+            .id_salt(("pills", track.id.0))
+            .max_height(left)
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                ui.set_width(size.x);
+                self.insert_pills(ui, doc, channel, size.x);
+                send_pills(ui, doc.project(), track, size.x);
+            });
     }
 
     /// The button of the channel strip, lit when one of its modules is on; opens it.
@@ -3571,7 +3743,7 @@ impl MixerView {
             return;
         }
         ui.add_space(2.0);
-        for insert in inserts.iter().take(8) {
+        for insert in &inserts {
             let (rect, response) = ui.allocate_exact_size(vec2(width, 7.0), Sense::click());
             let lit = !(insert.bypass || off);
             let color = theme::family_color(family(doc, &insert.effect));
@@ -4707,6 +4879,45 @@ mod tests {
         let below = rect(&format!("insert {}", inserts[1].0)).center() + vec2(0.0, 6.0);
         drag(&ctx, &mut view, eq, below, false);
         assert_eq!(effects(a), ["compressor", "eq"]);
+    }
+
+    #[test]
+    fn a_compact_mixer_opens_the_strip_clicked() {
+        let doc = Rc::new(RefCell::new(Document::new(AppDirs::default())));
+        let mut ids = Vec::new();
+        doc.borrow_mut().history_mut().edit("Setup", |p| {
+            ids = ["A", "B"].map(|n| p.add_track(n)).to_vec();
+        });
+        let mut view = MixerView::new(Rc::clone(&doc));
+        view.compact = true;
+        let ctx = egui::Context::default();
+        frame(&ctx, &mut view, vec![]);
+        frame(&ctx, &mut view, vec![]);
+        let click = |view: &mut MixerView, at: Pos2| {
+            let button = |pressed| Event::PointerButton {
+                pos: at,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: Modifiers::NONE,
+            };
+            frame(&ctx, view, vec![Event::PointerMoved(at)]);
+            frame(&ctx, view, vec![button(true)]);
+            frame(&ctx, view, vec![button(false)]);
+            frame(&ctx, view, vec![]);
+        };
+        let narrow = rect(&format!("narrow {}", ids[1].0));
+        assert!(narrow.width() < super::STRIP_WIDTH);
+        click(
+            &mut view,
+            egui::pos2(narrow.center().x, narrow.top() + 60.0),
+        );
+        assert_eq!(view.expanded, Some(ids[1]));
+        assert!(doc.borrow().is_track_selected(ids[1]));
+        // Opened full width; a click on it folds it back.
+        let full = rect(&format!("strip {}", ids[1].0));
+        assert!(full.width() >= super::STRIP_WIDTH);
+        click(&mut view, egui::pos2(full.center().x, full.top() + 8.0));
+        assert_eq!(view.expanded, None);
     }
 
     #[test]

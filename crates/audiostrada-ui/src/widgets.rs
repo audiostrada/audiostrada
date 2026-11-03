@@ -409,8 +409,9 @@ pub fn pan_slider(ui: &mut Ui, value: f32, width: f32, label: &str) -> (Option<f
     let painter = ui.painter_at(rect.expand(2.0));
     // A small horizontal fader: its rail, the side it leans to, its cap.
     let cap_width = 14.0;
-    // Room at both ends for the value.
-    let rail = Rect::from_center_size(rect.center(), vec2(rect.width() - 28.0, 4.0));
+    // Room at both ends for the value, when there is one.
+    let inset = if label.is_empty() { 10.0 } else { 28.0 };
+    let rail = Rect::from_center_size(rect.center(), vec2(rect.width() - inset, 4.0));
     let x = |v: f32| rect.center().x + v * rail.width() / 2.0;
     painter.rect_filled(rail, 2.0, p.border);
     if v != 0.0 {
@@ -435,10 +436,12 @@ pub fn pan_slider(ui: &mut Ui, value: f32, width: f32, label: &str) -> (Option<f
         (rect.right_center() - vec2(2.0, 0.0), Align2::RIGHT_CENTER)
     };
     // On a patch of the background: it may cover the end of the rail.
-    let galley = painter.layout_no_wrap(label.to_owned(), FontId::monospace(9.0), p.weak);
-    let text = align.anchor_size(anchor, galley.size());
-    painter.rect_filled(text.expand2(vec2(2.0, 0.0)), 2.0, p.panel);
-    painter.galley(text.min, galley, p.weak);
+    if !label.is_empty() {
+        let galley = painter.layout_no_wrap(label.to_owned(), FontId::monospace(9.0), p.weak);
+        let text = align.anchor_size(anchor, galley.size());
+        painter.rect_filled(text.expand2(vec2(2.0, 0.0)), 2.0, p.panel);
+        painter.galley(text.min, galley, p.weak);
+    }
     let cap = Rect::from_center_size(
         pos2(x(v), rect.center().y),
         vec2(cap_width, rect.height() - 2.0),

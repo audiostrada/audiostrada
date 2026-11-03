@@ -1104,8 +1104,11 @@ Boîte à rythme
 Compact
 Compact
 
-Compact strips, however tall the mixer ({keys})
-Tranches compactes, quelle que soit la hauteur du mixer ({keys})
+Narrow strips: a click opens one full width ({keys})
+Tranches étroites : un clic en ouvre une en pleine largeur ({keys})
+
+{name}. Click to open the strip
+{name}. Cliquer pour ouvrir la tranche
 
 Compact mixer
 Mixer compact
