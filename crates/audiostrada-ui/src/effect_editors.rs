@@ -3581,49 +3581,453 @@ fn response_plot(
 }
 
 fn vintage_eq(ui: &mut Ui, params: &mut Params) {
-    let p = theme::current(ui);
+    use audiostrada_dsp::vintage_eq::{CUT_FREQS, HIGH_FREQS, LOW_FREQS};
     let values = params.values.clone();
     let rate = params.doc.player().engine().sample_rate().max(1) as f32;
+    let amber = Color32::from_rgb(230, 170, 90);
     response_plot(
         ui,
-        170.0,
+        150.0,
         18.0,
         |f| audiostrada_dsp::vintage_eq::response_db(&values, rate, f),
-        Color32::from_rgb(230, 170, 90),
+        amber,
         None,
     );
     ui.add_space(8.0);
-    ui.horizontal(|ui| {
-        ui.vertical(|ui| {
-            ui.label(RichText::new(tr("LOW")).size(10.0).color(p.weak));
-            choice_box(ui, params, "low_freq");
-            knob_row(
-                ui,
-                params,
-                &["low_boost", "low_cut"],
-                Color32::from_rgb(230, 170, 90),
+    // The faceplate: knobs above, frequency selectors below, by section.
+    let plate = Plate::of(&theme::current(ui));
+    let width = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(vec2(width, 268.0), Sense::hover());
+    theme::gradient_rect(ui.painter(), rect, plate.top, plate.bottom);
+    ui.painter().rect_stroke(
+        rect,
+        8.0,
+        Stroke::new(1.0, plate.ink.gamma_multiply(0.25)),
+        egui::StrokeKind::Inside,
+    );
+    let inner = rect.shrink2(vec2(14.0, 10.0));
+    let unit = inner.width() / 6.0;
+    let strip = |from: f32, cells: f32| {
+        Rect::from_min_size(
+            pos2(inner.left() + from * unit, inner.top()),
+            vec2(cells * unit, inner.height()),
+        )
+    };
+    let short = |names: &[&'static str]| -> Vec<String> {
+        names
+            .iter()
+            .map(|n| {
+                n.trim_end_matches(" Hz")
+                    .trim_end_matches(" kHz")
+                    .to_owned()
+            })
+            .collect()
+    };
+    let sections = [
+        (strip(0.0, 2.0), tr("Low frequency"), "CPS"),
+        (strip(2.0, 2.0), tr("High frequency"), "KCS"),
+        (strip(4.0, 1.0), tr("High atten"), "KCS"),
+        (strip(5.0, 1.0), tr("Tube"), ""),
+    ];
+    for (i, (column, title, _)) in sections.iter().enumerate() {
+        ui.painter().text(
+            pos2(column.center().x, column.top() + 8.0),
+            Align2::CENTER_CENTER,
+            title.to_uppercase(),
+            theme::strong(10.5),
+            plate.ink,
+        );
+        if i > 0 {
+            // Engraved: a dark line and its light edge.
+            let x = column.left();
+            let y = column.top() + 2.0..=column.bottom() - 2.0;
+            ui.painter().vline(
+                x,
+                y.clone(),
+                Stroke::new(1.0, Color32::from_black_alpha(70)),
             );
-        });
-        ui.separator();
-        ui.vertical(|ui| {
-            ui.label(RichText::new(tr("HIGH")).size(10.0).color(p.weak));
-            ui.horizontal(|ui| {
-                choice_box(ui, params, "high_freq");
-                choice_box(ui, params, "cut_freq");
-            });
-            knob_row(
-                ui,
-                params,
-                &["high_boost", "bandwidth", "high_cut"],
-                Color32::from_rgb(230, 170, 90),
+            ui.painter()
+                .vline(x + 1.0, y, Stroke::new(1.0, Color32::from_white_alpha(28)));
+        }
+    }
+    let row = |column: Rect, cell: usize, cells: usize, second: bool| {
+        let w = column.width() / cells as f32;
+        let top = column.top() + 20.0 + if second { 116.0 } else { 0.0 };
+        Rect::from_min_size(pos2(column.left() + w * cell as f32, top), vec2(w, 112.0))
+    };
+    let (low, high, cut, tube) = (sections[0].0, sections[1].0, sections[2].0, sections[3].0);
+    plate_knob(
+        ui,
+        params,
+        "low_boost",
+        tr("Boost"),
+        row(low, 0, 2, false),
+        &plate,
+    );
+    plate_knob(
+        ui,
+        params,
+        "low_cut",
+        tr("Atten"),
+        row(low, 1, 2, false),
+        &plate,
+    );
+    plate_switch(
+        ui,
+        params,
+        "low_freq",
+        "CPS",
+        &short(&LOW_FREQS),
+        row(low, 0, 1, true),
+        &plate,
+    );
+    plate_knob(
+        ui,
+        params,
+        "high_boost",
+        tr("Boost"),
+        row(high, 0, 2, false),
+        &plate,
+    );
+    plate_knob(
+        ui,
+        params,
+        "bandwidth",
+        tr("Bandwidth"),
+        row(high, 1, 2, false),
+        &plate,
+    );
+    plate_switch(
+        ui,
+        params,
+        "high_freq",
+        "KCS",
+        &short(&HIGH_FREQS),
+        row(high, 0, 1, true),
+        &plate,
+    );
+    plate_knob(
+        ui,
+        params,
+        "high_cut",
+        tr("Atten"),
+        row(cut, 0, 1, false),
+        &plate,
+    );
+    plate_switch(
+        ui,
+        params,
+        "cut_freq",
+        "KCS",
+        &short(&CUT_FREQS),
+        row(cut, 0, 1, true),
+        &plate,
+    );
+    plate_knob(
+        ui,
+        params,
+        "warmth",
+        tr("Warmth"),
+        row(tube, 0, 1, false),
+        &plate,
+    );
+    plate_knob(
+        ui,
+        params,
+        "output",
+        tr("Output"),
+        row(tube, 0, 1, true),
+        &plate,
+    );
+    // The pilot lamp glows with the warmth.
+    let glow = params.get("warmth") / 100.0;
+    let lamp = pos2(tube.right() - 12.0, tube.top() + 8.0);
+    let lit = Color32::from_rgb(255, 176, 64);
+    for (radius, alpha) in [(14.0, 0.10), (10.0, 0.18)] {
+        ui.painter()
+            .circle_filled(lamp, radius, lit.gamma_multiply(alpha * glow));
+    }
+    ui.painter().circle_filled(
+        lamp,
+        6.0,
+        Color32::from_rgb(90, 40, 20).lerp_to_gamma(lit, 0.25 + 0.75 * glow),
+    );
+    ui.painter()
+        .circle_stroke(lamp, 6.0, Stroke::new(1.5, Color32::from_black_alpha(120)));
+    ui.painter()
+        .circle_filled(lamp + vec2(-2.0, -2.0), 1.6, Color32::from_white_alpha(140));
+}
+
+/// Colors of the tube EQ's faceplate, with the theme: slate with cream engraving in the
+/// dark, pale steel with dark engraving in the light.
+struct Plate {
+    top: Color32,
+    bottom: Color32,
+    ink: Color32,
+    knob: Color32,
+    head: Color32,
+    edge: Color32,
+}
+
+impl Plate {
+    fn of(p: &theme::Palette) -> Self {
+        if p.dark {
+            Self {
+                top: Color32::from_rgb(54, 64, 76),
+                bottom: Color32::from_rgb(38, 45, 54),
+                ink: Color32::from_rgb(234, 226, 206),
+                knob: Color32::from_rgb(14, 14, 16),
+                head: Color32::from_rgb(36, 36, 40),
+                edge: Color32::from_rgb(78, 78, 84),
+            }
+        } else {
+            Self {
+                top: Color32::from_rgb(202, 212, 221),
+                bottom: Color32::from_rgb(176, 188, 199),
+                ink: Color32::from_rgb(26, 34, 46),
+                knob: Color32::from_rgb(18, 18, 20),
+                head: Color32::from_rgb(40, 40, 44),
+                edge: Color32::from_rgb(96, 96, 102),
+            }
+        }
+    }
+}
+
+/// Where a hardware control points: 0 straight up, clockwise, in radians.
+fn plate_point(center: Pos2, radius: f32, angle: f32) -> Pos2 {
+    center + radius * vec2(angle.sin(), -angle.cos())
+}
+
+/// A pointer knob as on the old hardware: a round skirt, a pointed head with its line.
+fn paint_pointer_knob(painter: &egui::Painter, center: Pos2, r: f32, angle: f32, plate: &Plate) {
+    painter.circle_filled(
+        center + vec2(0.0, 2.5),
+        r * 1.04,
+        Color32::from_black_alpha(80),
+    );
+    painter.circle_filled(center, r, plate.knob);
+    painter.circle_stroke(center, r, Stroke::new(1.0, plate.edge));
+    let dir = vec2(angle.sin(), -angle.cos());
+    let side = vec2(-dir.y, dir.x);
+    let head = vec![
+        center + dir * r * 1.3,
+        center + side * r * 0.5,
+        center - dir * r * 0.75,
+        center - side * r * 0.5,
+    ];
+    painter.add(Shape::convex_polygon(
+        head,
+        plate.head,
+        Stroke::new(1.0, plate.edge),
+    ));
+    painter.circle_filled(
+        center - vec2(r * 0.25, r * 0.3),
+        r * 0.32,
+        Color32::from_white_alpha(14),
+    );
+    painter.line_segment(
+        [center + dir * r * 0.2, center + dir * r * 1.15],
+        Stroke::new(2.0, Color32::from_rgb(240, 234, 220)),
+    );
+}
+
+/// A knob of the faceplate in `cell`: its name, a scale from 0 to 10 (or -12 to +12), the
+/// value under it.
+fn plate_knob(ui: &mut Ui, params: &mut Params, id: &str, label: &str, cell: Rect, plate: &Plate) {
+    let Some(p) = params.param(id) else {
+        return;
+    };
+    let value = params.get(id);
+    let r = 21.0;
+    let center = pos2(cell.center().x, cell.top() + 58.0);
+    let response = ui
+        .interact(
+            Rect::from_center_size(center, vec2(2.0 * r + 30.0, 2.0 * r + 30.0)),
+            ui.scope_id().with(("plate", params.insert.0, id)),
+            Sense::click_and_drag(),
+        )
+        .on_hover_cursor(egui::CursorIcon::ResizeVertical);
+    let mut t = to_unit(p, value);
+    let fine = ui.input(|i| i.modifiers.shift);
+    if response.dragged() {
+        t -= response.drag_delta().y / 150.0 * if fine { 0.15 } else { 1.0 };
+    }
+    if response.hovered() {
+        let wheel = ui.input(|i| i.smooth_scroll_delta.y);
+        if wheel != 0.0 {
+            t += wheel.signum() * if fine { 0.002 } else { 0.02 };
+        }
+    }
+    if response.double_clicked() {
+        t = to_unit(p, p.default);
+    }
+    let t = t.clamp(0.0, 1.0);
+    let changed = ((t - to_unit(p, value)).abs() > 1e-6).then(|| from_unit(p, t));
+    let shown = changed.unwrap_or(value);
+    let painter = ui.painter();
+    painter.text(
+        pos2(cell.center().x, cell.top() + 12.0),
+        Align2::CENTER_CENTER,
+        label.to_uppercase(),
+        FontId::proportional(10.0),
+        plate.ink.gamma_multiply(0.85),
+    );
+    let sweep = 0.75 * std::f32::consts::PI;
+    let bipolar = p.min < 0.0;
+    let marks: Vec<(f32, String)> = if bipolar {
+        [-12.0f32, -6.0, 0.0, 6.0, 12.0]
+            .iter()
+            .map(|v| (to_unit(p, *v), format!("{v:+}").replace("+0", "0")))
+            .collect()
+    } else {
+        (0..=10)
+            .map(|k| {
+                (
+                    k as f32 / 10.0,
+                    if k % 2 == 0 {
+                        (k as f32 * p.max / 10.0).to_string()
+                    } else {
+                        String::new()
+                    },
+                )
+            })
+            .collect()
+    };
+    for (u, text) in &marks {
+        let a = -sweep + 2.0 * sweep * u;
+        painter.line_segment(
+            [
+                plate_point(center, r + 4.0, a),
+                plate_point(center, r + 8.0, a),
+            ],
+            Stroke::new(1.2, plate.ink.gamma_multiply(0.8)),
+        );
+        if !text.is_empty() {
+            painter.text(
+                plate_point(center, r + 16.0, a),
+                Align2::CENTER_CENTER,
+                text,
+                FontId::proportional(9.0),
+                plate.ink.gamma_multiply(0.75),
             );
-        });
-        ui.separator();
-        ui.vertical(|ui| {
-            ui.label(RichText::new(tr("TUBE")).size(10.0).color(p.weak));
-            knob_row(ui, params, &["warmth", "output"], theme::SOLO);
-        });
-    });
+        }
+    }
+    paint_pointer_knob(painter, center, r, -sweep + 2.0 * sweep * t, plate);
+    painter.text(
+        pos2(cell.center().x, cell.bottom() - 8.0),
+        Align2::CENTER_CENTER,
+        format_value(p, shown),
+        FontId::monospace(10.0),
+        plate.ink.gamma_multiply(0.7),
+    );
+    let response = response.on_hover_text(crate::trf!(
+        "{name}: {value}. Drag, Shift for fine, double-click to reset",
+        name = tr(p.name),
+        value = format_value(p, shown)
+    ));
+    params.set(id, changed, &response);
+}
+
+/// A rotary selector of the faceplate in `cell`, its positions written around it: click a
+/// position, or the knob for the next one; drag or wheel to step.
+fn plate_switch(
+    ui: &mut Ui,
+    params: &mut Params,
+    id: &str,
+    unit: &str,
+    labels: &[String],
+    cell: Rect,
+    plate: &Plate,
+) {
+    let Some(p) = params.param(id) else {
+        return;
+    };
+    let n = labels.len().max(1);
+    let current = ((params.get(id) - p.min).round().max(0.0) as usize).min(n - 1);
+    let r = 16.0;
+    let center = pos2(cell.center().x, cell.top() + 62.0);
+    let step = (std::f32::consts::PI * 1.5 / (n - 1).max(1) as f32).min(0.8);
+    let angle = |i: usize| (i as f32 - (n - 1) as f32 / 2.0) * step;
+    let key = ui.scope_id().with(("plate", params.insert.0, id));
+    let response = ui.interact(
+        Rect::from_center_size(center, vec2(112.0, 96.0)),
+        key,
+        Sense::click_and_drag(),
+    );
+    let mut chosen = None;
+    if response.clicked()
+        && let Some(at) = response.interact_pointer_pos()
+    {
+        let near = (0..n)
+            .map(|i| (i, plate_point(center, r + 22.0, angle(i)).distance(at)))
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .filter(|(_, d)| *d < 13.0);
+        chosen = Some(near.map_or((current + 1) % n, |(i, _)| i));
+    }
+    let wheel = if response.hovered() {
+        ui.input(|i| i.smooth_scroll_delta.y)
+    } else {
+        0.0
+    };
+    let travel: f32 = ui.data(|d| d.get_temp(key).unwrap_or(0.0));
+    let travel = if response.dragged() {
+        travel - response.drag_delta().y
+    } else {
+        0.0
+    } + wheel;
+    if travel.abs() >= 24.0 {
+        let next = current as i32 + travel.signum() as i32;
+        chosen = Some(next.clamp(0, n as i32 - 1) as usize);
+        ui.data_mut(|d| d.insert_temp(key, 0.0f32));
+    } else {
+        ui.data_mut(|d| d.insert_temp(key, travel));
+    }
+    let shown = chosen.unwrap_or(current);
+    let painter = ui.painter();
+    painter.text(
+        pos2(cell.center().x, cell.top() + 12.0),
+        Align2::CENTER_CENTER,
+        unit,
+        FontId::proportional(10.0),
+        plate.ink.gamma_multiply(0.85),
+    );
+    for (i, label) in labels.iter().enumerate() {
+        let a = angle(i);
+        let on = i == shown;
+        painter.line_segment(
+            [
+                plate_point(center, r + 4.0, a),
+                plate_point(center, r + 9.0, a),
+            ],
+            Stroke::new(1.2, plate.ink.gamma_multiply(0.8)),
+        );
+        painter.text(
+            plate_point(center, r + 22.0, a),
+            Align2::CENTER_CENTER,
+            label,
+            if on {
+                theme::strong(11.0)
+            } else {
+                FontId::proportional(10.0)
+            },
+            if on {
+                plate.ink
+            } else {
+                plate.ink.gamma_multiply(0.6)
+            },
+        );
+    }
+    paint_pointer_knob(painter, center, r, angle(shown), plate);
+    let response = response.on_hover_text(format!(
+        "{}: {}",
+        tr(p.name),
+        p.choices.get(shown).map_or("", |c| tr(c))
+    ));
+    let changed = chosen.filter(|&c| c != current).map(|c| p.min + c as f32);
+    params.set(id, changed, &response);
+    if changed.is_some() {
+        params.doc.history_mut().end_gesture();
+    }
 }
 
 fn filter(ui: &mut Ui, params: &mut Params, meters: &[f32]) {

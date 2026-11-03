@@ -4392,6 +4392,7 @@ impl MixerView {
                 "synth" => [820.0, 640.0],
                 "drums" => [900.0, 470.0],
                 "compressor" => [980.0, 720.0],
+                "vintage_eq" => [820.0, 660.0],
                 _ => [760.0, 560.0],
             };
             // The rig picks its own files.

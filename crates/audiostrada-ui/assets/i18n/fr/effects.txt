@@ -3130,3 +3130,12 @@ Mid seulement : ce que les deux canaux ont en commun
 
 Sides only: what differs between the channels
 Side seulement : ce qui diffère entre les canaux
+
+Atten
+Atténuation
+
+Boost
+Accentuation
+
+Warmth
+Chaleur
