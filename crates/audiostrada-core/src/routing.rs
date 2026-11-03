@@ -6,7 +6,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use crate::automation::{AutomationLane, AutomationTarget};
-use crate::model::{Insert, InsertId, Project, TrackId, TrackKind, TrackSend};
+use crate::model::{Branch, Insert, InsertId, Project, TrackId, TrackKind, TrackSend};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum RoutingError {
@@ -412,9 +412,95 @@ fn lanes_mut(project: &mut Project, channel: Channel) -> Option<&mut Vec<Automat
 }
 
 fn insert_mut(project: &mut Project, channel: Channel, id: InsertId) -> Option<&mut Insert> {
-    inserts_mut(project, channel)?
-        .iter_mut()
-        .find(|i| i.id == id)
+    find_in_mut(inserts_mut(project, channel)?, id)
+}
+
+fn find_in_mut(list: &mut [Insert], id: InsertId) -> Option<&mut Insert> {
+    for insert in list {
+        if insert.id == id {
+            return Some(insert);
+        }
+        for branch in &mut insert.branches {
+            if let Some(found) = find_in_mut(&mut branch.inserts, id) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+fn find_in(list: &[Insert], id: InsertId) -> Option<&Insert> {
+    list.iter().find_map(|i| {
+        (i.id == id)
+            .then_some(i)
+            .or_else(|| i.branches.iter().find_map(|b| find_in(&b.inserts, id)))
+    })
+}
+
+/// An insert of a channel, in its list or in a branch of a parallel chain.
+pub fn find_insert(project: &Project, channel: Channel, id: InsertId) -> Option<&Insert> {
+    find_in(inserts(project, channel), id)
+}
+
+/// Every insert of a list, the ones in branches after their parallel chain.
+pub fn flatten(list: &[Insert]) -> Vec<&Insert> {
+    let mut out = Vec::new();
+    for insert in list {
+        out.push(insert);
+        for branch in &insert.branches {
+            out.extend(flatten(&branch.inserts));
+        }
+    }
+    out
+}
+
+/// Effect of a parallel chain: no sound of its own, its branches mixed.
+pub const PARALLEL: &str = "parallel";
+
+/// Where an insert goes: the channel's list, or a branch (parallel chain, branch index).
+pub type Place = Option<(InsertId, usize)>;
+
+fn list_mut(project: &mut Project, channel: Channel, place: Place) -> Option<&mut Vec<Insert>> {
+    let list = inserts_mut(project, channel)?;
+    match place {
+        None => Some(list),
+        Some((parallel, branch)) => find_in_mut(list, parallel)?
+            .branches
+            .get_mut(branch)
+            .map(|b| &mut b.inserts),
+    }
+}
+
+/// Takes an insert out of a list or its branches.
+fn take(list: &mut Vec<Insert>, id: InsertId) -> Option<Insert> {
+    if let Some(at) = list.iter().position(|i| i.id == id) {
+        return Some(list.remove(at));
+    }
+    list.iter_mut()
+        .flat_map(|i| i.branches.iter_mut())
+        .find_map(|b| take(&mut b.inserts, id))
+}
+
+/// A branch of a parallel chain, to change its name, level, mute or solo.
+pub fn branch_mut(
+    project: &mut Project,
+    channel: Channel,
+    parallel: InsertId,
+    branch: usize,
+) -> Option<&mut Branch> {
+    insert_mut(project, channel, parallel)?
+        .branches
+        .get_mut(branch)
+}
+
+/// Gives an insert copy (and the inserts of its branches) new ids.
+fn renew_ids(project: &mut Project, insert: &mut Insert) {
+    insert.id = project.new_insert_id();
+    for branch in &mut insert.branches {
+        for inner in &mut branch.inserts {
+            renew_ids(project, inner);
+        }
+    }
 }
 
 pub fn inserts(project: &Project, channel: Channel) -> &[Insert] {
@@ -468,7 +554,107 @@ pub fn add_insert(
         sidechain: None,
         monitor: false,
         gain_db: 0.0,
+        branches: Vec::new(),
+        macros: Vec::new(),
     });
+    Some(id)
+}
+
+/// Adds an effect at `index` of a channel's list or of a branch. Returns its id.
+pub fn add_insert_at(
+    project: &mut Project,
+    channel: Channel,
+    (place, index): (Place, usize),
+    effect: &str,
+) -> Option<InsertId> {
+    let id = add_insert(project, channel, effect, BTreeMap::new())?;
+    move_within(project, channel, id, (place, index))
+}
+
+/// A parallel chain of two empty branches at `index` of a channel's list: the first passes
+/// the signal as it comes, effects go on the second.
+pub fn add_parallel(project: &mut Project, channel: Channel, index: usize) -> Option<InsertId> {
+    let id = add_insert(project, channel, PARALLEL, BTreeMap::new())?;
+    if let Some(insert) = insert_mut(project, channel, id) {
+        insert.branches = vec![Branch::new("A"), Branch::new("B")];
+    }
+    move_within(project, channel, id, (None, index))
+}
+
+/// Adds an empty branch to a parallel chain; returns its index.
+pub fn add_branch(project: &mut Project, channel: Channel, parallel: InsertId) -> Option<usize> {
+    let insert = insert_mut(project, channel, parallel)?;
+    let name = ((b'A' + (insert.branches.len() % 26) as u8) as char).to_string();
+    insert.branches.push(Branch::new(&name));
+    Some(insert.branches.len() - 1)
+}
+
+/// Removes a branch and its inserts (with their automation and MIDI mappings).
+pub fn remove_branch(project: &mut Project, channel: Channel, parallel: InsertId, branch: usize) {
+    let Some(insert) = insert_mut(project, channel, parallel) else {
+        return;
+    };
+    if branch >= insert.branches.len() {
+        return;
+    }
+    let gone = insert.branches.remove(branch);
+    let ids: Vec<InsertId> = flatten(&gone.inserts).iter().map(|i| i.id).collect();
+    forget(project, channel, &ids);
+}
+
+/// Drops the automation and MIDI mappings of removed inserts.
+fn forget(project: &mut Project, channel: Channel, ids: &[InsertId]) {
+    if let Some(lanes) = lanes_mut(project, channel) {
+        lanes.retain(|l| !ids.iter().any(|&id| l.target.is_param_of(id)));
+    }
+    project
+        .midi_map
+        .retain(|m| !ids.iter().any(|&id| m.target.is_param_of(id)));
+}
+
+/// Moves an insert within its channel, to `index` of its list or of a branch (a parallel
+/// chain stays out of branches). Returns its id when placed.
+pub fn move_within(
+    project: &mut Project,
+    channel: Channel,
+    id: InsertId,
+    (place, index): (Place, usize),
+) -> Option<InsertId> {
+    let parallel = find_insert(project, channel, id)?.effect == PARALLEL;
+    if place.is_some() && parallel {
+        return None;
+    }
+    // Into its own place: the old position no longer counts.
+    let list = inserts_mut(project, channel)?;
+    let mut index = index;
+    let same: Option<usize> = match place {
+        None => list.iter().filter(|i| !i.monitor).position(|i| i.id == id),
+        Some((p, b)) => find_in_mut(list, p)?
+            .branches
+            .get(b)?
+            .inserts
+            .iter()
+            .position(|i| i.id == id),
+    };
+    if same.is_some_and(|w| w < index) {
+        index -= 1;
+    }
+    let insert = take(inserts_mut(project, channel)?, id)?;
+    let list = list_mut(project, channel, place)?;
+    let at = match place {
+        // Among the mix inserts, before the monitoring ones of the master.
+        None => list
+            .iter()
+            .enumerate()
+            .filter(|(_, i)| !i.monitor)
+            .nth(index)
+            .map_or_else(
+                || list.iter().rposition(|i| !i.monitor).map_or(0, |p| p + 1),
+                |(p, _)| p,
+            ),
+        Some(_) => index.min(list.len()),
+    };
+    list.insert(at, insert);
     Some(id)
 }
 
@@ -483,7 +669,7 @@ pub fn add_insert_copy(
         audio(project, id).ok()?;
     }
     let mut copy = insert.clone();
-    copy.id = project.new_insert_id();
+    renew_ids(project, &mut copy);
     copy.monitor = copy.monitor && channel == Channel::Master;
     copy.sidechain = None;
     let id = copy.id;
@@ -492,13 +678,18 @@ pub fn add_insert_copy(
 }
 
 pub fn remove_insert(project: &mut Project, channel: Channel, id: InsertId) {
-    if let Some(list) = inserts_mut(project, channel) {
-        list.retain(|i| i.id != id);
+    let removed = inserts_mut(project, channel).and_then(|list| take(list, id));
+    let mut ids = vec![id];
+    if let Some(removed) = &removed {
+        ids.extend(
+            removed
+                .branches
+                .iter()
+                .flat_map(|b| flatten(&b.inserts))
+                .map(|i| i.id),
+        );
     }
-    if let Some(lanes) = lanes_mut(project, channel) {
-        lanes.retain(|l| !l.target.is_param_of(id));
-    }
-    project.midi_map.retain(|m| !m.target.is_param_of(id));
+    forget(project, channel, &ids);
 }
 
 /// Puts insert `id` of `from` before the `index`-th insert of `to` that is in the same list
@@ -531,7 +722,7 @@ pub fn place_insert(
         .map(|l| l.iter().filter(|l| ours(l)).cloned().collect())
         .unwrap_or_default();
     if copy {
-        insert.id = project.new_insert_id();
+        renew_ids(project, &mut insert);
         for lane in &mut lanes {
             if let AutomationTarget::Param { insert: i, .. } = &mut lane.target {
                 *i = insert.id;
@@ -665,6 +856,49 @@ mod tests {
     }
 
     #[test]
+    fn parallel_chains_hold_their_branches() {
+        let (mut p, a, b, _) = project();
+        let c = Channel::Track(a);
+        let eq = add_insert(&mut p, c, "eq", BTreeMap::new()).unwrap();
+        let par = add_parallel(&mut p, c, 1).unwrap();
+        let comp = add_insert_at(&mut p, c, (Some((par, 1)), 0), "compressor").unwrap();
+        let order = |p: &Project| inserts(p, c).iter().map(|i| i.id).collect::<Vec<_>>();
+        assert_eq!(order(&p), [eq, par]);
+        assert_eq!(find_insert(&p, c, comp).unwrap().effect, "compressor");
+        assert_eq!(flatten(inserts(&p, c)).len(), 3);
+        // Settings reach an insert in a branch.
+        set_bypass(&mut p, c, comp, true);
+        assert!(find_insert(&p, c, comp).unwrap().bypass);
+        // The EQ moves into the first branch, then back after the chain.
+        move_within(&mut p, c, eq, (Some((par, 0)), 0)).unwrap();
+        assert_eq!(order(&p), [par]);
+        assert_eq!(inserts(&p, c)[0].branches[0].inserts[0].id, eq);
+        move_within(&mut p, c, eq, (None, 1)).unwrap();
+        assert_eq!(order(&p), [par, eq]);
+        // A chain never goes into a branch.
+        assert!(move_within(&mut p, c, par, (Some((par, 0)), 0)).is_none());
+        // A copy elsewhere gets new ids down its branches.
+        let copy = place_insert(&mut p, (c, par), (Channel::Track(b), false, 0), true).unwrap();
+        let inner = inserts(&p, Channel::Track(b))[0].branches[1].inserts[0].id;
+        assert!(copy != par && inner != comp);
+        // Removing the chain takes its branches' automation along.
+        p.track_mut(a)
+            .unwrap()
+            .automation
+            .push(AutomationLane::new(AutomationTarget::Param {
+                insert: comp,
+                param: "ratio".into(),
+            }));
+        remove_insert(&mut p, c, par);
+        assert_eq!(order(&p), [eq]);
+        assert!(p.track(a).unwrap().automation.is_empty());
+        let added = add_parallel(&mut p, c, 0).unwrap();
+        assert_eq!(add_branch(&mut p, c, added), Some(2));
+        remove_branch(&mut p, c, added, 0);
+        assert_eq!(inserts(&p, c)[0].branches.len(), 2);
+    }
+
+    #[test]
     fn inserts_move_and_copy_with_their_automation() {
         let (mut p, a, b, _) = project();
         let (ca, cb) = (Channel::Track(a), Channel::Track(b));
@@ -755,6 +989,8 @@ mod tests {
             sidechain: Some(a),
             monitor: true,
             gain_db: 0.0,
+            branches: Vec::new(),
+            macros: Vec::new(),
         };
         let copy = add_insert_copy(&mut p, ca, &saved).unwrap();
         let first = &inserts(&p, ca)[0];

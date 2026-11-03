@@ -140,6 +140,8 @@ fn insert(effect: &str, params: &[(&str, f32)]) -> Insert {
         sidechain: None,
         monitor: false,
         gain_db: 0.0,
+        branches: Vec::new(),
+        macros: Vec::new(),
     }
 }
 

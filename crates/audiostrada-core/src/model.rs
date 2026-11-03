@@ -458,6 +458,39 @@ pub struct Insert {
     /// Gain after the effect (dB), to match the loudness of the dry signal.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub gain_db: f32,
+    /// Branches of a parallel chain (effect `parallel`): each plays the signal through its own
+    /// inserts, then they are mixed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub branches: Vec<Branch>,
+    /// Plugin parameters shown on the insert's face in the rack.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub macros: Vec<String>,
+}
+
+/// A branch of a parallel chain: its inserts and its level in the mix.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Branch {
+    pub name: String,
+    #[serde(default)]
+    pub inserts: Vec<Insert>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub gain_db: f32,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub mute: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub solo: bool,
+}
+
+impl Branch {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_owned(),
+            inserts: Vec::new(),
+            gain_db: 0.0,
+            mute: false,
+            solo: false,
+        }
+    }
 }
 
 impl Track {
@@ -945,21 +978,24 @@ impl Project {
         for g in &mut self.groups {
             g.tracks.retain(|t| *t != id);
         }
-        for insert in self
-            .master
-            .inserts
-            .iter_mut()
-            .filter(|i| i.sidechain == Some(id))
-        {
-            insert.sidechain = None;
-        }
-        for t in &mut self.tracks {
-            if t.inserts.iter().any(|i| i.sidechain == Some(id)) {
-                for insert in &mut Arc::make_mut(t).inserts {
-                    if insert.sidechain == Some(id) {
-                        insert.sidechain = None;
-                    }
+        // Down the branches of parallel chains too.
+        fn unkey(list: &mut [Insert], id: TrackId) {
+            for insert in list {
+                if insert.sidechain == Some(id) {
+                    insert.sidechain = None;
                 }
+                for branch in &mut insert.branches {
+                    unkey(&mut branch.inserts, id);
+                }
+            }
+        }
+        unkey(&mut self.master.inserts, id);
+        for t in &mut self.tracks {
+            let keyed = crate::routing::flatten(&t.inserts)
+                .iter()
+                .any(|i| i.sidechain == Some(id));
+            if keyed {
+                unkey(&mut Arc::make_mut(t).inserts, id);
             }
         }
         for t in &mut self.tracks {
@@ -1224,6 +1260,8 @@ mod tests {
             sidechain: Some(b),
             monitor: false,
             gain_db: 0.0,
+            branches: Vec::new(),
+            macros: Vec::new(),
         };
         p.master.inserts.push(insert.clone());
         let track = p.track_mut(a).unwrap();

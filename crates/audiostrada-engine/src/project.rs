@@ -156,13 +156,32 @@ impl Plugins {
     }
 }
 
+/// A step of a channel's chain: an insert, or a parallel chain of branches.
+#[derive(Clone, Debug, PartialEq)]
+enum Step {
+    Insert(InsertId),
+    Parallel(InsertId, Vec<Vec<Step>>),
+}
+
+/// A parallel chain: each branch ends in its level, all summed into `out`.
+#[derive(Debug)]
+struct ParallelNodes {
+    id: InsertId,
+    levels: Vec<(NodeId, SharedParam)>,
+    out: NodeId,
+}
+
 /// Input stage, inserts and strip of a track or of the master.
 #[derive(Debug)]
 struct ChannelNodes {
     input: NodeId,
     input_gain: SharedParam,
     console: ConsoleControls,
+    /// Every insert, those of parallel branches included.
     inserts: Vec<InsertNodes>,
+    parallels: Vec<ParallelNodes>,
+    /// How the inserts are wired.
+    steps: Vec<Step>,
     strip: NodeId,
     controls: StripControls,
     /// MIDI of the first insert (tracks only).
@@ -366,21 +385,67 @@ impl ChannelNodes {
             input_gain,
             console,
             inserts: Vec::new(),
+            parallels: Vec::new(),
+            steps: Vec::new(),
             strip,
             midi: None,
             controls,
         }
     }
 
+    /// The node a step ends with, if it was made.
+    fn step_end(&self, step: &Step) -> Option<NodeId> {
+        match step {
+            Step::Insert(id) => self.inserts.iter().find(|n| n.id == *id).map(|n| n.node),
+            Step::Parallel(id, _) => self.parallels.iter().find(|p| p.id == *id).map(|p| p.out),
+        }
+    }
+
     /// Last node before the fader, where pre-fader sends are taken.
     fn pre_fader(&self) -> NodeId {
-        self.inserts.last().map_or(self.input, |i| i.node)
+        self.steps
+            .iter()
+            .rev()
+            .find_map(|s| self.step_end(s))
+            .unwrap_or(self.input)
+    }
+
+    /// Wires `steps` from `from`; returns the last node.
+    fn wire(&self, steps: &[Step], from: NodeId, stereo: &mut dyn FnMut(NodeId, NodeId)) -> NodeId {
+        let mut previous = from;
+        for step in steps {
+            match step {
+                Step::Insert(id) => {
+                    if let Some(n) = self.inserts.iter().find(|n| n.id == *id) {
+                        stereo(previous, n.node);
+                        previous = n.node;
+                    }
+                }
+                Step::Parallel(id, branches) => {
+                    let Some(p) = self.parallels.iter().find(|p| p.id == *id) else {
+                        continue;
+                    };
+                    for (branch, (level, _)) in branches.iter().zip(&p.levels) {
+                        let end = self.wire(branch, previous, stereo);
+                        stereo(end, *level);
+                        stereo(*level, p.out);
+                    }
+                    previous = p.out;
+                }
+            }
+        }
+        previous
     }
 
     fn nodes(&self) -> impl Iterator<Item = NodeId> + '_ {
         [self.input, self.strip]
             .into_iter()
             .chain(self.inserts.iter().map(|i| i.node))
+            .chain(
+                self.parallels
+                    .iter()
+                    .flat_map(|p| p.levels.iter().map(|l| l.0).chain([p.out])),
+            )
     }
 }
 
@@ -563,12 +628,18 @@ impl ProjectPlayer {
         character: usize,
     ) -> bool {
         let mut changed = false;
+        changed |= Self::sync_parallels(engine, nodes, inserts, removed);
         let mut old = std::mem::take(&mut nodes.inserts);
         if inserts.is_empty() {
             nodes.midi = None;
         }
-        for (index, insert) in inserts.iter().enumerate() {
-            let first = index == 0 && live.is_some();
+        // Branch inserts after the channel's own: only the channel's first leads it.
+        let lead = inserts.first().map(|i| i.id);
+        for insert in routing::flatten(inserts)
+            .into_iter()
+            .filter(|i| i.effect != routing::PARALLEL)
+        {
+            let first = Some(insert.id) == lead && live.is_some();
             let existing = old
                 .iter()
                 .position(|n| {
@@ -704,6 +775,80 @@ impl ProjectPlayer {
         changed |= !old.is_empty();
         for slot in old {
             removed.push(plugins.retire(slot, false));
+        }
+        changed
+    }
+
+    /// Makes the nodes of the parallel chains (a level per branch, their sum) and the wiring
+    /// of the channel; true if either changed. A bypassed chain is left out of the wiring.
+    fn sync_parallels(
+        engine: &mut Engine,
+        nodes: &mut ChannelNodes,
+        inserts: &[InsertModel],
+        removed: &mut Vec<NodeId>,
+    ) -> bool {
+        fn steps(list: &[InsertModel]) -> Vec<Step> {
+            list.iter()
+                .filter(|i| !(i.effect == routing::PARALLEL && i.bypass))
+                .map(|i| {
+                    if i.effect == routing::PARALLEL {
+                        Step::Parallel(i.id, i.branches.iter().map(|b| steps(&b.inserts)).collect())
+                    } else {
+                        Step::Insert(i.id)
+                    }
+                })
+                .collect()
+        }
+        let mut changed = false;
+        let mut old = std::mem::take(&mut nodes.parallels);
+        for model in routing::flatten(inserts)
+            .into_iter()
+            .filter(|i| i.effect == routing::PARALLEL)
+        {
+            let count = model.branches.len();
+            let parallel = match old
+                .iter()
+                .position(|p| p.id == model.id && p.levels.len() == count)
+            {
+                Some(at) => old.remove(at),
+                None => {
+                    changed = true;
+                    let (out, _) = crate::nodes::Gain::new(1.0, None);
+                    let out = engine.add_node("Parallel", out, 2, 2);
+                    let levels = (0..count)
+                        .map(|_| {
+                            let (gain, param) = crate::nodes::Gain::new(1.0, None);
+                            (engine.add_node("Branch", gain, 2, 2), param)
+                        })
+                        .collect();
+                    ParallelNodes {
+                        id: model.id,
+                        levels,
+                        out,
+                    }
+                }
+            };
+            // Muted branches, and the others when one is soloed, are silent.
+            let solo = model.branches.iter().any(|b| b.solo);
+            for (branch, (_, level)) in model.branches.iter().zip(&parallel.levels) {
+                let heard = !branch.mute && (!solo || branch.solo);
+                level.set(if heard {
+                    db_to_gain(branch.gain_db)
+                } else {
+                    0.0
+                });
+            }
+            nodes.parallels.push(parallel);
+        }
+        for gone in old {
+            changed = true;
+            removed.extend(gone.levels.iter().map(|l| l.0));
+            removed.push(gone.out);
+        }
+        let wiring = steps(inserts);
+        if wiring != nodes.steps {
+            nodes.steps = wiring;
+            changed = true;
         }
         changed
     }
@@ -1183,12 +1328,8 @@ impl ProjectPlayer {
             }
         };
         let chain = |channel: &ChannelNodes, stereo: &mut dyn FnMut(NodeId, NodeId)| {
-            let mut previous = channel.input;
-            for insert in &channel.inserts {
-                stereo(previous, insert.node);
-                previous = insert.node;
-            }
-            stereo(previous, channel.strip);
+            let last = channel.wire(&channel.steps, channel.input, stereo);
+            stereo(last, channel.strip);
         };
         chain(&self.master, &mut stereo);
         chain(&self.monitor, &mut stereo);
@@ -1201,7 +1342,7 @@ impl ProjectPlayer {
                 .filter_map(|t| Some((&t.inserts, &self.tracks.get(&t.id)?.channel))),
         );
         for (inserts, channel) in channels {
-            for insert in inserts {
+            for insert in routing::flatten(inserts) {
                 let (Some(source), Some(slot)) = (
                     insert.sidechain.and_then(|s| self.tracks.get(&s)),
                     channel.inserts.iter().find(|n| n.id == insert.id),
@@ -1897,9 +2038,7 @@ fn static_value(project: &Project, channel: Channel, target: &AutomationTarget) 
     let AutomationTarget::Param { insert, param } = target else {
         return None;
     };
-    let insert = routing::inserts(project, channel)
-        .iter()
-        .find(|i| i.id == *insert)?;
+    let insert = routing::find_insert(project, channel, *insert)?;
     insert.params.get(param).copied().or_else(|| {
         audiostrada_dsp::info(&insert.effect)?
             .params
@@ -2351,6 +2490,45 @@ mod tests {
         let own = play(&mut f, &mut processor);
         assert!(!differs(&clean, &own));
         std::fs::remove_dir_all(&f.dir).unwrap();
+    }
+
+    #[test]
+    fn parallel_branches_add_up() {
+        let chain = |edit: fn(&mut Project, Channel, InsertId)| {
+            move |p: &mut Project, t: TrackId| {
+                let c = Channel::Track(t);
+                let par = routing::add_parallel(p, c, 0).unwrap();
+                edit(p, c, par);
+            }
+        };
+        // Two branches passing the signal: twice as loud.
+        let both = level("parallel-both", chain(|_, _, _| {}));
+        assert!(close(both, 1.0), "{both}");
+        let muted = level(
+            "parallel-mute",
+            chain(|p, c, par| routing::branch_mut(p, c, par, 1).unwrap().mute = true),
+        );
+        assert!(close(muted, 0.5), "{muted}");
+        let lower = level(
+            "parallel-gain",
+            chain(|p, c, par| routing::branch_mut(p, c, par, 0).unwrap().gain_db = -6.0206),
+        );
+        assert!(close(lower, 0.75), "{lower}");
+        // An effect in a branch plays only there.
+        let halved = level(
+            "parallel-effect",
+            chain(|p, c, par| {
+                let u = routing::add_insert_at(p, c, (Some((par, 1)), 0), "utility").unwrap();
+                routing::set_insert_param(p, c, u, "gain", -6.0206);
+            }),
+        );
+        assert!(close(halved, 0.75), "{halved}");
+        // Bypassed, the chain is left out: the signal goes through once.
+        let bypassed = level(
+            "parallel-bypass",
+            chain(|p, c, par| routing::set_bypass(p, c, par, true)),
+        );
+        assert!(close(bypassed, 0.5), "{bypassed}");
     }
 
     #[test]
