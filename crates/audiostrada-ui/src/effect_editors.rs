@@ -4872,20 +4872,94 @@ pub struct LimiterState {
 
 fn limiter(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState) {
     limiter_view(ui, params, meters, &mut state.limiter, "input");
-    ui.horizontal_wrapped(|ui| {
-        param_slider(ui, params, "release", 200.0);
+    ui.horizontal_top(|ui| {
+        knob_sections(
+            ui,
+            params,
+            &[
+                (
+                    "Time",
+                    &["release", "lookahead"],
+                    Some((
+                        "auto",
+                        "Auto release",
+                        "Fast recovery after short peaks, slow on dense passages",
+                    )),
+                ),
+                (
+                    "Stereo",
+                    &["link"],
+                    Some((
+                        "true_peak",
+                        "True peak",
+                        "Also catches the peaks between the samples, which converters and \
+                         encoders bring back",
+                    )),
+                ),
+            ],
+            &|_| true,
+        );
+        monitor_switches(ui, params);
     });
 }
 
 fn maximizer(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState) {
+    let styles = params.param("style").map_or(&[][..], |p| p.choices);
+    cards(ui, params, "style", styles, &MAXIMIZER_MODES);
+    ui.add_space(8.0);
     limiter_view(ui, params, meters, &mut state.limiter, "gain");
-    ui.horizontal_wrapped(|ui| {
-        mode_buttons(ui, params, "style", &MAXIMIZER_MODES);
-        ui.add_space(16.0);
-        param_slider(ui, params, "release", 150.0);
-        ui.add_space(8.0);
-        param_slider(ui, params, "link", 110.0);
+    ui.horizontal_top(|ui| {
+        knob_sections(
+            ui,
+            params,
+            &[("Release", &["release", "link"], None)],
+            &|_| true,
+        );
+        monitor_switches(ui, params);
     });
+}
+
+/// How to listen to a limiter: at the level it came in, or only what it takes away.
+fn monitor_switches(ui: &mut Ui, params: &mut Params) {
+    let p = theme::current(ui);
+    egui::Frame::new()
+        .fill(p.base)
+        .corner_radius(8.0)
+        .inner_margin(egui::Margin::symmetric(10, 8))
+        .show(ui, |ui| {
+            ui.set_min_height(118.0);
+            ui.vertical(|ui| {
+                ui.label(
+                    RichText::new(tr("Listen"))
+                        .strong()
+                        .size(11.5)
+                        .color(p.weak),
+                );
+                ui.add_space(6.0);
+                for (id, label, hint) in [
+                    (
+                        "unity",
+                        "Unity gain",
+                        "Takes the gain back off the output, to judge the limiting at the \
+                         level it came in rather than louder",
+                    ),
+                    (
+                        "audition",
+                        "Audition",
+                        "Plays only what the limiter takes away",
+                    ),
+                ] {
+                    params.toggle(ui, id, |ui, on| {
+                        let response = pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
+                        if response.clicked() {
+                            *on = !*on;
+                        }
+                        response
+                    });
+                    ui.add_space(4.0);
+                }
+            });
+        });
 }
 
 /// A mastering limiter's face: the input meter with the threshold, what the limiter takes
@@ -4985,8 +5059,18 @@ fn limiter_view(
         let peak = outputs[0].max(outputs[1]);
         readout(ui, tr("OUTPUT PEAK"), text(peak, "dB"), p.text);
         readout(ui, tr("SHORT-TERM"), text(out_lufs, "LUFS"), p.text);
-        let louder =
-            (in_lufs > -70.0 && out_lufs > -70.0).then(|| format!("{:+.1} dB", out_lufs - in_lufs));
+        readout(ui, tr("INTEGRATED"), text(meter(8, -120.0), "LUFS"), p.text);
+        let true_peak = meter(9, -120.0);
+        let over = if true_peak > ceiling + 0.05 {
+            theme::RECORD
+        } else {
+            p.text
+        };
+        readout(ui, tr("TRUE PEAK"), text(true_peak, "dBTP"), over);
+        let louder = (in_lufs > -70.0 && out_lufs > -70.0).then(|| {
+            let louder = out_lufs - in_lufs;
+            format!("{:+.1} dB", if louder.abs() < 0.05 { 0.0 } else { louder })
+        });
         readout(
             ui,
             tr("LOUDER BY"),
@@ -5309,33 +5393,6 @@ fn segmented(ui: &mut Ui, params: &mut Params, id: &str, hints: &[&'static str])
             params.doc.history_mut().end_gesture();
         }
     }
-}
-
-/// A horizontal slider with the parameter's name above and its value beside it.
-fn param_slider(ui: &mut Ui, params: &mut Params, id: &str, width: f32) {
-    let Some(p) = params.param(id) else {
-        return;
-    };
-    let value = params.get(id);
-    let mut t = to_unit(p, value);
-    ui.vertical(|ui| {
-        ui.label(
-            RichText::new(tr(p.name).to_uppercase())
-                .size(9.0)
-                .color(theme::current(ui).weak),
-        );
-        ui.horizontal(|ui| {
-            ui.spacing_mut().slider_width = width;
-            let response = ui.add(egui::Slider::new(&mut t, 0.0..=1.0).show_value(false));
-            let changed = response.changed().then(|| from_unit(p, t));
-            ui.label(
-                RichText::new(format_value(p, changed.unwrap_or(value)))
-                    .monospace()
-                    .size(11.0),
-            );
-            params.set(id, changed, &response);
-        });
-    });
 }
 
 // ---------------------------------------------------------------- Input and output levels

@@ -277,6 +277,7 @@ pub fn declared_latency(id: &str, values: &[f32], rate: u32) -> Option<u32> {
         "compressor" => Some(compressor::latency_of(values, rate as f32)),
         "gate" => Some(gate::latency_of(values, rate as f32)),
         "deesser" => Some(deesser::latency_of(values, rate as f32)),
+        "limiter" => Some(limiter::latency_of(values, rate as f32)),
         "channel" => {
             let index = |id: &str| channel::INFO.params.iter().position(|p| p.id == id);
             let value = |id: &str| {

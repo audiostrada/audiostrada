@@ -3220,3 +3220,30 @@ Garde
 
 Limit
 Limiteur
+
+INTEGRATED
+INTÉGRÉ
+
+TRUE PEAK
+TRUE PEAK
+
+Audition
+Écoute du retiré
+
+True peak
+True peak
+
+Unity gain
+Gain unitaire
+
+Fast recovery after short peaks, slow on dense passages
+Retour rapide après les crêtes brèves, lent sur les passages denses
+
+Also catches the peaks between the samples, which converters and encoders bring back
+Attrape aussi les crêtes entre les échantillons, que les convertisseurs et les encodeurs font réapparaître
+
+Takes the gain back off the output, to judge the limiting at the level it came in rather than louder
+Retire le gain en sortie, pour juger la limitation au niveau d'entrée plutôt que plus fort
+
+Plays only what the limiter takes away
+Fait entendre seulement ce que le limiteur retire
