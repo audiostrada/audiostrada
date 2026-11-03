@@ -238,11 +238,19 @@ pub fn install_fonts(ctx: &egui::Context) {
             "../assets/fonts/Inter-SemiBold.ttf"
         ))),
     );
-    let fallbacks = fonts
+    // Instrument icons (Lucide, ISC) in the private use area, after the text fonts.
+    fonts.font_data.insert(
+        "track-icons".into(),
+        std::sync::Arc::new(FontData::from_static(include_bytes!(
+            "../assets/fonts/Lucide-TrackIcons.ttf"
+        ))),
+    );
+    let mut fallbacks = fonts
         .families
         .get(&FontFamily::Proportional)
         .cloned()
         .unwrap_or_default();
+    fallbacks.push("track-icons".to_owned());
     let mut proportional = vec!["inter".to_owned()];
     proportional.extend(fallbacks.iter().cloned());
     fonts

@@ -1028,3 +1028,57 @@ Couleurs de console activées
 
 Console colors off
 Couleurs de console coupées
+
+{name}. Click to choose the icon
+{name}. Cliquer pour choisir l'icône
+
+Automatic: {name}
+Automatique : {name}
+
+Backing vocals
+Chœurs
+
+Bells and mallets
+Cloches et percussions à clavier
+
+Cue mix
+Mix casque
+
+Drums and percussion
+Batterie et percussions
+
+Effects and ambience
+Effets et ambiance
+
+Electric guitar
+Guitare électrique
+
+Loop and sample
+Boucle et sample
+
+Pad and texture
+Nappe et texture
+
+Piano and keys
+Piano et claviers
+
+Speech
+Voix parlée
+
+Strings, brass and winds
+Cordes, cuivres et vents
+
+Sub and 808
+Sub et 808
+
+Track icon
+Icône de piste
+
+Vocals
+Chant
+
+Icon
+Icône
+
+Bass guitar
+Basse

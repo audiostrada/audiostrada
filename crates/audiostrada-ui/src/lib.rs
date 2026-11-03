@@ -37,6 +37,7 @@ mod tabs;
 mod theme;
 mod timeline;
 mod tone3000;
+mod track_icons;
 mod track_menu;
 mod transport;
 mod ui_prefs;

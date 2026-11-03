@@ -72,6 +72,12 @@ pub fn show(ui: &mut Ui, doc: &mut Document, id: TrackId) -> Vec<Request> {
     if tracks.len() > 1 {
         ui.weak(trf!("{count} tracks selected", count = tracks.len()));
     }
+    let icon = crate::track_icons::of(&project, track);
+    ui.menu_button(format!("{}  {}", icon.glyph(), tr("Icon")), |ui| {
+        if crate::track_icons::picker(ui, doc, id) {
+            ui.close();
+        }
+    });
     crate::mixer::group_submenu(ui, doc, id);
     if routing::has_children(&project, id) {
         let mut linked = audiostrada_core::groups::folder_group(&project, id).is_some();

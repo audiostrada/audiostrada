@@ -1784,6 +1784,35 @@ impl TimelineView {
                 }
                 x += 16.0;
             }
+            // The instrument, in the track's color; a click picks another.
+            let icon_rect = Rect::from_min_size(pos2(x, row.top() + 5.0), vec2(17.0, 17.0));
+            let icon = crate::track_icons::of(project, track);
+            let icon_response = ui.interact(
+                icon_rect,
+                ui.scope_id().with(("icon", id.0)),
+                Sense::click(),
+            );
+            let tint = Color32::from_rgb(track.color[0], track.color[1], track.color[2]);
+            if icon_response.hovered() {
+                painter.rect_filled(
+                    icon_rect.expand(1.0),
+                    3.0,
+                    ui.visuals().widgets.hovered.bg_fill,
+                );
+            }
+            crate::track_icons::paint(ui, icon_rect, icon, tint);
+            let icon_response = icon_response.on_hover_text(crate::trf!(
+                "{name}. Click to choose the icon",
+                name = icon.label()
+            ));
+            egui::Popup::menu(&icon_response)
+                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                .show(|ui| {
+                    if crate::track_icons::picker(ui, doc, id) {
+                        ui.close();
+                    }
+                });
+            x += 21.0;
             let group = audiostrada_core::groups::group_of(project, id).map(|g| &project.groups[g]);
             // Up to the automation buttons (and the group tag), cut with "…" beyond.
             let buttons = if vca {
@@ -3576,8 +3605,9 @@ mod tests {
         #[test]
         fn double_click_on_a_name_renames_the_track() {
             let (mut h, doc, tracks) = harness();
+            // Past the track's icon.
             let name = pos2(
-                h.view.lanes_rect.left() - HEADER_WIDTH + 20.0,
+                h.view.lanes_rect.left() - HEADER_WIDTH + 44.0,
                 h.view.lanes_rect.top() + 12.0,
             );
             h.click(name, Modifiers::NONE);

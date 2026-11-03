@@ -829,7 +829,14 @@ fn effect_files(
 }
 
 /// Track name on its color, at the bottom of a strip.
-fn name_plate(ui: &mut Ui, width: f32, name: &str, color: Color32, folder: bool) -> Response {
+fn name_plate(
+    ui: &mut Ui,
+    width: f32,
+    name: &str,
+    color: Color32,
+    folder: bool,
+    icon: Option<crate::track_icons::TrackIcon>,
+) -> Response {
     let (rect, response) = ui.allocate_exact_size(vec2(width, 22.0), Sense::click_and_drag());
     let painter = ui.painter();
     if folder {
@@ -855,18 +862,28 @@ fn name_plate(ui: &mut Ui, width: f32, name: &str, color: Color32, folder: bool)
         },
         color,
     );
-    let galley = painter.layout(name.to_owned(), theme::strong(12.0), ink, width - 10.0);
+    // The instrument at the left, the name centered in what is left.
+    let mut text = rect.shrink2(vec2(5.0, 0.0));
+    if let Some(icon) = icon {
+        let at =
+            Rect::from_center_size(pos2(rect.left() + 13.0, rect.center().y), vec2(14.0, 14.0));
+        crate::track_icons::paint(ui, at, icon, ink);
+        text.min.x = at.right() + 2.0;
+    }
+    let painter = ui.painter();
+    let galley = painter.layout(name.to_owned(), theme::strong(12.0), ink, text.width());
     let galley = if galley.rows.len() > 1 {
-        let mut short = name.chars().take(10).collect::<String>();
-        short.push('…');
-        painter.layout_no_wrap(short, theme::strong(12.0), ink)
+        let mut job =
+            egui::text::LayoutJob::simple_singleline(name.to_owned(), theme::strong(12.0), ink);
+        job.wrap = egui::text::TextWrapping::truncate_at_width(text.width());
+        ui.fonts_mut(|f| f.layout_job(job))
     } else {
         galley
     };
     painter.galley(
         pos2(
-            rect.center().x - galley.size().x / 2.0,
-            rect.center().y - galley.size().y / 2.0,
+            text.center().x - galley.size().x / 2.0,
+            text.center().y - galley.size().y / 2.0,
         ),
         galley,
         ink,
@@ -2122,7 +2139,8 @@ impl MixerView {
                 let name = format!("{}{}", "› ".repeat(depth), track.name);
                 // Height down to the name plate, which the master strip lines up with.
                 self.bottom_height = self.bottom_height.max(ui.cursor().top() - bottom);
-                let plate = name_plate(ui, width, &name, color(track), folder);
+                let icon = crate::track_icons::of(project, track);
+                let plate = name_plate(ui, width, &name, color(track), folder, Some(icon));
                 let plate = plate.on_hover_text(if vca {
                     tr("VCA. Click to select, drag to reorder, right-click for options")
                 } else if folder {
@@ -3423,7 +3441,7 @@ impl MixerView {
                 // add_space is ignored in this centered layout.
                 ui.allocate_exact_size(vec2(1.0, pad), Sense::hover());
             }
-            name_plate(ui, width, "Master", Color32::from_gray(150), false);
+            name_plate(ui, width, "Master", Color32::from_gray(150), false, None);
         });
         self.master_levels = levels;
     }

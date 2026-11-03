@@ -383,6 +383,9 @@ pub struct Track {
     /// Its own console color instead of the project's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub console: Option<crate::console::Console>,
+    /// Icon chosen for the track (else found from its name and content).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 /// A finished song to compare the mix with (heard instead of it, never exported).
@@ -913,6 +916,7 @@ impl Project {
             midi_out: None,
             fx_off: false,
             console: None,
+            icon: None,
         }));
         id
     }
