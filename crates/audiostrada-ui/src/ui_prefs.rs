@@ -220,7 +220,7 @@ impl UiPrefs {
     /// Applies the plugin sandbox setting to plugins loaded from now on.
     pub fn apply_sandbox(&self) {
         let host = if self.plugin_sandbox {
-            std::env::current_exe().ok()
+            audiostrada_plugins::own_executable()
         } else {
             None
         };

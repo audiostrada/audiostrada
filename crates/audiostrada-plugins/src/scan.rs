@@ -190,11 +190,12 @@ impl Database {
             dirs.extend(extra_dirs.iter().cloned());
             for path in find_files(format, &dirs) {
                 let stamp = modified(&path);
-                if self
-                    .files
-                    .get(&path)
-                    .is_none_or(|f| f.modified != stamp || f.format != format)
-                {
+                // A scanner that did not start says nothing of the plugin: it is tried again.
+                if self.files.get(&path).is_none_or(|f| {
+                    f.modified != stamp
+                        || f.format != format
+                        || f.result.as_ref().is_err_and(|e| e.starts_with(NOT_STARTED))
+                }) {
                     pending.push((format, path.clone()));
                 }
                 seen.push(path);
@@ -263,6 +264,9 @@ pub fn scan_in_background(
     })
 }
 
+/// The error of a scanner that could not be started (the program, not the plugin).
+const NOT_STARTED: &str = "cannot start the scanner";
+
 /// Runs `exe plugin-scan FORMAT PATH` and parses its output; crashes and hangs become errors.
 pub fn scan_out_of_process(
     exe: &Path,
@@ -278,7 +282,7 @@ pub fn scan_out_of_process(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("cannot start the scanner: {e}"))?;
+        .map_err(|e| format!("{NOT_STARTED}: {e}"))?;
     let mut stdout = child.stdout.take().ok_or("no scanner output")?;
     let mut stderr = child.stderr.take().ok_or("no scanner output")?;
     let out = std::thread::spawn(move || {
@@ -386,6 +390,16 @@ mod tests {
             0,
             "cached"
         );
+        // A scanner that could not start is no verdict: the file is scanned again.
+        let good = dir.join("vendor/good.clap");
+        db.record(
+            Format::Clap,
+            good.clone(),
+            Err(format!("{NOT_STARTED}: gone")),
+        );
+        let retried = db.pending(std::slice::from_ref(&dir));
+        assert!(retried.iter().any(|(_, p)| *p == good));
+        assert!(!retried.iter().any(|(_, p)| p.ends_with("bad.clap")));
         let file = dir.join("db.json");
         db.save(&file).unwrap();
         assert_eq!(Database::load(&file), db);

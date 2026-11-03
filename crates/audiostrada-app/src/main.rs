@@ -173,7 +173,7 @@ fn run_ui(run: &cli::RunArgs) -> anyhow::Result<()> {
         plugin_scan: Box::new(|extra, full| {
             let cache = plugins::database_path()
                 .unwrap_or_else(|| std::env::temp_dir().join("audiostrada-plugins.json"));
-            let exe = std::env::current_exe().unwrap_or_else(|_| "audiostrada".into());
+            let exe = audiostrada_plugins::own_executable().unwrap_or_else(|| "audiostrada".into());
             audiostrada_plugins::scan::scan_in_background(cache, extra, exe, full)
         }),
     };

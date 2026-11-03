@@ -202,6 +202,19 @@ static SANDBOX: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 /// Runs plugins loaded from now on in child processes of `host` (the AudioStrada executable,
 /// which serves `plugin-host`), or in this process when `None`.
+/// This program's file, to start its scanner and plugin hosts. When it was replaced while
+/// running (an update), Linux names the old one "… (deleted)": the new one, at the same path,
+/// is used.
+pub fn own_executable() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    if exe.exists() {
+        return Some(exe);
+    }
+    let name = exe.to_string_lossy();
+    let replaced = PathBuf::from(name.strip_suffix(" (deleted)").unwrap_or(&name));
+    Some(if replaced.exists() { replaced } else { exe })
+}
+
 pub fn set_sandbox(host: Option<PathBuf>) {
     if let Ok(mut s) = SANDBOX.lock() {
         *s = host;

@@ -23,7 +23,8 @@ pub fn scan_one(format: &str, path: &Path) -> anyhow::Result<()> {
 pub fn list(rescan: bool) -> anyhow::Result<()> {
     let cache = database_path().context("no cache folder on this system")?;
     let extra = crate::prefs::Prefs::load().ui.plugin_dirs;
-    let exe = std::env::current_exe().context("cannot find the audiostrada executable")?;
+    let exe =
+        audiostrada_plugins::own_executable().context("cannot find the audiostrada executable")?;
     println!("Scanning plugin folders…");
     let database: Database = scan::scan_in_background(cache, extra, exe, rescan)
         .join()
