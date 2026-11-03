@@ -497,7 +497,7 @@ fn general(ui: &mut egui::Ui, prefs: &mut UiPrefs) -> bool {
                      screen, and effect and plugin windows can fall behind AudioStrada. In X11 mode \
                      (XWayland) AudioStrada puts them back where they were and keeps effect and plugin \
                      windows above it, but with a fractional display scale (125 %, 150 %) they \
-                     may look blurry. Takes effect when AudioStrada starts again.",
+                     may look blurry. On by default. Takes effect when AudioStrada starts again.",
                 ));
             });
             ui.end_row();

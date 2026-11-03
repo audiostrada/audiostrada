@@ -163,7 +163,8 @@ pub struct UiPrefs {
     /// Stopping with the play key goes back to where playback started (as in Reaper).
     pub return_on_stop: bool,
     /// Linux under Wayland: run through X11 (XWayland), where AudioStrada can put each window back
-    /// on its screen; the compositor places windows itself under Wayland.
+    /// on its screen and keep effect and plugin windows above it; the compositor places windows
+    /// itself under Wayland. On by default, off for a sharp fractional display scale.
     pub x11_windows: bool,
     /// Projects open in tabs when AudioStrada was closed, reopened at the next start.
     pub tabs: Vec<std::path::PathBuf>,
@@ -200,7 +201,7 @@ impl Default for UiPrefs {
             disable_plugins: false,
             auto_monitoring: false,
             return_on_stop: true,
-            x11_windows: false,
+            x11_windows: true,
             tabs: Vec::new(),
             tab: 0,
             check_updates: None,

@@ -821,8 +821,8 @@ Plusieurs écrans
 Put each window back on its screen (X11 mode)
 Remettre chaque fenêtre sur son écran (mode X11)
 
-Under Wayland the system places the windows, so they all open on the same screen, and effect and plugin windows can fall behind AudioStrada. In X11 mode (XWayland) AudioStrada puts them back where they were and keeps effect and plugin windows above it, but with a fractional display scale (125 %, 150 %) they may look blurry. Takes effect when AudioStrada starts again.
-Sous Wayland, c'est le système qui place les fenêtres : elles s'ouvrent toutes sur le même écran, et les fenêtres d'effets et de plugins peuvent passer derrière AudioStrada. En mode X11 (XWayland), AudioStrada les remet où elles étaient et garde les fenêtres d'effets et de plugins au-dessus de lui, mais avec une mise à l'échelle fractionnaire (125 %, 150 %) elles peuvent paraître floues. Prend effet au prochain démarrage d'AudioStrada.
+Under Wayland the system places the windows, so they all open on the same screen, and effect and plugin windows can fall behind AudioStrada. In X11 mode (XWayland) AudioStrada puts them back where they were and keeps effect and plugin windows above it, but with a fractional display scale (125 %, 150 %) they may look blurry. On by default. Takes effect when AudioStrada starts again.
+Sous Wayland, c'est le système qui place les fenêtres : elles s'ouvrent toutes sur le même écran, et les fenêtres d'effets et de plugins peuvent passer derrière AudioStrada. En mode X11 (XWayland), AudioStrada les remet où elles étaient et garde les fenêtres d'effets et de plugins au-dessus de lui, mais avec une mise à l'échelle fractionnaire (125 %, 150 %) elles peuvent paraître floues. Activé par défaut. Prend effet au prochain démarrage d'AudioStrada.
 
 Remove the selection
 Retirer la sélection

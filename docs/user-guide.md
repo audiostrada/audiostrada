@@ -322,8 +322,9 @@ use the track menu) › *Save effects as a chain*, then add it to any track from
 streaming). Right-click a chain of yours there to delete it.
 Effect windows are windows of their own, which can go to another screen; clicking an insert
 again brings its window to the front. They stay above AudioStrada while you use it, and so do the
-plugins' own windows, on Windows and X11 (under Wayland, tick Preferences › General ›
-*Several screens* › X11 mode for that).
+plugins' own windows, on Windows and X11. Under Wayland AudioStrada runs in X11 mode for that
+(Preferences › General › *Several screens*); untick it if a fractional display scale (125 %,
+150 %) makes the windows blurry, at the cost of windows that can fall behind.
 
 **Limiter** and **Maximizer** look like a mastering maximizer: the input meter on the left
 with the **threshold** (drag it down to push the input harder), the output meter on the right
