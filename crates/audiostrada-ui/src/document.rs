@@ -502,6 +502,14 @@ impl Document {
             return;
         }
         self.levels_read = now;
+        // Instruments play MIDI: their meter stays on what they play.
+        let instruments: Vec<TrackId> = self
+            .project()
+            .tracks
+            .iter()
+            .filter(|t| self.is_instrument_track(t.id))
+            .map(|t| t.id)
+            .collect();
         let project = self.history.project();
         self.levels.retain(|id, _| project.track(*id).is_some());
         for track in &project.tracks {
@@ -511,7 +519,11 @@ impl Document {
             let level = self.levels.entry(track.id).or_default();
             // An armed audio track shows its input, heard or not, to set its level.
             match self.player.track_input_meter(track.id) {
-                Some(input) if track.armed && track.kind == TrackKind::Audio => {
+                Some(input)
+                    if track.armed
+                        && track.kind == TrackKind::Audio
+                        && !instruments.contains(&track.id) =>
+                {
                     level.take(input, elapsed);
                     for ch in 0..output.channels() {
                         output.take_peak(ch);
@@ -2221,6 +2233,42 @@ mod tests {
         live.push([0xB0, 7, 127], 0);
         run(&mut doc, 1);
         assert_eq!(doc.project().tracks[0].gain_db, 12.0);
+    }
+
+    #[test]
+    fn an_armed_instrument_meters_what_it_plays_not_the_input() {
+        let mut doc = Document::new(AppDirs::default());
+        doc.history_mut().edit("Tracks", |p| {
+            let keys = p.add_track("Keys");
+            audiostrada_core::routing::add_insert(
+                p,
+                Channel::Track(keys),
+                "synth",
+                Default::default(),
+            );
+            let voice = p.add_track("Voice");
+            for t in [keys, voice] {
+                p.track_mut(t).unwrap().armed = true;
+            }
+        });
+        let (keys, voice) = (doc.project().tracks[0].id, doc.project().tracks[1].id);
+        let mut processor = doc.processor(48_000, 64);
+        let mut storage = audiostrada_io::ChannelBuffers::new(2, 2, 64);
+        storage.input_mut(0).fill(0.5);
+        for _ in 0..20 {
+            processor.render(&mut storage.buffers(64));
+            doc.update();
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            doc.update_levels();
+        }
+        assert!(
+            doc.track_level(voice).level[0] > -10.0,
+            "the audio track shows its input"
+        );
+        assert!(
+            doc.track_level(keys).level[0] < -50.0,
+            "the instrument does not"
+        );
     }
 
     #[test]

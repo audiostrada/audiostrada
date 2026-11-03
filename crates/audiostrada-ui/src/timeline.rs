@@ -1081,7 +1081,8 @@ impl TimelineView {
             left = format!("{:.1}", level.hold[0]),
             right = format!("{:.1}", level.hold[1])
         );
-        let armed = doc.project().track(id).is_some_and(|t| t.armed);
+        let armed =
+            doc.project().track(id).is_some_and(|t| t.armed) && !doc.is_instrument_track(id);
         response.on_hover_text(if armed {
             format!("{}\n{peaks}", tr("Input level (armed track)"))
         } else {

@@ -2109,6 +2109,32 @@ mod tests {
     }
 
     #[test]
+    fn armed_instruments_do_not_hear_the_audio_input() {
+        for effect in ["synth", "drums"] {
+            let mut history = History::new(Project::new("Test", 48_000));
+            let mut player = ProjectPlayer::new(EngineConfig { workers: Some(0) });
+            let media = MediaPool::new(48_000, None);
+            let mut processor = player.processor(48_000, 64);
+            let mut storage = ChannelBuffers::new(4, 2, 64);
+            storage.input_mut(0).fill(0.5);
+            history.edit("Track", |p| {
+                let t = p.add_track("Keys");
+                routing::add_insert(p, Channel::Track(t), effect, Default::default());
+                p.track_mut(t).unwrap().armed = true;
+            });
+            player.sync(history.project(), None, &media);
+            player.update();
+            let mut peak = 0.0f32;
+            for _ in 0..20 {
+                processor.render(&mut storage.buffers(64));
+                player.update();
+                peak = peak.max(storage.output(0).iter().fold(0.0, |m, s| m.max(s.abs())));
+            }
+            assert!(peak < 1e-4, "{effect}: the input is heard ({peak})");
+        }
+    }
+
+    #[test]
     fn monitoring_follows_each_tracks_mode() {
         let mut history = History::new(Project::new("Test", 48_000));
         let mut player = ProjectPlayer::new(EngineConfig { workers: Some(0) });
