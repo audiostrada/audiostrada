@@ -1631,16 +1631,21 @@ impl ProjectPlayer {
         })
     }
 
-    /// Plays a note message on a track's instrument, armed or not (the editor's keyboard).
+    /// Plays a note message on a track's instrument, armed or not (the editor's keyboard, the
+    /// pads).
     pub fn play_key(&self, track: TrackId, data: [u8; 3]) -> bool {
-        let Some(midi) = self
-            .tracks
-            .get(&track)
-            .and_then(|n| n.channel.midi.as_ref())
-        else {
+        let Some(nodes) = self.tracks.get(&track) else {
             return false;
         };
-        midi.keys.push(data, 0);
+        let Some(midi) = nodes.channel.midi.as_ref() else {
+            return false;
+        };
+        // Armed, it plays as a MIDI keyboard would: heard by the armed tracks and recorded.
+        if nodes.armed {
+            self.live.push(data, self.engine.position());
+        } else {
+            midi.keys.push(data, 0);
+        }
         true
     }
 

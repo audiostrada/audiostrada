@@ -2224,6 +2224,47 @@ mod tests {
     }
 
     #[test]
+    fn notes_played_on_the_instruments_keyboard_are_recorded() {
+        let mut doc = Document::new(AppDirs::default());
+        doc.history_mut().edit("Keys", |p| {
+            let t = p.add_track("Keys");
+            audiostrada_core::routing::add_insert(
+                p,
+                Channel::Track(t),
+                "synth",
+                Default::default(),
+            );
+            p.track_mut(t).unwrap().armed = true;
+        });
+        let t = doc.project().tracks[0].id;
+        let mut processor = doc.processor(48_000, 64);
+        let mut storage = audiostrada_io::ChannelBuffers::new(0, 2, 64);
+        doc.start_recording(0, 0).unwrap();
+        let mut run = |doc: &mut Document, blocks: usize| {
+            for _ in 0..blocks {
+                processor.render(&mut storage.buffers(64));
+                doc.update();
+            }
+        };
+        run(&mut doc, 10);
+        assert!(doc.player().play_key(t, [0x90, 67, 100]));
+        run(&mut doc, 20);
+        assert!(doc.player().play_key(t, [0x80, 67, 0]));
+        run(&mut doc, 10);
+        doc.stop_recording();
+        run(&mut doc, 2);
+        let clip = doc.project().tracks[0]
+            .clips
+            .first()
+            .expect("MIDI clip")
+            .clone();
+        let notes = clip.notes.unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].key, 67);
+        assert!(notes[0].length > 1000, "{}", notes[0].length);
+    }
+
+    #[test]
     fn keyboard_knobs_turn_the_synth_of_armed_tracks() {
         let mut doc = Document::new(AppDirs::default());
         let mut insert = None;

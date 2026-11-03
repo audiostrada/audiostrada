@@ -752,3 +752,18 @@ Niveau d'entrée (piste armée)
 
 {action}: on, {count} effect(s) bypassed. Effects adding more than 1 ms are bypassed, except on the tracks being played, so that what you play is heard at once
 {action} : activé, {count} effet(s) bypassé(s). Les effets ajoutant plus de 1 ms sont bypassés, sauf sur les pistes jouées, pour entendre aussitôt ce que vous jouez
+
+A MIDI track with the built-in drum machine, ready to play
+Une piste MIDI avec la boîte à rythmes intégrée, prête à jouer
+
+A mono audio track, below the selected one
+Une piste audio mono, sous la piste sélectionnée
+
+A stereo audio track, below the selected one
+Une piste audio stéréo, sous la piste sélectionnée
+
+Audio, instrument or drum machine tracks, and VCAs
+Pistes audio, instrument ou boîte à rythmes, et VCA
+
+Plays the MIDI it receives while armed: keyboards and controllers, its instrument's own keyboard or pads
+Joue le MIDI qu'elle reçoit quand elle est armée : claviers et contrôleurs, le clavier ou les pads de son instrument

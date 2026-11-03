@@ -90,7 +90,7 @@ pub fn show(ui: &mut Ui, doc: &mut Document, id: TrackId) -> Vec<Request> {
         midi_out_submenu(ui, doc, id, track.midi_out.as_deref());
     }
     ui.separator();
-    if track.kind != TrackKind::Vca {
+    if track.kind != TrackKind::Vca && !doc.is_instrument_track(id) {
         let mut stereo = track.stereo;
         if ui
             .checkbox(&mut stereo, tr("Stereo track"))

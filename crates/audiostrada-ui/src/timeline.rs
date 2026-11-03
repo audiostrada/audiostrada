@@ -1907,14 +1907,30 @@ impl TimelineView {
                 };
                 if !vca {
                     let mut left = row.left() + 96.0;
-                    if !doc.is_instrument_track(id) {
+                    // An instrument plays MIDI: no audio input to hear or choose.
+                    let instrument = doc.is_instrument_track(id);
+                    if instrument {
+                        let rect = Rect::from_min_size(pos2(left, y), vec2(56.0, 20.0));
+                        painter.text(
+                            pos2(rect.left() + 4.0, rect.center().y),
+                            Align2::LEFT_CENTER,
+                            tr("MIDI"),
+                            FontId::proportional(11.0),
+                            visuals.weak_text_color(),
+                        );
+                        ui.interact(rect, ui.scope_id().with(("midi-in", id.0)), Sense::hover())
+                            .on_hover_text(tr(
+                                "Plays the MIDI it receives while armed: keyboards and \
+                                 controllers, its instrument's own keyboard or pads",
+                            ));
+                    } else {
                         let rect = Rect::from_min_size(pos2(left, y), vec2(24.0, 20.0));
                         crate::mixer::monitor_toggle(ui, rect, doc, track);
                         left += 28.0;
                     }
                     // The input where there is room for it (else in the mixer).
                     let width = (right - left - 4.0).min(140.0);
-                    if width >= 50.0 {
+                    if width >= 50.0 && !instrument {
                         let combo_rect = Rect::from_min_size(pos2(left, y), vec2(width, 20.0));
                         let mut ui_child =
                             ui.new_child(egui::UiBuilder::new().max_rect(combo_rect));

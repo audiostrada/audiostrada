@@ -1441,36 +1441,49 @@ impl MixerView {
     fn toolbar(&mut self, ui: &mut Ui) {
         let mut doc = self.doc.borrow_mut();
         ui.horizontal_wrapped(|ui| {
-            if ui.button(tr("Add track")).clicked() {
-                self.requests.push(crate::actions::Action::AddTrack);
-            }
-            if ui
-                .button(tr("Add tracks…"))
-                .on_hover_text(tr(
-                    "Several audio tracks at once, with their name and color",
-                ))
-                .clicked()
-            {
-                self.requests.push(crate::actions::Action::AddTracks);
-            }
-            if ui
-                .button(tr("Add instrument track"))
-                .on_hover_text(tr("A MIDI track with the built-in synth, ready to play"))
-                .clicked()
-            {
-                self.requests
-                    .push(crate::actions::Action::AddInstrumentTrack);
-            }
-            if ui
-                .button(tr("Add VCA"))
-                .on_hover_text(tr(
-                    "A fader without audio that moves the level and mute of the selected tracks \
-                     together, keeping their balance",
-                ))
-                .clicked()
-            {
-                add_vca(&mut doc);
-            }
+            ui.menu_button(tr("Add"), |ui| {
+                use crate::actions::Action;
+                for (action, help) in [
+                    (
+                        Action::AddTrack,
+                        tr("A mono audio track, below the selected one"),
+                    ),
+                    (
+                        Action::AddStereoTrack,
+                        tr("A stereo audio track, below the selected one"),
+                    ),
+                    (
+                        Action::AddTracks,
+                        tr("Several audio tracks at once, with their name and color"),
+                    ),
+                    (
+                        Action::AddInstrumentTrack,
+                        tr("A MIDI track with the built-in synth, ready to play"),
+                    ),
+                    (
+                        Action::AddDrumTrack,
+                        tr("A MIDI track with the built-in drum machine, ready to play"),
+                    ),
+                    (
+                        Action::AddVca,
+                        tr(
+                            "A fader without audio that moves the level and mute of the selected \
+                             tracks together, keeping their balance",
+                        ),
+                    ),
+                ] {
+                    let mut button = egui::Button::new(action.label());
+                    if let Some(keys) = crate::shortcut_labels(action).first() {
+                        button = button.shortcut_text(keys.as_str());
+                    }
+                    if ui.add(button).on_hover_text(help).clicked() {
+                        self.requests.push(action);
+                        ui.close();
+                    }
+                }
+            })
+            .response
+            .on_hover_text(tr("Audio, instrument or drum machine tracks, and VCAs"));
             let label = if doc.project().groups_off {
                 tr("Groups (off)")
             } else {
@@ -1990,11 +2003,23 @@ impl MixerView {
 
     fn input_section(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track) {
         let id = track.id;
-        let label = input_label(track.input, track.stereo);
-        egui::ComboBox::from_id_salt(("mixer-input", id.0))
-            .width(STRIP_WIDTH - 16.0)
-            .selected_text(label)
-            .show_ui(ui, |ui| input_choices(ui, doc, track));
+        if doc.is_instrument_track(id) {
+            // An instrument plays MIDI: no audio input to choose.
+            ui.add_sized(
+                [STRIP_WIDTH - 8.0, 20.0],
+                egui::Label::new(RichText::new(tr("MIDI")).weak()),
+            )
+            .on_hover_text(tr(
+                "Plays the MIDI it receives while armed: keyboards and controllers, its \
+                 instrument's own keyboard or pads",
+            ));
+        } else {
+            let label = input_label(track.input, track.stereo);
+            egui::ComboBox::from_id_salt(("mixer-input", id.0))
+                .width(STRIP_WIDTH - 16.0)
+                .selected_text(label)
+                .show_ui(ui, |ui| input_choices(ui, doc, track));
+        }
         ui.horizontal(|ui| {
             let mut trim = track.trim_db;
             let response = ui
