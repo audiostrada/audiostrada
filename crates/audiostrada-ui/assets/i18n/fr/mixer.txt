@@ -291,9 +291,6 @@ Inverser la polarité
 Polarity
 Polarité
 
-+ insert
-+ insert
-
 Add an effect or a plugin
 Ajouter un effet ou un plugin
 
@@ -768,32 +765,26 @@ Pistes audio, instrument ou boîte à rythmes, et VCA
 Plays the MIDI it receives while armed: keyboards and controllers, its instrument's own keyboard or pads
 Joue le MIDI qu'elle reçoit quand elle est armée : claviers et contrôleurs, le clavier ou les pads de son instrument
 
-Before the compressor
-Avant le compresseur
-
 bypassed
 bypassé
 
 Channel strip
-Tranche de console
+Channel Strip
 
 Channel strip: click to open it
-Tranche de console : cliquer pour l'ouvrir
+Channel Strip : cliquer pour l'ouvrir
 
 Channel strip: filters, gate, compressor, EQ and drive, ahead of the inserts. Click to open
-Tranche de console : filtres, gate, compresseur, EQ et drive, avant les inserts. Cliquer pour l'ouvrir
+Channel Strip : filtres, gate, compresseur, EQ et drive, avant les inserts. Cliquer pour l'ouvrir
 
 Channel strip module off
-Module de tranche désactivé
+Module du Channel Strip désactivé
 
 Channel strip module on
-Module de tranche activé
+Module du Channel Strip activé
 
 Drive amount
 Quantité de drive
-
-EQ before the compressor
-EQ avant le compresseur
 
 Filters
 Filtres
@@ -881,3 +872,45 @@ Filtres : passe-haut et passe-bas
 
 Drive: a gentle saturation
 Drive : une saturation douce
+
+CHANNEL STRIP
+CHANNEL STRIP
+
+Open the channel strip: its curve and every setting
+Ouvrir le Channel Strip : sa courbe et tous ses réglages
+
+Drag to change the order of the modules
+Glisser pour changer l'ordre des modules
+
+On: click to switch the module off
+Activé : cliquer pour désactiver le module
+
+Off: click to switch the module on
+Désactivé : cliquer pour activer le module
+
+Reorder the channel strip
+Réordonner le Channel Strip
+
+Module order
+Ordre des modules
+
++ Add a send
++ Ajouter un envoi
+
+Effects: {count}
+Effets : {count}
+
+Effects: {count}, bypassed: {bypassed}
+Effets : {count}, bypassés : {bypassed}
+
+Mute this send
+Couper cet envoi
+
+Send muted: click to hear it again
+Envoi coupé : cliquer pour le réentendre
+
+Sends: {count}
+Envois : {count}
+
+The effect browser: built-in effects and installed plugins
+Le navigateur d'effets : effets intégrés et plugins installés

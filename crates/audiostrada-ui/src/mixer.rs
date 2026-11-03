@@ -31,7 +31,7 @@ const PLATE: f32 = 26.0;
 /// window: room for the fader and both lists.
 const FULL_STRIPS_HEIGHT: f32 = 560.0;
 /// Height of the channel strip section of tall strips.
-const STRIP_SECTION: f32 = 40.0;
+const STRIP_SECTION: f32 = 56.0;
 const FADER_MIN_DB: f32 = -60.0;
 const FADER_MAX_DB: f32 = audiostrada_core::model::MAX_TRACK_GAIN_DB;
 
@@ -112,7 +112,8 @@ struct Slot<'a> {
 fn insert_slot(ui: &mut Ui, size: egui::Vec2, salt: u64, slot: &Slot) -> (Response, Response) {
     let p = theme::current(ui);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-    let power_rect = Rect::from_min_size(rect.min, vec2(size.y, size.y));
+    // Clear of the family bar.
+    let power_rect = Rect::from_min_size(rect.min + vec2(4.0, 0.0), vec2(size.y, size.y));
     let name_rect = Rect::from_min_max(pos2(power_rect.right(), rect.top()), rect.max);
     let name = ui.interact(
         name_rect,
@@ -257,12 +258,20 @@ const STRIP_MODULES: [(&str, &str, &str); 5] = [
 ];
 
 /// Each module of a channel's strip (its switch parameter) and whether it is on.
-fn strip_modules(project: &Project, channel: Channel) -> [(&'static str, bool); 5] {
+/// The modules of a channel's strip in the order they play: their index into
+/// [`STRIP_MODULES`] and whether each is on.
+fn strip_modules(project: &Project, channel: Channel) -> [(usize, bool); 5] {
     let strip = routing::strip(project, channel);
-    ["filters", "gate", "comp", "eq", "drive"].map(|m| {
+    let order = audiostrada_dsp::channel::module_order(
+        strip
+            .and_then(|s| s.params.get("order").copied())
+            .unwrap_or(0.0),
+    );
+    order.map(|m| {
+        let id = audiostrada_dsp::channel::MODULES[m];
         (
             m,
-            strip.is_some_and(|s| !s.bypass && s.params.get(m).is_some_and(|&v| v >= 0.5)),
+            strip.is_some_and(|s| !s.bypass && s.params.get(id).is_some_and(|&v| v >= 0.5)),
         )
     })
 }
@@ -354,7 +363,12 @@ const SLOT: f32 = 20.0;
 
 /// An empty slot of a list: clicking it adds an effect or a send.
 fn empty_slot(ui: &mut Ui, width: f32, hint: &str) -> Response {
-    let (rect, response) = ui.allocate_exact_size(vec2(width, SLOT - 2.0), Sense::click());
+    add_slot(ui, vec2(width, SLOT - 2.0), "+", hint)
+}
+
+/// A slot with a faint outline, labelled with what clicking it adds.
+fn add_slot(ui: &mut Ui, size: egui::Vec2, label: &str, hint: &str) -> Response {
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     let p = theme::current(ui);
     let hovered = response.hovered();
     let fill = if hovered { p.hover } else { p.panel };
@@ -367,14 +381,33 @@ fn empty_slot(ui: &mut Ui, width: f32, hint: &str) -> Response {
         egui::StrokeKind::Inside,
     );
     let plus = p.weak.gamma_multiply(if hovered { 1.0 } else { 0.5 });
+    let size = if label == "+" { 13.0 } else { 11.0 };
     ui.painter().text(
         rect.center(),
         egui::Align2::CENTER_CENTER,
-        "+",
-        egui::FontId::proportional(13.0),
+        label,
+        egui::FontId::proportional(size),
         plus,
     );
     response.on_hover_text(hint)
+}
+
+/// A small cross without a frame, lit when hovered.
+fn remove_button(ui: &mut Ui) -> Response {
+    let (rect, response) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::click());
+    let p = theme::current(ui);
+    let ink = if response.hovered() {
+        ERROR
+    } else {
+        p.weak.gamma_multiply(0.6)
+    };
+    let r = rect.shrink(5.5);
+    let stroke = egui::Stroke::new(1.4, ink);
+    ui.painter()
+        .line_segment([r.left_top(), r.right_bottom()], stroke);
+    ui.painter()
+        .line_segment([r.right_top(), r.left_bottom()], stroke);
+    response.on_hover_text(tr("Remove"))
 }
 
 /// Where a dragged insert would land: before the `index`-th insert of a channel's list.
@@ -1392,7 +1425,10 @@ fn section(
     let p = theme::current(ui);
     ui.add_space(2.0);
     if let Some(title) = title {
-        ui.label(RichText::new(title).size(8.5).color(p.weak));
+        ui.horizontal(|ui| {
+            ui.set_height(13.0);
+            ui.label(RichText::new(title).size(8.5).color(p.weak));
+        });
     }
     egui::Frame::new()
         .fill(p.base)
@@ -1912,7 +1948,8 @@ impl MixerView {
                     if self.full_strips {
                         ui.add_space(3.0);
                         self.channel_section(ui, doc, channel, width);
-                        section(ui, Some(tr("INSERTS")), sizes.fx, ("inserts", id.0), |ui| {
+                        self.inserts_title(ui, doc, channel, tr("INSERTS"), true);
+                        section(ui, None, sizes.fx, ("inserts", id.0), |ui| {
                             self.inserts_section(
                                 ui,
                                 doc,
@@ -2313,6 +2350,102 @@ impl MixerView {
         });
     }
 
+    /// The buttons bypassing a channel's inserts (and every insert, on the master).
+    fn fx_toggles(&mut self, ui: &mut Ui, doc: &mut Document, channel: Channel, small: bool) {
+        ui.spacing_mut().item_spacing.x = 2.0;
+        let project = doc.project();
+        let all_off = project.all_fx_off;
+        let channel_off = match channel {
+            Channel::Track(t) => project.track(t).is_some_and(|t| t.fx_off),
+            Channel::Master => project.master.fx_off,
+        };
+        // Lit while the effects play, dark once bypassed.
+        let accent = theme::current(ui).accent;
+        let toggle = |ui: &mut Ui, label: &str, off: bool, hint: &str| {
+            let text = RichText::new(label).size(if small { 8.5 } else { 10.0 });
+            let mut button = if off {
+                egui::Button::new(text.weak().strikethrough())
+            } else {
+                egui::Button::new(text.strong().color(Color32::WHITE))
+                    .fill(accent.gamma_multiply(0.85))
+            };
+            if small {
+                button = button.min_size(vec2(22.0, 13.0)).corner_radius(3.0);
+            }
+            let padding = ui.spacing().button_padding;
+            if small {
+                ui.spacing_mut().button_padding = vec2(4.0, 0.0);
+            }
+            let clicked = ui.add(button).on_hover_text(hint).clicked();
+            ui.spacing_mut().button_padding = padding;
+            clicked
+        };
+        let master = channel == Channel::Master;
+        let hint = match (channel_off, all_off, master) {
+            (false, false, true) => tr("Effects on: click to bypass the master's inserts"),
+            (false, false, false) => tr("Effects on: click to bypass every insert of this track"),
+            (true, _, true) => tr("Effects bypassed: click to turn the master's inserts back on"),
+            (true, _, false) => {
+                tr("Effects bypassed: click to turn every insert of this track back on")
+            }
+            (false, true, _) => tr("Every effect is bypassed by ALL on the master"),
+        };
+        if toggle(ui, tr("FX"), channel_off || all_off, hint) {
+            let alone = clutch(ui);
+            doc.history_mut()
+                .edit(tr("Bypass inserts"), |p| match channel {
+                    Channel::Track(t) => groups::maybe_alone(p, alone, |p| {
+                        groups::set_switch(p, t, Link::Fx, !channel_off)
+                    }),
+                    Channel::Master => p.master.fx_off = !p.master.fx_off,
+                });
+        }
+        if channel == Channel::Master
+            && toggle(
+                ui,
+                tr("ALL"),
+                all_off,
+                if all_off {
+                    tr("Every effect bypassed: click to turn them back on")
+                } else {
+                    tr(
+                        "Effects on: click to bypass every insert of every track and of the \
+                        master (an instrument leading a track keeps playing)",
+                    )
+                },
+            )
+        {
+            doc.history_mut()
+                .edit(tr("Bypass all inserts"), |p| p.all_fx_off = !p.all_fx_off);
+        }
+    }
+
+    /// The title of a tall strip's insert list, with its bypass buttons.
+    fn inserts_title(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        channel: Channel,
+        title: &str,
+        toggles: bool,
+    ) {
+        ui.add_space(2.0);
+        ui.horizontal(|ui| {
+            ui.set_height(13.0);
+            ui.label(
+                RichText::new(title)
+                    .size(8.5)
+                    .color(theme::current(ui).weak),
+            );
+            if toggles {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add_space(2.0);
+                    self.fx_toggles(ui, doc, channel, true);
+                });
+            }
+        });
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn inserts_section(
         &mut self,
@@ -2339,78 +2472,16 @@ impl MixerView {
             .iter()
             .filter(|i| i.monitor == monitor && i.effect != routing::STRIP)
             .collect();
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 2.0;
-            // A list in its own window has its add button below.
-            if !wide {
-                let response = ui
-                    .add(egui::Button::new(
-                        RichText::new(tr("+ insert")).size(11.0).weak(),
-                    ))
-                    .on_hover_text(tr("Add an effect or a plugin"));
-                if response.clicked() {
-                    self.browser.borrow_mut().open((channel, monitor));
-                }
-                self.insert_drop_row(ui, (channel, monitor, 0), response.rect, false);
-            }
-            if monitor {
-                return;
-            }
-            // Lit while the effects play, dark once bypassed.
-            let accent = theme::current(ui).accent;
-            let toggle = |ui: &mut Ui, label: &str, off: bool, hint: &str| {
-                let text = RichText::new(label).size(10.0);
-                let button = if off {
-                    egui::Button::new(text.weak().strikethrough())
-                } else {
-                    egui::Button::new(text.strong().color(Color32::WHITE))
-                        .fill(accent.gamma_multiply(0.85))
-                };
-                ui.add(button).on_hover_text(hint).clicked()
-            };
-            let master = channel == Channel::Master;
-            let hint = match (channel_off, all_off, master) {
-                (false, false, true) => tr("Effects on: click to bypass the master's inserts"),
-                (false, false, false) => {
-                    tr("Effects on: click to bypass every insert of this track")
-                }
-                (true, _, true) => {
-                    tr("Effects bypassed: click to turn the master's inserts back on")
-                }
-                (true, _, false) => {
-                    tr("Effects bypassed: click to turn every insert of this track back on")
-                }
-                (false, true, _) => tr("Every effect is bypassed by ALL on the master"),
-            };
-            if toggle(ui, tr("FX"), channel_off || all_off, hint) {
-                let alone = clutch(ui);
-                doc.history_mut()
-                    .edit(tr("Bypass inserts"), |p| match channel {
-                        Channel::Track(t) => groups::maybe_alone(p, alone, |p| {
-                            groups::set_switch(p, t, Link::Fx, !channel_off)
-                        }),
-                        Channel::Master => p.master.fx_off = !p.master.fx_off,
-                    });
-            }
-            if channel == Channel::Master
-                && toggle(
-                    ui,
-                    tr("ALL"),
-                    all_off,
-                    if all_off {
-                        tr("Every effect bypassed: click to turn them back on")
-                    } else {
-                        tr(
-                            "Effects on: click to bypass every insert of every track and of the \
-                            master (an instrument leading a track keeps playing)",
-                        )
-                    },
-                )
-            {
-                doc.history_mut()
-                    .edit(tr("Bypass all inserts"), |p| p.all_fx_off = !p.all_fx_off);
-            }
-        });
+        if wide && !monitor {
+            ui.add_space(4.0);
+            self.channel_section(ui, doc, channel, ui.available_width());
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new(tr("INSERTS"))
+                    .size(8.5)
+                    .color(theme::current(ui).weak),
+            );
+        }
         for (row, insert) in shown.iter().enumerate() {
             let id = insert.id;
             let name = effect_name(doc, &insert.effect);
@@ -2455,17 +2526,14 @@ impl MixerView {
                 let row = ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 3.0;
                     ui.add_sized(
-                        [16.0, 22.0],
+                        [14.0, 24.0],
                         egui::Label::new(RichText::new(format!("{}", row + 1)).size(10.0).weak()),
                     );
-                    let size = vec2(ui.available_width() - 26.0, 22.0);
+                    let size = vec2(ui.available_width() - 22.0, 24.0);
                     let (name, power) = insert_slot(ui, size, id.0, &look);
                     let name = name.on_hover_text(hint);
                     let toggled = power.on_hover_text(power_hint).clicked();
-                    let removed = ui
-                        .add(egui::Button::new("✕").min_size(vec2(22.0, 22.0)))
-                        .on_hover_text(tr("Remove"))
-                        .clicked();
+                    let removed = remove_button(ui).clicked();
                     (name, toggled, removed)
                 });
                 let (name, toggled, removed) = row.inner;
@@ -2598,24 +2666,26 @@ impl MixerView {
             });
         }
         if wide {
-            ui.add_space(4.0);
-            let add = ui.add_sized(
-                [ui.available_width(), 24.0],
-                egui::Button::new(RichText::new(tr("+ Add an effect or a plugin")).size(11.0)),
+            ui.add_space(2.0);
+            let add = add_slot(
+                ui,
+                vec2(ui.available_width() - 22.0, 26.0),
+                tr("+ Add an effect or a plugin"),
+                tr("The effect browser: built-in effects and installed plugins"),
             );
             if add.clicked() {
                 self.browser.borrow_mut().open((channel, monitor));
             }
             self.insert_drop_row(ui, (channel, monitor, shown.len()), add.rect, false);
             if !shown.is_empty() {
-                ui.add_space(6.0);
+                ui.add_space(8.0);
                 ui.label(
                     RichText::new(tr(
                         "Drag an effect to reorder the chain. Click to edit, right-click for \
                          more.",
                     ))
-                    .size(10.0)
-                    .weak(),
+                    .size(9.5)
+                    .color(theme::current(ui).weak.gamma_multiply(0.8)),
                 );
             }
         }
@@ -2866,21 +2936,27 @@ impl MixerView {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
                 // The destination's color, then its name: a send reads as where it goes.
-                let (bar, _) = ui.allocate_exact_size(vec2(3.0, 16.0), Sense::hover());
+                let row_height = if wide { 22.0 } else { 16.0 };
+                let (bar, _) = ui.allocate_exact_size(vec2(3.0, row_height), Sense::hover());
                 ui.painter().rect_filled(
                     bar,
                     1.5,
                     color.gamma_multiply(if send.mute { 0.3 } else { 1.0 }),
                 );
-                let mut text = RichText::new(name).size(10.0);
+                let mut text = RichText::new(name).size(if wide { 11.5 } else { 10.0 });
                 if send.mute {
                     text = text.strikethrough().weak();
                 }
                 let label = ui
-                    .add_sized(
-                        [if wide { 90.0 } else { 34.0 }, 16.0],
-                        egui::Label::new(text).truncate().sense(Sense::click()),
+                    .allocate_ui_with_layout(
+                        vec2(if wide { 80.0 } else { 34.0 }, row_height),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            ui.set_min_size(vec2(if wide { 80.0 } else { 34.0 }, row_height));
+                            ui.add(egui::Label::new(text).truncate().sense(Sense::click()))
+                        },
                     )
+                    .inner
                     .on_hover_text(if send.pre_fader {
                         trf!(
                             "Send to {name} (pre-fader). Right-click for options",
@@ -2897,7 +2973,7 @@ impl MixerView {
                     .automation_value(Channel::Track(id), &lane)
                     .unwrap_or(send.gain_db);
                 let level_width = if wide {
-                    (ui.available_width() - 24.0).max(60.0)
+                    (ui.available_width() - 70.0).max(60.0)
                 } else {
                     40.0
                 };
@@ -2952,6 +3028,26 @@ impl MixerView {
                         s.pre_fader = !s.pre_fader
                     });
                 }
+                if wide {
+                    let mute = ui
+                        .add(
+                            egui::Button::new(RichText::new("M").size(9.5).strong())
+                                .min_size(vec2(18.0, 18.0))
+                                .selected(send.mute),
+                        )
+                        .on_hover_text(if send.mute {
+                            tr("Send muted: click to hear it again")
+                        } else {
+                            tr("Mute this send")
+                        });
+                    if mute.clicked() {
+                        edit_send(doc, tr("Mute send"), target, &|s| s.mute = !s.mute);
+                    }
+                    if remove_button(ui).clicked() {
+                        doc.history_mut()
+                            .edit(tr("Remove send"), |p| routing::remove_send(p, id, target));
+                    }
+                }
                 label.context_menu(|ui| {
                     let position = if send.pre_fader {
                         tr("Post-fader")
@@ -2982,7 +3078,17 @@ impl MixerView {
         // Empty slots down to the bottom of the section, one at least; each offers the buses.
         let free = height.map_or(1.0, |h| ((h - (ui.cursor().top() - start)) / SLOT).floor());
         for _ in 0..(free.max(1.0) as usize) {
-            let slot = empty_slot(ui, STRIP_WIDTH - 12.0, tr("Add a send"));
+            let slot = if wide {
+                ui.add_space(2.0);
+                add_slot(
+                    ui,
+                    vec2(ui.available_width(), 26.0),
+                    tr("+ Add a send"),
+                    tr("Add a send"),
+                )
+            } else {
+                empty_slot(ui, STRIP_WIDTH - 12.0, tr("Add a send"))
+            };
             // Stays open when its checkbox is clicked.
             egui::Popup::menu(&slot)
                 .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
@@ -3173,7 +3279,8 @@ impl MixerView {
             if self.full_strips {
                 ui.add_space(3.0);
                 self.channel_section(ui, doc, Channel::Master, width);
-                section(ui, Some(tr("INSERTS")), sizes.fx, "master-inserts", |ui| {
+                self.inserts_title(ui, doc, Channel::Master, tr("INSERTS"), true);
+                section(ui, None, sizes.fx, "master-inserts", |ui| {
                     self.inserts_section(
                         ui,
                         doc,
@@ -3185,23 +3292,24 @@ impl MixerView {
                     );
                 });
                 let monitor = sizes.sends.unwrap_or(24.0);
-                section(
+                self.inserts_title(
                     ui,
-                    Some(tr("MONITOR (NOT EXPORTED)")),
-                    monitor,
-                    "monitor-inserts",
-                    |ui| {
-                        self.inserts_section(
-                            ui,
-                            doc,
-                            Channel::Master,
-                            &project.master.inserts,
-                            tr("Monitor"),
-                            true,
-                            Some(monitor),
-                        );
-                    },
+                    doc,
+                    Channel::Master,
+                    tr("MONITOR (NOT EXPORTED)"),
+                    false,
                 );
+                section(ui, None, monitor, "monitor-inserts", |ui| {
+                    self.inserts_section(
+                        ui,
+                        doc,
+                        Channel::Master,
+                        &project.master.inserts,
+                        tr("Monitor"),
+                        true,
+                        Some(monitor),
+                    );
+                });
             } else {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
@@ -3459,10 +3567,41 @@ impl MixerView {
     fn channel_section(&mut self, ui: &mut Ui, doc: &mut Document, channel: Channel, width: f32) {
         let p = theme::current(ui);
         let modules = strip_modules(doc.project(), channel);
+        let open = routing::strip(doc.project(), channel)
+            .is_some_and(|s| self.editors.contains(&(channel, s.id)));
+        ui.horizontal(|ui| {
+            ui.set_height(13.0);
+            ui.label(RichText::new(tr("CHANNEL STRIP")).size(8.5).color(p.weak));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(2.0);
+                let (rect, response) = ui.allocate_exact_size(vec2(20.0, 13.0), Sense::click());
+                let fill = if open {
+                    p.accent.gamma_multiply(0.6)
+                } else if response.hovered() {
+                    p.hover
+                } else {
+                    p.surface
+                };
+                ui.painter().rect_filled(rect, 3.0, fill);
+                let response = response
+                    .on_hover_text(tr("Open the channel strip: its curve and every setting"));
+                // An arrow out of a box: opens its window.
+                let r = Rect::from_center_size(response.rect.center(), vec2(6.0, 6.0));
+                let ink = egui::Stroke::new(1.2, if response.hovered() { p.text } else { p.weak });
+                let painter = ui.painter();
+                painter.line_segment([r.left_bottom(), r.right_top()], ink);
+                painter.line_segment([r.right_top(), r.right_top() + vec2(-4.0, 0.0)], ink);
+                painter.line_segment([r.right_top(), r.right_top() + vec2(0.0, 4.0)], ink);
+                if response.clicked() {
+                    self.open_strip(doc, channel);
+                }
+            });
+        });
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 2.0;
             let w = ((width - 8.0) / modules.len() as f32).floor();
-            for (k, &(module, on)) in modules.iter().enumerate() {
+            for &(k, on) in &modules {
+                let module = audiostrada_dsp::channel::MODULES[k];
                 let (label, hint, family) = STRIP_MODULES[k];
                 let (rect, response) = ui.allocate_exact_size(vec2(w, 14.0), Sense::click());
                 let color = theme::family_color(family);
@@ -3621,31 +3760,31 @@ impl MixerView {
                 List::Monitor => trf!("{owner}: monitoring", owner = owner),
             };
             let key = ("strip-list", channel, list);
-            let open =
-                editor_window(
-                    ctx,
-                    places,
-                    key,
-                    &title,
-                    [280.0, 360.0],
-                    false,
-                    |ui| match list {
-                        List::Sends => {
-                            if let Some(track) = track {
-                                self.sends_section(ui, doc, project, track, None);
-                            }
+            let size = if list == List::Sends {
+                [300.0, 280.0]
+            } else {
+                [300.0, 460.0]
+            };
+            let open = editor_window(ctx, places, key, &title, size, false, |ui| {
+                self.list_header(ui, doc, project, channel, list);
+                ui.add_space(6.0);
+                match list {
+                    List::Sends => {
+                        if let Some(track) = track {
+                            self.sends_section(ui, doc, project, track, None);
                         }
-                        List::Inserts | List::Monitor => {
-                            let inserts = track.map_or(&project.master.inserts, |t| &t.inserts);
-                            let monitor = list == List::Monitor;
-                            self.fx_target = None;
-                            self.fx_fallback = None;
-                            self.inserts_section(ui, doc, channel, inserts, owner, monitor, None);
-                            self.drop_insert(ui, doc);
-                            save_chain_dialog(ui.ctx(), doc);
-                        }
-                    },
-                );
+                    }
+                    List::Inserts | List::Monitor => {
+                        let inserts = track.map_or(&project.master.inserts, |t| &t.inserts);
+                        let monitor = list == List::Monitor;
+                        self.fx_target = None;
+                        self.fx_fallback = None;
+                        self.inserts_section(ui, doc, channel, inserts, owner, monitor, None);
+                        self.drop_insert(ui, doc);
+                        save_chain_dialog(ui.ctx(), doc);
+                    }
+                }
+            });
             if !open {
                 closed.push((channel, list));
                 if self.fx_viewport == egui::ViewportId::from_hash_of(key) {
@@ -3654,6 +3793,91 @@ impl MixerView {
             }
         }
         self.lists.retain(|l| !closed.contains(l));
+    }
+
+    /// The head of a list window: the owner's color and name, what the list holds and, for
+    /// the effects, their bypass buttons.
+    fn list_header(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        project: &Project,
+        channel: Channel,
+        list: List,
+    ) {
+        let p = theme::current(ui);
+        let (name, color) = match channel {
+            Channel::Master => (tr("Master"), Color32::from_gray(200)),
+            Channel::Track(t) => project.track(t).map_or(("?", Color32::GRAY), |t| {
+                (
+                    t.name.as_str(),
+                    Color32::from_rgb(t.color[0], t.color[1], t.color[2]),
+                )
+            }),
+        };
+        let summary = match list {
+            List::Sends => {
+                let count = match channel {
+                    Channel::Track(t) => project.track(t).map_or(0, |t| t.sends.len()),
+                    Channel::Master => 0,
+                };
+                trf!("Sends: {count}", count = count)
+            }
+            List::Inserts | List::Monitor => {
+                let monitor = list == List::Monitor;
+                let shown: Vec<_> = routing::inserts(project, channel)
+                    .iter()
+                    .filter(|i| i.monitor == monitor && i.effect != routing::STRIP)
+                    .collect();
+                let bypassed = shown.iter().filter(|i| i.bypass).count();
+                if bypassed > 0 {
+                    trf!(
+                        "Effects: {count}, bypassed: {bypassed}",
+                        count = shown.len(),
+                        bypassed = bypassed
+                    )
+                } else {
+                    trf!("Effects: {count}", count = shown.len())
+                }
+            }
+        };
+        let frame = egui::Frame::new()
+            .fill(color.gamma_multiply(0.16))
+            .corner_radius(6.0)
+            .inner_margin(egui::Margin {
+                left: 12,
+                right: 6,
+                top: 6,
+                bottom: 6,
+            })
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 1.0;
+                        ui.add(
+                            egui::Label::new(RichText::new(name).size(14.0).strong().color(p.text))
+                                .truncate(),
+                        );
+                        ui.label(RichText::new(summary).size(10.0).color(p.weak));
+                    });
+                    if list == List::Inserts {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            self.fx_toggles(ui, doc, channel, false);
+                        });
+                    }
+                });
+            });
+        let rect = frame.response.rect;
+        ui.painter().rect_filled(
+            Rect::from_min_size(rect.min, vec2(4.0, rect.height())),
+            egui::CornerRadius {
+                nw: 6,
+                sw: 6,
+                ..Default::default()
+            },
+            color,
+        );
     }
 
     /// Loudness readings of the master, beside its meter.

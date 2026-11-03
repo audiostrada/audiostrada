@@ -38,7 +38,7 @@ pub const INFO: EffectInfo = EffectInfo {
         param("hmf_q", "High mid Q", 0.3, 4.0, 0.9, ""),
         param("high_freq", "High", 2000.0, 16000.0, 8000.0, "Hz"),
         param("high_gain", "High gain", -15.0, 15.0, 0.0, "dB"),
-        switch("eq_first", "EQ before the compressor", 0.0),
+        param("order", "Module order", 0.0, 119.0, 0.0, ""),
         switch("drive", "Drive", 0.0),
         param("drive_amount", "Drive amount", 0.0, 100.0, 30.0, "%"),
         param("output", "Output", -18.0, 18.0, 0.0, "dB"),
@@ -50,6 +50,37 @@ pub const INFO: EffectInfo = EffectInfo {
 };
 
 pub const SLOPES: [&str; 2] = ["12 dB/oct", "24 dB/oct"];
+
+/// The modules, by the id of their switch, in their default order.
+pub const MODULES: [&str; 5] = ["filters", "gate", "comp", "eq", "drive"];
+
+/// The order the modules play in, from the `order` parameter: one of the 120 arrangements
+/// (indices into [`MODULES`]).
+pub fn module_order(code: f32) -> [usize; 5] {
+    let mut code = (code.round().max(0.0) as usize).min(119);
+    let mut left = [0, 1, 2, 3, 4];
+    let mut order = [0; 5];
+    for (i, slot) in order.iter_mut().enumerate() {
+        let f = FACTORIALS[4 - i];
+        let pick = code / f;
+        *slot = left[pick];
+        left.copy_within(pick + 1.., pick);
+        code %= f;
+    }
+    order
+}
+
+/// The `order` parameter of an arrangement of the modules.
+pub fn order_code(order: [usize; 5]) -> f32 {
+    let mut code = 0;
+    for i in 0..5 {
+        let smaller = order[i + 1..].iter().filter(|&&m| m < order[i]).count();
+        code += smaller * FACTORIALS[4 - i];
+    }
+    code as f32
+}
+
+const FACTORIALS: [usize; 5] = [1, 1, 2, 6, 24];
 
 /// Indices into [`INFO`]'s parameters.
 mod p {
@@ -64,7 +95,7 @@ mod p {
     pub const EQ: usize = 17;
     pub const EQ_FIRST: usize = 18;
     pub const EQ_LAST: usize = 27;
-    pub const EQ_BEFORE: usize = 28;
+    pub const ORDER: usize = 28;
     pub const DRIVE: usize = 29;
     pub const DRIVE_AMOUNT: usize = 30;
     pub const OUTPUT: usize = 31;
@@ -89,6 +120,7 @@ pub struct Channel {
     gate_db: f32,
     reduction: f32,
     levels: [f32; 2],
+    order: [usize; 5],
 }
 
 impl Default for Channel {
@@ -109,6 +141,7 @@ impl Default for Channel {
             gate_db: 0.0,
             reduction: 0.0,
             levels: [-120.0; 2],
+            order: [0, 1, 2, 3, 4],
         };
         channel.design();
         channel.forward_all();
@@ -281,44 +314,31 @@ impl Effect for Channel {
         match index {
             p::HPF | p::LPF | p::SLOPE => self.design(),
             i if (p::EQ_FIRST..=p::EQ_LAST).contains(&i) => self.design(),
+            p::ORDER => self.order = module_order(value),
             _ => self.forward(index),
         }
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         let input = peak(left).max(peak(right));
-        if self.on(p::FILTERS) {
-            self.filters(left, right);
-        }
-        if self.on(p::GATE) {
-            self.gate.process(left, right);
-            let mut out = [0.0; 2];
-            self.gate.meters(&mut out);
-            self.gate_db = out[0];
-        } else {
-            self.gate_db = 0.0;
-        }
-        let (eq, comp) = (self.on(p::EQ), self.on(p::COMP));
-        if !comp {
+        self.gate_db = 0.0;
+        if !self.on(p::COMP) {
             self.reduction = 0.0;
         }
-        if self.on(p::EQ_BEFORE) {
-            if eq {
-                self.eq(left, right);
+        for module in self.order {
+            match module {
+                0 if self.on(p::FILTERS) => self.filters(left, right),
+                1 if self.on(p::GATE) => {
+                    self.gate.process(left, right);
+                    let mut out = [0.0; 2];
+                    self.gate.meters(&mut out);
+                    self.gate_db = out[0];
+                }
+                2 if self.on(p::COMP) => self.compress(left, right),
+                3 if self.on(p::EQ) => self.eq(left, right),
+                4 if self.on(p::DRIVE) => self.drive(left, right),
+                _ => {}
             }
-            if comp {
-                self.compress(left, right);
-            }
-        } else {
-            if comp {
-                self.compress(left, right);
-            }
-            if eq {
-                self.eq(left, right);
-            }
-        }
-        if self.on(p::DRIVE) {
-            self.drive(left, right);
         }
         let output = self.values[p::OUTPUT];
         if output != 0.0 {
@@ -393,7 +413,7 @@ mod tests {
             ("eq", p::EQ),
             ("low_freq", p::EQ_FIRST),
             ("high_gain", p::EQ_LAST),
-            ("eq_first", p::EQ_BEFORE),
+            ("order", p::ORDER),
             ("drive", p::DRIVE),
             ("drive_amount", p::DRIVE_AMOUNT),
             ("output", p::OUTPUT),
@@ -407,6 +427,23 @@ mod tests {
         let original = left.clone();
         channel.process(&mut left, &mut right);
         assert_eq!(left, original, "untouched while every module is off");
+    }
+
+    #[test]
+    fn every_order_has_its_own_code() {
+        for code in 0..120 {
+            let order = module_order(code as f32);
+            let mut sorted = order;
+            sorted.sort_unstable();
+            assert_eq!(sorted, [0, 1, 2, 3, 4]);
+            assert_eq!(order_code(order), code as f32);
+        }
+        assert_eq!(module_order(0.0), [0, 1, 2, 3, 4]);
+        // The drive first: the compressor then hears the saturated signal.
+        let mut channel = Channel::default();
+        channel.prepare(48_000, 256);
+        channel.set_param(p::ORDER, order_code([4, 0, 1, 2, 3]));
+        assert_eq!(channel.order, [4, 0, 1, 2, 3]);
     }
 
     #[test]

@@ -2222,15 +2222,16 @@ fn channel_strip(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
         );
     }
     ui.add_space(8.0);
-    // The modules, in the order they play.
-    let eq_first = params.get("eq_first") >= 0.5;
-    let mut order: Vec<&str> = vec!["filters", "gate", "comp", "eq", "drive"];
-    if eq_first {
-        order.swap(2, 3);
-    }
+    // The modules, in the order they play; dragged by their grip to reorder them.
+    use audiostrada_dsp::channel::{MODULES, module_order, order_code};
+    let order = module_order(params.get("order"));
+    let drag_id = ui.scope_id().with("strip-module-drag");
+    let dragged: Option<usize> = ui.data(|d| d.get_temp(drag_id));
+    let mut frames = [Rect::NOTHING; 5];
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
-        for module in order {
+        for (slot, &m) in order.iter().enumerate() {
+            let module = MODULES[m];
             let (title, family) = match module {
                 "filters" => ("Filters", "EQ & Filter"),
                 "gate" => ("Gate", "Dynamics"),
@@ -2239,22 +2240,43 @@ fn channel_strip(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
                 _ => ("Drive", "Color"),
             };
             let tint = theme::family_color(family);
-            egui::Frame::new()
+            let border = if dragged == Some(m) {
+                p.accent
+            } else {
+                Color32::TRANSPARENT
+            };
+            let frame = egui::Frame::new()
                 .fill(p.base)
+                .stroke(Stroke::new(1.0, border))
                 .corner_radius(8.0)
                 .inner_margin(egui::Margin::same(8))
                 .show(ui, |ui| {
                     ui.vertical(|ui| {
-                        params.toggle(ui, module, |ui, on| {
-                            let text = RichText::new(tr(title)).strong();
-                            ui.toggle_value(
-                                on,
-                                if *on {
-                                    text.color(theme::text_on(tint))
-                                } else {
-                                    text
-                                },
-                            )
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 4.0;
+                            let (grip, response) =
+                                ui.allocate_exact_size(vec2(10.0, 22.0), Sense::drag());
+                            let hot = response.hovered() || response.dragged();
+                            let ink = if hot {
+                                p.text
+                            } else {
+                                p.weak.gamma_multiply(0.6)
+                            };
+                            for k in 0..6 {
+                                let dot = pos2(
+                                    grip.left() + 3.0 + (k % 2) as f32 * 4.0,
+                                    grip.center().y - 4.0 + (k / 2) as f32 * 4.0,
+                                );
+                                ui.painter().circle_filled(dot, 1.1, ink);
+                            }
+                            if hot {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                            }
+                            if response.drag_started() {
+                                ui.data_mut(|d| d.insert_temp(drag_id, m));
+                            }
+                            response.on_hover_text(tr("Drag to change the order of the modules"));
+                            module_switch(ui, params, module, tr(title), tint);
                         });
                         let on = params.get(module) >= 0.5;
                         let tint = if on { tint } else { p.weak };
@@ -2336,9 +2358,6 @@ fn channel_strip(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
                                     ui.add_space(58.0 + ui.spacing().item_spacing.x);
                                     named_knob(ui, params, "lmf_q", "Q", 40.0, tint);
                                     named_knob(ui, params, "hmf_q", "Q", 40.0, tint);
-                                    params.toggle(ui, "eq_first", |ui, on| {
-                                        ui.toggle_value(on, tr("Before the compressor"))
-                                    });
                                 });
                             }
                             _ => row(
@@ -2349,8 +2368,88 @@ fn channel_strip(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
                         }
                     });
                 });
+            frames[slot] = frame.response.rect;
         }
     });
+    let Some(m) = dragged else {
+        return;
+    };
+    // Where the dragged module would go: among the others, by the pointer's x.
+    let others: Vec<usize> = order.iter().copied().filter(|&o| o != m).collect();
+    let rect_of = |module: usize| frames[order.iter().position(|&o| o == module).unwrap_or(0)];
+    let x = ui.input(|i| i.pointer.hover_pos()).map_or(0.0, |pos| pos.x);
+    let target = others
+        .iter()
+        .filter(|&&o| rect_of(o).center().x < x)
+        .count();
+    let line_x = match target {
+        0 => rect_of(others[0]).left() - 4.0,
+        t => rect_of(others[t - 1]).right() + 4.0,
+    };
+    let top = frames.iter().map(|r| r.top()).fold(f32::MAX, f32::min);
+    let bottom = frames.iter().map(|r| r.bottom()).fold(f32::MIN, f32::max);
+    ui.painter().line_segment(
+        [pos2(line_x, top), pos2(line_x, bottom)],
+        Stroke::new(2.0, p.accent),
+    );
+    if ui.input(|i| !i.pointer.any_down()) {
+        ui.data_mut(|d| d.remove::<usize>(drag_id));
+        let mut new = [m; 5];
+        let mut rest = others.iter();
+        for (k, slot) in new.iter_mut().enumerate() {
+            if k != target {
+                *slot = *rest.next().unwrap_or(&m);
+            }
+        }
+        if new != order {
+            let code = order_code(new);
+            if let Some(i) = params.info.params.iter().position(|q| q.id == "order") {
+                params.values[i] = code;
+            }
+            let (channel, insert) = (params.channel, params.insert);
+            params
+                .doc
+                .history_mut()
+                .edit(tr("Reorder the channel strip"), |p| {
+                    routing::set_insert_param(p, channel, insert, "order", code)
+                });
+        }
+    }
+}
+
+/// A module's on/off switch: the power sign and its name, lit in its color while on.
+fn module_switch(ui: &mut Ui, params: &mut Params, id: &str, title: &str, tint: Color32) {
+    let p = theme::current(ui);
+    let on = params.get(id) >= 0.5;
+    let galley =
+        ui.painter()
+            .layout_no_wrap(title.to_owned(), FontId::proportional(13.0), Color32::WHITE);
+    let size = vec2(galley.size().x + 32.0, 22.0);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    let fill = match (on, response.hovered()) {
+        (true, _) => tint,
+        (false, true) => p.hover,
+        (false, false) => p.surface,
+    };
+    let ink = if on { theme::text_on(tint) } else { p.weak };
+    ui.painter().rect_filled(rect, 5.0, fill);
+    theme::paint_power(
+        ui.painter(),
+        Rect::from_min_size(rect.min + vec2(3.0, 2.0), vec2(18.0, 18.0)),
+        ink,
+    );
+    ui.painter().galley_with_override_text_color(
+        pos2(rect.left() + 23.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        ink,
+    );
+    let response = response.on_hover_text(if on {
+        tr("On: click to switch the module off")
+    } else {
+        tr("Off: click to switch the module on")
+    });
+    let changed = response.clicked().then_some(if on { 0.0 } else { 1.0 });
+    params.set(id, changed, &response);
 }
 
 /// A dark display area with a subtle frame.
@@ -4056,6 +4155,8 @@ mod tests {
                 ("delay", "wow"),
                 ("delay", "drive"),
                 ("reverb", "shimmer"),
+                // Set by dragging the modules.
+                ("channel", "order"),
             ];
             for p in info.params {
                 if !shown.iter().any(|s| s == p.id) && !conditional.contains(&(info.id, p.id)) {
