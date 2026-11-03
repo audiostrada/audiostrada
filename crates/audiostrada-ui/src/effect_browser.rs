@@ -66,7 +66,7 @@ pub fn show(
         .with_title(format!("{} — AudioStrada", tr("Add an effect")))
         .with_inner_size([860.0, 600.0])
         .with_min_inner_size([520.0, 320.0])
-        .with_window_level(crate::floating_level(ctx, id));
+        .with_window_level(crate::floating_level(ctx));
     let parent = ctx.viewport_id();
     let shared = crate::MainThread(Rc::clone(browser));
     ctx.show_viewport_deferred(id, builder, move |ui, _| {

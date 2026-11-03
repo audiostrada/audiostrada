@@ -1422,7 +1422,7 @@ impl AudioStradaApp {
                 egui::ViewportBuilder::default()
                     .with_title(format!("{} — AudioStrada", pane.title()))
                     .with_min_inner_size([240.0, 160.0])
-                    .with_window_level(floating_level(ctx, pane_window(pane))),
+                    .with_window_level(floating_level(ctx)),
             );
             let shared = MainThread((Rc::clone(&self.views), Rc::clone(&self.inbox)));
             ctx.show_viewport_deferred(pane_window(pane), builder, move |ui, _class| {
@@ -2268,23 +2268,16 @@ fn keep_windows_above(ctx: &egui::Context, frame: &eframe::Frame) {
 /// Level of AudioStrada's windows besides the main one: above it while AudioStrada is in use,
 /// at the normal level behind other applications. macOS and Windows move them themselves (see
 /// [`keep_windows_above`]); elsewhere the level follows the focus of AudioStrada's windows.
-pub(crate) fn floating_level(ctx: &egui::Context, window: egui::ViewportId) -> egui::WindowLevel {
+pub(crate) fn floating_level(ctx: &egui::Context) -> egui::WindowLevel {
     if cfg!(windows) {
         return egui::WindowLevel::Normal;
     }
     if cfg!(target_os = "macos") {
         return egui::WindowLevel::AlwaysOnTop;
     }
-    let windows = ctx.data_mut(|d| {
-        let seen = d
-            .get_temp_mut_or_default::<Vec<egui::ViewportId>>(egui::Id::unique("floating-windows"));
-        if !seen.contains(&window) {
-            seen.push(window);
-        }
-        seen.clone()
-    });
-    let focused = |v| ctx.input_for(v, |i| i.viewport().focused.unwrap_or(false));
-    if focused(egui::ViewportId::ROOT) || windows.into_iter().any(focused) {
+    // From the windows that exist: asking egui about a closed one creates it again.
+    let in_use = ctx.input(|i| i.raw.viewports.values().any(|v| v.focused == Some(true)));
+    if in_use {
         egui::WindowLevel::AlwaysOnTop
     } else {
         egui::WindowLevel::Normal
