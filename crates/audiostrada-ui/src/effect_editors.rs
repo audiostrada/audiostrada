@@ -2033,71 +2033,178 @@ fn gate(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorStat
 // ---------------------------------------------------------------- Vintage compressor
 
 /// An analog VU meter showing gain reduction: cream face, needle with VU ballistics.
-fn vu_meter(ui: &mut Ui, reduction: f32, needle: &mut f32, size: egui::Vec2) {
+fn vu_meter(ui: &mut Ui, reduction: f32, needle: &mut f32, size: egui::Vec2, amber: bool) {
+    let p = theme::current(ui);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let painter = ui.painter_at(rect);
-    // VU: about 300 ms to settle, from the frame time.
+    // VU ballistics: about 300 ms to settle, from the frame time.
     let dt = ui.input(|i| i.stable_dt).min(0.1);
     let target = reduction.clamp(-20.0, 0.0);
     *needle += (target - *needle) * (1.0 - (-dt / 0.12).exp());
-    let face = Color32::from_rgb(236, 226, 196);
-    painter.rect_filled(rect, 8.0, Color32::from_rgb(28, 26, 24));
-    let inner = rect.shrink(6.0);
-    painter.rect_filled(inner, 5.0, face);
-    let radius = ((inner.height() - 12.0) * 0.9).min(inner.width() * 0.55);
-    let pivot = pos2(inner.center().x, inner.bottom() - 8.0);
-    // Scale from -20 (left) to 0 (right), the needle rests at 0 and falls left.
-    let angle = |db: f32| {
-        let t = (db + 20.0) / 20.0;
-        std::f32::consts::PI * (1.25 + 0.5 * t)
+    // Face, ink and needle: backlit amber, or the theme's dark or cream.
+    let (face_top, face_bottom, ink, red, hand) = if amber {
+        (
+            Color32::from_rgb(250, 206, 112),
+            Color32::from_rgb(222, 152, 52),
+            Color32::from_rgb(52, 34, 18),
+            Color32::from_rgb(214, 46, 24),
+            Color32::from_rgb(30, 22, 14),
+        )
+    } else if p.dark {
+        (
+            Color32::from_rgb(70, 74, 79),
+            Color32::from_rgb(46, 49, 53),
+            Color32::from_rgb(228, 230, 232),
+            Color32::from_rgb(236, 92, 72),
+            Color32::from_rgb(244, 244, 240),
+        )
+    } else {
+        (
+            Color32::from_rgb(246, 244, 238),
+            Color32::from_rgb(228, 225, 216),
+            Color32::from_rgb(30, 30, 30),
+            Color32::from_rgb(210, 58, 40),
+            Color32::from_rgb(24, 24, 24),
+        )
     };
-    let at = |db: f32, r: f32| pivot + vec2(angle(db).cos(), angle(db).sin()) * r;
-    let ink = Color32::from_rgb(40, 34, 28);
-    let red = Color32::from_rgb(190, 40, 30);
-    let arc: Vec<Pos2> = (0..=40)
-        .map(|i| at(-20.0 + i as f32 * 0.5, radius * 0.86))
-        .collect();
-    painter.add(Shape::line(arc, Stroke::new(1.5, ink)));
-    let hot: Vec<Pos2> = (0..=6)
-        .map(|i| at(-3.0 + i as f32 * 0.5, radius * 0.86))
-        .collect();
-    painter.add(Shape::line(hot, Stroke::new(4.0, red)));
-    for db in [-20.0, -15.0, -10.0, -7.0, -5.0, -3.0, -2.0, -1.0, 0.0] {
-        let major = matches!(db as i32, -20 | -10 | -5 | 0);
-        let (a, b) = (radius * 0.86, radius * if major { 0.95 } else { 0.91 });
-        painter.line_segment([at(db, a), at(db, b)], Stroke::new(1.2, ink));
-        if major || db == -3.0 {
-            painter.text(
-                at(db, radius * 1.02),
-                Align2::CENTER_CENTER,
-                format!("{}", db.abs() as i32),
-                FontId::proportional(10.0),
-                if db >= -3.0 { red } else { ink },
-            );
-        }
+    // The bezel, then the face behind its glass.
+    let (bezel_top, bezel_bottom) = if p.dark {
+        (Color32::from_gray(58), Color32::from_gray(26))
+    } else {
+        (Color32::from_gray(212), Color32::from_gray(170))
+    };
+    theme::gradient_rect(&painter, rect, bezel_top, bezel_bottom);
+    let face = rect.shrink(9.0);
+    theme::gradient_rect(&painter, face, face_top, face_bottom);
+    painter.rect_stroke(
+        face,
+        3.0,
+        Stroke::new(1.5, Color32::from_black_alpha(140)),
+        egui::StrokeKind::Inside,
+    );
+    let painter = ui.painter_at(face);
+    // The scale as on a real VU: positions follow the voltage, -20 to +3 dB.
+    let span = (10f32.powf(3.0 / 20.0) - 0.1).max(1e-3);
+    let position = |db: f32| (10f32.powf(db / 20.0) - 0.1) / span;
+    let radius = face.height() * 0.95;
+    let pivot = pos2(face.center().x, face.top() + 20.0 + radius);
+    let sweep = 0.82;
+    let at = |db: f32, r: f32| {
+        let a = -std::f32::consts::FRAC_PI_2 + (position(db) - 0.5) * 2.0 * sweep;
+        pivot + vec2(a.cos(), a.sin()) * r
+    };
+    let arc_r = radius * 0.8;
+    let arc = |from: f32, to: f32, r: f32| -> Vec<Pos2> {
+        (0..=48)
+            .map(|i| at(from + (to - from) * i as f32 / 48.0, r))
+            .collect()
+    };
+    painter.add(Shape::line(arc(-20.0, 0.0, arc_r), Stroke::new(1.4, ink)));
+    painter.add(Shape::line(arc(0.0, 3.0, arc_r), Stroke::new(1.4, red)));
+    // The red zone over 0, as a band.
+    painter.add(Shape::line(
+        arc(0.0, 3.0, arc_r + 4.0),
+        Stroke::new(6.0, red),
+    ));
+    let big = FontId::proportional((face.height() * 0.075).clamp(9.0, 14.0));
+    let small = FontId::proportional((face.height() * 0.058).clamp(8.0, 11.0));
+    for (db, label) in [
+        (-20.0, "-20"),
+        (-10.0, "-10"),
+        (-7.0, "-7"),
+        (-5.0, "-5"),
+        (-3.0, "-3"),
+        (-2.0, "-2"),
+        (-1.0, "-1"),
+        (0.0, "0"),
+        (1.0, "+1"),
+        (2.0, "+2"),
+        (3.0, "+3"),
+    ] {
+        let color = if db > 0.0 { red } else { ink };
+        painter.line_segment(
+            [at(db, arc_r), at(db, arc_r + 9.0)],
+            Stroke::new(1.3, color),
+        );
+        painter.text(
+            at(db, arc_r + 20.0),
+            Align2::CENTER_CENTER,
+            label,
+            big.clone(),
+            color,
+        );
+    }
+    for db in [-15.0f32, -0.5, 0.5, 1.5, 2.5] {
+        let color = if db > 0.0 { red } else { ink };
+        painter.line_segment(
+            [at(db, arc_r), at(db, arc_r + 5.0)],
+            Stroke::new(1.0, color),
+        );
+    }
+    // Percent of the reference level, inside the arc.
+    for pct in [0.0f32, 20.0, 40.0, 60.0, 80.0, 100.0] {
+        let db = 20.0 * (pct.max(10.0) / 100.0).log10();
+        let db = if pct == 0.0 { -20.0 } else { db };
+        painter.line_segment([at(db, arc_r - 5.0), at(db, arc_r)], Stroke::new(1.0, ink));
+        painter.text(
+            at(db, arc_r - 14.0),
+            Align2::CENTER_CENTER,
+            format!("{pct:.0}"),
+            small.clone(),
+            ink.gamma_multiply(0.85),
+        );
+    }
+    for (x, align) in [
+        (face.left() + 10.0, Align2::LEFT_BOTTOM),
+        (face.right() - 10.0, Align2::RIGHT_BOTTOM),
+    ] {
+        painter.text(pos2(x, face.bottom() - 8.0), align, "VU", big.clone(), ink);
+    }
+    // The maker's mark and what it reads, in the middle.
+    let mark = pos2(face.center().x, face.top() + face.height() * 0.6);
+    if let Some(logo) = crate::logo(ui.ctx()) {
+        let h = (face.height() * 0.09).clamp(10.0, 18.0);
+        painter.image(
+            logo.id(),
+            Rect::from_center_size(mark - vec2(0.0, h * 0.7), vec2(h * 105.0 / 96.0, h)),
+            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+            Color32::WHITE,
+        );
     }
     painter.text(
-        pos2(inner.center().x, inner.bottom() - radius * 0.45),
+        mark + vec2(0.0, 6.0),
         Align2::CENTER_CENTER,
-        format!("{}  dB", tr("GAIN REDUCTION")),
-        FontId::proportional(9.0),
-        ink.gamma_multiply(0.8),
+        tr("GAIN REDUCTION"),
+        small,
+        ink.gamma_multiply(0.75),
     );
-    let tip = at(*needle, radius * 0.97);
+    // The needle from its pivot, under a cap at the bottom.
+    let tip = at(*needle, arc_r + 12.0);
     painter.line_segment(
         [pivot, tip],
-        Stroke::new(1.6, Color32::from_rgb(20, 20, 20)),
+        Stroke::new(2.0, Color32::from_black_alpha(50)),
     );
-    painter.circle_filled(pivot, 7.0, Color32::from_rgb(30, 28, 26));
-    // A little glass sheen.
-    painter.rect_filled(
-        Rect::from_min_max(
-            inner.min,
-            pos2(inner.right(), inner.top() + inner.height() * 0.35),
-        ),
-        5.0,
-        Color32::from_white_alpha(18),
+    painter.line_segment([pivot, tip], Stroke::new(1.4, hand));
+    let cap = pos2(face.center().x, face.bottom());
+    painter.circle_filled(cap, face.height() * 0.11, bezel_bottom);
+    painter.circle_stroke(
+        cap,
+        face.height() * 0.11,
+        Stroke::new(1.0, Color32::from_black_alpha(120)),
     );
+    // A light reflection on the glass.
+    let mut glass = egui::Mesh::default();
+    for (pos, alpha) in [
+        (face.left_top(), 30u8),
+        (face.right_top(), 6),
+        (pos2(face.right(), face.top() + face.height() * 0.45), 0),
+        (pos2(face.left(), face.top() + face.height() * 0.45), 8),
+    ] {
+        glass.colored_vertex(pos, Color32::from_white_alpha(alpha));
+    }
+    glass.add_triangle(0, 1, 2);
+    glass.add_triangle(0, 2, 3);
+    painter.add(Shape::mesh(glass));
     ui.ctx().request_repaint();
 }
 
@@ -3473,13 +3580,25 @@ fn compressor(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Edit
     let height = 230.0;
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
-        let width = (ui.available_width() - height - 52.0).max(260.0);
+        let side = if kind == audiostrada_dsp::compressor::CLEAN {
+            height
+        } else {
+            height * 1.45
+        };
+        let width = (ui.available_width() - side - 52.0).max(260.0);
         dynamics_history(ui, params, state, vec2(width, height), threshold, reduction);
         // Modern: the curve; vintage: a needle, as on the hardware.
         if kind == audiostrada_dsp::compressor::CLEAN {
             transfer_curve(ui, params, kind, (curve, range, makeup), input, height);
         } else {
-            vu_meter(ui, reduction, &mut state.needle, vec2(height, height));
+            let amber = kind == 3;
+            vu_meter(
+                ui,
+                reduction,
+                &mut state.needle,
+                vec2(height * 1.45, height),
+                amber,
+            );
         }
         reduction_meter(ui, reduction, height);
     });
@@ -3663,12 +3782,17 @@ fn dynamics_history(
         painter.add(Shape::mesh(mesh));
     }
     painter.add(Shape::line(gr, Stroke::new(2.0, theme::RECORD)));
-    // The threshold, to drag up and down.
+    // The threshold, to drag up and down; darker on a light theme, to read.
     let ty = level_y(threshold);
     let hot = response.hovered() || response.dragged();
+    let solo = if p.dark {
+        theme::SOLO
+    } else {
+        Color32::from_rgb(170, 112, 0)
+    };
     painter.add(Shape::dashed_line(
         &[pos2(rect.left(), ty), pos2(rect.right(), ty)],
-        Stroke::new(if hot { 2.0 } else { 1.2 }, theme::SOLO),
+        Stroke::new(if hot { 2.0 } else { 1.2 }, solo),
         6.0,
         4.0,
     ));
@@ -3677,7 +3801,7 @@ fn dynamics_history(
         Align2::LEFT_TOP,
         format!("{} {threshold:.1} dB", tr("Threshold")),
         FontId::proportional(10.0),
-        theme::SOLO,
+        solo,
     );
     painter.text(
         rect.left_top() + vec2(10.0, 8.0),
