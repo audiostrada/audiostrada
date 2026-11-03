@@ -1112,3 +1112,120 @@ Tranches étroites : un clic en ouvre une en pleine largeur ({keys})
 
 Compact mixer
 Mixer compact
+
+Effects rack of the selected track
+Rack d'effets de la piste sélectionnée
+
+Show rack
+Afficher le rack
+
+Rack
+Rack
+
+Open this chain in the rack
+Ouvrir cette chaîne dans le rack
+
+Parallel chain
+Chaîne parallèle
+
++ Branch
++ Branche
+
+Add a branch
+Ajouter une branche
+
+Add a parallel chain
+Ajouter une chaîne parallèle
+
+Add an effect here
+Ajouter un effet ici
+
+Add an effect to this branch
+Ajouter un effet à cette branche
+
+Branch level
+Niveau de branche
+
+Branches are mixed after their effects
+Les branches sont mélangées après leurs effets
+
+Bypass or play
+Bypasser ou jouer
+
+Click to edit, drag to move
+Clic pour éditer, glisser pour déplacer
+
+Click to edit, drag to move, right-click to remove
+Clic pour éditer, glisser pour déplacer, clic droit pour retirer
+
+Drag to move
+Glisser pour déplacer
+
+Effect or plugin…
+Effet ou plugin…
+
+Every setting, in the effect's window
+Tous les réglages, dans la fenêtre de l'effet
+
+Hear this branch alone
+Écouter cette branche seule
+
+Keep this chain in the rack while other tracks are selected
+Garder cette chaîne dans le rack pendant que d'autres pistes sont sélectionnées
+
+Level of this branch in the mix
+Niveau de cette branche dans le mélange
+
+Mute branch
+Couper la branche
+
+Mute this branch
+Couper cette branche
+
+Pin
+Épingler
+
+Rack controls
+Commandes du rack
+
+Remove branch
+Retirer la branche
+
+Remove the branch
+Retirer la branche
+
+Rename branch
+Renommer la branche
+
+Right-click to put parameters here
+Clic droit pour placer des paramètres ici
+
+Right-click to rename or remove
+Clic droit pour renommer ou retirer
+
+Select a track to see its effects here.
+Sélectionnez une piste pour voir ses effets ici.
+
+Settings {slot}
+Réglages {slot}
+
+Solo branch
+Solo de la branche
+
+Splits the signal into branches with effects of their own, then mixes them
+Sépare le signal en branches avec leurs propres effets, puis les mélange
+
+The master's chain
+La chaîne du master
+
+Two settings to compare: the other one is kept
+Deux réglages à comparer : l'autre est conservé
+
+direct
+direct
+
+Effects rack
+Rack d'effets
+
+This track's effects as modules, parallel chains included
+Les effets de cette piste en modules, chaînes parallèles comprises

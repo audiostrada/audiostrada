@@ -150,6 +150,18 @@ pub fn show(ui: &mut Ui, doc: &mut Document, id: TrackId) -> Vec<Request> {
         ui.close();
     }
     ui.separator();
+    if track.kind != TrackKind::Vca
+        && ui
+            .button(tr("Effects rack"))
+            .on_hover_text(tr(
+                "This track's effects as modules, parallel chains included",
+            ))
+            .clicked()
+    {
+        doc.select_track(id, SelectMode::Only);
+        requests.push(Request::Action(Action::RevealRack));
+        ui.close();
+    }
     if track.kind != TrackKind::Vca && ui.button(tr("Import audio file…")).clicked() {
         doc.select_track(id, SelectMode::Only);
         requests.push(Request::Action(Action::ImportAudio));

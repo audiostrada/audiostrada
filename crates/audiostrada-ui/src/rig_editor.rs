@@ -571,9 +571,7 @@ fn rearrange(params: &mut Params, order: &[usize]) {
             values.push((slot_id(new, field), v));
         }
     }
-    let stored = routing::inserts(params.doc.project(), channel)
-        .iter()
-        .find(|i| i.id == insert)
+    let stored = routing::find_insert(params.doc.project(), channel, insert)
         .map(|i| i.files.clone())
         .unwrap_or_default();
     let files: Vec<(String, Option<PathBuf>)> = (0..SLOTS)
@@ -982,9 +980,7 @@ fn fit(painter: &egui::Painter, text: &str, font: &FontId, width: f32) -> String
 /// The name of the captures loaded in `slot`: their library title, else their folder (a
 /// download is named after its tone), else what the captures say.
 fn capture_name(params: &Params, slot: &str) -> Option<String> {
-    let stored = routing::inserts(params.doc.project(), params.channel)
-        .iter()
-        .find(|i| i.id == params.insert)
+    let stored = routing::find_insert(params.doc.project(), params.channel, params.insert)
         .and_then(|i| i.files.get(slot))
         .cloned()?;
     let name = stored.file_name()?.to_owned();
@@ -1048,9 +1044,7 @@ fn current_choice(params: &Params, choices: &[AmpChoice]) -> Option<usize> {
     if model > 0 {
         return choices.iter().position(|c| *c == AmpChoice::Model(model));
     }
-    let stored = routing::inserts(params.doc.project(), params.channel)
-        .iter()
-        .find(|i| i.id == params.insert)
+    let stored = routing::find_insert(params.doc.project(), params.channel, params.insert)
         .and_then(|i| i.files.get("amp"))
         .and_then(|p| p.file_name().map(|n| n.to_owned()))?;
     choices.iter().position(|c| match c {

@@ -529,10 +529,7 @@ pub fn call_tool(
                     .and_then(Value::as_u64)
                     .ok_or("`insert` id is needed")?,
             );
-            if !routing::inserts(doc.project(), channel)
-                .iter()
-                .any(|i| i.id == insert)
-            {
+            if routing::find_insert(doc.project(), channel, insert).is_none() {
                 return Err(format!("no insert {} there", insert.0));
             }
             if name == "remove_insert" {

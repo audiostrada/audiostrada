@@ -23,6 +23,8 @@ use crate::trf;
 use crate::widgets::{self, MeterState};
 use audiostrada_core::groups::{self, Link};
 
+mod rack;
+
 const STRIP_WIDTH: f32 = 104.0;
 const MIN_FADER: f32 = 60.0;
 /// Name plate and the space after it.
@@ -44,6 +46,7 @@ pub struct MixerView {
     doc: Rc<RefCell<Document>>,
     /// Narrow strips, but for the one opened by a click.
     pub compact: bool,
+    rack: rack::RackState,
     expanded: Option<TrackId>,
     /// Height under the fader rows, as measured last frame.
     bottom_last: f32,
@@ -339,6 +342,9 @@ fn listed_index(project: &Project, channel: Channel, monitor: bool, shown: usize
 
 /// The family of an insert's effect (built-in or plugin), for its color.
 fn family(doc: &Document, effect: &str) -> &'static str {
+    if effect == routing::PARALLEL {
+        return "Utility";
+    }
     match audiostrada_dsp::info(effect) {
         Some(info) => info.category,
         None => doc.player().plugins().find(effect).map_or("", |d| {
@@ -735,6 +741,9 @@ pub(crate) fn end_gesture(history: &mut History, response: &Response) {
 
 /// Display name of a built-in effect or plugin key.
 pub(crate) fn effect_name(doc: &Document, key: &str) -> String {
+    if key == routing::PARALLEL {
+        return tr("Parallel chain").to_owned();
+    }
     if let Some(info) = audiostrada_dsp::info(key) {
         return tr(info.name).to_owned();
     }
@@ -1609,6 +1618,7 @@ impl MixerView {
         Self {
             doc,
             compact: false,
+            rack: Default::default(),
             expanded: None,
             bottom_last: 0.0,
             master_levels: MeterState::default(),
@@ -1766,7 +1776,15 @@ impl MixerView {
         if let Some(((channel, monitor), key, name)) =
             crate::effect_browser::show(&self.browser, ctx, &doc)
         {
-            self.add_insert(&mut doc, channel, monitor, &key, &name);
+            let added = self.add_insert(&mut doc, channel, monitor, &key, &name);
+            // Asked from the rack: where it was asked.
+            if let (Some(id), Some((at, place, index))) = (added, self.rack.place.take())
+                && at == channel
+            {
+                doc.history_mut().edit(tr("Move insert"), |p| {
+                    routing::move_within(p, channel, id, (place, index));
+                });
+            }
         }
         drop(doc);
         if let Some(error) = self.error.clone() {
@@ -2673,6 +2691,19 @@ impl MixerView {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(2.0);
                     self.fx_toggles(ui, doc, channel, true);
+                    let padding = ui.spacing().button_padding;
+                    ui.spacing_mut().button_padding = vec2(4.0, 0.0);
+                    let rack = ui
+                        .add(
+                            egui::Button::new(RichText::new(tr("Rack")).size(8.5))
+                                .min_size(vec2(22.0, 13.0))
+                                .corner_radius(3.0),
+                        )
+                        .on_hover_text(tr("Open this chain in the rack"));
+                    ui.spacing_mut().button_padding = padding;
+                    if rack.clicked() {
+                        self.reveal_rack(doc, channel);
+                    }
                 });
             }
         });
@@ -2799,6 +2830,8 @@ impl MixerView {
                 });
             } else if response.clicked() && modifiers.command {
                 self.remove_insert(doc, channel, id);
+            } else if response.clicked() && insert.effect == routing::PARALLEL {
+                self.reveal_rack(doc, channel);
             } else if response.clicked() && plugin {
                 // A plugin shows its own window; AudioStrada's is in the right-click menu.
                 if !self.open_gui.contains(&(channel, id)) {
@@ -2821,6 +2854,7 @@ impl MixerView {
                         ))
                         .clicked()
                     {
+                        self.rack.place = None;
                         self.browser.borrow_mut().open_instruments((channel, false));
                         ui.close();
                     }
@@ -2906,6 +2940,7 @@ impl MixerView {
                 tr("The effect browser: built-in effects and installed plugins"),
             );
             if add.clicked() {
+                self.rack.place = None;
                 self.browser.borrow_mut().open((channel, monitor));
             }
             self.insert_drop_row(ui, (channel, monitor, shown.len()), add.rect, false);
@@ -2929,6 +2964,7 @@ impl MixerView {
         for _ in 0..(free.max(least) as usize) {
             let slot = empty_slot(ui, STRIP_WIDTH - 12.0, tr("Add an effect or a plugin"));
             if slot.clicked() {
+                self.rack.place = None;
                 self.browser.borrow_mut().open((channel, monitor));
             }
             self.insert_drop_row(ui, (channel, monitor, shown.len()), slot.rect, false);
@@ -3085,7 +3121,7 @@ impl MixerView {
         monitor: bool,
         key: &str,
         name: &str,
-    ) {
+    ) -> Option<InsertId> {
         if let Some(chain) = key.strip_prefix(crate::effect_browser::CHAIN_KEY) {
             let root = crate::chains::root();
             if let Some(chain) = crate::chains::list(root.as_deref())
@@ -3094,7 +3130,7 @@ impl MixerView {
             {
                 apply_chain(doc, (channel, monitor), &chain);
             }
-            return;
+            return None;
         }
         let mut added = None;
         // An instrument leads its track, in place of the one there.
@@ -3133,6 +3169,7 @@ impl MixerView {
                 self.editors.push((channel, id));
             }
         }
+        added
     }
 
     fn sends_section(
@@ -3783,19 +3820,14 @@ impl MixerView {
                 });
             }
             if response.secondary_clicked() {
-                if audiostrada_dsp::info(&insert.effect).is_some() {
+                if insert.effect == routing::PARALLEL {
+                    self.reveal_rack(doc, channel);
+                } else if audiostrada_dsp::info(&insert.effect).is_some() {
                     self.show_editor(channel, id);
                 } else if !self.open_gui.contains(&(channel, id)) {
                     self.open_gui.push((channel, id));
                 }
             }
-        }
-        if inserts.len() > 8 {
-            ui.label(
-                RichText::new(format!("+{}", inserts.len() - 8))
-                    .size(8.5)
-                    .color(p.weak),
-            );
         }
     }
 
@@ -4275,6 +4307,20 @@ impl MixerView {
         }
     }
 
+    /// Shows a channel's chain in the rack.
+    fn reveal_rack(&mut self, doc: &mut Document, channel: Channel) {
+        match channel {
+            Channel::Track(t) => {
+                doc.select_track(t, crate::document::SelectMode::Only);
+                if self.rack.pin.is_some_and(|p| p != channel) {
+                    self.rack.pin = None;
+                }
+            }
+            Channel::Master => self.rack.pin = Some(Channel::Master),
+        }
+        self.requests.push(crate::actions::Action::RevealRack);
+    }
+
     /// Opens an insert's window in AudioStrada, or brings it to the front.
     fn show_editor(&mut self, channel: Channel, id: InsertId) {
         if self.editors.contains(&(channel, id)) {
@@ -4288,10 +4334,7 @@ impl MixerView {
     /// a window this system can show (or that failed to load) gets AudioStrada's window instead.
     fn plugin_windows(&mut self, doc: &mut Document, project: &Project) {
         for (channel, id) in std::mem::take(&mut self.open_gui) {
-            let Some(insert) = routing::inserts(project, channel)
-                .iter()
-                .find(|i| i.id == id)
-            else {
+            let Some(insert) = routing::find_insert(project, channel, id) else {
                 continue;
             };
             if doc.player().plugin_error(id).is_some() {
@@ -4330,10 +4373,7 @@ impl MixerView {
         self.plugin_windows(doc, project);
         let mut closed = Vec::new();
         for (channel, id) in self.editors.clone() {
-            let Some(insert) = routing::inserts(project, channel)
-                .iter()
-                .find(|i| i.id == id)
-            else {
+            let Some(insert) = routing::find_insert(project, channel, id) else {
                 closed.push((channel, id));
                 continue;
             };
@@ -4694,8 +4734,19 @@ mod tests {
         RECTS.with(|r| r.borrow_mut().insert(name, rect));
     }
 
-    fn rect(name: &str) -> Rect {
+    pub(super) fn rect(name: &str) -> Rect {
         RECTS.with(|r| r.borrow()[name])
+    }
+
+    /// A frame of the rack's panel.
+    pub(super) fn rack_frame(ctx: &egui::Context, view: &mut MixerView, events: Vec<Event>) {
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 400.0))),
+            events,
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| view.rack(ui))
+            .drop_without_applying_deltas();
     }
 
     fn frame(ctx: &egui::Context, view: &mut MixerView, events: Vec<Event>) {

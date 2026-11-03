@@ -407,10 +407,7 @@ pub fn is_meter(id: &str) -> bool {
 fn sidechain_choice(ui: &mut Ui, params: &mut Params) {
     let project = params.doc.project();
     let (channel, insert) = (params.channel, params.insert);
-    let current = routing::inserts(project, channel)
-        .iter()
-        .find(|i| i.id == insert)
-        .and_then(|i| i.sidechain);
+    let current = routing::find_insert(project, channel, insert).and_then(|i| i.sidechain);
     let own = match channel {
         Channel::Track(t) => Some(t),
         Channel::Master => None,

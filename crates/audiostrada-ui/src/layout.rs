@@ -16,13 +16,15 @@ pub enum Pane {
     Inspector,
     Markers,
     PianoRoll,
+    Rack,
 }
 
 impl Pane {
-    pub const ALL: [Pane; 6] = [
+    pub const ALL: [Pane; 7] = [
         Pane::Timeline,
         Pane::Mixer,
         Pane::PianoRoll,
+        Pane::Rack,
         Pane::Browser,
         Pane::Inspector,
         Pane::Markers,
@@ -37,6 +39,7 @@ impl Pane {
             Pane::Inspector => tr("Inspector"),
             Pane::Markers => tr("Markers"),
             Pane::PianoRoll => tr("Piano roll"),
+            Pane::Rack => tr("Rack"),
         }
     }
 
@@ -48,6 +51,7 @@ impl Pane {
             Action::ShowInspector => Pane::Inspector,
             Action::ShowMarkers => Pane::Markers,
             Action::ShowPianoRoll => Pane::PianoRoll,
+            Action::ShowRack => Pane::Rack,
             _ => return None,
         })
     }
@@ -61,7 +65,8 @@ pub fn default_tree() -> Tree<Pane> {
     let inspector = tiles.insert_pane(Pane::Inspector);
     let markers = tiles.insert_pane(Pane::Markers);
     let piano = tiles.insert_pane(Pane::PianoRoll);
-    let bottom = tiles.insert_tab_tile(vec![mixer, piano]);
+    let rack = tiles.insert_pane(Pane::Rack);
+    let bottom = tiles.insert_tab_tile(vec![mixer, piano, rack]);
     let center = tiles.insert_vertical_tile(vec![timeline, bottom]);
     let right = tiles.insert_tab_tile(vec![inspector, markers]);
     let root = tiles.insert_horizontal_tile(vec![browser, center, right]);
@@ -91,7 +96,18 @@ pub const VERSION: u32 = 3;
 
 /// Restores a saved layout, falling back to the default one.
 pub fn load(saved: Option<&str>) -> Tree<Pane> {
-    let tree: Option<Tree<Pane>> = saved.and_then(|v| serde_json::from_str(v).ok());
+    let mut tree: Option<Tree<Pane>> = saved.and_then(|v| serde_json::from_str(v).ok());
+    // Saved before the rack: it joins the mixer's tabs.
+    if let Some(tree) = &mut tree
+        && tree.tiles.find_pane(&Pane::Rack).is_none()
+        && let Some(mixer) = tree.tiles.find_pane(&Pane::Mixer)
+        && let Some(parent) = tree.tiles.parent_of(mixer)
+    {
+        let rack = tree.tiles.insert_pane(Pane::Rack);
+        if let Some(egui_tiles::Tile::Container(container)) = tree.tiles.get_mut(parent) {
+            container.add_child(rack);
+        }
+    }
     match tree {
         Some(tree) if Pane::ALL.iter().all(|p| tree.tiles.find_pane(p).is_some()) => tree,
         _ => default_tree(),

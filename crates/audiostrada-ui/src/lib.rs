@@ -225,6 +225,7 @@ impl PaneContent for Views {
                 let clip = self.timeline.midi_clip();
                 self.piano.show(ui, &self.edit, clip);
             }
+            Pane::Rack => self.mixer.rack(ui),
         }
     }
 }
@@ -1087,7 +1088,8 @@ impl AudioStradaApp {
             | Action::ShowBrowser
             | Action::ShowInspector
             | Action::ShowMarkers
-            | Action::ShowPianoRoll => {
+            | Action::ShowPianoRoll
+            | Action::ShowRack => {
                 if let Some(pane) = Pane::from_action(action) {
                     if self.detached.contains(&pane) {
                         // Brings its window forward; Detach or closing the window docks it back.
@@ -1100,6 +1102,7 @@ impl AudioStradaApp {
                     }
                 }
             }
+            Action::RevealRack => self.reveal(ctx, Pane::Rack),
             Action::CompactMixer => {
                 let compact = {
                     let mut views = self.views.borrow_mut();
@@ -1273,7 +1276,11 @@ impl AudioStradaApp {
             return;
         };
         self.views.borrow_mut().timeline.selection = vec![id];
-        let pane = Pane::PianoRoll;
+        self.reveal(ctx, Pane::PianoRoll);
+    }
+
+    /// Shows a panel and brings it forward, docked or in its window.
+    fn reveal(&mut self, ctx: &egui::Context, pane: Pane) {
         if self.detached.contains(&pane) {
             let window = pane_window(pane);
             ctx.send_viewport_cmd_to(window, egui::ViewportCommand::Focus);
@@ -1427,6 +1434,7 @@ impl AudioStradaApp {
                         size: match pane {
                             Pane::Mixer => [1100.0, 560.0],
                             Pane::PianoRoll => [1000.0, 520.0],
+                            Pane::Rack => [1000.0, 300.0],
                             _ => [420.0, 600.0],
                         },
                         position: None,
@@ -1485,7 +1493,7 @@ impl AudioStradaApp {
                     ctx.request_repaint_of(egui::ViewportId::ROOT);
                 }
                 // Meters and playheads move on their own: nothing else repaints this window.
-                if matches!(pane, Pane::Mixer | Pane::PianoRoll) {
+                if matches!(pane, Pane::Mixer | Pane::PianoRoll | Pane::Rack) {
                     ctx.request_repaint_after(match inbox.refresh {
                         Duration::ZERO => REFRESH,
                         refresh => refresh,
@@ -1951,6 +1959,7 @@ impl AudioStradaApp {
                         Pane::Inspector => Action::ShowInspector,
                         Pane::Markers => Action::ShowMarkers,
                         Pane::PianoRoll => Action::ShowPianoRoll,
+                        Pane::Rack => Action::ShowRack,
                     };
                     check(
                         ui,

@@ -115,6 +115,8 @@ actions! {
     ShowInspector => ("View", "Show inspector"),
     ShowMarkers => ("View", "Show markers"),
     ShowPianoRoll => ("View", "Show piano roll"),
+    ShowRack => ("View", "Show rack"),
+    RevealRack => ("Track", "Effects rack of the selected track"),
     ResetLayout => ("View", "Reset layout"),
     ToggleFullscreen => ("View", "Full screen"),
     DetachMixer => ("View", "Mixer in its own window"),

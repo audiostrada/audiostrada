@@ -1655,7 +1655,10 @@ impl TimelineView {
                 (trf!("Send → {name}", name = name), -60.0, 12.0)
             }
             AutomationTarget::Param { insert, param } => {
-                let Some(ins) = track.inserts.iter().find(|i| i.id == *insert) else {
+                let found = audiostrada_core::routing::flatten(&track.inserts)
+                    .into_iter()
+                    .find(|i| i.id == *insert);
+                let Some(ins) = found else {
                     return ("?".into(), 0.0, 1.0);
                 };
                 if let Some(info) = audiostrada_dsp::info(&ins.effect) {

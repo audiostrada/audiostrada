@@ -437,6 +437,15 @@ fn find_in(list: &[Insert], id: InsertId) -> Option<&Insert> {
     })
 }
 
+/// An insert of a channel to change, in its list or in a branch.
+pub fn find_insert_mut(
+    project: &mut Project,
+    channel: Channel,
+    id: InsertId,
+) -> Option<&mut Insert> {
+    insert_mut(project, channel, id)
+}
+
 /// An insert of a channel, in its list or in a branch of a parallel chain.
 pub fn find_insert(project: &Project, channel: Channel, id: InsertId) -> Option<&Insert> {
     find_in(inserts(project, channel), id)
