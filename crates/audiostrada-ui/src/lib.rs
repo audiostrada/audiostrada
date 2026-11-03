@@ -1403,7 +1403,8 @@ impl AudioStradaApp {
             let builder = opened.apply(
                 egui::ViewportBuilder::default()
                     .with_title(format!("{} — AudioStrada", pane.title()))
-                    .with_min_inner_size([240.0, 160.0]),
+                    .with_min_inner_size([240.0, 160.0])
+                    .with_window_level(floating_level(ctx, pane_window(pane))),
             );
             let shared = MainThread((Rc::clone(&self.views), Rc::clone(&self.inbox)));
             ctx.show_viewport_deferred(pane_window(pane), builder, move |ui, _class| {
@@ -2197,13 +2198,49 @@ fn set_plugin_window_parent(frame: &eframe::Frame) {
     audiostrada_plugins::window::set_parent(parent);
 }
 
-/// On macOS the detached panels and editors float above the main window while AudioStrada is
-/// in use, so that they stay in front when it takes the focus.
-#[cfg(target_os = "macos")]
-fn keep_windows_above(frame: &eframe::Frame) {
+/// On macOS and Windows the detached panels and editors float above the main window while
+/// AudioStrada is in use, so that they stay in front when it takes the focus.
+#[cfg(any(target_os = "macos", windows))]
+#[cfg_attr(target_os = "macos", allow(unused_variables))]
+fn keep_windows_above(ctx: &egui::Context, frame: &eframe::Frame) {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    if let Ok(RawWindowHandle::AppKit(h)) = frame.window_handle().map(|h| h.as_raw()) {
+    let handle = frame.window_handle().map(|h| h.as_raw());
+    #[cfg(target_os = "macos")]
+    if let Ok(RawWindowHandle::AppKit(h)) = handle {
         audiostrada_plugins::window::keep_windows_above(h.ns_view.as_ptr());
+    }
+    // Seen again soon: another application coming in front sends us nothing.
+    #[cfg(windows)]
+    if let Ok(RawWindowHandle::Win32(h)) = handle
+        && audiostrada_plugins::window::keep_windows_above(h.hwnd.get() as u64)
+    {
+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+    }
+}
+
+/// Level of AudioStrada's windows besides the main one: above it while AudioStrada is in use,
+/// at the normal level behind other applications. macOS and Windows move them themselves (see
+/// [`keep_windows_above`]); elsewhere the level follows the focus of AudioStrada's windows.
+pub(crate) fn floating_level(ctx: &egui::Context, window: egui::ViewportId) -> egui::WindowLevel {
+    if cfg!(windows) {
+        return egui::WindowLevel::Normal;
+    }
+    if cfg!(target_os = "macos") {
+        return egui::WindowLevel::AlwaysOnTop;
+    }
+    let windows = ctx.data_mut(|d| {
+        let seen = d
+            .get_temp_mut_or_default::<Vec<egui::ViewportId>>(egui::Id::unique("floating-windows"));
+        if !seen.contains(&window) {
+            seen.push(window);
+        }
+        seen.clone()
+    });
+    let focused = |v| ctx.input_for(v, |i| i.viewport().focused.unwrap_or(false));
+    if focused(egui::ViewportId::ROOT) || windows.into_iter().any(focused) {
+        egui::WindowLevel::AlwaysOnTop
+    } else {
+        egui::WindowLevel::Normal
     }
 }
 
@@ -2232,8 +2269,8 @@ impl eframe::App for AudioStradaApp {
             self.restore_tabs();
         }
         self.watch_devices();
-        #[cfg(target_os = "macos")]
-        keep_windows_above(frame);
+        #[cfg(any(target_os = "macos", windows))]
+        keep_windows_above(ctx, frame);
         if self.plugin_scan.as_ref().is_some_and(|h| h.is_finished())
             && let Some(Ok(database)) = self.plugin_scan.take().map(|h| h.join())
         {

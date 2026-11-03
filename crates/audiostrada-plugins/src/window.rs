@@ -277,18 +277,24 @@ mod imp {
 mod imp {
     use std::sync::Once;
 
-    use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM};
+    use std::sync::Mutex;
+
+    use windows::Win32::Foundation::{CloseHandle, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM};
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-    use windows::Win32::System::Threading::GetCurrentProcessId;
+    use windows::Win32::System::Threading::{
+        GetCurrentProcessId, GetCurrentThreadId, OpenProcess, PROCESS_NAME_WIN32,
+        PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
+    };
     use windows::Win32::UI::WindowsAndMessaging::{
-        AdjustWindowRect, CreateWindowExW, DefWindowProcW, DestroyWindow, GetForegroundWindow,
+        AdjustWindowRect, CreateWindowExW, DefWindowProcW, DestroyWindow, EnumThreadWindows,
+        GWL_EXSTYLE, GetClassNameW, GetForegroundWindow, GetWindowLongPtrW,
         GetWindowThreadProcessId, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, IsWindow,
         IsWindowVisible, RegisterClassW, SW_HIDE, SW_SHOW, SW_SHOWNOACTIVATE, SWP_NOACTIVATE,
         SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetForegroundWindow, SetWindowPos, ShowWindow,
-        WINDOW_EX_STYLE, WM_CLOSE, WNDCLASSW, WS_CAPTION, WS_MINIMIZEBOX, WS_OVERLAPPED,
-        WS_SYSMENU,
+        WINDOW_EX_STYLE, WM_CLOSE, WNDCLASSW, WS_CAPTION, WS_EX_TOPMOST, WS_MINIMIZEBOX,
+        WS_OVERLAPPED, WS_SYSMENU,
     };
-    use windows::core::{PCWSTR, w};
+    use windows::core::{BOOL, PCWSTR, PWSTR, w};
 
     use super::NativeHandle;
 
@@ -308,6 +314,91 @@ mod imp {
     pub(super) fn in_this_process(window: u64) -> bool {
         // SAFETY: plain Win32 call.
         process_of(hwnd(window)) == unsafe { GetCurrentProcessId() }
+    }
+
+    fn same_executable(pid: u32) -> bool {
+        let Ok(exe) = std::env::current_exe() else {
+            return false;
+        };
+        // SAFETY: plain Win32 calls; the process handle is closed once.
+        unsafe {
+            let Ok(process) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) else {
+                return false;
+            };
+            let mut name = [0u16; 1024];
+            let mut length = name.len() as u32;
+            let named = QueryFullProcessImageNameW(
+                process,
+                PROCESS_NAME_WIN32,
+                PWSTR(name.as_mut_ptr()),
+                &mut length,
+            )
+            .is_ok();
+            let _ = CloseHandle(process);
+            named
+                && String::from_utf16_lossy(&name[..length as usize])
+                    .eq_ignore_ascii_case(&exe.to_string_lossy())
+        }
+    }
+
+    /// True when `window` is AudioStrada's: of this process, or of another running the same
+    /// executable (AudioStrada itself or a plugin host).
+    fn ours(window: HWND) -> bool {
+        let pid = process_of(window);
+        // SAFETY: plain Win32 call.
+        if pid == 0 || pid == unsafe { GetCurrentProcessId() } {
+            return pid != 0;
+        }
+        static LAST: Mutex<(u32, bool)> = Mutex::new((0, false));
+        let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+        if last.0 != pid {
+            *last = (pid, same_executable(pid));
+        }
+        last.1
+    }
+
+    /// Keeps this process's other windows (winit's: detached panels, editors) above its main
+    /// window while AudioStrada is in front, and just behind the application in front
+    /// otherwise, as [`HostWindow`] does for plugin windows. True while they float.
+    pub fn keep_windows_above(main: u64) -> bool {
+        unsafe extern "system" fn collect(window: HWND, list: LPARAM) -> BOOL {
+            // SAFETY: `list` is the vector handed to EnumThreadWindows below, alive meanwhile.
+            unsafe { (*(list.0 as *mut Vec<HWND>)).push(window) };
+            true.into()
+        }
+        let mut windows: Vec<HWND> = Vec::new();
+        // SAFETY: plain Win32 calls; only this process's windows are changed.
+        unsafe {
+            let _ = EnumThreadWindows(
+                GetCurrentThreadId(),
+                Some(collect),
+                LPARAM(&mut windows as *mut Vec<HWND> as isize),
+            );
+            let front = GetForegroundWindow();
+            let active = ours(front);
+            let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
+            let mut floating = false;
+            for window in windows {
+                let mut class = [0u16; 32];
+                let length = GetClassNameW(window, &mut class).max(0) as usize;
+                if window == hwnd(main)
+                    || !IsWindowVisible(window).as_bool()
+                    || String::from_utf16_lossy(&class[..length]) != "Window Class"
+                {
+                    continue;
+                }
+                let topmost =
+                    GetWindowLongPtrW(window, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0;
+                if active && !topmost {
+                    let _ = SetWindowPos(window, Some(HWND_TOPMOST), 0, 0, 0, 0, flags);
+                } else if !active && topmost {
+                    let _ = SetWindowPos(window, Some(HWND_NOTOPMOST), 0, 0, 0, 0, flags);
+                    let _ = SetWindowPos(window, Some(front), 0, 0, 0, 0, flags);
+                }
+                floating |= active;
+            }
+            floating
+        }
     }
 
     unsafe extern "system" fn procedure(
@@ -413,20 +504,19 @@ mod imp {
                     self.hidden = minimized;
                 }
                 let front = GetForegroundWindow();
-                let ours =
-                    [process_of(audiostrada), GetCurrentProcessId()].contains(&process_of(front));
-                if ours == self.topmost {
+                let in_front = process_of(front) == process_of(audiostrada) || ours(front);
+                if in_front == self.topmost {
                     return;
                 }
                 let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
-                if ours {
+                if in_front {
                     let _ = SetWindowPos(self.hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, flags);
                 } else {
                     // Behind the application now in front, not above it.
                     let _ = SetWindowPos(self.hwnd, Some(HWND_NOTOPMOST), 0, 0, 0, 0, flags);
                     let _ = SetWindowPos(self.hwnd, Some(front), 0, 0, 0, 0, flags);
                 }
-                self.topmost = ours;
+                self.topmost = in_front;
             }
         }
 
@@ -612,7 +702,7 @@ mod imp {
 }
 
 pub use imp::HostWindow;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 pub use imp::keep_windows_above;
 
 impl std::fmt::Debug for HostWindow {
