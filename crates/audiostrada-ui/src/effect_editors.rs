@@ -632,6 +632,29 @@ pub(crate) fn named_knob(
     size: f32,
     tint: Color32,
 ) {
+    knob_with(ui, params, (id, label), size, tint, false);
+}
+
+/// A knob as wide as its label and its longest value, which stay on one line.
+pub(crate) fn wide_knob(
+    ui: &mut Ui,
+    params: &mut Params,
+    id: &str,
+    label: &str,
+    size: f32,
+    tint: Color32,
+) {
+    knob_with(ui, params, (id, label), size, tint, true);
+}
+
+fn knob_with(
+    ui: &mut Ui,
+    params: &mut Params,
+    (id, label): (&str, &str),
+    size: f32,
+    tint: Color32,
+    wide: bool,
+) {
     let Some(p) = params.param(id) else {
         return;
     };
@@ -647,14 +670,35 @@ pub(crate) fn named_knob(
         return;
     }
     let value = params.get(id);
+    let width = if wide {
+        let text = |t: String, font: FontId| {
+            ui.painter()
+                .layout_no_wrap(t, font, Color32::WHITE)
+                .size()
+                .x
+        };
+        let values = [p.min, p.max, value]
+            .into_iter()
+            .map(|v| text(format_value(p, v), FontId::monospace(11.0)))
+            .fold(0.0, f32::max);
+        (size + 18.0)
+            .max(text(label.to_owned(), FontId::proportional(10.5)) + 6.0)
+            .max(values + 6.0)
+    } else {
+        size + 18.0
+    };
     ui.vertical(|ui| {
-        ui.set_width(size + 18.0);
+        ui.set_width(width);
         ui.vertical_centered(|ui| {
-            ui.label(
+            let mut name = egui::Label::new(
                 RichText::new(label)
                     .size(10.5)
                     .color(theme::current(ui).weak),
             );
+            if wide {
+                name = name.extend();
+            }
+            ui.add(name);
             let bipolar = p.min < 0.0 && p.max > 0.0;
             let (changed, response) = widgets::knob(
                 ui,
@@ -673,7 +717,12 @@ pub(crate) fn named_knob(
                 value = format_value(p, shown)
             ));
             params.set(id, changed, &response);
-            ui.label(RichText::new(format_value(p, shown)).monospace().size(11.0));
+            let mut text =
+                egui::Label::new(RichText::new(format_value(p, shown)).monospace().size(11.0));
+            if wide {
+                text = text.extend();
+            }
+            ui.add(text);
         });
     });
 }

@@ -7,11 +7,13 @@ use std::collections::BTreeMap;
 use super::*;
 
 /// Width of an effect's module.
-const MODULE: f32 = 244.0;
+const MODULE: f32 = 268.0;
 /// Height of the modules' faceplates.
 const HEIGHT: f32 = 180.0;
 /// Width of the chassis' sides.
 const EAR: f32 = 16.0;
+/// Height of the channel strip's sections, inside their frames.
+const SECTION: f32 = 92.0;
 /// Height of the rails above and below the modules.
 const RAIL: f32 = 14.0;
 /// Width of the gaps between modules, with their add button.
@@ -311,7 +313,7 @@ fn section_title(module: &str) -> &'static str {
 fn strip_curve(ui: &mut Ui, values: &[f32], width: f32) {
     use audiostrada_dsp::Effect;
     let p = theme::current(ui);
-    let (rect, _) = ui.allocate_exact_size(vec2(width.max(160.0), 100.0), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(vec2(width.max(160.0), SECTION + 4.0), Sense::hover());
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 5.0, p.base);
     let x_of = |f: f32| rect.left() + rect.width() * (f / 20.0).log10() / 3.0;
@@ -650,6 +652,7 @@ impl MixerView {
                             .corner_radius(5.0)
                             .inner_margin(egui::Margin::symmetric(4, 2))
                             .show(ui, |ui| {
+                                ui.set_min_height(SECTION);
                                 ui.vertical(|ui| {
                                     ui.spacing_mut().item_spacing.y = 0.0;
                                     ui.horizontal(|ui| {
@@ -708,8 +711,16 @@ impl MixerView {
                         .corner_radius(5.0)
                         .inner_margin(egui::Margin::symmetric(4, 2))
                         .show(ui, |ui| {
+                            ui.set_min_height(SECTION);
                             ui.vertical(|ui| {
-                                ui.label(RichText::new(tr("Output")).strong().size(10.5));
+                                ui.spacing_mut().item_spacing.y = 0.0;
+                                ui.add_sized(
+                                    [20.0, 18.0],
+                                    egui::Label::new(
+                                        RichText::new(tr("Output")).strong().size(10.5),
+                                    )
+                                    .extend(),
+                                );
                                 self.strip_knobs(
                                     ui, doc, channel, strip, &values, "output", p.text, &meters,
                                 );
@@ -807,7 +818,7 @@ impl MixerView {
                 info,
             };
             for (id, label) in knobs {
-                effect_editors::named_knob(ui, &mut params, id, tr(label), 34.0, tint);
+                effect_editors::wide_knob(ui, &mut params, id, tr(label), 34.0, tint);
             }
         });
         // Gain reduction and gate meters beside their sections.
@@ -1058,7 +1069,15 @@ impl MixerView {
                             ui.horizontal_wrapped(|ui| {
                                 ui.spacing_mut().item_spacing = vec2(0.0, 4.0);
                                 for param in face(info) {
-                                    effect_editors::param_knob(ui, &mut params, param, 34.0, tint);
+                                    let name = params.param(param).map_or("", |q| tr(q.name));
+                                    effect_editors::wide_knob(
+                                        ui,
+                                        &mut params,
+                                        param,
+                                        name,
+                                        34.0,
+                                        tint,
+                                    );
                                 }
                             });
                         }
