@@ -1065,8 +1065,11 @@ Piano et claviers
 Speech
 Voix parlée
 
-Strings, brass and winds
-Cordes, cuivres et vents
+Saxophone and winds
+Saxophone et vents
+
+Other instrument
+Autre instrument
 
 Sub and 808
 Sub et 808

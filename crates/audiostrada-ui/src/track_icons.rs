@@ -1,6 +1,7 @@
 //! Track icons: an instrument for each track, chosen or found from its name (English and
 //! French words and abbreviations of studio track sheets), its folder and what it plays.
-//! Glyphs from Lucide (ISC), in assets/fonts/Lucide-TrackIcons.ttf.
+//! Glyphs from Lucide (ISC) and our own in its style, in assets/fonts/Lucide-TrackIcons.ttf
+//! (see assets/icons).
 
 use audiostrada_core::{Project, Track, TrackKind};
 use eframe::egui::{self, Color32, FontId, Rect, Sense, Ui, vec2};
@@ -23,6 +24,9 @@ pub enum TrackIcon {
     Synth,
     Pad,
     Bells,
+    Strings,
+    Brass,
+    Winds,
     Instrument,
     Loop,
     Fx,
@@ -33,7 +37,7 @@ pub enum TrackIcon {
 }
 
 impl TrackIcon {
-    pub const ALL: [Self; 20] = [
+    pub const ALL: [Self; 23] = [
         Self::Waveform,
         Self::Vocals,
         Self::Choir,
@@ -47,6 +51,9 @@ impl TrackIcon {
         Self::Synth,
         Self::Pad,
         Self::Bells,
+        Self::Strings,
+        Self::Brass,
+        Self::Winds,
         Self::Instrument,
         Self::Loop,
         Self::Fx,
@@ -72,6 +79,9 @@ impl TrackIcon {
             Self::Synth => "synth",
             Self::Pad => "pad",
             Self::Bells => "bells",
+            Self::Strings => "strings",
+            Self::Brass => "brass",
+            Self::Winds => "winds",
             Self::Instrument => "instrument",
             Self::Loop => "loop",
             Self::Fx => "fx",
@@ -94,7 +104,7 @@ impl TrackIcon {
             Self::Choir => '\u{e1a4}',
             Self::Speech => '\u{e118}',
             Self::Drums => '\u{e55d}',
-            Self::Bass => '\u{e77a}',
+            Self::Bass => '\u{e903}',
             Self::Sub => '\u{e166}',
             Self::Guitar => '\u{e55f}',
             Self::Electric => '\u{e7ad}',
@@ -102,6 +112,9 @@ impl TrackIcon {
             Self::Synth => '\u{e560}',
             Self::Pad => '\u{e283}',
             Self::Bells => '\u{e059}',
+            Self::Strings => '\u{e900}',
+            Self::Brass => '\u{e901}',
+            Self::Winds => '\u{e902}',
             Self::Instrument => '\u{e122}',
             Self::Loop => '\u{e494}',
             Self::Fx => '\u{e412}',
@@ -127,7 +140,10 @@ impl TrackIcon {
             Self::Synth => tr("Synth"),
             Self::Pad => tr("Pad and texture"),
             Self::Bells => tr("Bells and mallets"),
-            Self::Instrument => tr("Strings, brass and winds"),
+            Self::Strings => tr("Strings"),
+            Self::Brass => tr("Brass"),
+            Self::Winds => tr("Saxophone and winds"),
+            Self::Instrument => tr("Other instrument"),
             Self::Loop => tr("Loop and sample"),
             Self::Fx => tr("Effects and ambience"),
             Self::Bus => tr("Bus"),
@@ -385,7 +401,7 @@ const WORDS: &[(TrackIcon, &[&str])] = &[
         ],
     ),
     (
-        TrackIcon::Instrument,
+        TrackIcon::Strings,
         &[
             "strings",
             "string",
@@ -404,6 +420,12 @@ const WORDS: &[(TrackIcon, &[&str])] = &[
             "orchestre",
             "cordes",
             "quartet",
+            "quatuor",
+        ],
+    ),
+    (
+        TrackIcon::Brass,
+        &[
             "brass",
             "horn",
             "horns",
@@ -411,24 +433,47 @@ const WORDS: &[(TrackIcon, &[&str])] = &[
             "trumpets",
             "tpt",
             "trombone",
+            "trombones",
             "tbn",
+            "tuba",
+            "cuivres",
+            "trompette",
+            "trompettes",
+            "cor",
+            "bugle",
+        ],
+    ),
+    (
+        TrackIcon::Winds,
+        &[
             "sax",
             "saxes",
             "saxophone",
+            "saxophones",
             "tenor",
             "flute",
             "flutes",
             "clarinet",
             "clarinette",
-            "cuivres",
-            "trompette",
-            "trompettes",
             "winds",
             "woodwinds",
+            "bois",
+            "oboe",
+            "hautbois",
+            "bassoon",
+            "basson",
+        ],
+    ),
+    (
+        TrackIcon::Instrument,
+        &[
             "harp",
             "harpe",
             "accordion",
             "accordeon",
+            "harmonica",
+            "kalimba",
+            "sitar",
         ],
     ),
     (
@@ -654,7 +699,10 @@ mod tests {
             ("Synth lead", TrackIcon::Synth),
             ("Lead", TrackIcon::Synth),
             ("Nappe", TrackIcon::Pad),
-            ("Violons", TrackIcon::Instrument),
+            ("Violons", TrackIcon::Strings),
+            ("Tpt 1", TrackIcon::Brass),
+            ("Sax tenor", TrackIcon::Winds),
+            ("Harpe", TrackIcon::Instrument),
             ("Reverb plate", TrackIcon::Fx),
             ("808", TrackIcon::Sub),
             ("Click", TrackIcon::Click),
