@@ -141,12 +141,10 @@ fn insert_slot(ui: &mut Ui, size: egui::Vec2, salt: u64, slot: &Slot) -> (Respon
         },
         slot.color.gamma_multiply(if slot.lit { 1.0 } else { 0.3 }),
     );
-    let glyph = if slot.lit {
-        theme::PLAY
-    } else if power.hovered() {
+    let glyph = if !slot.lit && power.hovered() {
         p.text
     } else {
-        p.weak.gamma_multiply(0.7)
+        theme::power_ink(slot.lit, &p)
     };
     theme::paint_power(painter, power_rect.shrink(3.0), glyph);
     let ink = if slot.error {
@@ -3166,27 +3164,32 @@ impl MixerView {
         if candidates.is_empty() {
             ui.weak(tr("Add a bus first"));
         }
-        for target in candidates {
-            let from = senders(target.id);
-            let response = ui
-                .add_enabled(!from.is_empty(), egui::Button::new(&target.name))
-                .on_disabled_hover_text(tr("Would create a feedback loop"));
-            if response.clicked() {
-                let mut result = Ok(());
-                doc.history_mut().edit(tr("Add send"), |p| {
-                    for &t in &from {
-                        result = result.and(routing::add_send(p, t, target.id));
-                        if cut {
-                            result = result.and(routing::set_master_send(p, t, false));
+        // A long list scrolls rather than leaving its window.
+        egui::ScrollArea::vertical()
+            .max_height(220.0)
+            .show(ui, |ui| {
+                for target in candidates {
+                    let from = senders(target.id);
+                    let response = ui
+                        .add_enabled(!from.is_empty(), egui::Button::new(&target.name))
+                        .on_disabled_hover_text(tr("Would create a feedback loop"));
+                    if response.clicked() {
+                        let mut result = Ok(());
+                        doc.history_mut().edit(tr("Add send"), |p| {
+                            for &t in &from {
+                                result = result.and(routing::add_send(p, t, target.id));
+                                if cut {
+                                    result = result.and(routing::set_master_send(p, t, false));
+                                }
+                            }
+                        });
+                        if let Err(e) = result {
+                            self.error = Some(e.to_string());
                         }
+                        ui.close();
                     }
-                });
-                if let Err(e) = result {
-                    self.error = Some(e.to_string());
                 }
-                ui.close();
-            }
-        }
+            });
     }
 
     fn routing_section(
@@ -3839,7 +3842,7 @@ impl MixerView {
             };
             let key = ("strip-list", channel, list);
             let size = if list == List::Sends {
-                [300.0, 280.0]
+                [320.0, 400.0]
             } else {
                 [300.0, 460.0]
             };

@@ -981,9 +981,6 @@ Souffle et diaphonie
 No color: the mix as it is
 Aucune couleur : le mix tel quel
 
-Set the input gains
-Régler les gains d'entrée
-
 Smooth and warm, very low distortion
 Doux et chaud, très peu de distorsion
 

@@ -190,6 +190,11 @@ pub const MUTE: Color32 = Color32::from_rgb(232, 140, 50);
 pub const SOLO: Color32 = Color32::from_rgb(232, 200, 64);
 pub const PLAY: Color32 = Color32::from_rgb(86, 196, 110);
 
+/// Ink of every on/off switch: green while on, grey when off.
+pub fn power_ink(on: bool, p: &Palette) -> Color32 {
+    if on { PLAY } else { p.weak.gamma_multiply(0.7) }
+}
+
 /// The active theme's palette when it matches `dark`, else the default dark or light one.
 pub fn palette(dark: bool) -> Palette {
     let active = ACTIVE.read().ok().and_then(|a| *a);

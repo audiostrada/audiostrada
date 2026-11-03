@@ -16,12 +16,21 @@ pub const WORKING_DB: f32 = -18.0;
 pub fn color(model: ConsoleModel) -> Color32 {
     match model {
         ConsoleModel::Clean => Color32::from_gray(150),
-        ConsoleModel::Iron => Color32::from_rgb(143, 163, 184),
-        ConsoleModel::Imperial => Color32::from_rgb(214, 172, 60),
+        ConsoleModel::Iron => Color32::from_rgb(228, 156, 60),
+        ConsoleModel::Imperial => Color32::from_rgb(143, 168, 162),
         ConsoleModel::Discrete => Color32::from_rgb(79, 163, 224),
         ConsoleModel::Velvet => Color32::from_rgb(186, 98, 146),
     }
 }
+
+/// The consoles in the order they are offered: the brightest first.
+const SHOWN: [ConsoleModel; 5] = [
+    ConsoleModel::Clean,
+    ConsoleModel::Imperial,
+    ConsoleModel::Iron,
+    ConsoleModel::Discrete,
+    ConsoleModel::Velvet,
+];
 
 pub fn name(model: ConsoleModel) -> &'static str {
     match model {
@@ -90,19 +99,13 @@ pub fn power_switch(ui: &mut Ui, doc: &mut Document) -> egui::Response {
     let p = theme::current(ui);
     let off = doc.project().console_off;
     let (rect, response) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
-    let model = doc.project().console.model;
     let fill = if response.hovered() {
         p.hover
     } else {
         p.surface
     };
     ui.painter().rect_filled(rect, 4.0, fill);
-    let ink = match (off, model) {
-        (true, _) => p.weak.gamma_multiply(0.7),
-        (false, ConsoleModel::Clean) => p.text,
-        (false, model) => color(model),
-    };
-    theme::paint_power(ui.painter(), rect.shrink(3.0), ink);
+    theme::paint_power(ui.painter(), rect.shrink(3.0), theme::power_ink(!off, &p));
     let response = response.on_hover_text(if off {
         tr("Console colors off: click to hear them again")
     } else {
@@ -139,7 +142,7 @@ fn menu_contents(ui: &mut Ui, doc: &mut Document) {
     ui.add_space(6.0);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
-        for model in ConsoleModel::ALL {
+        for model in SHOWN {
             if card(ui, model, console.model == model, console.amount).clicked() {
                 doc.history_mut()
                     .edit(tr("Console color"), |p| p.console.model = model);
@@ -147,6 +150,40 @@ fn menu_contents(ui: &mut Ui, doc: &mut Document) {
         }
     });
     ui.add_space(8.0);
+    // Nothing to set on the neutral console.
+    ui.add_enabled_ui(console.model != ConsoleModel::Clean, |ui| {
+        console_options(ui, doc, console)
+    });
+    ui.separator();
+    let done_key = egui::Id::unique("console-gain-staging");
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(tr("Gain staging")).strong());
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if theme::primary_button(ui, tr("Apply")).clicked() {
+                let count = stage_gains(doc, WORKING_DB);
+                ui.data_mut(|d| d.insert_temp(done_key, count));
+            }
+            if let Some(count) = ui.data(|d| d.get_temp::<usize>(done_key)) {
+                ui.label(
+                    RichText::new(trf!("{count} track(s) set", count = count))
+                        .size(10.5)
+                        .color(p.weak),
+                );
+            }
+        });
+    });
+    ui.label(
+        RichText::new(tr(
+            "A console's character depends on the level it gets. Sets each audio track's input \
+             gain so it plays around -18 dBFS (the selected tracks, or all of them).",
+        ))
+        .size(10.5)
+        .color(p.weak),
+    );
+}
+
+/// The amount and the hiss of the project's console.
+fn console_options(ui: &mut Ui, doc: &mut Document, console: Console) {
     let mut amount = console.amount;
     ui.horizontal(|ui| {
         ui.label(tr("Amount"));
@@ -173,30 +210,6 @@ fn menu_contents(ui: &mut Ui, doc: &mut Document) {
         doc.history_mut()
             .edit(tr("Console hiss"), |p| p.console_noise = noise);
     }
-    ui.separator();
-    ui.label(RichText::new(tr("Gain staging")).strong());
-    ui.label(
-        RichText::new(tr(
-            "A console's character depends on the level it gets. Sets each audio track's input \
-             gain so it plays around -18 dBFS (the selected tracks, or all of them).",
-        ))
-        .size(10.5)
-        .color(p.weak),
-    );
-    let done_key = egui::Id::unique("console-gain-staging");
-    ui.horizontal(|ui| {
-        if ui.button(tr("Set the input gains")).clicked() {
-            let count = stage_gains(doc, WORKING_DB);
-            ui.data_mut(|d| d.insert_temp(done_key, count));
-        }
-        if let Some(count) = ui.data(|d| d.get_temp::<usize>(done_key)) {
-            ui.label(
-                RichText::new(trf!("{count} track(s) set", count = count))
-                    .size(10.5)
-                    .color(p.weak),
-            );
-        }
-    });
 }
 
 /// A console's card: its color, name and character, and its harmonics as bars.
@@ -312,7 +325,7 @@ pub fn track_menu(ui: &mut Ui, doc: &mut Document, track: TrackId) {
             }
         });
     }
-    for model in ConsoleModel::ALL {
+    for model in SHOWN {
         let on = own.is_some_and(|c| c.model == model);
         let text = RichText::new(name(model)).color(if on {
             color(model)

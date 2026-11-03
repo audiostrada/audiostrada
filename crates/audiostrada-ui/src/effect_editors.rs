@@ -217,7 +217,7 @@ pub fn header(
         ui.scope_id().with(("power", info.id)),
         Sense::click(),
     );
-    let lit = if bypass { p.weak } else { color };
+    let lit = theme::power_ink(!bypass, &p);
     painter.circle_filled(center, 15.0, p.base);
     painter.circle_stroke(center, 15.0, Stroke::new(1.5, lit.gamma_multiply(0.7)));
     let arc: Vec<Pos2> = (0..=24)
@@ -2466,16 +2466,16 @@ fn module_switch(ui: &mut Ui, params: &mut Params, id: &str, title: &str, tint: 
     let size = vec2(galley.size().x + 32.0, 22.0);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     let fill = match (on, response.hovered()) {
-        (true, _) => tint,
+        (true, _) => tint.gamma_multiply(0.3),
         (false, true) => p.hover,
         (false, false) => p.surface,
     };
-    let ink = if on { theme::text_on(tint) } else { p.weak };
+    let ink = if on { p.text } else { p.weak };
     ui.painter().rect_filled(rect, 5.0, fill);
     theme::paint_power(
         ui.painter(),
         Rect::from_min_size(rect.min + vec2(3.0, 2.0), vec2(18.0, 18.0)),
-        ink,
+        theme::power_ink(on, &p),
     );
     ui.painter().galley_with_override_text_color(
         pos2(rect.left() + 23.0, rect.center().y - galley.size().y / 2.0),
