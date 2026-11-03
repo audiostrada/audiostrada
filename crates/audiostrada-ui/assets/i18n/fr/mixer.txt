@@ -1280,3 +1280,6 @@ Déplier le Channel Strip
 
 Remove from the rack
 Retirer du rack
+
+Right-click to choose the parameters shown here
+Clic droit pour choisir les paramètres affichés ici

@@ -72,6 +72,37 @@ fn face(info: &audiostrada_dsp::EffectInfo) -> Vec<&'static str> {
         .collect()
 }
 
+/// The parameters a plugin's face shows: the ones chosen, else its dry/wet mix when it has one.
+fn shown_macros(
+    insert: &audiostrada_core::Insert,
+    params: &[audiostrada_plugins::ParamDesc],
+) -> Vec<String> {
+    if !insert.macros.is_empty() {
+        return insert.macros.clone();
+    }
+    let mix = |name: &str| {
+        let name = name.to_lowercase();
+        [
+            "mix",
+            "dry/wet",
+            "dry / wet",
+            "wet/dry",
+            "drywet",
+            "dry wet",
+            "blend",
+        ]
+        .iter()
+        .any(|w| {
+            name == *w || name.starts_with(&format!("{w} ")) || name.ends_with(&format!(" {w}"))
+        })
+    };
+    params
+        .iter()
+        .find(|p| mix(&p.name))
+        .map(|p| vec![p.id.to_string()])
+        .unwrap_or_default()
+}
+
 /// The response of an EQ module's bands, drawn in its face.
 fn eq_curve(ui: &mut Ui, values: &[f32], tint: Color32) {
     let p = theme::current(ui);
@@ -1048,6 +1079,19 @@ impl MixerView {
                 }
             });
             ui.add_space(6.0);
+            // The whole face takes the right-click of a plugin, under its knobs.
+            let area =
+                Rect::from_min_size(ui.cursor().min, vec2(ui.available_width(), HEIGHT - 66.0));
+            let face_area = ui.interact(
+                area,
+                ui.scope_id().with(("rack-face", id.0)),
+                Sense::click(),
+            );
+            if audiostrada_dsp::info(&insert.effect).is_none() {
+                face_area
+                    .on_hover_text(tr("Right-click to choose the parameters shown here"))
+                    .context_menu(|ui| view.macro_menu(ui, doc, channel, insert));
+            }
             ui.allocate_ui(vec2(ui.available_width(), HEIGHT - 66.0), |ui| {
                 ui.set_min_height(HEIGHT - 66.0);
                 match audiostrada_dsp::info(&insert.effect) {
@@ -1444,87 +1488,107 @@ impl MixerView {
         tint: Color32,
     ) {
         let id = insert.id;
+        let params = self.plugin_params_of(doc, channel, id);
+        let shown = shown_macros(insert, &params);
+        let chosen: Vec<&audiostrada_plugins::ParamDesc> = shown
+            .iter()
+            .filter_map(|m| params.iter().find(|p| p.id.to_string() == *m))
+            .collect();
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
+            for p in &chosen {
+                let key = p.id.to_string();
+                let lane = AutomationTarget::Param {
+                    insert: id,
+                    param: key.clone(),
+                };
+                let value = doc
+                    .automation_value(channel, &lane)
+                    .or_else(|| insert.params.get(&key).copied())
+                    .or_else(|| {
+                        doc.player_mut()
+                            .plugin(channel, id)
+                            .and_then(|pl| pl.param_value(p.id))
+                            .map(|v| v as f32)
+                    })
+                    .unwrap_or(p.default as f32);
+                ui.vertical(|ui| {
+                    ui.set_width(44.0);
+                    let (changed, response) = widgets::knob(
+                        ui,
+                        value,
+                        (p.min as f32, p.max as f32),
+                        p.default as f32,
+                        30.0,
+                        false,
+                        tint,
+                    );
+                    ui.add(egui::Label::new(RichText::new(&p.name).size(9.0)).truncate());
+                    let response = response.on_hover_text(&p.name);
+                    let name = p.name.clone();
+                    automated_control(doc, channel, &lane, changed, &response, |doc, v| {
+                        doc.history_mut().edit_merged(
+                            &name,
+                            &format!("insert:{}:{}", id.0, key),
+                            |proj| routing::set_insert_param(proj, channel, id, &key, v),
+                        );
+                    });
+                });
+            }
+            if chosen.is_empty() {
+                ui.weak(tr("Right-click to put parameters here"));
+            }
+        });
+    }
+
+    /// A plugin's parameters, read from it once.
+    fn plugin_params_of(
+        &mut self,
+        doc: &mut Document,
+        channel: Channel,
+        id: InsertId,
+    ) -> Vec<audiostrada_plugins::ParamDesc> {
         if !self.plugin_params.contains_key(&id)
             && let Some(plugin) = doc.player_mut().plugin(channel, id)
         {
             let params = plugin.params().into_iter().filter(|p| !p.hidden).collect();
             self.plugin_params.insert(id, params);
         }
-        let params = self.plugin_params.get(&id).cloned().unwrap_or_default();
-        let chosen: Vec<&audiostrada_plugins::ParamDesc> = insert
-            .macros
-            .iter()
-            .filter_map(|m| params.iter().find(|p| p.id.to_string() == *m))
-            .collect();
-        let face = ui
-            .horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
-                for p in &chosen {
-                    let key = p.id.to_string();
-                    let lane = AutomationTarget::Param {
-                        insert: id,
-                        param: key.clone(),
-                    };
-                    let value = doc
-                        .automation_value(channel, &lane)
-                        .or_else(|| insert.params.get(&key).copied())
-                        .or_else(|| {
-                            doc.player_mut()
-                                .plugin(channel, id)
-                                .and_then(|pl| pl.param_value(p.id))
-                                .map(|v| v as f32)
-                        })
-                        .unwrap_or(p.default as f32);
-                    ui.vertical(|ui| {
-                        ui.set_width(40.0);
-                        let (changed, response) = widgets::knob(
-                            ui,
-                            value,
-                            (p.min as f32, p.max as f32),
-                            p.default as f32,
-                            30.0,
-                            false,
-                            tint,
-                        );
-                        ui.add(egui::Label::new(RichText::new(&p.name).size(9.0)).truncate());
-                        let response = response.on_hover_text(&p.name);
-                        let name = p.name.clone();
-                        automated_control(doc, channel, &lane, changed, &response, |doc, v| {
-                            doc.history_mut().edit_merged(
-                                &name,
-                                &format!("insert:{}:{}", id.0, key),
-                                |proj| routing::set_insert_param(proj, channel, id, &key, v),
-                            );
-                        });
+        self.plugin_params.get(&id).cloned().unwrap_or_default()
+    }
+
+    /// The parameters to show on a plugin's face, to pick from its whole list.
+    fn macro_menu(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        channel: Channel,
+        insert: &audiostrada_core::Insert,
+    ) {
+        let id = insert.id;
+        let params = self.plugin_params_of(doc, channel, id);
+        let shown = shown_macros(insert, &params);
+        ui.set_max_height(320.0);
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            for p in &params {
+                let key = p.id.to_string();
+                let mut on = shown.contains(&key);
+                if ui.checkbox(&mut on, &p.name).changed() {
+                    let mut list = shown.clone();
+                    list.retain(|m| *m != key);
+                    if on && list.len() < 8 {
+                        list.push(key.clone());
+                    }
+                    doc.history_mut().edit(tr("Rack controls"), |proj| {
+                        if let Some(i) = routing::find_insert_mut(proj, channel, id) {
+                            i.macros = list.clone();
+                        }
                     });
                 }
-                if chosen.is_empty() {
-                    ui.weak(tr("Right-click to put parameters here"));
-                }
-            })
-            .response
-            .interact(Sense::click());
-        face.context_menu(|ui| {
-            ui.set_max_height(320.0);
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                for p in &params {
-                    let key = p.id.to_string();
-                    let mut on = insert.macros.contains(&key);
-                    if ui.checkbox(&mut on, &p.name).changed() {
-                        doc.history_mut().edit(tr("Rack controls"), |proj| {
-                            if let Some(i) = routing::find_insert_mut(proj, channel, id) {
-                                i.macros.retain(|m| *m != key);
-                                if on && i.macros.len() < 8 {
-                                    i.macros.push(key.clone());
-                                }
-                            }
-                        });
-                    }
-                }
-                if params.is_empty() {
-                    ui.weak(tr("This plugin exposes no parameters."));
-                }
-            });
+            }
+            if params.is_empty() {
+                ui.weak(tr("This plugin exposes no parameters."));
+            }
         });
     }
 
@@ -1617,6 +1681,36 @@ mod tests {
     use super::*;
     use crate::document::AppDirs;
     use eframe::egui::{Event, Modifiers, PointerButton, Pos2};
+
+    #[test]
+    fn a_plugin_shows_its_mix_until_others_are_chosen() {
+        let param = |id: u32, name: &str| audiostrada_plugins::ParamDesc {
+            id,
+            name: name.into(),
+            module: String::new(),
+            min: 0.0,
+            max: 1.0,
+            default: 0.5,
+            stepped: false,
+            hidden: false,
+            read_only: false,
+        };
+        let params = vec![param(1, "Drive"), param(7, "Dry/Wet"), param(9, "Output")];
+        let mut doc = Document::new(AppDirs::default());
+        let mut insert = None;
+        doc.history_mut().edit("Setup", |p| {
+            let t = p.add_track("A");
+            insert = routing::add_insert(p, Channel::Track(t), "clap:x", Default::default());
+        });
+        let t = doc.project().tracks[0].id;
+        let mut plugin = routing::find_insert(doc.project(), Channel::Track(t), insert.unwrap())
+            .unwrap()
+            .clone();
+        assert_eq!(shown_macros(&plugin, &params), ["7"]);
+        assert!(shown_macros(&plugin, &params[..1]).is_empty());
+        plugin.macros = vec!["9".into()];
+        assert_eq!(shown_macros(&plugin, &params), ["9"]);
+    }
 
     #[test]
     fn a_module_drags_into_a_branch() {
