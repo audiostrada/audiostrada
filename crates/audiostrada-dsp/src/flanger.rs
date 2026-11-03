@@ -6,7 +6,7 @@ use crate::{Effect, EffectInfo, ParamInfo, param};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "flanger",
-    name: "Flanger",
+    name: "Strada-Flanger",
     params: &PARAMS,
     meters: &[],
     instrument: false,

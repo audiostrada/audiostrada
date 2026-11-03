@@ -8,7 +8,7 @@ use crate::{Effect, EffectInfo, ParamInfo, choice, param, time_coefficient};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "pitch_correct",
-    name: "Pitch Correct",
+    name: "Strada-Pitch",
     params: &PARAMS,
     meters: &["Input pitch", "Output pitch", "Target note", "Clarity"],
     instrument: false,

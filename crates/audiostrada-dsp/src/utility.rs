@@ -7,7 +7,7 @@ use crate::{Effect, EffectInfo, db_to_gain, param, switch};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "utility",
-    name: "Utility",
+    name: "Strada-Utility",
     params: &[
         param("gain", "Gain", -48.0, 24.0, 0.0, "dB"),
         param("width", "Width", 0.0, 200.0, 100.0, "%"),

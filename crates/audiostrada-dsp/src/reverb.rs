@@ -10,7 +10,7 @@ use crate::{Effect, EffectInfo, ParamInfo, choice, param, switch, time_coefficie
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "reverb",
-    name: "Reverb",
+    name: "Strada-Verb",
     params: &PARAMS,
     meters: &[],
     instrument: false,

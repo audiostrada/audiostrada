@@ -10,7 +10,7 @@ use crate::{
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "compressor",
-    name: "Compressor",
+    name: "Strada-Comp",
     params: &UNIFIED,
     meters: &["Gain reduction", "Input", "Output"],
     instrument: false,

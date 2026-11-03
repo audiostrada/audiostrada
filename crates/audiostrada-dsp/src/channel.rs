@@ -7,7 +7,7 @@ use crate::{Effect, EffectInfo, choice, db_to_gain, gain_to_db, param, switch};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "channel",
-    name: "Channel strip",
+    name: "Strada-Channel",
     description: "Filters, gate, compressor, four-band EQ and drive, as on a console channel.",
     params: &[
         switch("filters", "Filters", 0.0),

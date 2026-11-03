@@ -27,7 +27,7 @@ use crate::{
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "amp_rig",
-    name: "Amp",
+    name: "Strada-Amp",
     params: &PARAMS,
     meters: &["Input", "Output"],
     instrument: false,

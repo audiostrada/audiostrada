@@ -7,7 +7,7 @@ use crate::{Effect, EffectInfo, ParamInfo, choice, db_to_gain, param};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "drive",
-    name: "Drive",
+    name: "Strada-Drive",
     params: &PARAMS,
     meters: &[],
     instrument: false,

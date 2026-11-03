@@ -1747,7 +1747,7 @@ fn pressed_actions(ctx: &egui::Context, keymap: &Keymap) -> Vec<Action> {
 }
 
 /// The application's logo, decoded once.
-fn logo(ctx: &egui::Context) -> Option<egui::TextureHandle> {
+pub(crate) fn logo(ctx: &egui::Context) -> Option<egui::TextureHandle> {
     let id = egui::Id::unique("audiostrada-logo");
     if let Some(texture) = ctx.data(|d| d.get_temp(id)) {
         return Some(texture);

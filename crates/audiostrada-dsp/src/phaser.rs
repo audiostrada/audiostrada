@@ -5,7 +5,7 @@ use crate::{Effect, EffectInfo, ParamInfo, choice, param};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "phaser",
-    name: "Phaser",
+    name: "Strada-Phaser",
     params: &PARAMS,
     meters: &[],
     instrument: false,

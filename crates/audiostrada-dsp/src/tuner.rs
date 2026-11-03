@@ -5,7 +5,7 @@ use crate::{Effect, EffectInfo, ParamInfo, param, switch};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "tuner",
-    name: "Tuner",
+    name: "Strada-Tuner",
     params: &PARAMS,
     meters: &["Frequency", "Clarity"],
     instrument: false,

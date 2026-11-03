@@ -5,7 +5,7 @@ use crate::{Effect, EffectInfo, ParamInfo, db_to_gain, gain_to_db, param, switch
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "transient",
-    name: "Transient Shaper",
+    name: "Strada-Transient",
     params: &PARAMS,
     meters: &["Attack gain", "Sustain gain"],
     instrument: false,

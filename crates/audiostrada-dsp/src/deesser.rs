@@ -6,7 +6,7 @@ use crate::{Effect, EffectInfo, ParamInfo, choice, db_to_gain, gain_to_db, param
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "deesser",
-    name: "De-esser",
+    name: "Strada-DeEss",
     params: &PARAMS,
     meters: &["Gain reduction", "Sibilance"],
     instrument: false,

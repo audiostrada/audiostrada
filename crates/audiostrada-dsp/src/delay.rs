@@ -12,7 +12,7 @@ const MAX_SECONDS: f32 = 2.0;
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "delay",
-    name: "Delay",
+    name: "Strada-Delay",
     params: &PARAMS,
     meters: &[],
     instrument: false,

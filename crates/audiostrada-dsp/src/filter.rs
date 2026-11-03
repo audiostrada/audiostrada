@@ -5,7 +5,7 @@ use crate::{Effect, EffectInfo, ParamInfo, choice, db_to_gain, param, switch};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "filter",
-    name: "Filter",
+    name: "Strada-Filter",
     params: &PARAMS,
     meters: &["Cutoff"],
     instrument: false,

@@ -55,7 +55,7 @@ const ORDERS: [usize; 6] = [1, 2, 3, 4, 6, 8];
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "eq",
-    name: "EQ",
+    name: "Strada-EQ",
     params: &PARAMS,
     meters: &[""; crate::analyzer::BANDS + BANDS],
     instrument: false,

@@ -9,7 +9,7 @@ const LOOKAHEAD_MS: f32 = 2.0;
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "limiter",
-    name: "Limiter",
+    name: "Strada-Limit",
     params: &PARAMS,
     meters: LIMITER_METERS,
     instrument: false,

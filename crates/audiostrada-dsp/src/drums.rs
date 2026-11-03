@@ -70,7 +70,7 @@ const PARAMS: [ParamInfo; VOICES.len() * PER_VOICE + GLOBALS] = drum_params! {
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "drums",
-    name: "Drum Machine",
+    name: "Strada-Drums",
     params: &PARAMS,
     meters: &[""; VOICES.len()],
     instrument: true,

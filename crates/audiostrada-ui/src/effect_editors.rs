@@ -237,6 +237,7 @@ pub fn header(
         .on_hover_text(if bypass { tr("Turn on") } else { tr("Bypass") })
         .clicked()
         .then_some(!bypass);
+    brand(ui, &painter, band);
     painter.text(
         pos2(band.left() + 56.0, band.top() + 10.0),
         Align2::LEFT_TOP,
@@ -255,6 +256,36 @@ pub fn header(
     presets(ui);
     ui.add_space(4.0);
     toggled
+}
+
+/// With the full mark: the logo and "AudioStrada Effects"; else the logo alone.
+const BRAND_FULL: bool = true;
+
+/// AudioStrada's mark at the right of an effect's band: one of its own effects.
+fn brand(ui: &Ui, painter: &egui::Painter, band: Rect) {
+    let p = theme::current(ui);
+    let Some(logo) = crate::logo(ui.ctx()) else {
+        return;
+    };
+    let height = if BRAND_FULL { 22.0 } else { 26.0 };
+    let size = vec2(height * 105.0 / 96.0, height);
+    let right = band.right() - 16.0;
+    let mut x = right - size.x;
+    if BRAND_FULL {
+        let name = painter.layout_no_wrap("AudioStrada".to_owned(), theme::strong(13.0), p.text);
+        let line = painter.layout_no_wrap("Effects".to_owned(), FontId::proportional(10.0), p.weak);
+        let text = name.size().x.max(line.size().x);
+        let left = right - text;
+        painter.galley(pos2(left, band.center().y - 12.0), name, p.text);
+        painter.galley(pos2(left + 1.0, band.center().y + 3.0), line, p.weak);
+        x = left - 8.0 - size.x;
+    }
+    painter.image(
+        logo.id(),
+        Rect::from_min_size(pos2(x, band.center().y - size.y / 2.0), size),
+        Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+        Color32::WHITE,
+    );
 }
 
 /// Presets (factory and user) and A/B comparison, above an effect's editor.

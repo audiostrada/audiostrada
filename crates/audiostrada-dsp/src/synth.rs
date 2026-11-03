@@ -9,7 +9,7 @@ const VOICES: usize = 16;
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "synth",
-    name: "Synth",
+    name: "Strada-Synth",
     params: &PARAMS,
     meters: &[],
     instrument: true,

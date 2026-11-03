@@ -12,7 +12,7 @@ use crate::{Effect, EffectInfo, ParamInfo, choice, db_to_gain, param};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "tape",
-    name: "Tape",
+    name: "Strada-Tape",
     params: &PARAMS,
     meters: &[],
     instrument: false,

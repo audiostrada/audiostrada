@@ -7,7 +7,7 @@ use crate::{Effect, EffectInfo, ParamInfo, choice, db_to_gain, param};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "vintage_eq",
-    name: "Vintage EQ",
+    name: "Strada-Tube EQ",
     params: &PARAMS,
     meters: &[],
     instrument: false,

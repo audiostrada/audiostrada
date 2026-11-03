@@ -362,7 +362,7 @@ mod tests {
         assert_eq!(l, [0.5; 4], "the key is ignored without sidechain");
         assert!(effect.load("ir", FileData::Data(Vec::new())).is_err());
         assert!(supports_sidechain("gate") && !supports_sidechain("reverb"));
-        assert_eq!(info("delay").unwrap().name, "Delay");
+        assert_eq!(info("delay").unwrap().name, "Strada-Delay");
 
         assert_eq!(key_peak(None, 0, -0.5, 0.25), 0.5);
         assert_eq!(key_peak(Some((&[0.1], &[-0.3])), 0, 1.0, 1.0), 0.3);

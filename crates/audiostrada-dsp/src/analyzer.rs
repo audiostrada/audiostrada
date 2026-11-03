@@ -12,7 +12,7 @@ const HIGH: f32 = 20_000.0;
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "analyzer",
-    name: "Analyzer",
+    name: "Strada-Scope",
     params: &PARAMS,
     meters: &[""; BANDS],
     instrument: false,

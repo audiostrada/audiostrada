@@ -17,7 +17,7 @@ const METERS: [&str; 2 + SCOPE_POINTS * 2] = {
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "imager",
-    name: "Stereo Imager",
+    name: "Strada-Wide",
     params: &PARAMS,
     meters: &METERS,
     instrument: false,

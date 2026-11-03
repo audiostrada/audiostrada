@@ -8,7 +8,7 @@ use crate::{Effect, EffectInfo, ParamInfo, choice, db_to_gain, param};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "maximizer",
-    name: "Maximizer",
+    name: "Strada-Max",
     params: &PARAMS,
     meters: LIMITER_METERS,
     instrument: false,

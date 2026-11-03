@@ -9,7 +9,7 @@ const HYSTERESIS_DB: f32 = 4.0;
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "gate",
-    name: "Gate",
+    name: "Strada-Gate",
     params: &PARAMS,
     meters: &["Gain", "Input"],
     instrument: false,
