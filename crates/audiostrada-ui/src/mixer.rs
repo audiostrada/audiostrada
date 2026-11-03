@@ -2057,11 +2057,31 @@ impl MixerView {
                         &AutomationTarget::Gain,
                         (FADER_MIN_DB, FADER_MAX_DB),
                     );
+                    // The switches stand in a column right of the meter.
                     if !vca {
                         widgets::meter(ui, &mut levels, fader_height);
-                        if !self.full_strips {
-                            ui.vertical(|ui| self.list_buttons(ui, doc, track));
-                        }
+                    }
+                    if self.full_strips || vca {
+                        ui.vertical(|ui| {
+                            ui.spacing_mut().item_spacing.y = 3.0;
+                            self.track_switches(ui, doc, track, vec2(24.0, 20.0));
+                        });
+                    } else {
+                        ui.vertical(|ui| {
+                            let top = ui.cursor().top();
+                            self.list_buttons(ui, doc, track);
+                            // Two by two at the bottom of the column.
+                            let rows = 2.0 * 21.0;
+                            let left = fader_height - (ui.cursor().top() - top) - rows;
+                            if left > 0.0 {
+                                ui.add_space(left);
+                            }
+                            ui.spacing_mut().item_spacing = vec2(3.0, 3.0);
+                            ui.horizontal_wrapped(|ui| {
+                                ui.set_max_width(51.0);
+                                self.track_switches(ui, doc, track, vec2(24.0, 18.0));
+                            });
+                        });
                     }
                 });
                 let bottom = ui.cursor().top();
@@ -2097,73 +2117,6 @@ impl MixerView {
                         {
                             doc.set_track_selection(groups::members(project, g));
                         }
-                    }
-                });
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 3.0;
-                    // Mute, solo, and for audio tracks arm and input monitoring.
-                    let monitored = !vca && !doc.is_instrument_track(id);
-                    let size = if monitored {
-                        vec2(((width - 17.0) / 4.0).max(16.0), 20.0)
-                    } else {
-                        vec2(((width - 14.0) / 3.0).max(16.0), 20.0)
-                    };
-                    let toggle = |ui: &mut Ui, text: &str, on: bool, color: Color32, hint: &str| {
-                        theme::letter_toggle(ui, size, text, on, color)
-                            .on_hover_text(hint)
-                            .clicked()
-                    };
-                    let auto_mute = doc.automation_value(channel, &AutomationTarget::Mute);
-                    let shown_mute = track.mute || auto_mute.is_some_and(|v| v >= 0.5);
-                    if toggle(ui, "M", shown_mute, theme::MUTE, tr("Mute")) {
-                        let mute = !shown_mute;
-                        if doc.automation_gesture(
-                            channel,
-                            &AutomationTarget::Mute,
-                            Some(f32::from(u8::from(mute))),
-                        ) {
-                            // Switches keep writing until playback stops; in Read they only flip once.
-                            if !(doc.automation_mode(channel).writes()
-                                && doc.player().engine().playing())
-                            {
-                                doc.automation_gesture(channel, &AutomationTarget::Mute, None);
-                            }
-                        } else {
-                            let alone = clutch(ui);
-                            doc.history_mut()
-                                .edit(&trf!("Mute {name}", name = track.name), |p| {
-                                    groups::maybe_alone(p, alone, |p| {
-                                        groups::set_switch(p, id, Link::Mute, mute)
-                                    })
-                                });
-                        }
-                    }
-                    if toggle(ui, "S", track.solo, theme::SOLO, tr("Solo")) {
-                        let solo = !track.solo;
-                        let alone = clutch(ui);
-                        doc.history_mut()
-                            .edit(&trf!("Solo {name}", name = track.name), |p| {
-                                groups::maybe_alone(p, alone, |p| {
-                                    groups::set_switch(p, id, Link::Solo, solo)
-                                })
-                            });
-                    }
-                    if !vca
-                        && theme::arm_toggle(ui, size, track.armed)
-                            .on_hover_text(tr("Record arm"))
-                            .clicked()
-                    {
-                        let armed = !track.armed;
-                        let alone = clutch(ui);
-                        doc.history_mut().modify_unrecorded(|p| {
-                            groups::maybe_alone(p, alone, |p| {
-                                groups::set_switch(p, id, Link::Arm, armed)
-                            })
-                        });
-                    }
-                    if monitored {
-                        let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-                        monitor_toggle(ui, rect, doc, track);
                     }
                 });
                 let name = format!("{}{}", "› ".repeat(depth), track.name);
@@ -2212,6 +2165,65 @@ impl MixerView {
             .context_menu(|ui| self.track_menu(ui, doc, id));
         self.drop_tracks(ui, doc, &frame, id);
         doc.set_track_level(id, levels);
+    }
+
+    /// Mute, solo, and for audio tracks arm and input monitoring, in the layout of `ui`.
+    fn track_switches(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track, size: egui::Vec2) {
+        let id = track.id;
+        let channel = Channel::Track(id);
+        let vca = track.kind == TrackKind::Vca;
+        let monitored = !vca && !doc.is_instrument_track(id);
+        let toggle = |ui: &mut Ui, text: &str, on: bool, color: Color32, hint: &str| {
+            theme::letter_toggle(ui, size, text, on, color)
+                .on_hover_text(hint)
+                .clicked()
+        };
+        let auto_mute = doc.automation_value(channel, &AutomationTarget::Mute);
+        let shown_mute = track.mute || auto_mute.is_some_and(|v| v >= 0.5);
+        if toggle(ui, "M", shown_mute, theme::MUTE, tr("Mute")) {
+            let mute = !shown_mute;
+            if doc.automation_gesture(
+                channel,
+                &AutomationTarget::Mute,
+                Some(f32::from(u8::from(mute))),
+            ) {
+                // Switches keep writing until playback stops; in Read they only flip once.
+                if !(doc.automation_mode(channel).writes() && doc.player().engine().playing()) {
+                    doc.automation_gesture(channel, &AutomationTarget::Mute, None);
+                }
+            } else {
+                let alone = clutch(ui);
+                doc.history_mut()
+                    .edit(&trf!("Mute {name}", name = track.name), |p| {
+                        groups::maybe_alone(p, alone, |p| {
+                            groups::set_switch(p, id, Link::Mute, mute)
+                        })
+                    });
+            }
+        }
+        if toggle(ui, "S", track.solo, theme::SOLO, tr("Solo")) {
+            let solo = !track.solo;
+            let alone = clutch(ui);
+            doc.history_mut()
+                .edit(&trf!("Solo {name}", name = track.name), |p| {
+                    groups::maybe_alone(p, alone, |p| groups::set_switch(p, id, Link::Solo, solo))
+                });
+        }
+        if !vca
+            && theme::arm_toggle(ui, size, track.armed)
+                .on_hover_text(tr("Record arm"))
+                .clicked()
+        {
+            let armed = !track.armed;
+            let alone = clutch(ui);
+            doc.history_mut().modify_unrecorded(|p| {
+                groups::maybe_alone(p, alone, |p| groups::set_switch(p, id, Link::Arm, armed))
+            });
+        }
+        if monitored {
+            let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+            monitor_toggle(ui, rect, doc, track);
+        }
     }
 
     /// A track's right-click menu; its commands go to the application.
