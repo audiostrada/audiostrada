@@ -102,7 +102,29 @@ pub fn fader(ui: &mut Ui, db: f32, height: f32, show_scale: bool) -> (Option<f32
     let y = y_of(value);
     let cap = Rect::from_center_size(pos2(track.center().x, y), vec2(20.0, 30.0));
     let active = response.dragged() || response.hovered();
+    paint_cap(painter, &p, cap, active, false);
+    let changed = (value != db).then_some(value);
+    (changed, response)
+}
+
+/// A fader's cap: across a vertical fader, or along a horizontal one (`sideways`), with its
+/// index line through the middle.
+fn paint_cap(painter: &egui::Painter, p: &theme::Palette, cap: Rect, active: bool, sideways: bool) {
     let radius = f32::from(p.look.radius.min(4));
+    let c = cap.center();
+    let index = |inset: f32| {
+        if sideways {
+            [
+                pos2(c.x, cap.top() + inset),
+                pos2(c.x, cap.bottom() - inset),
+            ]
+        } else {
+            [
+                pos2(cap.left() + inset, c.y),
+                pos2(cap.right() - inset, c.y),
+            ]
+        }
+    };
     painter.rect_filled(
         cap.translate(vec2(0.0, 1.5)),
         radius,
@@ -113,10 +135,7 @@ pub fn fader(ui: &mut Ui, db: f32, height: f32, show_scale: bool) -> (Option<f32
             let shade = if active { p.pressed } else { p.hover };
             theme::gradient_rect(painter, cap.shrink(0.5), shade, shade.gamma_multiply(1.35));
             painter.rect_stroke(cap, radius, Stroke::new(1.0, p.border), StrokeKind::Inside);
-            painter.line_segment(
-                [pos2(cap.left() + 3.0, y), pos2(cap.right() - 3.0, y)],
-                Stroke::new(1.5, p.text),
-            );
+            painter.line_segment(index(3.0), Stroke::new(1.5, p.text));
         }
         theme::CapStyle::Classic => {
             // A light console cap with grooves and a black index line.
@@ -128,23 +147,26 @@ pub fn fader(ui: &mut Ui, db: f32, height: f32, show_scale: bool) -> (Option<f32
                 Color32::from_gray(light),
             );
             painter.rect_stroke(cap, radius, Stroke::new(1.0, p.border), StrokeKind::Inside);
-            for dy in [-10.0, -7.0, -4.0, 4.0, 7.0, 10.0] {
-                painter.line_segment(
+            let span = if sideways { cap.width() } else { cap.height() };
+            let step = (span / 10.0).max(2.5);
+            for k in [-3.0, -2.0, -1.0, 1.0, 2.0, 3.0] {
+                let d = k * step;
+                let groove = if sideways {
                     [
-                        pos2(cap.left() + 2.0, y + dy),
-                        pos2(cap.right() - 2.0, y + dy),
-                    ],
-                    Stroke::new(1.0, Color32::from_black_alpha(70)),
-                );
+                        pos2(c.x + d, cap.top() + 2.0),
+                        pos2(c.x + d, cap.bottom() - 2.0),
+                    ]
+                } else {
+                    [
+                        pos2(cap.left() + 2.0, c.y + d),
+                        pos2(cap.right() - 2.0, c.y + d),
+                    ]
+                };
+                painter.line_segment(groove, Stroke::new(1.0, Color32::from_black_alpha(70)));
             }
-            painter.line_segment(
-                [pos2(cap.left() + 1.0, y), pos2(cap.right() - 1.0, y)],
-                Stroke::new(2.0, Color32::from_gray(20)),
-            );
+            painter.line_segment(index(1.0), Stroke::new(2.0, Color32::from_gray(20)));
         }
     }
-    let changed = (value != db).then_some(value);
-    (changed, response)
 }
 
 /// Peak and hold of a stereo meter, in dBFS.
@@ -363,7 +385,7 @@ fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
 /// the center holds the pointer a little), wheel for 1 % steps, double-click to center.
 /// `label` is drawn inside it.
 pub fn pan_slider(ui: &mut Ui, value: f32, width: f32, label: &str) -> (Option<f32>, Response) {
-    let (rect, response) = ui.allocate_exact_size(vec2(width, 16.0), Sense::click_and_drag());
+    let (rect, response) = ui.allocate_exact_size(vec2(width, 18.0), Sense::click_and_drag());
     let p = theme::current(ui);
     let fine = ui.input(|i| i.modifiers.shift);
     let mut v = value;
@@ -384,35 +406,45 @@ pub fn pan_slider(ui: &mut Ui, value: f32, width: f32, label: &str) -> (Option<f
     if response.double_clicked() {
         v = 0.0;
     }
-    let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 3.0, if response.hovered() { p.hover } else { p.base });
-    let x = |v: f32| rect.center().x + v * (rect.width() / 2.0 - 2.0);
+    let painter = ui.painter_at(rect.expand(2.0));
+    // A small horizontal fader: its rail, the side it leans to, its cap.
+    let cap_width = 14.0;
+    // Room at both ends for the value.
+    let rail = Rect::from_center_size(rect.center(), vec2(rect.width() - 28.0, 4.0));
+    let x = |v: f32| rect.center().x + v * rail.width() / 2.0;
+    painter.rect_filled(rail, 2.0, p.border);
     if v != 0.0 {
         let (a, b) = (x(0.0).min(x(v)), x(0.0).max(x(v)));
         painter.rect_filled(
-            Rect::from_min_max(pos2(a, rect.top() + 2.0), pos2(b, rect.bottom() - 2.0)),
+            Rect::from_min_max(pos2(a, rail.top()), pos2(b, rail.bottom())),
             2.0,
-            p.accent.gamma_multiply(0.55),
+            p.accent.gamma_multiply(0.8),
         );
     }
     painter.line_segment(
-        [pos2(x(0.0), rect.top()), pos2(x(0.0), rect.bottom())],
-        Stroke::new(1.0, p.border),
-    );
-    painter.line_segment(
         [
-            pos2(x(v), rect.top() + 1.0),
-            pos2(x(v), rect.bottom() - 1.0),
+            pos2(x(0.0), rect.top() + 1.0),
+            pos2(x(0.0), rect.top() + 4.0),
         ],
-        Stroke::new(2.0, p.text),
+        Stroke::new(1.0, p.weak),
     );
-    // On the side away from the cursor, so that the text stays readable.
+    // The value on the side away from the cap, so that it stays readable.
     let (anchor, align) = if v > 0.0 {
-        (rect.left_center() + vec2(4.0, 0.0), Align2::LEFT_CENTER)
+        (rect.left_center() + vec2(2.0, 0.0), Align2::LEFT_CENTER)
     } else {
-        (rect.right_center() - vec2(4.0, 0.0), Align2::RIGHT_CENTER)
+        (rect.right_center() - vec2(2.0, 0.0), Align2::RIGHT_CENTER)
     };
-    painter.text(anchor, align, label, FontId::monospace(10.0), p.text);
+    // On a patch of the background: it may cover the end of the rail.
+    let galley = painter.layout_no_wrap(label.to_owned(), FontId::monospace(9.0), p.weak);
+    let text = align.anchor_size(anchor, galley.size());
+    painter.rect_filled(text.expand2(vec2(2.0, 0.0)), 2.0, p.panel);
+    painter.galley(text.min, galley, p.weak);
+    let cap = Rect::from_center_size(
+        pos2(x(v), rect.center().y),
+        vec2(cap_width, rect.height() - 2.0),
+    );
+    let active = response.dragged() || response.hovered();
+    paint_cap(&painter, &p, cap, active, true);
     ((v != value).then_some(v), response)
 }
 

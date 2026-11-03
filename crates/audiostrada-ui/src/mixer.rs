@@ -2040,6 +2040,7 @@ impl MixerView {
                     .automation_value(channel, &AutomationTarget::Gain)
                     .unwrap_or(track.gain_db);
                 let row_top = ui.cursor().top();
+                let strip_right = ui.max_rect().right();
                 ui.horizontal(|ui| {
                     let (changed, response) = widgets::fader(ui, shown_gain, fader_height, true);
                     let name = track.name.clone();
@@ -2079,6 +2080,9 @@ impl MixerView {
                         widgets::meter(ui, &mut levels, fader_height);
                     }
                     if self.full_strips || vca {
+                        // Centered in the room left of the strip.
+                        let free = strip_right - ui.cursor().left() - 24.0;
+                        ui.add_space((free / 2.0 - ui.spacing().item_spacing.x).max(0.0));
                         ui.vertical(|ui| {
                             ui.spacing_mut().item_spacing.y = 3.0;
                             self.track_switches(ui, doc, track, vec2(24.0, 20.0));
