@@ -2233,7 +2233,9 @@ impl MixerView {
         let width = NARROW_WIDTH;
         let vca = track.kind == TrackKind::Vca;
         let mut levels = doc.track_level(id);
-        let fader_height = self.fader_height;
+        // Its top is shorter than the open strip's: the fader takes the difference.
+        let taller = (self.top_last - self.narrow_last).max(0.0).round();
+        let fader_height = self.fader_height + taller;
         let selected = doc.is_track_selected(id);
         let icon = crate::track_icons::of(project, track);
         let folder = routing::has_children(project, id);
@@ -2271,7 +2273,9 @@ impl MixerView {
                     }
                 });
                 let bottom = ui.cursor().top();
-                self.row_height = bottom - row_top;
+                if taller == 0.0 {
+                    self.row_height = bottom - row_top;
+                }
                 readout(ui, width, &db_label(shown_gain));
                 ui.horizontal_wrapped(|ui| {
                     ui.set_max_width(width);
@@ -4982,6 +4986,17 @@ mod tests {
         assert_eq!(before.bottom(), after.bottom(), "{before:?} {after:?}");
         // Not pushed down to the open strip's fader: its top is much taller.
         assert!(before.bottom() < 300.0, "{before:?}");
+        // And their faders reach as low as the open strip's.
+        let strips = [0, 1, 2].map(|i| {
+            let key = if i == 1 { "strip" } else { "narrow" };
+            rect(&format!("{key} {}", ids[i].0))
+        });
+        for narrow in [strips[0], strips[2]] {
+            assert!(
+                (narrow.bottom() - strips[1].bottom()).abs() <= 1.0,
+                "{strips:?}"
+            );
+        }
     }
 
     #[test]
