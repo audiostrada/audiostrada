@@ -1441,6 +1441,9 @@ impl AudioStradaApp {
                 egui::CentralPanel::default().show(ui, |ui| {
                     if let Ok(mut views) = views.try_borrow_mut() {
                         views.pane_ui(ui, pane);
+                        if pane == Pane::Mixer {
+                            views.mixer.windows(&ctx);
+                        }
                         asked |= views.has_requests();
                         if let Ok(mut doc) = views.doc.try_borrow_mut() {
                             mixer::save_chain_dialog(&ctx, &mut doc);
@@ -2432,6 +2435,10 @@ impl eframe::App for AudioStradaApp {
         };
         if let Some(pane) = detach {
             self.detach(pane);
+        }
+        // Docked, the mixer's windows belong to the main window (detached, to the mixer's).
+        if !self.detached.contains(&Pane::Mixer) {
+            self.views.borrow_mut().mixer.windows(&ctx);
         }
         self.detached_windows(&ctx);
 

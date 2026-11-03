@@ -1410,16 +1410,26 @@ impl MixerView {
         } else {
             self.dragging = None;
         }
-        self.insert_editors(ui.ctx(), &mut doc, &project);
-        self.list_windows(ui.ctx(), &mut doc, &project);
+    }
+
+    /// The mixer's windows (effect editors, lists, effect browser), drawn at every frame by the
+    /// window holding the mixer, whether its tab is shown or not.
+    pub fn windows(&mut self, ctx: &egui::Context) {
+        let doc_rc = Rc::clone(&self.doc);
+        let Ok(mut doc) = doc_rc.try_borrow_mut() else {
+            return;
+        };
+        let project = doc.project().clone();
+        self.insert_editors(ctx, &mut doc, &project);
+        self.list_windows(ctx, &mut doc, &project);
         if let Some(((channel, monitor), key, name)) =
-            crate::effect_browser::show(&self.browser, ui.ctx(), &doc)
+            crate::effect_browser::show(&self.browser, ctx, &doc)
         {
             self.add_insert(&mut doc, channel, monitor, &key, &name);
         }
         drop(doc);
         if let Some(error) = self.error.clone() {
-            egui::Modal::new(egui::Id::unique("routing-error")).show(ui.ctx(), |ui| {
+            egui::Modal::new(egui::Id::unique("routing-error")).show(ctx, |ui| {
                 ui.label(&error);
                 if ui.button("OK").clicked() {
                     self.error = None;
@@ -3583,8 +3593,11 @@ mod tests {
             events,
             ..Default::default()
         };
-        ctx.run_ui(input, |ui| view.show(ui))
-            .drop_without_applying_deltas();
+        ctx.run_ui(input, |ui| {
+            view.show(ui);
+            view.windows(ui.ctx());
+        })
+        .drop_without_applying_deltas();
     }
 
     fn drag(ctx: &egui::Context, view: &mut MixerView, from: Pos2, to: Pos2, alt: bool) {
