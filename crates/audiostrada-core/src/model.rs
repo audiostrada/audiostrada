@@ -380,6 +380,9 @@ pub struct Track {
     /// Every insert of the track bypassed, without touching their own bypass.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub fx_off: bool,
+    /// Its own console color instead of the project's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub console: Option<crate::console::Console>,
 }
 
 /// A finished song to compare the mix with (heard instead of it, never exported).
@@ -522,6 +525,12 @@ pub struct Project {
     /// The loop stays where it is when the time selection changes (else it follows it).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub loop_fixed: bool,
+    /// Console color of every channel, the buses and the master.
+    #[serde(default, skip_serializing_if = "crate::console::Console::is_default")]
+    pub console: crate::console::Console,
+    /// The consoles' hiss and crosstalk are heard too.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub console_noise: bool,
     next_id: u64,
 }
 
@@ -683,6 +692,8 @@ impl Project {
             all_fx_off: false,
             loop_off: false,
             loop_fixed: false,
+            console: Default::default(),
+            console_noise: false,
             reference: None,
             next_id: 1,
         }
@@ -897,6 +908,7 @@ impl Project {
             frozen: None,
             midi_out: None,
             fx_off: false,
+            console: None,
         }));
         id
     }

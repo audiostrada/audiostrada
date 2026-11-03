@@ -42,6 +42,8 @@ pub const INFO: EffectInfo = EffectInfo {
         switch("drive", "Drive", 0.0),
         param("drive_amount", "Drive amount", 0.0, 100.0, 30.0, "%"),
         param("output", "Output", -18.0, 18.0, 0.0, "dB"),
+        // Set by the engine from the track's console color.
+        choice("character", "Character", &CHARACTERS, 0.0),
     ],
     meters: &["Gate", "Reduction", "Input", "Output"],
     instrument: false,
@@ -50,6 +52,10 @@ pub const INFO: EffectInfo = EffectInfo {
 };
 
 pub const SLOPES: [&str; 2] = ["12 dB/oct", "24 dB/oct"];
+
+/// The drive's and the EQ's character: soft, or that of a console (as in
+/// [`crate::console::MODELS`]).
+pub const CHARACTERS: [&str; 5] = ["Soft", "Iron", "Imperial", "Discrete", "Velvet"];
 
 /// The modules, by the id of their switch, in their default order.
 pub const MODULES: [&str; 5] = ["filters", "gate", "comp", "eq", "drive"];
@@ -99,6 +105,7 @@ mod p {
     pub const DRIVE: usize = 29;
     pub const DRIVE_AMOUNT: usize = 30;
     pub const OUTPUT: usize = 31;
+    pub const CHARACTER: usize = 32;
 }
 
 /// Butterworth sections: one for 12 dB/oct, two for 24.
@@ -107,7 +114,7 @@ const Q24: [f64; 2] = [0.541_196_1, 1.306_563];
 
 #[derive(Debug)]
 pub struct Channel {
-    values: [f32; 32],
+    values: [f32; 33],
     rate: f64,
     /// High pass then low pass sections, and their state per side.
     filters: Vec<Coefficients>,
@@ -125,7 +132,7 @@ pub struct Channel {
 
 impl Default for Channel {
     fn default() -> Self {
-        let mut values = [0.0; 32];
+        let mut values = [0.0; 33];
         for (v, info) in values.iter_mut().zip(INFO.params) {
             *v = info.default;
         }
@@ -181,11 +188,23 @@ impl Channel {
         let band = |kind, freq: f32, gain: f32, q: f64| {
             Coefficients::design(kind, f64::from(freq).min(nyquist), q, f64::from(gain), rate)
         };
+        // Each console's EQ: broad bells, or a Q that narrows as the gain grows; its shelves.
+        let character = v[p::CHARACTER].round() as usize;
+        let (shelf, broad, proportional) = match character {
+            1 => (1.0, 0.7, 0.0),
+            2 => (0.8, 1.0, 1.2),
+            3 => (0.7, 1.0, 2.0),
+            4 => (0.6, 0.85, 0.0),
+            _ => (0.7, 1.0, 0.0),
+        };
+        let bell = |q: f32, gain: f32| {
+            f64::from(q) * broad * (1.0 + f64::from(gain.abs()) / 15.0 * proportional)
+        };
         self.bands = [
-            band(FilterKind::LowShelf, v[18], v[19], 0.7),
-            band(FilterKind::Peak, v[20], v[21], f64::from(v[22])),
-            band(FilterKind::Peak, v[23], v[24], f64::from(v[25])),
-            band(FilterKind::HighShelf, v[26], v[27], 0.7),
+            band(FilterKind::LowShelf, v[18], v[19], shelf),
+            band(FilterKind::Peak, v[20], v[21], bell(v[22], v[21])),
+            band(FilterKind::Peak, v[23], v[24], bell(v[25], v[24])),
+            band(FilterKind::HighShelf, v[26], v[27], shelf),
         ];
     }
 
@@ -254,14 +273,16 @@ impl Channel {
         self.reduction = out[0];
     }
 
-    /// A gentle saturation: unchanged for small signals, rounder peaks, a touch of even
-    /// harmonics, at about the same loudness.
+    /// A saturation in the console's character (gentle without one): unchanged for small
+    /// signals, rounder peaks, its harmonics, at about the same loudness.
     fn drive(&mut self, left: &mut [f32], right: &mut [f32]) {
         // A -12 dBFS signal keeps its level; louder ones round off, softer ones barely rise.
         const REFERENCE: f32 = 0.25;
         let amount = self.values[p::DRIVE_AMOUNT].clamp(0.0, 100.0) / 100.0;
-        let g = 1.0 + amount * 2.0;
-        let bias = 0.05 * amount;
+        let voice = crate::console::voice(self.values[p::CHARACTER].round() as usize);
+        let (push, even) = voice.map_or((1.0, 0.05), |v| (v.drive, v.even));
+        let g = 1.0 + amount * 2.0 * push;
+        let bias = even * amount;
         let offset = (g * bias).tanh();
         let k = REFERENCE * g / ((g * (REFERENCE + bias)).tanh() - offset);
         for x in left.iter_mut().chain(right.iter_mut()) {
@@ -312,7 +333,7 @@ impl Effect for Channel {
         }
         *v = value;
         match index {
-            p::HPF | p::LPF | p::SLOPE => self.design(),
+            p::HPF | p::LPF | p::SLOPE | p::CHARACTER => self.design(),
             i if (p::EQ_FIRST..=p::EQ_LAST).contains(&i) => self.design(),
             p::ORDER => self.order = module_order(value),
             _ => self.forward(index),
@@ -400,7 +421,7 @@ mod tests {
 
     #[test]
     fn the_indices_match_the_table_and_off_is_transparent() {
-        assert_eq!(INFO.params.len(), 32);
+        assert_eq!(INFO.params.len(), 33);
         for (name, i) in [
             ("filters", p::FILTERS),
             ("hpf", p::HPF),
@@ -417,6 +438,7 @@ mod tests {
             ("drive", p::DRIVE),
             ("drive_amount", p::DRIVE_AMOUNT),
             ("output", p::OUTPUT),
+            ("character", p::CHARACTER),
         ] {
             assert_eq!(index(name), i, "{name}");
         }
@@ -478,6 +500,22 @@ mod tests {
         let mut meters = [0.0; 4];
         comp.meters(&mut meters);
         assert!(meters[1].abs() > 3.0, "the reduction shows: {}", meters[1]);
+    }
+
+    #[test]
+    fn a_console_character_shapes_the_eq() {
+        let mut soft = Channel::default();
+        soft.prepare(48_000, 256);
+        soft.set_param(p::EQ, 1.0);
+        soft.set_param(index("lmf_gain"), 12.0);
+        let mut discrete = Channel::default();
+        discrete.prepare(48_000, 256);
+        discrete.set_param(p::EQ, 1.0);
+        discrete.set_param(index("lmf_gain"), 12.0);
+        discrete.set_param(p::CHARACTER, 3.0);
+        // Same peak, narrower bell: less boost an octave away.
+        assert!((soft.eq_response_db(400.0) - discrete.eq_response_db(400.0)).abs() < 0.2);
+        assert!(discrete.eq_response_db(800.0) < soft.eq_response_db(800.0) - 1.0);
     }
 
     #[test]

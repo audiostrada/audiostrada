@@ -774,8 +774,8 @@ Channel Strip
 Channel strip: click to open it
 Channel Strip : cliquer pour l'ouvrir
 
-Channel strip: filters, gate, compressor, EQ and drive, ahead of the inserts. Click to open
-Channel Strip : filtres, gate, compresseur, EQ et drive, avant les inserts. Cliquer pour l'ouvrir
+Channel strip: filters, gate, compressor, EQ and drive, ahead of the inserts. Click to open, right-click for the console
+Channel Strip : filtres, gate, compresseur, EQ et drive, avant les inserts. Cliquer pour l'ouvrir, clic droit pour la console
 
 Channel strip module off
 Module du Channel Strip désactivé
@@ -914,3 +914,105 @@ Envois : {count}
 
 The effect browser: built-in effects and installed plugins
 Le navigateur d'effets : effets intégrés et plugins installés
+
+Soft
+Doux
+
+Iron
+Iron
+
+Imperial
+Imperial
+
+Discrete
+Discrete
+
+Velvet
+Velvet
+
+50 %: the console as it is. 100 %: pushed harder, more harmonics
+50 % : la console telle quelle. 100 % : poussée plus fort, plus d'harmoniques
+
+A console's character depends on the level it gets. Sets each audio track's input gain so it plays around -18 dBFS (the selected tracks, or all of them).
+Le caractère d'une console dépend du niveau qu'elle reçoit. Règle le gain d'entrée de chaque piste audio pour qu'elle joue autour de -18 dBFS (les pistes sélectionnées, ou toutes).
+
+As the project ({name})
+Comme le projet ({name})
+
+Bars: its harmonics, 2nd to 6th (even ones brighter), on a tone at -12 dBFS
+Barres : ses harmoniques, de la 2e à la 6e (les paires plus vives), sur un son à -12 dBFS
+
+Compare without the color
+Comparer sans la couleur
+
+Console amount
+Dosage de la console
+
+Console color
+Couleur de console
+
+Console hiss
+Souffle de la console
+
+Console: {name}
+Console : {name}
+
+Discrete amplifiers: punch and attack
+Amplis discrets : punch et attaque
+
+Each channel's hiss, and the sides of the buses leaking a little into each other
+Le souffle de chaque voie, et les deux côtés des bus qui débordent un peu l'un sur l'autre
+
+Gain staging
+Réglage des gains
+
+Hearing without the color
+Écoute sans la couleur
+
+Hiss and crosstalk
+Souffle et diaphonie
+
+No color: the mix as it is
+Aucune couleur : le mix tel quel
+
+Set the input gains
+Régler les gains d'entrée
+
+Smooth and warm, very low distortion
+Doux et chaud, très peu de distorsion
+
+Switches every console color off and back on, at the same level: the color keeps the working level unchanged
+Coupe et rétablit toutes les couleurs de console, au même niveau : la couleur ne change pas le niveau de travail
+
+The character of an analog console on every track (its preamp), the buses and the master (their summing). A track can have its own.
+Le caractère d'une console analogique sur chaque piste (son préampli), les bus et le master (leur sommation). Une piste peut avoir la sienne.
+
+Tight and precise, a touch of air
+Serré et précis, une touche d'air
+
+Track console
+Console de la piste
+
+Transformers: round lows, a silky top
+Transformateurs : graves ronds, aigus soyeux
+
+{count} track(s) set
+{count} piste(s) réglée(s)
+
+Character: {name}
+Caractère : {name}
+
+The console this channel plays through: its preamp colors the track, and the EQ and the drive take its character
+La console de cette voie : son préampli colore la piste, l'EQ et le drive prennent son caractère
+
+Console: neutral. Click to change it
+Console : neutre. Cliquer pour la changer
+
+Console: {name}, {amount} %. Click to change it
+Console : {name}, {amount} %. Cliquer pour la changer
+
+The character of an analog console on every track, the buses and the master
+Le caractère d'une console analogique sur chaque piste, les bus et le master
+
+Neutral
+Neutre

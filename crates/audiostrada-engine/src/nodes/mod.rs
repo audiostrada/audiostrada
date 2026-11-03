@@ -1,4 +1,5 @@
 mod gain;
+mod input;
 mod insert;
 mod levels;
 mod metronome;
@@ -11,6 +12,7 @@ mod reference;
 mod strip;
 
 pub use gain::Gain;
+pub use input::{ConsoleControls, InputStage};
 pub use insert::{Insert, InsertControls};
 pub use levels::LevelControls;
 pub use metronome::{Metronome, MetronomeControls};

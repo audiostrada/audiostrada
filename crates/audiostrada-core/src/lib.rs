@@ -3,6 +3,7 @@
 pub mod automation;
 pub mod autosave;
 pub mod base64;
+pub mod console;
 pub mod edit;
 pub mod file;
 pub mod groups;

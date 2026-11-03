@@ -10,6 +10,7 @@ pub mod biquad;
 pub mod channel;
 pub mod chorus;
 pub mod compressor;
+pub mod console;
 pub mod convolver;
 pub mod deesser;
 pub mod delay;

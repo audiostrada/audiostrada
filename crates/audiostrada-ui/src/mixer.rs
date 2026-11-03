@@ -1788,6 +1788,19 @@ impl MixerView {
             ui.menu_button(tr("Snapshots"), |ui| snapshots_menu(ui, &mut doc))
                 .response
                 .on_hover_text(tr("Save and recall the console settings"));
+            let console = doc.project().console.model;
+            let mut label = RichText::new(crate::console_ui::button_label(&doc));
+            if console != audiostrada_core::console::ConsoleModel::Clean {
+                label = label.color(crate::console_ui::color(console));
+            }
+            if doc.player().console_off() {
+                label = label.strikethrough();
+            }
+            ui.menu_button(label, |ui| crate::console_ui::console_menu(ui, &mut doc))
+                .response
+                .on_hover_text(tr(
+                    "The character of an analog console on every track, the buses and the master",
+                ));
             let importing = doc.importing();
             if importing > 0 {
                 ui.spinner();
@@ -3443,15 +3456,26 @@ impl MixerView {
             points,
             egui::Stroke::new(1.5, if on { p.text } else { p.weak }),
         ));
-        if response
-            .on_hover_text(tr(
-                "Channel strip: filters, gate, compressor, EQ and drive, ahead of the inserts. \
-                 Click to open",
-            ))
-            .clicked()
-        {
+        // The console's color along the bottom of the button.
+        let console = crate::console_ui::of_channel(doc, channel);
+        if console.colors() && !doc.player().console_off() {
+            let r = response.rect.shrink2(vec2(6.0, 3.0));
+            ui.painter().line_segment(
+                [r.left_bottom(), r.right_bottom()],
+                egui::Stroke::new(2.0, crate::console_ui::color(console.model)),
+            );
+        }
+        let response = response.on_hover_text(tr(
+            "Channel strip: filters, gate, compressor, EQ and drive, ahead of the inserts. Click \
+             to open, right-click for the console",
+        ));
+        if response.clicked() {
             self.open_strip(doc, channel);
         }
+        response.context_menu(|ui| match channel {
+            Channel::Track(t) => crate::console_ui::track_menu(ui, doc, t),
+            Channel::Master => crate::console_ui::console_menu(ui, doc),
+        });
     }
 
     /// A pill per insert of a compact strip, in its family's color: lit while it plays, a click
@@ -3547,6 +3571,49 @@ impl MixerView {
         }
     }
 
+    /// The console a channel plays through, as a dot of its color; a click picks it.
+    fn console_dot(&mut self, ui: &mut Ui, doc: &mut Document, channel: Channel) {
+        let console = crate::console_ui::of_channel(doc, channel);
+        let own = match channel {
+            Channel::Track(t) => doc.project().track(t).is_some_and(|t| t.console.is_some()),
+            Channel::Master => false,
+        };
+        let (rect, response) = ui.allocate_exact_size(vec2(13.0, 13.0), Sense::click());
+        let tint = crate::console_ui::color(console.model);
+        let lit = console.colors() && !doc.player().console_off();
+        let center = rect.center();
+        if lit {
+            ui.painter().circle_filled(center, 3.5, tint);
+        } else {
+            ui.painter().circle_stroke(
+                center,
+                3.0,
+                egui::Stroke::new(1.0, tint.gamma_multiply(0.6)),
+            );
+        }
+        if own {
+            // Its own console: a ring around the dot.
+            ui.painter()
+                .circle_stroke(center, 5.5, egui::Stroke::new(1.0, tint));
+        }
+        let hint = if console.colors() {
+            trf!(
+                "Console: {name}, {amount} %. Click to change it",
+                name = crate::console_ui::name(console.model),
+                amount = console.amount.round()
+            )
+        } else {
+            tr("Console: neutral. Click to change it").to_owned()
+        };
+        let response = response.on_hover_text(hint);
+        egui::Popup::menu(&response)
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+            .show(|ui| match channel {
+                Channel::Track(t) => crate::console_ui::track_menu(ui, doc, t),
+                Channel::Master => crate::console_ui::console_menu(ui, doc),
+            });
+    }
+
     /// Switches a module of the channel strip, adding the strip if it has none yet.
     fn set_strip_module(&mut self, doc: &mut Document, channel: Channel, module: &str, on: bool) {
         let after_first = matches!(channel, Channel::Track(t) if doc.is_instrument_track(t));
@@ -3595,6 +3662,7 @@ impl MixerView {
                 if response.clicked() {
                     self.open_strip(doc, channel);
                 }
+                self.console_dot(ui, doc, channel);
             });
         });
         ui.horizontal(|ui| {
@@ -3635,7 +3703,9 @@ impl MixerView {
             let mut dsp = audiostrada_dsp::channel::Channel::default();
             dsp.prepare(48_000, 64);
             for (i, param) in info.params.iter().enumerate() {
-                if let Some(&v) = strip.params.get(param.id) {
+                if param.id == "character" {
+                    dsp.set_param(i, crate::console_ui::character(doc, channel) as f32);
+                } else if let Some(&v) = strip.params.get(param.id) {
                     dsp.set_param(i, v);
                 }
             }

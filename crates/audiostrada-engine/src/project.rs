@@ -28,9 +28,9 @@ use crate::loudness::{LoudnessMeter, LoudnessReadout};
 use crate::media::MediaPool;
 use crate::meter::MeterReadout;
 use crate::nodes::{
-    Clip, ClipPlayer, Gain, Insert, InsertControls, LevelControls, MidiClip, MidiControls,
-    MidiPlayer, Monitor, PlayerControls, PluginControls, PluginNode, Sequence, SoloBus, Strip,
-    StripControls,
+    Clip, ClipPlayer, ConsoleControls, Gain, InputStage, Insert, InsertControls, LevelControls,
+    MidiClip, MidiControls, MidiPlayer, Monitor, PlayerControls, PluginControls, PluginNode,
+    Sequence, SoloBus, Strip, StripControls,
 };
 use crate::record::{Recorder, TakeTarget};
 use crate::{Engine, EngineConfig, EngineProcessor, HARDWARE_CHANNELS, NodeId, Port, SharedParam};
@@ -161,6 +161,7 @@ impl Plugins {
 struct ChannelNodes {
     input: NodeId,
     input_gain: SharedParam,
+    console: ConsoleControls,
     inserts: Vec<InsertNodes>,
     strip: NodeId,
     controls: StripControls,
@@ -236,6 +237,8 @@ pub struct ProjectPlayer {
     overrides: HashMap<(Channel, AutomationTarget), Arc<AtomicBool>>,
     /// Live MIDI input, read by the instruments of armed tracks.
     live: LiveMidi,
+    /// Every console color off, to compare (live only, never saved).
+    console_off: Arc<AtomicBool>,
 }
 
 /// Absolute path of every source of `project`, plus the stretched or transposed variants
@@ -347,14 +350,21 @@ fn connect_stereo(engine: &mut Engine, from: NodeId, to: NodeId) {
 }
 
 impl ChannelNodes {
-    fn new(engine: &mut Engine, solo: &SoloBus, name: &str, master: bool) -> Self {
-        let (input, input_gain) = Gain::new(1.0, None);
+    fn new(
+        engine: &mut Engine,
+        solo: &SoloBus,
+        bypass: &Arc<AtomicBool>,
+        name: &str,
+        master: bool,
+    ) -> Self {
+        let (input, input_gain, console) = InputStage::new(bypass.clone());
         let input = engine.add_node(&format!("{name} input"), input, 2, 2);
         let (strip, controls) = Strip::new(solo, master);
         let strip = engine.add_node(name, strip, 2, 2);
         Self {
             input,
             input_gain,
+            console,
             inserts: Vec::new(),
             strip,
             midi: None,
@@ -371,6 +381,15 @@ impl ChannelNodes {
         [self.input, self.strip]
             .into_iter()
             .chain(self.inserts.iter().map(|i| i.node))
+    }
+}
+
+/// The console's index for the DSP: none when it colors nothing.
+fn console_index(console: audiostrada_core::console::Console) -> usize {
+    if console.colors() {
+        console.model.index()
+    } else {
+        0
     }
 }
 
@@ -394,6 +413,21 @@ fn automated(project: &Project) -> HashSet<(Channel, AutomationTarget)> {
     out
 }
 
+/// Parameter values of an insert, the channel strip taking its character from the console.
+fn insert_values(
+    insert: &InsertModel,
+    info: &audiostrada_dsp::EffectInfo,
+    character: usize,
+) -> Vec<f32> {
+    let mut values = param_values(insert, info);
+    if insert.effect == routing::STRIP
+        && let Some(i) = info.params.iter().position(|p| p.id == "character")
+    {
+        values[i] = character as f32;
+    }
+    values
+}
+
 /// Parameter values of an insert in its effect's order.
 fn param_values(insert: &InsertModel, info: &audiostrada_dsp::EffectInfo) -> Vec<f32> {
     info.params
@@ -406,7 +440,8 @@ impl ProjectPlayer {
     pub fn new(config: EngineConfig) -> Self {
         let mut engine = Engine::new(config);
         let solo = SoloBus::default();
-        let master = ChannelNodes::new(&mut engine, &solo, "Master", true);
+        let console_off = Arc::new(AtomicBool::new(false));
+        let master = ChannelNodes::new(&mut engine, &solo, &console_off, "Master", true);
         let (meter, loudness) = LoudnessMeter::new();
         let meter = engine.add_node("Loudness", meter, 2, 2);
         connect_stereo(&mut engine, master.strip, meter);
@@ -416,7 +451,7 @@ impl ProjectPlayer {
         let (reference, reference_controls) = crate::nodes::Reference::new();
         let reference = engine.add_node("Reference", reference, 2, 2);
         connect_stereo(&mut engine, meter, reference);
-        let monitor = ChannelNodes::new(&mut engine, &solo, "Monitor", true);
+        let monitor = ChannelNodes::new(&mut engine, &solo, &console_off, "Monitor", true);
         connect_stereo(&mut engine, reference, monitor.input);
         connect_stereo(&mut engine, monitor.strip, out);
         let (preview, preview_controls) = crate::nodes::Preview::new();
@@ -461,7 +496,17 @@ impl ProjectPlayer {
             },
             overrides: HashMap::new(),
             live: LiveMidi::default(),
+            console_off,
         }
+    }
+
+    /// Every console color off (true) or heard, to compare at equal level.
+    pub fn set_console_off(&mut self, off: bool) {
+        self.console_off.store(off, Ordering::Relaxed);
+    }
+
+    pub fn console_off(&self) -> bool {
+        self.console_off.load(Ordering::Relaxed)
     }
 
     pub fn engine(&self) -> &Engine {
@@ -524,6 +569,7 @@ impl ProjectPlayer {
         automated: &dyn Fn(InsertId, &str) -> bool,
         live: Option<&LiveMidi>,
         low_latency: bool,
+        character: usize,
     ) -> bool {
         let mut changed = false;
         let mut old = std::mem::take(&mut nodes.inserts);
@@ -572,8 +618,11 @@ impl ProjectPlayer {
                     }
                     effect.prepare(engine.sample_rate(), 1024);
                     let latency = effect.latency();
-                    let (node, controls) =
-                        Insert::new(effect, &param_values(insert, info), info.meters.len());
+                    let (node, controls) = Insert::new(
+                        effect,
+                        &insert_values(insert, info, character),
+                        info.meters.len(),
+                    );
                     // Effects with a sidechain get two key inputs.
                     let inputs = if audiostrada_dsp::supports_sidechain(info.id) {
                         4
@@ -630,7 +679,7 @@ impl ProjectPlayer {
                         .keyed
                         .store(insert.sidechain.is_some(), Ordering::Relaxed);
                     if let Some(info) = builtin {
-                        let values = param_values(insert, info);
+                        let values = insert_values(insert, info, character);
                         for ((param, value), p) in
                             controls.params.iter().zip(values).zip(info.params)
                         {
@@ -771,7 +820,13 @@ impl ProjectPlayer {
         let hardware = self.engine.graph().hardware_input();
         for track in project.tracks.iter().filter(|t| t.kind == TrackKind::Audio) {
             if !self.tracks.contains_key(&track.id) {
-                let channel = ChannelNodes::new(&mut self.engine, &self.solo, &track.name, false);
+                let channel = ChannelNodes::new(
+                    &mut self.engine,
+                    &self.solo,
+                    &self.console_off,
+                    &track.name,
+                    false,
+                );
                 let (player, player_controls) = ClipPlayer::new(Vec::new());
                 let player = self.engine.add_node(&track.name, player, 0, 2);
                 let (monitor, monitor_gain, input_meter) = Monitor::new();
@@ -834,6 +889,18 @@ impl ProjectPlayer {
                 .channel
                 .input_gain
                 .set(polarity * db_to_gain(track.trim_db));
+            let console = audiostrada_core::console::of_track(project, track.id);
+            // Fed by other tracks: it sums, as a console's bus.
+            let bus = project.tracks.iter().any(|t| {
+                (t.parent == Some(track.id) && t.master_send)
+                    || t.sends.iter().any(|s| s.target == track.id)
+            });
+            nodes.channel.console.set(
+                console_index(console),
+                console.amount,
+                bus,
+                project.console_noise,
+            );
             nodes.armed = track.armed;
             nodes.monitoring = track.monitor;
             nodes.instrument = track
@@ -878,6 +945,7 @@ impl ProjectPlayer {
                 Some(&self.live),
                 // What is played keeps its effects (an amp, for instance).
                 !(track.armed || track.monitor == Monitoring::Input),
+                console_index(console),
             );
             // External instrument: the track's MIDI goes to an output port.
             match (&track.midi_out, nodes.midi_out.is_some()) {
@@ -1060,6 +1128,7 @@ impl ProjectPlayer {
             },
             None,
             true,
+            0,
         );
         topology |= Self::sync_inserts(
             &mut self.engine,
@@ -1078,6 +1147,13 @@ impl ProjectPlayer {
             },
             None,
             true,
+            console_index(project.console),
+        );
+        self.master.console.set(
+            console_index(project.console),
+            project.console.amount,
+            true,
+            project.console_noise,
         );
         for node in removed_nodes {
             self.remove_node(node);
@@ -2238,6 +2314,50 @@ mod tests {
 
     fn close(a: f32, b: f32) -> bool {
         (a - b).abs() < 1e-3
+    }
+
+    #[test]
+    fn the_console_colors_and_compares() {
+        let sine: Vec<f32> = (0..48_000).map(|i| 0.7 * (i as f32 * 0.05).sin()).collect();
+        let mut f = fixture("console", sine);
+        f.media.retain(&media_paths(f.history.project(), None));
+        assert!(f.media.wait(Duration::from_secs(10)));
+        let mut processor = f.player.processor(48_000, 64);
+        let play = |f: &mut Fixture, processor: &mut EngineProcessor| {
+            f.player.sync(f.history.project(), None, &f.media);
+            f.player.locate(0);
+            f.player.engine_mut().play();
+            render(processor, 40)
+        };
+        let clean = play(&mut f, &mut processor);
+        f.history.edit("Console", |p| {
+            p.console = audiostrada_core::console::Console {
+                model: audiostrada_core::console::ConsoleModel::Discrete,
+                amount: 100.0,
+            };
+        });
+        let colored = play(&mut f, &mut processor);
+        let differs = |a: &[f32], b: &[f32]| {
+            a[1_000..]
+                .iter()
+                .zip(&b[1_000..])
+                .any(|(x, y)| (x - y).abs() > 1e-3)
+        };
+        assert!(differs(&clean, &colored));
+        // Compared without it: as clean.
+        f.player.set_console_off(true);
+        let compared = play(&mut f, &mut processor);
+        assert!(!differs(&clean, &compared));
+        f.player.set_console_off(false);
+        // A track of its own stays clean.
+        f.history.edit("Console", |p| {
+            let t = p.tracks[0].id;
+            p.track_mut(t).unwrap().console = Some(Default::default());
+            p.console.model = audiostrada_core::console::ConsoleModel::Clean;
+        });
+        let own = play(&mut f, &mut processor);
+        assert!(!differs(&clean, &own));
+        std::fs::remove_dir_all(&f.dir).unwrap();
     }
 
     #[test]

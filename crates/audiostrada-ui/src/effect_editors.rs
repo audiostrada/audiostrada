@@ -2108,8 +2108,16 @@ fn channel_strip(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
     // The response of what is on.
     let mut dsp = audiostrada_dsp::channel::Channel::default();
     dsp.prepare(48_000, 64);
-    for (i, v) in params.values.iter().enumerate() {
-        dsp.set_param(i, *v);
+    let character = crate::console_ui::character(params.doc, params.channel);
+    for (i, (v, q)) in params.values.iter().zip(params.info.params).enumerate() {
+        dsp.set_param(
+            i,
+            if q.id == "character" {
+                character as f32
+            } else {
+                *v
+            },
+        );
     }
     let points: Vec<Pos2> = (0..=160)
         .map(|i| {
@@ -2221,7 +2229,27 @@ fn channel_strip(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
             p.weak,
         );
     }
-    ui.add_space(8.0);
+    ui.add_space(6.0);
+    // The console it plays through, which gives the EQ and the drive their character.
+    ui.horizontal(|ui| {
+        let console = crate::console_ui::of_channel(params.doc, params.channel);
+        ui.label(RichText::new(tr("Console")).color(p.weak));
+        let mut text = RichText::new(crate::console_ui::name(console.model)).strong();
+        if console.colors() {
+            text = text.color(crate::console_ui::color(console.model));
+        }
+        let channel = params.channel;
+        ui.menu_button(text, |ui| match channel {
+            Channel::Track(t) => crate::console_ui::track_menu(ui, params.doc, t),
+            Channel::Master => crate::console_ui::console_menu(ui, params.doc),
+        })
+        .response
+        .on_hover_text(tr(
+            "The console this channel plays through: its preamp colors the track, and the EQ \
+             and the drive take its character",
+        ));
+    });
+    ui.add_space(6.0);
     // The modules, in the order they play; dragged by their grip to reorder them.
     use audiostrada_dsp::channel::{MODULES, module_order, order_code};
     let order = module_order(params.get("order"));
@@ -2360,11 +2388,20 @@ fn channel_strip(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
                                     named_knob(ui, params, "hmf_q", "Q", 40.0, tint);
                                 });
                             }
-                            _ => row(
-                                ui,
-                                params,
-                                &[("drive_amount", "Amount"), ("output", "Output")],
-                            ),
+                            _ => {
+                                row(
+                                    ui,
+                                    params,
+                                    &[("drive_amount", "Amount"), ("output", "Output")],
+                                );
+                                let character =
+                                    audiostrada_dsp::channel::CHARACTERS[character.min(4)];
+                                ui.label(
+                                    RichText::new(trf!("Character: {name}", name = tr(character)))
+                                        .size(10.0)
+                                        .color(p.weak),
+                                );
+                            }
                         }
                     });
                 });
@@ -4155,8 +4192,9 @@ mod tests {
                 ("delay", "wow"),
                 ("delay", "drive"),
                 ("reverb", "shimmer"),
-                // Set by dragging the modules.
+                // Set by dragging the modules; from the console.
                 ("channel", "order"),
+                ("channel", "character"),
             ];
             for p in info.params {
                 if !shown.iter().any(|s| s == p.id) && !conditional.contains(&(info.id, p.id)) {
