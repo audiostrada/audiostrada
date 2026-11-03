@@ -1146,9 +1146,6 @@ Ajouter un effet à cette branche
 Branch level
 Niveau de branche
 
-Branches are mixed after their effects
-Les branches sont mélangées après leurs effets
-
 Bypass or play
 Bypasser ou jouer
 
@@ -1221,11 +1218,56 @@ La chaîne du master
 Two settings to compare: the other one is kept
 Deux réglages à comparer : l'autre est conservé
 
-direct
-direct
-
 Effects rack
 Rack d'effets
 
 This track's effects as modules, parallel chains included
 Les effets de cette piste en modules, chaînes parallèles comprises
+
+Add an effect or a parallel chain
+Ajouter un effet ou une chaîne parallèle
+
+Another copy of the signal, with effects of its own
+Une autre copie du signal, avec ses propres effets
+
+Crushed
+Écrasé
+
+Driven
+Saturé
+
+Dry
+Sec
+
+Empty parallel chain
+Chaîne parallèle vide
+
+Parallel compression
+Compression parallèle
+
+Parallel saturation
+Saturation parallèle
+
+Reverb blended with the dry sound
+Réverbe mélangée au son sec
+
+The dry sound and a driven copy, mixed: grain and harmonics, the low end kept
+Le son sec et une copie saturée, mélangés : du grain et des harmoniques, le bas du spectre préservé
+
+The dry sound and a fully wet reverb, each with its level: the space without washing out the source
+Le son sec et une réverbe à 100 %, chacun à son niveau : l'espace sans noyer la source
+
+The dry sound and a heavily compressed copy, mixed: density and sustain without losing the attacks (New York compression)
+Le son sec et une copie très compressée, mélangés : densité et sustain sans perdre les attaques (compression New York)
+
+Two branches to fill: the dry sound and one for effects
+Deux branches à remplir : le son sec et une pour les effets
+
+Wet
+Traité
+
+dry signal
+signal sec
+
+the signal goes through every branch, then they are mixed
+le signal passe par chaque branche, puis elles sont mélangées
