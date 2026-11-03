@@ -477,6 +477,7 @@ fn general(ui: &mut egui::Ui, prefs: &mut UiPrefs) -> bool {
             changed |= ui
                 .radio_value(&mut prefs.auto_monitoring, true, tr("Automatic: input while stopped or recording, the track while playing"))
                 .changed();
+            ui.weak(tr("For the tracks whose speaker button is on Auto. The button can also make a track always hear its input, armed or not, or never."));
         });
         ui.end_row();
         ui.label(tr("Play key"));

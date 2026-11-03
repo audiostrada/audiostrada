@@ -73,6 +73,24 @@ impl FadeShape {
     }
 }
 
+/// When a track hears its hardware input.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Monitoring {
+    /// While armed, as the preferences say: always, or only while stopped or recording.
+    #[default]
+    Auto,
+    /// Always, armed or not (playing through an amp, for instance).
+    Input,
+    /// Never: the input is heard elsewhere (the interface's direct monitoring).
+    Off,
+}
+
+impl Monitoring {
+    pub fn is_auto(&self) -> bool {
+        *self == Monitoring::Auto
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Marker {
     pub id: MarkerId,
@@ -322,6 +340,9 @@ pub struct Track {
     /// Alternate playlists shown as take lanes under the track, for comping.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub show_takes: bool,
+    /// When the track hears its input.
+    #[serde(default, skip_serializing_if = "Monitoring::is_auto")]
+    pub monitor: Monitoring,
     /// Rendered audio played instead of the clips and inserts (freeze).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frozen: Option<Frozen>,
@@ -844,6 +865,7 @@ impl Project {
             automation_mode: AutomationMode::default(),
             show_automation: false,
             show_takes: false,
+            monitor: Monitoring::Auto,
             frozen: None,
             midi_out: None,
             fx_off: false,

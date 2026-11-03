@@ -17,7 +17,7 @@ use audiostrada_core::automation::{AutomationMode, AutomationTarget};
 use audiostrada_core::base64;
 use audiostrada_core::routing::{self, Channel};
 use audiostrada_core::{
-    Insert as InsertModel, InsertId, Project, ProjectPaths, TrackId, TrackKind,
+    Insert as InsertModel, InsertId, Monitoring, Project, ProjectPaths, TrackId, TrackKind,
 };
 use audiostrada_dsp::db_to_gain;
 use audiostrada_plugins::PluginInstance;
@@ -63,6 +63,9 @@ struct InsertNodes {
     first: bool,
     /// Files the effect was built with.
     files: std::collections::BTreeMap<String, PathBuf>,
+    /// Latency of the effect, and the one told to the graph (none while bypassed).
+    latency: u32,
+    declared: u32,
 }
 
 /// Plugin instances and what they need besides the graph.
@@ -86,6 +89,10 @@ struct Plugins {
     paths: Option<ProjectPaths>,
     /// What each built-in effect file turned out to be, or why it failed.
     files: HashMap<(InsertId, String), Result<String, String>>,
+    /// Low latency mode: inserts adding more than this many samples are bypassed.
+    low_latency: Option<u32>,
+    /// Inserts the low latency mode bypasses.
+    forced: Vec<InsertId>,
 }
 
 impl Plugins {
@@ -136,6 +143,8 @@ impl Plugins {
             node,
             first,
             files: insert.files.clone(),
+            latency,
+            declared: latency,
             kind: InsertKind::Plugin(PluginSlot {
                 instance,
                 controls,
@@ -185,6 +194,9 @@ struct TrackNodes {
     sent: Option<(Vec<audiostrada_core::Clip>, u64, u32)>,
     monitor: NodeId,
     monitor_gain: SharedParam,
+    /// Level of the track's input, monitored or not.
+    input_meter: MeterReadout,
+    monitoring: Monitoring,
     armed: bool,
     /// Led by an instrument: armed for live MIDI, it never hears the audio inputs.
     instrument: bool,
@@ -444,6 +456,8 @@ impl ProjectPlayer {
                 retired: Vec::new(),
                 feedback: Vec::new(),
                 resync: false,
+                low_latency: None,
+                forced: Vec::new(),
             },
             overrides: HashMap::new(),
             live: LiveMidi::default(),
@@ -500,6 +514,7 @@ impl ProjectPlayer {
     }
 
     /// Brings the insert nodes of a channel in line with the model; true if nodes changed.
+    #[allow(clippy::too_many_arguments)]
     fn sync_inserts(
         engine: &mut Engine,
         plugins: &mut Plugins,
@@ -508,6 +523,7 @@ impl ProjectPlayer {
         removed: &mut Vec<NodeId>,
         automated: &dyn Fn(InsertId, &str) -> bool,
         live: Option<&LiveMidi>,
+        low_latency: bool,
     ) -> bool {
         let mut changed = false;
         let mut old = std::mem::take(&mut nodes.inserts);
@@ -573,6 +589,8 @@ impl ProjectPlayer {
                         kind: InsertKind::Builtin(controls),
                         first,
                         files: insert.files.clone(),
+                        latency,
+                        declared: latency,
                     }
                 }
                 (None, None) => {
@@ -590,6 +608,22 @@ impl ProjectPlayer {
                 }
             };
             changed |= new;
+            // Low latency mode: effects slower than its limit are bypassed.
+            let forced = low_latency
+                && plugins
+                    .low_latency
+                    .is_some_and(|limit| slot.latency > limit);
+            if forced {
+                plugins.forced.push(insert.id);
+            }
+            let bypass = insert.bypass || forced;
+            // A bypassed effect passes its input as it comes: no latency to compensate.
+            let declared = if bypass { 0 } else { slot.latency };
+            if declared != slot.declared {
+                let _ = engine.set_latency(slot.node, declared);
+                slot.declared = declared;
+                changed = true;
+            }
             match &mut slot.kind {
                 InsertKind::Builtin(controls) => {
                     controls
@@ -605,7 +639,7 @@ impl ProjectPlayer {
                             }
                         }
                     }
-                    controls.set_bypass(insert.bypass);
+                    controls.set_bypass(bypass);
                     controls.levels.gain_db.set(insert.gain_db);
                 }
                 InsertKind::Plugin(plugin) => {
@@ -621,7 +655,7 @@ impl ProjectPlayer {
                             plugin.instance.set_param(id, value);
                         }
                     }
-                    plugin.controls.set_bypass(insert.bypass);
+                    plugin.controls.set_bypass(bypass);
                     plugin.controls.levels.gain_db.set(insert.gain_db);
                 }
             }
@@ -674,6 +708,7 @@ impl ProjectPlayer {
     pub fn sync(&mut self, project: &Project, paths: Option<&ProjectPaths>, media: &MediaPool) {
         self.sync_reference(project, paths, media);
         self.plugins.paths = paths.cloned();
+        self.plugins.forced.clear();
         let click = &project.metronome;
         self.click = (click.enabled && !self.plugins.offline, click.recording_only);
         self.apply_click();
@@ -739,7 +774,7 @@ impl ProjectPlayer {
                 let channel = ChannelNodes::new(&mut self.engine, &self.solo, &track.name, false);
                 let (player, player_controls) = ClipPlayer::new(Vec::new());
                 let player = self.engine.add_node(&track.name, player, 0, 2);
-                let (monitor, monitor_gain) = Monitor::new();
+                let (monitor, monitor_gain, input_meter) = Monitor::new();
                 let monitor = self.engine.add_node(&track.name, monitor, 2, 2);
                 connect_stereo(&mut self.engine, player, channel.input);
                 connect_stereo(&mut self.engine, monitor, channel.input);
@@ -757,6 +792,8 @@ impl ProjectPlayer {
                         sent: None,
                         monitor,
                         monitor_gain,
+                        input_meter,
+                        monitoring: Monitoring::Auto,
                         armed: false,
                         instrument: false,
                         midi_out: None,
@@ -798,6 +835,7 @@ impl ProjectPlayer {
                 .input_gain
                 .set(polarity * db_to_gain(track.trim_db));
             nodes.armed = track.armed;
+            nodes.monitoring = track.monitor;
             nodes.instrument = track
                 .inserts
                 .first()
@@ -838,6 +876,8 @@ impl ProjectPlayer {
                     ))
                 },
                 Some(&self.live),
+                // What is played keeps its effects (an amp, for instance).
+                !(track.armed || track.monitor == Monitoring::Input),
             );
             // External instrument: the track's MIDI goes to an output port.
             match (&track.midi_out, nodes.midi_out.is_some()) {
@@ -1019,6 +1059,7 @@ impl ProjectPlayer {
                 ))
             },
             None,
+            true,
         );
         topology |= Self::sync_inserts(
             &mut self.engine,
@@ -1036,6 +1077,7 @@ impl ProjectPlayer {
                 ))
             },
             None,
+            true,
         );
         for node in removed_nodes {
             self.remove_node(node);
@@ -1189,9 +1231,43 @@ impl ProjectPlayer {
     fn apply_monitoring(&mut self) {
         let input = !self.auto_monitoring || self.recording || !self.engine.playing();
         for nodes in self.tracks.values() {
-            let on = nodes.armed && input && !nodes.instrument;
+            let on = !nodes.instrument
+                && match nodes.monitoring {
+                    Monitoring::Auto => nodes.armed && input,
+                    Monitoring::Input => true,
+                    Monitoring::Off => false,
+                };
             nodes.monitor_gain.set(if on { 1.0 } else { 0.0 });
         }
+    }
+
+    /// Whether a track hears its input now.
+    pub fn monitoring(&self, id: TrackId) -> bool {
+        self.tracks
+            .get(&id)
+            .is_some_and(|t| t.monitor_gain.get() >= 0.5)
+    }
+
+    /// The level of a track's input, heard or not.
+    pub fn track_input_meter(&self, id: TrackId) -> Option<&MeterReadout> {
+        self.tracks.get(&id).map(|t| &t.input_meter)
+    }
+
+    /// Low latency mode: effects adding more than 1 ms are bypassed, so that what is played
+    /// is heard at once (their latency no longer delays the rest).
+    pub fn set_low_latency(&mut self, on: bool) {
+        let limit = self.engine.sample_rate() / 1000;
+        self.plugins.low_latency = on.then_some(limit);
+        self.plugins.resync = true;
+    }
+
+    pub fn low_latency(&self) -> bool {
+        self.plugins.low_latency.is_some()
+    }
+
+    /// The inserts the low latency mode bypasses.
+    pub fn low_latency_bypassed(&self) -> &[InsertId] {
+        &self.plugins.forced
     }
 
     /// Frees what the audio thread is done with and services plugins; call regularly from the
@@ -1247,8 +1323,14 @@ impl ProjectPlayer {
                             let latency = plugin.instance.latency();
                             if latency != plugin.latency {
                                 plugin.latency = latency;
-                                let _ = self.engine.set_latency(slot.node, latency);
-                                latency_changed = true;
+                                slot.latency = latency;
+                                if !plugin.controls.bypassed() {
+                                    slot.declared = latency;
+                                    let _ = self.engine.set_latency(slot.node, latency);
+                                    latency_changed = true;
+                                }
+                                // The low latency mode may now take it, or let it go.
+                                self.plugins.resync |= self.plugins.low_latency.is_some();
                             }
                         }
                         _ => {}
@@ -2019,6 +2101,79 @@ mod tests {
             level(&mut player) > 0.4,
             "always: input heard while playing"
         );
+    }
+
+    #[test]
+    fn monitoring_follows_each_tracks_mode() {
+        let mut history = History::new(Project::new("Test", 48_000));
+        let mut player = ProjectPlayer::new(EngineConfig { workers: Some(0) });
+        let media = MediaPool::new(48_000, None);
+        let mut processor = player.processor(48_000, 64);
+        let mut storage = ChannelBuffers::new(4, 2, 64);
+        storage.input_mut(0).fill(0.5);
+        let mut id = TrackId(0);
+        history.edit("Track", |p| id = p.add_track("Gtr"));
+        let mut level = |player: &mut ProjectPlayer, history: &History| {
+            player.sync(history.project(), None, &media);
+            player.update();
+            for _ in 0..3 {
+                processor.render(&mut storage.buffers(64));
+            }
+            storage.output(0)[63]
+        };
+        assert_eq!(level(&mut player, &history), 0.0, "auto, not armed: silent");
+        let input = player.track_input_meter(id).unwrap().take_peak(0);
+        assert!(input > 0.4, "its input is measured all the same");
+        history.edit("Input", |p| {
+            p.track_mut(id).unwrap().monitor = Monitoring::Input
+        });
+        assert!(level(&mut player, &history) > 0.4, "input: heard unarmed");
+        assert!(player.monitoring(id));
+        history.edit("Off", |p| {
+            let t = p.track_mut(id).unwrap();
+            t.monitor = Monitoring::Off;
+            t.armed = true;
+        });
+        assert_eq!(level(&mut player, &history), 0.0, "off: silent, even armed");
+    }
+
+    #[test]
+    fn low_latency_bypasses_slow_effects_except_on_played_tracks() {
+        let mut history = History::new(Project::new("Test", 48_000));
+        let mut player = ProjectPlayer::new(EngineConfig { workers: Some(0) });
+        let media = MediaPool::new(48_000, None);
+        let _processor = player.processor(48_000, 64);
+        let mut inserts = Vec::new();
+        history.edit("Tracks", |p| {
+            let vox = p.add_track("Vox");
+            p.track_mut(vox).unwrap().armed = true;
+            let bed = p.add_track("Bed");
+            for t in [vox, bed] {
+                inserts.push(
+                    routing::add_insert(p, Channel::Track(t), "limiter", Default::default())
+                        .unwrap(),
+                );
+            }
+        });
+        player.sync(history.project(), None, &media);
+        assert!(player.engine().shared().latency() > 0);
+        player.set_low_latency(true);
+        assert!(player.take_resync());
+        player.sync(history.project(), None, &media);
+        assert_eq!(player.low_latency_bypassed(), [inserts[1]]);
+        assert!(
+            player.engine().shared().latency() > 0,
+            "the armed track keeps its limiter"
+        );
+        let vox = history.project().tracks[0].id;
+        history.edit("Disarm", |p| p.track_mut(vox).unwrap().armed = false);
+        player.sync(history.project(), None, &media);
+        assert_eq!(player.low_latency_bypassed().len(), 2);
+        assert_eq!(player.engine().shared().latency(), 0);
+        player.set_low_latency(false);
+        player.sync(history.project(), None, &media);
+        assert!(player.low_latency_bypassed().is_empty());
+        assert!(player.engine().shared().latency() > 0);
     }
 
     /// Renders a constant 0.5 clip through `edit` and returns the last left sample.

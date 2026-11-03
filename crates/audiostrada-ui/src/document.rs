@@ -11,7 +11,8 @@ use audiostrada_core::autosave::{self, Autosaver};
 use audiostrada_core::file::{self, ProjectError};
 use audiostrada_core::routing::Channel;
 use audiostrada_core::{
-    Clip, ClipId, History, Note, Project, ProjectPaths, Source, SourceId, TrackId, base64, edit,
+    Clip, ClipId, History, Note, Project, ProjectPaths, Source, SourceId, TrackId, TrackKind,
+    base64, edit,
 };
 use audiostrada_engine::EngineConfig;
 use audiostrada_engine::EngineProcessor;
@@ -502,11 +503,19 @@ impl Document {
         let project = self.history.project();
         self.levels.retain(|id, _| project.track(*id).is_some());
         for track in &project.tracks {
-            if let Some(readout) = self.player.track_meter(track.id) {
-                self.levels
-                    .entry(track.id)
-                    .or_default()
-                    .take(readout, elapsed);
+            let Some(output) = self.player.track_meter(track.id) else {
+                continue;
+            };
+            let level = self.levels.entry(track.id).or_default();
+            // An armed audio track shows its input, heard or not, to set its level.
+            match self.player.track_input_meter(track.id) {
+                Some(input) if track.armed && track.kind == TrackKind::Audio => {
+                    level.take(input, elapsed);
+                    for ch in 0..output.channels() {
+                        output.take_peak(ch);
+                    }
+                }
+                _ => level.take(output, elapsed),
             }
         }
     }

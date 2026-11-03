@@ -710,3 +710,45 @@ Le dossier sert de groupe
 
 Its tracks move, mute, solo and edit together, as set in Groups; tracks moved in or out of the folder join or leave
 Ses pistes bougent, se coupent, passent en solo et s'éditent ensemble, selon les réglages de Groupes ; les pistes entrées ou sorties du dossier rejoignent ou quittent le groupe
+
+Low latency mode
+Mode basse latence
+
+Low latency mode off
+Mode basse latence désactivé
+
+Low latency mode: effects adding more than 1 ms are bypassed, except on the tracks being played
+Mode basse latence : les effets ajoutant plus de 1 ms sont bypassés, sauf sur les pistes jouées
+
+Automatic: hears its input while armed, as set in the preferences (always, or only while stopped or recording)
+Automatique : entend son entrée quand elle est armée, selon les préférences (toujours, ou seulement à l'arrêt et en enregistrement)
+
+Click for the next mode, right-click to choose
+Clic pour le mode suivant, clic droit pour choisir
+
+Input: always hears its input, armed or not
+Entrée : entend toujours son entrée, armée ou non
+
+It does not hear its input now.
+Elle n'entend pas son entrée en ce moment.
+
+It hears its input now.
+Elle entend son entrée en ce moment.
+
+Off: never hears its input (heard through the audio interface)
+Arrêt : n'entend jamais son entrée (écoutée par l'interface audio)
+
+{owner}: {name}, bypassed by the low latency mode (it adds more than 1 ms)
+{owner} : {name}, bypassé par le mode basse latence (il ajoute plus de 1 ms)
+
+For the tracks whose speaker button is on Auto. The button can also make a track always hear its input, armed or not, or never.
+Pour les pistes dont le bouton haut-parleur est sur Auto. Ce bouton peut aussi faire entendre son entrée à une piste en permanence, armée ou non, ou jamais.
+
+Input level (armed track)
+Niveau d'entrée (piste armée)
+
+{action}: bypasses the effects adding more than 1 ms (except on the tracks being played), so that what you play is heard at once
+{action} : bypasse les effets ajoutant plus de 1 ms (sauf sur les pistes jouées), pour entendre aussitôt ce que vous jouez
+
+{action}: on, {count} effect(s) bypassed. Effects adding more than 1 ms are bypassed, except on the tracks being played, so that what you play is heard at once
+{action} : activé, {count} effet(s) bypassé(s). Les effets ajoutant plus de 1 ms sont bypassés, sauf sur les pistes jouées, pour entendre aussitôt ce que vous jouez

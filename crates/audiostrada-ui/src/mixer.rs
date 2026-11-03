@@ -904,6 +904,73 @@ pub(crate) fn input_choices(ui: &mut Ui, doc: &mut Document, track: &Track) {
     }
 }
 
+/// What a monitoring mode does, for its button.
+fn monitoring_help(mode: audiostrada_core::Monitoring) -> &'static str {
+    use audiostrada_core::Monitoring;
+    match mode {
+        Monitoring::Auto => tr(
+            "Automatic: hears its input while armed, as set in the preferences (always, or only \
+             while stopped or recording)",
+        ),
+        Monitoring::Input => tr("Input: always hears its input, armed or not"),
+        Monitoring::Off => tr("Off: never hears its input (heard through the audio interface)"),
+    }
+}
+
+/// The input monitoring button of a track: a click goes to the next mode (for the selection
+/// the track is part of), a right-click chooses one.
+pub(crate) fn monitor_toggle(ui: &mut Ui, rect: Rect, doc: &mut Document, track: &Track) {
+    use audiostrada_core::Monitoring;
+    let id = track.id;
+    let response = ui.interact(rect, ui.scope_id().with(("monitor", id.0)), Sense::click());
+    let hearing = doc.player().monitoring(id);
+    theme::paint_monitor_toggle(ui, rect, &response, track.monitor, hearing);
+    let state = if hearing {
+        tr("It hears its input now.")
+    } else {
+        tr("It does not hear its input now.")
+    };
+    let response = response.on_hover_text(format!(
+        "{}\n{state}\n{}",
+        monitoring_help(track.monitor),
+        tr("Click for the next mode, right-click to choose")
+    ));
+    let mut tracks = selection_with(doc, id);
+    if tracks.is_empty() {
+        tracks.push(id);
+    }
+    let set = |doc: &mut Document, mode: Monitoring| {
+        doc.history_mut().edit(tr("Input monitoring"), |p| {
+            for &t in &tracks {
+                if let Some(t) = p.track_mut(t) {
+                    t.monitor = mode;
+                }
+            }
+        });
+    };
+    if response.clicked() {
+        set(
+            doc,
+            match track.monitor {
+                Monitoring::Auto => Monitoring::Input,
+                Monitoring::Input => Monitoring::Off,
+                Monitoring::Off => Monitoring::Auto,
+            },
+        );
+    }
+    response.context_menu(|ui| {
+        for mode in [Monitoring::Auto, Monitoring::Input, Monitoring::Off] {
+            if ui
+                .selectable_label(track.monitor == mode, monitoring_help(mode))
+                .clicked()
+            {
+                set(doc, mode);
+                ui.close();
+            }
+        }
+    });
+}
+
 /// Group choice for one track, in its menus.
 pub(crate) fn group_submenu(ui: &mut Ui, doc: &mut Document, track: TrackId) {
     let current = groups::group_of(doc.project(), track);
@@ -1700,7 +1767,13 @@ impl MixerView {
                 });
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 3.0;
-                    let size = vec2(((width - 14.0) / 3.0).max(16.0), 20.0);
+                    // Mute, solo, and for audio tracks arm and input monitoring.
+                    let monitored = !vca && !doc.is_instrument_track(id);
+                    let size = if monitored {
+                        vec2(((width - 17.0) / 4.0).max(16.0), 20.0)
+                    } else {
+                        vec2(((width - 14.0) / 3.0).max(16.0), 20.0)
+                    };
                     let toggle = |ui: &mut Ui, text: &str, on: bool, color: Color32, hint: &str| {
                         theme::letter_toggle(ui, size, text, on, color)
                             .on_hover_text(hint)
@@ -1753,6 +1826,10 @@ impl MixerView {
                                 groups::set_switch(p, id, Link::Arm, armed)
                             })
                         });
+                    }
+                    if monitored {
+                        let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+                        monitor_toggle(ui, rect, doc, track);
                     }
                 });
                 let name = format!("{}{}", "› ".repeat(depth), track.name);
@@ -2043,14 +2120,20 @@ impl MixerView {
             let id = insert.id;
             let name = effect_name(doc, &insert.effect);
             let error = doc.player().plugin_error(id).map(str::to_owned);
+            let forced = doc.player().low_latency_bypassed().contains(&id);
             let mut text = RichText::new(&name).size(11.0);
-            if insert.bypass || off {
+            if insert.bypass || off || forced {
                 text = text.weak().strikethrough();
             }
             if error.is_some() {
                 text = text.color(ERROR);
             }
             let hint = match &error {
+                None if forced => trf!(
+                    "{owner}: {name}, bypassed by the low latency mode (it adds more than 1 ms)",
+                    owner = owner,
+                    name = name
+                ),
                 Some(e) => trf!(
                     "{owner}: {name} cannot be loaded: {e}",
                     owner = owner,

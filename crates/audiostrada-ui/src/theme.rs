@@ -351,6 +351,8 @@ pub enum Icon {
     Punch,
     Metronome,
     Snap,
+    /// A stopwatch: the low latency mode.
+    Latency,
 }
 
 /// Draws `icon` centered in `rect`.
@@ -452,6 +454,22 @@ pub fn paint_icon(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
                     pos2(c.x, c.y + s * 0.45),
                     pos2(c.x + s * 0.45, c.y - s * 0.55),
                 ],
+                stroke,
+            );
+        }
+        Icon::Latency => {
+            let center = pos2(c.x, c.y + s * 0.12);
+            let r = s * 0.62;
+            painter.circle_stroke(center, r, stroke);
+            painter.line_segment(
+                [
+                    pos2(c.x - s * 0.18, c.y - s * 0.72),
+                    pos2(c.x + s * 0.18, c.y - s * 0.72),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [center, pos2(center.x + r * 0.45, center.y - r * 0.55)],
                 stroke,
             );
         }
@@ -625,6 +643,81 @@ pub fn paint_letter_toggle(
         strong((rect.height() * 0.55).clamp(9.0, 13.0)),
         color,
     );
+}
+
+/// Lit while the track hears its input.
+pub const MONITOR: Color32 = Color32::from_rgb(70, 190, 200);
+
+/// The input monitoring button: a speaker, lit while the input is heard; a small "A" in
+/// automatic mode, struck through when off.
+pub fn paint_monitor_toggle(
+    ui: &Ui,
+    rect: Rect,
+    response: &Response,
+    mode: audiostrada_core::Monitoring,
+    hearing: bool,
+) {
+    use audiostrada_core::Monitoring;
+    let p = current(ui);
+    let fill = if hearing {
+        MONITOR
+    } else if response.hovered() {
+        p.hover
+    } else {
+        p.surface
+    };
+    ui.painter().rect_filled(rect, 3.0, fill);
+    if !hearing && !p.dark {
+        ui.painter()
+            .rect_stroke(rect, 3.0, Stroke::new(1.0, p.border), StrokeKind::Inside);
+    }
+    let color = if hearing {
+        Color32::from_rgb(24, 24, 24)
+    } else {
+        p.weak
+    };
+    let s = rect.height() * 0.3;
+    let shift = if mode == Monitoring::Auto { 1.0 } else { 0.5 };
+    let c = rect.center() - vec2(s * shift, 0.0);
+    let body = vec![
+        pos2(c.x - s * 0.7, c.y - s * 0.35),
+        pos2(c.x - s * 0.2, c.y - s * 0.35),
+        pos2(c.x + s * 0.4, c.y - s * 0.9),
+        pos2(c.x + s * 0.4, c.y + s * 0.9),
+        pos2(c.x - s * 0.2, c.y + s * 0.35),
+        pos2(c.x - s * 0.7, c.y + s * 0.35),
+    ];
+    ui.painter()
+        .add(Shape::convex_polygon(body, color, Stroke::NONE));
+    let stroke = Stroke::new(1.3, color);
+    match mode {
+        Monitoring::Off => {
+            ui.painter().line_segment(
+                [pos2(c.x - s, c.y + s), pos2(c.x + s * 1.6, c.y - s)],
+                Stroke::new(1.6, color),
+            );
+        }
+        _ => {
+            for r in [0.75, 1.25] {
+                let points: Vec<Pos2> = (0..=8)
+                    .map(|i| {
+                        let a = (i as f32 / 8.0 - 0.5) * 1.6;
+                        pos2(c.x + s * 0.4 + r * s * a.cos(), c.y + r * s * a.sin())
+                    })
+                    .collect();
+                ui.painter().add(Shape::line(points, stroke));
+            }
+        }
+    }
+    if mode == Monitoring::Auto {
+        ui.painter().text(
+            pos2(rect.right() - 2.0, rect.bottom() - 1.0),
+            egui::Align2::RIGHT_BOTTOM,
+            "A",
+            strong(8.0),
+            color,
+        );
+    }
 }
 
 /// A sunken box, as behind counters and meters.

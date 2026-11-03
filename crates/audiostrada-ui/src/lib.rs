@@ -334,7 +334,7 @@ impl AudioStradaApp {
                 mixer: MixerView::new(Rc::clone(&doc)),
                 timeline: {
                     let mut timeline = TimelineView::new(Rc::clone(&doc));
-                    timeline.header_width = prefs.track_headers;
+                    timeline.header_width = prefs.header_width;
                     timeline
                 },
                 piano: piano_roll::PianoRoll::new(Rc::clone(&doc)),
@@ -874,6 +874,20 @@ impl AudioStradaApp {
             }
             Action::MetronomeSettings => crate::metronome_window::open(ctx),
             Action::ListenToReference => reference_window::toggle(ctx, &mut self.doc.borrow_mut()),
+            Action::LowLatency => {
+                let mut doc = self.doc.borrow_mut();
+                let on = !doc.player().low_latency();
+                doc.player_mut().set_low_latency(on);
+                doc.notify(if on {
+                    tr(
+                        "Low latency mode: effects adding more than 1 ms are bypassed, except on \
+                        the tracks being played",
+                    )
+                    .into()
+                } else {
+                    tr("Low latency mode off").into()
+                });
+            }
             Action::ReferenceTrack => reference_window::open(ctx),
             Action::ToggleLoop => {
                 // On over the loop kept, else the selection, else the whole project.
@@ -1490,7 +1504,7 @@ impl AudioStradaApp {
                 .then_some(views.timeline.header_width)
         };
         if let Some(width) = resized {
-            self.prefs.track_headers = width;
+            self.prefs.header_width = width;
             (self.hooks.ui_changed)(&self.prefs);
         }
         let stem = {
@@ -1865,6 +1879,8 @@ impl AudioStradaApp {
                 ] {
                     item(ui, &mut chosen, action, None, true);
                 }
+                let low = self.doc.borrow().player().low_latency();
+                check(ui, &mut chosen, Action::LowLatency, low);
                 ui.separator();
                 for action in [
                     Action::AddMarker,

@@ -235,6 +235,26 @@ pub fn show(
                         if response.secondary_clicked() {
                             crate::reference_window::open(ui.ctx());
                         }
+                        let low = doc.player().low_latency();
+                        let bypassed = doc.player().low_latency_bypassed().len();
+                        let low_hint = if low {
+                            trf!(
+                                "{action}: on, {count} effect(s) bypassed. Effects adding more \
+                                 than 1 ms are bypassed, except on the tracks being played, so \
+                                 that what you play is heard at once",
+                                action = hint(Action::LowLatency),
+                                count = bypassed
+                            )
+                        } else {
+                            trf!(
+                                "{action}: bypasses the effects adding more than 1 ms (except on \
+                                 the tracks being played), so that what you play is heard at once",
+                                action = hint(Action::LowLatency)
+                            )
+                        };
+                        if theme::icon_button(ui, Icon::Latency, low, theme::MONITOR, &low_hint).clicked() {
+                            actions.push(Action::LowLatency);
+                        }
             });
         });
         ui.add_space(10.0);

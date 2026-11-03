@@ -66,6 +66,14 @@ MP4, MOV, MKV and WebM files.
 2. Arm the track with **R**: its input is heard through the track (monitoring).
 3. Press record (R in the AudioStrada shortcut preset). Several tracks record together.
 
+- **Monitoring**: the speaker button beside **R** says when a track hears its input. On *Auto*
+  it does while armed, as set in Preferences (always, or only while stopped or recording);
+  *Input* always hears it, armed or not (to play through an amp); *Off* never does (direct
+  monitoring on the interface). It is lit while the input is heard. An armed track's meter shows
+  its input level, heard or not.
+- **Low latency mode** (stopwatch in the transport bar): effects adding more than 1 ms are
+  bypassed, except on the tracks being played, so that their latency no longer delays what you
+  hear. The mixer shows them struck through.
 - **Metronome**: the metronome button (K) clicks on every beat while playing; right-click it
   for its window (volume, sound, accents, count-in of up to four bars). The click is never in exports.
 - **Punch**: Shift-drag in the ruler sets the punch range (or right-click the ruler); recording

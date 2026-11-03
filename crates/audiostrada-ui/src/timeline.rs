@@ -30,7 +30,7 @@ mod processing;
 mod toolbar;
 pub use menus::TRACK_COLORS;
 
-const HEADER_WIDTH: f32 = 180.0;
+const HEADER_WIDTH: f32 = 210.0;
 const MIN_HEADER_WIDTH: f32 = 150.0;
 const MAX_HEADER_WIDTH: f32 = 420.0;
 /// Width the track meter takes at the right of a header.
@@ -1066,7 +1066,8 @@ impl TimelineView {
         }
     }
 
-    /// A track's level, two thin bars beside its header; a click clears the clip light.
+    /// A track's level (its input while armed), two thin bars beside its header; a click clears
+    /// the clip light.
     fn header_meter(&self, ui: &mut Ui, doc: &mut Document, id: TrackId, rect: Rect) {
         let mut level = doc.track_level(id);
         let response = ui.interact(rect, ui.scope_id().with(("meter", id.0)), Sense::click());
@@ -1075,11 +1076,17 @@ impl TimelineView {
             level.clipped = false;
             doc.set_track_level(id, level);
         }
-        response.on_hover_text(trf!(
+        let peaks = trf!(
             "Peak {left} / {right} dBFS. Click to clear the clip light",
             left = format!("{:.1}", level.hold[0]),
             right = format!("{:.1}", level.hold[1])
-        ));
+        );
+        let armed = doc.project().track(id).is_some_and(|t| t.armed);
+        response.on_hover_text(if armed {
+            format!("{}\n{peaks}", tr("Input level (armed track)"))
+        } else {
+            peaks
+        });
     }
 
     /// The right edge of the track headers, dragged to widen or narrow them.
@@ -1899,16 +1906,25 @@ impl TimelineView {
                     trf!("In {input}", input = track.input + 1)
                 };
                 if !vca {
-                    let width = (right - row.left() - 100.0).clamp(56.0, 140.0);
-                    let combo_rect =
-                        Rect::from_min_size(pos2(row.left() + 96.0, y), vec2(width, 20.0));
-                    let mut ui_child = ui.new_child(egui::UiBuilder::new().max_rect(combo_rect));
-                    egui::ComboBox::from_id_salt(("input", id.0))
-                        .width(width - 6.0)
-                        .selected_text(input_label)
-                        .show_ui(&mut ui_child, |ui| {
-                            crate::mixer::input_choices(ui, doc, track)
-                        });
+                    let mut left = row.left() + 96.0;
+                    if !doc.is_instrument_track(id) {
+                        let rect = Rect::from_min_size(pos2(left, y), vec2(24.0, 20.0));
+                        crate::mixer::monitor_toggle(ui, rect, doc, track);
+                        left += 28.0;
+                    }
+                    // The input where there is room for it (else in the mixer).
+                    let width = (right - left - 4.0).min(140.0);
+                    if width >= 50.0 {
+                        let combo_rect = Rect::from_min_size(pos2(left, y), vec2(width, 20.0));
+                        let mut ui_child =
+                            ui.new_child(egui::UiBuilder::new().max_rect(combo_rect));
+                        egui::ComboBox::from_id_salt(("input", id.0))
+                            .width(width - 6.0)
+                            .selected_text(input_label)
+                            .show_ui(&mut ui_child, |ui| {
+                                crate::mixer::input_choices(ui, doc, track)
+                            });
+                    }
                 }
             }
             if renaming {

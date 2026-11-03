@@ -39,6 +39,10 @@ impl PluginControls {
     pub fn set_bypass(&self, bypass: bool) {
         self.bypass.store(bypass, Ordering::Relaxed);
     }
+
+    pub fn bypassed(&self) -> bool {
+        self.bypass.load(Ordering::Relaxed)
+    }
 }
 
 pub struct PluginNode {
