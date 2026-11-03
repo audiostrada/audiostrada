@@ -33,6 +33,10 @@ pub(super) struct RackState {
     drag: Option<InsertId>,
     /// Where a dragged insert can land, drawn this frame.
     gaps: Vec<(Rect, routing::Place, usize)>,
+    /// The channel strip's unit folded to one line.
+    pub strip_folded: bool,
+    /// Module of the channel strip being dragged to another place.
+    strip_drag: Option<usize>,
     /// Settings kept in the A and B slots of each insert, and the one in use.
     ab: HashMap<InsertId, (usize, [Option<Settings>; 2])>,
 }
@@ -259,6 +263,89 @@ fn faceplate(ui: &Ui, rect: Rect, tint: Color32, lit: bool) {
     }
 }
 
+/// A plain faceplate: the background, border and family color of the modules, no screws.
+fn faceplate_plain(ui: &Ui, rect: Rect, tint: Color32, lit: bool) {
+    let p = theme::current(ui);
+    let painter = ui.painter_at(rect.expand(1.0));
+    let fill = if p.dark {
+        theme::mix(p.panel, p.surface, 0.3)
+    } else {
+        theme::mix(p.panel, p.surface, 0.45)
+    };
+    painter.rect_filled(rect, 2.0, fill);
+    painter.rect_stroke(
+        rect,
+        2.0,
+        egui::Stroke::new(1.0, p.border),
+        egui::StrokeKind::Inside,
+    );
+    painter.rect_filled(
+        Rect::from_min_size(rect.min, vec2(rect.width(), 3.0)),
+        0.0,
+        tint.gamma_multiply(if lit { 1.0 } else { 0.35 }),
+    );
+}
+
+/// The name of a channel strip section.
+fn section_title(module: &str) -> &'static str {
+    match module {
+        "filters" => tr("Filters"),
+        "gate" => tr("Gate"),
+        "comp" => tr("Compressor"),
+        "eq" => tr("EQ"),
+        _ => tr("Drive"),
+    }
+}
+
+/// The response of the channel strip's filters and EQ.
+fn strip_curve(ui: &mut Ui, values: &[f32], width: f32) {
+    use audiostrada_dsp::Effect;
+    let p = theme::current(ui);
+    let (rect, _) = ui.allocate_exact_size(vec2(width.max(160.0), 100.0), Sense::hover());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 5.0, p.base);
+    let x_of = |f: f32| rect.left() + rect.width() * (f / 20.0).log10() / 3.0;
+    let y_of = |db: f32| rect.center().y - db / 18.0 * rect.height() * 0.45;
+    for db in [-12.0f32, -6.0, 0.0, 6.0, 12.0] {
+        painter.line_segment(
+            [pos2(rect.left(), y_of(db)), pos2(rect.right(), y_of(db))],
+            egui::Stroke::new(
+                1.0,
+                p.weak.gamma_multiply(if db == 0.0 { 0.3 } else { 0.1 }),
+            ),
+        );
+    }
+    for (f, label) in [(100.0, "100"), (1000.0, "1k"), (10_000.0, "10k")] {
+        let x = x_of(f);
+        painter.line_segment(
+            [pos2(x, rect.top()), pos2(x, rect.bottom())],
+            egui::Stroke::new(1.0, p.weak.gamma_multiply(0.1)),
+        );
+        painter.text(
+            pos2(x + 3.0, rect.bottom() - 2.0),
+            egui::Align2::LEFT_BOTTOM,
+            label,
+            egui::FontId::proportional(8.5),
+            p.weak,
+        );
+    }
+    let mut dsp = audiostrada_dsp::channel::Channel::default();
+    dsp.prepare(48_000, 64);
+    for (i, v) in values.iter().enumerate() {
+        dsp.set_param(i, *v);
+    }
+    let points: Vec<egui::Pos2> = (0..=160)
+        .map(|i| {
+            let t = i as f32 / 160.0;
+            let db = dsp
+                .eq_response_db(20.0 * 1000f64.powf(f64::from(t)))
+                .clamp(-18.0, 18.0) as f32;
+            pos2(rect.left() + rect.width() * t, y_of(db))
+        })
+        .collect();
+    painter.add(egui::Shape::line(points, egui::Stroke::new(1.8, p.accent)));
+}
+
 /// A module's power switch: a round button with a green light while it plays.
 fn power_led(ui: &mut Ui, on: bool) -> Response {
     let p = theme::current(ui);
@@ -304,6 +391,8 @@ impl MixerView {
             ui.weak(tr("Select a track to see its effects here."));
             return;
         };
+        self.strip_unit(ui, &mut doc, channel);
+        ui.add_space(2.0);
         self.rack.gaps.clear();
         egui::ScrollArea::horizontal()
             .id_salt("rack")
@@ -311,7 +400,6 @@ impl MixerView {
             .show(ui, |ui| {
                 ui.horizontal_top(|ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
-                    self.rack_strip(ui, &mut doc, channel);
                     let shown: Vec<audiostrada_core::Insert> = routing::inserts(&project, channel)
                         .iter()
                         .filter(|i| !i.monitor && i.effect != routing::STRIP)
@@ -359,13 +447,368 @@ impl MixerView {
         plate
     }
 
-    /// The channel strip at the head of the rack.
-    fn rack_strip(&mut self, ui: &mut Ui, doc: &mut Document, channel: Channel) {
+    /// The channel strip on its own 1U unit above the modules: its sections in the order they
+    /// play (dragged by their grip to reorder them), each with its switch and main controls,
+    /// the output and the curve; folded, one line.
+    fn strip_unit(&mut self, ui: &mut Ui, doc: &mut Document, channel: Channel) {
+        let p = theme::current(ui);
+        let folded = self.rack.strip_folded;
+        let height = if folded { 30.0 } else { 144.0 };
+        let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
         let tint = theme::family_color("EQ & Filter");
-        self.slot(ui, 172.0, (tint, true), |view, ui| {
-            ui.add_space(6.0);
-            view.channel_section(ui, doc, channel, 140.0);
+        let strip = routing::strip(doc.project(), channel).cloned();
+        let lit = strip.as_ref().is_some_and(|s| !s.bypass);
+        // Ears at both ends, screwed to the rails.
+        let painter = ui.painter_at(rect);
+        for ear in [
+            Rect::from_min_size(rect.min, vec2(16.0, rect.height())),
+            Rect::from_min_size(
+                pos2(rect.right() - 16.0, rect.top()),
+                vec2(16.0, rect.height()),
+            ),
+        ] {
+            theme::gradient_rect(&painter, ear, p.hover, p.surface);
+            let x = ear.center().x;
+            screw(&painter, pos2(x, ear.top() + 9.0), &p);
+            if !folded {
+                screw(&painter, pos2(x, ear.bottom() - 9.0), &p);
+            }
+        }
+        let plate = Rect::from_min_max(rect.min + vec2(15.0, 0.0), rect.max - vec2(15.0, 0.0));
+        faceplate_plain(ui, plate, tint, lit);
+        let inner = plate.shrink2(vec2(10.0, 6.0)).translate(vec2(0.0, 2.0));
+        let mut child = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(inner)
+                .layout(Layout::top_down(Align::Min)),
+        );
+        let ui = &mut child;
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            let arrow = if folded { "▸" } else { "▾" };
+            if ui
+                .add(egui::Button::new(arrow).frame(false))
+                .on_hover_text(if folded {
+                    tr("Unfold the channel strip")
+                } else {
+                    tr("Fold the channel strip")
+                })
+                .clicked()
+            {
+                self.rack.strip_folded = !folded;
+            }
+            if let Some(strip) = &strip
+                && power_led(ui, !strip.bypass)
+                    .on_hover_text(tr("Bypass or play"))
+                    .clicked()
+            {
+                let (id, bypass) = (strip.id, !strip.bypass);
+                doc.history_mut().edit(tr("Bypass insert"), |p| {
+                    routing::set_bypass(p, channel, id, bypass)
+                });
+            }
+            ui.label(
+                RichText::new(tr("CHANNEL STRIP"))
+                    .strong()
+                    .size(11.0)
+                    .color(p.text),
+            );
+            // The console it plays through.
+            let console = crate::console_ui::of_channel(doc, channel);
+            let mut text = RichText::new(trf!(
+                "Console: {name}",
+                name = crate::console_ui::name(console.model)
+            ))
+            .size(11.0);
+            if console.colors() {
+                text = text.color(crate::console_ui::color(console.model));
+            }
+            let button = ui.add(egui::Button::new(text).frame(false));
+            egui::Popup::menu(&button)
+                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                .show(|ui| match channel {
+                    Channel::Track(t) => crate::console_ui::track_menu(ui, doc, t),
+                    Channel::Master => crate::console_ui::console_menu(ui, doc),
+                });
+            if folded {
+                // The modules on, as on the strips.
+                for (k, on) in strip_modules(doc.project(), channel) {
+                    let (label, _, family) = STRIP_MODULES[k];
+                    let color = theme::family_color(family);
+                    let chip = RichText::new(label).size(9.5).strong().color(if on {
+                        theme::text_on(color)
+                    } else {
+                        p.weak
+                    });
+                    let chip = if on {
+                        chip.background_color(color)
+                    } else {
+                        chip
+                    };
+                    ui.label(chip);
+                }
+            }
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if ui
+                    .small_button("↗")
+                    .on_hover_text(tr("Open the channel strip: its curve and every setting"))
+                    .clicked()
+                {
+                    self.open_strip(doc, channel);
+                }
+            });
         });
+        if folded {
+            return;
+        }
+        ui.add_space(2.0);
+        self.strip_sections(ui, doc, channel, strip.as_ref());
+    }
+
+    /// The channel strip's sections, its output and its curve.
+    fn strip_sections(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        channel: Channel,
+        strip: Option<&audiostrada_core::Insert>,
+    ) {
+        use audiostrada_dsp::channel::{MODULES, module_order, order_code};
+        let p = theme::current(ui);
+        let info = &audiostrada_dsp::channel::INFO;
+        let character = crate::console_ui::character(doc, channel);
+        let values: Vec<f32> = info
+            .params
+            .iter()
+            .map(|q| match (q.id, strip) {
+                ("character", _) => character as f32,
+                (_, Some(s)) => s.params.get(q.id).copied().unwrap_or(q.default),
+                (_, None) => q.default,
+            })
+            .collect();
+        let meters = strip
+            .and_then(|s| doc.player_mut().insert_meters(channel, s.id))
+            .unwrap_or_default();
+        let order = module_order(
+            values[info
+                .params
+                .iter()
+                .position(|q| q.id == "order")
+                .unwrap_or(0)],
+        );
+        let mut frames = [Rect::NOTHING; 5];
+        // The curve takes what the sections leave: the unit spans the whole rack.
+        let right = ui.max_rect().right();
+        egui::ScrollArea::horizontal()
+            .id_salt(("strip-unit", strip.map(|s| s.id.0)))
+            .show(ui, |ui| {
+                ui.horizontal_top(|ui| {
+                    ui.spacing_mut().item_spacing.x = 6.0;
+                    for (slot, &m) in order.iter().enumerate() {
+                        let module = MODULES[m];
+                        let (_, hint, family) = STRIP_MODULES[m];
+                        let color = theme::family_color(family);
+                        let on = values
+                            [info.params.iter().position(|q| q.id == module).unwrap_or(0)]
+                            >= 0.5;
+                        let moving = self.rack.strip_drag == Some(m);
+                        let frame = egui::Frame::new()
+                            .fill(p.base)
+                            .stroke(egui::Stroke::new(
+                                1.0,
+                                if moving {
+                                    p.accent
+                                } else {
+                                    Color32::TRANSPARENT
+                                },
+                            ))
+                            .corner_radius(5.0)
+                            .inner_margin(egui::Margin::symmetric(4, 2))
+                            .show(ui, |ui| {
+                                ui.vertical(|ui| {
+                                    ui.spacing_mut().item_spacing.y = 0.0;
+                                    ui.horizontal(|ui| {
+                                        ui.spacing_mut().item_spacing.x = 3.0;
+                                        let (grip, response) =
+                                            ui.allocate_exact_size(vec2(8.0, 18.0), Sense::drag());
+                                        let hot = response.hovered() || response.dragged();
+                                        for k in 0..6 {
+                                            let dot = pos2(
+                                                grip.left() + 2.0 + (k % 2) as f32 * 4.0,
+                                                grip.center().y - 4.0 + (k / 2) as f32 * 4.0,
+                                            );
+                                            ui.painter().circle_filled(
+                                                dot,
+                                                1.0,
+                                                if hot {
+                                                    p.text
+                                                } else {
+                                                    p.weak.gamma_multiply(0.6)
+                                                },
+                                            );
+                                        }
+                                        if hot {
+                                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                                        }
+                                        if response.drag_started() {
+                                            self.rack.strip_drag = Some(m);
+                                        }
+                                        response.on_hover_text(tr(
+                                            "Drag to change the order of the modules",
+                                        ));
+                                        if power_led(ui, on).on_hover_text(tr(hint)).clicked() {
+                                            self.set_strip_module(doc, channel, module, !on);
+                                        }
+                                        ui.label(
+                                            RichText::new(section_title(module))
+                                                .strong()
+                                                .size(10.5)
+                                                .color(if on { color } else { p.weak }),
+                                        );
+                                    });
+                                    let tint = if on { color } else { p.weak };
+                                    ui.horizontal(|ui| {
+                                        ui.spacing_mut().item_spacing.x = 0.0;
+                                        self.strip_knobs(
+                                            ui, doc, channel, strip, &values, module, tint, &meters,
+                                        );
+                                    });
+                                });
+                            });
+                        frames[slot] = frame.response.rect;
+                    }
+                    // The output, after every module, and the curve.
+                    egui::Frame::new()
+                        .fill(p.base)
+                        .corner_radius(5.0)
+                        .inner_margin(egui::Margin::symmetric(4, 2))
+                        .show(ui, |ui| {
+                            ui.vertical(|ui| {
+                                ui.label(RichText::new(tr("Output")).strong().size(10.5));
+                                self.strip_knobs(
+                                    ui, doc, channel, strip, &values, "output", p.text, &meters,
+                                );
+                            });
+                        });
+                    let width = right - ui.cursor().left() - 2.0;
+                    strip_curve(ui, &values, width);
+                });
+            });
+        // A dragged section lands between the others, by the pointer's x.
+        let Some(m) = self.rack.strip_drag else {
+            return;
+        };
+        if ui.input(|i| i.pointer.any_down()) {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+            return;
+        }
+        self.rack.strip_drag = None;
+        let (Some(strip), Some(x)) = (strip, ui.input(|i| i.pointer.hover_pos()).map(|p| p.x))
+        else {
+            return;
+        };
+        let others: Vec<usize> = order.iter().copied().filter(|&o| o != m).collect();
+        let at = |o: usize| frames[order.iter().position(|&k| k == o).unwrap_or(0)];
+        let target = others.iter().filter(|&&o| at(o).center().x < x).count();
+        let mut new = [m; 5];
+        let mut rest = others.iter();
+        for (k, slot) in new.iter_mut().enumerate() {
+            if k != target {
+                *slot = *rest.next().unwrap_or(&m);
+            }
+        }
+        if new != order {
+            let (id, code) = (strip.id, order_code(new));
+            doc.history_mut()
+                .edit(tr("Reorder the channel strip"), |p| {
+                    routing::set_insert_param(p, channel, id, "order", code)
+                });
+        }
+    }
+
+    /// The controls of one section of the channel strip; without a strip yet, shown as they
+    /// would be and not to be turned.
+    #[allow(clippy::too_many_arguments)]
+    fn strip_knobs(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        channel: Channel,
+        strip: Option<&audiostrada_core::Insert>,
+        values: &[f32],
+        module: &str,
+        tint: Color32,
+        meters: &[f32],
+    ) {
+        let p = theme::current(ui);
+        let knobs: &[(&str, &'static str)] = match module {
+            "filters" => &[("hpf", "High pass"), ("lpf", "Low pass")],
+            "gate" => &[("gate_threshold", "Threshold"), ("gate_range", "Range")],
+            "comp" => &[
+                ("comp_threshold", "Threshold"),
+                ("comp_ratio", "Ratio"),
+                ("comp_attack", "Attack"),
+                ("comp_makeup", "Makeup"),
+            ],
+            "eq" => &[
+                ("low_freq", "Low"),
+                ("low_gain", "Gain"),
+                ("lmf_freq", "Low mid"),
+                ("lmf_gain", "Gain"),
+                ("hmf_freq", "High mid"),
+                ("hmf_gain", "Gain"),
+                ("high_freq", "High"),
+                ("high_gain", "Gain"),
+            ],
+            "drive" => &[("drive_amount", "Amount")],
+            _ => &[("output", "Level")],
+        };
+        let info = &audiostrada_dsp::channel::INFO;
+        ui.add_enabled_ui(strip.is_some(), |ui| {
+            let Some(strip) = strip else {
+                for (_, label) in knobs {
+                    ui.add_sized(
+                        [52.0, 76.0],
+                        egui::Label::new(RichText::new(tr(label)).size(9.5).color(p.weak)),
+                    );
+                }
+                return;
+            };
+            let mut params = effect_editors::Params {
+                values: values.to_vec(),
+                doc: &mut *doc,
+                channel,
+                insert: strip.id,
+                info,
+            };
+            for (id, label) in knobs {
+                effect_editors::named_knob(ui, &mut params, id, tr(label), 34.0, tint);
+            }
+        });
+        // Gain reduction and gate meters beside their sections.
+        let meter = match module {
+            "comp" => Some((
+                meters.get(1).copied().unwrap_or(0.0).abs().min(24.0) / 24.0,
+                tint,
+            )),
+            "gate" => Some((
+                (-meters.first().copied().unwrap_or(0.0)).clamp(0.0, 40.0) / 40.0,
+                theme::PLAY,
+            )),
+            _ => None,
+        };
+        if let Some((amount, color)) = meter {
+            let (rect, _) = ui.allocate_exact_size(vec2(6.0, 70.0), Sense::hover());
+            ui.painter().rect_filled(rect, 2.0, p.panel);
+            ui.painter().rect_filled(
+                Rect::from_min_max(
+                    rect.min,
+                    pos2(rect.right(), rect.top() + rect.height() * amount),
+                ),
+                2.0,
+                color,
+            );
+        }
     }
 
     /// A gap between modules: a round button adds an effect there; it takes a dragged one.

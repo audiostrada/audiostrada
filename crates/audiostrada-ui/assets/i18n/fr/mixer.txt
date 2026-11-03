@@ -1271,3 +1271,9 @@ signal sec
 
 the signal goes through every branch, then they are mixed
 le signal passe par chaque branche, puis elles sont mélangées
+
+Fold the channel strip
+Replier le Channel Strip
+
+Unfold the channel strip
+Déplier le Channel Strip
