@@ -3139,3 +3139,36 @@ Accentuation
 
 Warmth
 Chaleur
+
+Closes at
+Se ferme à
+
+Ducker
+Ducker
+
+Expander
+Expandeur
+
+Gate, expander and ducker with hysteresis, lookahead, hold, range and a filtered sidechain.
+Gate, expandeur et ducker avec hystérésis, anticipation, maintien, plage et sidechain filtrée.
+
+Hysteresis
+Hystérésis
+
+Sidechain LPF
+Passe-bas sidechain
+
+Detection
+Détection
+
+Hear what the detector hears: the key through its filters
+Écouter ce qu'entend le détecteur : la clé à travers ses filtres
+
+Shuts the sound below the threshold, down to the range
+Coupe le son sous le seuil, jusqu'à la plage
+
+Lowers the sound below the threshold by the ratio: gentler than a gate
+Baisse le son sous le seuil selon le ratio : plus doux qu'un gate
+
+Lowers the sound by the range while the key is above the threshold
+Baisse le son de la plage tant que la clé dépasse le seuil
