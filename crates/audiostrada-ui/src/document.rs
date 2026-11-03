@@ -232,6 +232,10 @@ pub struct Document {
     archiving: Option<std::thread::JoinHandle<Result<PathBuf, String>>>,
     /// The reference file measured, and its integrated loudness.
     reference_lufs: Option<(PathBuf, Option<f64>)>,
+    /// Track meters, shared by the views (reading a meter takes its peaks), and when they were
+    /// last read.
+    levels: HashMap<TrackId, crate::widgets::MeterState>,
+    levels_read: std::time::Instant,
 }
 
 /// Automation being written for one control.
@@ -333,6 +337,8 @@ impl Document {
             controllers: audiostrada_midi::live::LiveMidi::default().reader(),
             archiving: None,
             reference_lufs: None,
+            levels: HashMap::new(),
+            levels_read: std::time::Instant::now(),
         };
         doc.controllers = doc.player.live_midi().reader();
         doc.request_media();
@@ -483,6 +489,37 @@ impl Document {
 
     pub fn set_track_selection(&mut self, tracks: Vec<TrackId>) {
         self.track_selection = tracks;
+    }
+
+    /// Reads the track meters, once for every view drawn in the same frame.
+    pub fn update_levels(&mut self) {
+        let now = std::time::Instant::now();
+        let elapsed = now.duration_since(self.levels_read).as_secs_f32();
+        if elapsed < 0.004 {
+            return;
+        }
+        self.levels_read = now;
+        let project = self.history.project();
+        self.levels.retain(|id, _| project.track(*id).is_some());
+        for track in &project.tracks {
+            if let Some(readout) = self.player.track_meter(track.id) {
+                self.levels
+                    .entry(track.id)
+                    .or_default()
+                    .take(readout, elapsed);
+            }
+        }
+    }
+
+    pub fn track_level(&self, id: TrackId) -> crate::widgets::MeterState {
+        self.levels.get(&id).copied().unwrap_or_default()
+    }
+
+    /// Keeps what a view changed in a meter (its clip light cleared).
+    pub fn set_track_level(&mut self, id: TrackId, level: crate::widgets::MeterState) {
+        if let Some(l) = self.levels.get_mut(&id) {
+            l.clipped = level.clipped;
+        }
     }
 
     pub fn set_stream_inputs(&mut self, inputs: usize) {

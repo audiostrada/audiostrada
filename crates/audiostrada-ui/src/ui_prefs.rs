@@ -173,6 +173,8 @@ pub struct UiPrefs {
     pub check_updates: Option<bool>,
     /// Day of the last check (YYYY-MM-DD).
     pub updates_checked: Option<String>,
+    /// Width of the timeline's track headers.
+    pub track_headers: f32,
 }
 
 impl Default for UiPrefs {
@@ -201,6 +203,7 @@ impl Default for UiPrefs {
             tab: 0,
             check_updates: None,
             updates_checked: None,
+            track_headers: 180.0,
         }
     }
 }

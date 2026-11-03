@@ -637,3 +637,33 @@ Sélectionner le temps que couvrent ces clips, sur leurs pistes
 
 Off, the loop stays where it is while you select elsewhere
 Décochée, la boucle reste en place pendant que vous sélectionnez ailleurs
+
+Drag to widen or narrow the track headers; double-click for the usual width
+Glisser pour élargir ou rétrécir les en-têtes de pistes ; double-clic pour la largeur habituelle
+
+Alt+Shift+wheel
+Alt+Maj+molette
+
+Alt+wheel, around the pointer
+Alt+molette, autour du pointeur
+
+Alt-drag a clip to copy it
+Alt-glisser un clip pour le copier
+
+Ctrl+wheel (or pinch), around the pointer
+Ctrl+molette (ou pincement), autour du pointeur
+
+Keys: {keys}
+Touches : {keys}
+
+Mouse: {gesture}
+Souris : {gesture}
+
+Shift+wheel or a sideways wheel moves in time, the wheel moves through the tracks, and the bar at the bottom can be dragged
+Maj+molette ou une molette latérale avance dans le temps, la molette parcourt les pistes, et la barre du bas peut être glissée
+
+Shift-drag on the clips draws a range to split or delete
+Maj-glisser sur les clips trace une plage à couper ou supprimer
+
+Show the playhead
+Afficher la tête de lecture

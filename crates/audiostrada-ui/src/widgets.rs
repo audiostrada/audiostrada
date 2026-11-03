@@ -168,9 +168,23 @@ impl Default for MeterState {
 }
 
 pub const METER_FLOOR: f32 = -60.0;
+/// How fast meters fall back.
+pub const METER_FALL_DB_PER_S: f32 = 24.0;
 const METER_TOP: f32 = 6.0;
 
 impl MeterState {
+    /// Takes a readout's peaks since the last call, `elapsed` seconds ago.
+    pub fn take(&mut self, readout: &audiostrada_engine::meter::MeterReadout, elapsed: f32) {
+        let mut peaks = [METER_FLOOR; 2];
+        for (ch, peak) in peaks.iter_mut().enumerate().take(readout.channels()) {
+            *peak = audiostrada_io::tools::gain_to_db(readout.take_peak(ch));
+        }
+        if readout.channels() == 1 {
+            peaks[1] = peaks[0];
+        }
+        self.push(peaks, elapsed * METER_FALL_DB_PER_S, elapsed);
+    }
+
     /// Takes new peaks: falls at `fall_db` per call, holds peaks for 1.5 s.
     pub fn push(&mut self, peaks: [f32; 2], fall_db: f32, dt: f32) {
         for (ch, peak) in peaks.into_iter().enumerate() {
@@ -235,6 +249,41 @@ pub fn meter(ui: &mut Ui, state: &mut MeterState, height: f32) -> Response {
         left = format!("{:.1}", state.hold[0]),
         right = format!("{:.1}", state.hold[1])
     ))
+}
+
+/// A narrow two-bar meter (track headers): the clip light on top, the peak hold as a line.
+pub(crate) fn paint_slim_meter(ui: &Ui, rect: Rect, state: &MeterState) {
+    let p = theme::current(ui);
+    let painter = ui.painter();
+    let clip = Rect::from_min_size(rect.min, vec2(rect.width(), 3.0));
+    painter.rect_filled(
+        clip,
+        1.0,
+        if state.clipped { theme::RECORD } else { p.base },
+    );
+    let bars = Rect::from_min_max(pos2(rect.left(), clip.bottom() + 1.0), rect.max);
+    let width = (bars.width() - 1.0) / 2.0;
+    for ch in 0..2 {
+        let x = bars.left() + ch as f32 * (width + 1.0);
+        let bar = Rect::from_min_max(pos2(x, bars.top()), pos2(x + width, bars.bottom()));
+        painter.rect_filled(bar, 1.0, p.base);
+        let f = meter_fraction(state.level[ch]);
+        if f > 0.0 {
+            paint_meter_bar(
+                painter,
+                bar,
+                Rect::from_min_max(pos2(x, bar.bottom() - bar.height() * f), bar.max),
+            );
+        }
+        let hold = meter_fraction(state.hold[ch]);
+        if hold > 0.0 {
+            let y = bar.bottom() - bar.height() * hold;
+            painter.line_segment(
+                [pos2(x, y), pos2(x + width, y)],
+                Stroke::new(1.0, meter_color(state.hold[ch])),
+            );
+        }
+    }
 }
 
 fn meter_color(db: f32) -> Color32 {

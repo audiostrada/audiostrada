@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use audiostrada_core::{
-    Clip, ClipId, FadeShape, MarkerId, Project, ProjectPaths, Source, SourceId, TrackId, TrackKind,
+    Clip, ClipId, MarkerId, Project, ProjectPaths, Source, SourceId, TrackId, TrackKind,
 };
 use audiostrada_core::{edit, section};
 use eframe::egui::{self, RichText, Ui};
@@ -14,7 +14,7 @@ use super::TimelineView;
 use crate::actions::Action;
 use crate::document::Document;
 use crate::i18n::tr;
-use crate::transport::{EditSettings, step_length};
+use crate::transport::EditSettings;
 use crate::trf;
 
 /// Copied clips, ready to paste into this project or one in another tab.
@@ -79,6 +79,11 @@ pub(super) enum Menu {
     },
     /// Inside the time range.
     Range,
+    /// On a clip's fade (in, or out).
+    Fade {
+        clip: ClipId,
+        fade_in: bool,
+    },
 }
 
 /// Track colors offered in the header menu.
@@ -101,7 +106,7 @@ pub const TRACK_COLORS: [[u8; 3]; 16] = [
     [96, 104, 120],
 ];
 
-fn ms(project: &Project, ms: f64) -> u64 {
+pub(super) fn ms(project: &Project, ms: f64) -> u64 {
     (ms * f64::from(project.sample_rate) / 1000.0) as u64
 }
 
@@ -390,7 +395,7 @@ impl TimelineView {
 
     /// Clips a clip menu acts on: the selection when it holds the clicked clip, else the clip
     /// with those edited along with it.
-    fn menu_targets(&mut self, project: &Project, clip: ClipId) -> Vec<ClipId> {
+    pub(super) fn menu_targets(&mut self, project: &Project, clip: ClipId) -> Vec<ClipId> {
         if !self.selection.contains(&clip) {
             self.selection = audiostrada_core::groups::edit_clips(project, &[clip]);
         }
@@ -507,56 +512,7 @@ impl TimelineView {
             } else {
                 tr("Fade out")
             };
-            ui.menu_button(label, |ui| {
-                let lengths = [
-                    (tr("None"), 0),
-                    ("10 ms", ms(&project, 10.0)),
-                    ("50 ms", ms(&project, 50.0)),
-                    ("250 ms", ms(&project, 250.0)),
-                    (tr("1 beat"), step_length(&project, c.start, Some(1.0))),
-                    (tr("1 bar"), step_length(&project, c.start, None)),
-                ];
-                for (text, length) in lengths {
-                    if ui.button(text).clicked() {
-                        doc.history_mut().edit(label, |p| {
-                            for id in &ids {
-                                if let Some(m) = edit::clip(p, *id).cloned() {
-                                    let (i, o) = if fade_in {
-                                        (length, m.fade_out)
-                                    } else {
-                                        (m.fade_in, length)
-                                    };
-                                    edit::set_fades(p, *id, i, o);
-                                }
-                            }
-                        });
-                        ui.close();
-                    }
-                }
-                ui.separator();
-                let current = if fade_in { c.fade_shape } else { c.out_shape() };
-                for shape in FadeShape::ALL {
-                    if ui
-                        .selectable_label(current == shape, tr(shape.name()))
-                        .clicked()
-                    {
-                        doc.history_mut().edit(tr("Fade shape"), |p| {
-                            for id in &ids {
-                                if let Some(m) = edit::clip_mut(p, *id) {
-                                    if fade_in {
-                                        let out = m.out_shape();
-                                        m.fade_shape = shape;
-                                        m.fade_out_shape = Some(out);
-                                    } else {
-                                        m.fade_out_shape = Some(shape);
-                                    }
-                                }
-                            }
-                        });
-                        ui.close();
-                    }
-                }
-            });
+            ui.menu_button(label, |ui| self.fade_options(ui, doc, &c, &ids, fade_in));
         }
         if !c.is_midi() {
             ui.menu_button(tr("Gain"), |ui| {

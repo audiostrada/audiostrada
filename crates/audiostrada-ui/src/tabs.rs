@@ -56,6 +56,7 @@ impl AudioStradaApp {
         // The clipboards stay with what is shown, to paste into another project.
         views.timeline.keep_clipboard(&mut parked.timeline);
         views.piano.keep_clipboard(&mut parked.piano);
+        views.timeline.header_width = self.prefs.track_headers;
     }
 
     /// Sends the current project to the background; its plugin windows open again on return.

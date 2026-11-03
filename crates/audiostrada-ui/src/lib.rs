@@ -332,7 +332,11 @@ impl AudioStradaApp {
                 doc: Rc::clone(&doc),
                 browser: Browser::new(),
                 mixer: MixerView::new(Rc::clone(&doc)),
-                timeline: TimelineView::new(Rc::clone(&doc)),
+                timeline: {
+                    let mut timeline = TimelineView::new(Rc::clone(&doc));
+                    timeline.header_width = prefs.track_headers;
+                    timeline
+                },
                 piano: piano_roll::PianoRoll::new(Rc::clone(&doc)),
                 edit: EditSettings::default(),
             })),
@@ -1480,6 +1484,15 @@ impl AudioStradaApp {
         for pane in closed {
             self.reattach(pane);
         }
+        let resized = {
+            let mut views = self.views.borrow_mut();
+            std::mem::take(&mut views.timeline.header_resized)
+                .then_some(views.timeline.header_width)
+        };
+        if let Some(width) = resized {
+            self.prefs.track_headers = width;
+            (self.hooks.ui_changed)(&self.prefs);
+        }
         let stem = {
             let mut views = self.views.borrow_mut();
             actions.append(&mut views.timeline.requests);
@@ -1531,6 +1544,24 @@ struct DetachedInbox {
 thread_local! {
     /// The inbox, for the effect windows the panels open.
     static INBOX: RefCell<Option<Rc<RefCell<DetachedInbox>>>> = const { RefCell::new(None) };
+}
+
+/// The keys of `action` in the current keymap, for tooltips.
+pub(crate) fn shortcut_labels(action: Action) -> Vec<String> {
+    INBOX
+        .with(|i| {
+            let inbox = i.borrow().clone()?;
+            let inbox = inbox.try_borrow().ok()?;
+            let mac = cfg!(target_os = "macos");
+            Some(
+                inbox
+                    .keymap
+                    .shortcuts_for(action)
+                    .map(|s| s.label(mac))
+                    .collect(),
+            )
+        })
+        .unwrap_or_default()
 }
 
 /// Shortcuts typed in an effect window, run as in the main window.

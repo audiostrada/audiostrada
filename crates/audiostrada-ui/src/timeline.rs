@@ -24,11 +24,17 @@ use crate::i18n::tr;
 use crate::transport::{EditMode, EditSettings};
 use crate::trf;
 
+mod fades;
 mod menus;
 mod processing;
+mod toolbar;
 pub use menus::TRACK_COLORS;
 
 const HEADER_WIDTH: f32 = 180.0;
+const MIN_HEADER_WIDTH: f32 = 150.0;
+const MAX_HEADER_WIDTH: f32 = 420.0;
+/// Width the track meter takes at the right of a header.
+const HEADER_METER: f32 = 12.0;
 const RULER_HEIGHT: f32 = 28.0;
 const EDGE_ZONE: f32 = 6.0;
 const FADE_ZONE_HEIGHT: f32 = 12.0;
@@ -154,6 +160,10 @@ pub struct TimelineView {
     renaming: Option<(TrackId, String)>,
     /// Clip last clicked, from which Shift+click extends the selection.
     clip_anchor: Option<ClipId>,
+    /// Width of the track headers, set by dragging their edge.
+    pub header_width: f32,
+    /// The headers were resized: the application keeps their width.
+    pub header_resized: bool,
 }
 
 /// A time range on some tracks.
@@ -223,6 +233,8 @@ impl TimelineView {
             hover: None,
             renaming: None,
             clip_anchor: None,
+            header_width: HEADER_WIDTH,
+            header_resized: false,
         }
     }
 
@@ -743,20 +755,28 @@ impl TimelineView {
             }
         }
 
+        doc.update_levels();
+        self.toolbar(ui, doc.player().position());
         let all = ui.available_rect_before_wrap();
         let (_, background) = ui.allocate_exact_size(all.size(), Sense::hover());
         // The horizontal scrollbar takes the bottom.
         let full = Rect::from_min_max(all.min, pos2(all.right(), all.bottom() - SCROLLBAR_HEIGHT));
+        let header_width = self.header_width.clamp(
+            MIN_HEADER_WIDTH,
+            MAX_HEADER_WIDTH
+                .min(full.width() * 0.6)
+                .max(MIN_HEADER_WIDTH),
+        );
         let header = Rect::from_min_max(
             pos2(full.left(), full.top() + RULER_HEIGHT),
-            pos2(full.left() + HEADER_WIDTH, full.bottom()),
+            pos2(full.left() + header_width, full.bottom()),
         );
         let ruler = Rect::from_min_max(
-            pos2(full.left() + HEADER_WIDTH, full.top()),
+            pos2(full.left() + header_width, full.top()),
             pos2(full.right(), full.top() + RULER_HEIGHT),
         );
         let lanes = Rect::from_min_max(
-            pos2(full.left() + HEADER_WIDTH, full.top() + RULER_HEIGHT),
+            pos2(full.left() + header_width, full.top() + RULER_HEIGHT),
             full.max,
         );
         self.lanes_width = lanes.width();
@@ -1033,6 +1053,7 @@ impl TimelineView {
             hovered_clip,
         );
         self.link_loop(&mut doc);
+        self.header_edge(ui, full, header);
 
         if project.tracks.is_empty() {
             painter.text(
@@ -1043,6 +1064,57 @@ impl TimelineView {
                 visuals.weak_text_color(),
             );
         }
+    }
+
+    /// A track's level, two thin bars beside its header; a click clears the clip light.
+    fn header_meter(&self, ui: &mut Ui, doc: &mut Document, id: TrackId, rect: Rect) {
+        let mut level = doc.track_level(id);
+        let response = ui.interact(rect, ui.scope_id().with(("meter", id.0)), Sense::click());
+        crate::widgets::paint_slim_meter(ui, rect, &level);
+        if response.clicked() {
+            level.clipped = false;
+            doc.set_track_level(id, level);
+        }
+        response.on_hover_text(trf!(
+            "Peak {left} / {right} dBFS. Click to clear the clip light",
+            left = format!("{:.1}", level.hold[0]),
+            right = format!("{:.1}", level.hold[1])
+        ));
+    }
+
+    /// The right edge of the track headers, dragged to widen or narrow them.
+    fn header_edge(&mut self, ui: &mut Ui, full: Rect, header: Rect) {
+        let edge =
+            Rect::from_x_y_ranges(header.right() - 5.0..=header.right() + 1.0, full.y_range());
+        let response = ui.interact(
+            edge,
+            ui.scope_id().with("header-edge"),
+            Sense::click_and_drag(),
+        );
+        if response.hovered() || response.dragged() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+            ui.painter().line_segment(
+                [
+                    pos2(header.right(), full.top()),
+                    pos2(header.right(), full.bottom()),
+                ],
+                Stroke::new(2.0, ui.visuals().selection.bg_fill),
+            );
+        }
+        if response.dragged() {
+            self.header_width = (header.width() + response.drag_delta().x)
+                .clamp(MIN_HEADER_WIDTH, MAX_HEADER_WIDTH);
+        }
+        if response.drag_stopped() {
+            self.header_resized = true;
+        }
+        if response.double_clicked() {
+            self.header_width = HEADER_WIDTH;
+            self.header_resized = true;
+        }
+        response.on_hover_text(tr(
+            "Drag to widen or narrow the track headers; double-click for the usual width",
+        ));
     }
 
     /// The horizontal scrollbar: its thumb shows the visible part of the session, dragged to
@@ -1675,6 +1747,17 @@ impl TimelineView {
             );
             let id = track.id;
             let vca = track.kind == TrackKind::Vca;
+            // The track's meter at the right, the rest of the header before it.
+            let right = if vca {
+                row.right()
+            } else {
+                let meter = Rect::from_min_max(
+                    pos2(row.right() - HEADER_METER + 2.0, row.top() + 4.0),
+                    pos2(row.right() - 3.0, row.bottom() - 4.0),
+                );
+                self.header_meter(ui, doc, id, meter);
+                row.right() - HEADER_METER
+            };
             let mut x = row.left() + 10.0 + depth as f32 * 12.0;
             if routing::has_children(project, id) {
                 let arrow = Rect::from_min_size(pos2(x - 2.0, row.top() + 4.0), vec2(16.0, 18.0));
@@ -1703,7 +1786,7 @@ impl TimelineView {
                 32.0
             };
             let max_width =
-                (row.right() - buttons - x - if group.is_some() { 22.0 } else { 0.0 }).max(20.0);
+                (right - buttons - x - if group.is_some() { 22.0 } else { 0.0 }).max(20.0);
             let mut job = egui::text::LayoutJob::simple_singleline(
                 track.name.clone(),
                 crate::theme::strong(13.0),
@@ -1816,11 +1899,12 @@ impl TimelineView {
                     trf!("In {input}", input = track.input + 1)
                 };
                 if !vca {
+                    let width = (right - row.left() - 100.0).clamp(56.0, 140.0);
                     let combo_rect =
-                        Rect::from_min_size(pos2(row.left() + 96.0, y), vec2(76.0, 20.0));
+                        Rect::from_min_size(pos2(row.left() + 96.0, y), vec2(width, 20.0));
                     let mut ui_child = ui.new_child(egui::UiBuilder::new().max_rect(combo_rect));
                     egui::ComboBox::from_id_salt(("input", id.0))
-                        .width(70.0)
+                        .width(width - 6.0)
                         .selected_text(input_label)
                         .show_ui(&mut ui_child, |ui| {
                             crate::mixer::input_choices(ui, doc, track)
@@ -1892,8 +1976,7 @@ impl TimelineView {
                 continue;
             }
             // Automation: show/hide lanes, add a lane, lane headers.
-            let a_rect =
-                Rect::from_min_size(pos2(row.right() - 26.0, row.top() + 4.0), vec2(22.0, 18.0));
+            let a_rect = Rect::from_min_size(pos2(right - 26.0, row.top() + 4.0), vec2(22.0, 18.0));
             if row.top() + 4.0 > header.top() {
                 let shown = track.show_automation;
                 let button = egui::Button::new(egui::RichText::new("A").size(11.0)).selected(shown);
@@ -1909,10 +1992,8 @@ impl TimelineView {
                     });
                 }
                 if shown {
-                    let plus = Rect::from_min_size(
-                        pos2(row.right() - 50.0, row.top() + 4.0),
-                        vec2(22.0, 18.0),
-                    );
+                    let plus =
+                        Rect::from_min_size(pos2(right - 50.0, row.top() + 4.0), vec2(22.0, 18.0));
                     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(plus));
                     child
                         .menu_button("+", |ui| self.add_lane_menu(ui, doc, project, track))
@@ -2837,8 +2918,22 @@ impl TimelineView {
                 let s = scale.sample(pos.x);
                 s >= r.start && s < r.end && row_track.is_some_and(|t| r.tracks.contains(&t))
             });
+            let fade = hovered.and_then(|(clip, _, rect)| {
+                let c = edit::clip(project, clip)?;
+                let px = |s: u64| (s as f64 / scale.zoom) as f32;
+                match zone(pos).map(|z| z.0) {
+                    Some(DragKind::FadeIn) => Some((clip, true)),
+                    Some(DragKind::FadeOut) => Some((clip, false)),
+                    _ if c.fade_in > 0 && pos.x < rect.left() + px(c.fade_in) => Some((clip, true)),
+                    _ if c.fade_out > 0 && pos.x > rect.right() - px(c.fade_out) => {
+                        Some((clip, false))
+                    }
+                    _ => None,
+                }
+            });
             self.menu = Some(match hovered {
                 _ if in_range => menus::Menu::Range,
+                _ if let Some((clip, fade_in)) = fade => menus::Menu::Fade { clip, fade_in },
                 Some((clip, track, _)) => {
                     if !doc.is_track_selected(track) {
                         doc.select_track(track, SelectMode::Only);
@@ -2861,6 +2956,9 @@ impl TimelineView {
                     Some(menus::Menu::Clip { clip, at }) => self.clip_menu(ui, doc, clip, at),
                     Some(menus::Menu::Lane { track, at }) => self.lane_menu(ui, doc, track, at),
                     Some(menus::Menu::Range) => self.range_menu(ui, doc, settings),
+                    Some(menus::Menu::Fade { clip, fade_in }) => {
+                        self.fade_menu(ui, doc, clip, fade_in)
+                    }
                     None => ui.close(),
                 }
                 return;
@@ -2968,6 +3066,36 @@ impl TimelineView {
         {
             let target = settings.snap(project, scale.sample(pos.x));
             doc.player_mut().locate(target);
+        }
+        // Over a fade handle, or dragging one: the pointer is the fade's curve.
+        let fade = match &self.drag {
+            Some(d) if matches!(d.kind, DragKind::FadeIn | DragKind::FadeOut) => {
+                d.clip.map(|c| (c, d.kind == DragKind::FadeIn))
+            }
+            Some(_) => None,
+            None => lanes_response
+                .hover_pos()
+                .filter(|&pos| range_edge(pos, false).is_none())
+                .and_then(zone)
+                .and_then(|(kind, clip)| match kind {
+                    DragKind::FadeIn => Some((clip, true)),
+                    DragKind::FadeOut => Some((clip, false)),
+                    _ => None,
+                }),
+        };
+        if let Some((clip, fade_in)) = fade
+            && let Some(pos) = ui.input(|i| i.pointer.hover_pos())
+        {
+            let shape = self
+                .preview
+                .as_ref()
+                .and_then(|p| edit::clip(p, clip))
+                .or(edit::clip(project, clip))
+                .map_or_else(Default::default, |c| {
+                    if fade_in { c.fade_shape } else { c.out_shape() }
+                });
+            ui.ctx().set_cursor_icon(CursorIcon::None);
+            fades::paint_cursor(ui.ctx(), pos, shape, fade_in);
         }
         if ruler_response.secondary_clicked()
             && let Some(pos) = ruler_response.interact_pointer_pos()

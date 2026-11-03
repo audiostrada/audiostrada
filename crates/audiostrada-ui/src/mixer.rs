@@ -10,7 +10,6 @@ use std::time::Instant;
 use audiostrada_core::automation::{AutomationMode, AutomationTarget};
 use audiostrada_core::routing::{self, Channel};
 use audiostrada_core::{History, InsertId, Project, Track, TrackId, TrackKind};
-use audiostrada_engine::meter::MeterReadout;
 use audiostrada_io::tools::gain_to_db;
 use eframe::egui::{self, Align, Color32, Layout, Rect, Response, RichText, Sense, Ui, pos2, vec2};
 
@@ -18,13 +17,12 @@ use crate::dialogs;
 use crate::document::Document;
 use crate::effect_editors;
 use crate::i18n::tr;
-use crate::settings::{ERROR, METER_FLOOR_DB, OK, WARN};
+use crate::settings::{ERROR, OK, WARN};
 use crate::theme;
 use crate::trf;
 use crate::widgets::{self, MeterState};
 use audiostrada_core::groups::{self, Link};
 
-const METER_FALL_DB_PER_S: f32 = 24.0;
 const STRIP_WIDTH: f32 = 104.0;
 const MIN_FADER: f32 = 60.0;
 /// Name plate and the space after it.
@@ -35,22 +33,9 @@ const FULL_STRIPS_HEIGHT: f32 = 560.0;
 const FADER_MIN_DB: f32 = -60.0;
 const FADER_MAX_DB: f32 = audiostrada_core::model::MAX_TRACK_GAIN_DB;
 
-/// Takes the peaks of a readout into a meter.
-fn update_meter(state: &mut MeterState, readout: &MeterReadout, fall: f32) {
-    let mut peaks = [METER_FLOOR_DB; 2];
-    for (ch, peak) in peaks.iter_mut().enumerate().take(readout.channels()) {
-        *peak = gain_to_db(readout.take_peak(ch));
-    }
-    if readout.channels() == 1 {
-        peaks[1] = peaks[0];
-    }
-    state.push(peaks, fall, fall / METER_FALL_DB_PER_S);
-}
-
 #[derive(Debug)]
 pub struct MixerView {
     doc: Rc<RefCell<Document>>,
-    levels: HashMap<TrackId, MeterState>,
     master_levels: MeterState,
     last_frame: Instant,
     /// Plugins whose own window opens (or comes to the front) once they are loaded.
@@ -1223,7 +1208,6 @@ impl MixerView {
     pub fn new(doc: Rc<RefCell<Document>>) -> Self {
         Self {
             doc,
-            levels: HashMap::new(),
             master_levels: MeterState::default(),
             last_frame: Instant::now(),
             open_gui: Vec::new(),
@@ -1270,20 +1254,20 @@ impl MixerView {
 
     /// Clears per-project state after another document was opened.
     pub fn reset(&mut self) {
-        self.levels.clear();
         self.master_levels = MeterState::default();
         self.editors.clear();
     }
 
     pub fn show(&mut self, ui: &mut Ui) {
         let now = Instant::now();
-        let fall = now.duration_since(self.last_frame).as_secs_f32() * METER_FALL_DB_PER_S;
+        let elapsed = now.duration_since(self.last_frame).as_secs_f32();
         self.last_frame = now;
 
         self.toolbar(ui);
         self.missing_media(ui);
         let doc_rc = Rc::clone(&self.doc);
         let mut doc = doc_rc.borrow_mut();
+        doc.update_levels();
         let project = doc.project().clone();
         let master_width = STRIP_WIDTH + 40.0;
         // Strips fill the panel: the fader takes what the other sections leave.
@@ -1337,7 +1321,7 @@ impl MixerView {
                                     ui.horizontal_top(|ui| {
                                         for (index, depth) in routing::visible_tracks(&project) {
                                             let track = &project.tracks[index];
-                                            self.strip(ui, &mut doc, &project, track, depth, fall);
+                                            self.strip(ui, &mut doc, &project, track, depth);
                                         }
                                         if project.tracks.is_empty() {
                                             ui.weak(tr(
@@ -1350,7 +1334,7 @@ impl MixerView {
                         },
                     );
                     ui.separator();
-                    self.master_strip(ui, &mut doc, &project, fall);
+                    self.master_strip(ui, &mut doc, &project, elapsed);
                 })
             });
         self.drop_insert(ui, &mut doc);
@@ -1359,7 +1343,6 @@ impl MixerView {
         } else {
             self.dragging = None;
         }
-        self.levels.retain(|id, _| project.track(*id).is_some());
         self.insert_editors(ui.ctx(), &mut doc, &project);
         self.list_windows(ui.ctx(), &mut doc, &project);
         if let Some(((channel, monitor), key, name)) =
@@ -1532,16 +1515,11 @@ impl MixerView {
         project: &Project,
         track: &Track,
         depth: usize,
-        fall: f32,
     ) {
         let id = track.id;
         let width = STRIP_WIDTH;
         let vca = track.kind == TrackKind::Vca;
-        let levels = self.levels.entry(id).or_default();
-        if let Some(readout) = doc.player().track_meter(id) {
-            update_meter(levels, readout, fall);
-        }
-        let mut levels = *levels;
+        let mut levels = doc.track_level(id);
         let fader_height = self.fader_height;
         let sizes = self.sizes;
         let selected = doc.is_track_selected(id);
@@ -1822,7 +1800,7 @@ impl MixerView {
             .response
             .context_menu(|ui| self.track_menu(ui, doc, id));
         self.drop_tracks(ui, doc, &frame, id);
-        self.levels.insert(id, levels);
+        doc.set_track_level(id, levels);
     }
 
     /// A track's right-click menu; its commands go to the application.
@@ -2784,8 +2762,9 @@ impl MixerView {
         });
     }
 
-    fn master_strip(&mut self, ui: &mut Ui, doc: &mut Document, project: &Project, fall: f32) {
-        update_meter(&mut self.master_levels, doc.player().master_meter(), fall);
+    fn master_strip(&mut self, ui: &mut Ui, doc: &mut Document, project: &Project, elapsed: f32) {
+        self.master_levels
+            .take(doc.player().master_meter(), elapsed);
         let mut levels = self.master_levels;
         let sizes = self.sizes;
         let fader_height = self.fader_height;
