@@ -258,6 +258,8 @@ pub struct AudioStradaApp {
     /// How each detached panel's window opened, kept while it is open: a builder that
     /// changed would resize the window under the user's hand.
     pane_opened: HashMap<Pane, ui_prefs::WindowState>,
+    /// Windows counted when the X11 windows were last handed to the main one, and when.
+    adopted: (usize, Instant),
     /// Track selected last frame, to follow a new selection with the panels.
     last_selected: Option<audiostrada_core::TrackId>,
     /// Messages of the document shown in a corner, with when they came.
@@ -365,6 +367,7 @@ impl AudioStradaApp {
             windows_changed: false,
             maximize_in: 0,
             pane_opened: HashMap::new(),
+            adopted: (0, Instant::now()),
             last_selected: None,
             toasts: Vec::new(),
             midi_outputs: None,
@@ -2295,6 +2298,27 @@ impl AudioStradaApp {
     }
 }
 
+impl AudioStradaApp {
+    /// Hands new windows to the main one under X11 (see [`screens::adopt_windows`]): when a
+    /// window opens, and every second for those that took longer to appear.
+    #[cfg(target_os = "linux")]
+    fn adopt_windows(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+        let count = ctx.input(|i| i.raw.viewports.len());
+        let due = self.adopted.1.elapsed() > std::time::Duration::from_secs(1);
+        if count == self.adopted.0 && !due {
+            return;
+        }
+        self.adopted = (count, Instant::now());
+        let main = match frame.window_handle().map(|h| h.as_raw()) {
+            Ok(RawWindowHandle::Xlib(h)) => h.window as u32,
+            Ok(RawWindowHandle::Xcb(h)) => h.window.get(),
+            _ => 0,
+        };
+        screens::adopt_windows(main);
+    }
+}
+
 /// Plugin windows stay above AudioStrada's main window where the system allows it (X11, Windows);
 /// a Wayland window cannot parent the plugins' X11 windows.
 fn set_plugin_window_parent(frame: &eframe::Frame) {
@@ -2375,6 +2399,8 @@ impl eframe::App for AudioStradaApp {
         self.watch_devices();
         #[cfg(any(target_os = "macos", windows))]
         keep_windows_above(ctx, frame);
+        #[cfg(target_os = "linux")]
+        self.adopt_windows(ctx, frame);
         if self.plugin_scan.as_ref().is_some_and(|h| h.is_finished())
             && let Some(Ok(database)) = self.plugin_scan.take().map(|h| h.join())
         {
