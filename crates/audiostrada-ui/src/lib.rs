@@ -258,6 +258,8 @@ pub struct AudioStradaApp {
     /// How each detached panel's window opened, kept while it is open: a builder that
     /// changed would resize the window under the user's hand.
     pane_opened: HashMap<Pane, ui_prefs::WindowState>,
+    /// Track selected last frame, to follow a new selection with the panels.
+    last_selected: Option<audiostrada_core::TrackId>,
     /// Messages of the document shown in a corner, with when they came.
     toasts: Vec<(String, Instant)>,
     midi_outputs: Option<audiostrada_midi::devices::MidiOutputs>,
@@ -363,6 +365,7 @@ impl AudioStradaApp {
             windows_changed: false,
             maximize_in: 0,
             pane_opened: HashMap::new(),
+            last_selected: None,
             toasts: Vec::new(),
             midi_outputs: None,
             midi_routes: Vec::new(),
@@ -1277,6 +1280,38 @@ impl AudioStradaApp {
         };
         self.views.borrow_mut().timeline.selection = vec![id];
         self.reveal(ctx, Pane::PianoRoll);
+    }
+
+    /// With the mixer in its own window, a newly selected track brings its panel forward among
+    /// the docked tabs: the rack for an audio track, the piano roll for an instrument.
+    fn follow_selection(&mut self) {
+        let selected = self.doc.borrow().selected_tracks().last().copied();
+        if selected == self.last_selected {
+            return;
+        }
+        self.last_selected = selected;
+        let Some(track) = selected else {
+            return;
+        };
+        if !self.detached.contains(&Pane::Mixer) {
+            return;
+        }
+        let doc = self.doc.borrow();
+        let Some(kind) = doc.project().track(track).map(|t| t.kind) else {
+            return;
+        };
+        if kind != audiostrada_core::TrackKind::Audio {
+            return;
+        }
+        let pane = if doc.is_instrument_track(track) {
+            Pane::PianoRoll
+        } else {
+            Pane::Rack
+        };
+        drop(doc);
+        if !self.detached.contains(&pane) && layout::is_visible(&self.tree, pane) {
+            layout::activate(&mut self.tree, pane);
+        }
     }
 
     /// Shows a panel and brings it forward, docked or in its window.
@@ -2368,6 +2403,7 @@ impl eframe::App for AudioStradaApp {
         self.doc.borrow_mut().set_stream_inputs(inputs);
         self.run_requests(ctx);
         self.reveal_clip(ctx);
+        self.follow_selection();
         self.answer_control(ctx);
         self.doc.borrow_mut().update();
         self.route_midi_outputs();

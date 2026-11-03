@@ -1277,3 +1277,6 @@ Replier le Channel Strip
 
 Unfold the channel strip
 Déplier le Channel Strip
+
+Remove from the rack
+Retirer du rack

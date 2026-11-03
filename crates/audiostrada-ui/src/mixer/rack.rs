@@ -10,6 +10,8 @@ use super::*;
 const MODULE: f32 = 244.0;
 /// Height of the modules' faceplates.
 const HEIGHT: f32 = 180.0;
+/// Width of the chassis' sides.
+const EAR: f32 = 16.0;
 /// Height of the rails above and below the modules.
 const RAIL: f32 = 14.0;
 /// Width of the gaps between modules, with their add button.
@@ -186,8 +188,8 @@ fn add_template(p: &mut Project, channel: Channel, index: usize, template: Templ
     }
 }
 
-/// Rails above and below a column of the rack, with their holes, and the inside between
-/// them: in the theme's tones.
+/// Rails above and below a column of the rack, and the inside between them, in the theme's
+/// tones.
 fn rails(ui: &Ui, rect: Rect) {
     let p = theme::current(ui);
     let painter = ui.painter_at(rect);
@@ -199,13 +201,6 @@ fn rails(ui: &Ui, rect: Rect) {
         ),
     ] {
         theme::gradient_rect(&painter, rail, p.hover, p.surface);
-        // Holes on a fixed pitch, whatever the column.
-        let pitch = 22.0;
-        let mut x = (rail.left() / pitch).ceil() * pitch;
-        while x < rail.right() {
-            painter.circle_filled(pos2(x, rail.center().y), 2.0, p.base);
-            x += pitch;
-        }
     }
     painter.rect_filled(
         Rect::from_min_max(
@@ -217,17 +212,8 @@ fn rails(ui: &Ui, rect: Rect) {
     );
 }
 
-/// A screw head, discreet.
-fn screw(painter: &egui::Painter, center: egui::Pos2, p: &theme::Palette) {
-    painter.circle_filled(center, 2.6, p.hover);
-    painter.line_segment(
-        [center - vec2(1.6, 0.8), center + vec2(1.6, 0.8)],
-        egui::Stroke::new(1.0, p.base),
-    );
-}
-
 /// A module's faceplate, as the mixer's strips: their background and border, its family's
-/// color on top, a screw at each corner.
+/// color on top.
 fn faceplate(ui: &Ui, rect: Rect, tint: Color32, lit: bool) {
     let p = theme::current(ui);
     let painter = ui.painter_at(rect.expand(1.0));
@@ -253,17 +239,41 @@ fn faceplate(ui: &Ui, rect: Rect, tint: Color32, lit: bool) {
         },
         tint.gamma_multiply(if lit { 1.0 } else { 0.35 }),
     );
-    for corner in [
-        rect.left_top() + vec2(7.0, 11.0),
-        rect.right_top() + vec2(-7.0, 11.0),
-        rect.left_bottom() + vec2(7.0, -8.0),
-        rect.right_bottom() + vec2(-7.0, -8.0),
-    ] {
-        screw(&painter, corner, &p);
-    }
 }
 
-/// A plain faceplate: the background, border and family color of the modules, no screws.
+/// The button removing a module, at its faceplate's top right corner.
+fn close_button(ui: &mut Ui, plate: Rect, salt: u64) -> bool {
+    let p = theme::current(ui);
+    let rect = Rect::from_center_size(plate.right_top() + vec2(-15.0, 16.0), vec2(18.0, 18.0));
+    let response = ui
+        .interact(
+            rect,
+            ui.scope_id().with(("rack-remove", salt)),
+            Sense::click(),
+        )
+        .on_hover_text(tr("Remove from the rack"));
+    let (fill, ink) = if response.hovered() {
+        (ERROR, Color32::WHITE)
+    } else {
+        (p.surface, p.text)
+    };
+    let painter = ui.painter();
+    painter.circle_filled(rect.center(), 9.0, fill);
+    painter.circle_stroke(rect.center(), 9.0, egui::Stroke::new(1.0, p.border));
+    let r = rect.shrink(5.5);
+    let stroke = egui::Stroke::new(1.6, ink);
+    painter.line_segment([r.left_top(), r.right_bottom()], stroke);
+    painter.line_segment([r.right_top(), r.left_bottom()], stroke);
+    response.clicked()
+}
+
+/// A side of the chassis, from the top of the channel strip to the bottom rail.
+fn chassis_side(ui: &Ui, rect: Rect) {
+    let p = theme::current(ui);
+    theme::gradient_rect(&ui.painter_at(rect), rect, p.hover, p.surface);
+}
+
+/// A plain faceplate: the background, border and family color of the modules.
 fn faceplate_plain(ui: &Ui, rect: Rect, tint: Color32, lit: bool) {
     let p = theme::current(ui);
     let painter = ui.painter_at(rect.expand(1.0));
@@ -391,35 +401,56 @@ impl MixerView {
             ui.weak(tr("Select a track to see its effects here."));
             return;
         };
-        self.strip_unit(ui, &mut doc, channel);
-        ui.add_space(2.0);
         self.rack.gaps.clear();
+        // One chassis: the channel strip's unit on top, the modules under it; it scrolls when
+        // the panel is too low.
+        egui::ScrollArea::vertical()
+            .id_salt("rack-vertical")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 0.0;
+                self.strip_unit(ui, &mut doc, channel);
+                self.rack_row(ui, &mut doc, &project, channel);
+            });
+        self.rack_drop(ui, &mut doc, channel);
+    }
+
+    /// The modules between the chassis' sides, the free slot stretched to its right side.
+    fn rack_row(&mut self, ui: &mut Ui, doc: &mut Document, project: &Project, channel: Channel) {
+        let doc = &mut *doc;
+        let right = ui.max_rect().right();
         egui::ScrollArea::horizontal()
             .id_salt("rack")
             .auto_shrink([false, true])
             .show(ui, |ui| {
                 ui.horizontal_top(|ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
-                    let shown: Vec<audiostrada_core::Insert> = routing::inserts(&project, channel)
+                    let (side, _) =
+                        ui.allocate_exact_size(vec2(EAR, HEIGHT + 2.0 * RAIL), Sense::hover());
+                    chassis_side(ui, side);
+                    let shown: Vec<audiostrada_core::Insert> = routing::inserts(project, channel)
                         .iter()
                         .filter(|i| !i.monitor && i.effect != routing::STRIP)
                         .cloned()
                         .collect();
                     for (k, insert) in shown.iter().enumerate() {
-                        let at = listed_index(&project, channel, false, k);
-                        self.rack_gap(ui, &mut doc, channel, (None, at));
+                        let at = listed_index(project, channel, false, k);
+                        self.rack_gap(ui, doc, channel, (None, at));
                         if insert.effect == routing::PARALLEL {
-                            self.parallel_module(ui, &mut doc, channel, insert);
+                            self.parallel_module(ui, doc, channel, insert);
                         } else {
-                            self.module(ui, &mut doc, channel, insert);
+                            self.module(ui, doc, channel, insert);
                         }
                     }
-                    let end = listed_index(&project, channel, false, shown.len());
-                    self.rack_gap(ui, &mut doc, channel, (None, end));
-                    self.empty_slot(ui, &mut doc, channel, end);
+                    let end = listed_index(project, channel, false, shown.len());
+                    self.rack_gap(ui, doc, channel, (None, end));
+                    let width = (right - ui.cursor().left() - EAR).max(EMPTY);
+                    self.empty_slot(ui, doc, channel, end, width);
+                    let (side, _) =
+                        ui.allocate_exact_size(vec2(EAR, HEIGHT + 2.0 * RAIL), Sense::hover());
+                    chassis_side(ui, side);
                 });
             });
-        self.rack_drop(ui, &mut doc, channel);
     }
 
     /// A column of the rack `width` wide: rails, a faceplate and what `add` puts on it.
@@ -458,23 +489,17 @@ impl MixerView {
         let tint = theme::family_color("EQ & Filter");
         let strip = routing::strip(doc.project(), channel).cloned();
         let lit = strip.as_ref().is_some_and(|s| !s.bypass);
-        // Ears at both ends, screwed to the rails.
-        let painter = ui.painter_at(rect);
+        // The chassis' sides at both ends, as the modules' below.
         for ear in [
-            Rect::from_min_size(rect.min, vec2(16.0, rect.height())),
+            Rect::from_min_size(rect.min, vec2(EAR, rect.height())),
             Rect::from_min_size(
-                pos2(rect.right() - 16.0, rect.top()),
-                vec2(16.0, rect.height()),
+                pos2(rect.right() - EAR, rect.top()),
+                vec2(EAR, rect.height()),
             ),
         ] {
-            theme::gradient_rect(&painter, ear, p.hover, p.surface);
-            let x = ear.center().x;
-            screw(&painter, pos2(x, ear.top() + 9.0), &p);
-            if !folded {
-                screw(&painter, pos2(x, ear.bottom() - 9.0), &p);
-            }
+            chassis_side(ui, ear);
         }
-        let plate = Rect::from_min_max(rect.min + vec2(15.0, 0.0), rect.max - vec2(15.0, 0.0));
+        let plate = Rect::from_min_max(rect.min + vec2(EAR, 0.0), rect.max - vec2(EAR, 0.0));
         faceplate_plain(ui, plate, tint, lit);
         let inner = plate.shrink2(vec2(10.0, 6.0)).translate(vec2(0.0, 2.0));
         let mut child = ui.new_child(
@@ -868,9 +893,16 @@ impl MixerView {
     }
 
     /// The free slot at the end: a large add button.
-    fn empty_slot(&mut self, ui: &mut Ui, doc: &mut Document, channel: Channel, index: usize) {
+    fn empty_slot(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        channel: Channel,
+        index: usize,
+        width: f32,
+    ) {
         let p = theme::current(ui);
-        let (rect, _) = ui.allocate_exact_size(vec2(EMPTY, HEIGHT + 2.0 * RAIL), Sense::hover());
+        let (rect, _) = ui.allocate_exact_size(vec2(width, HEIGHT + 2.0 * RAIL), Sense::hover());
         rails(ui, rect);
         self.rack.gaps.push((rect, None, index));
         let hole = Rect::from_min_max(
@@ -964,7 +996,7 @@ impl MixerView {
         let error = doc.player().plugin_error(id).is_some();
         let latency = latency_label(doc, channel, id);
         let tint = theme::family_color(family(doc, &insert.effect));
-        self.slot(ui, MODULE, (tint, !insert.bypass), |view, ui| {
+        let plate = self.slot(ui, MODULE, (tint, !insert.bypass), |view, ui| {
             let p = theme::current(ui);
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -982,7 +1014,8 @@ impl MixerView {
                     (false, true) => p.weak,
                     (false, false) => p.text,
                 };
-                let width = ui.available_width() - if latency.is_some() { 44.0 } else { 0.0 };
+                let width =
+                    ui.available_width() - 22.0 - if latency.is_some() { 44.0 } else { 0.0 };
                 let head = ui
                     .add_sized(
                         [width, 18.0],
@@ -1037,9 +1070,6 @@ impl MixerView {
                 ui.spacing_mut().item_spacing.x = 2.0;
                 view.ab_buttons(ui, doc, channel, insert);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if remove_button(ui).clicked() {
-                        view.remove_insert(doc, channel, id);
-                    }
                     if ui
                         .small_button(tr("Edit"))
                         .on_hover_text(tr("Every setting, in the effect's window"))
@@ -1050,6 +1080,9 @@ impl MixerView {
                 });
             });
         });
+        if close_button(ui, plate, id.0) {
+            self.remove_insert(doc, channel, id);
+        }
     }
 
     /// A parallel chain, drawn as the signal goes: split at the left, a lane per branch with
@@ -1063,7 +1096,7 @@ impl MixerView {
     ) {
         let id = insert.id;
         let tint = theme::family_color("Utility");
-        self.slot(ui, PARALLEL, (tint, !insert.bypass), |view, ui| {
+        let plate = self.slot(ui, PARALLEL, (tint, !insert.bypass), |view, ui| {
             let p = theme::current(ui);
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -1163,13 +1196,11 @@ impl MixerView {
                         routing::add_branch(p, channel, id);
                     });
                 }
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if remove_button(ui).clicked() {
-                        view.remove_insert(doc, channel, id);
-                    }
-                });
             });
         });
+        if close_button(ui, plate, id.0) {
+            self.remove_insert(doc, channel, id);
+        }
     }
 
     /// A branch's lane: its name, its effects on the wire, an add button, mute, solo and level.
