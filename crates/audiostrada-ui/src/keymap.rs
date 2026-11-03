@@ -149,7 +149,7 @@ pub struct Keymap {
 }
 
 /// Bumped when default bindings are added, so saved keymaps get them.
-const VERSION: u32 = 10;
+const VERSION: u32 = 11;
 
 impl Default for Keymap {
     fn default() -> Self {
@@ -227,6 +227,8 @@ const PANELS: &[Binding] = &[
     (k(PLAIN, false, true, Key::Num3), Action::ShowBrowser),
     (k(PLAIN, false, true, Key::Num4), Action::ShowInspector),
     (k(PLAIN, false, true, Key::Num5), Action::ShowMarkers),
+    // Compact mixer (added in version 11).
+    (k(PLAIN, true, true, Key::C), Action::CompactMixer),
     (k(CMD, true, false, Key::ArrowUp), Action::TallerTracks),
     (k(CMD, true, false, Key::ArrowDown), Action::ShorterTracks),
     (k(PLAIN, true, true, Key::ArrowUp), Action::WaveformZoomIn),

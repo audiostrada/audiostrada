@@ -175,6 +175,8 @@ pub struct UiPrefs {
     pub updates_checked: Option<String>,
     /// Width of the timeline's track headers.
     pub header_width: f32,
+    /// The mixer stays compact, however tall its panel.
+    pub mixer_compact: bool,
 }
 
 impl Default for UiPrefs {
@@ -204,6 +206,7 @@ impl Default for UiPrefs {
             check_updates: None,
             updates_checked: None,
             header_width: 210.0,
+            mixer_compact: false,
         }
     }
 }

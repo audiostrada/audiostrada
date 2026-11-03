@@ -115,7 +115,7 @@ Cowbell
 Cloche
 
 Hi-hat
-Charleston
+Charley
 
 Metronome
 Métronome

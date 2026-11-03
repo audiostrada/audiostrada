@@ -333,7 +333,11 @@ impl AudioStradaApp {
             views: Rc::new(RefCell::new(Views {
                 doc: Rc::clone(&doc),
                 browser: Browser::new(),
-                mixer: MixerView::new(Rc::clone(&doc)),
+                mixer: {
+                    let mut mixer = MixerView::new(Rc::clone(&doc));
+                    mixer.compact = prefs.mixer_compact;
+                    mixer
+                },
                 timeline: {
                     let mut timeline = TimelineView::new(Rc::clone(&doc));
                     timeline.header_width = prefs.header_width;
@@ -1095,6 +1099,15 @@ impl AudioStradaApp {
                         self.ui_changed();
                     }
                 }
+            }
+            Action::CompactMixer => {
+                let compact = {
+                    let mut views = self.views.borrow_mut();
+                    views.mixer.compact = !views.mixer.compact;
+                    views.mixer.compact
+                };
+                self.prefs.mixer_compact = compact;
+                self.ui_changed();
             }
             Action::DetachMixer | Action::DetachPianoRoll => {
                 let pane = if action == Action::DetachMixer {
@@ -1952,6 +1965,8 @@ impl AudioStradaApp {
                     Action::DetachMixer,
                     self.detached.contains(&Pane::Mixer),
                 );
+                let compact = self.views.borrow().mixer.compact;
+                check(ui, &mut chosen, Action::CompactMixer, compact);
                 check(
                     ui,
                     &mut chosen,

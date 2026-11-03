@@ -16,6 +16,13 @@ pub enum TrackIcon {
     Choir,
     Speech,
     Drums,
+    Kick,
+    Snare,
+    RackTom,
+    FloorTom,
+    Cymbals,
+    HiHat,
+    DrumMachine,
     Bass,
     Sub,
     Guitar,
@@ -37,12 +44,19 @@ pub enum TrackIcon {
 }
 
 impl TrackIcon {
-    pub const ALL: [Self; 23] = [
+    pub const ALL: [Self; 30] = [
         Self::Waveform,
         Self::Vocals,
         Self::Choir,
         Self::Speech,
         Self::Drums,
+        Self::Kick,
+        Self::Snare,
+        Self::RackTom,
+        Self::FloorTom,
+        Self::Cymbals,
+        Self::HiHat,
+        Self::DrumMachine,
         Self::Bass,
         Self::Sub,
         Self::Guitar,
@@ -71,6 +85,13 @@ impl TrackIcon {
             Self::Choir => "choir",
             Self::Speech => "speech",
             Self::Drums => "drums",
+            Self::Kick => "kick",
+            Self::Snare => "snare",
+            Self::RackTom => "rack_tom",
+            Self::FloorTom => "floor_tom",
+            Self::Cymbals => "cymbals",
+            Self::HiHat => "hihat",
+            Self::DrumMachine => "drum_machine",
             Self::Bass => "bass",
             Self::Sub => "sub",
             Self::Guitar => "guitar",
@@ -100,10 +121,17 @@ impl TrackIcon {
     pub fn glyph(self) -> char {
         match self {
             Self::Waveform => '\u{e55b}',
-            Self::Vocals => '\u{e349}',
-            Self::Choir => '\u{e1a4}',
+            Self::Vocals => '\u{e904}',
+            Self::Choir => '\u{e905}',
             Self::Speech => '\u{e118}',
-            Self::Drums => '\u{e55d}',
+            Self::Drums => '\u{e907}',
+            Self::Kick => '\u{e908}',
+            Self::Snare => '\u{e55d}',
+            Self::RackTom => '\u{e909}',
+            Self::FloorTom => '\u{e90a}',
+            Self::Cymbals => '\u{e90b}',
+            Self::HiHat => '\u{e90c}',
+            Self::DrumMachine => '\u{e906}',
             Self::Bass => '\u{e903}',
             Self::Sub => '\u{e166}',
             Self::Guitar => '\u{e55f}',
@@ -131,7 +159,14 @@ impl TrackIcon {
             Self::Vocals => tr("Vocals"),
             Self::Choir => tr("Backing vocals"),
             Self::Speech => tr("Speech"),
-            Self::Drums => tr("Drums and percussion"),
+            Self::Drums => tr("Drum kit"),
+            Self::Kick => tr("Kick"),
+            Self::Snare => tr("Snare and percussion"),
+            Self::RackTom => tr("Rack tom"),
+            Self::FloorTom => tr("Floor tom"),
+            Self::Cymbals => tr("Overheads and cymbals"),
+            Self::HiHat => tr("Hi-hat"),
+            Self::DrumMachine => tr("Drum machine"),
             Self::Bass => tr("Bass guitar"),
             Self::Sub => tr("Sub and 808"),
             Self::Guitar => tr("Acoustic guitar"),
@@ -223,29 +258,27 @@ const WORDS: &[(TrackIcon, &[&str])] = &[
         ],
     ),
     (
-        TrackIcon::Drums,
+        TrackIcon::HiHat,
         &[
-            "kick",
-            "kik",
-            "kck",
-            "bd",
-            "bassdrum",
-            "snare",
-            "snr",
-            "sn",
-            "sd",
-            "tom",
-            "toms",
-            "floor",
+            "hh",
+            "hat",
+            "hats",
+            "hihat",
+            "hihats",
+            "charley",
+            "charleston",
+            "chh",
+            "ohh",
+        ],
+    ),
+    (
+        TrackIcon::Cymbals,
+        &[
             "oh",
             "ohl",
             "ohr",
             "overhead",
             "overheads",
-            "hh",
-            "hat",
-            "hats",
-            "hihat",
             "ride",
             "crash",
             "china",
@@ -255,13 +288,22 @@ const WORDS: &[(TrackIcon, &[&str])] = &[
             "cym",
             "cymbale",
             "cymbales",
-            "room",
-            "rooms",
-            "drum",
-            "drums",
-            "drumkit",
-            "kit",
-            "batterie",
+        ],
+    ),
+    (
+        TrackIcon::Kick,
+        &["kick", "kik", "kck", "bd", "bassdrum", "kickin", "kickout"],
+    ),
+    (
+        TrackIcon::Snare,
+        &[
+            "snare",
+            "snr",
+            "sn",
+            "sd",
+            "rim",
+            "caisse",
+            "claire",
             "perc",
             "percs",
             "percussion",
@@ -280,10 +322,36 @@ const WORDS: &[(TrackIcon, &[&str])] = &[
             "timbales",
             "clap",
             "claps",
-            "rim",
-            "caisse",
-            "charley",
+        ],
+    ),
+    (TrackIcon::FloorTom, &["floor", "floortom", "ft"]),
+    (TrackIcon::RackTom, &["tom", "toms", "rack", "racktom"]),
+    (
+        TrackIcon::DrumMachine,
+        &[
+            "drummachine",
+            "machine",
+            "boite",
+            "909",
+            "707",
+            "606",
+            "linndrum",
+            "beat",
+            "beats",
+        ],
+    ),
+    (
+        TrackIcon::Drums,
+        &[
+            "room",
+            "rooms",
+            "drum",
+            "drums",
+            "drumkit",
+            "kit",
+            "batterie",
             "breakbeat",
+            "drumbus",
         ],
     ),
     (TrackIcon::Sub, &["sub", "subs", "808", "subbass"]),
@@ -520,15 +588,22 @@ pub fn from_name(name: &str) -> Option<TrackIcon> {
         .map(|w| w.trim_end_matches(|c: char| c.is_ascii_digit()))
         .filter(|w| !w.is_empty())
         .collect();
+    let has = |list: &[&str]| {
+        words.iter().any(|w| list.contains(&w.as_str())) || stems.iter().any(|w| list.contains(w))
+    };
+    // "Tom basse", "floor tom"; "grosse caisse".
+    if has(&["tom", "toms"]) && has(&["basse", "bass", "floor"]) {
+        return Some(TrackIcon::FloorTom);
+    }
+    if has(&["grosse"]) || (has(&["bass"]) && has(&["drum"])) {
+        return Some(TrackIcon::Kick);
+    }
     if words
         .iter()
         .any(|w| w.len() > 1 && w.starts_with('t') && w[1..].chars().all(|c| c.is_ascii_digit()))
     {
-        return Some(TrackIcon::Drums);
+        return Some(TrackIcon::RackTom);
     }
-    let has = |list: &[&str]| {
-        words.iter().any(|w| list.contains(&w.as_str())) || stems.iter().any(|w| list.contains(w))
-    };
     WORDS
         .iter()
         .find(|(_, list)| has(list))
@@ -555,7 +630,7 @@ fn detect_at(project: &Project, track: &Track, depth: usize) -> TrackIcon {
         return TrackIcon::Bus;
     }
     if track.inserts.first().is_some_and(|i| i.effect == "drums") {
-        return TrackIcon::Drums;
+        return TrackIcon::DrumMachine;
     }
     if track
         .inserts
@@ -682,12 +757,23 @@ mod tests {
     #[test]
     fn names_of_track_sheets_find_their_instrument() {
         for (name, icon) in [
-            ("01-KICK-consolidated", TrackIcon::Drums),
-            ("04-SN DO-consolidated", TrackIcon::Drums),
-            ("05-T3 -consolidated", TrackIcon::Drums),
-            ("07-OH L-consolidated", TrackIcon::Drums),
-            ("10-TIMBA", TrackIcon::Drums),
-            ("Bass drum", TrackIcon::Drums),
+            ("01-KICK-consolidated", TrackIcon::Kick),
+            ("04-SN DO-consolidated", TrackIcon::Snare),
+            ("05-T3 -consolidated", TrackIcon::RackTom),
+            ("07-OH L-consolidated", TrackIcon::Cymbals),
+            ("10-TIMBA", TrackIcon::Snare),
+            ("Bass drum", TrackIcon::Kick),
+            ("Grosse caisse", TrackIcon::Kick),
+            ("Caisse claire", TrackIcon::Snare),
+            ("Tom basse", TrackIcon::FloorTom),
+            ("Floor tom", TrackIcon::FloorTom),
+            ("Tom 1", TrackIcon::RackTom),
+            ("HH", TrackIcon::HiHat),
+            ("Charley", TrackIcon::HiHat),
+            ("Ride", TrackIcon::Cymbals),
+            ("Batterie", TrackIcon::Drums),
+            ("Room", TrackIcon::Drums),
+            ("Boite a rythme", TrackIcon::DrumMachine),
             ("BASS DI", TrackIcon::Bass),
             ("Lead Vox", TrackIcon::Vocals),
             ("Chant principal", TrackIcon::Vocals),

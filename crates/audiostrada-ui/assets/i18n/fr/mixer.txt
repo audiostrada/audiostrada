@@ -1044,8 +1044,20 @@ Cloches et percussions à clavier
 Cue mix
 Mix casque
 
-Drums and percussion
-Batterie et percussions
+Drum kit
+Batterie complète
+
+Snare and percussion
+Caisse claire et percussions
+
+Rack tom
+Tom
+
+Floor tom
+Tom basse
+
+Overheads and cymbals
+Overheads et cymbales
 
 Effects and ambience
 Effets et ambiance
@@ -1085,3 +1097,15 @@ Icône
 
 Bass guitar
 Basse
+
+Drum machine
+Boîte à rythme
+
+Compact
+Compact
+
+Compact strips, however tall the mixer ({keys})
+Tranches compactes, quelle que soit la hauteur du mixer ({keys})
+
+Compact mixer
+Mixer compact

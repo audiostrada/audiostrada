@@ -38,6 +38,8 @@ const FADER_MAX_DB: f32 = audiostrada_core::model::MAX_TRACK_GAIN_DB;
 #[derive(Debug)]
 pub struct MixerView {
     doc: Rc<RefCell<Document>>,
+    /// Compact strips whatever the panel's height.
+    pub compact: bool,
     master_levels: MeterState,
     last_frame: Instant,
     /// Plugins whose own window opens (or comes to the front) once they are loaded.
@@ -1581,6 +1583,7 @@ impl MixerView {
     pub fn new(doc: Rc<RefCell<Document>>) -> Self {
         Self {
             doc,
+            compact: false,
             master_levels: MeterState::default(),
             last_frame: Instant::now(),
             open_gui: Vec::new(),
@@ -1645,7 +1648,7 @@ impl MixerView {
         let master_width = STRIP_WIDTH + 40.0;
         // Strips fill the panel: the fader takes what the other sections leave.
         let available = ui.available_height() - 30.0;
-        self.full_strips = self.detached || available >= FULL_STRIPS_HEIGHT;
+        self.full_strips = !self.compact && (self.detached || available >= FULL_STRIPS_HEIGHT);
         if self.full_strips {
             // The strips show the lists opened in windows from the buttons.
             self.lists.clear();
@@ -1803,30 +1806,48 @@ impl MixerView {
             ui.menu_button(tr("Snapshots"), |ui| snapshots_menu(ui, &mut doc))
                 .response
                 .on_hover_text(tr("Save and recall the console settings"));
-            let console = doc.project().console.model;
-            let mut label = RichText::new(crate::console_ui::button_label(&doc));
-            if console != audiostrada_core::console::ConsoleModel::Clean {
-                label = label.color(crate::console_ui::color(console));
-            }
-            if doc.project().console_off {
-                label = label.strikethrough();
-            }
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                crate::console_ui::power_switch(ui, &mut doc);
-                let button = ui.button(label).on_hover_text(tr(
-                    "The character of an analog console on every track, the buses and the master",
-                ));
-                // Stays open while its settings change.
-                egui::Popup::menu(&button)
-                    .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                    .show(|ui| crate::console_ui::console_menu(ui, &mut doc));
-            });
             let importing = doc.importing();
             if importing > 0 {
                 ui.spinner();
                 ui.weak(trf!("importing {count} file(s)…", count = importing));
             }
+            // At the right: the compact switch, then the console.
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let console = doc.project().console.model;
+                let mut label = RichText::new(crate::console_ui::button_label(&doc));
+                if console != audiostrada_core::console::ConsoleModel::Clean {
+                    label = label.color(crate::console_ui::color(console));
+                }
+                if doc.project().console_off {
+                    label = label.strikethrough();
+                }
+                // Right to left: the button, then its switch at its left.
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    let button = ui.button(label).on_hover_text(tr(
+                        "The character of an analog console on every track, the buses and the master",
+                    ));
+                    // Stays open while its settings change.
+                    egui::Popup::menu(&button)
+                        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                        .show(|ui| crate::console_ui::console_menu(ui, &mut doc));
+                    crate::console_ui::power_switch(ui, &mut doc);
+                });
+                let keys = crate::shortcut_labels(crate::actions::Action::CompactMixer)
+                    .first()
+                    .cloned()
+                    .unwrap_or_default();
+                if ui
+                    .selectable_label(self.compact, tr("Compact"))
+                    .on_hover_text(trf!(
+                        "Compact strips, however tall the mixer ({keys})",
+                        keys = keys
+                    ))
+                    .clicked()
+                {
+                    self.requests.push(crate::actions::Action::CompactMixer);
+                }
+            });
         });
         ui.separator();
     }
@@ -3417,7 +3438,18 @@ impl MixerView {
                     (FADER_MIN_DB, FADER_MAX_DB),
                 );
                 widgets::meter(ui, &mut levels, fader_height);
-                ui.vertical(|ui| self.loudness(ui, doc, fader_height));
+                // The readings, then Reset and REF at the bottom: in the tracks' switch column.
+                ui.vertical(|ui| {
+                    let top = ui.cursor().top();
+                    let buttons = 2.0 * 21.0;
+                    self.loudness(ui, doc, fader_height - buttons);
+                    let left = fader_height - (ui.cursor().top() - top) - buttons;
+                    if left > 0.0 {
+                        ui.add_space(left);
+                    }
+                    ui.spacing_mut().item_spacing.y = 3.0;
+                    self.loudness_buttons(ui, doc);
+                });
             });
             // As tall as the tracks' fader row.
             let short = self.row_height - (ui.cursor().top() - row_top);
@@ -3436,8 +3468,6 @@ impl MixerView {
                         .unwrap_or(project.master.gain_db),
                 ),
             );
-            // Where the tracks have their M, S, R buttons.
-            self.loudness_buttons(ui, doc, width);
             // Same height as the track strips' buttons, so the name plates line up.
             let used = ui.cursor().top() - bottom;
             let pad = (self.bottom_height - used - ui.spacing().item_spacing.y).max(0.0);
@@ -4042,12 +4072,11 @@ impl MixerView {
         }
     }
 
-    /// Reset of the loudness readings and the reference track switch, under the master fader.
-    fn loudness_buttons(&mut self, ui: &mut Ui, doc: &mut Document, width: f32) {
+    /// Reset of the loudness readings and the reference track switch, beside the master fader.
+    fn loudness_buttons(&mut self, ui: &mut Ui, doc: &mut Document) {
         let p = theme::current(ui);
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 3.0;
-            let size = vec2(((width - 17.0) / 2.0).max(16.0), 20.0);
+        {
+            let size = vec2(44.0, 18.0);
             if theme::letter_toggle(ui, size, tr("Reset"), false, p.accent)
                 .on_hover_text(tr("Restart the loudness measurement"))
                 .clicked()
@@ -4071,7 +4100,7 @@ impl MixerView {
             if response.secondary_clicked() {
                 crate::reference_window::open(ui.ctx());
             }
-        });
+        }
     }
 
     /// Opens an insert's window in AudioStrada, or brings it to the front.

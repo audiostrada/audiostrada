@@ -118,6 +118,7 @@ actions! {
     ResetLayout => ("View", "Reset layout"),
     ToggleFullscreen => ("View", "Full screen"),
     DetachMixer => ("View", "Mixer in its own window"),
+    CompactMixer => ("View", "Compact mixer"),
     DetachPianoRoll => ("View", "Piano roll in its own window"),
     CommandPalette => ("View", "Command palette…"),
     Preferences => ("View", "Preferences…"),
