@@ -91,6 +91,10 @@ pub struct MixerView {
     row_height: f32,
     /// Tallest top part of the last frame: strips drawn before a taller one still line up.
     top_last: f32,
+    /// The same for the narrow strips of the compact mixer, which line up among themselves:
+    /// the strip open full width has a taller top.
+    narrow_top: f32,
+    narrow_last: f32,
     bottom_height: f32,
     /// The mixer is in its own window rather than docked.
     pub detached: bool,
@@ -1648,6 +1652,8 @@ impl MixerView {
             top_height: 0.0,
             row_height: 0.0,
             top_last: 0.0,
+            narrow_top: 0.0,
+            narrow_last: 0.0,
             bottom_height: 0.0,
             detached: true,
             full_strips: true,
@@ -1714,6 +1720,8 @@ impl MixerView {
         }
         self.top_last = self.top_height;
         self.top_height = 0.0;
+        self.narrow_last = self.narrow_top;
+        self.narrow_top = 0.0;
         self.bottom_last = self.bottom_height;
         self.bottom_height = 0.0;
         self.fx_target = None;
@@ -1994,6 +2002,18 @@ impl MixerView {
         }
     }
 
+    /// [`Self::align_top`] for a narrow strip: with the other narrow ones only.
+    fn align_narrow_top(&mut self, ui: &mut Ui, top: f32) {
+        let used = ui.cursor().top() - top;
+        self.top_height = self.top_height.max(used);
+        self.narrow_top = self.narrow_top.max(used);
+        let pad = (self.narrow_top.max(self.narrow_last) - used).max(0.0);
+        let pad = pad - ui.spacing().item_spacing.y;
+        if pad > 0.0 {
+            ui.allocate_exact_size(vec2(1.0, pad), Sense::hover());
+        }
+    }
+
     fn strip(
         &mut self,
         ui: &mut Ui,
@@ -2229,7 +2249,7 @@ impl MixerView {
                 // The room above the fader shows the name, upright.
                 let before = ui.cursor().top();
                 ui.allocate_exact_size(vec2(width, NAME_ROOM), Sense::hover());
-                self.align_top(ui, top);
+                self.align_narrow_top(ui, top);
                 let room = Rect::from_min_max(
                     pos2(ui.max_rect().left(), before),
                     pos2(ui.max_rect().right(), ui.cursor().top()),
@@ -2237,6 +2257,8 @@ impl MixerView {
                 if room.height() > 30.0 {
                     upright_name(ui, room, &track.name);
                 }
+                #[cfg(test)]
+                tests::seen(format!("room {}", id.0), room);
                 let shown_gain = doc
                     .automation_value(Channel::Track(id), &AutomationTarget::Gain)
                     .unwrap_or(track.gain_db);
@@ -4937,6 +4959,29 @@ mod tests {
         let below = rect(&format!("insert {}", inserts[1].0)).center() + vec2(0.0, 6.0);
         drag(&ctx, &mut view, eq, below, false);
         assert_eq!(effects(a), ["compressor", "eq"]);
+    }
+
+    #[test]
+    fn narrow_strips_line_up_on_both_sides_of_the_open_one() {
+        let doc = Rc::new(RefCell::new(Document::new(AppDirs::default())));
+        let mut ids = Vec::new();
+        doc.borrow_mut().history_mut().edit("Setup", |p| {
+            ids = ["A", "B", "C"].map(|n| p.add_track(n)).to_vec();
+        });
+        let mut view = MixerView::new(Rc::clone(&doc));
+        view.compact = true;
+        view.expanded = Some(ids[1]);
+        let ctx = egui::Context::default();
+        for _ in 0..4 {
+            frame(&ctx, &mut view, vec![]);
+        }
+        let (before, after) = (
+            rect(&format!("room {}", ids[0].0)),
+            rect(&format!("room {}", ids[2].0)),
+        );
+        assert_eq!(before.bottom(), after.bottom(), "{before:?} {after:?}");
+        // Not pushed down to the open strip's fader: its top is much taller.
+        assert!(before.bottom() < 300.0, "{before:?}");
     }
 
     #[test]
