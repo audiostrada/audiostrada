@@ -3,11 +3,14 @@
 //! spread in pitch and across the stereo field), a sub oscillator and noise; a resonant filter
 //! (state-variable low-pass 12 or 24 dB, high-pass, band-pass, notch, or a nonlinear 24 dB
 //! ladder that sings into self-oscillation) with drive, key tracking and its envelope, and an
-//! amplitude envelope. Analog drift gives each note its own small
+//! amplitude envelope. Two LFOs, a second envelope, velocity, the mod wheel, pressure and four
+//! macros modulate pitch, levels, filter and volume through eight routings. Analog drift gives each note its own small
 //! offsets, glide slides between notes, mono and legato play one note at a time.
 //! Pitch bend, channel pressure and (in MPE mode) CC 74 follow each voice's channel, so MPE
 //! controllers bend and shape notes one by one. Out of MPE, the host maps CC 74 to the cutoff.
 
+use crate::delay::{NOTE_NAMES, synced_seconds};
+use crate::filter::{SHAPES, lfo_value};
 use crate::{Effect, EffectInfo, MidiEvent, ParamInfo, choice, db_to_gain, param, switch};
 
 const VOICES: usize = 16;
@@ -79,11 +82,196 @@ pub(crate) mod p {
     pub const FILTER: usize = 32;
     pub const DRIVE: usize = 33;
     pub const KEY_TRACK: usize = 34;
+    /// Shape, rate, sync, note and retrigger of LFO 1, then the same for LFO 2.
+    pub const LFO: usize = 35;
+    pub const LFO_FIELDS: usize = 5;
+    pub const ENV2: usize = 45;
+    pub const MACROS: usize = 49;
+    /// Source, target and amount of each routing.
+    pub const SLOTS: usize = 53;
 }
-const COUNT: usize = 35;
+pub const SLOTS: usize = 8;
+const COUNT: usize = p::SLOTS + SLOTS * 3;
+
+/// What modulates, in the order of the routings' source choice.
+pub const SOURCES: [&str; 11] = [
+    "None",
+    "LFO 1",
+    "LFO 2",
+    "Envelope 2",
+    "Velocity",
+    "Mod wheel",
+    "Pressure",
+    "Macro 1",
+    "Macro 2",
+    "Macro 3",
+    "Macro 4",
+];
+/// What is modulated, in the order of the routings' target choice.
+pub const TARGETS: [&str; 12] = [
+    "None",
+    "Pitch",
+    "Osc 1 pitch",
+    "Osc 2 pitch",
+    "Osc 1 level",
+    "Osc 2 level",
+    "Sub level",
+    "Noise",
+    "Cutoff",
+    "Resonance",
+    "Filter drive",
+    "Volume",
+];
+pub mod target {
+    pub const PITCH: usize = 1;
+    pub const OSC1_PITCH: usize = 2;
+    pub const OSC2_PITCH: usize = 3;
+    pub const OSC1_LEVEL: usize = 4;
+    pub const OSC2_LEVEL: usize = 5;
+    pub const SUB: usize = 6;
+    pub const NOISE: usize = 7;
+    pub const CUTOFF: usize = 8;
+    pub const RESONANCE: usize = 9;
+    pub const DRIVE: usize = 10;
+    pub const VOLUME: usize = 11;
+}
+/// Reach of a full modulation: semitones of pitch, octaves of cutoff.
+const PITCH_REACH: f32 = 12.0;
+const CUTOFF_REACH: f32 = 5.0;
+
+macro_rules! lfo {
+    ($n:literal) => {
+        [
+            choice(
+                concat!("lfo", $n, "_shape"),
+                concat!("LFO ", $n, " shape"),
+                &SHAPES,
+                0.0,
+            ),
+            param(
+                concat!("lfo", $n, "_rate"),
+                concat!("LFO ", $n, " rate"),
+                0.05,
+                20.0,
+                4.0,
+                "Hz",
+            ),
+            switch(
+                concat!("lfo", $n, "_sync"),
+                concat!("LFO ", $n, " sync"),
+                0.0,
+            ),
+            choice(
+                concat!("lfo", $n, "_note"),
+                concat!("LFO ", $n, " note"),
+                &NOTE_NAMES,
+                5.0,
+            ),
+            switch(
+                concat!("lfo", $n, "_retrig"),
+                concat!("LFO ", $n, " retrigger"),
+                1.0,
+            ),
+        ]
+    };
+}
+
+macro_rules! slot {
+    ($n:literal) => {
+        [
+            choice(
+                concat!("mod", $n, "_source"),
+                concat!("Modulation ", $n, " source"),
+                &SOURCES,
+                0.0,
+            ),
+            choice(
+                concat!("mod", $n, "_target"),
+                concat!("Modulation ", $n, " target"),
+                &TARGETS,
+                0.0,
+            ),
+            param(
+                concat!("mod", $n, "_amount"),
+                concat!("Modulation ", $n, " amount"),
+                -100.0,
+                100.0,
+                0.0,
+                "%",
+            ),
+        ]
+    };
+}
+
+const fn join<const A: usize, const B: usize>(
+    head: [ParamInfo; A],
+    tail: &[ParamInfo],
+) -> [ParamInfo; B] {
+    let mut out = [head[0]; B];
+    let mut i = 0;
+    while i < A {
+        out[i] = head[i];
+        i += 1;
+    }
+    let mut j = 0;
+    while j < tail.len() {
+        out[A + j] = tail[j];
+        j += 1;
+    }
+    out
+}
+
+const EXTRA: [ParamInfo; COUNT - 35] = {
+    let lfo1 = lfo!("1");
+    let lfo2 = lfo!("2");
+    let slots = [
+        slot!("1"),
+        slot!("2"),
+        slot!("3"),
+        slot!("4"),
+        slot!("5"),
+        slot!("6"),
+        slot!("7"),
+        slot!("8"),
+    ];
+    let mut out = [lfo1[0]; COUNT - 35];
+    let mut i = 0;
+    while i < 5 {
+        out[i] = lfo1[i];
+        out[5 + i] = lfo2[i];
+        i += 1;
+    }
+    out[10] = param("env2_attack", "Envelope 2 attack", 0.5, 4000.0, 5.0, "ms");
+    out[11] = param("env2_decay", "Envelope 2 decay", 1.0, 8000.0, 400.0, "ms");
+    out[12] = param("env2_sustain", "Envelope 2 sustain", 0.0, 100.0, 0.0, "%");
+    out[13] = param(
+        "env2_release",
+        "Envelope 2 release",
+        1.0,
+        8000.0,
+        400.0,
+        "ms",
+    );
+    out[14] = param("macro1", "Macro 1", 0.0, 100.0, 0.0, "%");
+    out[15] = param("macro2", "Macro 2", 0.0, 100.0, 0.0, "%");
+    out[16] = param("macro3", "Macro 3", 0.0, 100.0, 0.0, "%");
+    out[17] = param("macro4", "Macro 4", 0.0, 100.0, 0.0, "%");
+    let mut k = 0;
+    while k < SLOTS {
+        let mut f = 0;
+        while f < 3 {
+            out[18 + k * 3 + f] = slots[k][f];
+            f += 1;
+        }
+        k += 1;
+    }
+    out
+};
+
+const PARAMS: [ParamInfo; COUNT] = join(BASE, &EXTRA);
 
 // The first thirteen keep their ids and places: projects store them.
-const PARAMS: [ParamInfo; COUNT] = [
+const BASE: [ParamInfo; 35] = [
     choice("wave", "Osc 1 wave", &WAVES, 0.0),
     param("attack", "Attack", 0.5, 2000.0, 5.0, "ms"),
     param("decay", "Decay", 1.0, 4000.0, 300.0, "ms"),
@@ -150,6 +338,8 @@ struct ChannelState {
     pressure: f32,
     /// CC 74, 0 to 1 (0.5 when never sent).
     slide: f32,
+    /// The mod wheel (CC 1), 0 to 1.
+    wheel: f32,
 }
 
 impl Default for ChannelState {
@@ -158,6 +348,7 @@ impl Default for ChannelState {
             bend: 0.0,
             pressure: 0.0,
             slide: 0.5,
+            wheel: 0.0,
         }
     }
 }
@@ -191,6 +382,11 @@ struct Voice {
     drift_cutoff: f32,
     wander: f32,
     wander_rate: f32,
+    /// LFO phases and the random value of their cycle; the second envelope.
+    lfo: [f32; 2],
+    held: [f32; 2],
+    env2: f32,
+    env2_stage: Stage,
     age: u64,
 }
 
@@ -211,6 +407,10 @@ impl Default for Voice {
             drift_cutoff: 0.0,
             wander: 0.0,
             wander_rate: 0.0,
+            lfo: [0.0; 2],
+            held: [0.0; 2],
+            env2: 0.0,
+            env2_stage: Stage::Idle,
             age: 0,
         }
     }
@@ -240,6 +440,35 @@ fn oscillator(wave: u32, phase: f32, dt: f32) -> f32 {
         }
         2 => (phase * std::f32::consts::TAU).sin(),
         _ => 1.0 - 4.0 * (phase - 0.5).abs(),
+    }
+}
+
+/// One step of an ADSR envelope: `rates` are attack, decay, sustain level and release.
+#[inline]
+fn advance(stage: &mut Stage, level: &mut f32, (a, d, sustain, r): (f32, f32, f32, f32)) {
+    match stage {
+        Stage::Attack => {
+            *level += a;
+            if *level >= 1.0 {
+                *level = 1.0;
+                *stage = Stage::Decay;
+            }
+        }
+        Stage::Decay => {
+            *level -= d * (1.0 - sustain).max(0.001);
+            if *level <= sustain {
+                *level = sustain;
+                *stage = Stage::Sustain;
+            }
+        }
+        Stage::Release => {
+            *level -= r;
+            if *level <= 0.0 {
+                *level = 0.0;
+                *stage = Stage::Idle;
+            }
+        }
+        Stage::Sustain | Stage::Idle => {}
     }
 }
 
@@ -348,6 +577,9 @@ pub struct Synth {
     /// Keys held in mono and legato modes, oldest first, to fall back on at a release.
     held: [(u8, u8, u8); 16],
     held_count: usize,
+    bpm: f64,
+    /// Free-running LFO phases, which notes join when they do not restart them.
+    lfo: [f32; 2],
 }
 
 impl Default for Synth {
@@ -361,6 +593,8 @@ impl Default for Synth {
             random: Random(0x9e37_79b9),
             held: [(0, 0, 0); 16],
             held_count: 0,
+            bpm: 120.0,
+            lfo: [0.0; 2],
         }
     }
 }
@@ -398,6 +632,9 @@ impl Synth {
             self.random.next(),
             self.random.next(),
         );
+        let held = [self.random.next(), self.random.next()];
+        let retrigs = [0, 1].map(|l| self.values[p::LFO + l * p::LFO_FIELDS + 4] >= 0.5);
+        let free = self.lfo;
         let mut phases = [[0.0f32; MAX_UNISON]; 2];
         for row in &mut phases {
             for (k, ph) in row.iter_mut().enumerate() {
@@ -429,6 +666,14 @@ impl Synth {
         }
         if retrigger {
             v.stage = Stage::Attack;
+            v.env2_stage = Stage::Attack;
+            if !sounding {
+                v.env2 = 0.0;
+            }
+            for l in 0..2 {
+                v.lfo[l] = if retrigs[l] { 0.0 } else { free[l] };
+                v.held[l] = held[l];
+            }
             v.drift_pitch = r1 * drift * DRIFT_CENTS;
             v.drift_cutoff = r2 * drift * DRIFT_OCTAVES;
             v.wander = r3 * std::f32::consts::PI;
@@ -498,6 +743,10 @@ impl Effect for Synth {
         self.held_count = 0;
     }
 
+    fn set_tempo(&mut self, bpm: f64) {
+        self.bpm = bpm;
+    }
+
     fn set_param(&mut self, index: usize, value: f32) {
         if let Some(v) = self.values.get_mut(index) {
             *v = value;
@@ -530,6 +779,7 @@ impl Effect for Synth {
                 }
                 (0xD0, pressure) => state.pressure = f32::from(pressure) / 127.0,
                 (0xB0, 74) => state.slide = f32::from(event.data[2]) / 127.0,
+                (0xB0, 1) => state.wheel = f32::from(event.data[2]) / 127.0,
                 (0xB0, 121) => *state = ChannelState::default(),
                 _ => {}
             }
@@ -615,6 +865,48 @@ impl Effect for Synth {
             std::array::from_fn(|k| 2f32.powf((offset + unison(k, n) * detune / 100.0) / 12.0))
         });
         let wander_step = std::f32::consts::TAU / self.rate;
+        // The LFOs: shape and phase step per sample.
+        let lfos: [(usize, f32); 2] = std::array::from_fn(|l| {
+            let base = p::LFO + l * p::LFO_FIELDS;
+            let shape = (v[base].round().max(0.0) as usize).min(SHAPES.len() - 1);
+            let hz = if v[base + 2] >= 0.5 {
+                1.0 / synced_seconds(v[base + 3], self.bpm).max(0.01)
+            } else {
+                v[base + 1]
+            };
+            (shape, hz / self.rate)
+        });
+        for (phase, (_, step)) in self.lfo.iter_mut().zip(&lfos) {
+            *phase = (*phase + step * left.len() as f32).fract();
+        }
+        let env2 = (
+            per_ms / v[p::ENV2],
+            per_ms / v[p::ENV2 + 1],
+            v[p::ENV2 + 2] / 100.0,
+            per_ms / v[p::ENV2 + 3],
+        );
+        let macros: [f32; 4] = std::array::from_fn(|m| v[p::MACROS + m] / 100.0);
+        // The routings in use: source, target and amount.
+        let mut routes = [(0usize, 0usize, 0.0f32); SLOTS];
+        let mut route_count = 0;
+        for k in 0..SLOTS {
+            let at = p::SLOTS + k * 3;
+            let (source, target, amount) = (
+                v[at].round().max(0.0) as usize,
+                v[at + 1].round().max(0.0) as usize,
+                v[at + 2] / 100.0,
+            );
+            if source > 0
+                && source < SOURCES.len()
+                && target > 0
+                && target < TARGETS.len()
+                && amount != 0.0
+            {
+                routes[route_count] = (source, target, amount);
+                route_count += 1;
+            }
+        }
+        let routes = &routes[..route_count];
         let random = &mut self.random;
         for voice in self.voices.iter_mut().filter(|v| v.stage != Stage::Idle) {
             let channel = &self.channels[usize::from(voice.channel & 15)];
@@ -648,18 +940,57 @@ impl Effect for Synth {
                     }
                     Stage::Sustain | Stage::Idle => {}
                 }
+                // The second envelope follows the notes as the first does.
+                if voice.stage == Stage::Release && voice.env2_stage != Stage::Idle {
+                    voice.env2_stage = Stage::Release;
+                }
+                advance(&mut voice.env2_stage, &mut voice.env2, env2);
+                let mut lfo_out = [0.0f32; 2];
+                for l in 0..2 {
+                    let (shape, step) = lfos[l];
+                    let next = voice.lfo[l] + step;
+                    if next >= 1.0 {
+                        voice.held[l] = random.next();
+                    }
+                    voice.lfo[l] = next.fract();
+                    lfo_out[l] = lfo_value(shape, voice.lfo[l], voice.held[l]);
+                }
+                let mut m = [0.0f32; TARGETS.len()];
+                for &(source, target, amount) in routes {
+                    let value = match source {
+                        1 => lfo_out[0],
+                        2 => lfo_out[1],
+                        3 => voice.env2,
+                        4 => voice.velocity,
+                        5 => channel.wheel,
+                        6 => channel.pressure,
+                        k => macros[k - 7],
+                    };
+                    m[target] += value * amount;
+                }
                 voice.note = voice.target + glide * (voice.note - voice.target);
                 voice.wander += voice.wander_rate * wander_step;
                 let cents = voice.drift_pitch + drift * 3.0 * voice.wander.sin();
-                let base = voice.note + bend + cents / 100.0;
+                let base = voice.note + bend + cents / 100.0 + m[target::PITCH] * PITCH_REACH;
                 let note_dt = 440.0 * 2f32.powf(base / 12.0) / self.rate;
                 let mut out = [0.0f32; 2];
                 for (o, &(wave, _, level, n, _)) in oscs.iter().enumerate() {
+                    let (pitch, add) = if o == 0 {
+                        (m[target::OSC1_PITCH], m[target::OSC1_LEVEL])
+                    } else {
+                        (m[target::OSC2_PITCH], m[target::OSC2_LEVEL])
+                    };
+                    let level = (level + add / (n as f32).sqrt()).clamp(0.0, 2.0);
                     if level <= 0.0 {
                         continue;
                     }
+                    let shift = if pitch != 0.0 {
+                        2f32.powf(pitch * PITCH_REACH / 12.0)
+                    } else {
+                        1.0
+                    };
                     for k in 0..n {
-                        let dt = note_dt * ratios[o][k];
+                        let dt = note_dt * ratios[o][k] * shift;
                         let phase = &mut voice.phases[o][k];
                         let s = oscillator(wave, *phase, dt) * level;
                         *phase += dt;
@@ -671,6 +1002,8 @@ impl Effect for Synth {
                         out[1] += s * pr;
                     }
                 }
+                let sub_level = (sub_level + m[target::SUB]).clamp(0.0, 2.0);
+                let noise = (noise + m[target::NOISE]).clamp(0.0, 2.0);
                 if sub_level > 0.0 {
                     let dt = note_dt * sub_ratio;
                     let s = (voice.sub * std::f32::consts::TAU).sin() * sub_level;
@@ -684,9 +1017,15 @@ impl Effect for Synth {
                 }
                 // Key tracking from middle C: at 100 % the cutoff follows the notes.
                 let tracked = 2f32.powf((voice.note + 9.0) / 12.0 * key_track);
-                let fc = (cutoff * brightness * tracked * (1.0 + env_amount * 4.0 * voice.level))
-                    .clamp(20.0, self.rate * 0.45);
-                let amp = voice.level * voice.velocity * gain;
+                let fc = (cutoff
+                    * brightness
+                    * tracked
+                    * (1.0 + env_amount * 4.0 * voice.level)
+                    * 2f32.powf(m[target::CUTOFF] * CUTOFF_REACH))
+                .clamp(20.0, self.rate * 0.45);
+                let resonance = (resonance + m[target::RESONANCE]).clamp(0.0, 1.0);
+                let drive = (drive + m[target::DRIVE] * 7.0).max(1.0);
+                let amp = voice.level * voice.velocity * gain * (1.0 + m[target::VOLUME]).max(0.0);
                 for (side, x) in out.into_iter().enumerate() {
                     let state = &mut voice.filter[side];
                     let y = filter(state, kind, x, fc, self.rate, resonance, drive) * amp;
@@ -985,5 +1324,77 @@ mod tests {
         };
         // Two octaves up with full tracking keeps much more of the sound than without.
         assert!(bright(84, 100.0) > bright(84, 0.0) * 2.0);
+    }
+
+    fn route(slot: usize, source: usize, target: usize, amount: f32) -> [(usize, f32); 3] {
+        let at = p::SLOTS + slot * 3;
+        [
+            (at, source as f32),
+            (at + 1, target as f32),
+            (at + 2, amount),
+        ]
+    }
+
+    #[test]
+    fn an_lfo_on_the_pitch_makes_a_vibrato() {
+        let mut settings = vec![(p::OSC1_VOICES, 1.0), (p::LFO + 1, 5.0)];
+        settings.extend(route(0, 1, target::PITCH, 10.0));
+        let mut s = synth(&settings);
+        s.midi(&MidiEvent::note_on(0, 0, 69, 100));
+        // The pitch, block by block, swings above and below A4.
+        let mut lowest = f32::MAX;
+        let mut highest = f32::MIN;
+        for _ in 0..60 {
+            stereo(&mut s, 1);
+            let v = s.voices.iter().find(|v| v.stage != Stage::Idle).unwrap();
+            let lfo = lfo_value(0, v.lfo[0], 0.0);
+            lowest = lowest.min(lfo);
+            highest = highest.max(lfo);
+        }
+        assert!(lowest < -0.5 && highest > 0.5, "{lowest} {highest}");
+        let wobble = |amount: f32| {
+            let mut settings = vec![(p::OSC1_VOICES, 1.0), (p::LFO + 1, 3.0)];
+            settings.extend(route(0, 1, target::PITCH, amount));
+            let mut s = synth(&settings);
+            s.midi(&MidiEvent::note_on(0, 0, 69, 100));
+            let (l, _) = stereo(&mut s, 200);
+            // Crossings per window vary when the pitch moves.
+            let counts: Vec<usize> = l
+                .chunks(4800)
+                .map(|c| c.windows(2).filter(|w| w[0] < 0.0 && w[1] >= 0.0).count())
+                .collect();
+            counts.iter().max().unwrap() - counts.iter().min().unwrap()
+        };
+        assert!(wobble(20.0) > wobble(0.0) + 3);
+    }
+
+    #[test]
+    fn macros_velocity_and_the_second_envelope_reach_their_targets() {
+        let energy = |settings: &[(usize, f32)], velocity: u8| {
+            let mut s = synth(settings);
+            s.midi(&MidiEvent::note_on(0, 0, 57, velocity));
+            let (l, _) = stereo(&mut s, 40);
+            l[l.len() / 2..].iter().map(|x| x * x).sum::<f32>()
+        };
+        let base = [(p::WAVE, 0.0), (p::CUTOFF, 300.0), (p::ENV_AMOUNT, 0.0)];
+        let closed = energy(&base, 100);
+        let mut opened = base.to_vec();
+        opened.push((p::MACROS, 100.0));
+        opened.extend(route(2, 7, target::CUTOFF, 60.0));
+        assert!(
+            energy(&opened, 100) > closed * 2.0,
+            "macro 1 opens the filter"
+        );
+        // Velocity on the volume: a soft note is quieter than a hard one, beyond the usual.
+        let mut by_velocity = base.to_vec();
+        by_velocity.extend(route(1, 4, target::VOLUME, 100.0));
+        let ratio = energy(&by_velocity, 127) / energy(&by_velocity, 30).max(1e-9);
+        let usual = energy(&base, 127) / energy(&base, 30).max(1e-9);
+        assert!(ratio > usual * 1.5, "{ratio} {usual}");
+        // The second envelope at full sustain holds the filter open.
+        let mut env = base.to_vec();
+        env.push((p::ENV2 + 2, 100.0));
+        env.extend(route(3, 3, target::CUTOFF, 60.0));
+        assert!(energy(&env, 100) > closed * 2.0);
     }
 }

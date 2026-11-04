@@ -32,6 +32,10 @@ pub struct SynthState {
     typing: bool,
     /// Where the notes went, to release them there.
     track: Option<audiostrada_core::TrackId>,
+    /// The modulation source being dragged onto a knob.
+    dragging: Option<usize>,
+    /// Knobs a source can be dropped on this frame: where they are and their target.
+    targets: Vec<(Rect, usize)>,
 }
 
 impl Default for SynthState {
@@ -42,6 +46,8 @@ impl Default for SynthState {
             computer: BTreeSet::new(),
             typing: false,
             track: None,
+            dragging: None,
+            targets: Vec::new(),
         }
     }
 }
@@ -148,6 +154,11 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Keys: Electric"),
             &[
+                ("lfo1_rate", 4.5),
+                ("lfo1_retrig", 0.0),
+                ("mod1_source", 1.0),
+                ("mod1_target", 11.0),
+                ("mod1_amount", 15.0),
                 ("wave", 2.0),
                 ("osc1_voices", 1.0),
                 ("osc2_wave", 3.0),
@@ -162,6 +173,15 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Pad: Warm"),
             &[
+                ("lfo1_rate", 0.2),
+                ("lfo1_shape", 1.0),
+                ("lfo1_retrig", 0.0),
+                ("mod1_source", 1.0),
+                ("mod1_target", 8.0),
+                ("mod1_amount", 15.0),
+                ("mod2_source", 7.0),
+                ("mod2_target", 8.0),
+                ("mod2_amount", 40.0),
                 ("osc1_voices", 4.0),
                 ("detune", 15.0),
                 ("osc2_level", 60.0),
@@ -179,6 +199,14 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Pad: Glass"),
             &[
+                ("lfo1_rate", 0.15),
+                ("lfo1_retrig", 0.0),
+                ("mod1_source", 1.0),
+                ("mod1_target", 5.0),
+                ("mod1_amount", 40.0),
+                ("mod2_source", 7.0),
+                ("mod2_target", 8.0),
+                ("mod2_amount", 40.0),
                 ("wave", 3.0),
                 ("osc1_voices", 3.0),
                 ("detune", 10.0),
@@ -188,7 +216,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
                 ("spread", 90.0),
                 ("drift", 20.0),
                 ("velocity", 30.0),
-                ("volume", -14.0),
+                ("volume", -17.0),
             ],
             adsr(900.0, 2000.0, 85.0, 3500.0),
             filter(5000.0, 25.0, 15.0),
@@ -213,6 +241,14 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Strings: Ensemble"),
             &[
+                ("lfo1_rate", 5.0),
+                ("lfo1_retrig", 0.0),
+                ("mod1_source", 1.0),
+                ("mod1_target", 1.0),
+                ("mod1_amount", 1.0),
+                ("mod2_source", 5.0),
+                ("mod2_target", 8.0),
+                ("mod2_amount", 35.0),
                 ("filter_type", 1.0),
                 ("key_track", 30.0),
                 ("osc1_voices", 7.0),
@@ -228,6 +264,15 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Brass: Analog"),
             &[
+                ("lfo1_rate", 5.5),
+                ("env2_attack", 1.0),
+                ("env2_decay", 350.0),
+                ("mod1_source", 5.0),
+                ("mod1_target", 1.0),
+                ("mod1_amount", 2.0),
+                ("mod2_source", 3.0),
+                ("mod2_target", 8.0),
+                ("mod2_amount", 20.0),
                 ("key_track", 50.0),
                 ("detune", 10.0),
                 ("osc2_level", 70.0),
@@ -241,6 +286,12 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Lead: Supersaw"),
             &[
+                ("mod1_source", 5.0),
+                ("mod1_target", 8.0),
+                ("mod1_amount", 40.0),
+                ("mod2_source", 7.0),
+                ("mod2_target", 8.0),
+                ("mod2_amount", 40.0),
                 ("filter_type", 1.0),
                 ("key_track", 30.0),
                 ("osc1_voices", 9.0),
@@ -258,6 +309,13 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Lead: Mono glide"),
             &[
+                ("lfo1_rate", 5.5),
+                ("mod1_source", 5.0),
+                ("mod1_target", 1.0),
+                ("mod1_amount", 3.0),
+                ("mod2_source", 4.0),
+                ("mod2_target", 8.0),
+                ("mod2_amount", 20.0),
                 ("filter_type", 2.0),
                 ("drive", 20.0),
                 ("key_track", 50.0),
@@ -290,6 +348,9 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Pluck: Bright"),
             &[
+                ("mod1_source", 4.0),
+                ("mod1_target", 8.0),
+                ("mod1_amount", 20.0),
                 ("key_track", 60.0),
                 ("osc1_voices", 3.0),
                 ("detune", 12.0),
@@ -314,6 +375,61 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             ],
             adsr(1.0, 2500.0, 0.0, 2500.0),
             filter(18000.0, 0.0, 0.0),
+        ),
+        sound(
+            tr("Pad: Evolving"),
+            &[
+                ("osc1_voices", 4.0),
+                ("detune", 14.0),
+                ("osc2_wave", 3.0),
+                ("osc2_level", 70.0),
+                ("osc2_octave", 1.0),
+                ("osc2_voices", 2.0),
+                ("filter_type", 1.0),
+                ("spread", 90.0),
+                ("drift", 25.0),
+                ("lfo1_shape", 1.0),
+                ("lfo1_rate", 0.08),
+                ("lfo1_retrig", 0.0),
+                ("lfo2_rate", 0.13),
+                ("lfo2_retrig", 0.0),
+                ("mod1_source", 1.0),
+                ("mod1_target", 8.0),
+                ("mod1_amount", 30.0),
+                ("mod2_source", 2.0),
+                ("mod2_target", 5.0),
+                ("mod2_amount", 60.0),
+                ("mod3_source", 7.0),
+                ("mod3_target", 9.0),
+                ("mod3_amount", 50.0),
+                ("velocity", 30.0),
+                ("volume", -16.0),
+            ],
+            adsr(1500.0, 3000.0, 80.0, 4000.0),
+            filter(900.0, 30.0, 10.0),
+        ),
+        sound(
+            tr("Bass: Wobble"),
+            &[
+                ("osc1_voices", 2.0),
+                ("detune", 12.0),
+                ("osc2_wave", 1.0),
+                ("osc2_level", 60.0),
+                ("osc2_octave", -1.0),
+                ("sub_level", 40.0),
+                ("filter_type", 2.0),
+                ("drive", 35.0),
+                ("mode", 1.0),
+                ("lfo1_sync", 1.0),
+                ("lfo1_note", 5.0),
+                ("lfo1_shape", 1.0),
+                ("mod1_source", 1.0),
+                ("mod1_target", 8.0),
+                ("mod1_amount", 45.0),
+                ("volume", -8.0),
+            ],
+            adsr(2.0, 300.0, 100.0, 120.0),
+            filter(400.0, 55.0, 0.0),
         ),
         sound(
             tr("Bass: Sub"),
@@ -348,6 +464,9 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Bass: Acid"),
             &[
+                ("mod1_source", 4.0),
+                ("mod1_target", 8.0),
+                ("mod1_amount", 25.0),
                 ("filter_type", 2.0),
                 ("drive", 40.0),
                 ("osc1_voices", 1.0),
@@ -390,12 +509,190 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
     ]
 }
 
+/// Color of each modulation source, as on its pill, its ring and its routing.
+fn source_color(source: usize) -> Color32 {
+    match source {
+        1 => Color32::from_rgb(70, 200, 190),
+        2 => Color32::from_rgb(170, 120, 240),
+        3 => Color32::from_rgb(240, 150, 70),
+        4 => Color32::from_rgb(110, 200, 110),
+        5 => Color32::from_rgb(90, 160, 250),
+        6 => Color32::from_rgb(240, 110, 170),
+        _ => Color32::from_rgb(235, 200, 80),
+    }
+}
+
+/// The modulation target a knob stands for.
+fn target_of(id: &str) -> Option<usize> {
+    use audiostrada_dsp::synth::target;
+    Some(match id {
+        "osc1_fine" => target::OSC1_PITCH,
+        "osc2_fine" => target::OSC2_PITCH,
+        "osc1_level" => target::OSC1_LEVEL,
+        "osc2_level" => target::OSC2_LEVEL,
+        "sub_level" => target::SUB,
+        "noise" => target::NOISE,
+        "cutoff" => target::CUTOFF,
+        "resonance" => target::RESONANCE,
+        "drive" => target::DRIVE,
+        "volume" => target::VOLUME,
+        _ => return None,
+    })
+}
+
+/// The routings in use: slot, source, target, amount (-1 to 1).
+fn routes(params: &Params) -> Vec<(usize, usize, usize, f32)> {
+    (0..audiostrada_dsp::synth::SLOTS)
+        .filter_map(|k| {
+            let source = params.get(&format!("mod{}_source", k + 1)).round() as usize;
+            let target = params.get(&format!("mod{}_target", k + 1)).round() as usize;
+            let amount = params.get(&format!("mod{}_amount", k + 1)) / 100.0;
+            (source > 0 && target > 0).then_some((k, source, target, amount))
+        })
+        .collect()
+}
+
+/// A knob that takes modulation: dropped sources land on it, its routings show as colored arcs
+/// around it.
+fn mod_knob(ui: &mut Ui, params: &mut Params, state: &mut SynthState, id: &str, name: &str) {
+    let accent = theme::current(ui).accent;
+    let size = 38.0;
+    let rect = ui
+        .scope(|ui| wide_knob(ui, params, id, name, size, accent))
+        .response
+        .rect;
+    let Some(target) = target_of(id) else {
+        return;
+    };
+    state.targets.push((rect, target));
+    // The knob sits under its name: the arcs go around it.
+    let center = pos2(rect.center().x, rect.top() + 17.0 + size / 2.0);
+    let value = params.param(id).map_or(0.5, |q| to_unit(q, params.get(id)));
+    let sweep = 0.75 * std::f32::consts::TAU;
+    let start = std::f32::consts::FRAC_PI_2 + (std::f32::consts::TAU - sweep) / 2.0;
+    let mut radius = size / 2.0 + 4.0;
+    for (_, source, t, amount) in routes(params) {
+        if t != target || amount == 0.0 {
+            continue;
+        }
+        let from = start + sweep * value;
+        let to = start + sweep * (value + amount).clamp(0.0, 1.0);
+        let steps = 24;
+        let points: Vec<Pos2> = (0..=steps)
+            .map(|i| {
+                let a = from + (to - from) * i as f32 / steps as f32;
+                center + radius * vec2(a.cos(), a.sin())
+            })
+            .collect();
+        ui.painter()
+            .add(Shape::line(points, Stroke::new(2.5, source_color(source))));
+        radius += 3.5;
+    }
+    if state.dragging.is_some()
+        && rect.contains(ui.input(|i| i.pointer.hover_pos()).unwrap_or_default())
+    {
+        ui.painter().rect_stroke(
+            rect.expand(2.0),
+            6.0,
+            Stroke::new(1.5, source_color(state.dragging.unwrap_or(0))),
+            egui::StrokeKind::Outside,
+        );
+    }
+}
+
+/// A source's pill: dragged onto a knob, it routes the source there.
+fn source_pill(ui: &mut Ui, state: &mut SynthState, source: usize) {
+    let p = theme::current(ui);
+    let name = tr(audiostrada_dsp::synth::SOURCES[source]);
+    let color = source_color(source);
+    let galley = ui
+        .painter()
+        .layout_no_wrap(name.to_owned(), FontId::proportional(11.0), p.text);
+    let (rect, response) =
+        ui.allocate_exact_size(vec2(galley.size().x + 24.0, 20.0), Sense::click_and_drag());
+    ui.painter()
+        .rect_filled(rect, 10.0, color.gamma_multiply(0.25));
+    ui.painter().rect_stroke(
+        rect,
+        10.0,
+        Stroke::new(1.0, color),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter()
+        .circle_filled(pos2(rect.left() + 10.0, rect.center().y), 4.0, color);
+    ui.painter().galley(
+        pos2(rect.left() + 18.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        p.text,
+    );
+    let response = response
+        .on_hover_text(tr("Drag onto a knob to modulate it"))
+        .on_hover_cursor(egui::CursorIcon::Grab);
+    if response.drag_started() {
+        state.dragging = Some(source);
+    }
+}
+
+/// Where a dragged source is dropped: a new routing to the knob under the pointer.
+fn drop_source(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
+    let Some(source) = state.dragging else {
+        return;
+    };
+    let pointer = ui.input(|i| i.pointer.hover_pos());
+    if let Some(at) = pointer {
+        // The pill follows the pointer.
+        let color = source_color(source);
+        let layer = egui::LayerId::new(egui::Order::Tooltip, ui.scope_id().with("mod-drag"));
+        let painter = ui.ctx().layer_painter(layer);
+        painter.circle_filled(at, 7.0, color);
+        painter.text(
+            at + vec2(12.0, 0.0),
+            Align2::LEFT_CENTER,
+            tr(audiostrada_dsp::synth::SOURCES[source]),
+            FontId::proportional(11.0),
+            color,
+        );
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+    }
+    if !ui.input(|i| i.pointer.any_released()) {
+        return;
+    }
+    state.dragging = None;
+    let Some(at) = pointer else {
+        return;
+    };
+    let Some(&(_, target)) = state.targets.iter().find(|(r, _)| r.contains(at)) else {
+        return;
+    };
+    let existing = routes(params);
+    if existing
+        .iter()
+        .any(|&(_, s, t, _)| s == source && t == target)
+    {
+        return;
+    }
+    let free = (0..audiostrada_dsp::synth::SLOTS).find(|k| !existing.iter().any(|r| r.0 == *k));
+    let Some(k) = free else {
+        params
+            .doc
+            .notify(tr("Every modulation slot is in use: remove one first").into());
+        return;
+    };
+    let changes = [
+        (format!("mod{}_source", k + 1), source as f32),
+        (format!("mod{}_target", k + 1), target as f32),
+        (format!("mod{}_amount", k + 1), 50.0),
+    ];
+    let response = ui.response();
+    for (id, v) in changes {
+        params.set(&id, Some(v), &response);
+    }
+    params.doc.history_mut().end_gesture();
+}
+
 pub fn show(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
     let p = theme::current(ui);
-    let accent = p.accent;
-    let knob = |ui: &mut Ui, params: &mut Params, id: &str, name: &str| {
-        wide_knob(ui, params, id, name, 38.0, accent);
-    };
+    state.targets.clear();
     let height = 132.0;
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
@@ -438,9 +735,9 @@ pub fn show(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
                         tr("Detune"),
                     ];
                     for (id, name) in ids.iter().zip(names) {
-                        knob(ui, params, id, name);
+                        mod_knob(ui, params, state, id, name);
                     }
-                    knob(ui, params, level, tr("Level"));
+                    mod_knob(ui, params, state, level, tr("Level"));
                 });
             });
         }
@@ -449,8 +746,8 @@ pub fn show(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
             ui.add_space(2.0);
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
-                knob(ui, params, "sub_level", tr("Sub"));
-                knob(ui, params, "noise", tr("Noise"));
+                mod_knob(ui, params, state, "sub_level", tr("Sub"));
+                mod_knob(ui, params, state, "noise", tr("Noise"));
             });
         });
     });
@@ -464,11 +761,15 @@ pub fn show(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
                     filter_curve(ui, params, vec2(150.0, 70.0));
                 });
                 ui.spacing_mut().item_spacing.x = 2.0;
-                knob(ui, params, "cutoff", tr("Cutoff"));
-                knob(ui, params, "resonance", tr("Resonance"));
-                knob(ui, params, "env_amount", tr("Envelope"));
-                knob(ui, params, "drive", tr("Drive"));
-                knob(ui, params, "key_track", tr("Key track"));
+                for (id, name) in [
+                    ("cutoff", tr("Cutoff")),
+                    ("resonance", tr("Resonance")),
+                    ("env_amount", tr("Envelope")),
+                    ("drive", tr("Drive")),
+                    ("key_track", tr("Key track")),
+                ] {
+                    mod_knob(ui, params, state, id, name);
+                }
             });
         });
         section_frame(ui, tr("Voice"), p.weak, height, |ui| {
@@ -487,17 +788,17 @@ pub fn show(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
             ui.add_space(2.0);
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
-                knob(ui, params, "glide", tr("Glide"));
-                knob(ui, params, "spread", tr("Stereo"));
-                knob(ui, params, "drift", tr("Drift"));
+                mod_knob(ui, params, state, "glide", tr("Glide"));
+                mod_knob(ui, params, state, "spread", tr("Stereo"));
+                mod_knob(ui, params, state, "drift", tr("Drift"));
             });
         });
         section_frame(ui, tr("Output"), p.weak, height, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
-                knob(ui, params, "volume", tr("Volume"));
-                knob(ui, params, "velocity", tr("Velocity"));
-                knob(ui, params, "bend_range", tr("Bend"));
+                mod_knob(ui, params, state, "volume", tr("Volume"));
+                mod_knob(ui, params, state, "velocity", tr("Velocity"));
+                mod_knob(ui, params, state, "bend_range", tr("Bend"));
             });
             params.toggle(ui, "mpe", |ui, on| {
                 let response = pill_switch(ui, *on, tr("MPE")).on_hover_text(tr(
@@ -513,24 +814,226 @@ pub fn show(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
         });
     });
     ui.add_space(6.0);
-    let width = ui.available_width();
-    section_frame(ui, tr("Envelope"), p.weak, 100.0, |ui| {
-        ui.horizontal_top(|ui| {
-            envelope(ui, params, (width * 0.55).max(240.0));
-            ui.add_space(8.0);
-            ui.spacing_mut().item_spacing.x = 2.0;
-            for (id, name) in [
-                ("attack", tr("Attack")),
-                ("decay", tr("Decay")),
-                ("sustain", tr("Sustain")),
-                ("release", tr("Release")),
-            ] {
-                knob(ui, params, id, name);
-            }
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        section_frame(ui, tr("Envelope"), p.weak, 100.0, |ui| {
+            ui.horizontal_top(|ui| {
+                envelope(ui, params, 150.0);
+                ui.add_space(4.0);
+                ui.spacing_mut().item_spacing.x = 2.0;
+                for (id, name) in [
+                    ("attack", tr("Attack")),
+                    ("decay", tr("Decay")),
+                    ("sustain", tr("Sustain")),
+                    ("release", tr("Release")),
+                ] {
+                    mod_knob(ui, params, state, id, name);
+                }
+            });
         });
+        modulation_sources(ui, params, state);
+    });
+    ui.add_space(6.0);
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        macros_and_playing(ui, params, state);
+        routings(ui, params);
     });
     ui.add_space(6.0);
     keyboard(ui, params, state);
+    drop_source(ui, params, state);
+}
+
+/// The modulation sources, each with its few settings and its pill to drag.
+fn modulation_sources(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
+    let p = theme::current(ui);
+    let accent = p.accent;
+    let small = |ui: &mut Ui, params: &mut Params, id: &str, name: &str| {
+        wide_knob(ui, params, id, name, 30.0, accent);
+    };
+    for l in 1..=2usize {
+        section_frame(
+            ui,
+            tr(if l == 1 { "LFO 1" } else { "LFO 2" }),
+            source_color(l),
+            100.0,
+            |ui| {
+                ui.horizontal(|ui| {
+                    source_pill(ui, state, l);
+                    shape_picker(ui, params, &format!("lfo{l}_shape"));
+                });
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    let synced = params.get(&format!("lfo{l}_sync")) >= 0.5;
+                    if synced {
+                        crate::effect_editors::choice_box(ui, params, &format!("lfo{l}_note"));
+                    } else {
+                        small(ui, params, &format!("lfo{l}_rate"), tr("Rate"));
+                    }
+                    ui.vertical(|ui| {
+                        for (field, label, hint) in [
+                            ("sync", "Sync", "A note value at the project's tempo"),
+                            (
+                                "retrig",
+                                "Retrigger",
+                                "Starts again at each note; off, every note follows the same wave",
+                            ),
+                        ] {
+                            params.toggle(ui, &format!("lfo{l}_{field}"), |ui, on| {
+                                let response =
+                                    pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
+                                if response.clicked() {
+                                    *on = !*on;
+                                }
+                                response
+                            });
+                        }
+                    });
+                });
+            },
+        );
+    }
+    section_frame(ui, tr("Envelope 2"), source_color(3), 100.0, |ui| {
+        source_pill(ui, state, 3);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 2.0;
+            for (field, name) in [
+                ("attack", tr("A")),
+                ("decay", tr("D")),
+                ("sustain", tr("S")),
+                ("release", tr("R")),
+            ] {
+                small(ui, params, &format!("env2_{field}"), name);
+            }
+        });
+    });
+}
+
+/// The four macros, knobs to turn or automate, and what is played: velocity, wheel, pressure.
+fn macros_and_playing(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
+    let p = theme::current(ui);
+    let accent = p.accent;
+    section_frame(ui, tr("Macros"), source_color(7), 96.0, |ui| {
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            for m in 1..=4usize {
+                ui.vertical(|ui| {
+                    source_pill(ui, state, m + 6);
+                    wide_knob(ui, params, &format!("macro{m}"), "", 30.0, accent);
+                });
+            }
+        });
+    });
+    section_frame(ui, tr("Playing"), p.weak, 96.0, |ui| {
+        for source in 4..=6 {
+            source_pill(ui, state, source);
+        }
+    });
+}
+
+/// The routings in use, one line each: source, target, amount, removal.
+fn routings(ui: &mut Ui, params: &mut Params) {
+    let p = theme::current(ui);
+    let list = routes(params);
+    section_frame(ui, tr("Modulation"), p.weak, 0.0, |ui| {
+        if list.is_empty() {
+            ui.weak(tr(
+                "Drag a colored source (LFO, envelope, macro, velocity...) onto a knob to \
+                 modulate it",
+            ));
+            return;
+        }
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(10.0, 4.0);
+            for (k, source, _, _) in list {
+                let n = k + 1;
+                egui::Frame::new()
+                    .fill(source_color(source).gamma_multiply(0.12))
+                    .corner_radius(6.0)
+                    .inner_margin(egui::Margin::symmetric(6, 3))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 4.0;
+                            ui.painter().circle_filled(
+                                ui.cursor().min + vec2(5.0, 10.0),
+                                4.0,
+                                source_color(source),
+                            );
+                            ui.add_space(12.0);
+                            crate::effect_editors::choice_box(
+                                ui,
+                                params,
+                                &format!("mod{n}_source"),
+                            );
+                            ui.label("→");
+                            crate::effect_editors::choice_box(
+                                ui,
+                                params,
+                                &format!("mod{n}_target"),
+                            );
+                            let id = format!("mod{n}_amount");
+                            let mut amount = params.get(&id);
+                            let response = ui.add(
+                                egui::DragValue::new(&mut amount)
+                                    .range(-100.0..=100.0)
+                                    .suffix(" %")
+                                    .speed(0.5),
+                            );
+                            params.set(&id, response.changed().then_some(amount), &response);
+                            if ui.small_button("✕").on_hover_text(tr("Remove")).clicked() {
+                                let response = ui.response();
+                                params.set(&format!("mod{n}_source"), Some(0.0), &response);
+                                params.set(&format!("mod{n}_amount"), Some(0.0), &response);
+                                params.doc.history_mut().end_gesture();
+                            }
+                        });
+                    });
+            }
+        });
+    });
+}
+
+/// LFO shapes as small buttons drawing them.
+fn shape_picker(ui: &mut Ui, params: &mut Params, id: &str) {
+    use audiostrada_dsp::filter::{SHAPES, lfo_value};
+    let p = theme::current(ui);
+    let current = params.get(id).round() as usize;
+    ui.spacing_mut().item_spacing.x = 2.0;
+    for (i, name) in SHAPES.iter().enumerate() {
+        let (rect, response) = ui.allocate_exact_size(vec2(22.0, 16.0), Sense::click());
+        let on = i == current;
+        ui.painter().rect_filled(
+            rect,
+            4.0,
+            if on {
+                p.accent.gamma_multiply(0.3)
+            } else {
+                p.surface
+            },
+        );
+        let inner = rect.shrink2(vec2(4.0, 3.0));
+        let held = [0.6, -0.3, 0.9, -0.8];
+        let points: Vec<Pos2> = (0..=24)
+            .map(|j| {
+                let t = j as f32 / 24.0;
+                let v = lfo_value(i, t, held[((t * 4.0) as usize).min(3)]);
+                pos2(
+                    inner.left() + t * inner.width(),
+                    inner.center().y - v * inner.height() / 2.0,
+                )
+            })
+            .collect();
+        ui.painter().add(Shape::line(
+            points,
+            Stroke::new(1.0, if on { p.text } else { p.weak }),
+        ));
+        let response = response.on_hover_text(tr(name));
+        let clicked = response.clicked();
+        params.set(id, clicked.then_some(i as f32), &response);
+        if clicked {
+            params.doc.history_mut().end_gesture();
+        }
+    }
 }
 
 /// What the filter does to the spectrum, 20 Hz to 20 kHz, at its cutoff and resonance.
@@ -1041,5 +1544,79 @@ mod tests {
         for (name, db) in &levels {
             assert!((-26.0..=-14.0).contains(db), "{name}: {db:.1} dB RMS");
         }
+    }
+
+    #[test]
+    fn a_source_dropped_on_a_knob_routes_to_it() {
+        use crate::document::{AppDirs, Document};
+        use audiostrada_core::routing::{self, Channel};
+        use eframe::egui::{Event, Modifiers, PointerButton, RawInput};
+        let mut doc = Document::new(AppDirs::default());
+        let mut insert = None;
+        doc.history_mut().edit("Setup", |p| {
+            let t = p.add_track("A");
+            insert = routing::add_insert(p, Channel::Track(t), "synth", Default::default());
+        });
+        let channel = Channel::Track(doc.project().tracks[0].id);
+        let info = audiostrada_dsp::info("synth").unwrap();
+        let ctx = egui::Context::default();
+        let mut state = SynthState::default();
+        let frame = |doc: &mut Document, state: &mut SynthState, events: Vec<Event>| {
+            let input = RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 1100.0))),
+                events,
+                ..Default::default()
+            };
+            ctx.run_ui(input, |ui| {
+                let values = info
+                    .params
+                    .iter()
+                    .map(|p| {
+                        doc.project().tracks[0].inserts[0]
+                            .params
+                            .get(p.id)
+                            .copied()
+                            .unwrap_or(p.default)
+                    })
+                    .collect();
+                let mut params = Params {
+                    values,
+                    doc: &mut *doc,
+                    channel,
+                    insert: insert.unwrap(),
+                    info,
+                };
+                show(ui, &mut params, state);
+            })
+            .drop_without_applying_deltas();
+        };
+        frame(&mut doc, &mut state, vec![]);
+        let cutoff = state
+            .targets
+            .iter()
+            .find(|(_, t)| *t == audiostrada_dsp::synth::target::CUTOFF)
+            .map(|(r, _)| r.center())
+            .unwrap();
+        // LFO 1 picked up, carried over the cutoff knob and let go there.
+        state.dragging = Some(1);
+        let release = Event::PointerButton {
+            pos: cutoff,
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Modifiers::NONE,
+        };
+        frame(
+            &mut doc,
+            &mut state,
+            vec![Event::PointerMoved(cutoff), release],
+        );
+        let params = &doc.project().tracks[0].inserts[0].params;
+        assert_eq!(params.get("mod1_source"), Some(&1.0));
+        assert_eq!(
+            params.get("mod1_target"),
+            Some(&(audiostrada_dsp::synth::target::CUTOFF as f32))
+        );
+        assert_eq!(params.get("mod1_amount"), Some(&50.0));
+        assert!(state.dragging.is_none());
     }
 }

@@ -3640,3 +3640,180 @@ Suivi clavier
 
 Pad: Airy
 Nappe : Aérienne
+
+Bass: Wobble
+Basse : Wobble
+
+Drag a colored source (LFO, envelope, macro, velocity...) onto a knob to modulate it
+Glisser une source colorée (LFO, enveloppe, macro, vélocité...) sur un bouton pour le moduler
+
+Drag onto a knob to modulate it
+Glisser sur un bouton pour le moduler
+
+Envelope 2
+Enveloppe 2
+
+Envelope 2 attack
+Enveloppe 2 attaque
+
+Envelope 2 decay
+Enveloppe 2 déclin
+
+Envelope 2 release
+Enveloppe 2 relâchement
+
+Envelope 2 sustain
+Enveloppe 2 maintien
+
+Every modulation slot is in use: remove one first
+Toutes les modulations sont utilisées : en retirer une d'abord
+
+LFO 1
+LFO 1
+
+LFO 1 note
+LFO 1 note
+
+LFO 1 rate
+LFO 1 vitesse
+
+LFO 1 retrigger
+LFO 1 redémarrage
+
+LFO 1 shape
+LFO 1 forme
+
+LFO 1 sync
+LFO 1 synchro
+
+LFO 2
+LFO 2
+
+LFO 2 note
+LFO 2 note
+
+LFO 2 rate
+LFO 2 vitesse
+
+LFO 2 retrigger
+LFO 2 redémarrage
+
+LFO 2 shape
+LFO 2 forme
+
+LFO 2 sync
+LFO 2 synchro
+
+Macro
+Macro
+
+Macro 1
+Macro 1
+
+Macro 2
+Macro 2
+
+Macro 3
+Macro 3
+
+Macro 4
+Macro 4
+
+Macros
+Macros
+
+Mod wheel
+Molette
+
+Modulation 1 amount
+Modulation 1 quantité
+
+Modulation 1 source
+Modulation 1 source
+
+Modulation 1 target
+Modulation 1 destination
+
+Modulation 2 amount
+Modulation 2 quantité
+
+Modulation 2 source
+Modulation 2 source
+
+Modulation 2 target
+Modulation 2 destination
+
+Modulation 3 amount
+Modulation 3 quantité
+
+Modulation 3 source
+Modulation 3 source
+
+Modulation 3 target
+Modulation 3 destination
+
+Modulation 4 amount
+Modulation 4 quantité
+
+Modulation 4 source
+Modulation 4 source
+
+Modulation 4 target
+Modulation 4 destination
+
+Modulation 5 amount
+Modulation 5 quantité
+
+Modulation 5 source
+Modulation 5 source
+
+Modulation 5 target
+Modulation 5 destination
+
+Modulation 6 amount
+Modulation 6 quantité
+
+Modulation 6 source
+Modulation 6 source
+
+Modulation 6 target
+Modulation 6 destination
+
+Modulation 7 amount
+Modulation 7 quantité
+
+Modulation 7 source
+Modulation 7 source
+
+Modulation 7 target
+Modulation 7 destination
+
+Modulation 8 amount
+Modulation 8 quantité
+
+Modulation 8 source
+Modulation 8 source
+
+Modulation 8 target
+Modulation 8 destination
+
+Osc 1 pitch
+Osc 1 hauteur
+
+Osc 2 pitch
+Osc 2 hauteur
+
+Pad: Evolving
+Nappe : Évolutive
+
+Pressure
+Pression
+
+Retrigger
+Redémarrer
+
+S
+S
+
+Starts again at each note; off, every note follows the same wave
+Repart à chaque note ; sinon toutes les notes suivent la même onde

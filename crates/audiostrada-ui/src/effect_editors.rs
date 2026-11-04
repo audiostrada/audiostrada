@@ -6361,7 +6361,13 @@ mod tests {
                 ("channel", "character"),
             ];
             for p in info.params {
-                if !shown.iter().any(|s| s == p.id) && !conditional.contains(&(info.id, p.id)) {
+                // The synth's routings show once used, its LFO notes once synced.
+                let routed =
+                    info.id == "synth" && (p.id.starts_with("mod") || p.id.ends_with("_note"));
+                if !shown.iter().any(|s| s == p.id)
+                    && !conditional.contains(&(info.id, p.id))
+                    && !routed
+                {
                     missing.push(format!("{}: {}", info.id, p.id));
                 }
             }
