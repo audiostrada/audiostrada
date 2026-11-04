@@ -1,7 +1,7 @@
 //! The drum machine's step sequencer: the sixteen pads as rows of sixteenth-note steps over
 //! the track's MIDI clip at the playhead, so that what is drawn here is what the piano roll
-//! shows. A lane below sets the velocity, the chance, the roll or the flam of the selected
-//! pad's steps; swing delays the off sixteenths.
+//! shows. Bars play variation A, B or a fill, edited once for all their bars; a step's
+//! velocity is dragged on it, its roll, flam and chance are in its menu.
 
 use std::sync::Arc;
 
@@ -15,55 +15,63 @@ use crate::effect_editors::Params;
 use crate::i18n::tr;
 use crate::theme;
 
-/// What the lane below the grid sets.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Lane {
-    #[default]
-    Velocity,
-    Chance,
-    Roll,
-    Flam,
-}
-
-impl Lane {
-    const ALL: [(Lane, &str); 4] = [
-        (Lane::Velocity, "Velocity"),
-        (Lane::Chance, "Chance"),
-        (Lane::Roll, "Roll"),
-        (Lane::Flam, "Flam"),
-    ];
+/// What a press on the grid turned into.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Gesture {
+    /// Not moved yet: letting go sets or clears the step.
+    Press {
+        pad: usize,
+        c: usize,
+        on: bool,
+        y: f32,
+    },
+    /// Steps painted on or off.
+    Paint(bool),
+    /// A step's velocity, dragged up or down.
+    Velocity {
+        pad: usize,
+        c: usize,
+        y: f32,
+        from: u8,
+    },
 }
 
 /// What the sequencer remembers between frames.
 #[derive(Debug)]
 pub struct SequencerState {
     clip: Option<ClipId>,
-    /// The bar shown, from 0.
-    page: usize,
+    /// The variation edited.
+    variation: u8,
     /// 50 plays straight, 66 swings the off sixteenths to triplets.
     swing: f32,
-    lane: Lane,
-    /// Painting steps on (true) or off while the mouse is down.
-    painting: Option<bool>,
-    /// Painting flams on or off in the lane.
-    flams: Option<bool>,
-    /// Bars of a new pattern.
-    bars: u32,
+    gesture: Option<Gesture>,
+    /// The pad and step whose menu is open.
+    menu: Option<(usize, usize)>,
 }
 
 impl Default for SequencerState {
     fn default() -> Self {
         Self {
             clip: None,
-            page: 0,
+            variation: A,
             swing: 50.0,
-            lane: Lane::Velocity,
-            painting: None,
-            flams: None,
-            bars: 1,
+            gesture: None,
+            menu: None,
         }
     }
 }
+
+/// The variations a bar can play.
+pub(crate) const A: u8 = 0;
+pub(crate) const B: u8 = 1;
+pub(crate) const FILL: u8 = 2;
+/// A bar the sequencer leaves alone.
+pub(crate) const FREE: u8 = 255;
+const VARIATIONS: [(u8, &str, &str); 3] = [
+    (A, "A", "The main pattern"),
+    (B, "B", "A second pattern, every other bar"),
+    (FILL, "Fill", "A fill at the end of every four bars"),
+];
 
 /// A flam's grace note sits this far before its step, in steps.
 const FLAM: f64 = 0.15;
@@ -282,6 +290,196 @@ pub(crate) fn swing_of(notes: &[Note], grid: &Grid, current: f32) -> Option<f32>
     (count > 0 && fits(current) < count).then_some(best)
 }
 
+/// The notes of bar `bar`.
+fn in_bar(notes: &[Note], grid: &Grid, bar: usize, swing: f32) -> Vec<usize> {
+    notes
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| grid.step_of(n.start, swing).map(|k| k / 16) == Some(bar))
+        .map(|(i, _)| i)
+        .collect()
+}
+
+/// A bar's notes from its start, to tell bars apart.
+fn signature(notes: &[Note], grid: &Grid, bar: usize, swing: f32) -> Vec<(u8, i64, u8, u8)> {
+    let start = grid.origin + (bar * 16) as f64 * grid.step;
+    let mut out: Vec<_> = in_bar(notes, grid, bar, swing)
+        .into_iter()
+        .map(|i| {
+            let n = &notes[i];
+            let at = ((n.start as f64 - start) / (grid.step / 96.0)).round() as i64;
+            (n.key, at, n.velocity, n.probability)
+        })
+        .collect();
+    out.sort_unstable();
+    out
+}
+
+/// Each bar's variation: the stored ones; the others are the bar they sound like, else, with
+/// nothing stored, A then B, else left alone.
+pub(crate) fn chain(stored: &[u8], notes: &[Note], grid: &Grid, swing: f32) -> Vec<u8> {
+    let bars = grid.steps.div_ceil(16).max(1);
+    let signatures: Vec<_> = (0..bars)
+        .map(|b| signature(notes, grid, b, swing))
+        .collect();
+    let mut out: Vec<u8> = Vec::with_capacity(bars);
+    for b in 0..bars {
+        let v = stored.get(b).copied().unwrap_or_else(|| {
+            (0..b)
+                .find(|&o| out[o] != FREE && signatures[o] == signatures[b])
+                .map(|o| out[o])
+                .or_else(|| {
+                    [A, B]
+                        .into_iter()
+                        .find(|v| stored.is_empty() && !out.contains(v))
+                })
+                .unwrap_or(FREE)
+        });
+        out.push(v);
+    }
+    out
+}
+
+fn bars_of(chain: &[u8], variation: u8) -> Vec<usize> {
+    (0..chain.len())
+        .filter(|&b| chain[b] == variation)
+        .collect()
+}
+
+/// Step `c` of every bar in `bars`, changed alike.
+fn edit_bars(
+    notes: &[Note],
+    grid: &Grid,
+    bars: &[usize],
+    c: usize,
+    change: impl Fn(&[Note], usize) -> Vec<Note>,
+) -> Vec<Note> {
+    bars.iter()
+        .map(|b| b * 16 + c)
+        .filter(|&k| k < grid.steps)
+        .fold(notes.to_vec(), |n, k| change(&n, k))
+}
+
+/// Bar `to` with the notes of bar `from`.
+fn copy_bar(notes: &[Note], grid: &Grid, from: usize, to: usize, swing: f32) -> Vec<Note> {
+    if from == to {
+        return notes.to_vec();
+    }
+    let gone = in_bar(notes, grid, to, swing);
+    let shift = (to as f64 - from as f64) * 16.0 * grid.step;
+    let copies: Vec<Note> = in_bar(notes, grid, from, swing)
+        .into_iter()
+        .map(|i| Note {
+            start: (notes[i].start as f64 + shift).round().max(0.0) as u64,
+            ..notes[i]
+        })
+        .filter(|n| grid.step_of(n.start, swing).is_some())
+        .collect();
+    notes
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !gone.contains(i))
+        .map(|(_, n)| *n)
+        .chain(copies)
+        .collect()
+}
+
+/// Bar `bar` set to play `variation`, with its notes when it has some already.
+fn assign(
+    notes: &[Note],
+    grid: &Grid,
+    chain: &mut [u8],
+    bar: usize,
+    variation: u8,
+    swing: f32,
+) -> Vec<Note> {
+    let source = chain.iter().position(|&v| v == variation);
+    chain[bar] = variation;
+    match source {
+        Some(from) => copy_bar(notes, grid, from, bar, swing),
+        None => notes.to_vec(),
+    }
+}
+
+fn pad_named(id: &str) -> Option<usize> {
+    VOICES.iter().position(|v| v.0 == id)
+}
+
+/// A fill's build-up over the last beat of bar `bar`: the snare rolls up, the hats make room.
+fn build_up(notes: &[Note], grid: &Grid, bar: usize, swing: f32) -> Vec<Note> {
+    let (Some(snare), hats) = (pad_named("snare"), ["closed", "open"].map(pad_named)) else {
+        return notes.to_vec();
+    };
+    let mut out = notes.to_vec();
+    for (j, (velocity, hits)) in [(70, 1), (85, 1), (100, 2), (118, 4)]
+        .into_iter()
+        .enumerate()
+    {
+        let k = bar * 16 + 12 + j;
+        if k >= grid.steps {
+            continue;
+        }
+        for hat in hats.into_iter().flatten() {
+            out = write_step(&out, grid, hat, k, swing, None);
+        }
+        let step = Step {
+            velocity,
+            hits,
+            ..Step::new(snare)
+        };
+        out = write_step(&out, grid, snare, k, swing, Some(step));
+    }
+    out
+}
+
+/// Variation `variation` added to the clip, from A: B every other bar, the fill on every
+/// fourth bar. A one-bar clip grows to two bars for B, to four for the fill. Gives the notes,
+/// the chain and the bars the clip then has.
+pub(crate) fn add_variation(
+    notes: &[Note],
+    grid: &Grid,
+    chain: &[u8],
+    variation: u8,
+    swing: f32,
+) -> (Vec<Note>, Vec<u8>, usize) {
+    let mut chain = chain.to_vec();
+    let mut notes = notes.to_vec();
+    let bars = match (chain.len(), variation) {
+        (1, B) => 2,
+        (1, FILL) => 4,
+        (n, _) => n,
+    };
+    let grid = Grid {
+        steps: grid.steps.max(bars * 16),
+        ..*grid
+    };
+    let a = chain.iter().position(|&v| v == A);
+    for b in chain.len()..bars {
+        chain.push(A);
+        if let Some(a) = a {
+            notes = copy_bar(&notes, &grid, a, b, swing);
+        }
+    }
+    let targets: Vec<usize> = match variation {
+        A => vec![0],
+        B => (1..bars).step_by(2).filter(|&b| chain[b] == A).collect(),
+        _ => (1..bars)
+            .filter(|&b| b % 4 == 3 || (bars < 4 && b == bars - 1))
+            .filter(|&b| chain[b] != FREE)
+            .collect(),
+    };
+    for &b in &targets {
+        if let Some(a) = a.filter(|_| variation != A) {
+            notes = copy_bar(&notes, &grid, a, b, swing);
+        }
+        chain[b] = variation;
+        if variation == FILL {
+            notes = build_up(&notes, &grid, b, swing);
+        }
+    }
+    (notes, chain, bars)
+}
+
 /// The MIDI clip the sequencer edits on `track`: the one under the playhead, else the one
 /// chosen before, else the first.
 fn target(params: &Params, track: TrackId, remembered: Option<ClipId>) -> Option<ClipId> {
@@ -329,9 +527,41 @@ fn find_clip(params: &Params, id: ClipId) -> Option<audiostrada_core::Clip> {
         .cloned()
 }
 
-fn store(params: &mut Params, clip: ClipId, notes: Vec<Note>, label: &str, merge: bool) {
-    let edit =
-        |p: &mut audiostrada_core::Project| audiostrada_core::edit::set_notes(p, clip, notes);
+/// What the sequencer writes to the clip.
+struct Write<'a> {
+    notes: Vec<Note>,
+    chain: &'a [u8],
+    /// The clip's new length in bars, when it grows.
+    bars: Option<usize>,
+}
+
+fn store(
+    params: &mut Params,
+    clip: &audiostrada_core::Clip,
+    grid: &Grid,
+    write: Write,
+    label: &str,
+    merge: bool,
+) {
+    let Channel::Track(track) = params.channel else {
+        return;
+    };
+    let (id, chain) = (clip.id, write.chain.to_vec());
+    let length = write
+        .bars
+        .map(|b| (b as f64 * 16.0 * grid.step).round() as u64);
+    let edit = move |p: &mut audiostrada_core::Project| {
+        audiostrada_core::edit::set_notes(p, id, write.notes);
+        if let Some(c) = audiostrada_core::edit::clip_mut(p, id) {
+            c.variations = chain;
+            if let Some(length) = length {
+                c.length = length;
+            }
+        }
+        if length.is_some() {
+            audiostrada_core::edit::resolve_overlaps(p, track, &[id]);
+        }
+    };
     let history = params.doc.history_mut();
     if merge {
         history.edit_merged(label, "drum-steps", edit);
@@ -341,7 +571,7 @@ fn store(params: &mut Params, clip: ClipId, notes: Vec<Note>, label: &str, merge
 }
 
 /// A new empty pattern of `bars` bars at the playhead's bar.
-fn new_pattern(params: &mut Params, track: TrackId, bars: u32, notes: Vec<Note>) -> Option<ClipId> {
+fn new_pattern(params: &mut Params, track: TrackId, bars: u32) -> Option<ClipId> {
     let doc = &mut *params.doc;
     let project = doc.project();
     let (rate, tempo) = (project.sample_rate, project.tempo.clone());
@@ -356,12 +586,21 @@ fn new_pattern(params: &mut Params, track: TrackId, bars: u32, notes: Vec<Note>)
     let end = tempo.beat_to_sample(first + 4.0 * f64::from(bars), rate);
     let mut created = None;
     doc.history_mut().edit(tr("New drum pattern"), |p| {
-        created = p.add_midi_clip(track, start, end - start, notes);
+        created = p.add_midi_clip(track, start, end - start, Vec::new());
         if let Some(id) = created {
             audiostrada_core::edit::resolve_overlaps(p, track, &[id]);
         }
     });
     created
+}
+
+fn variation_color(variation: u8) -> Color32 {
+    match variation {
+        A => Color32::from_rgb(74, 128, 200),
+        B => Color32::from_rgb(150, 98, 196),
+        FILL => Color32::from_rgb(214, 132, 52),
+        _ => Color32::from_rgb(48, 54, 66),
+    }
 }
 
 pub fn show(
@@ -376,15 +615,10 @@ pub fn show(
     };
     let p = theme::current(ui);
     state.clip = target(params, track, state.clip);
-    let clip = state.clip.and_then(|id| find_clip(params, id));
-    // The header: the pattern, its bars, swing, the lane, and rhythms to start from.
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(tr("Pattern")).strong().color(p.weak));
-        let Some(clip) = &clip else {
+    let Some(clip) = state.clip.and_then(|id| find_clip(params, id)) else {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(tr("Pattern")).strong().color(p.weak));
             ui.weak(tr("No MIDI clip on this track yet"));
-            for n in [1, 2, 4] {
-                ui.selectable_value(&mut state.bars, n, crate::trf!("{n} bars", n = n));
-            }
             if ui
                 .button(tr("New pattern"))
                 .on_hover_text(tr(
@@ -392,27 +626,71 @@ pub fn show(
                 ))
                 .clicked()
             {
-                state.clip = new_pattern(params, track, state.bars, Vec::new());
-                state.page = 0;
+                state.clip = new_pattern(params, track, 4);
+                state.variation = A;
             }
-            return;
-        };
-        let grid = grid_of(params, clip);
-        if let Some(notes) = &clip.notes
-            && let Some(swing) = swing_of(notes, &grid, state.swing)
-        {
-            state.swing = swing;
-        }
-        let pages = grid.steps.div_ceil(16).max(1);
-        state.page = state.page.min(pages - 1);
+        });
+        return;
+    };
+    let grid = grid_of(params, &clip);
+    let notes: Arc<Vec<Note>> = clip.notes.clone().unwrap_or_default();
+    if let Some(swing) = swing_of(&notes, &grid, state.swing) {
+        state.swing = swing;
+    }
+    let swing = state.swing;
+    let chain = chain(&clip.variations, &notes, &grid, swing);
+    if !chain.contains(&state.variation) {
+        state.variation = A;
+    }
+    let bars = bars_of(&chain, state.variation);
+    // The step playing, when the playhead is in the clip.
+    let at = params.doc.player().position();
+    let playing = (at >= clip.start && at < clip.start + clip.length)
+        .then(|| ((at - clip.start + clip.offset) as f64 - grid.origin) / grid.step)
+        .filter(|s| *s >= 0.0)
+        .map(|s| s.floor() as usize);
+
+    // The variations, the swing, rhythms to start from.
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(tr("Pattern")).strong().color(p.weak));
         ui.label(RichText::new(&clip.name).size(11.5));
-        if pages > 1 {
-            ui.add_space(6.0);
-            for page in 0..pages {
-                ui.selectable_value(&mut state.page, page, crate::trf!("Bar {n}", n = page + 1));
+        ui.add_space(10.0);
+        for (v, name, hint) in VARIATIONS {
+            let used = chain.contains(&v);
+            let text = if used {
+                tr(name).to_string()
+            } else {
+                format!("+ {}", tr(name))
+            };
+            let text = RichText::new(text).color(if used {
+                Color32::WHITE
+            } else {
+                Color32::from_rgb(150, 160, 175)
+            });
+            let response = ui
+                .selectable_label(state.variation == v && used, text)
+                .on_hover_text(tr(hint));
+            if response.clicked() {
+                if !used {
+                    let (notes, chain, count) = add_variation(&notes, &grid, &chain, v, swing);
+                    let write = Write {
+                        notes,
+                        chain: &chain,
+                        bars: (count * 16 > grid.steps).then_some(count),
+                    };
+                    store(
+                        params,
+                        &clip,
+                        &grid,
+                        write,
+                        &crate::trf!("Add {name}", name = tr(name)),
+                        false,
+                    );
+                }
+                state.variation = v;
             }
         }
-        ui.add_space(10.0);
+        ui.add_space(14.0);
         ui.label(tr("Swing"));
         let before = state.swing;
         let response = ui.add(
@@ -421,23 +699,16 @@ pub fn show(
                 .suffix(" %")
                 .speed(0.3),
         );
-        if state.swing != before
-            && let Some(notes) = &clip.notes
-        {
-            store(
-                params,
-                clip.id,
-                reswing(notes, &grid, before, state.swing),
-                tr("Swing"),
-                true,
-            );
+        if state.swing != before {
+            let write = Write {
+                notes: reswing(&notes, &grid, before, state.swing),
+                chain: &chain,
+                bars: None,
+            };
+            store(params, &clip, &grid, write, tr("Swing"), true);
         }
         if response.drag_stopped() || response.lost_focus() {
             params.doc.history_mut().end_gesture();
-        }
-        ui.add_space(10.0);
-        for (lane, name) in Lane::ALL {
-            ui.selectable_value(&mut state.lane, lane, tr(name));
         }
         ui.add_space(10.0);
         let mut chosen = None;
@@ -455,42 +726,114 @@ pub fn show(
         if let Some(i) = chosen {
             let rhythm = &RHYTHMS[i];
             state.swing = rhythm.swing;
+            state.variation = A;
             let notes: Vec<Note> =
-                rhythm_notes(rhythm, (grid.steps / 16).max(1) as u32, grid.step * 4.0)
+                rhythm_notes(rhythm, grid.steps.div_ceil(16) as u32, grid.step * 4.0)
                     .into_iter()
                     .map(|mut n| {
                         n.start += grid.origin as u64;
                         n
                     })
+                    .filter(|n| grid.step_of(n.start, rhythm.swing).is_some())
                     .collect();
-            store(
-                params,
-                clip.id,
+            let write = Write {
                 notes,
-                &crate::trf!("Rhythm {name}", name = tr(rhythm.name)),
-                false,
-            );
+                chain: &[],
+                bars: None,
+            };
+            let label = crate::trf!("Rhythm {name}", name = tr(rhythm.name));
+            store(params, &clip, &grid, write, &label, false);
         }
-        if ui.button(tr("Clear")).clicked() {
-            store(params, clip.id, Vec::new(), tr("Clear the pattern"), false);
+        if ui
+            .button(tr("Clear"))
+            .on_hover_text(tr("Clears the steps of the variation shown"))
+            .clicked()
+        {
+            let gone: Vec<usize> = bars
+                .iter()
+                .flat_map(|&b| in_bar(&notes, &grid, b, swing))
+                .collect();
+            let write = Write {
+                notes: (0..notes.len())
+                    .filter(|i| !gone.contains(i))
+                    .map(|i| notes[i])
+                    .collect(),
+                chain: &chain,
+                bars: None,
+            };
+            store(params, &clip, &grid, write, tr("Clear the pattern"), false);
         }
     });
-    let Some(clip) = clip else {
-        return;
-    };
-    let grid = grid_of(params, &clip);
-    let notes: Arc<Vec<Note>> = clip.notes.clone().unwrap_or_default();
-    let first = state.page * 16;
-    let count = (grid.steps - first.min(grid.steps)).min(16);
-    // The step playing, when the playhead is in the clip.
-    let at = params.doc.player().position();
-    let playing = (at >= clip.start && at < clip.start + clip.length)
-        .then(|| ((at - clip.start + clip.offset) as f64 - grid.origin) / grid.step)
-        .filter(|s| *s >= 0.0)
-        .map(|s| s.floor() as usize);
+
+    // The clip's bars: what each plays. A click changes it.
     ui.add_space(4.0);
-    let label_width = 96.0;
-    let row = 17.0;
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 3.0;
+        ui.label(RichText::new(tr("Chain")).size(11.0).color(p.weak));
+        ui.add_space(4.0);
+        for (b, &v) in chain.iter().enumerate() {
+            let (rect, response) = ui.allocate_exact_size(vec2(38.0, 20.0), Sense::click());
+            let painter = ui.painter();
+            let color = variation_color(v);
+            let shown = v == state.variation;
+            painter.rect_filled(
+                rect,
+                4.0,
+                color.gamma_multiply(if shown { 1.0 } else { 0.45 }),
+            );
+            if playing.map(|k| k / 16) == Some(b) {
+                painter.rect_stroke(
+                    rect,
+                    4.0,
+                    Stroke::new(1.5, Color32::WHITE),
+                    egui::StrokeKind::Inside,
+                );
+            }
+            let name = VARIATIONS.iter().find(|x| x.0 == v).map_or("-", |x| x.1);
+            painter.text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                tr(name),
+                FontId::proportional(10.5),
+                Color32::WHITE.gamma_multiply(if shown { 1.0 } else { 0.7 }),
+            );
+            let response = response.on_hover_text(crate::trf!(
+                "Bar {n}: click to change what it plays",
+                n = b + 1
+            ));
+            if response.clicked() {
+                let next = match v {
+                    A => B,
+                    B => FILL,
+                    _ => A,
+                };
+                let mut changed = chain.clone();
+                let mut notes = assign(&notes, &grid, &mut changed, b, next, swing);
+                if next == FILL && !chain.contains(&FILL) {
+                    notes = build_up(&notes, &grid, b, swing);
+                }
+                let write = Write {
+                    notes,
+                    chain: &changed,
+                    bars: None,
+                };
+                store(params, &clip, &grid, write, tr("Chain"), false);
+                state.variation = next;
+            }
+        }
+    });
+
+    ui.add_space(6.0);
+    let source = bars.first().copied();
+    let first = source.unwrap_or(0) * 16;
+    let count = (grid.steps - first.min(grid.steps)).min(16);
+    let playing_c = playing
+        .filter(|k| chain.get(k / 16) == Some(&state.variation))
+        .map(|k| k % 16);
+    let read =
+        |pad: usize, c: usize| source.and_then(|_| read_step(&notes, &grid, pad, first + c, swing));
+    let label_width = 118.0;
+    let row = 20.0;
     let width = ui.available_width();
     let (rect, response) = ui.allocate_exact_size(vec2(width, row * 16.0), Sense::click_and_drag());
     let painter = ui.painter_at(rect);
@@ -505,12 +848,12 @@ pub fn show(
         let c = ((pos.x - cells.left()) / cell_width).floor();
         (r < 16).then_some((r, if c < 0.0 { usize::MAX } else { c as usize }))
     };
-    if let Some(k) = playing.filter(|k| (first..first + count).contains(k)) {
-        let x = cells.left() + (k - first) as f32 * cell_width;
+    if let Some(c) = playing_c.filter(|c| *c < count) {
+        let x = cells.left() + c as f32 * cell_width;
         painter.rect_filled(
             Rect::from_min_size(pos2(x, rect.top()), vec2(cell_width, rect.height())),
             0.0,
-            Color32::from_white_alpha(18),
+            Color32::from_white_alpha(14),
         );
     }
     for (r, &pad) in LAYOUT.iter().enumerate() {
@@ -531,11 +874,10 @@ pub fn show(
             pos2(rect.left() + 20.0, y + row / 2.0),
             Align2::LEFT_CENTER,
             tr(VOICES[pad].1),
-            FontId::proportional(11.0),
+            FontId::proportional(11.5),
             name_color,
         );
         for c in 0..count {
-            let k = first + c;
             let x = cells.left() + c as f32 * cell_width;
             let cell =
                 Rect::from_min_size(pos2(x + 1.5, y + 2.0), vec2(cell_width - 3.0, row - 4.0));
@@ -546,37 +888,49 @@ pub fn show(
                 Color32::from_rgb(28, 32, 41)
             };
             painter.rect_filled(cell, 3.0, base);
-            if let Some(n) = read_step(&notes, &grid, pad, k, state.swing) {
-                let strength = 0.35 + 0.65 * f32::from(n.velocity) / 127.0;
-                let lit = if playing == Some(k) { 1.0 } else { strength };
-                painter.rect_filled(cell, 3.0, color.gamma_multiply(lit));
-                // A roll splits the step in its hits.
-                for j in 1..n.hits.min(8) {
-                    let x = cell.left() + cell.width() * j as f32 / n.hits as f32;
-                    painter.line_segment(
-                        [pos2(x, cell.top()), pos2(x, cell.bottom())],
-                        Stroke::new(1.5, base),
-                    );
-                }
-                if n.flam {
-                    painter.rect_filled(
-                        Rect::from_min_size(cell.min, vec2(3.0, cell.height())),
-                        1.0,
-                        Color32::from_white_alpha(170),
-                    );
-                }
-                if n.probability < 100 {
-                    // A chance under 100 % leaves part of the step dark.
-                    let dark = cell.width() * (1.0 - f32::from(n.probability) / 100.0);
-                    painter.rect_filled(
-                        Rect::from_min_size(
-                            pos2(cell.right() - dark, cell.top()),
-                            vec2(dark, cell.height()),
-                        ),
-                        3.0,
-                        base.gamma_multiply(0.9),
-                    );
-                }
+            let Some(n) = read(pad, c) else {
+                continue;
+            };
+            // The step's color rises with its velocity.
+            painter.rect_filled(cell, 3.0, color.gamma_multiply(0.3));
+            let h = cell.height() * (0.25 + 0.75 * f32::from(n.velocity) / 127.0);
+            painter.rect_filled(
+                Rect::from_min_max(pos2(cell.left(), cell.bottom() - h), cell.max),
+                3.0,
+                color,
+            );
+            if playing_c == Some(c) {
+                painter.rect_filled(cell, 3.0, Color32::from_white_alpha(50));
+            }
+            // A roll splits the step in its hits, a flam marks its left edge.
+            for j in 1..n.hits.min(8) {
+                let x = cell.left() + cell.width() * j as f32 / n.hits as f32;
+                painter.line_segment(
+                    [pos2(x, cell.top()), pos2(x, cell.bottom())],
+                    Stroke::new(1.5, base),
+                );
+            }
+            if n.flam {
+                painter.rect_filled(
+                    Rect::from_min_size(cell.min, vec2(3.0, cell.height())),
+                    1.0,
+                    Color32::WHITE,
+                );
+            }
+            let dragged = matches!(state.gesture, Some(Gesture::Velocity { pad: g, c: gc, .. }) if g == pad && gc == c);
+            let text = if dragged {
+                Some(n.velocity.to_string())
+            } else {
+                (n.probability < 100).then(|| format!("{} %", n.probability))
+            };
+            if let Some(text) = text {
+                painter.text(
+                    cell.center(),
+                    Align2::CENTER_CENTER,
+                    text,
+                    FontId::proportional(10.0),
+                    Color32::WHITE,
+                );
             }
         }
         if pad == *selected {
@@ -591,189 +945,181 @@ pub fn show(
             );
         }
     }
-    // Right-click a step to roll it, one more hit at each click.
-    if response.secondary_clicked()
-        && let Some(pos) = response.interact_pointer_pos()
-        && let Some((r, c)) = cell_at(pos)
-        && c < count
-    {
-        let (pad, k) = (LAYOUT[r], first + c);
-        *selected = pad;
-        let step = read_step(&notes, &grid, pad, k, state.swing).unwrap_or(Step::new(pad));
-        let hits = if step.hits >= ROLLS { 1 } else { step.hits + 1 };
-        let changed = write_step(
-            &notes,
-            &grid,
-            pad,
-            k,
-            state.swing,
-            Some(Step { hits, ..step }),
-        );
-        store(params, clip.id, changed, tr("Roll"), false);
-    } else if let Some(pos) = response.interact_pointer_pos()
-        && let Some((r, c)) = cell_at(pos)
-    {
-        {
-            let pad = LAYOUT[r];
-            if c == usize::MAX {
-                if response.clicked() {
+
+    // Click sets or clears a step, dragging across paints, dragging a step up or down sets
+    // its velocity; a click on a name selects the pad.
+    let pointer = response.interact_pointer_pos();
+    let down = response.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_down());
+    let set = |notes: &[Note], pad: usize, c: usize, on: bool| {
+        edit_bars(notes, &grid, &bars, c, |n, k| {
+            set_step(n, &grid, pad, k, on, swing)
+        })
+    };
+    if down && let Some(pos) = pointer {
+        let here = cell_at(pos);
+        match state.gesture {
+            None => match here {
+                Some((r, c)) if c == usize::MAX => *selected = LAYOUT[r],
+                Some((r, c)) if c < count && source.is_some() => {
+                    let pad = LAYOUT[r];
                     *selected = pad;
+                    let on = read(pad, c).is_some();
+                    state.gesture = Some(Gesture::Press {
+                        pad,
+                        c,
+                        on,
+                        y: pos.y,
+                    });
                 }
-            } else if c < count {
-                let k = first + c;
-                let on = read_step(&notes, &grid, pad, k, state.swing).is_some();
-                let paint = *state.painting.get_or_insert(!on);
-                if response.is_pointer_button_down_on()
-                    && ui.input(|i| i.pointer.primary_down())
-                    && on != paint
+                _ => {}
+            },
+            Some(Gesture::Press { pad, c, on, y }) => {
+                let moved = here != Some((LAYOUT.iter().position(|&p| p == pad).unwrap_or(0), c));
+                if on && (pos.y - y).abs() > 3.0 && here.is_some_and(|h| h.1 == c) {
+                    let from = read(pad, c).map_or(100, |s| s.velocity);
+                    state.gesture = Some(Gesture::Velocity { pad, c, y, from });
+                } else if moved {
+                    let mut changed = set(&notes, pad, c, !on);
+                    if let Some((r, k)) = here.filter(|h| h.1 < count) {
+                        changed = set(&changed, LAYOUT[r], k, !on);
+                    }
+                    let write = Write {
+                        notes: changed,
+                        chain: &chain,
+                        bars: None,
+                    };
+                    store(params, &clip, &grid, write, tr("Steps"), true);
+                    state.gesture = Some(Gesture::Paint(!on));
+                }
+            }
+            Some(Gesture::Paint(on)) => {
+                if let Some((r, c)) = here.filter(|h| h.1 < count)
+                    && read(LAYOUT[r], c).is_some() != on
                 {
-                    *selected = pad;
-                    let changed = set_step(&notes, &grid, pad, k, paint, state.swing);
-                    store(params, clip.id, changed, tr("Steps"), true);
+                    let write = Write {
+                        notes: set(&notes, LAYOUT[r], c, on),
+                        chain: &chain,
+                        bars: None,
+                    };
+                    store(params, &clip, &grid, write, tr("Steps"), true);
+                }
+            }
+            Some(Gesture::Velocity { pad, c, y, from }) => {
+                let velocity = (f32::from(from) + (y - pos.y) * 0.8).clamp(1.0, 127.0) as u8;
+                if let Some(step) = read(pad, c).filter(|s| s.velocity != velocity) {
+                    let step = Step { velocity, ..step };
+                    let changed = edit_bars(&notes, &grid, &bars, c, |n, k| {
+                        write_step(n, &grid, pad, k, swing, Some(step))
+                    });
+                    let write = Write {
+                        notes: changed,
+                        chain: &chain,
+                        bars: None,
+                    };
+                    store(params, &clip, &grid, write, tr("Velocity"), true);
                 }
             }
         }
-    }
-    if !response.is_pointer_button_down_on() && state.painting.take().is_some() {
+    } else if let Some(gesture) = state.gesture.take() {
+        if let Gesture::Press { pad, c, on, .. } = gesture {
+            let write = Write {
+                notes: set(&notes, pad, c, !on),
+                chain: &chain,
+                bars: None,
+            };
+            store(params, &clip, &grid, write, tr("Steps"), false);
+        }
         params.doc.history_mut().end_gesture();
     }
-    lane(
-        ui,
-        params,
-        state,
-        &clip,
-        &grid,
-        &notes,
-        *selected,
-        (first, count, label_width),
+
+    // Right-click a step for its roll, flam, chance and velocity.
+    if response.secondary_clicked() {
+        state.menu = pointer
+            .and_then(cell_at)
+            .filter(|&(_, c)| c < count && source.is_some())
+            .map(|(r, c)| (LAYOUT[r], c));
+        if let Some((pad, _)) = state.menu {
+            *selected = pad;
+        }
+    }
+    response.context_menu(|ui| {
+        let Some((pad, c)) = state.menu else {
+            ui.close();
+            return;
+        };
+        let before = read(pad, c);
+        let mut step = before.unwrap_or(Step::new(pad));
+        ui.label(
+            RichText::new(crate::trf!(
+                "{pad}: step {n}",
+                pad = tr(VOICES[pad].1),
+                n = c + 1
+            ))
+            .strong(),
+        );
+        ui.add_space(4.0);
+        egui::Grid::new("drum-step-menu")
+            .num_columns(2)
+            .spacing([10.0, 6.0])
+            .show(ui, |ui| {
+                ui.label(tr("Roll"));
+                ui.horizontal(|ui| {
+                    for hits in 1..=ROLLS {
+                        ui.selectable_value(&mut step.hits, hits, format!("×{hits}"));
+                    }
+                });
+                ui.end_row();
+                ui.label(tr("Flam"));
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut step.flam, false, tr("Off"));
+                    ui.selectable_value(&mut step.flam, true, tr("On"));
+                });
+                ui.end_row();
+                ui.label(tr("Chance"));
+                ui.horizontal(|ui| {
+                    for chance in [100, 75, 50, 25] {
+                        ui.selectable_value(&mut step.probability, chance, format!("{chance} %"));
+                    }
+                });
+                ui.end_row();
+                ui.label(tr("Velocity"));
+                ui.horizontal(|ui| {
+                    for (name, velocity) in [("Ghost", 50), ("Normal", 100), ("Accent", 127)] {
+                        ui.selectable_value(&mut step.velocity, velocity, tr(name));
+                    }
+                });
+                ui.end_row();
+            });
+        let mut changed = (before != Some(step)).then_some(Some(step));
+        if before.is_some() {
+            ui.separator();
+            if ui.button(tr("Remove the step")).clicked() {
+                changed = Some(None);
+                ui.close();
+            }
+        }
+        if let Some(step) = changed {
+            let write = Write {
+                notes: edit_bars(&notes, &grid, &bars, c, |n, k| {
+                    write_step(n, &grid, pad, k, swing, step)
+                }),
+                chain: &chain,
+                bars: None,
+            };
+            store(params, &clip, &grid, write, tr("Steps"), false);
+        }
+    });
+
+    ui.add_space(4.0);
+    ui.label(
+        RichText::new(tr(
+            "Click to set a step, drag across to paint, drag a step up or down for its velocity, right-click for its roll, flam and chance.",
+        ))
+        .size(11.0)
+        .color(p.weak),
     );
     if params.doc.player().engine().playing() {
         ui.ctx().request_repaint();
-    }
-}
-
-/// Under the grid, the selected pad's steps: bars of velocity, chance or roll hits, or flams.
-#[allow(clippy::too_many_arguments)]
-fn lane(
-    ui: &mut Ui,
-    params: &mut Params,
-    state: &mut SequencerState,
-    clip: &audiostrada_core::Clip,
-    grid: &Grid,
-    notes: &[Note],
-    pad: usize,
-    (first, count, label_width): (usize, usize, f32),
-) {
-    let swing = state.swing;
-    let width = ui.available_width();
-    let (rect, response) = ui.allocate_exact_size(vec2(width, 46.0), Sense::click_and_drag());
-    let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 8.0, Color32::from_rgb(16, 19, 25));
-    let color = family(pad);
-    let name = Lane::ALL
-        .iter()
-        .find(|l| l.0 == state.lane)
-        .map_or("", |l| l.1);
-    painter.text(
-        pos2(rect.left() + 10.0, rect.center().y),
-        Align2::LEFT_CENTER,
-        tr(name),
-        FontId::proportional(11.0),
-        Color32::from_rgb(170, 180, 195),
-    );
-    let cells = Rect::from_min_max(
-        pos2(rect.left() + label_width, rect.top() + 4.0),
-        rect.max - vec2(0.0, 4.0),
-    );
-    let cell_width = cells.width() / 16.0;
-    let dim = Color32::from_rgb(50, 56, 68);
-    for c in 0..count {
-        let x = cells.left() + c as f32 * cell_width;
-        let column = Rect::from_min_max(
-            pos2(x + 3.0, cells.top()),
-            pos2(x + cell_width - 3.0, cells.bottom()),
-        );
-        let Some(s) = read_step(notes, grid, pad, first + c, swing) else {
-            painter.line_segment(
-                [column.left_bottom(), column.right_bottom()],
-                Stroke::new(1.0, dim),
-            );
-            continue;
-        };
-        let bar = |value: f32| {
-            Rect::from_min_max(
-                pos2(column.left(), column.bottom() - column.height() * value),
-                column.max,
-            )
-        };
-        match state.lane {
-            Lane::Velocity => {
-                painter.rect_filled(bar(f32::from(s.velocity) / 127.0), 2.0, color);
-            }
-            Lane::Chance => {
-                painter.rect_filled(bar(f32::from(s.probability) / 100.0), 2.0, color);
-            }
-            Lane::Roll => {
-                // One block per hit, up to the most a roll takes.
-                let h = column.height() / ROLLS as f32;
-                for j in 0..ROLLS {
-                    let block = Rect::from_min_size(
-                        pos2(column.left(), column.bottom() - (j + 1) as f32 * h + 1.0),
-                        vec2(column.width(), h - 2.0),
-                    );
-                    let fill = if j < s.hits { color } else { dim };
-                    painter.rect_filled(block, 2.0, fill);
-                }
-            }
-            Lane::Flam => {
-                let mark = Rect::from_center_size(column.center(), vec2(column.width(), 14.0));
-                if s.flam {
-                    painter.rect_filled(mark, 3.0, color);
-                } else {
-                    painter.rect_stroke(mark, 3.0, Stroke::new(1.0, dim), egui::StrokeKind::Inside);
-                }
-            }
-        }
-    }
-    // Drag over the steps to set them; flams paint on or off from the first one touched.
-    if let Some(pos) = response.interact_pointer_pos()
-        && response.is_pointer_button_down_on()
-        && cells.x_range().contains(pos.x)
-    {
-        let c = ((pos.x - cells.left()) / cell_width) as usize;
-        let level = ((cells.bottom() - pos.y) / cells.height()).clamp(0.0, 1.0);
-        let k = first + c;
-        if c < count
-            && let Some(s) = read_step(notes, grid, pad, k, swing)
-        {
-            let changed = match state.lane {
-                Lane::Velocity => Step {
-                    velocity: (level * 126.0).round() as u8 + 1,
-                    ..s
-                },
-                Lane::Chance => Step {
-                    probability: (level * 100.0).round() as u8,
-                    ..s
-                },
-                Lane::Roll => Step {
-                    hits: ((level * ROLLS as f32).ceil() as usize).clamp(1, ROLLS),
-                    ..s
-                },
-                Lane::Flam => Step {
-                    flam: *state.flams.get_or_insert(!s.flam),
-                    ..s
-                },
-            };
-            if changed != s {
-                let label = tr(name);
-                let written = write_step(notes, grid, pad, k, swing, Some(changed));
-                store(params, clip.id, written, label, true);
-            }
-        }
-    }
-    if response.drag_stopped() || response.clicked() {
-        state.flams = None;
-        params.doc.history_mut().end_gesture();
     }
 }
 
@@ -859,5 +1205,62 @@ mod tests {
         );
         let starts: Vec<(u64, u8)> = notes.iter().map(|n| (n.start, n.velocity)).collect();
         assert_eq!(starts, [(3850, 60), (4000, 100), (4500, 100)]);
+    }
+
+    #[test]
+    fn variations_edit_their_bars_together() {
+        let g = Grid {
+            steps: 64,
+            ..grid()
+        };
+        let (kick, snare) = (pad_named("kick").unwrap(), pad_named("snare").unwrap());
+        assert_eq!(chain(&[], &[], &g, 50.0), [A; 4]);
+        let all = bars_of(&[A; 4], A);
+        let notes = edit_bars(&[], &g, &all, 0, |n, k| {
+            set_step(n, &g, kick, k, true, 50.0)
+        });
+        let kicks: Vec<u64> = notes.iter().map(|n| n.start).collect();
+        assert_eq!(kicks, [0, 16_000, 32_000, 48_000]);
+        let (notes, ab, bars) = add_variation(&notes, &g, &[A; 4], B, 50.0);
+        assert_eq!((ab.as_slice(), bars), (&[A, B, A, B][..], 4));
+        let notes = edit_bars(&notes, &g, &bars_of(&ab, B), 4, |n, k| {
+            set_step(n, &g, snare, k, true, 50.0)
+        });
+        let snares: Vec<u64> = notes
+            .iter()
+            .filter(|n| voice_of(n.key) == Some(snare))
+            .map(|n| n.start)
+            .collect();
+        assert_eq!(snares, [20_000, 52_000]);
+        // Read back from the notes alone, B is found again.
+        assert_eq!(chain(&[], &notes, &g, 50.0), [A, B, A, B]);
+        let (filled, chain, _) = add_variation(&notes, &g, &ab, FILL, 50.0);
+        assert_eq!(chain, [A, B, A, FILL]);
+        let roll = read_step(&filled, &g, snare, 63, 50.0).unwrap();
+        assert_eq!((roll.hits, roll.velocity), (4, 118));
+        assert!(
+            read_step(&filled, &g, kick, 48, 50.0).is_some(),
+            "the fill starts from A"
+        );
+        assert!(read_step(&filled, &g, snare, 52, 50.0).is_none());
+    }
+
+    #[test]
+    fn a_one_bar_clip_grows_for_its_variations() {
+        let g = grid();
+        let notes = set_step(&[], &g, 0, 0, true, 50.0);
+        let (notes, chain, bars) = add_variation(&notes, &g, &[A], B, 50.0);
+        assert_eq!((chain.as_slice(), bars, notes.len()), (&[A, B][..], 2, 2));
+        let (_, chain, bars) = add_variation(&notes[..1], &g, &[A], FILL, 50.0);
+        assert_eq!((chain.as_slice(), bars), (&[A, A, A, FILL][..], 4));
+        // A bar set to a variation takes its notes.
+        let g = Grid { steps: 32, ..g };
+        let mut chain = vec![A, B];
+        let copied = assign(&notes[..1], &g, &mut chain, 1, A, 50.0);
+        assert_eq!(
+            copied.iter().map(|n| n.start).collect::<Vec<_>>(),
+            [0, 16_000]
+        );
+        assert_eq!(chain, [A, A]);
     }
 }

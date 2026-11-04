@@ -1216,6 +1216,7 @@ impl ProjectPlayer {
                         pitch: 0.0,
                         controls: None,
                         notes: None,
+                        variations: Vec::new(),
                     })
                     .into_iter()
                     .collect(),

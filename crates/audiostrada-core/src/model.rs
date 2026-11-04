@@ -162,6 +162,10 @@ pub struct Clip {
     /// start of the content, so `offset` and `length` window them like audio.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<Arc<Vec<Note>>>,
+    /// The drum sequencer's variation of each bar of a MIDI clip: 0 for A, 1 for B, 2 for
+    /// the fill, 255 for a bar left alone.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub variations: Vec<u8>,
 }
 
 fn unit() -> f64 {
@@ -1055,6 +1059,7 @@ impl Project {
             pitch: 0.0,
             controls: None,
             notes: None,
+            variations: Vec::new(),
         });
         Some(id)
     }
@@ -1087,6 +1092,7 @@ impl Project {
             pitch: 0.0,
             controls: None,
             notes: Some(Arc::new(notes)),
+            variations: Vec::new(),
         });
         track.clips.sort_by_key(|c| (c.start, c.id));
         Some(id)

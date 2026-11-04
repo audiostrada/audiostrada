@@ -4424,5 +4424,44 @@ Roulement
 Start from a rhythm
 Partir d'un rythme
 
+Add {name}
+Ajouter {name}
+
+Bar {n}: click to change what it plays
+Mesure {n} : cliquer pour changer ce qu'elle joue
+
+Chain
+Enchaînement
+
+Clears the steps of the variation shown
+Efface les pas de la variation affichée
+
+Click to set a step, drag across to paint, drag a step up or down for its velocity, right-click for its roll, flam and chance.
+Clic pour poser un pas, glisser pour en peindre plusieurs, glisser un pas vers le haut ou le bas pour sa vélocité, clic droit pour son roulement, son flam et sa probabilité.
+
+Remove the step
+Retirer le pas
+
+{pad}: step {n}
+{pad} : pas {n}
+
+The main pattern
+Le motif principal
+
+A second pattern, every other bar
+Un second motif, une mesure sur deux
+
+A fill at the end of every four bars
+Un fill à la fin de chaque groupe de quatre mesures
+
+Fill
+Fill
+
+Ghost
+Fantôme
+
+Normal
+Normal
+
 Steps
 Pas

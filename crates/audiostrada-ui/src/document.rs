@@ -188,6 +188,7 @@ fn midi_clip(
         pitch: 0.0,
         controls: (!controls.is_empty()).then(|| std::sync::Arc::new(controls)),
         notes: Some(std::sync::Arc::new(notes)),
+        variations: Vec::new(),
     }
 }
 
@@ -1147,6 +1148,7 @@ impl Document {
                     pitch: 0.0,
                     controls: None,
                     notes: None,
+                    variations: Vec::new(),
                 };
                 (take.track, source, clip)
             })
