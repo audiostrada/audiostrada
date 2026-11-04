@@ -799,7 +799,7 @@ fn effect_files(
                 let loaded = insert.files.get(slot.id);
                 ui.vertical(|ui| match loaded {
                     None => {
-                        ui.weak(tr("None"));
+                        ui.add(egui::Label::new(RichText::new(tr("None")).weak()).extend());
                     }
                     Some(path) => {
                         let name = path

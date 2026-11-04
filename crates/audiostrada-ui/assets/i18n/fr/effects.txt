@@ -3859,3 +3859,18 @@ Table d'ondes
 
 Position
 Position
+
+Pad: Vowels
+Nappe : Voyelles
+
+Bass: Fold
+Basse : Repli
+
+Bell: Metal
+Cloche : Métal
+
+Lead: Sync
+Lead : Sync
+
+Keys: Organ
+Claviers : Orgue
