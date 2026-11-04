@@ -1746,23 +1746,59 @@ fn pressed_actions(ctx: &egui::Context, keymap: &Keymap) -> Vec<Action> {
     })
 }
 
-/// The application's logo, decoded once.
-pub(crate) fn logo(ctx: &egui::Context) -> Option<egui::TextureHandle> {
-    let id = egui::Id::unique("audiostrada-logo");
-    if let Some(texture) = ctx.data(|d| d.get_temp(id)) {
-        return Some(texture);
+/// AudioStrada's mark (packaging/icons/audiostrada-mark.svg) drawn as shapes, sharp at any
+/// size: five slanted rounded bars, centered in `rect` at their own proportions.
+pub(crate) fn paint_logo(painter: &egui::Painter, rect: egui::Rect) {
+    use egui::{Color32, Pos2, pos2};
+    let blue = |alpha: f32| Color32::from_rgb(90, 162, 255).gamma_multiply(alpha);
+    let bars = [
+        (5.0, 25.0, 14.0, blue(0.28)),
+        (16.0, 20.0, 24.0, blue(0.5)),
+        (27.0, 14.0, 36.0, blue(0.75)),
+        (38.0, 7.0, 50.0, Color32::from_rgb(140, 196, 255)),
+        (49.0, 17.0, 30.0, Color32::from_rgb(255, 181, 71)),
+    ];
+    let (width, radius) = (7.0f32, 2.0f32);
+    // skewX(-12 degrees) around y = 32, as in the SVG.
+    let skew = |p: Pos2| pos2(p.x - (12f32).to_radians().tan() * (p.y - 32.0), p.y);
+    let (mut min, mut max) = (pos2(f32::MAX, f32::MAX), pos2(f32::MIN, f32::MIN));
+    for &(x, y, h, _) in &bars {
+        for corner in [
+            pos2(x, y),
+            pos2(x + width, y),
+            pos2(x, y + h),
+            pos2(x + width, y + h),
+        ] {
+            let q = skew(corner);
+            min = min.min(q);
+            max = max.max(q);
+        }
     }
-    let image = image::load_from_memory(include_bytes!("../assets/logo.png"))
-        .ok()?
-        .into_rgba8();
-    let size = [image.width() as usize, image.height() as usize];
-    let texture = ctx.load_texture(
-        "audiostrada-logo",
-        egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw()),
-        egui::TextureOptions::LINEAR,
-    );
-    ctx.data_mut(|d| d.insert_temp(id, texture.clone()));
-    Some(texture)
+    let size = max - min;
+    let scale = (rect.width() / size.x).min(rect.height() / size.y);
+    let origin = rect.center() - size * scale / 2.0;
+    let place = |p: Pos2| origin + (skew(p) - min) * scale;
+    for (x, y, h, color) in bars {
+        // The rounded rectangle's outline, corner by corner, clockwise from the top left.
+        let mut points = Vec::with_capacity(24);
+        let corners = [
+            (pos2(x + radius, y + radius), 180.0f32),
+            (pos2(x + width - radius, y + radius), 270.0),
+            (pos2(x + width - radius, y + h - radius), 0.0),
+            (pos2(x + radius, y + h - radius), 90.0),
+        ];
+        for (center, start) in corners {
+            for k in 0..=5 {
+                let a = (start + 18.0 * k as f32).to_radians();
+                points.push(place(center + radius * egui::vec2(a.cos(), a.sin())));
+            }
+        }
+        painter.add(egui::Shape::convex_polygon(
+            points,
+            color,
+            egui::Stroke::NONE,
+        ));
+    }
 }
 
 impl AudioStradaApp {
@@ -2068,10 +2104,10 @@ impl AudioStradaApp {
                 ui.label(egui::RichText::new("AudioStrada").strong().size(15.0))
                     .on_hover_text(version);
                 // Right to left: the logo goes before the name.
-                if let Some(logo) = logo(ui.ctx()) {
-                    ui.add(egui::Image::new(&logo).fit_to_exact_size(egui::vec2(18.0, 16.5)))
-                        .on_hover_text(version);
-                }
+                let (mark, response) =
+                    ui.allocate_exact_size(egui::vec2(18.0, 16.5), egui::Sense::hover());
+                paint_logo(ui.painter(), mark);
+                response.on_hover_text(version);
                 if let Some(release) = self.updates.found.clone() {
                     let covered = match self.license.license() {
                         Some(license) if license.covers(&release.date) => {
@@ -2230,9 +2266,8 @@ impl AudioStradaApp {
                         ui.add_space(
                             ((ui.available_width() - mark.x - gap - name.x) / 2.0).max(0.0),
                         );
-                        if let Some(logo) = logo(ctx) {
-                            ui.add(egui::Image::new(&logo).fit_to_exact_size(mark));
-                        }
+                        let (rect, _) = ui.allocate_exact_size(mark, egui::Sense::hover());
+                        paint_logo(ui.painter(), rect);
                         ui.label(egui::RichText::new("AudioStrada").font(font));
                     });
                     ui.weak(concat!("Version ", env!("CARGO_PKG_VERSION")));

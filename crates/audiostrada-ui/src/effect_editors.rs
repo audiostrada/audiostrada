@@ -288,9 +288,6 @@ const BRAND_FULL: bool = true;
 /// AudioStrada's mark at the right of an effect's band: one of its own effects.
 fn brand(ui: &Ui, painter: &egui::Painter, band: Rect) {
     let p = theme::current(ui);
-    let Some(logo) = crate::logo(ui.ctx()) else {
-        return;
-    };
     let height = if BRAND_FULL { 22.0 } else { 26.0 };
     let size = vec2(height * 105.0 / 96.0, height);
     let right = band.right() - 16.0;
@@ -304,11 +301,9 @@ fn brand(ui: &Ui, painter: &egui::Painter, band: Rect) {
         painter.galley(pos2(left + 1.0, band.center().y + 3.0), line, p.weak);
         x = left - 8.0 - size.x;
     }
-    painter.image(
-        logo.id(),
+    crate::paint_logo(
+        painter,
         Rect::from_min_size(pos2(x, band.center().y - size.y / 2.0), size),
-        Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-        Color32::WHITE,
     );
 }
 
@@ -2443,15 +2438,11 @@ fn vu_meter(ui: &mut Ui, reduction: f32, needle: &mut f32, size: egui::Vec2, amb
     }
     // The maker's mark and what it reads, in the middle.
     let mark = pos2(face.center().x, face.top() + face.height() * 0.6);
-    if let Some(logo) = crate::logo(ui.ctx()) {
-        let h = (face.height() * 0.09).clamp(10.0, 18.0);
-        painter.image(
-            logo.id(),
-            Rect::from_center_size(mark - vec2(0.0, h * 0.7), vec2(h * 105.0 / 96.0, h)),
-            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-            Color32::WHITE,
-        );
-    }
+    let h = (face.height() * 0.09).clamp(10.0, 18.0);
+    crate::paint_logo(
+        &painter,
+        Rect::from_center_size(mark - vec2(0.0, h * 0.7), vec2(h * 105.0 / 96.0, h)),
+    );
     painter.text(
         mark + vec2(0.0, 6.0),
         Align2::CENTER_CENTER,
