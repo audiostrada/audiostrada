@@ -1081,7 +1081,8 @@ fn wavetable_half(ui: &mut Ui, params: &mut Params, state: &mut SynthState, n: u
         }
     });
     if !used {
-        ui.add_space(36.0);
+        ui.add(egui::Label::new(RichText::new(tr(ABOUT_WAVETABLES)).weak().size(11.0)).wrap());
+        ui.add_space(12.0);
         ui.vertical_centered(|ui| {
             ui.weak(trf!("Oscillator {n} plays another wave.", n = n));
             let response = ui.button(trf!("Play it on oscillator {n}", n = n));
