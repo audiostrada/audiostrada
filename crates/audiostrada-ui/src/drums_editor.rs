@@ -219,39 +219,158 @@ pub(crate) fn rhythm_notes(rhythm: &Rhythm, bars: u32, samples_per_beat: f64) ->
     notes
 }
 
-/// Ready-made kits.
+/// Ready-made kits, by style.
 pub(crate) fn factory() -> Vec<crate::presets::Preset> {
     use crate::presets::preset;
     vec![
-        preset(tr("Kit: classic"), &[]),
         preset(
-            tr("Kit: boom (long kick)"),
+            tr("808: Classic"),
             &[
+                ("kick_model", 0.0),
+                ("rim_model", 0.0),
+                ("snare_model", 0.0),
+                ("clap_model", 0.0),
+                ("closed_model", 0.0),
+                ("open_model", 0.0),
+                ("low_tom_model", 0.0),
+                ("mid_tom_model", 0.0),
+                ("high_tom_model", 0.0),
+                ("cymbal_model", 0.0),
+                ("cowbell_model", 0.0),
+                ("clave_model", 0.0),
+                ("kick2_model", 0.0),
+                ("snare2_model", 0.0),
+                ("ride_model", 0.0),
+                ("tambourine_model", 0.0),
+                ("closed_pan", -20.0),
+                ("open_pan", -20.0),
+                ("high_tom_pan", -25.0),
+                ("low_tom_pan", 25.0),
+                ("cymbal_pan", -30.0),
+                ("ride_pan", 30.0),
+                ("tambourine_pan", 15.0),
+                ("clave_pan", -15.0),
+                ("cowbell_pan", 15.0),
+                ("volume", -7.1),
+            ],
+        ),
+        preset(
+            tr("808: Boom"),
+            &[
+                ("kick_model", 0.0),
+                ("rim_model", 0.0),
+                ("snare_model", 0.0),
+                ("clap_model", 0.0),
+                ("closed_model", 0.0),
+                ("open_model", 0.0),
+                ("low_tom_model", 0.0),
+                ("mid_tom_model", 0.0),
+                ("high_tom_model", 0.0),
+                ("cymbal_model", 0.0),
+                ("cowbell_model", 0.0),
+                ("clave_model", 0.0),
+                ("kick2_model", 0.0),
+                ("snare2_model", 0.0),
+                ("ride_model", 0.0),
+                ("tambourine_model", 0.0),
+                ("closed_pan", -20.0),
+                ("open_pan", -20.0),
+                ("high_tom_pan", -25.0),
+                ("low_tom_pan", 25.0),
+                ("cymbal_pan", -30.0),
+                ("ride_pan", 30.0),
+                ("tambourine_pan", 15.0),
+                ("clave_pan", -15.0),
+                ("cowbell_pan", 15.0),
                 ("kick_decay", 320.0),
                 ("kick_tune", -3.0),
                 ("kick_level", 90.0),
                 ("kick_tone", 20.0),
+                ("kick2_decay", 380.0),
+                ("kick2_tune", -5.0),
+                ("snare_tone", 40.0),
+                ("clap_decay", 120.0),
                 ("drive", 25.0),
+                ("room", 10.0),
+                ("volume", -14.9),
             ],
         ),
         preset(
-            tr("Kit: trap"),
+            tr("808: Trap"),
             &[
+                ("kick_model", 0.0),
+                ("rim_model", 0.0),
+                ("snare_model", 0.0),
+                ("clap_model", 0.0),
+                ("closed_model", 0.0),
+                ("open_model", 0.0),
+                ("low_tom_model", 0.0),
+                ("mid_tom_model", 0.0),
+                ("high_tom_model", 0.0),
+                ("cymbal_model", 0.0),
+                ("cowbell_model", 0.0),
+                ("clave_model", 0.0),
+                ("kick2_model", 0.0),
+                ("snare2_model", 0.0),
+                ("ride_model", 0.0),
+                ("tambourine_model", 0.0),
+                ("closed_pan", -20.0),
+                ("open_pan", -20.0),
+                ("high_tom_pan", -25.0),
+                ("low_tom_pan", 25.0),
+                ("cymbal_pan", -30.0),
+                ("ride_pan", 30.0),
+                ("tambourine_pan", 15.0),
+                ("clave_pan", -15.0),
+                ("cowbell_pan", 15.0),
                 ("kick_decay", 260.0),
                 ("kick_tune", -2.0),
                 ("kick_level", 90.0),
+                ("kick2_decay", 340.0),
+                ("kick2_tune", -5.0),
+                ("kick2_tone", 10.0),
                 ("snare_tone", 80.0),
                 ("snare_tune", 3.0),
+                ("snare_decay", 80.0),
                 ("clap_decay", 140.0),
+                ("clap_level", 85.0),
                 ("closed_tone", 85.0),
                 ("closed_decay", 60.0),
                 ("open_decay", 70.0),
+                ("rim_tune", 2.0),
                 ("drive", 15.0),
+                ("room", 12.0),
+                ("volume", -12.6),
             ],
         ),
         preset(
-            tr("Kit: electro"),
+            tr("808: Electro"),
             &[
+                ("kick_model", 0.0),
+                ("rim_model", 0.0),
+                ("snare_model", 0.0),
+                ("clap_model", 0.0),
+                ("closed_model", 0.0),
+                ("open_model", 0.0),
+                ("low_tom_model", 0.0),
+                ("mid_tom_model", 0.0),
+                ("high_tom_model", 0.0),
+                ("cymbal_model", 0.0),
+                ("cowbell_model", 0.0),
+                ("clave_model", 0.0),
+                ("kick2_model", 0.0),
+                ("snare2_model", 0.0),
+                ("ride_model", 0.0),
+                ("tambourine_model", 0.0),
+                ("closed_pan", -20.0),
+                ("open_pan", -20.0),
+                ("high_tom_pan", -25.0),
+                ("low_tom_pan", 25.0),
+                ("cymbal_pan", -30.0),
+                ("ride_pan", 30.0),
+                ("tambourine_pan", 15.0),
+                ("clave_pan", -15.0),
+                ("cowbell_pan", 15.0),
                 ("kick_decay", 70.0),
                 ("kick_tone", 80.0),
                 ("kick_tune", 2.0),
@@ -261,11 +380,493 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
                 ("open_decay", 60.0),
                 ("cowbell_level", 90.0),
                 ("clave_level", 90.0),
+                ("tambourine_level", 70.0),
+                ("drive", 10.0),
+                ("volume", -7.7),
             ],
         ),
         preset(
-            tr("Kit: tight and dry"),
+            tr("909: House"),
             &[
+                ("kick_model", 1.0),
+                ("rim_model", 1.0),
+                ("snare_model", 1.0),
+                ("clap_model", 1.0),
+                ("closed_model", 1.0),
+                ("open_model", 1.0),
+                ("low_tom_model", 1.0),
+                ("mid_tom_model", 1.0),
+                ("high_tom_model", 1.0),
+                ("cymbal_model", 1.0),
+                ("cowbell_model", 1.0),
+                ("clave_model", 1.0),
+                ("kick2_model", 1.0),
+                ("snare2_model", 1.0),
+                ("ride_model", 1.0),
+                ("tambourine_model", 1.0),
+                ("closed_pan", -20.0),
+                ("open_pan", -20.0),
+                ("high_tom_pan", -25.0),
+                ("low_tom_pan", 25.0),
+                ("cymbal_pan", -30.0),
+                ("ride_pan", 30.0),
+                ("tambourine_pan", 15.0),
+                ("clave_pan", -15.0),
+                ("cowbell_pan", 15.0),
+                ("kick_decay", 90.0),
+                ("kick_tune", -1.0),
+                ("open_decay", 85.0),
+                ("open_level", 75.0),
+                ("clap_decay", 110.0),
+                ("ride_level", 75.0),
+                ("room", 18.0),
+                ("drive", 10.0),
+                ("volume", -7.7),
+            ],
+        ),
+        preset(
+            tr("909: Techno"),
+            &[
+                ("kick_model", 1.0),
+                ("rim_model", 1.0),
+                ("snare_model", 1.0),
+                ("clap_model", 1.0),
+                ("closed_model", 1.0),
+                ("open_model", 1.0),
+                ("low_tom_model", 1.0),
+                ("mid_tom_model", 1.0),
+                ("high_tom_model", 1.0),
+                ("cymbal_model", 1.0),
+                ("cowbell_model", 1.0),
+                ("clave_model", 1.0),
+                ("kick2_model", 1.0),
+                ("snare2_model", 1.0),
+                ("ride_model", 1.0),
+                ("tambourine_model", 1.0),
+                ("closed_pan", -20.0),
+                ("open_pan", -20.0),
+                ("high_tom_pan", -25.0),
+                ("low_tom_pan", 25.0),
+                ("cymbal_pan", -30.0),
+                ("ride_pan", 30.0),
+                ("tambourine_pan", 15.0),
+                ("clave_pan", -15.0),
+                ("cowbell_pan", 15.0),
+                ("kick_decay", 120.0),
+                ("kick_tune", -2.0),
+                ("kick_tone", 60.0),
+                ("kick2_decay", 70.0),
+                ("kick2_tune", 2.0),
+                ("rim_level", 85.0),
+                ("closed_tone", 60.0),
+                ("closed_decay", 80.0),
+                ("clap_decay", 130.0),
+                ("snare_tone", 40.0),
+                ("room", 15.0),
+                ("drive", 30.0),
+                ("volume", -10.4),
+            ],
+        ),
+        preset(
+            tr("909: Hard"),
+            &[
+                ("kick_model", 1.0),
+                ("rim_model", 1.0),
+                ("snare_model", 1.0),
+                ("clap_model", 1.0),
+                ("closed_model", 1.0),
+                ("open_model", 1.0),
+                ("low_tom_model", 1.0),
+                ("mid_tom_model", 1.0),
+                ("high_tom_model", 1.0),
+                ("cymbal_model", 1.0),
+                ("cowbell_model", 1.0),
+                ("clave_model", 1.0),
+                ("kick2_model", 1.0),
+                ("snare2_model", 1.0),
+                ("ride_model", 1.0),
+                ("tambourine_model", 1.0),
+                ("closed_pan", -20.0),
+                ("open_pan", -20.0),
+                ("high_tom_pan", -25.0),
+                ("low_tom_pan", 25.0),
+                ("cymbal_pan", -30.0),
+                ("ride_pan", 30.0),
+                ("tambourine_pan", 15.0),
+                ("clave_pan", -15.0),
+                ("cowbell_pan", 15.0),
+                ("kick_decay", 140.0),
+                ("kick_tone", 75.0),
+                ("kick_tune", -1.0),
+                ("snare_tone", 70.0),
+                ("clap_level", 90.0),
+                ("closed_tone", 70.0),
+                ("open_decay", 60.0),
+                ("drive", 55.0),
+                ("crush", 12.0),
+                ("room", 8.0),
+                ("volume", -11.8),
+            ],
+        ),
+        preset(
+            tr("Acoustic: Studio"),
+            &[
+                ("kick_model", 2.0),
+                ("rim_model", 2.0),
+                ("snare_model", 2.0),
+                ("clap_model", 2.0),
+                ("closed_model", 2.0),
+                ("open_model", 2.0),
+                ("low_tom_model", 2.0),
+                ("mid_tom_model", 2.0),
+                ("high_tom_model", 2.0),
+                ("cymbal_model", 2.0),
+                ("cowbell_model", 2.0),
+                ("clave_model", 2.0),
+                ("kick2_model", 2.0),
+                ("snare2_model", 2.0),
+                ("ride_model", 2.0),
+                ("tambourine_model", 2.0),
+                ("closed_pan", -35.0),
+                ("open_pan", -35.0),
+                ("high_tom_pan", -30.0),
+                ("mid_tom_pan", 5.0),
+                ("low_tom_pan", 35.0),
+                ("cymbal_pan", -45.0),
+                ("ride_pan", 40.0),
+                ("tambourine_pan", 25.0),
+                ("cowbell_pan", 20.0),
+                ("clave_pan", -20.0),
+                ("accent", 70.0),
+                ("kick_tone", 55.0),
+                ("snare_tune", 0.0),
+                ("snare_tone", 55.0),
+                ("room", 25.0),
+                ("drive", 8.0),
+                ("volume", -7.6),
+            ],
+        ),
+        preset(
+            tr("Acoustic: Rock"),
+            &[
+                ("kick_model", 2.0),
+                ("rim_model", 2.0),
+                ("snare_model", 2.0),
+                ("clap_model", 2.0),
+                ("closed_model", 2.0),
+                ("open_model", 2.0),
+                ("low_tom_model", 2.0),
+                ("mid_tom_model", 2.0),
+                ("high_tom_model", 2.0),
+                ("cymbal_model", 2.0),
+                ("cowbell_model", 2.0),
+                ("clave_model", 2.0),
+                ("kick2_model", 2.0),
+                ("snare2_model", 2.0),
+                ("ride_model", 2.0),
+                ("tambourine_model", 2.0),
+                ("closed_pan", -35.0),
+                ("open_pan", -35.0),
+                ("high_tom_pan", -30.0),
+                ("mid_tom_pan", 5.0),
+                ("low_tom_pan", 35.0),
+                ("cymbal_pan", -45.0),
+                ("ride_pan", 40.0),
+                ("tambourine_pan", 25.0),
+                ("cowbell_pan", 20.0),
+                ("clave_pan", -20.0),
+                ("accent", 75.0),
+                ("kick_level", 90.0),
+                ("kick_decay", 115.0),
+                ("kick_tone", 70.0),
+                ("snare_tune", -1.0),
+                ("snare_tone", 62.0),
+                ("snare_decay", 115.0),
+                ("cymbal_level", 85.0),
+                ("low_tom_tune", -2.0),
+                ("mid_tom_tune", -2.0),
+                ("high_tom_tune", -2.0),
+                ("low_tom_decay", 130.0),
+                ("mid_tom_decay", 130.0),
+                ("high_tom_decay", 130.0),
+                ("room", 32.0),
+                ("drive", 22.0),
+                ("volume", -8.2),
+            ],
+        ),
+        preset(
+            tr("Acoustic: Jazz"),
+            &[
+                ("kick_model", 2.0),
+                ("rim_model", 2.0),
+                ("snare_model", 2.0),
+                ("clap_model", 2.0),
+                ("closed_model", 2.0),
+                ("open_model", 2.0),
+                ("low_tom_model", 2.0),
+                ("mid_tom_model", 2.0),
+                ("high_tom_model", 2.0),
+                ("cymbal_model", 2.0),
+                ("cowbell_model", 2.0),
+                ("clave_model", 2.0),
+                ("kick2_model", 2.0),
+                ("snare2_model", 2.0),
+                ("ride_model", 2.0),
+                ("tambourine_model", 2.0),
+                ("closed_pan", -35.0),
+                ("open_pan", -35.0),
+                ("high_tom_pan", -30.0),
+                ("mid_tom_pan", 5.0),
+                ("low_tom_pan", 35.0),
+                ("cymbal_pan", -45.0),
+                ("ride_pan", 40.0),
+                ("tambourine_pan", 25.0),
+                ("cowbell_pan", 20.0),
+                ("clave_pan", -20.0),
+                ("accent", 85.0),
+                ("kick_tune", 4.0),
+                ("kick_decay", 75.0),
+                ("kick_level", 70.0),
+                ("kick_tone", 40.0),
+                ("snare_tune", 3.0),
+                ("snare_tone", 38.0),
+                ("snare_decay", 90.0),
+                ("ride_level", 85.0),
+                ("ride_decay", 140.0),
+                ("closed_level", 70.0),
+                ("open_level", 65.0),
+                ("low_tom_tune", 4.0),
+                ("mid_tom_tune", 4.0),
+                ("high_tom_tune", 4.0),
+                ("room", 38.0),
+                ("volume", -6.3),
+            ],
+        ),
+        preset(
+            tr("Acoustic: Funk"),
+            &[
+                ("kick_model", 2.0),
+                ("rim_model", 2.0),
+                ("snare_model", 2.0),
+                ("clap_model", 2.0),
+                ("closed_model", 2.0),
+                ("open_model", 2.0),
+                ("low_tom_model", 2.0),
+                ("mid_tom_model", 2.0),
+                ("high_tom_model", 2.0),
+                ("cymbal_model", 2.0),
+                ("cowbell_model", 2.0),
+                ("clave_model", 2.0),
+                ("kick2_model", 2.0),
+                ("snare2_model", 2.0),
+                ("ride_model", 2.0),
+                ("tambourine_model", 2.0),
+                ("closed_pan", -35.0),
+                ("open_pan", -35.0),
+                ("high_tom_pan", -30.0),
+                ("mid_tom_pan", 5.0),
+                ("low_tom_pan", 35.0),
+                ("cymbal_pan", -45.0),
+                ("ride_pan", 40.0),
+                ("tambourine_pan", 25.0),
+                ("cowbell_pan", 20.0),
+                ("clave_pan", -20.0),
+                ("accent", 80.0),
+                ("kick_decay", 70.0),
+                ("kick_tone", 60.0),
+                ("snare_tune", 2.0),
+                ("snare_tone", 66.0),
+                ("snare_decay", 75.0),
+                ("closed_decay", 80.0),
+                ("open_decay", 70.0),
+                ("room", 10.0),
+                ("drive", 10.0),
+                ("volume", -7.7),
+            ],
+        ),
+        preset(
+            tr("Lo-fi: Dusty"),
+            &[
+                ("kick_model", 0.0),
+                ("rim_model", 0.0),
+                ("snare_model", 2.0),
+                ("clap_model", 2.0),
+                ("closed_model", 2.0),
+                ("open_model", 2.0),
+                ("low_tom_model", 2.0),
+                ("mid_tom_model", 2.0),
+                ("high_tom_model", 2.0),
+                ("cymbal_model", 2.0),
+                ("cowbell_model", 2.0),
+                ("clave_model", 2.0),
+                ("kick2_model", 2.0),
+                ("snare2_model", 2.0),
+                ("ride_model", 2.0),
+                ("tambourine_model", 2.0),
+                ("closed_pan", -20.0),
+                ("open_pan", -20.0),
+                ("high_tom_pan", -25.0),
+                ("low_tom_pan", 25.0),
+                ("cymbal_pan", -30.0),
+                ("ride_pan", 30.0),
+                ("tambourine_pan", 15.0),
+                ("clave_pan", -15.0),
+                ("cowbell_pan", 15.0),
+                ("kick_tone", 15.0),
+                ("kick_decay", 130.0),
+                ("snare_tone", 30.0),
+                ("snare_tune", -1.0),
+                ("closed_tone", 20.0),
+                ("open_tone", 20.0),
+                ("cymbal_tone", 15.0),
+                ("ride_tone", 20.0),
+                ("drive", 35.0),
+                ("crush", 45.0),
+                ("room", 15.0),
+                ("volume", -11.2),
+            ],
+        ),
+        preset(
+            tr("Lo-fi: Boom bap"),
+            &[
+                ("kick_model", 2.0),
+                ("rim_model", 0.0),
+                ("snare_model", 2.0),
+                ("clap_model", 2.0),
+                ("closed_model", 0.0),
+                ("open_model", 0.0),
+                ("low_tom_model", 2.0),
+                ("mid_tom_model", 2.0),
+                ("high_tom_model", 2.0),
+                ("cymbal_model", 2.0),
+                ("cowbell_model", 2.0),
+                ("clave_model", 2.0),
+                ("kick2_model", 2.0),
+                ("snare2_model", 2.0),
+                ("ride_model", 2.0),
+                ("tambourine_model", 2.0),
+                ("closed_pan", -20.0),
+                ("open_pan", -20.0),
+                ("high_tom_pan", -25.0),
+                ("low_tom_pan", 25.0),
+                ("cymbal_pan", -30.0),
+                ("ride_pan", 30.0),
+                ("tambourine_pan", 15.0),
+                ("clave_pan", -15.0),
+                ("cowbell_pan", 15.0),
+                ("kick_tune", -2.0),
+                ("kick_decay", 120.0),
+                ("kick_tone", 40.0),
+                ("kick_level", 90.0),
+                ("snare_tune", -1.0),
+                ("snare_tone", 45.0),
+                ("snare_decay", 110.0),
+                ("closed_tone", 35.0),
+                ("drive", 30.0),
+                ("crush", 28.0),
+                ("room", 12.0),
+                ("volume", -10.2),
+            ],
+        ),
+        preset(
+            tr("Hybrid: Pop"),
+            &[
+                ("kick_model", 1.0),
+                ("rim_model", 1.0),
+                ("snare_model", 2.0),
+                ("clap_model", 1.0),
+                ("closed_model", 1.0),
+                ("open_model", 1.0),
+                ("low_tom_model", 1.0),
+                ("mid_tom_model", 1.0),
+                ("high_tom_model", 1.0),
+                ("cymbal_model", 1.0),
+                ("cowbell_model", 1.0),
+                ("clave_model", 1.0),
+                ("kick2_model", 0.0),
+                ("snare2_model", 2.0),
+                ("ride_model", 1.0),
+                ("tambourine_model", 2.0),
+                ("closed_pan", -20.0),
+                ("open_pan", -20.0),
+                ("high_tom_pan", -25.0),
+                ("low_tom_pan", 25.0),
+                ("cymbal_pan", -30.0),
+                ("ride_pan", 30.0),
+                ("tambourine_pan", 15.0),
+                ("clave_pan", -15.0),
+                ("cowbell_pan", 15.0),
+                ("kick2_decay", 300.0),
+                ("kick2_tune", -4.0),
+                ("snare_tone", 60.0),
+                ("snare2_tune", 3.0),
+                ("clap_decay", 120.0),
+                ("room", 20.0),
+                ("drive", 10.0),
+                ("volume", -7.9),
+            ],
+        ),
+        preset(
+            tr("Hybrid: Drum and bass"),
+            &[
+                ("kick_model", 2.0),
+                ("rim_model", 2.0),
+                ("snare_model", 2.0),
+                ("clap_model", 2.0),
+                ("closed_model", 1.0),
+                ("open_model", 2.0),
+                ("low_tom_model", 2.0),
+                ("mid_tom_model", 2.0),
+                ("high_tom_model", 2.0),
+                ("cymbal_model", 2.0),
+                ("cowbell_model", 2.0),
+                ("clave_model", 2.0),
+                ("kick2_model", 0.0),
+                ("snare2_model", 1.0),
+                ("ride_model", 1.0),
+                ("tambourine_model", 2.0),
+                ("closed_pan", -35.0),
+                ("open_pan", -35.0),
+                ("high_tom_pan", -30.0),
+                ("mid_tom_pan", 5.0),
+                ("low_tom_pan", 35.0),
+                ("cymbal_pan", -45.0),
+                ("ride_pan", 40.0),
+                ("tambourine_pan", 25.0),
+                ("cowbell_pan", 20.0),
+                ("clave_pan", -20.0),
+                ("kick_tune", 2.0),
+                ("kick_decay", 70.0),
+                ("kick_tone", 65.0),
+                ("kick2_tune", -3.0),
+                ("snare_tune", 4.0),
+                ("snare_tone", 72.0),
+                ("snare_decay", 80.0),
+                ("snare2_tune", 5.0),
+                ("room", 15.0),
+                ("drive", 15.0),
+                ("volume", -7.4),
+            ],
+        ),
+        preset(
+            tr("Minimal: Tight and dry"),
+            &[
+                ("kick_model", 1.0),
+                ("rim_model", 1.0),
+                ("snare_model", 1.0),
+                ("clap_model", 1.0),
+                ("closed_model", 1.0),
+                ("open_model", 1.0),
+                ("low_tom_model", 1.0),
+                ("mid_tom_model", 1.0),
+                ("high_tom_model", 1.0),
+                ("cymbal_model", 1.0),
+                ("cowbell_model", 1.0),
+                ("clave_model", 1.0),
+                ("kick2_model", 1.0),
+                ("snare2_model", 1.0),
+                ("ride_model", 1.0),
+                ("tambourine_model", 1.0),
                 ("kick_decay", 45.0),
                 ("snare_decay", 55.0),
                 ("clap_decay", 50.0),
@@ -274,30 +875,10 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
                 ("low_tom_decay", 55.0),
                 ("mid_tom_decay", 55.0),
                 ("high_tom_decay", 55.0),
-            ],
-        ),
-        preset(
-            tr("Kit: dusty lo-fi"),
-            &[
-                ("kick_tone", 10.0),
-                ("snare_tone", 25.0),
-                ("closed_tone", 15.0),
-                ("open_tone", 15.0),
-                ("cymbal_tone", 10.0),
-                ("drive", 55.0),
-                ("volume", -9.0),
-            ],
-        ),
-        preset(
-            tr("Kit: tuned up"),
-            &[
-                ("kick_tune", 5.0),
-                ("snare_tune", 5.0),
-                ("low_tom_tune", 5.0),
-                ("mid_tom_tune", 5.0),
-                ("high_tom_tune", 5.0),
-                ("closed_tune", 3.0),
-                ("open_tune", 3.0),
+                ("ride_decay", 50.0),
+                ("closed_decay", 70.0),
+                ("rim_level", 85.0),
+                ("volume", -8.0),
             ],
         ),
     ]
@@ -756,6 +1337,172 @@ fn add_rhythm(
 mod tests {
     use super::*;
     use crate::document::{AppDirs, Document};
+
+    #[test]
+    fn kits_have_matching_levels() {
+        use audiostrada_dsp::MidiEvent;
+        let info = audiostrada_dsp::info("drums").unwrap();
+        let mut report = Vec::new();
+        for kit in factory() {
+            let mut drums = audiostrada_dsp::create("drums").unwrap();
+            for (i, p) in info.params.iter().enumerate() {
+                drums.set_param(i, kit.params.get(p.id).copied().unwrap_or(p.default));
+            }
+            drums.prepare(48_000, 500);
+            // Two bars at 120 bpm: kick on one and three, snare on two and four, hats in eighths,
+            // a rim, a clap, an open hat and a crash with the kick: every pad a beat uses.
+            // Drums are heard by their hits: every kit peaks at the same level on the same beat.
+            let mut top = 0.0f32;
+            let (mut energy, mut count) = (0.0f64, 0usize);
+            for eighth in 0..16 {
+                let mut hits = vec![42];
+                match eighth % 8 {
+                    0 => hits.push(36),
+                    2 | 6 => hits.push(38),
+                    3 => hits.push(37),
+                    5 => hits.push(39),
+                    4 => hits.push(36),
+                    7 => hits = vec![46],
+                    _ => {}
+                }
+                if eighth == 8 {
+                    hits.push(49);
+                }
+                for key in hits {
+                    drums.midi(&MidiEvent::note_on(0, 9, key, 100));
+                }
+                for _ in 0..24 {
+                    let (mut l, mut r) = (vec![0.0f32; 500], vec![0.0f32; 500]);
+                    drums.process(&mut l, &mut r);
+                    top = l.iter().chain(&r).fold(top, |m, s| m.max(s.abs()));
+                    energy += l.iter().chain(&r).map(|s| f64::from(s * s)).sum::<f64>();
+                    count += 1000;
+                }
+            }
+            let loud = 10.0 * (energy / count as f64).max(1e-12).log10();
+            report.push((kit.name.clone(), 20.0 * top.max(1e-9).log10(), loud));
+        }
+        for (name, top, loud) in &report {
+            eprintln!("{name}: peak {top:.1} dB loudness {loud:.1} dB");
+        }
+        // As loud as each other, unless a kit's peaks would pass -3 dBFS first.
+        for (name, top, loud) in &report {
+            assert!(*top < -2.5, "{name}: peak {top:.1} dB");
+            assert!(
+                *loud > -27.0 && (*loud < -19.0 || *top > -3.6),
+                "{name}: {loud:.1} dB"
+            );
+        }
+    }
+
+    /// Writes each kit playing a rhythm of its style into `KITS_DIR`, to listen to them.
+    #[test]
+    #[ignore = "writes audio files for listening"]
+    fn render_kits_for_listening() {
+        use audiostrada_dsp::MidiEvent;
+        let Some(dir) = std::env::var_os("KITS_DIR") else {
+            return;
+        };
+        let info = audiostrada_dsp::info("drums").unwrap();
+        for kit in factory() {
+            let style = if kit.name.contains("Trap") {
+                "Trap"
+            } else if kit.name.contains("House") || kit.name.contains("Classic") {
+                "House"
+            } else if kit.name.contains("Techno")
+                || kit.name.contains("Hard")
+                || kit.name.contains("Minimal")
+            {
+                "Techno"
+            } else if kit.name.contains("Lo-fi") || kit.name.contains("Boom") {
+                "Hip hop: boom bap"
+            } else if kit.name.contains("Drum and bass") {
+                "Drum and bass"
+            } else if kit.name.contains("Funk") || kit.name.contains("Electro") {
+                "Funk"
+            } else {
+                "Rock"
+            };
+            let rhythm = RHYTHMS.iter().find(|r| r.name == style).unwrap();
+            let beat = 48_000.0 * 60.0 / f64::from(rhythm.bpm);
+            let mut notes = rhythm_notes(rhythm, 2, beat);
+            // A fill on the toms and a crash at the end, to hear the whole kit.
+            let end = (8.0 * beat) as u64;
+            for (k, key) in [50u8, 50, 47, 47, 45, 45, 43, 43].into_iter().enumerate() {
+                notes.push(Note {
+                    start: end + (k as f64 * beat / 4.0) as u64,
+                    length: 100,
+                    key,
+                    velocity: 110,
+                    channel: 9,
+                    ..Default::default()
+                });
+            }
+            notes.push(Note {
+                start: end + (2.0 * beat) as u64,
+                length: 100,
+                key: 49,
+                velocity: 120,
+                channel: 9,
+                ..Default::default()
+            });
+            notes.push(Note {
+                start: end + (2.0 * beat) as u64,
+                length: 100,
+                key: 36,
+                velocity: 120,
+                channel: 9,
+                ..Default::default()
+            });
+            notes.sort_by_key(|n| n.start);
+            let mut drums = audiostrada_dsp::create("drums").unwrap();
+            for (i, p) in info.params.iter().enumerate() {
+                drums.set_param(i, kit.params.get(p.id).copied().unwrap_or(p.default));
+            }
+            drums.set_tempo(f64::from(rhythm.bpm));
+            drums.prepare(48_000, 64);
+            let total = end as usize + (4.0 * beat) as usize;
+            let mut pcm = Vec::with_capacity(total * 4);
+            let mut next = 0;
+            for at in (0..total).step_by(64) {
+                while next < notes.len() && notes[next].start < (at + 64) as u64 {
+                    let n = &notes[next];
+                    drums.midi(&MidiEvent::note_on(0, 9, n.key, n.velocity));
+                    next += 1;
+                }
+                let (mut l, mut r) = ([0.0f32; 64], [0.0f32; 64]);
+                drums.process(&mut l, &mut r);
+                for (a, b) in l.iter().zip(&r) {
+                    for s in [a, b] {
+                        pcm.extend_from_slice(
+                            &((s.clamp(-1.0, 1.0) * 32767.0) as i16).to_le_bytes(),
+                        );
+                    }
+                }
+            }
+            let mut wav = Vec::new();
+            let size = pcm.len() as u32;
+            for chunk in [
+                &b"RIFF"[..],
+                &(36 + size).to_le_bytes(),
+                b"WAVEfmt ",
+                &16u32.to_le_bytes(),
+                &1u16.to_le_bytes(),
+                &2u16.to_le_bytes(),
+                &48_000u32.to_le_bytes(),
+                &(48_000u32 * 4).to_le_bytes(),
+                &4u16.to_le_bytes(),
+                &16u16.to_le_bytes(),
+                b"data",
+                &size.to_le_bytes(),
+            ] {
+                wav.extend_from_slice(chunk);
+            }
+            wav.extend(pcm);
+            let file = kit.name.replace([':', ' '], "_").replace("__", "_");
+            std::fs::write(std::path::Path::new(&dir).join(format!("{file}.wav")), wav).unwrap();
+        }
+    }
 
     #[test]
     fn rhythms_are_well_formed() {

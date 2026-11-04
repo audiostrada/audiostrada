@@ -4342,3 +4342,51 @@ Tambourin : timbre
 
 Tambourine tune
 Tambourin : accord
+
+808: Classic
+808 : Classique
+
+808: Boom
+808 : Boom
+
+808: Trap
+808 : Trap
+
+808: Electro
+808 : Électro
+
+909: House
+909 : House
+
+909: Techno
+909 : Techno
+
+909: Hard
+909 : Dur
+
+Acoustic: Studio
+Acoustique : Studio
+
+Acoustic: Rock
+Acoustique : Rock
+
+Acoustic: Jazz
+Acoustique : Jazz
+
+Acoustic: Funk
+Acoustique : Funk
+
+Lo-fi: Dusty
+Lo-fi : Poussiéreux
+
+Lo-fi: Boom bap
+Lo-fi : Boom bap
+
+Hybrid: Pop
+Hybride : Pop
+
+Hybrid: Drum and bass
+Hybride : Drum and bass
+
+Minimal: Tight and dry
+Minimal : Serré et sec
