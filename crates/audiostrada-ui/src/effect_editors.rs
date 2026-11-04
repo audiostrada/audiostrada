@@ -3225,12 +3225,15 @@ const SPEED_NAMES: [&str; 3] = ["7.5 ips", "15 ips", "30 ips"];
 fn modulation(ui: &mut Ui, params: &mut Params) {
     let p = theme::current(ui);
     let id = params.info.id;
-    let rate = params.get("rate");
-    let depth = params.get("depth") / 100.0;
-    let stereo = match id {
-        "chorus" => 0.25,
-        _ => params.get("stereo") / 360.0,
+    let synced = params.get("sync") >= 0.5;
+    let rate = if synced {
+        let bpm = params.doc.project().tempo.bpm_at_beat(0.0);
+        1.0 / audiostrada_dsp::delay::synced_seconds(params.get("note"), bpm).max(0.01)
+    } else {
+        params.get("rate")
     };
+    let depth = params.get("depth") / 100.0;
+    let stereo = params.get("stereo") / 360.0;
     let (rect, painter) = display(ui, 130.0);
     let inner = rect.shrink2(vec2(14.0, 18.0));
     let wave = |phase: f32| -> f32 {
@@ -3289,34 +3292,101 @@ fn modulation(ui: &mut Ui, params: &mut Params) {
     );
     ui.ctx().request_repaint();
     ui.add_space(8.0);
-    match id {
-        "flanger" => knob_row(
-            ui,
-            params,
-            &[
-                "rate", "depth", "delay", "feedback", "stereo", "mix", "output",
-            ],
-            p.accent,
-        ),
-        "phaser" => {
+    let accent = p.accent;
+    let knob = |ui: &mut Ui, params: &mut Params, id: &str| {
+        let name = params.param(id).map_or("", |q| tr(q.name));
+        wide_knob(ui, params, id, name, 44.0, accent);
+    };
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        section_frame(ui, tr("LFO"), p.weak, 118.0, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(tr("Stages")).size(10.5).color(p.weak));
-                choice_box(ui, params, "stages");
+                ui.spacing_mut().item_spacing.x = 4.0;
+                knob(ui, params, if synced { "note" } else { "rate" });
+                for id in ["depth", "stereo"] {
+                    knob(ui, params, id);
+                }
             });
-            knob_row(
-                ui,
-                params,
-                &["rate", "depth", "low", "high", "feedback", "stereo", "mix"],
-                p.accent,
-            );
+            ui.add_space(4.0);
+            params.toggle(ui, "sync", |ui, on| {
+                let response = pill_switch(ui, *on, tr("Sync"))
+                    .on_hover_text(tr("A note value at the project's tempo"));
+                if response.clicked() {
+                    *on = !*on;
+                }
+                response
+            });
+        });
+        match id {
+            "flanger" => {
+                section_frame(ui, tr("Comb"), p.weak, 118.0, |ui| {
+                    let zero = params.get("through_zero") >= 0.5;
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
+                        ui.add_enabled_ui(!zero, |ui| knob(ui, params, "delay"));
+                        knob(ui, params, "feedback");
+                    });
+                    ui.add_space(4.0);
+                    params.toggle(ui, "through_zero", |ui, on| {
+                        let response = pill_switch(ui, *on, tr("Through zero")).on_hover_text(tr(
+                            "As with two tape machines: the sweep passes the dry sound and \
+                             cancels it for a moment. Delays the output by 5 ms.",
+                        ));
+                        if response.clicked() {
+                            *on = !*on;
+                        }
+                        response
+                    });
+                });
+                section_frame(ui, tr("Output"), p.weak, 118.0, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
+                        knob(ui, params, "mix");
+                        knob(ui, params, "output");
+                    });
+                });
+            }
+            "phaser" => {
+                section_frame(ui, tr("Sweep"), p.weak, 118.0, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
+                        for id in ["low", "high", "feedback"] {
+                            knob(ui, params, id);
+                        }
+                    });
+                    ui.horizontal(|ui| segmented(ui, params, "stages", &[]));
+                });
+                section_frame(ui, tr("Output"), p.weak, 118.0, |ui| {
+                    knob(ui, params, "mix");
+                });
+            }
+            _ => {
+                section_frame(ui, tr("Voices"), p.weak, 118.0, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
+                        for id in ["delay", "feedback", "tone"] {
+                            knob(ui, params, id);
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        segmented(
+                            ui,
+                            params,
+                            "voices",
+                            &[
+                                "One delay per side",
+                                "Two delays per side, apart in the cycle",
+                                "Three delays per side, as in the string ensembles",
+                            ],
+                        )
+                    });
+                });
+                section_frame(ui, tr("Output"), p.weak, 118.0, |ui| {
+                    knob(ui, params, "mix");
+                });
+            }
         }
-        _ => knob_row(
-            ui,
-            params,
-            &["rate", "depth", "delay", "feedback", "mix"],
-            p.accent,
-        ),
-    }
+    });
 }
 
 /// Utility: the phase correlation and the left/right balance read live, then the level and
@@ -6055,6 +6125,9 @@ mod tests {
                 ("delay", "drive"),
                 ("reverb", "shimmer"),
                 ("reverb", "predelay_note"),
+                ("chorus", "note"),
+                ("flanger", "note"),
+                ("phaser", "note"),
                 // Set by dragging the modules; from the console.
                 ("channel", "order"),
                 ("channel", "character"),

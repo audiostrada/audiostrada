@@ -1,7 +1,9 @@
 //! Phaser: a chain of first-order all-passes whose corner sweeps exponentially between two
-//! frequencies, with feedback; the notches move in and out of phase between the channels.
+//! frequencies, with feedback; the notches move in and out of phase between the channels. The
+//! rate is free or synced to the tempo.
 
-use crate::{Effect, EffectInfo, ParamInfo, choice, param};
+use crate::delay::{NOTE_NAMES, synced_seconds};
+use crate::{Effect, EffectInfo, ParamInfo, choice, param, switch};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "phaser",
@@ -17,7 +19,7 @@ pub const INFO: EffectInfo = EffectInfo {
 const STAGES: [&str; 4] = ["4 stages", "6 stages", "8 stages", "12 stages"];
 const STAGE_COUNT: [usize; 4] = [4, 6, 8, 12];
 
-const PARAMS: [ParamInfo; 8] = [
+const PARAMS: [ParamInfo; 10] = [
     param("rate", "Rate", 0.02, 8.0, 0.4, "Hz"),
     param("depth", "Depth", 0.0, 100.0, 80.0, "%"),
     param("low", "Low", 50.0, 2000.0, 250.0, "Hz"),
@@ -26,12 +28,15 @@ const PARAMS: [ParamInfo; 8] = [
     choice("stages", "Stages", &STAGES, 1.0),
     param("stereo", "Stereo", 0.0, 180.0, 90.0, "°"),
     param("mix", "Mix", 0.0, 100.0, 50.0, "%"),
+    switch("sync", "Sync to tempo", 0.0),
+    choice("note", "Note", &NOTE_NAMES, 12.0),
 ];
 
 #[derive(Debug)]
 pub struct Phaser {
     rate: f32,
-    values: [f32; 8],
+    values: [f32; 10],
+    bpm: f64,
     /// All-pass states (input and output memory) per channel and stage.
     states: [[(f32, f32); 12]; 2],
     last: [f32; 2],
@@ -43,6 +48,7 @@ impl Default for Phaser {
         Self {
             rate: 48_000.0,
             values: PARAMS.map(|p| p.default),
+            bpm: 120.0,
             states: [[(0.0, 0.0); 12]; 2],
             last: [0.0; 2],
             phase: 0.0,
@@ -62,8 +68,28 @@ impl Effect for Phaser {
         }
     }
 
+    fn set_tempo(&mut self, bpm: f64) {
+        self.bpm = bpm;
+    }
+
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
-        let [rate, depth, low, high, feedback, stages, stereo, mix] = self.values;
+        let [
+            rate,
+            depth,
+            low,
+            high,
+            feedback,
+            stages,
+            stereo,
+            mix,
+            sync,
+            note,
+        ] = self.values;
+        let rate = if sync >= 0.5 {
+            1.0 / synced_seconds(note, self.bpm).max(0.01)
+        } else {
+            rate
+        };
         let count = STAGE_COUNT[(stages.round() as usize).min(3)];
         let (lo, hi) = (low.min(high), high.max(low).min(self.rate * 0.45));
         let span = (hi / lo).ln() * depth / 100.0;

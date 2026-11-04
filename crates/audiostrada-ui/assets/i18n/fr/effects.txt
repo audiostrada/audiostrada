@@ -3370,3 +3370,36 @@ Alignement
 
 Phase
 Phase
+
+1 voice
+1 voix
+
+2 voices
+2 voix
+
+Ensemble
+Ensemble
+
+Voices
+Voix
+
+As with two tape machines: the sweep passes the dry sound and cancels it for a moment. Delays the output by 5 ms.
+Comme avec deux magnétophones : le balayage croise le son sec et l'annule un instant. Retarde la sortie de 5 ms.
+
+Comb
+Peigne
+
+Sweep
+Balayage
+
+Through zero
+Passage par zéro
+
+One delay per side
+Un retard par côté
+
+Two delays per side, apart in the cycle
+Deux retards par côté, décalés dans le cycle
+
+Three delays per side, as in the string ensembles
+Trois retards par côté, comme dans les string ensembles
