@@ -3434,63 +3434,116 @@ fn utility(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
 fn imager(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
     let p = theme::current(ui);
     let correlation = meters.first().copied().unwrap_or(1.0);
-    let (rect, painter) = display(ui, 210.0);
-    // Goniometer: mid up, side across, rotated 45 degrees as on the classic scopes.
-    let size = rect.height() - 24.0;
-    let scope = Rect::from_center_size(
-        pos2(rect.left() + size / 2.0 + 16.0, rect.center().y),
-        vec2(size, size),
+    let height = 220.0;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        let (rect, _) = ui.allocate_exact_size(vec2(height, height), Sense::hover());
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, 8.0, p.base);
+        // Goniometer: mid up, side across, rotated 45 degrees as on the classic scopes.
+        let size = rect.height() - 24.0;
+        let scope = Rect::from_center_size(rect.center(), vec2(size, size));
+        let c = scope.center();
+        let grid = p.weak.gamma_multiply(0.2);
+        painter.circle_stroke(c, size / 2.0, Stroke::new(1.0, grid));
+        painter.line_segment(
+            [pos2(c.x, scope.top()), pos2(c.x, scope.bottom())],
+            Stroke::new(1.0, grid),
+        );
+        painter.line_segment(
+            [pos2(scope.left(), c.y), pos2(scope.right(), c.y)],
+            Stroke::new(1.0, grid),
+        );
+        painter.text(
+            scope.left_top(),
+            Align2::LEFT_TOP,
+            "L",
+            FontId::proportional(10.0),
+            p.weak,
+        );
+        painter.text(
+            scope.right_top(),
+            Align2::RIGHT_TOP,
+            "R",
+            FontId::proportional(10.0),
+            p.weak,
+        );
+        let points: Vec<(f32, f32)> = meters
+            .get(2..)
+            .unwrap_or(&[])
+            .chunks(2)
+            .map(|v| (v[0], v.get(1).copied().unwrap_or(0.0)))
+            .collect();
+        let peak = points
+            .iter()
+            .fold(0.05f32, |m, (a, b)| m.max(a.abs()).max(b.abs()));
+        let scale = size / 2.0 * 0.9 / peak;
+        for (i, (m, s)) in points.iter().enumerate() {
+            let alpha = (i as f32 / points.len().max(1) as f32).max(0.15);
+            painter.circle_filled(
+                pos2(c.x + s * scale, c.y - m * scale),
+                2.0,
+                p.accent.gamma_multiply(alpha),
+            );
+        }
+        let width = ui.available_width().max(300.0);
+        band_view(ui, params, vec2(width, height));
+    });
+    ui.add_space(6.0);
+    correlation_bar(ui, correlation);
+    ui.ctx().request_repaint();
+    ui.add_space(8.0);
+    knob_sections(
+        ui,
+        params,
+        &[
+            ("Width", &["low_width", "mid_width", "high_width"], None),
+            ("Bands", &["low_split", "high_split", "mono_bass"], None),
+            ("Stereoize", &["stereoize", "stereoize_time"], None),
+            ("Output", &["output"], None),
+        ],
+        &|_| true,
     );
-    let c = scope.center();
-    let grid = p.weak.gamma_multiply(0.2);
-    painter.circle_stroke(c, size / 2.0, Stroke::new(1.0, grid));
-    painter.line_segment(
-        [pos2(c.x, scope.top()), pos2(c.x, scope.bottom())],
-        Stroke::new(1.0, grid),
-    );
-    painter.line_segment(
-        [pos2(scope.left(), c.y), pos2(scope.right(), c.y)],
-        Stroke::new(1.0, grid),
+}
+
+/// The correlation of the sides, -1 (opposed) to +1 (mono), as a bar with its dot.
+fn correlation_bar(ui: &mut Ui, correlation: f32) {
+    let p = theme::current(ui);
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
+    let painter = ui.painter_at(rect);
+    let bar = Rect::from_min_max(
+        pos2(rect.left() + 130.0, rect.center().y - 4.0),
+        pos2(rect.right() - 40.0, rect.center().y + 4.0),
     );
     painter.text(
-        scope.left_top(),
-        Align2::LEFT_TOP,
-        "L",
-        FontId::proportional(10.0),
-        p.weak,
+        pos2(rect.left(), rect.center().y),
+        Align2::LEFT_CENTER,
+        format!("{} {:+.2}", tr("Correlation"), correlation),
+        FontId::proportional(11.5),
+        p.text,
     );
-    painter.text(
-        scope.right_top(),
-        Align2::RIGHT_TOP,
-        "R",
-        FontId::proportional(10.0),
-        p.weak,
+    // Red where the sides cancel in mono, green where they hold.
+    let mid = bar.center().x;
+    painter.rect_filled(
+        Rect::from_min_max(bar.min, pos2(mid, bar.bottom())),
+        4.0,
+        theme::RECORD.gamma_multiply(0.25),
     );
-    let points: Vec<(f32, f32)> = meters
-        .get(2..)
-        .unwrap_or(&[])
-        .chunks(2)
-        .map(|v| (v[0], v.get(1).copied().unwrap_or(0.0)))
-        .collect();
-    let peak = points
-        .iter()
-        .fold(0.05f32, |m, (a, b)| m.max(a.abs()).max(b.abs()));
-    let scale = size / 2.0 * 0.9 / peak;
-    for (i, (m, s)) in points.iter().enumerate() {
-        let alpha = (i as f32 / points.len().max(1) as f32).max(0.15);
-        painter.circle_filled(
-            pos2(c.x + s * scale, c.y - m * scale),
-            2.0,
-            p.accent.gamma_multiply(alpha),
+    painter.rect_filled(
+        Rect::from_min_max(pos2(mid, bar.top()), bar.max),
+        4.0,
+        theme::PLAY.gamma_multiply(0.25),
+    );
+    for (text, x) in [("-1", bar.left()), ("0", mid), ("+1", bar.right())] {
+        painter.text(
+            pos2(x, bar.bottom() + 2.0),
+            Align2::CENTER_TOP,
+            text,
+            FontId::proportional(8.5),
+            p.weak,
         );
     }
-    // Correlation bar.
-    let bar = Rect::from_min_size(
-        pos2(scope.right() + 30.0, rect.bottom() - 34.0),
-        vec2(rect.right() - scope.right() - 50.0, 10.0),
-    );
-    painter.rect_filled(bar, 4.0, p.panel);
-    let x = bar.left() + (correlation + 1.0) / 2.0 * bar.width();
+    let x = bar.left() + (correlation.clamp(-1.0, 1.0) + 1.0) / 2.0 * bar.width();
     painter.circle_filled(
         pos2(x, bar.center().y),
         6.0,
@@ -3500,70 +3553,148 @@ fn imager(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
             theme::PLAY
         },
     );
-    painter.text(
-        bar.left_top() - vec2(0.0, 4.0),
-        Align2::LEFT_BOTTOM,
-        "-1",
-        FontId::proportional(9.0),
-        p.weak,
-    );
-    painter.text(
-        bar.right_top() - vec2(0.0, 4.0),
-        Align2::RIGHT_BOTTOM,
-        "+1",
-        FontId::proportional(9.0),
-        p.weak,
-    );
-    painter.text(
-        pos2(bar.center().x, bar.top() - 4.0),
-        Align2::CENTER_BOTTOM,
-        format!("{} {correlation:+.2}", tr("Correlation")),
-        FontId::proportional(11.0),
-        p.text,
-    );
-    // Band widths as bars.
-    let bands = [
-        (tr("LOW"), params.get("low_width")),
-        (tr("MID"), params.get("mid_width")),
-        (tr("HIGH"), params.get("high_width")),
-    ];
-    let area = Rect::from_min_max(
-        pos2(scope.right() + 30.0, rect.top() + 16.0),
-        pos2(rect.right() - 20.0, bar.top() - 30.0),
-    );
-    let w = area.width() / 3.0;
-    for (i, (name, width)) in bands.iter().enumerate() {
-        let x = area.left() + w * (i as f32 + 0.5);
-        let half = (width / 200.0) * (w * 0.45);
-        let r = Rect::from_center_size(
-            pos2(x, area.center().y),
-            vec2(half * 2.0, area.height() * 0.5),
+}
+
+/// The three bands over the spectrum, each as tall as it is wide: drag a band up or down for
+/// its width, a split or the mono line sideways.
+fn band_view(ui: &mut Ui, params: &mut Params, size: egui::Vec2) {
+    let p = theme::current(ui);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click_and_drag());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 8.0, p.base);
+    let inner = rect.shrink2(vec2(10.0, 22.0));
+    let to_x = |f: f32| inner.left() + (f / 20.0).log10() / 3.0 * inner.width();
+    let f_of = |x: f32| 20.0 * 1000f32.powf(((x - inner.left()) / inner.width()).clamp(0.0, 1.0));
+    let grid = p.weak.gamma_multiply(0.14);
+    for f in [50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10_000.0] {
+        let x = to_x(f);
+        painter.line_segment(
+            [pos2(x, inner.top()), pos2(x, inner.bottom())],
+            Stroke::new(1.0, grid),
         );
-        painter.rect_filled(r, 4.0, p.accent.gamma_multiply(0.35 + width / 400.0));
         painter.text(
-            pos2(x, area.bottom()),
+            pos2(x, rect.bottom() - 3.0),
             Align2::CENTER_BOTTOM,
-            format!("{name} {width:.0}%"),
-            FontId::proportional(10.0),
+            if f >= 1000.0 {
+                format!("{}k", f / 1000.0)
+            } else {
+                format!("{f}")
+            },
+            FontId::proportional(9.0),
             p.weak,
         );
     }
-    ui.ctx().request_repaint();
-    ui.add_space(8.0);
-    knob_row(
-        ui,
-        params,
-        &[
-            "mid_width",
-            "low_width",
-            "high_width",
-            "low_split",
-            "high_split",
-            "mono_bass",
-            "output",
-        ],
-        p.accent,
+    let (low, high, mono) = (
+        params.get("low_split"),
+        params.get("high_split"),
+        params.get("mono_bass"),
     );
+    let edges = [20.0, low, high, 20_000.0];
+    let ids = ["low_width", "mid_width", "high_width"];
+    let names = [tr("Low"), tr("Mid"), tr("High")];
+    let mid_y = inner.center().y;
+    painter.line_segment(
+        [pos2(inner.left(), mid_y), pos2(inner.right(), mid_y)],
+        Stroke::new(1.0, grid.gamma_multiply(1.5)),
+    );
+    for b in 0..3 {
+        let width = params.get(ids[b]);
+        let (x0, x1) = (to_x(edges[b]), to_x(edges[b + 1]));
+        let half = width / 200.0 * inner.height() / 2.0;
+        let body = Rect::from_min_max(pos2(x0 + 2.0, mid_y - half), pos2(x1 - 2.0, mid_y + half));
+        painter.rect_filled(body, 4.0, p.accent.gamma_multiply(0.18 + width / 600.0));
+        painter.rect_stroke(
+            body,
+            4.0,
+            Stroke::new(1.0, p.accent.gamma_multiply(0.7)),
+            egui::StrokeKind::Inside,
+        );
+        painter.text(
+            pos2((x0 + x1) / 2.0, rect.top() + 4.0),
+            Align2::CENTER_TOP,
+            format!("{} {width:.0} %", names[b]),
+            FontId::proportional(10.5),
+            p.text,
+        );
+    }
+    // Mono below this line: the sides go away there.
+    if mono > 21.0 {
+        let x = to_x(mono);
+        painter.rect_filled(
+            Rect::from_min_max(pos2(inner.left(), inner.top()), pos2(x, inner.bottom())),
+            0.0,
+            p.weak.gamma_multiply(0.12),
+        );
+        painter.line_segment(
+            [pos2(x, inner.top()), pos2(x, inner.bottom())],
+            Stroke::new(1.5, theme::SOLO),
+        );
+        painter.text(
+            pos2(x - 4.0, inner.bottom() - 2.0),
+            Align2::RIGHT_BOTTOM,
+            tr("Mono"),
+            FontId::proportional(9.5),
+            theme::SOLO,
+        );
+    }
+    for split in [low, high] {
+        let x = to_x(split);
+        painter.line_segment(
+            [pos2(x, inner.top()), pos2(x, inner.bottom())],
+            Stroke::new(1.5, p.text.gamma_multiply(0.6)),
+        );
+        painter.circle_filled(pos2(x, mid_y), 4.0, p.text.gamma_multiply(0.8));
+    }
+    // What a drag moves, chosen where it starts.
+    let key = ui.scope_id().with(("imager-drag", params.insert.0));
+    if response.drag_started()
+        && let Some(at) = response.interact_pointer_pos()
+    {
+        let near = |f: f32| (to_x(f) - at.x).abs() < 6.0;
+        let target = if near(low) {
+            "low_split"
+        } else if near(high) {
+            "high_split"
+        } else if mono > 21.0 && near(mono) {
+            "mono_bass"
+        } else {
+            let f = f_of(at.x);
+            if f < low {
+                "low_width"
+            } else if f < high {
+                "mid_width"
+            } else {
+                "high_width"
+            }
+        };
+        ui.data_mut(|d| d.insert_temp(key, target));
+    }
+    let target: Option<&'static str> = ui.data(|d| d.get_temp(key));
+    let hover = response.hover_pos().map(|at| {
+        let near = |f: f32| (to_x(f) - at.x).abs() < 6.0;
+        near(low) || near(high) || (mono > 21.0 && near(mono))
+    });
+    if hover == Some(true) || target.is_some_and(|t| !t.ends_with("width")) {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+    } else if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+    }
+    let response = response.on_hover_text(tr(
+        "Drag a band up or down for its width, a split or the mono line sideways",
+    ));
+    if let Some(id) = target {
+        let changed = response.dragged().then(|| {
+            if id.ends_with("width") {
+                params.get(id) - response.drag_delta().y / (inner.height() / 2.0) * 100.0
+            } else {
+                f_of(response.interact_pointer_pos().map_or(0.0, |q| q.x))
+            }
+        });
+        params.set(id, changed, &response);
+        if response.drag_stopped() {
+            ui.data_mut(|d| d.remove::<&'static str>(key));
+        }
+    }
 }
 
 /// A bipolar bar from the middle for a gain in dB (-12 to +12).

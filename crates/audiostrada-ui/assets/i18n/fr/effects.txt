@@ -3349,3 +3349,15 @@ Retire une bande autour de la coupure : un son creux, qui phase
 
 Random
 Aléatoire
+
+Drag a band up or down for its width, a split or the mono line sideways
+Glisser une bande vers le haut ou le bas pour sa largeur, une séparation ou la ligne mono sur le côté
+
+Stereoize
+Stéréoïsation
+
+Stereoize time
+Temps de stéréoïsation
+
+Bands
+Bandes
