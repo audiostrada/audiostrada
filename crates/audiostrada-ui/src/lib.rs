@@ -2380,16 +2380,54 @@ pub(crate) enum Floating {
     Panel,
 }
 
+/// Whether the main window shows a menu, a popup or a dialog that floating windows must not
+/// cover, as of its last frame.
+static MAIN_COVERED: AtomicBool = AtomicBool::new(false);
+
+/// Lowers the floating windows under the main one while it shows a menu or a dialog: they
+/// drop to the normal level, then the main window comes to the front once (Linux only).
+fn uncover_main(ctx: &egui::Context) {
+    if cfg!(any(windows, target_os = "macos")) {
+        return;
+    }
+    let covered = ctx.any_popup_open()
+        || ctx.memory(|m| {
+            m.top_modal_layer().is_some()
+                || m.areas()
+                    .visible_layer_ids()
+                    .iter()
+                    .any(|l| l.order == egui::Order::Middle)
+        });
+    MAIN_COVERED.store(covered, Ordering::Relaxed);
+    let id = egui::Id::unique("main-covered-frames");
+    let frames = ctx.data_mut(|d| {
+        let f = d.get_temp_mut_or_default::<u8>(id);
+        *f = if covered { f.saturating_add(1) } else { 0 };
+        *f
+    });
+    // The levels change on this frame, the main window comes up on a later one.
+    #[cfg(all(unix, not(target_os = "macos")))]
+    if frames == 3 {
+        audiostrada_plugins::window::raise_parent();
+    }
+    if (1..3).contains(&frames) {
+        ctx.request_repaint();
+    }
+}
+
 /// Level of AudioStrada's windows besides the main one. macOS and Windows keep them above it
 /// themselves while AudioStrada is in use (see [`keep_windows_above`]). Elsewhere the browser
 /// floats, an editor floats while the main window, its own or the one drawing it has the
-/// focus, and panels stay normal.
+/// focus, and panels stay normal; none floats over a menu, a dialog or a file chooser.
 pub(crate) fn floating_level(ctx: &egui::Context, kind: Floating) -> egui::WindowLevel {
     if cfg!(windows) {
         return egui::WindowLevel::Normal;
     }
     if cfg!(target_os = "macos") {
         return egui::WindowLevel::AlwaysOnTop;
+    }
+    if MAIN_COVERED.load(Ordering::Relaxed) || dialogs::any_open() {
+        return egui::WindowLevel::Normal;
     }
     let focused = |v| ctx.input_for(v, |i| i.viewport().focused.unwrap_or(false));
     let floats = match kind {
@@ -2633,6 +2671,7 @@ impl eframe::App for AudioStradaApp {
             self.windows_changed = true;
         }
         self.watch_layout();
+        uncover_main(&ctx);
         if let Some(screenshot) = &mut self.screenshot
             && screenshot.tick(&ctx)
         {

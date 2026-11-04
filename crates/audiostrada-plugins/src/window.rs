@@ -63,6 +63,36 @@ mod imp {
 
     use super::NativeHandle;
 
+    /// Asks the window manager to bring AudioStrada's window to the front, even when it
+    /// already has the focus (a plain focus request is then ignored).
+    pub fn raise_parent() {
+        let Ok(parent) = u32::try_from(super::parent()) else {
+            return;
+        };
+        if parent == 0 {
+            return;
+        }
+        let Ok((connection, screen)) = x11rb::connect(None) else {
+            return;
+        };
+        let root = connection.setup().roots[screen].root;
+        let Ok(Ok(active)) = connection
+            .intern_atom(false, b"_NET_ACTIVE_WINDOW")
+            .map(|c| c.reply())
+        else {
+            return;
+        };
+        // Source 2, as a pager: the window manager obeys.
+        let event = ClientMessageEvent::new(32, parent, active.atom, [2, 0, 0, 0, 0]);
+        let _ = connection.send_event(
+            false,
+            root,
+            EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+            event,
+        );
+        let _ = connection.flush();
+    }
+
     pub struct HostWindow {
         connection: RustConnection,
         window: u32,
@@ -704,6 +734,8 @@ mod imp {
 pub use imp::HostWindow;
 #[cfg(any(target_os = "macos", windows))]
 pub use imp::keep_windows_above;
+#[cfg(all(unix, not(target_os = "macos")))]
+pub use imp::raise_parent;
 
 impl std::fmt::Debug for HostWindow {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -4,6 +4,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::sync::{Arc, Mutex};
 
@@ -20,6 +21,14 @@ pub(crate) const AUDIO_EXTENSIONS: [&str; 19] = [
 ];
 
 type Slot<T> = Arc<Mutex<Receiver<Option<T>>>>;
+
+/// File dialogs open now.
+static OPEN: AtomicUsize = AtomicUsize::new(0);
+
+/// Whether a file dialog is open: floating windows then stay at the normal level, under it.
+pub fn any_open() -> bool {
+    OPEN.load(Ordering::Relaxed) > 0
+}
 
 fn key(id: impl Hash + Debug) -> egui::Id {
     egui::Id::unique(("file-dialog", id))
@@ -50,9 +59,23 @@ pub fn start<T: Send + 'static>(
         let _ = tx.send(dialog());
         return;
     }
+    OPEN.fetch_add(1, Ordering::Relaxed);
+    for id in [
+        egui::ViewportId::ROOT,
+        ctx.viewport_id(),
+        ctx.parent_viewport_id(),
+    ] {
+        ctx.request_repaint_of(id);
+    }
     let ctx = ctx.clone();
     std::thread::spawn(move || {
-        let _ = tx.send(dialog());
+        // The floating windows go down first: GNOME opens a new window under an "always on
+        // top" one of the application.
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let chosen = dialog();
+        OPEN.fetch_sub(1, Ordering::Relaxed);
+        let _ = tx.send(chosen);
+        ctx.request_repaint_of(egui::ViewportId::ROOT);
         ctx.request_repaint();
     });
 }
