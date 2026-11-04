@@ -3919,3 +3919,24 @@ Des tirettes tirées une à une : de la flûte à l'orgue plein
 
 Your own WAV file, cut into frames of 2048 samples as Serum and Vital save them
 Votre propre fichier WAV, découpé en images de 2048 échantillons comme les enregistrent Serum et Vital
+
+Perform
+Jouer
+
+Turn the macros to shape the preset
+Tournez les macros pour façonner le preset
+
+Drag a source onto a knob to modulate it
+Glissez une source sur un bouton pour le moduler
+
+Where the movement comes from, and where it goes
+D'où vient le mouvement, et où il va
+
+Drag it onto a knob in Sound
+Glissez-la sur un bouton dans Son
+
+Free
+Libre
+
+Sources
+Sources

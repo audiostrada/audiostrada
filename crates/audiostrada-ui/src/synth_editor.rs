@@ -40,6 +40,29 @@ pub struct SynthState {
     targets: Vec<(Rect, usize)>,
     /// What the newest note does, read from the meters.
     live: Live,
+    /// The page shown.
+    pub(crate) page: Page,
+}
+
+/// The synth's pages: playing it with its macros, or editing its sound or its modulation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Page {
+    #[default]
+    Play,
+    Sound,
+    Modulation,
+}
+
+impl Page {
+    pub(crate) const ALL: [Page; 3] = [Page::Play, Page::Sound, Page::Modulation];
+
+    fn name(self) -> &'static str {
+        match self {
+            Page::Play => "Perform",
+            Page::Sound => "Sound",
+            Page::Modulation => "Modulation",
+        }
+    }
 }
 
 /// What the synth does now, from its meters.
@@ -80,6 +103,7 @@ impl Default for SynthState {
             dragging: None,
             targets: Vec::new(),
             live: Live::default(),
+            page: Page::Play,
         }
     }
 }
@@ -166,7 +190,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             preset(name, &all)
         };
     // Waves: 0 saw, 1 square, 2 sine, 3 triangle. Modes: 0 poly, 1 mono, 2 legato.
-    vec![
+    let mut presets = vec![
         preset(tr("Init"), &[]),
         sound(
             tr("Keys: Soft"),
@@ -642,7 +666,47 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             adsr(1500.0, 2000.0, 40.0, 2500.0),
             filter(500.0, 70.0, 100.0),
         ),
-    ]
+    ];
+    for sound in presets.iter_mut().skip(1) {
+        give_macros(sound);
+    }
+    presets
+}
+
+/// Routes the four macros of a factory sound, where it left them free: brightness,
+/// resonance, grit, then the wavetable's position or some air.
+fn give_macros(sound: &mut crate::presets::Preset) {
+    use audiostrada_dsp::synth::{SLOTS, WAVETABLE, target};
+    let get = |p: &crate::presets::Preset, id: &str| p.params.get(id).copied().unwrap_or(0.0);
+    let wavetable = get(sound, "wave").round() as u32 == WAVETABLE;
+    let fourth = if wavetable {
+        (target::OSC1_POSITION, 60.0)
+    } else {
+        (target::NOISE, 25.0)
+    };
+    let wanted = [
+        (target::CUTOFF, 40.0),
+        (target::RESONANCE, 50.0),
+        (target::DRIVE, 60.0),
+        fourth,
+    ];
+    for (m, (to, amount)) in wanted.into_iter().enumerate() {
+        let source = (m + 7) as f32;
+        let used = |p: &crate::presets::Preset, k: usize| get(p, &format!("mod{k}_source")) > 0.0;
+        if (1..=SLOTS).any(|k| used(sound, k) && get(sound, &format!("mod{k}_source")) == source) {
+            continue;
+        }
+        let Some(k) = (1..=SLOTS).find(|&k| !used(sound, k)) else {
+            return;
+        };
+        for (field, v) in [
+            ("source", source),
+            ("target", to as f32),
+            ("amount", amount),
+        ] {
+            sound.params.insert(format!("mod{k}_{field}"), v);
+        }
+    }
 }
 
 /// Color of each modulation source, as on its pill, its ring and its routing.
@@ -840,7 +904,6 @@ fn drop_source(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
 }
 
 pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthState) {
-    let p = theme::current(ui);
     state.targets.clear();
     let live = Live::read(meters);
     state.live = live.clone();
@@ -850,142 +913,13 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
     let full = ui.available_width();
     hero(ui, meters, &live);
     ui.add_space(GAP);
-    // Three columns kept from row to row: the two oscillators' width, then a narrow one.
-    row(ui, full, &[1, 1, 1], 112.0, |ui, c| match c {
-        0 | 1 => oscillator(ui, params, state, c + 1),
-        _ => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Sub and noise"), p.weak);
-                segmented(ui, params, "sub_octave", &[]);
-            });
-            spread(ui, 2, |ui, k| {
-                let (id, name) = [("sub_level", tr("Sub")), ("noise", tr("Noise"))][k];
-                mod_knob(ui, params, state, id, name);
-            });
-        }),
-    });
-    row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
-        0 | 1 => screen(ui, |ui| wavetable_half(ui, params, state, c + 1)),
-        _ => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Voice"), p.weak);
-                segmented(
-                    ui,
-                    params,
-                    "mode",
-                    &[
-                        "Chords: every note plays",
-                        "One note at a time, each with its attack",
-                        "One note at a time, a new note slides on without a new attack",
-                    ],
-                )
-            });
-            ui.add_space(6.0);
-            spread(ui, 3, |ui, k| {
-                let (id, name) = [
-                    ("glide", tr("Glide")),
-                    ("spread", tr("Stereo")),
-                    ("drift", tr("Drift")),
-                ][k];
-                mod_knob(ui, params, state, id, name);
-            });
-        }),
-    });
-    row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
-        0 => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Filter"), p.weak);
-                choice_box(ui, params, "filter_type");
-                let size = vec2(ui.available_width(), 40.0);
-                filter_curve(ui, params, size, live.cutoff);
-            });
-            spread(ui, 5, |ui, k| {
-                let (id, name) = [
-                    ("cutoff", tr("Cutoff")),
-                    ("resonance", tr("Resonance")),
-                    ("env_amount", tr("Envelope")),
-                    ("drive", tr("Drive")),
-                    ("key_track", tr("Key track")),
-                ][k];
-                mod_knob(ui, params, state, id, name);
-            });
-        }),
-        1 => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Envelope"), p.weak);
-                let width = ui.available_width();
-                envelope(ui, params, vec2(width, 40.0), live.envelope);
-            });
-            spread(ui, 4, |ui, k| {
-                let (id, name) = [
-                    ("attack", tr("Attack")),
-                    ("decay", tr("Decay")),
-                    ("sustain", tr("Sustain")),
-                    ("release", tr("Release")),
-                ][k];
-                mod_knob(ui, params, state, id, name);
-            });
-        }),
-        _ => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Output"), p.weak);
-                params.toggle(ui, "mpe", |ui, on| {
-                    let response = pill_switch(ui, *on, tr("MPE")).on_hover_text(tr(
-                        "For MPE controllers (Roli Seaboard, LinnStrument, Osmose...), which \
-                         send each note on its own MIDI channel: bend, pressure and slide then \
-                         shape every note on its own. Leave it off for an ordinary keyboard.",
-                    ));
-                    if response.clicked() {
-                        *on = !*on;
-                    }
-                    response
-                });
-            });
-            spread(ui, 3, |ui, k| {
-                let (id, name) = [
-                    ("volume", tr("Volume")),
-                    ("velocity", tr("Velocity")),
-                    ("bend_range", tr("Bend")),
-                ][k];
-                mod_knob(ui, params, state, id, name);
-            });
-        }),
-    });
-    row(ui, full, &[1, 1, 1], 100.0, |ui, c| match c {
-        0 | 1 => lfo(ui, params, state, c + 1),
-        _ => panel(ui, |ui| {
-            source_pill(ui, state, 3);
-            spread(ui, 4, |ui, k| {
-                let (field, name) = [
-                    ("attack", tr("A")),
-                    ("decay", tr("D")),
-                    ("sustain", tr("S")),
-                    ("release", tr("R")),
-                ][k];
-                wide_knob(ui, params, &format!("env2_{field}"), name, 30.0, p.accent);
-            });
-        }),
-    });
-    // Macros and what the player does, then the routings over the two other columns.
-    row(ui, full, &[1, 2], 92.0, |ui, c| match c {
-        0 => panel(ui, |ui| {
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width((ui.available_width() - 110.0).max(200.0));
-                    spread(ui, 4, |ui, k| {
-                        source_pill(ui, state, k + 7);
-                        wide_knob(ui, params, &format!("macro{}", k + 1), "", 30.0, p.accent);
-                    });
-                });
-                ui.vertical(|ui| {
-                    for source in 4..=6 {
-                        source_pill(ui, state, source);
-                    }
-                });
-            });
-        }),
-        _ => routings(ui, params),
-    });
+    pages(ui, state);
+    ui.add_space(GAP);
+    match state.page {
+        Page::Play => play(ui, params, state, full),
+        Page::Sound => sound(ui, params, state, full, &live),
+        Page::Modulation => modulation(ui, params, state, full),
+    }
     keyboard(ui, params, state);
     drop_source(ui, params, state);
 }
@@ -1146,6 +1080,234 @@ fn wavetable_file(ui: &mut Ui, params: &mut Params, n: usize) {
                 ui.weak(tr("No file loaded"));
             }
         }
+    });
+}
+
+/// The sound: oscillators, wavetables, voice, filter, envelope and output, with the sources
+/// at hand to drop on them.
+fn sound(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full: f32, live: &Live) {
+    let p = theme::current(ui);
+    sources_bar(ui, state);
+    ui.add_space(GAP);
+    // Three columns kept from row to row: the two oscillators' width, then a narrow one.
+    row(ui, full, &[1, 1, 1], 112.0, |ui, c| match c {
+        0 | 1 => oscillator(ui, params, state, c + 1),
+        _ => panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                title(ui, tr("Sub and noise"), p.weak);
+                segmented(ui, params, "sub_octave", &[]);
+            });
+            spread(ui, 2, |ui, k| {
+                let (id, name) = [("sub_level", tr("Sub")), ("noise", tr("Noise"))][k];
+                mod_knob(ui, params, state, id, name);
+            });
+        }),
+    });
+    row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
+        0 | 1 => screen(ui, |ui| wavetable_half(ui, params, state, c + 1)),
+        _ => panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                title(ui, tr("Voice"), p.weak);
+                segmented(
+                    ui,
+                    params,
+                    "mode",
+                    &[
+                        "Chords: every note plays",
+                        "One note at a time, each with its attack",
+                        "One note at a time, a new note slides on without a new attack",
+                    ],
+                )
+            });
+            ui.add_space(6.0);
+            spread(ui, 3, |ui, k| {
+                let (id, name) = [
+                    ("glide", tr("Glide")),
+                    ("spread", tr("Stereo")),
+                    ("drift", tr("Drift")),
+                ][k];
+                mod_knob(ui, params, state, id, name);
+            });
+        }),
+    });
+    row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
+        0 => panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                title(ui, tr("Filter"), p.weak);
+                choice_box(ui, params, "filter_type");
+                let size = vec2(ui.available_width(), 40.0);
+                filter_curve(ui, params, size, live.cutoff);
+            });
+            spread(ui, 5, |ui, k| {
+                let (id, name) = [
+                    ("cutoff", tr("Cutoff")),
+                    ("resonance", tr("Resonance")),
+                    ("env_amount", tr("Envelope")),
+                    ("drive", tr("Drive")),
+                    ("key_track", tr("Key track")),
+                ][k];
+                mod_knob(ui, params, state, id, name);
+            });
+        }),
+        1 => panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                title(ui, tr("Envelope"), p.weak);
+                let width = ui.available_width();
+                envelope(ui, params, vec2(width, 40.0), live.envelope);
+            });
+            spread(ui, 4, |ui, k| {
+                let (id, name) = [
+                    ("attack", tr("Attack")),
+                    ("decay", tr("Decay")),
+                    ("sustain", tr("Sustain")),
+                    ("release", tr("Release")),
+                ][k];
+                mod_knob(ui, params, state, id, name);
+            });
+        }),
+        _ => panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                title(ui, tr("Output"), p.weak);
+                params.toggle(ui, "mpe", |ui, on| {
+                    let response = pill_switch(ui, *on, tr("MPE")).on_hover_text(tr(
+                        "For MPE controllers (Roli Seaboard, LinnStrument, Osmose...), which \
+                         send each note on its own MIDI channel: bend, pressure and slide then \
+                         shape every note on its own. Leave it off for an ordinary keyboard.",
+                    ));
+                    if response.clicked() {
+                        *on = !*on;
+                    }
+                    response
+                });
+            });
+            spread(ui, 3, |ui, k| {
+                let (id, name) = [
+                    ("volume", tr("Volume")),
+                    ("velocity", tr("Velocity")),
+                    ("bend_range", tr("Bend")),
+                ][k];
+                mod_knob(ui, params, state, id, name);
+            });
+        }),
+    });
+}
+
+/// The modulation: LFOs, second envelope, macros, what the player does, and the routings.
+fn modulation(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full: f32) {
+    let p = theme::current(ui);
+    row(ui, full, &[1, 1, 1], 100.0, |ui, c| match c {
+        0 | 1 => lfo(ui, params, state, c + 1),
+        _ => panel(ui, |ui| {
+            source_pill(ui, state, 3);
+            spread(ui, 4, |ui, k| {
+                let (field, name) = [
+                    ("attack", tr("A")),
+                    ("decay", tr("D")),
+                    ("sustain", tr("S")),
+                    ("release", tr("R")),
+                ][k];
+                wide_knob(ui, params, &format!("env2_{field}"), name, 30.0, p.accent);
+            });
+        }),
+    });
+    // Macros and what the player does, then the routings over the two other columns.
+    row(ui, full, &[1, 2], 92.0, |ui, c| match c {
+        0 => panel(ui, |ui| {
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    ui.set_width((ui.available_width() - 110.0).max(200.0));
+                    spread(ui, 4, |ui, k| {
+                        source_pill(ui, state, k + 7);
+                        wide_knob(ui, params, &format!("macro{}", k + 1), "", 30.0, p.accent);
+                    });
+                });
+                ui.vertical(|ui| {
+                    for source in 4..=6 {
+                        source_pill(ui, state, source);
+                    }
+                });
+            });
+        }),
+        _ => routings(ui, params),
+    });
+}
+
+/// The tabs between the pages.
+fn pages(ui: &mut Ui, state: &mut SynthState) {
+    ui.horizontal(|ui| {
+        for page in Page::ALL {
+            let on = state.page == page;
+            let text = RichText::new(tr(page.name())).size(13.0);
+            if ui.add(egui::Button::selectable(on, text)).clicked() {
+                state.page = page;
+            }
+        }
+        ui.add_space(12.0);
+        ui.weak(tr(match state.page {
+            Page::Play => "Turn the macros to shape the preset",
+            Page::Sound => "Drag a source onto a knob to modulate it",
+            Page::Modulation => "Where the movement comes from, and where it goes",
+        }));
+    });
+}
+
+/// The sources, as pills to drag onto the sound's knobs.
+fn sources_bar(ui: &mut Ui, state: &mut SynthState) {
+    ui.horizontal(|ui| {
+        ui.weak(tr("Sources"));
+        for source in 1..audiostrada_dsp::synth::SOURCES.len() {
+            source_pill(ui, state, source);
+        }
+    });
+}
+
+/// The macros, big, named after what they move, and the volume.
+fn play(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full: f32) {
+    let p = theme::current(ui);
+    let list = routes(params);
+    row(ui, full, &[3], 190.0, |ui, _| {
+        panel(ui, |ui| {
+            ui.add_space(8.0);
+            spread(ui, 5, |ui, k| {
+                if k == 4 {
+                    ui.add_space(24.0);
+                    ui.label(RichText::new(tr("Volume")).size(15.0).strong());
+                    wide_knob(ui, params, "volume", "", 72.0, p.accent);
+                    return;
+                }
+                let source = k + 7;
+                let moves: Vec<&str> = list
+                    .iter()
+                    .filter(|r| r.1 == source)
+                    .map(|r| tr(audiostrada_dsp::synth::TARGETS[r.2]))
+                    .collect();
+                source_pill(ui, state, source);
+                let name = match moves.as_slice() {
+                    [] => tr("Free").to_owned(),
+                    [one] => (*one).to_owned(),
+                    [one, two] => format!("{one} + {two}"),
+                    [one, ..] => format!("{one} + …"),
+                };
+                let color = if moves.is_empty() {
+                    p.weak
+                } else {
+                    source_color(source)
+                };
+                let ink = if moves.is_empty() { p.weak } else { p.text };
+                ui.label(RichText::new(name).size(15.0).strong().color(ink));
+                wide_knob(ui, params, &format!("macro{}", k + 1), "", 72.0, color);
+                if moves.is_empty() {
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(tr("Drag it onto a knob in Sound"))
+                                .weak()
+                                .size(10.5),
+                        )
+                        .wrap(),
+                    );
+                }
+            });
+        });
     });
 }
 
@@ -2200,7 +2362,10 @@ mod tests {
         let channel = Channel::Track(doc.project().tracks[0].id);
         let info = audiostrada_dsp::info("synth").unwrap();
         let ctx = egui::Context::default();
-        let mut state = SynthState::default();
+        let mut state = SynthState {
+            page: Page::Sound,
+            ..Default::default()
+        };
         let frame = |doc: &mut Document, state: &mut SynthState, events: Vec<Event>| {
             let input = RawInput {
                 screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 1100.0))),
