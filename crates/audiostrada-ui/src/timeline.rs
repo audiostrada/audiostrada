@@ -1392,6 +1392,44 @@ mod tests {
         }
 
         #[test]
+        fn the_smart_tool_draws_a_range_above_and_moves_below() {
+            let (mut h, doc, tracks) = harness();
+            let lanes = h.view.lanes_rect;
+            let x = |s: u64, h: &Harness| {
+                lanes.left() + ((s as f64 - h.view.scroll) / h.view.zoom) as f32
+            };
+            let top = |i: usize, h: &Harness| lanes.top() + h.view.tops[i];
+            let start = |doc: &Rc<RefCell<Document>>| {
+                doc.borrow().project().track(tracks[1]).unwrap().clips[0].start
+            };
+            // Upper half: a range, the clip stays.
+            let y = top(1, &h) + 25.0;
+            h.drag(pos2(x(200, &h), y), pos2(x(800, &h), y));
+            assert!(
+                h.view
+                    .range
+                    .as_ref()
+                    .is_some_and(|r| r.tracks == [tracks[1]])
+            );
+            assert_eq!(start(&doc), 0);
+            // Lower half: the clip moves.
+            let y = top(1, &h) + 55.0;
+            h.drag(pos2(x(500, &h), y), pos2(x(500, &h) + 60.0, y));
+            assert!(start(&doc) > 0);
+            // The eraser deletes the clip clicked.
+            h.view.tool = Tool::Erase;
+            h.click(pos2(x(3500, &h), top(0, &h) + 50.0), Modifiers::NONE);
+            assert_eq!(
+                doc.borrow().project().track(tracks[0]).unwrap().clips.len(),
+                2
+            );
+            // The mute tool mutes it.
+            h.view.tool = Tool::Mute;
+            h.click(pos2(x(500, &h), top(0, &h) + 50.0), Modifiers::NONE);
+            assert!(doc.borrow().project().track(tracks[0]).unwrap().clips[0].muted);
+        }
+
+        #[test]
         fn range_edges_drag_and_shift_click_extends_the_range() {
             let (mut h, doc, tracks) = harness();
             let before = doc.borrow().project().clone();

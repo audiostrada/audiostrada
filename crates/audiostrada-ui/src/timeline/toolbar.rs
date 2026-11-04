@@ -676,18 +676,20 @@ fn paint(painter: &Painter, rect: Rect, glyph: Glyph, color: Color32) {
             arrow(c, pos2(c.x + 0.75 * s, c.y));
         }
         Glyph::Shorter | Glyph::Taller => {
-            for y in [-1.0, 1.0] {
-                painter.line_segment(
-                    [pos2(c.x - s, c.y + y * s), pos2(c.x + s, c.y + y * s)],
-                    stroke,
-                );
-            }
-            if matches!(glyph, Glyph::Taller) {
-                arrow(c, pos2(c.x, c.y - 0.7 * s));
-                arrow(c, pos2(c.x, c.y + 0.7 * s));
+            // Rows of tracks: three low ones, or two tall ones.
+            let rows = if matches!(glyph, Glyph::Shorter) {
+                3
             } else {
-                arrow(pos2(c.x, c.y - 0.75 * s), pos2(c.x, c.y - 0.1 * s));
-                arrow(pos2(c.x, c.y + 0.75 * s), pos2(c.x, c.y + 0.1 * s));
+                2
+            };
+            let h = 2.0 * s / rows as f32;
+            for r in 0..rows {
+                let top = c.y - s + r as f32 * h;
+                painter.rect_filled(
+                    Rect::from_min_max(pos2(c.x - s, top + 1.0), pos2(c.x + s, top + h - 1.0)),
+                    1.5,
+                    color,
+                );
             }
         }
         Glyph::Waveform => wave(0.75),
