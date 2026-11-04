@@ -23,6 +23,18 @@ pub const TABLES: [&str; 9] = [
     "Organ",
     "Loaded file",
 ];
+/// What each table does, in a few words.
+pub const TABLE_HINTS: [&str; 9] = [
+    "Sine, triangle, saw then square: from soft to bright",
+    "A saw built up harmonic by harmonic: opens like a filter",
+    "A square narrowing to a thin pulse: hollow, nasal sweeps",
+    "A voice going through the vowels a, e, i, o, u: talking pads and basses",
+    "Partials climbing the spectrum: bells first, then harsh metal",
+    "A saw restarted every cycle, rising in pitch: the screaming sync lead",
+    "A sine folded back harder and harder: growling, gritty basses",
+    "Drawbars pulled out one by one: from a flute to the full organ",
+    "Your own WAV file, cut into frames of 2048 samples as Serum and Vital save them",
+];
 /// The table loaded from a file.
 pub const LOADED: usize = TABLES.len() - 1;
 

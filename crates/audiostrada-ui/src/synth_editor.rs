@@ -14,6 +14,8 @@ use crate::effect_editors::{
 };
 use crate::i18n::tr;
 use crate::theme;
+use crate::trf;
+use audiostrada_dsp::wavetable::Table;
 
 /// Octaves shown on the keyboard.
 const OCTAVES: i32 = 3;
@@ -876,15 +878,9 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
             ),
         ] {
             section_frame(ui, tr(title), p.weak, height, |ui| {
-                let n = if wave == "wave" { 1 } else { 2 };
-                let table = params.get(wave).round() as u32 == audiostrada_dsp::synth::WAVETABLE;
                 ui.horizontal(|ui| {
                     wave_picker(ui, params, wave);
-                    if table {
-                        choice_box(ui, params, &format!("osc{n}_table"));
-                    } else {
-                        oscillator_view(ui, params, wave, ids[3], level);
-                    }
+                    oscillator_view(ui, params, wave, ids[3], level);
                 });
                 ui.add_space(2.0);
                 ui.horizontal(|ui| {
@@ -896,16 +892,6 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
                         tr("Unison"),
                         tr("Detune"),
                     ];
-                    if table {
-                        wavetable_view(ui, params, n, vec2(110.0, 50.0));
-                        mod_knob(
-                            ui,
-                            params,
-                            state,
-                            &format!("osc{n}_position"),
-                            tr("Position"),
-                        );
-                    }
                     for (id, name) in ids.iter().zip(names) {
                         mod_knob(ui, params, state, id, name);
                     }
@@ -923,6 +909,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
             });
         });
     });
+    wavetables(ui, params, state);
     ui.add_space(6.0);
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
@@ -1166,6 +1153,117 @@ fn routings(ui: &mut Ui, params: &mut Params) {
     });
 }
 
+/// The two oscillators' wavetables on a dark screen, when one plays one: each one's table,
+/// what it does, its frames with the position, and the file it may play.
+fn wavetables(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
+    use audiostrada_dsp::synth::WAVETABLE;
+    let used = ["wave", "osc2_wave"].map(|w| params.get(w).round() as u32 == WAVETABLE);
+    if !used.contains(&true) {
+        return;
+    }
+    ui.add_space(6.0);
+    egui::Frame::new()
+        .fill(SCREEN)
+        .corner_radius(10.0)
+        .inner_margin(egui::Margin::symmetric(14, 10))
+        .show(ui, |ui| {
+            // Light controls on the dark screen, whatever the theme.
+            let selection = ui.visuals().selection;
+            *ui.visuals_mut() = egui::Visuals::dark();
+            ui.visuals_mut().selection = selection;
+            ui.set_width(ui.available_width());
+            ui.columns(2, |columns| {
+                for (k, column) in columns.iter_mut().enumerate() {
+                    wavetable_half(column, params, state, k + 1, used[k]);
+                }
+            });
+        });
+}
+
+const ABOUT_WAVETABLES: &str = "A wavetable is a row of waves: the position glides from one \
+     to the next, so the sound changes as it plays. Move it with an LFO or an envelope.";
+
+/// The screen behind the scope and the wavetables.
+const SCREEN: Color32 = Color32::from_rgb(12, 16, 22);
+
+fn wavetable_half(ui: &mut Ui, params: &mut Params, state: &mut SynthState, n: usize, used: bool) {
+    use audiostrada_dsp::wavetable::{LOADED, TABLE_HINTS};
+    let p = theme::current(ui);
+    let wave = if n == 1 { "wave" } else { "osc2_wave" };
+    let table = format!("osc{n}_table");
+    ui.horizontal(|ui| {
+        let title = [tr("Wavetable 1"), tr("Wavetable 2")][n - 1];
+        ui.label(RichText::new(title).strong().size(12.5).color(p.accent))
+            .on_hover_text(tr(ABOUT_WAVETABLES));
+        if used {
+            choice_box(ui, params, &table);
+        }
+    });
+    if !used {
+        ui.add_space(6.0);
+        ui.add(egui::Label::new(RichText::new(tr(ABOUT_WAVETABLES)).weak().size(11.0)).wrap());
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.weak(trf!("Oscillator {n} plays another wave.", n = n));
+            let response = ui.button(trf!("Play it on oscillator {n}", n = n));
+            if response.clicked() {
+                let v = audiostrada_dsp::synth::WAVETABLE as f32;
+                params.set(wave, Some(v), &response);
+            }
+        });
+        return;
+    }
+    let kind = (params.get(&table).round().max(0.0) as usize).min(LOADED);
+    ui.add(egui::Label::new(RichText::new(tr(TABLE_HINTS[kind])).weak().size(11.0)).wrap());
+    ui.add_space(4.0);
+    ui.horizontal_top(|ui| {
+        let width = (ui.available_width() - 70.0).clamp(160.0, 320.0);
+        wavetable_view(ui, params, n, vec2(width, 92.0));
+        mod_knob(
+            ui,
+            params,
+            state,
+            &format!("osc{n}_position"),
+            tr("Position"),
+        );
+    });
+    // The file it may play: loading one plays it at once.
+    let info = params.info;
+    let slot = &info.files[n - 1];
+    let loaded = {
+        let project = params.doc.project();
+        audiostrada_core::routing::find_insert(project, params.channel, params.insert)
+            .and_then(|i| i.files.get(slot.id).cloned())
+    };
+    ui.horizontal(|ui| {
+        match &loaded {
+            Some(path) => {
+                let name = path
+                    .file_stem()
+                    .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
+                ui.label(RichText::new(name).size(11.0))
+                    .on_hover_text(path.display().to_string());
+                if let Some(Err(e)) = params.doc.player().effect_file(params.insert, slot.id) {
+                    ui.colored_label(crate::settings::ERROR, e);
+                }
+            }
+            None => {
+                ui.weak(tr("No file loaded"));
+            }
+        }
+        let (doc, channel, insert) = (&mut *params.doc, params.channel, params.insert);
+        if crate::mixer::load_button(ui, doc, channel, insert, slot) {
+            let response = ui.response();
+            params.set(&table, Some(LOADED as f32), &response);
+        }
+        if loaded.is_some() && ui.button(tr("Remove")).clicked() {
+            let _ = params
+                .doc
+                .set_effect_file(params.channel, params.insert, slot.id, None);
+        }
+    });
+}
+
 /// The frames of an oscillator's wavetable in depth, the one at the position lit, as the
 /// position (with its modulation) moves through them.
 fn wavetable_view(ui: &mut Ui, params: &mut Params, n: usize, size: egui::Vec2) {
@@ -1174,9 +1272,10 @@ fn wavetable_view(ui: &mut Ui, params: &mut Params, n: usize, size: egui::Vec2) 
     let p = theme::current(ui);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 6.0, Color32::from_rgb(12, 16, 22));
+    painter.rect_filled(rect, 6.0, Color32::from_rgb(20, 26, 34));
     let kind = params.get(&format!("osc{n}_table")).round() as usize;
-    let Some(table) = (kind < LOADED).then(|| factory().get(kind)).flatten() else {
+    let loaded = (kind >= LOADED).then(|| loaded_table(params, n)).flatten();
+    let Some(table) = loaded.or_else(|| factory().get(kind).cloned()) else {
         painter.text(
             rect.center(),
             Align2::CENTER_CENTER,
@@ -1228,6 +1327,31 @@ fn wavetable_view(ui: &mut Ui, params: &mut Params, n: usize, size: egui::Vec2) 
     }
 }
 
+/// The table read from oscillator `n`'s file, for drawing; read once per file.
+fn loaded_table(params: &mut Params, n: usize) -> Option<std::sync::Arc<Table>> {
+    let slot = params.info.files.get(n - 1)?;
+    let path = audiostrada_core::routing::find_insert(
+        params.doc.project(),
+        params.channel,
+        params.insert,
+    )?
+    .files
+    .get(slot.id)?
+    .clone();
+    type Cache = std::collections::HashMap<std::path::PathBuf, Option<std::sync::Arc<Table>>>;
+    static CACHE: std::sync::Mutex<Option<Cache>> = std::sync::Mutex::new(None);
+    let mut cache = CACHE.lock().ok()?;
+    cache
+        .get_or_insert_with(Default::default)
+        .entry(path.clone())
+        .or_insert_with(|| {
+            let audio = audiostrada_media::load(&path).ok()?;
+            let samples = audio.channel(0).to_vec();
+            Table::from_samples(&samples).ok().map(std::sync::Arc::new)
+        })
+        .clone()
+}
+
 /// An LFO's wave over one cycle, with a dot where it is now.
 fn lfo_view(ui: &mut Ui, params: &mut Params, l: usize, phase: f32) {
     use audiostrada_dsp::filter::lfo_value;
@@ -1268,7 +1392,7 @@ fn hero(ui: &mut Ui, meters: &[f32], live: &Live) {
     let (rect, _) = ui.allocate_exact_size(vec2(width, 84.0), Sense::hover());
     let painter = ui.painter_at(rect);
     // A deep screen whatever the theme, as on hardware.
-    let screen = Color32::from_rgb(12, 16, 22);
+    let screen = SCREEN;
     painter.rect_filled(rect, 10.0, screen);
     let scope = Rect::from_min_max(
         rect.min + vec2(14.0, 10.0),
@@ -1356,6 +1480,21 @@ fn oscillator_view(ui: &mut Ui, params: &mut Params, wave: &str, voices: &str, l
     let gain = (params.get(level) / 100.0).clamp(0.0, 1.0);
     let inner = rect.shrink2(vec2(6.0, 4.0));
     let time = ui.input(|i| i.time) as f32;
+    // A wavetable draws the frame at its position.
+    let frame: Option<Vec<f32>> = (kind == audiostrada_dsp::synth::WAVETABLE as usize)
+        .then(|| {
+            use audiostrada_dsp::wavetable::{LOADED, factory};
+            let n = if wave == "wave" { 1 } else { 2 };
+            let choice = params.get(&format!("osc{n}_table")).round() as usize;
+            let position = params.get(&format!("osc{n}_position")) / 100.0;
+            let table = if choice >= LOADED {
+                loaded_table(params, n)
+            } else {
+                factory().get(choice).cloned()
+            }?;
+            Some(table.frame(position).to_vec())
+        })
+        .flatten();
     for k in 0..n.min(7) {
         let offset = if n > 1 {
             k as f32 / n as f32 * 0.35 + time * 0.05 * k as f32
@@ -1377,7 +1516,10 @@ fn oscillator_view(ui: &mut Ui, params: &mut Params, wave: &str, voices: &str, l
                         }
                     }
                     2 => (phase * std::f32::consts::TAU).sin(),
-                    _ => 1.0 - 4.0 * (phase - 0.5).abs(),
+                    3 => 1.0 - 4.0 * (phase - 0.5).abs(),
+                    _ => frame.as_ref().map_or(0.0, |f| {
+                        f[((phase * f.len() as f32) as usize).min(f.len() - 1)]
+                    }),
                 };
                 pos2(
                     inner.left() + t * inner.width(),

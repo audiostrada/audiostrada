@@ -3874,3 +3874,48 @@ Lead : Sync
 
 Keys: Organ
 Claviers : Orgue
+
+No file loaded
+Aucun fichier chargé
+
+Oscillator {n} plays another wave.
+L'oscillateur {n} joue une autre onde.
+
+Play it on oscillator {n}
+La jouer sur l'oscillateur {n}
+
+Wavetable 1
+Table d'ondes 1
+
+Wavetable 2
+Table d'ondes 2
+
+A wavetable is a row of waves: the position glides from one to the next, so the sound changes as it plays. Move it with an LFO or an envelope.
+Une table d'ondes est une suite de formes d'onde : la position glisse de l'une à l'autre, et le son change pendant qu'il joue. Faites-la bouger avec un LFO ou une enveloppe.
+
+Sine, triangle, saw then square: from soft to bright
+Sinus, triangle, scie puis carré : du doux au brillant
+
+A saw built up harmonic by harmonic: opens like a filter
+Une scie construite harmonique par harmonique : s'ouvre comme un filtre
+
+A square narrowing to a thin pulse: hollow, nasal sweeps
+Un carré qui s'affine en impulsion : balayages creux et nasillards
+
+A voice going through the vowels a, e, i, o, u: talking pads and basses
+Une voix qui passe par les voyelles a, e, i, o, u : nappes et basses qui parlent
+
+Partials climbing the spectrum: bells first, then harsh metal
+Des partiels qui montent dans le spectre : des cloches, puis un métal dur
+
+A saw restarted every cycle, rising in pitch: the screaming sync lead
+Une scie relancée à chaque cycle et qui monte : le lead sync qui crie
+
+A sine folded back harder and harder: growling, gritty basses
+Un sinus replié de plus en plus fort : basses grondantes et granuleuses
+
+Drawbars pulled out one by one: from a flute to the full organ
+Des tirettes tirées une à une : de la flûte à l'orgue plein
+
+Your own WAV file, cut into frames of 2048 samples as Serum and Vital save them
+Votre propre fichier WAV, découpé en images de 2048 échantillons comme les enregistrent Serum et Vital

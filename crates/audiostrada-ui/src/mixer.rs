@@ -818,29 +818,7 @@ fn effect_files(
                     }
                 });
                 ui.horizontal(|ui| {
-                    let open = ui.button(tr("Load…")).clicked();
-                    let (pack, name, extensions) = (
-                        slot.kind == audiostrada_dsp::FileKind::Pack,
-                        slot.name,
-                        slot.extensions,
-                    );
-                    let id = ("effect-file", channel, insert.id, slot.id);
-                    if let Some(file) = crate::dialogs::ask(ui.ctx(), id, open, move || {
-                        let dialog = rfd::FileDialog::new().set_title(tr(name));
-                        if pack {
-                            dialog.pick_folder()
-                        } else {
-                            dialog.add_filter(tr(name), extensions).pick_file()
-                        }
-                    }) && let Err(e) =
-                        doc.set_effect_file(channel, insert.id, slot.id, Some(&file))
-                    {
-                        doc.notify(trf!(
-                            "Cannot load {file}: {e}",
-                            file = file.display(),
-                            e = e
-                        ));
-                    }
+                    load_button(ui, doc, channel, insert.id, slot);
                     if loaded.is_some() && ui.button(tr("Remove")).clicked() {
                         let _ = doc.set_effect_file(channel, insert.id, slot.id, None);
                     }
@@ -848,6 +826,45 @@ fn effect_files(
                 ui.end_row();
             }
         });
+}
+
+/// "Load…" for an effect's file slot, through the system's file chooser; true once a file
+/// was chosen and loaded.
+pub(crate) fn load_button(
+    ui: &mut Ui,
+    doc: &mut Document,
+    channel: Channel,
+    insert: InsertId,
+    slot: &'static audiostrada_dsp::FileSlot,
+) -> bool {
+    let open = ui.button(tr("Load…")).clicked();
+    let (pack, name, extensions) = (
+        slot.kind == audiostrada_dsp::FileKind::Pack,
+        slot.name,
+        slot.extensions,
+    );
+    let id = ("effect-file", channel, insert, slot.id);
+    let Some(file) = crate::dialogs::ask(ui.ctx(), id, open, move || {
+        let dialog = rfd::FileDialog::new().set_title(tr(name));
+        if pack {
+            dialog.pick_folder()
+        } else {
+            dialog.add_filter(tr(name), extensions).pick_file()
+        }
+    }) else {
+        return false;
+    };
+    match doc.set_effect_file(channel, insert, slot.id, Some(&file)) {
+        Ok(()) => true,
+        Err(e) => {
+            doc.notify(trf!(
+                "Cannot load {file}: {e}",
+                file = file.display(),
+                e = e
+            ));
+            false
+        }
+    }
 }
 
 /// Track name on its color, at the bottom of a strip.
@@ -4462,7 +4479,8 @@ impl MixerView {
                         effect_editors::levels_bar(ui, doc, channel, insert, state);
                     }
                     ui.add_space(4.0);
-                    if !rig && !info.files.is_empty() {
+                    // The synth shows its wavetable files on its own face.
+                    if !rig && !info.files.is_empty() && info.id != "synth" {
                         effect_files(ui, doc, channel, insert, info);
                         ui.separator();
                     }
