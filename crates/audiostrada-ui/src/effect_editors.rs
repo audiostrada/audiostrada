@@ -4748,18 +4748,29 @@ fn drive(ui: &mut Ui, params: &mut Params) {
         FontId::proportional(12.0),
         p.text,
     );
-    let hint = painter.layout(
-        tr(TYPE_HINTS[mode]).to_owned(),
-        FontId::proportional(11.5),
-        p.weak,
-        (rect.right() - info_x - 16.0).max(80.0),
-    );
-    painter.galley(pos2(info_x, rect.top() + 76.0), hint, p.weak);
     ui.add_space(8.0);
-    mode_buttons(ui, params, "mode", &TYPE_HINTS);
-    ui.add_space(6.0);
-    knob_row(ui, params, &["drive", "tone", "level", "mix"], color);
-    ui.horizontal(|ui| knobs(ui, params, &["low_cut", "bias", "bass", "mid"], 44.0, color));
+    cards(ui, params, "mode", &TYPES, &TYPE_HINTS);
+    ui.add_space(8.0);
+    let auto = params.get("auto_gain") >= 0.5;
+    knob_sections(
+        ui,
+        params,
+        &[
+            ("Drive", &["drive", "bias", "low_cut"], None),
+            ("Tone", &["tone", "bass", "mid"], None),
+            (
+                "Output",
+                &["level", "mix"],
+                Some((
+                    "auto_gain",
+                    "Auto gain",
+                    "Keeps the level where it came in, whatever the drive, so that you judge \
+                     the color and not the loudness",
+                )),
+            ),
+        ],
+        &|id| id != "level" || !auto,
+    );
 }
 
 // ---------------------------------------------------------------- Compressor

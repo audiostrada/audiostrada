@@ -1,9 +1,10 @@
 //! Drive: overdrive, distortion, fuzz, tube, tape, transformer or rectifier saturation, with a
 //! low cut before it and tone, bass and middle after it, run four times oversampled so the
-//! clipping does not alias.
+//! clipping does not alias. Auto gain keeps the level where it came in whatever the drive;
+//! drive, level and mix glide.
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
-use crate::{Effect, EffectInfo, ParamInfo, choice, db_to_gain, param};
+use crate::{Effect, EffectInfo, ParamInfo, choice, db_to_gain, param, switch};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "drive",
@@ -41,7 +42,7 @@ pub const TYPE_HINTS: [&str; 7] = [
 const TAPE: u32 = 4;
 const TRANSFORMER: u32 = 5;
 
-const PARAMS: [ParamInfo; 9] = [
+const PARAMS: [ParamInfo; 10] = [
     choice("mode", "Type", &TYPES, 0.0),
     param("drive", "Drive", 0.0, 48.0, 18.0, "dB"),
     param("tone", "Tone", 500.0, 12000.0, 3500.0, "Hz"),
@@ -51,7 +52,11 @@ const PARAMS: [ParamInfo; 9] = [
     param("bias", "Bias", 0.0, 100.0, 0.0, "%"),
     param("bass", "Bass", -12.0, 12.0, 0.0, "dB"),
     param("mid", "Middle", -12.0, 12.0, 0.0, "dB"),
+    switch("auto_gain", "Auto gain", 0.0),
 ];
+const GLIDE_MS: f32 = 15.0;
+/// How fast auto gain follows the level, in ms: slow enough not to pump.
+const AUTO_MS: f32 = 400.0;
 
 /// Filters of each channel, in signal order.
 const LOW_CUT: usize = 0;
@@ -219,7 +224,12 @@ impl Delay {
 #[derive(Debug)]
 pub struct Drive {
     rate: f32,
-    values: [f32; 9],
+    values: [f32; 10],
+    /// Drive, level and mix as they glide, and the auto gain.
+    smooth: [f32; 3],
+    auto: f32,
+    /// Power of the input and of the driven sound, for the auto gain.
+    power: [f32; 2],
     stages: [Oversampler; 2],
     /// The dry signal, delayed as much as the oversampled one.
     dry: [Delay; 2],
@@ -233,6 +243,9 @@ impl Default for Drive {
         Self {
             rate: 48_000.0,
             values: PARAMS.map(|p| p.default),
+            smooth: [db_to_gain(18.0), db_to_gain(-12.0), 1.0],
+            auto: 1.0,
+            power: [0.0; 2],
             stages: [Oversampler::new(Taps::Long), Oversampler::new(Taps::Long)],
             dry: [Delay::default(); 2],
             coefficients: [Coefficients::IDENTITY; FILTERS],
@@ -284,6 +297,8 @@ pub fn transfer(mode: u32, bias: f32, x: f32) -> f32 {
 impl Effect for Drive {
     fn prepare(&mut self, sample_rate: u32, _max_frames: usize) {
         self.rate = sample_rate as f32;
+        let v = self.values;
+        self.smooth = [db_to_gain(v[1]), db_to_gain(v[3]), v[4] / 100.0];
         self.update();
         self.reset();
     }
@@ -296,15 +311,23 @@ impl Effect for Drive {
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
-        let [mode, drive, _, level, mix, _, bias, ..] = self.values;
+        let [mode, drive, _, level, mix, _, bias, _, _, auto_gain] = self.values;
         let mode = mode.round() as u32;
-        let (gain, out, wet) = (db_to_gain(drive), db_to_gain(level), mix / 100.0);
+        let targets = [db_to_gain(drive), db_to_gain(level), mix / 100.0];
+        let glide = crate::time_coefficient(GLIDE_MS, self.rate);
+        let follow = 1.0 - crate::time_coefficient(AUTO_MS, self.rate);
+        let auto_gain = auto_gain >= 0.5;
         let c = &self.coefficients;
-        for (ch, buffer) in [left, right].into_iter().enumerate() {
-            let f = &mut self.filters[ch];
-            for s in buffer.iter_mut() {
-                let dry = *s;
-                let mut x = f64::from(dry);
+        for (l, r) in left.iter_mut().zip(right.iter_mut()) {
+            for (s, t) in self.smooth.iter_mut().zip(targets) {
+                *s = t + glide * (*s - t);
+            }
+            let [gain, out, wet] = self.smooth;
+            let mut driven = [0.0f32; 2];
+            let mut dry = [*l, *r];
+            for ch in 0..2 {
+                let f = &mut self.filters[ch];
+                let mut x = f64::from(dry[ch]);
                 for i in [LOW_CUT, EMPHASIS] {
                     x = f[i].process(&c[i], x);
                 }
@@ -318,9 +341,26 @@ impl Effect for Drive {
                 for i in [TONE, BASS, MID] {
                     toned = f[i].process(&c[i], toned);
                 }
-                let dry = self.dry[ch].tick(dry, LATENCY as usize);
-                *s = dry * (1.0 - wet) + toned as f32 * out * wet;
+                driven[ch] = toned as f32;
+                dry[ch] = self.dry[ch].tick(dry[ch], LATENCY as usize);
             }
+            // Auto gain: the driven sound brought back to the power of the input, both sides
+            // together so that the image holds.
+            if auto_gain {
+                let p_in = 0.5 * (dry[0] * dry[0] + dry[1] * dry[1]);
+                let p_out = 0.5 * (driven[0] * driven[0] + driven[1] * driven[1]);
+                self.power[0] += follow * (p_in - self.power[0]);
+                self.power[1] += follow * (p_out - self.power[1]);
+                if self.power[0] > 1e-8 && self.power[1] > 1e-10 {
+                    let wanted = (self.power[0] / self.power[1]).sqrt().clamp(0.06, 16.0);
+                    self.auto += follow * (wanted - self.auto);
+                }
+            } else {
+                self.auto = 1.0;
+            }
+            let makeup = if auto_gain { self.auto } else { out };
+            *l = dry[0] * (1.0 - wet) + driven[0] * makeup * wet;
+            *r = dry[1] * (1.0 - wet) + driven[1] * makeup * wet;
         }
     }
 
@@ -333,6 +373,7 @@ impl Effect for Drive {
             stage.clear();
         }
         self.dry = [Delay::default(); 2];
+        self.power = [0.0; 2];
         self.filters = [[Biquad::default(); FILTERS]; 2];
         self.dc = [(0.0, 0.0); 2];
     }
@@ -340,7 +381,7 @@ impl Effect for Drive {
 
 impl Drive {
     fn update(&mut self) {
-        let [mode, _, tone, _, _, low_cut, _, bass, mid] = self.values;
+        let [mode, _, tone, _, _, low_cut, _, bass, mid, _] = self.values;
         let rate = f64::from(self.rate);
         let design = |kind, f: f32, q, gain: f32| {
             Coefficients::design(kind, f64::from(f), q, f64::from(gain), rate)
@@ -510,5 +551,32 @@ mod tests {
             wet.abs_diff(latency) <= 3,
             "wet at {wet}, latency {latency}"
         );
+    }
+
+    #[test]
+    fn auto_gain_keeps_the_level_whatever_the_drive() {
+        let level = |drive: f32| {
+            let mut fx = Drive::default();
+            fx.set_param(1, drive);
+            fx.set_param(9, 1.0);
+            fx.prepare(48_000, 4800);
+            let (mut l, mut r): (Vec<f32>, Vec<f32>) = (0..96_000)
+                .map(|i| {
+                    let s = 0.2 * (i as f32 * 220.0 * std::f32::consts::TAU / 48_000.0).sin();
+                    (s, s)
+                })
+                .unzip();
+            fx.process(&mut l, &mut r);
+            let tail = &l[72_000..];
+            (tail.iter().map(|s| s * s).sum::<f32>() / tail.len() as f32).sqrt()
+        };
+        let input = 0.2 / std::f32::consts::SQRT_2;
+        for drive in [6.0, 24.0, 42.0] {
+            let rms = level(drive);
+            assert!(
+                (crate::gain_to_db(rms / input)).abs() < 1.0,
+                "{drive} dB of drive: {rms}"
+            );
+        }
     }
 }
