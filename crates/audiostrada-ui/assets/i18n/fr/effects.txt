@@ -4000,3 +4000,141 @@ Les réglages qui façonnent le plus le son
 
 Every control: wavetables, LFOs, routings, FM...
 Tous les réglages : tables d'ondes, LFO, liaisons, FM...
+
+Bell: Classic
+Cloche : Classique
+
+Bass: 808
+Basse : 808
+
+Bass: Funk
+Basse : Funk
+
+Bass: Ladder
+Basse : Ladder
+
+Bass: Pluck
+Basse : Pincée
+
+Bass: Hoover
+Basse : Hoover
+
+Lead: Saw solo
+Lead : Solo en scie
+
+Lead: Square
+Lead : Carré
+
+Lead: Whistle
+Lead : Sifflet
+
+Lead: Screamer
+Lead : Hurleur
+
+Lead: Fold
+Lead : Repli
+
+Keys: Clav
+Claviers : Clavinet
+
+Keys: Bright FM
+Claviers : FM brillant
+
+Keys: Wurly
+Claviers : Wurly
+
+Pad: Dark
+Nappe : Sombre
+
+Pad: PWM
+Nappe : PWM
+
+Pad: Sweep
+Nappe : Balayage
+
+Pad: Choir
+Nappe : Chœur
+
+Strings: Slow
+Cordes : Lentes
+
+Strings: Pizzicato
+Cordes : Pizzicato
+
+Brass: Stab
+Cuivres : Stab
+
+Brass: Soft horns
+Cuivres : Cors doux
+
+Pluck: Soft
+Pluck : Doux
+
+Pluck: Harp
+Pluck : Harpe
+
+Pluck: Muted
+Pluck : Étouffé
+
+Pluck: Square
+Pluck : Carré
+
+Pluck: Kalimba
+Pluck : Kalimba
+
+Bell: Marimba
+Cloche : Marimba
+
+Bell: Vibraphone
+Cloche : Vibraphone
+
+Bell: Celesta
+Cloche : Célesta
+
+Poly: Juno
+Poly : Juno
+
+Poly: House stab
+Poly : Stab house
+
+Poly: Detuned
+Poly : Désaccordé
+
+Poly: Sync chords
+Poly : Accords sync
+
+Poly: Soft square
+Poly : Carré doux
+
+Arp: Down sequence
+Arpège : Séquence descendante
+
+Arp: Acid line
+Arpège : Ligne acid
+
+Arp: Chime
+Arpège : Carillon
+
+Atmosphere: Wind
+Ambiance : Vent
+
+Atmosphere: Drone
+Ambiance : Drone
+
+Atmosphere: Shimmer
+Ambiance : Scintillement
+
+Atmosphere: Dark matter
+Ambiance : Matière noire
+
+FX: Riser
+FX : Montée
+
+FX: Laser
+FX : Laser
+
+FX: Alarm
+FX : Alarme
+
+FX: Sci-fi
+FX : Science-fiction
