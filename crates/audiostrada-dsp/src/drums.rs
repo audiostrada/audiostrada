@@ -1,11 +1,19 @@
-//! Drum machine in the spirit of the 808: twelve analog-style voices synthesized from sines,
-//! squares and noise, on the General MIDI drum notes. Each voice has its level, tune, decay and
-//! tone; the closed hat chokes the open one.
+//! Drum machine: sixteen pads on the General MIDI drum notes. Each drum is built from a recipe
+//! of layers (a tuned body with its pitch drop, two more modes, filtered noise, a click, a bank
+//! of metallic oscillators, the bursts of a clap) in three characters: 808, 909 and acoustic.
+//! A pad can play a WAV file instead. Level, pan, tune, decay and tone per pad; accent, drive,
+//! room and crush for the kit. The closed hat chokes the open one.
 
-use crate::{Effect, EffectInfo, MidiEvent, ParamInfo, db_to_gain, param};
+use std::sync::Arc;
 
-/// Voices: identifier, name, and the MIDI note of its pad.
-pub const VOICES: [(&str, &str, u8); 12] = [
+use crate::{
+    Effect, EffectInfo, FileData, FileKind, FileSlot, MidiEvent, ParamInfo, choice, db_to_gain,
+    param,
+};
+
+/// Pads: identifier, name, and the MIDI note it answers to. The first twelve keep their place
+/// from the first version, so that saved kits keep their settings.
+pub const VOICES: [(&str, &str, u8); 16] = [
     ("kick", "Kick", 36),
     ("rim", "Rim shot", 37),
     ("snare", "Snare", 38),
@@ -15,29 +23,87 @@ pub const VOICES: [(&str, &str, u8); 12] = [
     ("low_tom", "Low tom", 45),
     ("mid_tom", "Mid tom", 47),
     ("high_tom", "High tom", 50),
-    ("cymbal", "Cymbal", 49),
+    ("cymbal", "Crash", 49),
     ("cowbell", "Cowbell", 56),
     ("clave", "Clave", 75),
+    ("kick2", "Kick 2", 35),
+    ("snare2", "Snare 2", 40),
+    ("ride", "Ride", 51),
+    ("tambourine", "Tambourine", 54),
 ];
 
+/// The pads in the order the editor lays them out, by family.
+pub const LAYOUT: [usize; 16] = [0, 12, 2, 13, 3, 1, 4, 5, 6, 7, 8, 9, 14, 15, 10, 11];
+
+/// What sort of drum each pad is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    Kick,
+    Snare,
+    Clap,
+    Closed,
+    Open,
+    Tom(u8),
+    Crash,
+    Ride,
+    Cowbell,
+    Rim,
+    Clave,
+    Tambourine,
+}
+
+pub const KINDS: [Kind; 16] = [
+    Kind::Kick,
+    Kind::Rim,
+    Kind::Snare,
+    Kind::Clap,
+    Kind::Closed,
+    Kind::Open,
+    Kind::Tom(0),
+    Kind::Tom(1),
+    Kind::Tom(2),
+    Kind::Crash,
+    Kind::Cowbell,
+    Kind::Clave,
+    Kind::Kick,
+    Kind::Snare,
+    Kind::Ride,
+    Kind::Tambourine,
+];
+
+/// The characters a pad can have.
+pub const MODELS: [&str; 3] = ["808", "909", "Acoustic"];
+
+#[cfg(test)]
 const KICK: usize = 0;
-const RIM: usize = 1;
-const SNARE: usize = 2;
-const CLAP: usize = 3;
 const CLOSED: usize = 4;
 const OPEN: usize = 5;
-const LOW_TOM: usize = 6;
-const MID_TOM: usize = 7;
-const HIGH_TOM: usize = 8;
-const CYMBAL: usize = 9;
-const COWBELL: usize = 10;
-const CLAVE: usize = 11;
 
-/// Parameters per voice, in this order: level, tune, decay, tone.
+/// Where each setting sits: the first version's four per pad for twelve pads, its three kit
+/// settings, then the same four for the four new pads, pans, characters, room and crush.
+pub mod p {
+    pub const ACCENT: usize = 48;
+    pub const DRIVE: usize = 49;
+    pub const VOLUME: usize = 50;
+    pub const PANS: usize = 67;
+    pub const MODELS: usize = 83;
+    pub const ROOM: usize = 99;
+    pub const CRUSH: usize = 100;
+
+    /// Level, tune, decay and tone of pad `pad`, in this order from the index returned.
+    pub const fn fields(pad: usize) -> usize {
+        if pad < 12 {
+            pad * 4
+        } else {
+            51 + (pad - 12) * 4
+        }
+    }
+}
+/// Settings per pad among the first four: level, tune, decay, tone.
 pub const PER_VOICE: usize = 4;
-const GLOBALS: usize = 3;
+const COUNT: usize = p::CRUSH + 1;
 
-macro_rules! drum_params {
+macro_rules! pad_fields {
     ($($id:literal, $name:literal;)*) => {
         [
             $(
@@ -46,14 +112,20 @@ macro_rules! drum_params {
                 param(concat!($id, "_decay"), concat!($name, " decay"), 10.0, 400.0, 100.0, "%"),
                 param(concat!($id, "_tone"), concat!($name, " tone"), 0.0, 100.0, 50.0, "%"),
             )*
-            param("accent", "Accent", 0.0, 100.0, 60.0, "%"),
-            param("drive", "Drive", 0.0, 100.0, 0.0, "%"),
-            param("volume", "Volume", -48.0, 6.0, -6.0, "dB"),
         ]
     };
 }
 
-const PARAMS: [ParamInfo; VOICES.len() * PER_VOICE + GLOBALS] = drum_params! {
+macro_rules! pad_more {
+    ($($id:literal, $name:literal;)*) => {
+        (
+            [$(param(concat!($id, "_pan"), concat!($name, " pan"), -100.0, 100.0, 0.0, "%"),)*],
+            [$(choice(concat!($id, "_model"), concat!($name, " character"), &MODELS, 0.0),)*],
+        )
+    };
+}
+
+const FIRST: [ParamInfo; 48] = pad_fields! {
     "kick", "Kick";
     "rim", "Rim shot";
     "snare", "Snare";
@@ -63,10 +135,91 @@ const PARAMS: [ParamInfo; VOICES.len() * PER_VOICE + GLOBALS] = drum_params! {
     "low_tom", "Low tom";
     "mid_tom", "Mid tom";
     "high_tom", "High tom";
-    "cymbal", "Cymbal";
+    "cymbal", "Crash";
     "cowbell", "Cowbell";
     "clave", "Clave";
 };
+const KIT: [ParamInfo; 3] = [
+    param("accent", "Accent", 0.0, 100.0, 60.0, "%"),
+    param("drive", "Drive", 0.0, 100.0, 0.0, "%"),
+    param("volume", "Volume", -48.0, 6.0, -6.0, "dB"),
+];
+const NEW: [ParamInfo; 16] = pad_fields! {
+    "kick2", "Kick 2";
+    "snare2", "Snare 2";
+    "ride", "Ride";
+    "tambourine", "Tambourine";
+};
+const MORE: ([ParamInfo; 16], [ParamInfo; 16]) = pad_more! {
+    "kick", "Kick";
+    "rim", "Rim shot";
+    "snare", "Snare";
+    "clap", "Clap";
+    "closed", "Closed hat";
+    "open", "Open hat";
+    "low_tom", "Low tom";
+    "mid_tom", "Mid tom";
+    "high_tom", "High tom";
+    "cymbal", "Crash";
+    "cowbell", "Cowbell";
+    "clave", "Clave";
+    "kick2", "Kick 2";
+    "snare2", "Snare 2";
+    "ride", "Ride";
+    "tambourine", "Tambourine";
+};
+const LAST: [ParamInfo; 2] = [
+    param("room", "Room", 0.0, 100.0, 0.0, "%"),
+    param("crush", "Crush", 0.0, 100.0, 0.0, "%"),
+];
+
+const PARAMS: [ParamInfo; COUNT] = {
+    let mut out = [KIT[0]; COUNT];
+    let mut i = 0;
+    while i < 48 {
+        out[i] = FIRST[i];
+        i += 1;
+    }
+    out[48] = KIT[0];
+    out[49] = KIT[1];
+    out[50] = KIT[2];
+    i = 0;
+    while i < 16 {
+        out[51 + i] = NEW[i];
+        out[p::PANS + i] = MORE.0[i];
+        out[p::MODELS + i] = MORE.1[i];
+        i += 1;
+    }
+    out[p::ROOM] = LAST[0];
+    out[p::CRUSH] = LAST[1];
+    out
+};
+
+macro_rules! slots {
+    ($($id:literal),*) => {
+        [$(FileSlot { id: $id, name: "Sample", kind: FileKind::Audio, extensions: &["wav", "flac", "aif", "aiff", "ogg", "mp3"] },)*]
+    };
+}
+
+/// One file per pad, played in place of its drum.
+pub const SLOTS: [FileSlot; 16] = slots!(
+    "kick",
+    "rim",
+    "snare",
+    "clap",
+    "closed",
+    "open",
+    "low_tom",
+    "mid_tom",
+    "high_tom",
+    "cymbal",
+    "cowbell",
+    "clave",
+    "kick2",
+    "snare2",
+    "ride",
+    "tambourine"
+);
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "drums",
@@ -74,37 +227,345 @@ pub const INFO: EffectInfo = EffectInfo {
     params: &PARAMS,
     meters: &[""; VOICES.len()],
     instrument: true,
-    files: &[],
+    files: &SLOTS,
     category: "Instrument",
-    description: "Analog drum machine in the spirit of the 808, on the General MIDI drum notes.",
+    description: "Drum machine: sixteen pads in 808, 909 or acoustic character, or your own samples.",
 };
 
-/// The voice a MIDI note plays: its pad, or the General MIDI neighbors of the same drum.
+/// The pad a MIDI note plays: its own, or the General MIDI neighbors of the same drum.
 pub fn voice_of(key: u8) -> Option<usize> {
     Some(match key {
-        35 | 36 => KICK,
-        37 => RIM,
-        38 | 40 => SNARE,
-        39 => CLAP,
-        42 | 44 => CLOSED,
-        46 => OPEN,
-        41 | 43 | 45 => LOW_TOM,
-        47 | 48 => MID_TOM,
-        50 => HIGH_TOM,
-        49 | 51 | 52 | 55 | 57 | 59 => CYMBAL,
-        56 => COWBELL,
-        75..=77 => CLAVE,
+        36 => 0,
+        37 => 1,
+        38 => 2,
+        39 => 3,
+        42 | 44 => 4,
+        46 => 5,
+        41 | 43 | 45 => 6,
+        47 | 48 => 7,
+        50 => 8,
+        49 | 52 | 55 | 57 => 9,
+        56 => 10,
+        75..=77 => 11,
+        35 => 12,
+        40 => 13,
+        51 | 53 | 59 => 14,
+        54 | 69 | 70 | 82 => 15,
         _ => return None,
     })
 }
 
-/// Level of each voice at the same setting, so that a kit sounds balanced from the start.
-const TRIM: [f32; 12] = [
-    2.6, 2.2, 1.5, 0.9, 1.3, 1.3, 1.6, 1.6, 1.6, 1.15, 0.43, 1.55,
+/// Level of each pad in each character, so that a kit is balanced at the same settings: kick
+/// and snare in front, hats, cymbals and small percussion behind.
+const BALANCE: [[f32; 3]; 16] = [
+    [1.0, 0.841, 1.072],
+    [3.236, 4.624, 5.248],
+    [3.236, 3.02, 3.09],
+    [2.851, 2.239, 3.758],
+    [13.183, 6.457, 7.499],
+    [6.998, 3.162, 3.846],
+    [1.549, 1.585, 1.496],
+    [1.549, 1.585, 1.514],
+    [1.549, 1.585, 1.514],
+    [5.129, 2.265, 5.309],
+    [2.089, 2.089, 1.862],
+    [2.213, 1.995, 1.66],
+    [1.0, 0.841, 1.072],
+    [3.236, 3.02, 3.09],
+    [2.985, 2.985, 3.02],
+    [2.291, 3.199, 2.63],
 ];
 
-/// Frequencies of the six square oscillators behind the hats and the cymbal.
+/// Frequencies of the six square oscillators of the 808's hats and cymbal.
 const METAL: [f32; 6] = [205.3, 304.4, 369.6, 522.7, 540.0, 800.0];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+enum Pass {
+    #[default]
+    Low,
+    Band,
+    High,
+}
+
+/// A drum as layers. Times in seconds, at decay 100 %; levels before the pad's level.
+#[derive(Clone, Copy, Debug)]
+struct Recipe {
+    /// The tuned body: frequency (0 for none), decay and level.
+    body: (f32, f32, f32),
+    /// Its pitch starts this much higher (1 = an octave... times the note) and falls in this time.
+    drop: (f32, f32),
+    /// Two more modes: ratio to the body, decay and level.
+    modes: [(f32, f32, f32); 2],
+    /// Noise: filter, frequency, resonance, decay and level; then a low-pass over it (0 none).
+    noise: (Pass, f32, f32, f32, f32),
+    noise_low: f32,
+    /// A short high-passed burst at the hit: decay and level.
+    click: (f32, f32),
+    /// Metallic bank: first and count of [`METAL`], their scale, sines rather than squares,
+    /// filter, frequency, resonance, decay and level.
+    metal: (usize, usize, f32, bool, Pass, f32, f32, f32, f32),
+    /// Clap bursts before the tail: how many, and the gap between them.
+    bursts: (u8, f32),
+    drive: f32,
+    /// Level for this recipe, so that pads balance at the same setting.
+    gain: f32,
+}
+
+const NONE: Recipe = Recipe {
+    body: (0.0, 0.1, 0.0),
+    drop: (0.0, 0.01),
+    modes: [(1.0, 0.1, 0.0); 2],
+    noise: (Pass::Low, 1000.0, 0.7, 0.1, 0.0),
+    noise_low: 0.0,
+    click: (0.002, 0.0),
+    metal: (0, 6, 1.0, false, Pass::High, 8000.0, 1.0, 0.1, 0.0),
+    bursts: (0, 0.0),
+    drive: 0.0,
+    gain: 1.0,
+};
+
+/// The recipe of a drum in a character (0 808, 1 909, 2 acoustic).
+fn recipe(kind: Kind, model: usize) -> Recipe {
+    use Pass::*;
+    let r = NONE;
+    match (kind, model) {
+        (Kind::Kick, 0) => Recipe {
+            body: (50.0, 0.55, 1.0),
+            drop: (2.0, 0.025),
+            click: (0.004, 0.15),
+            gain: 2.6,
+            ..r
+        },
+        (Kind::Kick, 1) => Recipe {
+            body: (54.0, 0.32, 1.0),
+            drop: (3.5, 0.012),
+            click: (0.006, 0.45),
+            noise: (Band, 1500.0, 0.8, 0.02, 0.15),
+            drive: 0.35,
+            gain: 2.3,
+            ..r
+        },
+        (Kind::Kick, _) => Recipe {
+            body: (62.0, 0.28, 1.0),
+            drop: (0.35, 0.02),
+            modes: [(1.55, 0.09, 0.35), (2.3, 0.05, 0.15)],
+            click: (0.003, 0.6),
+            noise: (Low, 180.0, 0.8, 0.12, 0.35),
+            drive: 0.15,
+            gain: 2.2,
+            ..r
+        },
+        (Kind::Snare, 0) => Recipe {
+            body: (180.0, 0.12, 0.5),
+            modes: [(1.83, 0.12, 0.5), (1.0, 0.1, 0.0)],
+            noise: (High, 3500.0, 0.7, 0.2, 0.7),
+            gain: 1.5,
+            ..r
+        },
+        (Kind::Snare, 1) => Recipe {
+            body: (190.0, 0.09, 0.6),
+            drop: (0.4, 0.01),
+            modes: [(1.75, 0.07, 0.35), (1.0, 0.1, 0.0)],
+            noise: (High, 1800.0, 0.7, 0.18, 0.8),
+            noise_low: 9000.0,
+            click: (0.002, 0.2),
+            drive: 0.2,
+            gain: 1.4,
+            ..r
+        },
+        (Kind::Snare, _) => Recipe {
+            body: (200.0, 0.07, 0.55),
+            drop: (0.15, 0.008),
+            modes: [(1.5, 0.05, 0.3), (2.25, 0.035, 0.2)],
+            noise: (Band, 4500.0, 0.5, 0.24, 0.9),
+            click: (0.0015, 0.5),
+            drive: 0.3,
+            gain: 1.5,
+            ..r
+        },
+        (Kind::Clap, 0) => Recipe {
+            noise: (Band, 1100.0, 2.0, 0.18, 1.0),
+            bursts: (3, 0.011),
+            gain: 2.2,
+            ..r
+        },
+        (Kind::Clap, 1) => Recipe {
+            noise: (Band, 1200.0, 1.6, 0.25, 1.0),
+            bursts: (4, 0.009),
+            drive: 0.1,
+            gain: 2.0,
+            ..r
+        },
+        (Kind::Clap, _) => Recipe {
+            noise: (Band, 1500.0, 1.0, 0.3, 1.0),
+            bursts: (6, 0.007),
+            gain: 1.8,
+            ..r
+        },
+        (Kind::Closed | Kind::Open, m) => {
+            let open = kind == Kind::Open;
+            let decay = |closed: f32, opened: f32| if open { opened } else { closed };
+            match m {
+                0 => Recipe {
+                    metal: (0, 6, 1.0, false, High, 8500.0, 1.2, decay(0.05, 0.4), 1.0),
+                    noise: (High, 8500.0, 0.7, decay(0.05, 0.4), 0.15),
+                    gain: 1.3,
+                    ..r
+                },
+                1 => Recipe {
+                    metal: (0, 6, 1.3, false, High, 9500.0, 1.0, decay(0.045, 0.35), 0.7),
+                    noise: (High, 9000.0, 0.7, decay(0.05, 0.38), 0.5),
+                    gain: 1.3,
+                    ..r
+                },
+                _ => Recipe {
+                    metal: (0, 6, 2.2, true, High, 7000.0, 0.8, decay(0.06, 0.45), 0.5),
+                    noise: (Band, 9000.0, 0.6, decay(0.055, 0.45), 0.7),
+                    click: (0.001, 0.3),
+                    gain: 1.4,
+                    ..r
+                },
+            }
+        }
+        (Kind::Tom(n), m) => {
+            let f = [90.0, 130.0, 180.0][usize::from(n.min(2))];
+            match m {
+                0 => Recipe {
+                    body: (f, 0.3, 1.0),
+                    drop: (0.35, 0.06),
+                    noise: (Low, 6000.0, 0.7, 0.05, 0.12),
+                    gain: 1.6,
+                    ..r
+                },
+                1 => Recipe {
+                    body: (f * 1.05, 0.28, 1.0),
+                    drop: (0.6, 0.04),
+                    noise: (Low, 4000.0, 0.7, 0.06, 0.18),
+                    click: (0.002, 0.2),
+                    gain: 1.6,
+                    ..r
+                },
+                _ => Recipe {
+                    body: (f, 0.35, 1.0),
+                    drop: (0.12, 0.08),
+                    modes: [(1.5, 0.15, 0.35), (2.1, 0.08, 0.15)],
+                    click: (0.002, 0.4),
+                    noise: (Band, 1200.0, 0.6, 0.08, 0.15),
+                    gain: 1.5,
+                    ..r
+                },
+            }
+        }
+        (Kind::Crash, 0) => Recipe {
+            metal: (0, 6, 1.0, false, High, 6500.0, 0.9, 1.4, 1.0),
+            noise: (High, 6500.0, 0.7, 1.2, 0.2),
+            gain: 1.15,
+            ..r
+        },
+        (Kind::Crash, 1) => Recipe {
+            metal: (0, 6, 1.25, false, High, 7000.0, 0.9, 1.6, 0.7),
+            noise: (High, 6000.0, 0.6, 1.4, 0.6),
+            gain: 1.1,
+            ..r
+        },
+        (Kind::Crash, _) => Recipe {
+            metal: (0, 6, 2.6, true, High, 5000.0, 0.7, 2.0, 0.5),
+            noise: (Band, 7000.0, 0.4, 1.8, 0.7),
+            click: (0.002, 0.3),
+            gain: 1.1,
+            ..r
+        },
+        (Kind::Ride, m) => Recipe {
+            body: (3150.0, 0.6, 0.25),
+            modes: [(1.47, 0.4, 0.15), (1.0, 0.1, 0.0)],
+            metal: (
+                0,
+                6,
+                [1.5, 1.8, 3.0][m.min(2)],
+                m == 2,
+                High,
+                7000.0,
+                0.9,
+                1.0,
+                0.7,
+            ),
+            noise: (Band, 9000.0, 0.4, 0.8, if m == 2 { 0.35 } else { 0.1 }),
+            gain: 1.0,
+            ..r
+        },
+        (Kind::Cowbell, 2) => Recipe {
+            body: (560.0, 0.18, 0.7),
+            modes: [(1.48, 0.12, 0.5), (2.6, 0.05, 0.2)],
+            click: (0.002, 0.3),
+            gain: 0.9,
+            ..r
+        },
+        (Kind::Cowbell, _) => Recipe {
+            metal: (4, 2, 1.0, false, Band, 2600.0, 3.0, 0.25, 1.0),
+            noise_low: 3800.0,
+            gain: 0.9,
+            ..r
+        },
+        (Kind::Rim, 0) => Recipe {
+            body: (1700.0, 0.012, 0.8),
+            modes: [(0.29, 0.012, 0.8), (1.0, 0.1, 0.0)],
+            noise: (High, 2000.0, 0.7, 0.006, 0.4),
+            gain: 2.2,
+            ..r
+        },
+        (Kind::Rim, 1) => Recipe {
+            body: (1800.0, 0.015, 0.7),
+            drop: (0.2, 0.002),
+            modes: [(0.5, 0.01, 0.4), (1.0, 0.1, 0.0)],
+            click: (0.002, 0.5),
+            gain: 2.0,
+            ..r
+        },
+        (Kind::Rim, _) => Recipe {
+            body: (520.0, 0.04, 0.4),
+            noise: (Band, 1800.0, 1.2, 0.03, 0.9),
+            click: (0.001, 0.5),
+            gain: 1.8,
+            ..r
+        },
+        (Kind::Clave, 0) => Recipe {
+            body: (2500.0, 0.03, 1.0),
+            gain: 1.5,
+            ..r
+        },
+        (Kind::Clave, 1) => Recipe {
+            body: (2450.0, 0.035, 1.0),
+            modes: [(1.62, 0.02, 0.3), (1.0, 0.1, 0.0)],
+            gain: 1.5,
+            ..r
+        },
+        (Kind::Clave, _) => Recipe {
+            body: (1000.0, 0.05, 1.0),
+            modes: [(2.8, 0.02, 0.3), (1.0, 0.1, 0.0)],
+            noise: (Band, 2000.0, 2.0, 0.01, 0.3),
+            gain: 1.5,
+            ..r
+        },
+        (Kind::Tambourine, 0) => Recipe {
+            noise: (High, 7000.0, 0.7, 0.09, 1.0),
+            gain: 1.3,
+            ..r
+        },
+        (Kind::Tambourine, 1) => Recipe {
+            metal: (0, 6, 3.0, false, Band, 8000.0, 1.5, 0.15, 0.6),
+            noise: (High, 8000.0, 0.7, 0.12, 0.6),
+            gain: 1.3,
+            ..r
+        },
+        (Kind::Tambourine, _) => Recipe {
+            metal: (0, 6, 3.4, true, Band, 9000.0, 1.0, 0.22, 0.5),
+            noise: (Band, 8500.0, 0.8, 0.2, 0.8),
+            bursts: (2, 0.015),
+            gain: 1.3,
+            ..r
+        },
+    }
+}
 
 /// Trapezoidal state-variable filter (Simper), with coefficients set once per hit.
 #[derive(Clone, Copy, Debug, Default)]
@@ -119,64 +580,116 @@ struct Filter {
 
 impl Filter {
     fn set(&mut self, hz: f32, q: f32, rate: f32) {
-        let g = (std::f32::consts::PI * hz.min(rate * 0.45) / rate).tan();
-        self.k = 1.0 / q;
+        let g = (std::f32::consts::PI * hz.clamp(10.0, rate * 0.45) / rate).tan();
+        self.k = 1.0 / q.max(0.1);
         self.a1 = 1.0 / (1.0 + g * (g + self.k));
         self.a2 = g * self.a1;
         self.a3 = g * self.a2;
     }
 
-    /// Low-pass, band-pass and high-pass outputs.
-    fn run(&mut self, x: f32) -> (f32, f32, f32) {
+    fn run(&mut self, x: f32, pass: Pass) -> f32 {
         let v3 = x - self.ic2;
         let v1 = self.a1 * self.ic1 + self.a2 * v3;
         let v2 = self.ic2 + self.a2 * self.ic1 + self.a3 * v3;
         self.ic1 = 2.0 * v1 - self.ic1;
         self.ic2 = 2.0 * v2 - self.ic2;
-        (v2, v1, x - self.k * v1 - v2)
+        match pass {
+            Pass::Low => v2,
+            Pass::Band => v1,
+            Pass::High => x - self.k * v1 - v2,
+        }
     }
 }
 
-/// One sounding drum.
+/// One sounding pad: the recipe as played, its envelopes and its oscillators.
 #[derive(Clone, Copy, Debug, Default)]
 struct Voice {
     active: bool,
-    /// Samples since the hit.
     time: u32,
     gain: f32,
-    phase: [f32; 6],
-    /// Per-sample decay multipliers of the body and of the noise (or second part).
-    body: f32,
-    noise: f32,
-    body_level: f32,
-    noise_level: f32,
+    pan: (f32, f32),
+    /// Body frequency, its drop and drop time constant (samples), and its phases.
     frequency: f32,
-    filter: Filter,
-    filter2: Filter,
+    drop: f32,
+    drop_time: f32,
+    phase: [f32; 3],
+    ratios: [f32; 2],
+    /// Current levels and per-sample decay of body, modes, noise, click and metal.
+    levels: [f32; 6],
+    decays: [f32; 6],
+    noise_pass: Pass,
+    noise_filter: Filter,
+    low: Option<Filter>,
+    click_filter: Filter,
+    metal: (usize, usize, bool, Pass),
+    metal_steps: [f32; 6],
+    metal_phase: [f32; 6],
+    metal_filter: Filter,
+    /// Clap bursts: count and gap in samples, with the tail's level.
+    bursts: (u8, f32),
+    tail: f32,
+    drive: f32,
+    /// A sample playing: where it is, its step, and when it fades.
+    sample: Option<(f64, f64)>,
+    fade: (f32, f32),
+    tone: Option<(Filter, Pass)>,
 }
 
+/// A pad's own sound: its samples (mono) and their rate.
 #[derive(Debug)]
+struct Sample {
+    data: Arc<Vec<f32>>,
+    rate: f32,
+}
+
 pub struct Drums {
     rate: f32,
-    values: [f32; PARAMS.len()],
+    values: [f32; COUNT],
     voices: [Voice; VOICES.len()],
+    samples: [Option<Sample>; VOICES.len()],
     seed: u32,
+    room: Box<dyn Effect>,
+    crush: (f32, u32, f32),
+}
+
+impl std::fmt::Debug for Drums {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Drums")
+            .field("rate", &self.rate)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Default for Drums {
     fn default() -> Self {
+        let mut room = crate::create("reverb").expect("built-in reverb");
+        let info = crate::info("reverb").expect("built-in reverb");
+        for (name, value) in [
+            ("type", 0.0),
+            ("decay", 0.7),
+            ("predelay", 4.0),
+            ("mix", 0.0),
+            ("size", 35.0),
+        ] {
+            if let Some(i) = info.params.iter().position(|p| p.id == name) {
+                room.set_param(i, value);
+            }
+        }
         Self {
             rate: 48_000.0,
             values: PARAMS.map(|p| p.default),
             voices: [Voice::default(); VOICES.len()],
+            samples: Default::default(),
             seed: 0x1234_5678,
+            room,
+            crush: (0.0, 0, 0.0),
         }
     }
 }
 
 /// Per-sample multiplier of an exponential decay lasting `seconds` (to about -60 dB).
 fn falloff(seconds: f32, rate: f32) -> f32 {
-    (-6.9 / (seconds.max(0.001) * rate)).exp()
+    (-6.9 / (seconds.max(0.0005) * rate)).exp()
 }
 
 fn square(phase: f32) -> f32 {
@@ -184,64 +697,107 @@ fn square(phase: f32) -> f32 {
 }
 
 impl Drums {
-    fn value(&self, voice: usize, field: usize) -> f32 {
-        self.values[voice * PER_VOICE + field]
+    fn field(&self, pad: usize, k: usize) -> f32 {
+        self.values[p::fields(pad) + k]
     }
 
-    fn hit(&mut self, index: usize, velocity: u8) {
-        if index == CLOSED {
-            // The closed hat chokes the open one, as on the original.
+    fn hit(&mut self, pad: usize, velocity: u8) {
+        if pad == CLOSED {
+            // The closed hat chokes the open one, as on the originals.
             self.voices[OPEN].active = false;
         }
         let rate = self.rate;
-        let accent = self.values[VOICES.len() * PER_VOICE] / 100.0;
-        let level = self.value(index, 0) / 100.0;
-        let ratio = 2f32.powf(self.value(index, 1) / 12.0);
-        let length = self.value(index, 2) / 100.0;
-        let tone = self.value(index, 3) / 100.0;
-        let velocity = 1.0 - accent + accent * f32::from(velocity) / 127.0;
-        let v = &mut self.voices[index];
-        *v = Voice {
+        let accent = self.values[p::ACCENT] / 100.0;
+        let level = self.field(pad, 0) / 100.0;
+        let ratio = 2f32.powf(self.field(pad, 1) / 12.0);
+        let length = self.field(pad, 2) / 100.0;
+        let tone = self.field(pad, 3) / 100.0;
+        let model = (self.values[p::MODELS + pad].round().max(0.0) as usize).min(MODELS.len() - 1);
+        let hard = f32::from(velocity) / 127.0;
+        let velocity = 1.0 - accent + accent * hard;
+        let pan = self.values[p::PANS + pad] / 100.0;
+        let angle = (pan.clamp(-1.0, 1.0) + 1.0) * std::f32::consts::FRAC_PI_4;
+        let mut v = Voice {
             active: true,
-            gain: level * level * velocity * 1.4 * TRIM[index],
+            pan: (
+                angle.cos() * std::f32::consts::SQRT_2,
+                angle.sin() * std::f32::consts::SQRT_2,
+            ),
             ..Voice::default()
         };
-        // (body seconds, noise seconds, body level, noise level, frequency)
-        let (body, noise, body_level, noise_level, frequency) = match index {
-            KICK => (0.5, 0.004, 1.0, 0.3 * tone, 50.0),
-            RIM => (0.012, 0.006, 0.8, 0.4, 1700.0),
-            SNARE => (0.12, 0.2, 1.0 - 0.6 * tone, 0.4 + 0.6 * tone, 180.0),
-            CLAP => (0.0, 0.18, 0.0, 1.0, 1.0),
-            CLOSED => (0.05, 0.0, 1.0, 0.0, 1.0),
-            OPEN => (0.4, 0.0, 1.0, 0.0, 1.0),
-            LOW_TOM | MID_TOM | HIGH_TOM => (
-                0.3,
-                0.05,
-                1.0,
-                0.25 * tone,
-                [90.0, 130.0, 180.0][index - LOW_TOM],
-            ),
-            CYMBAL => (1.4, 0.0, 1.0, 0.0, 1.0),
-            COWBELL => (0.25, 0.03, 0.7, 0.5, 1.0),
-            _ => (0.03, 0.0, 1.0, 0.0, 2500.0),
-        };
-        v.body = falloff(body * length, rate);
-        v.noise = falloff(noise * length.sqrt(), rate);
-        v.body_level = body_level;
-        v.noise_level = noise_level;
-        v.frequency = frequency * ratio;
-        match index {
-            SNARE => v.filter.set(1500.0 + 4000.0 * tone, 0.7, rate),
-            CLAP => v.filter.set((700.0 + 1600.0 * tone) * ratio, 2.0, rate),
-            CLOSED | OPEN => v.filter.set((6000.0 + 5000.0 * tone) * ratio, 1.2, rate),
-            CYMBAL => v.filter.set((4000.0 + 5000.0 * tone) * ratio, 0.9, rate),
-            COWBELL => {
-                v.filter.set(2600.0 * ratio, 3.0, rate);
-                v.filter2.set(800.0 + 6000.0 * tone, 0.7, rate);
-            }
-            RIM | CLAVE => v.filter.set(500.0 + 3000.0 * tone, 0.7, rate),
-            _ => v.filter.set(3000.0 + 6000.0 * tone, 0.7, rate),
+        if let Some(sample) = &self.samples[pad] {
+            // Down for a darker tone, up for a thinner one.
+            v.tone = if tone < 0.45 {
+                let mut f = Filter::default();
+                f.set(800.0 * 25f32.powf(tone / 0.45), 0.7, rate);
+                Some((f, Pass::Low))
+            } else if tone > 0.55 {
+                let mut f = Filter::default();
+                f.set(20.0 * 100f32.powf((tone - 0.55) / 0.45), 0.7, rate);
+                Some((f, Pass::High))
+            } else {
+                None
+            };
+            let seconds = sample.data.len() as f32 / sample.rate / ratio;
+            // Under 100 % the sample fades out early; over, it plays whole.
+            v.fade = if length < 1.0 {
+                (
+                    0.6 * seconds * length * rate,
+                    falloff(0.25 * seconds * length, rate),
+                )
+            } else {
+                (f32::MAX, 1.0)
+            };
+            v.sample = Some((0.0, f64::from(sample.rate / rate * ratio)));
+            v.gain = level * level * velocity * 1.4;
+            self.voices[pad] = v;
+            return;
         }
+        let r = recipe(KINDS[pad], model);
+        // Brighter with the tone, and a little with how hard the pad is hit.
+        let bright = 2f32.powf((tone - 0.5) * 2.0) * (0.85 + 0.3 * hard);
+        let loud = 0.5 + tone;
+        v.gain = level * level * velocity * 1.4 * r.gain * BALANCE[pad][model];
+        v.frequency = r.body.0 * ratio;
+        v.drop = r.drop.0;
+        v.drop_time = r.drop.1 * rate;
+        v.ratios = [r.modes[0].0, r.modes[1].0];
+        v.levels = [
+            r.body.2 * (1.25 - 0.5 * tone),
+            r.modes[0].2,
+            r.modes[1].2,
+            r.noise.4 * loud,
+            r.click.1 * loud,
+            r.metal.8,
+        ];
+        let tail = length.sqrt();
+        v.decays = [
+            falloff(r.body.1 * length, rate),
+            falloff(r.modes[0].1 * length, rate),
+            falloff(r.modes[1].1 * length, rate),
+            falloff(r.noise.3 * if r.bursts.0 > 0 { tail } else { length }, rate),
+            falloff(r.click.0, rate),
+            falloff(r.metal.7 * length, rate),
+        ];
+        v.noise_pass = r.noise.0;
+        v.noise_filter
+            .set(r.noise.1 * bright * ratio.sqrt(), r.noise.2, rate);
+        if r.noise_low > 0.0 {
+            let mut f = Filter::default();
+            f.set(r.noise_low * bright, 0.7, rate);
+            v.low = Some(f);
+        }
+        v.click_filter.set(2500.0 * bright, 0.7, rate);
+        let (first, count, scale, sines, pass, hz, q, _, _) = r.metal;
+        v.metal = (first, count.min(6 - first), sines, pass);
+        for (step, f) in v.metal_steps.iter_mut().zip(METAL) {
+            *step = f * scale * ratio / rate;
+        }
+        v.metal_filter.set(hz * bright * ratio.sqrt(), q, rate);
+        v.bursts = (r.bursts.0, r.bursts.1 * rate);
+        v.tail = r.noise.4 * loud;
+        v.drive = r.drive;
+        self.voices[pad] = v;
     }
 
     fn noise(&mut self) -> f32 {
@@ -251,83 +807,100 @@ impl Drums {
         self.seed as f32 / u32::MAX as f32 * 2.0 - 1.0
     }
 
-    /// The next sample of a voice.
-    fn render(&mut self, index: usize) -> f32 {
+    /// The next sample of a pad, before its pan.
+    fn render(&mut self, pad: usize) -> f32 {
         let rate = self.rate;
         let white = self.noise();
-        let v = &mut self.voices[index];
-        let t = v.time as f32 / rate;
+        let v = &mut self.voices[pad];
+        if let Some((at, step)) = v.sample {
+            let Some(sample) = &self.samples[pad] else {
+                v.active = false;
+                return 0.0;
+            };
+            let data = &sample.data;
+            let i = at as usize;
+            if i + 1 >= data.len() {
+                v.active = false;
+                return 0.0;
+            }
+            let frac = (at - i as f64) as f32;
+            let mut x = data[i] + (data[i + 1] - data[i]) * frac;
+            if let Some((filter, pass)) = &mut v.tone {
+                x = filter.run(x, *pass);
+            }
+            v.sample = Some((at + step, step));
+            let t = v.time as f32;
+            v.time = v.time.saturating_add(1);
+            if t > v.fade.0 {
+                v.levels[0] = if v.levels[0] == 0.0 { 1.0 } else { v.levels[0] } * v.fade.1;
+                if v.levels[0] < 1e-4 {
+                    v.active = false;
+                }
+                x *= v.levels[0];
+            }
+            return x * v.gain;
+        }
+        let t = v.time as f32;
         v.time = v.time.saturating_add(1);
         let tau = std::f32::consts::TAU;
-        let (body, noise) = (v.body_level, v.noise_level);
-        let out = match index {
-            KICK => {
-                // The pitch falls from about three times the note in a few tens of ms.
-                let f = v.frequency * (1.0 + 2.0 * (-t / 0.025).exp());
-                v.phase[0] = (v.phase[0] + f / rate).fract();
-                (tau * v.phase[0]).sin() * body + white * noise
-            }
-            SNARE => {
-                let mut drum = 0.0;
-                for (k, ratio) in [1.0, 1.83].into_iter().enumerate() {
-                    v.phase[k] = (v.phase[k] + v.frequency * ratio / rate).fract();
-                    drum += (tau * v.phase[k]).sin() * 0.5;
+        let mut out = 0.0;
+        if v.frequency > 0.0 {
+            let f = v.frequency * (1.0 + v.drop * (-t / v.drop_time.max(1.0)).exp());
+            v.phase[0] = (v.phase[0] + f / rate).fract();
+            out += (tau * v.phase[0]).sin() * v.levels[0];
+            for k in 0..2 {
+                if v.levels[k + 1] > 0.0 {
+                    v.phase[k + 1] = (v.phase[k + 1] + f * v.ratios[k] / rate).fract();
+                    out += (tau * v.phase[k + 1]).sin() * v.levels[k + 1];
                 }
-                let (_, _, high) = v.filter.run(white);
-                drum * body + high * noise
             }
-            CLAP => {
-                // Three quick bursts, then the tail.
-                let burst = (t / 0.011) as u32;
-                let envelope = if burst < 3 {
-                    (-(t - burst as f32 * 0.011) / 0.003).exp()
+        }
+        if v.tail > 0.0 {
+            let mut n = v.noise_filter.run(white, v.noise_pass);
+            if let Some(low) = &mut v.low {
+                n = low.run(n, Pass::Low);
+            }
+            let (count, gap) = v.bursts;
+            let envelope = if count > 0 && t < f32::from(count) * gap {
+                // The hands of a clap, a few ms apart, before the room's tail.
+                let k = (t / gap).floor();
+                let since = t - k * gap;
+                v.tail * (-since / (0.004 * rate)).exp() * 1.6
+            } else {
+                v.levels[3]
+            };
+            out += n * envelope;
+        }
+        if v.levels[4] > 0.0 {
+            out += v.click_filter.run(white, Pass::High) * v.levels[4];
+        }
+        if v.levels[5] > 0.0 {
+            let (first, count, sines, pass) = v.metal;
+            let mut metal = 0.0;
+            for k in first..first + count {
+                v.metal_phase[k] = (v.metal_phase[k] + v.metal_steps[k]).fract();
+                metal += if sines {
+                    (tau * v.metal_phase[k]).sin()
                 } else {
-                    noise * 0.6
+                    square(v.metal_phase[k])
                 };
-                let (_, band, _) = v.filter.run(white);
-                band * envelope * 2.5
             }
-            CLOSED | OPEN | CYMBAL => {
-                let mut metal = 0.0;
-                for (phase, f) in v.phase.iter_mut().zip(METAL) {
-                    *phase = (*phase + f * v.frequency / rate).fract();
-                    metal += square(*phase);
-                }
-                let (_, _, high) = v.filter.run(metal / 6.0 + 0.15 * white);
-                high * 1.5 * body
-            }
-            LOW_TOM | MID_TOM | HIGH_TOM => {
-                let f = v.frequency * (1.0 + 0.35 * (-t / 0.06).exp());
-                v.phase[0] = (v.phase[0] + f / rate).fract();
-                let (low, _, _) = v.filter.run(white);
-                (tau * v.phase[0]).sin() * body + low * noise
-            }
-            COWBELL => {
-                let mut ring = 0.0;
-                for (k, f) in [540.0, 800.0].into_iter().enumerate() {
-                    v.phase[k] = (v.phase[k] + f * v.frequency / rate).fract();
-                    ring += square(v.phase[k]);
-                }
-                let (_, band, _) = v.filter.run(ring * 0.5);
-                let (low, _, _) = v.filter2.run(band);
-                // A sharp first drop, then the ring.
-                low * (body + noise) * 2.0
-            }
-            _ => {
-                // Rim shot and clave: short tuned pings through a high-pass.
-                let mut ping = 0.0;
-                for (k, ratio) in [1.0, 0.29].into_iter().enumerate() {
-                    v.phase[k] = (v.phase[k] + v.frequency * ratio / rate).fract();
-                    ping += (tau * v.phase[k]).sin();
-                }
-                let (_, _, high) = v.filter.run(ping * body + white * noise);
-                high
-            }
-        };
-        v.body_level *= v.body;
-        v.noise_level *= v.noise;
-        let bursting = index == CLAP && t < 0.04;
-        if (!bursting && v.body_level.max(v.noise_level) < 1e-4) || !out.is_finite() {
+            out += v.metal_filter.run(metal / count.max(1) as f32, pass) * v.levels[5];
+        }
+        if v.drive > 0.0 {
+            let push = 1.0 + 4.0 * v.drive;
+            out = (out * push).tanh() / push.tanh();
+        }
+        let (count, gap) = v.bursts;
+        let bursting = count > 0 && t < f32::from(count) * gap;
+        if !bursting {
+            v.levels[3] *= v.decays[3];
+        }
+        for k in [0, 1, 2, 4, 5] {
+            v.levels[k] *= v.decays[k];
+        }
+        if (!bursting && v.levels.iter().fold(0.0f32, |m, l| m.max(*l)) < 1e-4) || !out.is_finite()
+        {
             v.active = false;
             return 0.0;
         }
@@ -335,16 +908,73 @@ impl Drums {
     }
 }
 
+/// The sound of pad `pad` with the settings `values` (in [`INFO`] order), dry and mono, at
+/// 48 kHz, until it dies out or `seconds` have passed: for drawing it.
+pub fn preview(values: &[f32], pad: usize, seconds: f32) -> Vec<f32> {
+    let mut drums = Drums::default();
+    for (i, v) in values.iter().enumerate().take(COUNT) {
+        if i != p::ROOM && i != p::VOLUME {
+            drums.set_param(i, *v);
+        }
+    }
+    drums.prepare(48_000, 512);
+    drums.hit(pad.min(VOICES.len() - 1), 110);
+    let mut out = Vec::new();
+    while drums.voices.iter().any(|v| v.active) && out.len() < (seconds * 48_000.0) as usize {
+        let (mut l, mut r) = ([0.0f32; 512], [0.0f32; 512]);
+        drums.process(&mut l, &mut r);
+        out.extend(l.iter().zip(&r).map(|(a, b)| 0.5 * (a + b)));
+    }
+    out
+}
+
 impl Effect for Drums {
-    fn prepare(&mut self, sample_rate: u32, _max_frames: usize) {
+    fn prepare(&mut self, sample_rate: u32, max_frames: usize) {
         self.rate = sample_rate as f32;
         self.voices = [Voice::default(); VOICES.len()];
+        self.room.prepare(sample_rate, max_frames);
     }
 
     fn set_param(&mut self, index: usize, value: f32) {
         if let Some(v) = self.values.get_mut(index) {
             *v = value;
         }
+        if index == p::ROOM
+            && let Some(i) = crate::info("reverb")
+                .and_then(|info| info.params.iter().position(|q| q.id == "mix"))
+        {
+            self.room.set_param(i, value * 0.6);
+        }
+    }
+
+    fn load(&mut self, slot: &str, file: FileData) -> Result<String, String> {
+        let pad = VOICES
+            .iter()
+            .position(|v| v.0 == slot)
+            .ok_or_else(|| format!("no pad {slot}"))?;
+        let FileData::Audio { channels, rate } = file else {
+            return Err("a pad plays an audio file".into());
+        };
+        let length = channels.iter().map(Vec::len).max().unwrap_or(0);
+        if length == 0 {
+            return Err("the file is empty".into());
+        }
+        let n = channels.len().max(1) as f32;
+        let mono: Vec<f32> = (0..length)
+            .map(|i| {
+                channels
+                    .iter()
+                    .map(|c| c.get(i).copied().unwrap_or(0.0))
+                    .sum::<f32>()
+                    / n
+            })
+            .collect();
+        self.voices[pad].active = false;
+        self.samples[pad] = Some(Sample {
+            data: Arc::new(mono),
+            rate: rate as f32,
+        });
+        Ok(format!("{:.2} s", length as f32 / rate as f32))
     }
 
     fn midi(&mut self, event: &MidiEvent) {
@@ -356,30 +986,51 @@ impl Effect for Drums {
             .as_control()
             .is_some_and(|(cc, _)| cc == 120 || cc == 123)
         {
-            self.reset();
+            for v in &mut self.voices {
+                v.active = false;
+            }
         }
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
-        let globals = VOICES.len() * PER_VOICE;
-        let drive = self.values[globals + 1] / 100.0;
-        let volume = db_to_gain(self.values[globals + 2]);
+        let drive = self.values[p::DRIVE] / 100.0;
+        let volume = db_to_gain(self.values[p::VOLUME]);
         let push = 1.0 + 6.0 * drive;
         // Keeps the level about the same as the drive rises.
         let makeup = 1.0 / push.tanh().max(0.2) / (1.0 + drive);
+        let crush = self.values[p::CRUSH] / 100.0;
+        // Fewer bits and a lower rate as the crush rises: 16 bits to 6, full rate to an eighth.
+        let steps = 2f32.powf(15.0 - 9.0 * crush);
+        let hold = 1 + (7.0 * crush * crush) as u32;
         for (l, r) in left.iter_mut().zip(right.iter_mut()) {
-            let mut mix = 0.0;
-            for index in 0..VOICES.len() {
-                if self.voices[index].active {
-                    mix += self.render(index);
+            let (mut a, mut b) = (0.0f32, 0.0f32);
+            for pad in 0..VOICES.len() {
+                if self.voices[pad].active {
+                    let x = self.render(pad);
+                    let (pl, pr) = self.voices[pad].pan;
+                    a += x * pl;
+                    b += x * pr;
                 }
             }
             if drive > 0.0 {
-                mix = (mix * push).tanh() * makeup;
+                a = (a * push).tanh() * makeup;
+                b = (b * push).tanh() * makeup;
             }
-            let out = mix * volume * 0.5;
-            *l = out;
-            *r = out;
+            if crush > 0.0 {
+                let (held, count, other) = &mut self.crush;
+                if *count == 0 {
+                    *held = (a * steps).round() / steps;
+                    *other = (b * steps).round() / steps;
+                }
+                *count = (*count + 1) % hold;
+                a = *held;
+                b = *other;
+            }
+            *l = a * volume * 0.5;
+            *r = b * volume * 0.5;
+        }
+        if self.values[p::ROOM] > 0.0 {
+            self.room.process(left, right);
         }
     }
 
@@ -387,12 +1038,18 @@ impl Effect for Drums {
         for v in &mut self.voices {
             v.active = false;
         }
+        self.room.reset();
     }
 
     fn meters(&self, out: &mut [f32]) {
         for (o, v) in out.iter_mut().zip(&self.voices) {
             *o = if v.active {
-                (v.body_level.max(v.noise_level) * v.gain).min(1.0)
+                let level = if v.sample.is_some() {
+                    if v.levels[0] > 0.0 { v.levels[0] } else { 1.0 }
+                } else {
+                    v.levels.iter().fold(0.0f32, |m, l| m.max(*l))
+                };
+                (level * v.gain).min(1.0)
             } else {
                 0.0
             };
@@ -419,23 +1076,80 @@ mod tests {
         samples.iter().fold(0.0f32, |m, s| m.max(s.abs()))
     }
 
+    fn fresh(model: usize) -> Drums {
+        let mut drums = Drums::default();
+        for pad in 0..16 {
+            drums.set_param(p::MODELS + pad, model as f32);
+        }
+        drums.prepare(48_000, 480);
+        drums
+    }
+
     #[test]
-    fn every_pad_sounds_then_dies_out() {
-        for (_, name, key) in VOICES {
-            let mut drums = Drums::default();
-            drums.prepare(48_000, 480);
-            let out = play(&mut drums, key, 400);
-            assert!(out.iter().all(|s| s.is_finite()), "{name}");
-            assert!(peak(&out[..4800]) > 0.02, "{name} is heard");
-            assert!(peak(&out[out.len() - 480..]) < 1e-3, "{name} ends");
-            assert!(drums.voices.iter().all(|v| !v.active), "{name} stops");
+    fn every_pad_sounds_then_dies_out_in_every_character() {
+        for model in 0..MODELS.len() {
+            for (_, name, key) in VOICES {
+                let mut drums = fresh(model);
+                let out = play(&mut drums, key, 500);
+                assert!(out.iter().all(|s| s.is_finite()), "{name} {model}");
+                assert!(peak(&out[..4800]) > 0.02, "{name} {model} is heard");
+                assert!(peak(&out[out.len() - 480..]) < 1e-3, "{name} {model} ends");
+                assert!(
+                    drums.voices.iter().all(|v| !v.active),
+                    "{name} {model} stops"
+                );
+            }
+        }
+    }
+
+    /// Loudest 50 ms of each pad, in dB, for balancing the recipes.
+    #[test]
+    fn pads_are_balanced() {
+        // Kick and snare lead; hats, cymbals and small percussion sit lower, as in a kit.
+        let wanted = |kind: Kind| match kind {
+            Kind::Kick | Kind::Snare => 0.0,
+            Kind::Clap | Kind::Tom(_) => -2.0,
+            Kind::Rim => -5.0,
+            Kind::Crash | Kind::Open => -7.0,
+            _ => -9.0,
+        };
+        let mut report = Vec::new();
+        for model in 0..MODELS.len() {
+            for (pad, (_, name, key)) in VOICES.iter().enumerate() {
+                let mut drums = fresh(model);
+                let out = play(&mut drums, *key, 100);
+                let db = out
+                    .chunks(2400)
+                    .map(|c| {
+                        10.0 * (c.iter().map(|s| s * s).sum::<f32>() / c.len() as f32)
+                            .max(1e-12)
+                            .log10()
+                    })
+                    .fold(f32::MIN, f32::max);
+                report.push((name, model, db, wanted(KINDS[pad])));
+            }
+        }
+        let kick = report[0].2;
+        for (name, model, db, want) in &report {
+            eprintln!(
+                "{name} {}: {:.1} dB (wanted {want})",
+                MODELS[*model],
+                db - kick
+            );
+        }
+        for (name, model, db, want) in &report {
+            assert!(
+                (db - kick - want).abs() < 4.0,
+                "{name} {}: {:.1}",
+                MODELS[*model],
+                db - kick
+            );
         }
     }
 
     #[test]
     fn the_closed_hat_chokes_the_open_one() {
-        let mut drums = Drums::default();
-        drums.prepare(48_000, 480);
+        let mut drums = fresh(0);
         play(&mut drums, 46, 2);
         assert!(drums.voices[OPEN].active);
         play(&mut drums, 42, 1);
@@ -445,18 +1159,15 @@ mod tests {
     #[test]
     fn the_kick_follows_tune_and_decay() {
         let length = |tune: f32, decay: f32| {
-            let mut drums = Drums::default();
-            drums.prepare(48_000, 480);
+            let mut drums = fresh(0);
             drums.set_param(1, tune);
             drums.set_param(2, decay);
             let out = play(&mut drums, 36, 300);
             out.iter().rposition(|s| s.abs() > 1e-3).unwrap_or(0)
         };
         assert!(length(0.0, 300.0) > 2 * length(0.0, 100.0));
-        // Zero crossings late in the hit: the tuned body.
         let crossings = |tune: f32| {
-            let mut drums = Drums::default();
-            drums.prepare(48_000, 480);
+            let mut drums = fresh(0);
             drums.set_param(1, tune);
             let out = play(&mut drums, 36, 40);
             out[9600..19200]
@@ -470,25 +1181,64 @@ mod tests {
 
     #[test]
     fn general_midi_neighbors_play_the_same_drum() {
-        assert_eq!(voice_of(35), voice_of(36));
-        assert_eq!(voice_of(40), voice_of(38));
         assert_eq!(voice_of(44), voice_of(42));
         assert_eq!(voice_of(60), None);
         for (index, (_, _, key)) in VOICES.iter().enumerate() {
             assert_eq!(voice_of(*key), Some(index));
         }
+        let mut seen = LAYOUT.to_vec();
+        seen.sort_unstable();
+        assert_eq!(seen, (0..16).collect::<Vec<_>>());
     }
 
     #[test]
     fn accent_follows_velocity() {
         let level = |velocity: u8| {
-            let mut drums = Drums::default();
-            drums.prepare(48_000, 480);
+            let mut drums = fresh(0);
             drums.midi(&MidiEvent::note_on(0, 9, 38, velocity));
             let (mut l, mut r) = (vec![0.0; 4800], vec![0.0; 4800]);
             drums.process(&mut l, &mut r);
             peak(&l)
         };
         assert!(level(127) > 1.5 * level(30));
+    }
+
+    #[test]
+    fn a_pad_plays_its_sample_panned() {
+        let mut drums = fresh(0);
+        drums.set_param(p::PANS + KICK, 100.0);
+        let tone: Vec<f32> = (0..4800).map(|i| (i as f32 * 0.05).sin() * 0.8).collect();
+        let told = drums
+            .load(
+                "kick",
+                FileData::Audio {
+                    channels: vec![tone],
+                    rate: 48_000,
+                },
+            )
+            .unwrap();
+        assert_eq!(told, "0.10 s");
+        drums.midi(&MidiEvent::note_on(0, 9, 36, 127));
+        let (mut l, mut r) = (vec![0.0; 9600], vec![0.0; 9600]);
+        drums.process(&mut l, &mut r);
+        assert!(peak(&r[..4800]) > 0.1 && peak(&l[..4800]) < 1e-3);
+        assert!(peak(&r[5000..]) < 1e-6, "it ends with the file");
+    }
+
+    #[test]
+    fn room_and_crush_change_the_sound() {
+        let tail = |room: f32| {
+            let mut drums = fresh(0);
+            drums.set_param(p::ROOM, room);
+            let out = play(&mut drums, 38, 200);
+            out[48_000..].iter().map(|s| s * s).sum::<f32>()
+        };
+        assert!(tail(60.0) > tail(0.0) * 10.0 + 1e-9);
+        let mut drums = fresh(0);
+        drums.set_param(p::CRUSH, 100.0);
+        let out = play(&mut drums, 38, 20);
+        let distinct: std::collections::BTreeSet<i32> =
+            out.iter().map(|s| (s * 1e6) as i32).collect();
+        assert!(distinct.len() < out.len() / 4);
     }
 }

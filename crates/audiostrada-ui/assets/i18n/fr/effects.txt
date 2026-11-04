@@ -4138,3 +4138,207 @@ FX : Alarme
 
 FX: Sci-fi
 FX : Science-fiction
+
+808
+808
+
+909
+909
+
+Acoustic
+Acoustique
+
+Clap character
+Clap : caractère
+
+Clap pan
+Clap : pan
+
+Clave character
+Clave : caractère
+
+Clave pan
+Clave : pan
+
+Click to play and edit it; lower on the pad plays louder
+Cliquez pour le jouer et le régler ; plus bas sur le pad, plus fort
+
+Closed hat character
+Charley fermé : caractère
+
+Closed hat pan
+Charley fermé : pan
+
+Cowbell character
+Cloche : caractère
+
+Cowbell pan
+Cloche : pan
+
+Crash
+Crash
+
+Crash character
+Crash : caractère
+
+Crash decay
+Crash : déclin
+
+Crash level
+Crash : niveau
+
+Crash pan
+Crash : pan
+
+Crash tone
+Crash : timbre
+
+Crash tune
+Crash : accord
+
+Crush
+Écrasement
+
+Deep and long, the classic analog machine
+Profond et long, la machine analogique classique
+
+Drum machine: sixteen pads in 808, 909 or acoustic character, or your own samples.
+Boîte à rythmes : seize pads au caractère 808, 909 ou acoustique, ou vos propres échantillons.
+
+High tom character
+Tom aigu : caractère
+
+High tom pan
+Tom aigu : pan
+
+Kick 2
+Grosse caisse 2
+
+Kick 2 character
+Grosse caisse 2 : caractère
+
+Kick 2 decay
+Grosse caisse 2 : déclin
+
+Kick 2 level
+Grosse caisse 2 : niveau
+
+Kick 2 pan
+Grosse caisse 2 : pan
+
+Kick 2 tone
+Grosse caisse 2 : timbre
+
+Kick 2 tune
+Grosse caisse 2 : accord
+
+Kick character
+Grosse caisse : caractère
+
+Kick pan
+Grosse caisse : pan
+
+Low tom character
+Tom grave : caractère
+
+Low tom pan
+Tom grave : pan
+
+Mid tom character
+Tom médium : caractère
+
+Mid tom pan
+Tom médium : pan
+
+Modeled skins, wires and cymbals: closer to a real kit
+Peaux, timbre et cymbales modélisés : plus proche d'une vraie batterie
+
+Open hat character
+Charley ouvert : caractère
+
+Open hat pan
+Charley ouvert : pan
+
+Punchy and bright, made for house and techno
+Percutant et brillant, fait pour la house et la techno
+
+Ride
+Ride
+
+Ride character
+Ride : caractère
+
+Ride decay
+Ride : déclin
+
+Ride level
+Ride : niveau
+
+Ride pan
+Ride : pan
+
+Ride tone
+Ride : timbre
+
+Ride tune
+Ride : accord
+
+Rim shot character
+Rim shot : caractère
+
+Rim shot pan
+Rim shot : pan
+
+Sample
+Échantillon
+
+Snare 2
+Caisse claire 2
+
+Snare 2 character
+Caisse claire 2 : caractère
+
+Snare 2 decay
+Caisse claire 2 : déclin
+
+Snare 2 level
+Caisse claire 2 : niveau
+
+Snare 2 pan
+Caisse claire 2 : pan
+
+Snare 2 tone
+Caisse claire 2 : timbre
+
+Snare 2 tune
+Caisse claire 2 : accord
+
+Snare character
+Caisse claire : caractère
+
+Snare pan
+Caisse claire : pan
+
+Synthesized: load a sample to play it instead
+Synthétisé : chargez un échantillon pour le jouer à la place
+
+Tambourine
+Tambourin
+
+Tambourine character
+Tambourin : caractère
+
+Tambourine decay
+Tambourin : déclin
+
+Tambourine level
+Tambourin : niveau
+
+Tambourine pan
+Tambourin : pan
+
+Tambourine tone
+Tambourin : timbre
+
+Tambourine tune
+Tambourin : accord

@@ -4433,7 +4433,7 @@ impl MixerView {
                 "amp_rig" => [960.0, 820.0],
                 "channel" => [1000.0, 700.0],
                 "synth" => [1180.0, 1000.0],
-                "drums" => [900.0, 470.0],
+                "drums" => [1000.0, 860.0],
                 "compressor" => [980.0, 720.0],
                 "gate" => [980.0, 700.0],
                 "deesser" => [980.0, 680.0],
@@ -4480,7 +4480,7 @@ impl MixerView {
                     }
                     ui.add_space(4.0);
                     // The synth shows its wavetable files on its own face.
-                    if !rig && !info.files.is_empty() && info.id != "synth" {
+                    if !rig && !info.files.is_empty() && !matches!(info.id, "synth" | "drums") {
                         effect_files(ui, doc, channel, insert, info);
                         ui.separator();
                     }

@@ -4,15 +4,17 @@
 
 use audiostrada_core::Note;
 use audiostrada_core::routing::Channel;
-use audiostrada_dsp::drums::VOICES;
-use eframe::egui::{self, Align2, FontId, RichText, Sense, Ui, vec2};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
-use crate::effect_editors::{Params, named_knob, param_knob};
+use audiostrada_dsp::drums::{LAYOUT, VOICES};
+use eframe::egui::{
+    self, Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Shape, Stroke, Ui, pos2, vec2,
+};
+
+use crate::effect_editors::{Params, named_knob, param_knob, segmented};
 use crate::i18n::tr;
 use crate::theme;
-
-const COLUMNS: usize = 6;
-const PAD_HEIGHT: f32 = 44.0;
 
 /// What the drum machine's editor remembers between frames.
 #[derive(Debug)]
@@ -301,78 +303,166 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
     ]
 }
 
+/// The dark screen behind the pads and the pad's editor.
+const SCREEN: Color32 = Color32::from_rgb(16, 19, 25);
+
+/// The color of a pad's family: kicks, snares and claps, hats, toms, cymbals, percussion.
+fn family(pad: usize) -> Color32 {
+    use audiostrada_dsp::drums::{KINDS, Kind};
+    match KINDS[pad] {
+        Kind::Kick => Color32::from_rgb(232, 86, 72),
+        Kind::Snare | Kind::Clap | Kind::Rim => Color32::from_rgb(238, 146, 62),
+        Kind::Closed | Kind::Open => Color32::from_rgb(232, 202, 76),
+        Kind::Tom(_) => Color32::from_rgb(112, 196, 104),
+        Kind::Crash | Kind::Ride => Color32::from_rgb(82, 184, 220),
+        _ => Color32::from_rgb(168, 126, 228),
+    }
+}
+
+/// The settings that shape pad `pad`'s sound, to know when its drawing is stale.
+fn signature(params: &Params, pad: usize, file: Option<&std::path::Path>) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let (id, _, _) = VOICES[pad];
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    for field in ["tune", "decay", "tone", "model"] {
+        params.get(&format!("{id}_{field}")).to_bits().hash(&mut h);
+    }
+    params.get("drive").to_bits().hash(&mut h);
+    params.get("crush").to_bits().hash(&mut h);
+    file.hash(&mut h);
+    h.finish()
+}
+
+/// Peaks of pad `pad`'s sound for drawing, normalized, rendered again when its settings change.
+fn shape(params: &Params, pad: usize, file: Option<&std::path::Path>) -> Arc<Vec<f32>> {
+    type Cache = HashMap<(usize, u64), Arc<Vec<f32>>>;
+    static CACHE: Mutex<Option<Cache>> = Mutex::new(None);
+    let key = (pad, signature(params, pad, file));
+    let Ok(mut cache) = CACHE.lock() else {
+        return Arc::default();
+    };
+    let cache = cache.get_or_insert_with(HashMap::new);
+    if let Some(peaks) = cache.get(&key) {
+        return Arc::clone(peaks);
+    }
+    let sound = match file {
+        Some(path) => audiostrada_media::load(path)
+            .map(|audio| audio.channel(0).to_vec())
+            .unwrap_or_default(),
+        None => audiostrada_dsp::drums::preview(&params.values, pad, 2.0),
+    };
+    // The silence at the end is left out, so that short and long hits both fill the cell.
+    let end = sound
+        .iter()
+        .rposition(|s| s.abs() > 2e-3)
+        .map_or(0, |i| i + 1);
+    let bins = 160;
+    let per = (end / bins).max(1);
+    let mut peaks: Vec<f32> = sound[..end]
+        .chunks(per)
+        .map(|c| c.iter().fold(0.0f32, |m, s| m.max(s.abs())))
+        .collect();
+    let top = peaks.iter().fold(1e-6f32, |m, v| m.max(*v));
+    for v in &mut peaks {
+        *v /= top;
+    }
+    let peaks = Arc::new(peaks);
+    cache.retain(|(p, _), _| *p != pad);
+    cache.insert(key, Arc::clone(&peaks));
+    peaks
+}
+
+/// A sound's peaks as a mirrored waveform in `rect`.
+fn waveform(painter: &egui::Painter, rect: Rect, peaks: &[f32], color: Color32) {
+    if peaks.is_empty() {
+        return;
+    }
+    let n = peaks.len();
+    let mid = rect.center().y;
+    let half = rect.height() / 2.0;
+    let top: Vec<Pos2> = peaks
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            pos2(
+                rect.left() + i as f32 / (n - 1).max(1) as f32 * rect.width(),
+                mid - v.sqrt() * half,
+            )
+        })
+        .collect();
+    for pair in top.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        let quad = vec![a, b, pos2(b.x, 2.0 * mid - b.y), pos2(a.x, 2.0 * mid - a.y)];
+        painter.add(Shape::convex_polygon(
+            quad,
+            color.gamma_multiply(0.55),
+            Stroke::NONE,
+        ));
+    }
+    painter.add(Shape::line(top.clone(), Stroke::new(1.2, color)));
+    let bottom: Vec<Pos2> = top.iter().map(|q| pos2(q.x, 2.0 * mid - q.y)).collect();
+    painter.add(Shape::line(bottom, Stroke::new(1.2, color)));
+}
+
+/// The file pad `pad` plays, if any.
+fn pad_file(params: &Params, pad: usize) -> Option<std::path::PathBuf> {
+    let project = params.doc.project();
+    audiostrada_core::routing::find_insert(project, params.channel, params.insert)
+        .and_then(|i| i.files.get(VOICES[pad].0).cloned())
+}
+
 pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DrumsState) {
     let p = theme::current(ui);
-    let gap = ui.spacing().item_spacing.x;
-    let width = ((ui.available_width() - (COLUMNS - 1) as f32 * gap) / COLUMNS as f32).max(80.0);
     let mut pressed = None;
-    for (row, voices) in VOICES.chunks(COLUMNS).enumerate() {
-        ui.horizontal(|ui| {
-            for (column, (_, name, key)) in voices.iter().enumerate() {
-                let index = row * COLUMNS + column;
-                let glow = meters.get(index).copied().unwrap_or(0.0).clamp(0.0, 1.0);
-                let (rect, response) =
-                    ui.allocate_exact_size(vec2(width, PAD_HEIGHT), Sense::click_and_drag());
-                let fill = theme::mix(p.base, p.accent, 0.12 + 0.88 * glow.sqrt());
-                ui.painter().rect_filled(rect, 6.0, fill);
-                if index == state.selected {
-                    ui.painter().rect_stroke(
-                        rect,
-                        6.0,
-                        egui::Stroke::new(2.0, p.accent),
-                        egui::StrokeKind::Inside,
-                    );
-                }
-                ui.painter().text(
-                    rect.left_top() + vec2(8.0, 7.0),
-                    Align2::LEFT_TOP,
-                    tr(name),
-                    theme::strong(12.0),
-                    if glow > 0.3 {
-                        theme::text_on(p.accent)
-                    } else {
-                        p.text
-                    },
-                );
-                ui.painter().text(
-                    rect.right_bottom() + vec2(-6.0, -4.0),
-                    Align2::RIGHT_BOTTOM,
-                    key.to_string(),
-                    FontId::monospace(9.0),
-                    p.weak,
-                );
-                if response.is_pointer_button_down_on() {
-                    // Lower on the pad plays louder, as a harder hit.
-                    let depth = response
-                        .interact_pointer_pos()
-                        .map_or(0.7, |pos| (pos.y - rect.top()) / rect.height());
-                    pressed = Some((*key, (40.0 + 87.0 * depth.clamp(0.0, 1.0)) as u8));
-                    state.selected = index;
-                }
-                response.on_hover_text(tr(
-                    "Click to play and show its settings; lower on the pad plays louder",
-                ));
+    // The pads, four by four on the dark screen, each with its sound drawn.
+    egui::Frame::new()
+        .fill(SCREEN)
+        .corner_radius(10.0)
+        .inner_margin(10.0)
+        .show(ui, |ui| {
+            let gap = 8.0;
+            let width = ((ui.available_width() - 3.0 * gap) / 4.0).floor();
+            let height = 74.0;
+            for row in LAYOUT.chunks(4) {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = gap;
+                    for &pad in row {
+                        let (rect, response) =
+                            ui.allocate_exact_size(vec2(width, height), Sense::click_and_drag());
+                        let file = pad_file(params, pad);
+                        cell(
+                            ui,
+                            params,
+                            rect,
+                            pad,
+                            file.as_deref(),
+                            meters,
+                            state.selected == pad,
+                        );
+                        if response.is_pointer_button_down_on() {
+                            // Lower on the pad plays louder, as a harder hit.
+                            let depth = response
+                                .interact_pointer_pos()
+                                .map_or(0.7, |pos| (pos.y - rect.top()) / rect.height());
+                            pressed =
+                                Some((VOICES[pad].2, (40.0 + 87.0 * depth.clamp(0.0, 1.0)) as u8));
+                            state.selected = pad;
+                        }
+                        response.on_hover_text(tr(
+                            "Click to play and edit it; lower on the pad plays louder",
+                        ));
+                    }
+                });
+                ui.add_space(gap - ui.spacing().item_spacing.y);
             }
         });
-    }
+    ui.add_space(8.0);
+    editor(ui, params, state.selected.min(VOICES.len() - 1), meters);
     ui.add_space(8.0);
     ui.horizontal_top(|ui| {
-        let (id, name, _) = VOICES[state.selected.min(VOICES.len() - 1)];
-        panel(ui, tr(name), |ui| {
-            ui.horizontal(|ui| {
-                for (field, label) in ["level", "tune", "decay", "tone"].into_iter().zip([
-                    tr("Level"),
-                    tr("Tune"),
-                    tr("Decay"),
-                    tr("Tone"),
-                ]) {
-                    named_knob(ui, params, &format!("{id}_{field}"), label, 38.0, p.accent);
-                }
-            });
-        });
         panel(ui, tr("Kit"), |ui| {
             ui.horizontal(|ui| {
-                for id in ["accent", "drive", "volume"] {
+                for id in ["accent", "drive", "room", "crush", "volume"] {
                     param_knob(ui, params, id, 38.0, p.accent);
                 }
             });
@@ -397,6 +487,182 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DrumsS
     }
 }
 
+/// One pad: its family's color lighting up as it sounds, its name, its sound drawn, its
+/// character or its file.
+fn cell(
+    ui: &Ui,
+    params: &Params,
+    rect: Rect,
+    pad: usize,
+    file: Option<&std::path::Path>,
+    meters: &[f32],
+    selected: bool,
+) {
+    let painter = ui.painter_at(rect.expand(3.0));
+    let color = family(pad);
+    let glow = meters
+        .get(pad)
+        .copied()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+        .sqrt();
+    let fill = theme::mix(Color32::from_rgb(30, 35, 44), color, 0.22 + 0.6 * glow);
+    painter.rect_filled(rect, 7.0, fill);
+    // A bright edge on top, as on a lit pad.
+    painter.rect_filled(
+        Rect::from_min_size(rect.min, vec2(rect.width(), 3.0)),
+        egui::CornerRadius {
+            nw: 7,
+            ne: 7,
+            sw: 0,
+            se: 0,
+        },
+        color.gamma_multiply(0.6 + 0.4 * glow),
+    );
+    if selected {
+        painter.rect_stroke(
+            rect,
+            7.0,
+            Stroke::new(2.0, Color32::WHITE),
+            egui::StrokeKind::Outside,
+        );
+    }
+    let (id, name, key) = VOICES[pad];
+    let ink = Color32::from_rgb(236, 240, 246);
+    painter.text(
+        rect.left_top() + vec2(9.0, 9.0),
+        Align2::LEFT_TOP,
+        tr(name),
+        theme::strong(12.5),
+        ink,
+    );
+    let badge = match file {
+        Some(path) => path
+            .file_stem()
+            .map_or_else(String::new, |s| s.to_string_lossy().into_owned()),
+        None => {
+            let model = params.get(&format!("{id}_model")).round().max(0.0) as usize;
+            tr(audiostrada_dsp::drums::MODELS[model.min(2)]).to_owned()
+        }
+    };
+    painter.text(
+        rect.right_top() + vec2(-8.0, 10.0),
+        Align2::RIGHT_TOP,
+        badge,
+        FontId::proportional(10.0),
+        ink.gamma_multiply(0.7),
+    );
+    painter.text(
+        rect.right_bottom() + vec2(-7.0, -5.0),
+        Align2::RIGHT_BOTTOM,
+        key.to_string(),
+        FontId::monospace(9.0),
+        ink.gamma_multiply(0.45),
+    );
+    let wave = Rect::from_min_max(
+        rect.left_top() + vec2(9.0, 30.0),
+        rect.right_bottom() - vec2(28.0, 8.0),
+    );
+    waveform(
+        &painter,
+        wave,
+        &shape(params, pad, file),
+        ink.gamma_multiply(0.85),
+    );
+}
+
+/// The pad being edited: its sound large, its character or its file, and its settings.
+fn editor(ui: &mut Ui, params: &mut Params, pad: usize, meters: &[f32]) {
+    let (id, name, _) = VOICES[pad];
+    let color = family(pad);
+    let file = pad_file(params, pad);
+    egui::Frame::new()
+        .fill(SCREEN)
+        .corner_radius(10.0)
+        .inner_margin(12.0)
+        .show(ui, |ui| {
+            let selection = ui.visuals().selection;
+            *ui.visuals_mut() = egui::Visuals::dark();
+            ui.visuals_mut().selection = selection;
+            ui.set_width(ui.available_width());
+            ui.horizontal_top(|ui| {
+                // The sound, wide, under the pad's name.
+                ui.vertical(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(tr(name)).size(20.0).strong().color(color));
+                        ui.add_space(8.0);
+                        if file.is_none() {
+                            segmented(
+                                ui,
+                                params,
+                                &format!("{id}_model"),
+                                &[
+                                    "Deep and long, the classic analog machine",
+                                    "Punchy and bright, made for house and techno",
+                                    "Modeled skins, wires and cymbals: closer to a real kit",
+                                ],
+                            );
+                        }
+                    });
+                    let width = (ui.available_width() - 330.0).max(260.0);
+                    let (rect, _) = ui.allocate_exact_size(vec2(width, 96.0), Sense::hover());
+                    let painter = ui.painter_at(rect);
+                    painter.rect_filled(rect, 8.0, Color32::from_rgb(24, 28, 36));
+                    let glow = meters.get(pad).copied().unwrap_or(0.0).min(1.0);
+                    waveform(
+                        &painter,
+                        rect.shrink2(vec2(10.0, 8.0)),
+                        &shape(params, pad, file.as_deref()),
+                        color.gamma_multiply(0.7 + 0.3 * glow),
+                    );
+                    ui.horizontal(|ui| {
+                        let slot = &audiostrada_dsp::drums::SLOTS[pad];
+                        match &file {
+                            Some(path) => {
+                                let shown = path
+                                    .file_name()
+                                    .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
+                                ui.label(RichText::new(shown).size(11.0))
+                                    .on_hover_text(path.display().to_string());
+                                if let Some(Err(e)) =
+                                    params.doc.player().effect_file(params.insert, slot.id)
+                                {
+                                    ui.colored_label(crate::settings::ERROR, e);
+                                }
+                            }
+                            None => {
+                                ui.weak(tr("Synthesized: load a sample to play it instead"));
+                            }
+                        }
+                        let (doc, channel, insert) =
+                            (&mut *params.doc, params.channel, params.insert);
+                        crate::mixer::load_button(ui, doc, channel, insert, slot);
+                        if file.is_some() && ui.button(tr("Remove")).clicked() {
+                            let _ = params.doc.set_effect_file(
+                                params.channel,
+                                params.insert,
+                                slot.id,
+                                None,
+                            );
+                        }
+                    });
+                });
+                ui.add_space(12.0);
+                ui.horizontal_centered(|ui| {
+                    for (field, label) in [
+                        ("level", tr("Level")),
+                        ("pan", tr("Pan")),
+                        ("tune", tr("Tune")),
+                        ("decay", tr("Decay")),
+                        ("tone", tr("Tone")),
+                    ] {
+                        named_knob(ui, params, &format!("{id}_{field}"), label, 44.0, color);
+                    }
+                });
+            });
+        });
+}
+
 /// A titled panel.
 fn panel(ui: &mut Ui, title: &str, add: impl FnOnce(&mut Ui)) {
     let p = theme::current(ui);
@@ -406,12 +672,7 @@ fn panel(ui: &mut Ui, title: &str, add: impl FnOnce(&mut Ui)) {
         .inner_margin(10.0)
         .show(ui, |ui| {
             ui.vertical(|ui| {
-                ui.label(
-                    RichText::new(title.to_uppercase())
-                        .size(9.5)
-                        .color(p.weak)
-                        .strong(),
-                );
+                ui.label(RichText::new(title).size(11.5).color(p.weak).strong());
                 ui.add_space(2.0);
                 add(ui);
             });
