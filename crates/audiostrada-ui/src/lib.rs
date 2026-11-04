@@ -9,6 +9,7 @@ mod console_ui;
 pub mod control;
 mod dialogs;
 pub mod document;
+mod drum_sequencer;
 mod drums_editor;
 mod effect_browser;
 mod effect_editors;

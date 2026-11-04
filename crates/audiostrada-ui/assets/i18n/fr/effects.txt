@@ -4390,3 +4390,33 @@ Hybride : Drum and bass
 
 Minimal: Tight and dry
 Minimal : Serré et sec
+
+An empty MIDI clip at the playhead's bar, to fill step by step
+Un clip MIDI vide à la mesure de la tête de lecture, à remplir pas à pas
+
+Bar {n}
+Mesure {n}
+
+Chance
+Probabilité
+
+Clear the pattern
+Effacer le motif
+
+New drum pattern
+Nouveau motif de batterie
+
+New pattern
+Nouveau motif
+
+No MIDI clip on this track yet
+Pas encore de clip MIDI sur cette piste
+
+Pattern
+Motif
+
+Start from a rhythm
+Partir d'un rythme
+
+Steps
+Pas

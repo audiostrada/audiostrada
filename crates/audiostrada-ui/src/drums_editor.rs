@@ -17,26 +17,13 @@ use crate::i18n::tr;
 use crate::theme;
 
 /// What the drum machine's editor remembers between frames.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DrumsState {
     /// The pad held with the mouse, and the track it plays.
     held: Option<(audiostrada_core::TrackId, u8)>,
     /// The voice whose settings are shown.
     selected: usize,
-    /// The rhythm chosen, and how many bars to write.
-    rhythm: usize,
-    bars: u32,
-}
-
-impl Default for DrumsState {
-    fn default() -> Self {
-        Self {
-            held: None,
-            selected: 0,
-            rhythm: 0,
-            bars: 4,
-        }
-    }
+    sequencer: crate::drum_sequencer::SequencerState,
 }
 
 impl DrumsState {
@@ -888,7 +875,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
 const SCREEN: Color32 = Color32::from_rgb(16, 19, 25);
 
 /// The color of a pad's family: kicks, snares and claps, hats, toms, cymbals, percussion.
-fn family(pad: usize) -> Color32 {
+pub(crate) fn family(pad: usize) -> Color32 {
     use audiostrada_dsp::drums::{KINDS, Kind};
     match KINDS[pad] {
         Kind::Kick => Color32::from_rgb(232, 86, 72),
@@ -1003,7 +990,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DrumsS
         .show(ui, |ui| {
             let gap = 8.0;
             let width = ((ui.available_width() - 3.0 * gap) / 4.0).floor();
-            let height = 74.0;
+            let height = 62.0;
             for row in LAYOUT.chunks(4) {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = gap;
@@ -1040,15 +1027,30 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DrumsS
     ui.add_space(8.0);
     editor(ui, params, state.selected.min(VOICES.len() - 1), meters);
     ui.add_space(8.0);
-    ui.horizontal_top(|ui| {
-        panel(ui, tr("Kit"), |ui| {
-            ui.horizontal(|ui| {
-                for id in ["accent", "drive", "room", "crush", "volume"] {
-                    param_knob(ui, params, id, 38.0, p.accent);
-                }
-            });
+    egui::Frame::new()
+        .fill(SCREEN)
+        .corner_radius(10.0)
+        .inner_margin(10.0)
+        .show(ui, |ui| {
+            let selection = ui.visuals().selection;
+            *ui.visuals_mut() = egui::Visuals::dark();
+            ui.visuals_mut().selection = selection;
+            ui.set_width(ui.available_width());
+            crate::drum_sequencer::show(
+                ui,
+                params,
+                &mut state.sequencer,
+                &mut state.selected,
+                meters,
+            );
         });
-        panel(ui, tr("Rhythms"), |ui| rhythms(ui, params, state));
+    ui.add_space(8.0);
+    panel(ui, tr("Kit"), |ui| {
+        ui.horizontal(|ui| {
+            for id in ["accent", "drive", "room", "crush", "volume"] {
+                param_knob(ui, params, id, 38.0, p.accent);
+            }
+        });
     });
 
     // The mouse plays one pad at a time.
@@ -1186,7 +1188,7 @@ fn editor(ui: &mut Ui, params: &mut Params, pad: usize, meters: &[f32]) {
                         }
                     });
                     let width = (ui.available_width() - 330.0).max(260.0);
-                    let (rect, _) = ui.allocate_exact_size(vec2(width, 96.0), Sense::hover());
+                    let (rect, _) = ui.allocate_exact_size(vec2(width, 72.0), Sense::hover());
                     let painter = ui.painter_at(rect);
                     painter.rect_filled(rect, 8.0, Color32::from_rgb(24, 28, 36));
                     let glow = meters.get(pad).copied().unwrap_or(0.0).min(1.0);
@@ -1229,7 +1231,7 @@ fn editor(ui: &mut Ui, params: &mut Params, pad: usize, meters: &[f32]) {
                     });
                 });
                 ui.add_space(12.0);
-                ui.horizontal_centered(|ui| {
+                ui.horizontal(|ui| {
                     for (field, label) in [
                         ("level", tr("Level")),
                         ("pan", tr("Pan")),
@@ -1260,83 +1262,9 @@ fn panel(ui: &mut Ui, title: &str, add: impl FnOnce(&mut Ui)) {
         });
 }
 
-/// Picks a rhythm and writes it into a new MIDI clip at the playhead's bar.
-fn rhythms(ui: &mut Ui, params: &mut Params, state: &mut DrumsState) {
-    let rhythm = &RHYTHMS[state.rhythm.min(RHYTHMS.len() - 1)];
-    egui::ComboBox::from_id_salt("drum-rhythm")
-        .width(190.0)
-        .selected_text(format!("{} · {} BPM", tr(rhythm.name), rhythm.bpm))
-        .show_ui(ui, |ui| {
-            for (i, r) in RHYTHMS.iter().enumerate() {
-                ui.selectable_value(
-                    &mut state.rhythm,
-                    i,
-                    format!("{} · {} BPM", tr(r.name), r.bpm),
-                );
-            }
-        });
-    ui.horizontal(|ui| {
-        egui::ComboBox::from_id_salt("drum-rhythm-bars")
-            .width(70.0)
-            .selected_text(crate::trf!("{n} bars", n = state.bars))
-            .show_ui(ui, |ui| {
-                for n in [1, 2, 4, 8] {
-                    ui.selectable_value(&mut state.bars, n, crate::trf!("{n} bars", n = n));
-                }
-            });
-        let Channel::Track(track) = params.channel else {
-            return;
-        };
-        if ui
-            .button(tr("Add to the piano roll"))
-            .on_hover_text(tr(
-                "Writes the rhythm into a new MIDI clip at the playhead, then opens it in the \
-                 piano roll; the project tempo stays as it is",
-            ))
-            .clicked()
-        {
-            add_rhythm(params.doc, track, &RHYTHMS[state.rhythm], state.bars);
-        }
-    });
-}
-
-fn add_rhythm(
-    doc: &mut crate::document::Document,
-    track: audiostrada_core::TrackId,
-    rhythm: &Rhythm,
-    bars: u32,
-) {
-    let project = doc.project();
-    let (rate, tempo) = (project.sample_rate, project.tempo.clone());
-    let beat = tempo.sample_to_beat(doc.player().position(), rate);
-    let bar = tempo.beat_to_bbt(beat);
-    let bar_start = tempo.bbt_to_beat(audiostrada_core::tempo::BarBeatTick {
-        bar: bar.bar,
-        beat: 1,
-        tick: 0,
-    });
-    let start = tempo.beat_to_sample(bar_start, rate);
-    let beats = 4.0 * f64::from(bars);
-    let end = tempo.beat_to_sample(bar_start + beats, rate);
-    let samples_per_beat = (end - start) as f64 / beats;
-    let notes = rhythm_notes(rhythm, bars, samples_per_beat);
-    let mut created = None;
-    doc.history_mut()
-        .edit(&crate::trf!("Rhythm {name}", name = tr(rhythm.name)), |p| {
-            created = p.add_midi_clip(track, start, end - start, notes);
-            if let Some(id) = created {
-                audiostrada_core::edit::resolve_overlaps(p, track, &[id]);
-            }
-        });
-    if let Some(id) = created {
-        doc.reveal_clip(id);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::document::{AppDirs, Document};
 
     #[test]
     fn kits_have_matching_levels() {
@@ -1550,24 +1478,5 @@ mod tests {
             .map(|n| n.start)
             .collect();
         assert_eq!(starts, [0, 125]);
-    }
-
-    #[test]
-    fn a_rhythm_goes_into_a_clip_at_the_playhead_bar() {
-        let mut doc = Document::new(AppDirs::default());
-        let mut track = None;
-        doc.history_mut()
-            .edit("Setup", |p| track = Some(p.add_track("Drums")));
-        let track = track.unwrap();
-        add_rhythm(&mut doc, track, &RHYTHMS[0], 2);
-        let clip = doc.project().tracks[0].clips.first().unwrap().clone();
-        assert_eq!(clip.start, 0);
-        let bar = doc
-            .project()
-            .tempo
-            .beat_to_sample(4.0, doc.project().sample_rate);
-        assert_eq!(clip.length, 2 * bar);
-        assert!(clip.notes.as_ref().is_some_and(|n| !n.is_empty()));
-        assert_eq!(doc.take_revealed_clip(), Some(clip.id));
     }
 }
