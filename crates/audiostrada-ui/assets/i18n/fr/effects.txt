@@ -2921,8 +2921,8 @@ Strada-Max
 Strada-Phaser
 Strada-Phaser
 
-Strada-Pitch
-Strada-Pitch
+Strada-Correct
+Strada-Correct
 
 Strada-Verb
 Strada-Verb
