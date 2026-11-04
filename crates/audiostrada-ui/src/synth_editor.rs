@@ -10,7 +10,7 @@ use eframe::egui::{
 };
 
 use crate::effect_editors::{
-    Params, choice_box, from_unit, pill_switch, section_frame, segmented, to_unit, wide_knob,
+    Params, choice_box, from_unit, pill_switch, segmented, to_unit, wide_knob,
 };
 use crate::i18n::tr;
 use crate::theme;
@@ -846,93 +846,29 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
     state.live = live.clone();
     ui.ctx()
         .data_mut(|d| d.insert_temp(egui::Id::unique("synth-live-mods"), live.mods.clone()));
+    // Every row gets the same width, whatever a cell may have pushed out.
+    let full = ui.available_width();
     hero(ui, meters, &live);
-    ui.add_space(6.0);
-    let height = 132.0;
-    ui.horizontal_top(|ui| {
-        ui.spacing_mut().item_spacing.x = 8.0;
-        for (title, wave, ids, level) in [
-            (
-                "Oscillator 1",
-                "wave",
-                [
-                    "osc1_octave",
-                    "osc1_semi",
-                    "osc1_fine",
-                    "osc1_voices",
-                    "detune",
-                ],
-                "osc1_level",
-            ),
-            (
-                "Oscillator 2",
-                "osc2_wave",
-                [
-                    "osc2_octave",
-                    "osc2_semi",
-                    "osc2_fine",
-                    "osc2_voices",
-                    "osc2_detune",
-                ],
-                "osc2_level",
-            ),
-        ] {
-            section_frame(ui, tr(title), p.weak, height, |ui| {
-                ui.horizontal(|ui| {
-                    wave_picker(ui, params, wave);
-                    oscillator_view(ui, params, wave, ids[3], level);
-                });
-                ui.add_space(2.0);
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 2.0;
-                    let names = [
-                        tr("Octave"),
-                        tr("Semi"),
-                        tr("Fine"),
-                        tr("Unison"),
-                        tr("Detune"),
-                    ];
-                    for (id, name) in ids.iter().zip(names) {
-                        mod_knob(ui, params, state, id, name);
-                    }
-                    mod_knob(ui, params, state, level, tr("Level"));
-                });
-            });
-        }
-        section_frame(ui, tr("Sub and noise"), p.weak, height, |ui| {
-            ui.horizontal(|ui| segmented(ui, params, "sub_octave", &[]));
-            ui.add_space(2.0);
+    ui.add_space(GAP);
+    // Three columns kept from row to row: the two oscillators' width, then a narrow one.
+    row(ui, full, &[1, 1, 1], 112.0, |ui, c| match c {
+        0 | 1 => oscillator(ui, params, state, c + 1),
+        _ => panel(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                mod_knob(ui, params, state, "sub_level", tr("Sub"));
-                mod_knob(ui, params, state, "noise", tr("Noise"));
+                title(ui, tr("Sub and noise"), p.weak);
+                segmented(ui, params, "sub_octave", &[]);
             });
-        });
+            spread(ui, 2, |ui, k| {
+                let (id, name) = [("sub_level", tr("Sub")), ("noise", tr("Noise"))][k];
+                mod_knob(ui, params, state, id, name);
+            });
+        }),
     });
-    wavetables(ui, params, state);
-    ui.add_space(6.0);
-    ui.horizontal_top(|ui| {
-        ui.spacing_mut().item_spacing.x = 8.0;
-        section_frame(ui, tr("Filter"), p.weak, height, |ui| {
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    choice_box(ui, params, "filter_type");
-                    filter_curve(ui, params, vec2(150.0, 70.0), live.cutoff);
-                });
-                ui.spacing_mut().item_spacing.x = 2.0;
-                for (id, name) in [
-                    ("cutoff", tr("Cutoff")),
-                    ("resonance", tr("Resonance")),
-                    ("env_amount", tr("Envelope")),
-                    ("drive", tr("Drive")),
-                    ("key_track", tr("Key track")),
-                ] {
-                    mod_knob(ui, params, state, id, name);
-                }
-            });
-        });
-        section_frame(ui, tr("Voice"), p.weak, height, |ui| {
+    row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
+        0 | 1 => screen(ui, |ui| wavetable_half(ui, params, state, c + 1)),
+        _ => panel(ui, |ui| {
             ui.horizontal(|ui| {
+                title(ui, tr("Voice"), p.weak);
                 segmented(
                     ui,
                     params,
@@ -944,158 +880,122 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
                     ],
                 )
             });
-            ui.add_space(2.0);
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                mod_knob(ui, params, state, "glide", tr("Glide"));
-                mod_knob(ui, params, state, "spread", tr("Stereo"));
-                mod_knob(ui, params, state, "drift", tr("Drift"));
+            ui.add_space(6.0);
+            spread(ui, 3, |ui, k| {
+                let (id, name) = [
+                    ("glide", tr("Glide")),
+                    ("spread", tr("Stereo")),
+                    ("drift", tr("Drift")),
+                ][k];
+                mod_knob(ui, params, state, id, name);
             });
-        });
-        section_frame(ui, tr("Output"), p.weak, height, |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                mod_knob(ui, params, state, "volume", tr("Volume"));
-                mod_knob(ui, params, state, "velocity", tr("Velocity"));
-                mod_knob(ui, params, state, "bend_range", tr("Bend"));
-            });
-            params.toggle(ui, "mpe", |ui, on| {
-                let response = pill_switch(ui, *on, tr("MPE")).on_hover_text(tr(
-                    "For MPE controllers (Roli Seaboard, LinnStrument, Osmose...), which send each \
-                     note on its own MIDI channel: bend, pressure and slide then shape every note \
-                     on its own. Leave it off for an ordinary keyboard.",
-                ));
-                if response.clicked() {
-                    *on = !*on;
-                }
-                response
-            });
-        });
+        }),
     });
-    ui.add_space(6.0);
-    ui.horizontal_top(|ui| {
-        ui.spacing_mut().item_spacing.x = 8.0;
-        section_frame(ui, tr("Envelope"), p.weak, 100.0, |ui| {
-            ui.horizontal_top(|ui| {
-                envelope(ui, params, 150.0, live.envelope);
-                ui.add_space(4.0);
-                ui.spacing_mut().item_spacing.x = 2.0;
-                for (id, name) in [
+    row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
+        0 => panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                title(ui, tr("Filter"), p.weak);
+                choice_box(ui, params, "filter_type");
+                let size = vec2(ui.available_width(), 40.0);
+                filter_curve(ui, params, size, live.cutoff);
+            });
+            spread(ui, 5, |ui, k| {
+                let (id, name) = [
+                    ("cutoff", tr("Cutoff")),
+                    ("resonance", tr("Resonance")),
+                    ("env_amount", tr("Envelope")),
+                    ("drive", tr("Drive")),
+                    ("key_track", tr("Key track")),
+                ][k];
+                mod_knob(ui, params, state, id, name);
+            });
+        }),
+        1 => panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                title(ui, tr("Envelope"), p.weak);
+                let width = ui.available_width();
+                envelope(ui, params, vec2(width, 40.0), live.envelope);
+            });
+            spread(ui, 4, |ui, k| {
+                let (id, name) = [
                     ("attack", tr("Attack")),
                     ("decay", tr("Decay")),
                     ("sustain", tr("Sustain")),
                     ("release", tr("Release")),
-                ] {
-                    mod_knob(ui, params, state, id, name);
-                }
+                ][k];
+                mod_knob(ui, params, state, id, name);
             });
-        });
-        modulation_sources(ui, params, state);
-    });
-    ui.add_space(6.0);
-    ui.horizontal_top(|ui| {
-        ui.spacing_mut().item_spacing.x = 8.0;
-        macros_and_playing(ui, params, state);
-        routings(ui, params);
-    });
-    ui.add_space(6.0);
-    keyboard(ui, params, state);
-    drop_source(ui, params, state);
-}
-
-/// The modulation sources, each with its few settings and its pill to drag.
-fn modulation_sources(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
-    let p = theme::current(ui);
-    let accent = p.accent;
-    let small = |ui: &mut Ui, params: &mut Params, id: &str, name: &str| {
-        wide_knob(ui, params, id, name, 30.0, accent);
-    };
-    for l in 1..=2usize {
-        section_frame(
-            ui,
-            tr(if l == 1 { "LFO 1" } else { "LFO 2" }),
-            source_color(l),
-            100.0,
-            |ui| {
-                ui.horizontal(|ui| {
-                    source_pill(ui, state, l);
-                    shape_picker(ui, params, &format!("lfo{l}_shape"));
-                });
-                lfo_view(ui, params, l, state.live.lfo_phase[l - 1]);
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 2.0;
-                    let synced = params.get(&format!("lfo{l}_sync")) >= 0.5;
-                    if synced {
-                        crate::effect_editors::choice_box(ui, params, &format!("lfo{l}_note"));
-                    } else {
-                        small(ui, params, &format!("lfo{l}_rate"), tr("Rate"));
+        }),
+        _ => panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                title(ui, tr("Output"), p.weak);
+                params.toggle(ui, "mpe", |ui, on| {
+                    let response = pill_switch(ui, *on, tr("MPE")).on_hover_text(tr(
+                        "For MPE controllers (Roli Seaboard, LinnStrument, Osmose...), which \
+                         send each note on its own MIDI channel: bend, pressure and slide then \
+                         shape every note on its own. Leave it off for an ordinary keyboard.",
+                    ));
+                    if response.clicked() {
+                        *on = !*on;
                     }
-                    ui.vertical(|ui| {
-                        for (field, label, hint) in [
-                            ("sync", "Sync", "A note value at the project's tempo"),
-                            (
-                                "retrig",
-                                "Retrigger",
-                                "Starts again at each note; off, every note follows the same wave",
-                            ),
-                        ] {
-                            params.toggle(ui, &format!("lfo{l}_{field}"), |ui, on| {
-                                let response =
-                                    pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
-                                if response.clicked() {
-                                    *on = !*on;
-                                }
-                                response
-                            });
-                        }
+                    response
+                });
+            });
+            spread(ui, 3, |ui, k| {
+                let (id, name) = [
+                    ("volume", tr("Volume")),
+                    ("velocity", tr("Velocity")),
+                    ("bend_range", tr("Bend")),
+                ][k];
+                mod_knob(ui, params, state, id, name);
+            });
+        }),
+    });
+    row(ui, full, &[1, 1, 1], 100.0, |ui, c| match c {
+        0 | 1 => lfo(ui, params, state, c + 1),
+        _ => panel(ui, |ui| {
+            source_pill(ui, state, 3);
+            spread(ui, 4, |ui, k| {
+                let (field, name) = [
+                    ("attack", tr("A")),
+                    ("decay", tr("D")),
+                    ("sustain", tr("S")),
+                    ("release", tr("R")),
+                ][k];
+                wide_knob(ui, params, &format!("env2_{field}"), name, 30.0, p.accent);
+            });
+        }),
+    });
+    // Macros and what the player does, then the routings over the two other columns.
+    row(ui, full, &[1, 2], 92.0, |ui, c| match c {
+        0 => panel(ui, |ui| {
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    ui.set_width((ui.available_width() - 110.0).max(200.0));
+                    spread(ui, 4, |ui, k| {
+                        source_pill(ui, state, k + 7);
+                        wide_knob(ui, params, &format!("macro{}", k + 1), "", 30.0, p.accent);
                     });
                 });
-            },
-        );
-    }
-    section_frame(ui, tr("Envelope 2"), source_color(3), 100.0, |ui| {
-        source_pill(ui, state, 3);
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 2.0;
-            for (field, name) in [
-                ("attack", tr("A")),
-                ("decay", tr("D")),
-                ("sustain", tr("S")),
-                ("release", tr("R")),
-            ] {
-                small(ui, params, &format!("env2_{field}"), name);
-            }
-        });
-    });
-}
-
-/// The four macros, knobs to turn or automate, and what is played: velocity, wheel, pressure.
-fn macros_and_playing(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
-    let p = theme::current(ui);
-    let accent = p.accent;
-    section_frame(ui, tr("Macros"), source_color(7), 96.0, |ui| {
-        ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing.x = 6.0;
-            for m in 1..=4usize {
                 ui.vertical(|ui| {
-                    source_pill(ui, state, m + 6);
-                    wide_knob(ui, params, &format!("macro{m}"), "", 30.0, accent);
+                    for source in 4..=6 {
+                        source_pill(ui, state, source);
+                    }
                 });
-            }
-        });
+            });
+        }),
+        _ => routings(ui, params),
     });
-    section_frame(ui, tr("Playing"), p.weak, 96.0, |ui| {
-        for source in 4..=6 {
-            source_pill(ui, state, source);
-        }
-    });
+    keyboard(ui, params, state);
+    drop_source(ui, params, state);
 }
 
 /// The routings in use, one line each: source, target, amount, removal.
 fn routings(ui: &mut Ui, params: &mut Params) {
     let p = theme::current(ui);
     let list = routes(params);
-    section_frame(ui, tr("Modulation"), p.weak, 0.0, |ui| {
+    panel(ui, |ui| {
+        title(ui, tr("Modulation"), p.weak);
         if list.is_empty() {
             ui.weak(tr(
                 "Drag a colored source (LFO, envelope, macro, velocity...) onto a knob to \
@@ -1103,81 +1003,59 @@ fn routings(ui: &mut Ui, params: &mut Params) {
             ));
             return;
         }
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing = vec2(10.0, 4.0);
-            for (k, source, _, _) in list {
-                let n = k + 1;
-                egui::Frame::new()
-                    .fill(source_color(source).gamma_multiply(0.12))
-                    .corner_radius(6.0)
-                    .inner_margin(egui::Margin::symmetric(6, 3))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 4.0;
-                            ui.painter().circle_filled(
-                                ui.cursor().min + vec2(5.0, 10.0),
-                                4.0,
-                                source_color(source),
-                            );
-                            ui.add_space(12.0);
-                            crate::effect_editors::choice_box(
-                                ui,
-                                params,
-                                &format!("mod{n}_source"),
-                            );
-                            ui.label("→");
-                            crate::effect_editors::choice_box(
-                                ui,
-                                params,
-                                &format!("mod{n}_target"),
-                            );
-                            let id = format!("mod{n}_amount");
-                            let mut amount = params.get(&id);
-                            let response = ui.add(
-                                egui::DragValue::new(&mut amount)
-                                    .range(-100.0..=100.0)
-                                    .suffix(" %")
-                                    .speed(0.5),
-                            );
-                            params.set(&id, response.changed().then_some(amount), &response);
-                            if ui.small_button("✕").on_hover_text(tr("Remove")).clicked() {
-                                let response = ui.response();
-                                params.set(&format!("mod{n}_source"), Some(0.0), &response);
-                                params.set(&format!("mod{n}_amount"), Some(0.0), &response);
-                                params.doc.history_mut().end_gesture();
-                            }
-                        });
-                    });
-            }
-        });
-    });
-}
-
-/// The two oscillators' wavetables on a dark screen, when one plays one: each one's table,
-/// what it does, its frames with the position, and the file it may play.
-fn wavetables(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
-    use audiostrada_dsp::synth::WAVETABLE;
-    let used = ["wave", "osc2_wave"].map(|w| params.get(w).round() as u32 == WAVETABLE);
-    if !used.contains(&true) {
-        return;
-    }
-    ui.add_space(6.0);
-    egui::Frame::new()
-        .fill(SCREEN)
-        .corner_radius(10.0)
-        .inner_margin(egui::Margin::symmetric(14, 10))
-        .show(ui, |ui| {
-            // Light controls on the dark screen, whatever the theme.
-            let selection = ui.visuals().selection;
-            *ui.visuals_mut() = egui::Visuals::dark();
-            ui.visuals_mut().selection = selection;
-            ui.set_width(ui.available_width());
+        // Two per line, each filling its half.
+        let pairs: Vec<_> = list.chunks(2).map(<[_]>::to_vec).collect();
+        for pair in pairs {
             ui.columns(2, |columns| {
-                for (k, column) in columns.iter_mut().enumerate() {
-                    wavetable_half(column, params, state, k + 1, used[k]);
+                for ((k, source, _, _), ui) in pair.into_iter().zip(columns.iter_mut()) {
+                    let n = k + 1;
+                    let width = ui.available_width();
+                    ui.spacing_mut().combo_width = ((width - 220.0) / 2.0).max(60.0);
+                    egui::Frame::new()
+                        .fill(source_color(source).gamma_multiply(0.12))
+                        .corner_radius(6.0)
+                        .inner_margin(egui::Margin::symmetric(6, 3))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 4.0;
+                                ui.painter().circle_filled(
+                                    ui.cursor().min + vec2(5.0, 10.0),
+                                    4.0,
+                                    source_color(source),
+                                );
+                                ui.add_space(12.0);
+                                crate::effect_editors::choice_box(
+                                    ui,
+                                    params,
+                                    &format!("mod{n}_source"),
+                                );
+                                ui.label("→");
+                                crate::effect_editors::choice_box(
+                                    ui,
+                                    params,
+                                    &format!("mod{n}_target"),
+                                );
+                                let id = format!("mod{n}_amount");
+                                let mut amount = params.get(&id);
+                                let response = ui.add(
+                                    egui::DragValue::new(&mut amount)
+                                        .range(-100.0..=100.0)
+                                        .suffix(" %")
+                                        .speed(0.5),
+                                );
+                                params.set(&id, response.changed().then_some(amount), &response);
+                                if ui.small_button("✕").on_hover_text(tr("Remove")).clicked() {
+                                    let response = ui.response();
+                                    params.set(&format!("mod{n}_source"), Some(0.0), &response);
+                                    params.set(&format!("mod{n}_amount"), Some(0.0), &response);
+                                    params.doc.history_mut().end_gesture();
+                                }
+                            });
+                        });
                 }
             });
-        });
+        }
+    });
 }
 
 const ABOUT_WAVETABLES: &str = "A wavetable is a row of waves: the position glides from one \
@@ -1186,10 +1064,12 @@ const ABOUT_WAVETABLES: &str = "A wavetable is a row of waves: the position glid
 /// The screen behind the scope and the wavetables.
 const SCREEN: Color32 = Color32::from_rgb(12, 16, 22);
 
-fn wavetable_half(ui: &mut Ui, params: &mut Params, state: &mut SynthState, n: usize, used: bool) {
+/// Oscillator `n`'s wavetable: the table, what it does, its frames, position and file.
+fn wavetable_half(ui: &mut Ui, params: &mut Params, state: &mut SynthState, n: usize) {
     use audiostrada_dsp::wavetable::{LOADED, TABLE_HINTS};
     let p = theme::current(ui);
     let wave = if n == 1 { "wave" } else { "osc2_wave" };
+    let used = params.get(wave).round() as u32 == audiostrada_dsp::synth::WAVETABLE;
     let table = format!("osc{n}_table");
     ui.horizontal(|ui| {
         let title = [tr("Wavetable 1"), tr("Wavetable 2")][n - 1];
@@ -1197,13 +1077,12 @@ fn wavetable_half(ui: &mut Ui, params: &mut Params, state: &mut SynthState, n: u
             .on_hover_text(tr(ABOUT_WAVETABLES));
         if used {
             choice_box(ui, params, &table);
+            wavetable_file(ui, params, n);
         }
     });
     if !used {
-        ui.add_space(6.0);
-        ui.add(egui::Label::new(RichText::new(tr(ABOUT_WAVETABLES)).weak().size(11.0)).wrap());
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
+        ui.add_space(36.0);
+        ui.vertical_centered(|ui| {
             ui.weak(trf!("Oscillator {n} plays another wave.", n = n));
             let response = ui.button(trf!("Play it on oscillator {n}", n = n));
             if response.clicked() {
@@ -1217,8 +1096,8 @@ fn wavetable_half(ui: &mut Ui, params: &mut Params, state: &mut SynthState, n: u
     ui.add(egui::Label::new(RichText::new(tr(TABLE_HINTS[kind])).weak().size(11.0)).wrap());
     ui.add_space(4.0);
     ui.horizontal_top(|ui| {
-        let width = (ui.available_width() - 70.0).clamp(160.0, 320.0);
-        wavetable_view(ui, params, n, vec2(width, 92.0));
+        let width = (ui.available_width() - 90.0).max(120.0);
+        wavetable_view(ui, params, n, vec2(width, 54.0));
         mod_knob(
             ui,
             params,
@@ -1227,40 +1106,223 @@ fn wavetable_half(ui: &mut Ui, params: &mut Params, state: &mut SynthState, n: u
             tr("Position"),
         );
     });
-    // The file it may play: loading one plays it at once.
-    let info = params.info;
-    let slot = &info.files[n - 1];
+}
+
+/// The file oscillator `n`'s wavetable may play, right-aligned: its name, Load and Remove.
+/// Loading one plays it at once.
+fn wavetable_file(ui: &mut Ui, params: &mut Params, n: usize) {
+    use audiostrada_dsp::wavetable::LOADED;
+    let table = format!("osc{n}_table");
+    let slot = &params.info.files[n - 1];
     let loaded = {
         let project = params.doc.project();
         audiostrada_core::routing::find_insert(project, params.channel, params.insert)
             .and_then(|i| i.files.get(slot.id).cloned())
     };
-    ui.horizontal(|ui| {
-        match &loaded {
-            Some(path) => {
-                let name = path
-                    .file_stem()
-                    .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
-                ui.label(RichText::new(name).size(11.0))
-                    .on_hover_text(path.display().to_string());
-                if let Some(Err(e)) = params.doc.player().effect_file(params.insert, slot.id) {
-                    ui.colored_label(crate::settings::ERROR, e);
-                }
-            }
-            None => {
-                ui.weak(tr("No file loaded"));
-            }
+    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        if loaded.is_some() && ui.button(tr("Remove")).clicked() {
+            let _ = params
+                .doc
+                .set_effect_file(params.channel, params.insert, slot.id, None);
         }
         let (doc, channel, insert) = (&mut *params.doc, params.channel, params.insert);
         if crate::mixer::load_button(ui, doc, channel, insert, slot) {
             let response = ui.response();
             params.set(&table, Some(LOADED as f32), &response);
         }
-        if loaded.is_some() && ui.button(tr("Remove")).clicked() {
-            let _ = params
-                .doc
-                .set_effect_file(params.channel, params.insert, slot.id, None);
+        match &loaded {
+            Some(path) => {
+                if let Some(Err(e)) = params.doc.player().effect_file(params.insert, slot.id) {
+                    ui.colored_label(crate::settings::ERROR, e);
+                }
+                let name = path
+                    .file_stem()
+                    .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
+                ui.add(egui::Label::new(RichText::new(name).size(11.0)).truncate())
+                    .on_hover_text(path.display().to_string());
+            }
+            None => {
+                ui.weak(tr("No file loaded"));
+            }
         }
+    });
+}
+
+/// Space between the panels.
+const GAP: f32 = 8.0;
+/// Width shares of the three columns.
+const GRID: [f32; 3] = [3.0, 3.0, 1.8];
+
+/// One row of the grid, filling the width: cells spanning `spans` columns, of `height`.
+fn row(ui: &mut Ui, full: f32, spans: &[usize], height: f32, mut add: impl FnMut(&mut Ui, usize)) {
+    let total: f32 = GRID.iter().sum();
+    let columns: Vec<f32> = GRID
+        .iter()
+        .map(|share| ((full - GAP * (GRID.len() - 1) as f32) * share / total).floor())
+        .collect();
+    // Each cell at its own place: one that needs more room never shifts the next.
+    let top = ui.cursor().min;
+    let (mut x, mut bottom, mut first) = (top.x, top.y + height, 0);
+    for (c, &span) in spans.iter().enumerate() {
+        let cells = &columns[first..(first + span).min(columns.len())];
+        first += span;
+        let w = cells.iter().sum::<f32>() + GAP * (cells.len().max(1) - 1) as f32;
+        let rect = Rect::from_min_size(pos2(x, top.y), vec2(w, height));
+        let builder = egui::UiBuilder::new()
+            .max_rect(rect)
+            .layout(egui::Layout::top_down(egui::Align::Min));
+        let used = ui.scope_builder(builder, |ui| add(ui, c)).response.rect;
+        bottom = bottom.max(used.bottom());
+        x += w + GAP;
+    }
+    ui.allocate_rect(
+        Rect::from_min_max(top, pos2(top.x + full, bottom)),
+        Sense::hover(),
+    );
+    ui.add_space(GAP);
+}
+
+/// A panel's name, on the line of its first controls.
+fn title(ui: &mut Ui, text: &str, color: Color32) {
+    ui.label(RichText::new(text).strong().size(11.5).color(color));
+}
+
+/// A panel filling its cell.
+fn panel(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
+    let p = theme::current(ui);
+    let size = ui.available_size();
+    egui::Frame::new()
+        .fill(p.base)
+        .corner_radius(8.0)
+        .inner_margin(egui::Margin::symmetric(10, 8))
+        .show(ui, |ui| {
+            ui.set_min_size((size - vec2(20.0, 16.0)).max(egui::Vec2::ZERO));
+            ui.set_max_width(size.x - 20.0);
+            add(ui);
+        });
+}
+
+/// A panel on the dark screen, with light controls whatever the theme.
+fn screen(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
+    let size = ui.available_size();
+    egui::Frame::new()
+        .fill(SCREEN)
+        .corner_radius(8.0)
+        .inner_margin(egui::Margin::symmetric(12, 8))
+        .show(ui, |ui| {
+            let selection = ui.visuals().selection;
+            *ui.visuals_mut() = egui::Visuals::dark();
+            ui.visuals_mut().selection = selection;
+            ui.set_min_size((size - vec2(24.0, 16.0)).max(egui::Vec2::ZERO));
+            ui.set_max_width(size.x - 24.0);
+            add(ui);
+        });
+}
+
+/// `n` controls spread evenly over the width left, each centered in its share.
+fn spread(ui: &mut Ui, n: usize, mut add: impl FnMut(&mut Ui, usize)) {
+    ui.spacing_mut().item_spacing.x = 2.0;
+    ui.columns(n, |columns| {
+        for (k, column) in columns.iter_mut().enumerate() {
+            column.vertical_centered(|ui| add(ui, k));
+        }
+    });
+}
+
+/// An oscillator: its wave and how it sounds, then its knobs.
+fn oscillator(ui: &mut Ui, params: &mut Params, state: &mut SynthState, n: usize) {
+    let p = theme::current(ui);
+    let (name, wave, ids, level) = if n == 1 {
+        (
+            "Oscillator 1",
+            "wave",
+            [
+                "osc1_octave",
+                "osc1_semi",
+                "osc1_fine",
+                "osc1_voices",
+                "detune",
+            ],
+            "osc1_level",
+        )
+    } else {
+        (
+            "Oscillator 2",
+            "osc2_wave",
+            [
+                "osc2_octave",
+                "osc2_semi",
+                "osc2_fine",
+                "osc2_voices",
+                "osc2_detune",
+            ],
+            "osc2_level",
+        )
+    };
+    panel(ui, |ui| {
+        ui.horizontal(|ui| {
+            title(ui, tr(name), p.weak);
+            wave_picker(ui, params, wave);
+            oscillator_view(ui, params, wave, ids[3], level);
+        });
+        ui.add_space(2.0);
+        spread(ui, 6, |ui, k| {
+            let names = [
+                tr("Octave"),
+                tr("Semi"),
+                tr("Fine"),
+                tr("Unison"),
+                tr("Detune"),
+                tr("Level"),
+            ];
+            let id = if k < 5 { ids[k] } else { level };
+            mod_knob(ui, params, state, id, names[k]);
+        });
+    });
+}
+
+/// An LFO: its shape and where it is, its rate or note, sync and retrigger.
+fn lfo(ui: &mut Ui, params: &mut Params, state: &mut SynthState, l: usize) {
+    let accent = theme::current(ui).accent;
+    panel(ui, |ui| {
+        ui.horizontal(|ui| {
+            source_pill(ui, state, l);
+            shape_picker(ui, params, &format!("lfo{l}_shape"));
+            lfo_view(ui, params, l, state.live.lfo_phase[l - 1]);
+        });
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            let synced = params.get(&format!("lfo{l}_sync")) >= 0.5;
+            if synced {
+                choice_box(ui, params, &format!("lfo{l}_note"));
+            } else {
+                wide_knob(
+                    ui,
+                    params,
+                    &format!("lfo{l}_rate"),
+                    tr("Rate"),
+                    30.0,
+                    accent,
+                );
+            }
+            ui.add_space(8.0);
+            for (field, label, hint) in [
+                ("sync", "Sync", "A note value at the project's tempo"),
+                (
+                    "retrig",
+                    "Retrigger",
+                    "Starts again at each note; off, every note follows the same wave",
+                ),
+            ] {
+                params.toggle(ui, &format!("lfo{l}_{field}"), |ui, on| {
+                    let response = pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
+                    if response.clicked() {
+                        *on = !*on;
+                    }
+                    response
+                });
+            }
+        });
     });
 }
 
@@ -1357,7 +1419,8 @@ fn lfo_view(ui: &mut Ui, params: &mut Params, l: usize, phase: f32) {
     use audiostrada_dsp::filter::lfo_value;
     let p = theme::current(ui);
     let color = source_color(l);
-    let (rect, _) = ui.allocate_exact_size(vec2(200.0, 30.0), Sense::hover());
+    let (rect, _) =
+        ui.allocate_exact_size(vec2(ui.available_width().max(60.0), 24.0), Sense::hover());
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 5.0, p.base);
     let shape = params.get(&format!("lfo{l}_shape")).round() as usize;
@@ -1389,7 +1452,7 @@ fn hero(ui: &mut Ui, meters: &[f32], live: &Live) {
     use audiostrada_dsp::synth::meter;
     let p = theme::current(ui);
     let width = ui.available_width();
-    let (rect, _) = ui.allocate_exact_size(vec2(width, 84.0), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(vec2(width, 70.0), Sense::hover());
     let painter = ui.painter_at(rect);
     // A deep screen whatever the theme, as on hardware.
     let screen = SCREEN;
@@ -1445,7 +1508,7 @@ fn hero(ui: &mut Ui, meters: &[f32], live: &Live) {
     }
     // The sixteen voices as lights.
     let panel = Rect::from_min_max(
-        pos2(scope.right() + 16.0, rect.top() + 14.0),
+        pos2(scope.right() + 16.0, rect.top() + 10.0),
         rect.max - vec2(14.0, 10.0),
     );
     painter.text(
@@ -1459,7 +1522,7 @@ fn hero(ui: &mut Ui, meters: &[f32], live: &Live) {
         let (row, col) = (v / 8, v % 8);
         let at = pos2(
             panel.left() + 6.0 + col as f32 * 20.0,
-            panel.top() + 30.0 + row as f32 * 18.0,
+            panel.top() + 24.0 + row as f32 * 16.0,
         );
         let lit = v < live.voices;
         if lit {
@@ -1472,7 +1535,8 @@ fn hero(ui: &mut Ui, meters: &[f32], live: &Live) {
 /// An oscillator's wave as it sounds: its unison voices stacked, drifting apart.
 fn oscillator_view(ui: &mut Ui, params: &mut Params, wave: &str, voices: &str, level: &str) {
     let p = theme::current(ui);
-    let (rect, _) = ui.allocate_exact_size(vec2(110.0, 22.0), Sense::hover());
+    let (rect, _) =
+        ui.allocate_exact_size(vec2(ui.available_width().max(60.0), 22.0), Sense::hover());
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 5.0, p.base);
     let kind = params.get(wave).round() as usize;
@@ -1713,12 +1777,12 @@ fn wave_picker(ui: &mut Ui, params: &mut Params, id: &str) {
 }
 
 /// The envelope, its corners dragged to set attack, decay with sustain, and release.
-fn envelope(ui: &mut Ui, params: &mut Params, width: f32, live: Option<(f32, usize)>) {
+fn envelope(ui: &mut Ui, params: &mut Params, size: egui::Vec2, live: Option<(f32, usize)>) {
     let p = theme::current(ui);
-    let (rect, _) = ui.allocate_exact_size(vec2(width, 84.0), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 8.0, p.base);
-    let area = rect.shrink2(vec2(14.0, 10.0));
+    let area = rect.shrink2(vec2(10.0, 6.0));
     // Attack, decay and release each get a quarter, sustain holds the third.
     let quarter = area.width() / 4.0;
     let unit =
@@ -1782,7 +1846,13 @@ fn envelope(ui: &mut Ui, params: &mut Params, width: f32, live: Option<(f32, usi
             params.change(level, changed, &response);
         }
     }
-    for (point, letter) in [(attack, "A"), (decay, "D"), (hold, "S"), (release, "R")] {
+    // The knobs below name the stages; a taller curve names them itself.
+    let letters = if rect.height() >= 60.0 {
+        &[(attack, "A"), (decay, "D"), (hold, "S"), (release, "R")][..]
+    } else {
+        &[]
+    };
+    for &(point, letter) in letters {
         painter.text(
             pos2(point.x, area.bottom() + 1.0),
             Align2::CENTER_TOP,
@@ -1791,7 +1861,6 @@ fn envelope(ui: &mut Ui, params: &mut Params, width: f32, live: Option<(f32, usi
             p.weak,
         );
     }
-    ui.add_space(4.0);
 }
 
 fn is_black(key: i32) -> bool {
