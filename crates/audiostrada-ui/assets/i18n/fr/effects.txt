@@ -3820,3 +3820,42 @@ Repart à chaque note ; sinon toutes les notes suivent la même onde
 
 {count} voices
 {count} voix
+
+Basic shapes
+Formes de base
+
+Fold
+Repli
+
+Harmonics
+Harmoniques
+
+Loaded file
+Fichier chargé
+
+Metallic
+Métallique
+
+Organ
+Orgue
+
+Osc 1 position
+Osc 1 position
+
+Osc 1 wavetable
+Osc 1 table d'ondes
+
+Osc 2 position
+Osc 2 position
+
+Osc 2 wavetable
+Osc 2 table d'ondes
+
+Pulse width
+Largeur d'impulsion
+
+Wavetable
+Table d'ondes
+
+Position
+Position

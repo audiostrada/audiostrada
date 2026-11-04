@@ -6362,8 +6362,11 @@ mod tests {
             ];
             for p in info.params {
                 // The synth's routings show once used, its LFO notes once synced.
-                let routed =
-                    info.id == "synth" && (p.id.starts_with("mod") || p.id.ends_with("_note"));
+                let routed = info.id == "synth"
+                    && (p.id.starts_with("mod")
+                        || p.id.ends_with("_note")
+                        || p.id.contains("_table")
+                        || p.id.ends_with("_position"));
                 if !shown.iter().any(|s| s == p.id)
                     && !conditional.contains(&(info.id, p.id))
                     && !routed

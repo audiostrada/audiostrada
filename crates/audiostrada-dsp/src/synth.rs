@@ -11,7 +11,9 @@
 
 use crate::delay::{NOTE_NAMES, synced_seconds};
 use crate::filter::{SHAPES, lfo_value};
+use crate::wavetable::{LOADED, TABLES, Table};
 use crate::{Effect, EffectInfo, MidiEvent, ParamInfo, choice, db_to_gain, param, switch};
+use std::sync::Arc;
 
 const VOICES: usize = 16;
 /// Most unison voices per oscillator.
@@ -23,13 +25,27 @@ pub const INFO: EffectInfo = EffectInfo {
     params: &PARAMS,
     meters: &METERS,
     instrument: true,
-    files: &[],
+    files: &[
+        crate::FileSlot {
+            id: "table1",
+            name: "Wavetable 1",
+            kind: crate::FileKind::Audio,
+            extensions: &["wav"],
+        },
+        crate::FileSlot {
+            id: "table2",
+            name: "Wavetable 2",
+            kind: crate::FileKind::Audio,
+            extensions: &["wav"],
+        },
+    ],
     category: "Instrument",
     description: "Polyphonic synthesizer: two oscillators with unison, sub, noise, analog drift, \
                   glide, MPE.",
 };
 
-pub const WAVES: [&str; 4] = ["Saw", "Square", "Sine", "Triangle"];
+pub const WAVES: [&str; 5] = ["Saw", "Square", "Sine", "Triangle", "Wavetable"];
+pub const WAVETABLE: u32 = 4;
 pub const SUB_OCTAVES: [&str; 2] = ["-1 octave", "-2 octaves"];
 pub const MODES: [&str; 3] = ["Poly", "Mono", "Legato"];
 pub const FILTERS: [&str; 6] = [
@@ -89,6 +105,8 @@ pub(crate) mod p {
     pub const MACROS: usize = 49;
     /// Source, target and amount of each routing.
     pub const SLOTS: usize = 53;
+    /// Table and position of each oscillator's wavetable.
+    pub const TABLES: usize = 77;
 }
 pub const SLOTS: usize = 8;
 
@@ -110,7 +128,7 @@ pub mod meter {
 const METERS: [&str; meter::COUNT] = [""; meter::COUNT];
 /// Samples kept for the oscilloscope: room for a trigger and the window, read every other one.
 const SCOPE_LINE: usize = 2048;
-const COUNT: usize = p::SLOTS + SLOTS * 3;
+const COUNT: usize = p::TABLES + 4;
 
 /// What modulates, in the order of the routings' source choice.
 pub const SOURCES: [&str; 11] = [
@@ -127,7 +145,7 @@ pub const SOURCES: [&str; 11] = [
     "Macro 4",
 ];
 /// What is modulated, in the order of the routings' target choice.
-pub const TARGETS: [&str; 12] = [
+pub const TARGETS: [&str; 14] = [
     "None",
     "Pitch",
     "Osc 1 pitch",
@@ -140,6 +158,8 @@ pub const TARGETS: [&str; 12] = [
     "Resonance",
     "Filter drive",
     "Volume",
+    "Osc 1 position",
+    "Osc 2 position",
 ];
 pub mod target {
     pub const PITCH: usize = 1;
@@ -153,6 +173,8 @@ pub mod target {
     pub const RESONANCE: usize = 9;
     pub const DRIVE: usize = 10;
     pub const VOLUME: usize = 11;
+    pub const OSC1_POSITION: usize = 12;
+    pub const OSC2_POSITION: usize = 13;
 }
 /// Reach of a full modulation: semitones of pitch, octaves of cutoff.
 const PITCH_REACH: f32 = 12.0;
@@ -275,6 +297,11 @@ const EXTRA: [ParamInfo; COUNT - 35] = {
     out[15] = param("macro2", "Macro 2", 0.0, 100.0, 0.0, "%");
     out[16] = param("macro3", "Macro 3", 0.0, 100.0, 0.0, "%");
     out[17] = param("macro4", "Macro 4", 0.0, 100.0, 0.0, "%");
+    let tables = p::TABLES - 35;
+    out[tables] = choice("osc1_table", "Osc 1 wavetable", &TABLES, 0.0);
+    out[tables + 1] = param("osc1_position", "Osc 1 position", 0.0, 100.0, 0.0, "%");
+    out[tables + 2] = choice("osc2_table", "Osc 2 wavetable", &TABLES, 0.0);
+    out[tables + 3] = param("osc2_position", "Osc 2 position", 0.0, 100.0, 0.0, "%");
     let mut k = 0;
     while k < SLOTS {
         let mut f = 0;
@@ -607,6 +634,9 @@ pub struct Synth {
     /// The latest output (mono), for the oscilloscope.
     scope: Vec<f32>,
     scope_at: usize,
+    /// Each oscillator's wavetable, and the tables loaded from files.
+    tables: [Arc<Table>; 2],
+    loaded: [Option<Arc<Table>>; 2],
 }
 
 impl Default for Synth {
@@ -624,11 +654,30 @@ impl Default for Synth {
             lfo: [0.0; 2],
             scope: vec![0.0; SCOPE_LINE],
             scope_at: 0,
+            tables: [
+                Arc::clone(&crate::wavetable::factory()[0]),
+                Arc::clone(&crate::wavetable::factory()[0]),
+            ],
+            loaded: [None, None],
         }
     }
 }
 
 impl Synth {
+    /// Points oscillator `o` at its chosen table: a factory one, or the loaded file.
+    fn choose_table(&mut self, o: usize) {
+        let kind = self.values[p::TABLES + o * 2].round().max(0.0) as usize;
+        let table = if kind >= LOADED {
+            self.loaded[o].clone()
+        } else {
+            crate::wavetable::factory().get(kind).cloned()
+        };
+        // Swapping an Arc does not allocate.
+        if let Some(table) = table {
+            self.tables[o] = table;
+        }
+    }
+
     fn mode(&self) -> usize {
         (self.values[p::MODE].round().max(0.0) as usize).min(MODES.len() - 1)
     }
@@ -780,6 +829,26 @@ impl Effect for Synth {
         if let Some(v) = self.values.get_mut(index) {
             *v = value;
         }
+        if index == p::TABLES || index == p::TABLES + 2 {
+            self.choose_table((index - p::TABLES) / 2);
+        }
+    }
+
+    fn load(&mut self, slot: &str, file: crate::FileData) -> Result<String, String> {
+        let o = match slot {
+            "table1" => 0,
+            "table2" => 1,
+            _ => return Err(format!("no file slot {slot}")),
+        };
+        let crate::FileData::Audio { channels, .. } = file else {
+            return Err("a wavetable is an audio file".into());
+        };
+        let samples = channels.first().ok_or("the file is empty")?;
+        let table = Table::from_samples(samples)?;
+        let frames = table.frames();
+        self.loaded[o] = Some(Arc::new(table));
+        self.choose_table(o);
+        Ok(format!("{frames} frames"))
     }
 
     fn midi(&mut self, event: &MidiEvent) {
@@ -854,7 +923,7 @@ impl Effect for Synth {
         .map(|(wave, offset, level, voices, detune)| {
             let n = (voices.round().max(1.0) as usize).min(MAX_UNISON);
             (
-                wave.round().clamp(0.0, 3.0) as u32,
+                wave.round().clamp(0.0, WAVETABLE as f32) as u32,
                 offset,
                 // Unison voices add up in power: the level holds as their number grows.
                 level / (n as f32).sqrt(),
@@ -894,6 +963,7 @@ impl Effect for Synth {
             std::array::from_fn(|k| 2f32.powf((offset + unison(k, n) * detune / 100.0) / 12.0))
         });
         let wander_step = std::f32::consts::TAU / self.rate;
+        let tables = [Arc::clone(&self.tables[0]), Arc::clone(&self.tables[1])];
         // The LFOs: shape and phase step per sample.
         let lfos: [(usize, f32); 2] = std::array::from_fn(|l| {
             let base = p::LFO + l * p::LFO_FIELDS;
@@ -1003,6 +1073,10 @@ impl Effect for Synth {
                 let base = voice.note + bend + cents / 100.0 + m[target::PITCH] * PITCH_REACH;
                 let note_dt = 440.0 * 2f32.powf(base / 12.0) / self.rate;
                 let mut out = [0.0f32; 2];
+                let positions = [
+                    (v[p::TABLES + 1] / 100.0 + m[target::OSC1_POSITION]).clamp(0.0, 1.0),
+                    (v[p::TABLES + 3] / 100.0 + m[target::OSC2_POSITION]).clamp(0.0, 1.0),
+                ];
                 for (o, &(wave, _, level, n, _)) in oscs.iter().enumerate() {
                     let (pitch, add) = if o == 0 {
                         (m[target::OSC1_PITCH], m[target::OSC1_LEVEL])
@@ -1021,7 +1095,11 @@ impl Effect for Synth {
                     for k in 0..n {
                         let dt = note_dt * ratios[o][k] * shift;
                         let phase = &mut voice.phases[o][k];
-                        let s = oscillator(wave, *phase, dt) * level;
+                        let s = if wave == WAVETABLE {
+                            tables[o].read(*phase, positions[o], dt)
+                        } else {
+                            oscillator(wave, *phase, dt)
+                        } * level;
                         *phase += dt;
                         if *phase >= 1.0 {
                             *phase -= 1.0;
@@ -1504,5 +1582,44 @@ mod tests {
         // The oscilloscope starts on a rising crossing and swings both ways.
         let scope = &out[..meter::SCOPE];
         assert!(scope[0] >= 0.0 && scope.iter().any(|s| *s < -0.01));
+    }
+
+    #[test]
+    fn the_wavetable_position_changes_the_wave_and_files_load() {
+        // Basic shapes: a sine at the start, a square at the end (crest factor 1.41, then 1).
+        let crest = |position: f32| {
+            let mut s = synth(&[
+                (p::WAVE, WAVETABLE as f32),
+                (p::OSC1_VOICES, 1.0),
+                (p::TABLES + 1, position),
+                (p::DRIFT, 0.0),
+            ]);
+            s.midi(&MidiEvent::note_on(0, 0, 45, 100));
+            let (l, _) = stereo(&mut s, 120);
+            let tail = &l[l.len() / 2..];
+            let peak = tail.iter().fold(0.0f32, |m, x| m.max(x.abs()));
+            let rms = (tail.iter().map(|x| x * x).sum::<f32>() / tail.len() as f32).sqrt();
+            peak / rms
+        };
+        let (sine, square) = (crest(0.0), crest(100.0));
+        assert!(sine > square + 0.2, "{sine} {square}");
+        // A file of two frames loads and plays.
+        let mut s = synth(&[(p::WAVE, WAVETABLE as f32), (p::TABLES, LOADED as f32)]);
+        let samples: Vec<f32> = (0..crate::wavetable::SIZE * 2)
+            .map(|i| if i % 2048 < 1024 { 0.8 } else { -0.8 })
+            .collect();
+        let told = s
+            .load(
+                "table1",
+                crate::FileData::Audio {
+                    channels: vec![samples],
+                    rate: 48_000,
+                },
+            )
+            .unwrap();
+        assert_eq!(told, "2 frames");
+        s.midi(&MidiEvent::note_on(0, 0, 100, 100));
+        let (l, _) = stereo(&mut s, 20);
+        assert!(l.iter().all(|x| x.is_finite()) && l.iter().any(|x| x.abs() > 0.01));
     }
 }

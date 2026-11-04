@@ -45,6 +45,7 @@ pub mod tuner;
 mod utility;
 mod vintage;
 pub mod vintage_eq;
+pub mod wavetable;
 
 /// A parameter of an effect, as shown in the editor and stored in projects.
 #[derive(Clone, Copy, Debug, PartialEq)]

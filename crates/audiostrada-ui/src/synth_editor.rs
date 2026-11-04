@@ -557,6 +557,8 @@ fn target_of(id: &str) -> Option<usize> {
     use audiostrada_dsp::synth::target;
     Some(match id {
         "osc1_fine" => target::OSC1_PITCH,
+        "osc1_position" => target::OSC1_POSITION,
+        "osc2_position" => target::OSC2_POSITION,
         "osc2_fine" => target::OSC2_PITCH,
         "osc1_level" => target::OSC1_LEVEL,
         "osc2_level" => target::OSC2_LEVEL,
@@ -736,6 +738,8 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
     state.targets.clear();
     let live = Live::read(meters);
     state.live = live.clone();
+    ui.ctx()
+        .data_mut(|d| d.insert_temp(egui::Id::unique("synth-live-mods"), live.mods.clone()));
     hero(ui, meters, &live);
     ui.add_space(6.0);
     let height = 132.0;
@@ -768,9 +772,15 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
             ),
         ] {
             section_frame(ui, tr(title), p.weak, height, |ui| {
+                let n = if wave == "wave" { 1 } else { 2 };
+                let table = params.get(wave).round() as u32 == audiostrada_dsp::synth::WAVETABLE;
                 ui.horizontal(|ui| {
                     wave_picker(ui, params, wave);
-                    oscillator_view(ui, params, wave, ids[3], level);
+                    if table {
+                        choice_box(ui, params, &format!("osc{n}_table"));
+                    } else {
+                        oscillator_view(ui, params, wave, ids[3], level);
+                    }
                 });
                 ui.add_space(2.0);
                 ui.horizontal(|ui| {
@@ -782,6 +792,16 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
                         tr("Unison"),
                         tr("Detune"),
                     ];
+                    if table {
+                        wavetable_view(ui, params, n, vec2(110.0, 50.0));
+                        mod_knob(
+                            ui,
+                            params,
+                            state,
+                            &format!("osc{n}_position"),
+                            tr("Position"),
+                        );
+                    }
                     for (id, name) in ids.iter().zip(names) {
                         mod_knob(ui, params, state, id, name);
                     }
@@ -1040,6 +1060,68 @@ fn routings(ui: &mut Ui, params: &mut Params) {
             }
         });
     });
+}
+
+/// The frames of an oscillator's wavetable in depth, the one at the position lit, as the
+/// position (with its modulation) moves through them.
+fn wavetable_view(ui: &mut Ui, params: &mut Params, n: usize, size: egui::Vec2) {
+    use audiostrada_dsp::synth::target;
+    use audiostrada_dsp::wavetable::{LOADED, factory};
+    let p = theme::current(ui);
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 6.0, Color32::from_rgb(12, 16, 22));
+    let kind = params.get(&format!("osc{n}_table")).round() as usize;
+    let Some(table) = (kind < LOADED).then(|| factory().get(kind)).flatten() else {
+        painter.text(
+            rect.center(),
+            Align2::CENTER_CENTER,
+            tr("Loaded file"),
+            FontId::proportional(10.0),
+            p.weak,
+        );
+        return;
+    };
+    let mods = ui
+        .ctx()
+        .data(|d| d.get_temp::<Vec<f32>>(egui::Id::unique("synth-live-mods")))
+        .unwrap_or_default();
+    let index = if n == 1 {
+        target::OSC1_POSITION
+    } else {
+        target::OSC2_POSITION
+    };
+    let position = (params.get(&format!("osc{n}_position")) / 100.0
+        + mods.get(index).copied().unwrap_or(0.0))
+    .clamp(0.0, 1.0);
+    let depth = 10;
+    let inner = rect.shrink2(vec2(6.0, 6.0));
+    let (w, h) = (inner.width() * 0.7, inner.height() * 0.55);
+    for k in (0..depth).rev() {
+        let t = k as f32 / (depth - 1) as f32;
+        // Back frames up and to the right, as a perspective.
+        let origin = pos2(
+            inner.left() + t * (inner.width() - w),
+            inner.bottom() - h / 2.0 - t * (inner.height() - h),
+        );
+        let frame = table.frame(t);
+        let points: Vec<Pos2> = (0..=48)
+            .map(|j| {
+                let s = frame[j * (frame.len() - 1) / 48];
+                pos2(origin.x + j as f32 / 48.0 * w, origin.y - s * h / 2.0)
+            })
+            .collect();
+        let near = (t - position).abs() < 0.5 / (depth - 1) as f32;
+        let color = if near {
+            p.accent
+        } else {
+            p.accent.gamma_multiply(0.18 + 0.2 * (1.0 - t))
+        };
+        painter.add(Shape::line(
+            points,
+            Stroke::new(if near { 1.8 } else { 1.0 }, color),
+        ));
+    }
 }
 
 /// An LFO's wave over one cycle, with a dot where it is now.
@@ -1314,6 +1396,7 @@ fn wave_picker(ui: &mut Ui, params: &mut Params, id: &str) {
         "Square: hollow, for clarinets and retro games",
         "Sine: pure, for sub basses and soft flutes",
         "Triangle: soft and round, for mellow keys",
+        "Wavetable: a row of waves to glide through with the position",
     ];
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 3.0;
@@ -1351,7 +1434,9 @@ fn wave_picker(ui: &mut Ui, params: &mut Params, id: &str) {
                             }
                         }
                         2 => (phase * std::f32::consts::TAU).sin(),
-                        _ => 1.0 - 4.0 * (phase - 0.5).abs(),
+                        3 => 1.0 - 4.0 * (phase - 0.5).abs(),
+                        // Wavetable: smaller waves stacked in depth.
+                        _ => (phase * std::f32::consts::TAU).sin() * 0.6,
                     };
                     pos2(
                         inner.left() + t * inner.width(),
@@ -1359,10 +1444,18 @@ fn wave_picker(ui: &mut Ui, params: &mut Params, id: &str) {
                     )
                 })
                 .collect();
-            painter.add(Shape::line(
-                points,
-                Stroke::new(1.3, if on { p.text } else { p.weak }),
-            ));
+            let ink = if on { p.text } else { p.weak };
+            if i == 4 {
+                for k in 1..3 {
+                    let shift = vec2(k as f32 * 2.5, -(k as f32) * 2.0);
+                    let back: Vec<Pos2> = points.iter().map(|q| *q + shift).collect();
+                    painter.add(Shape::line(
+                        back,
+                        Stroke::new(1.0, ink.gamma_multiply(0.45)),
+                    ));
+                }
+            }
+            painter.add(Shape::line(points, Stroke::new(1.3, ink)));
             let response = response.on_hover_text(tr(hint));
             let clicked = response.clicked();
             params.set(id, clicked.then_some(i as f32), &response);
