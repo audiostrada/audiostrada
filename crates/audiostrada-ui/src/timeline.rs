@@ -35,6 +35,7 @@ mod view;
 use draw::*;
 use gestures::*;
 pub use menus::TRACK_COLORS;
+pub use toolbar::Tool;
 
 const HEADER_WIDTH: f32 = 210.0;
 const MIN_HEADER_WIDTH: f32 = 150.0;
@@ -44,6 +45,10 @@ const HEADER_METER: f32 = 12.0;
 const RULER_HEIGHT: f32 = 28.0;
 const EDGE_ZONE: f32 = 6.0;
 const FADE_ZONE_HEIGHT: f32 = 12.0;
+/// Height of the name bar at the top of a clip.
+const NAME_BAR: f32 = 14.0;
+/// Clips lower than this move from anywhere with the Smart Tool, no range in their upper half.
+const SMART_HEIGHT: f32 = 56.0;
 const MIN_TRACK_HEIGHT: f32 = 40.0;
 const MAX_TRACK_HEIGHT: f32 = 600.0;
 /// Most a waveform is magnified vertically.
@@ -99,6 +104,10 @@ enum DragKind {
     Point(TrackId, usize, usize, f32),
     /// Swipe comping on a take lane: track, playlist, where the drag started.
     Comp(TrackId, usize, u64),
+    /// The eraser (no `mute`) or the mute tool, over every clip the pointer crosses.
+    Sweep {
+        mute: Option<bool>,
+    },
 }
 
 #[derive(Debug)]
@@ -170,6 +179,12 @@ pub struct TimelineView {
     pub header_width: f32,
     /// The headers were resized: the application keeps their width.
     pub header_resized: bool,
+    /// What the mouse does on the clips.
+    pub tool: Tool,
+    /// Zoom and scroll before a zoom to the selection, to go back to.
+    zoom_back: Option<(f64, f64)>,
+    /// Clips swept by the eraser or the mute tool during a drag.
+    swept: Vec<ClipId>,
 }
 
 /// A time range on some tracks.
@@ -241,6 +256,9 @@ impl TimelineView {
             clip_anchor: None,
             header_width: HEADER_WIDTH,
             header_resized: false,
+            tool: Tool::Smart,
+            zoom_back: None,
+            swept: Vec::new(),
         }
     }
 
@@ -532,7 +550,16 @@ impl TimelineView {
         let position = doc.player().position();
         let selection = self.selection.clone();
         let track = doc.focused_track();
+        if action == Action::Deselect {
+            self.tool = Tool::Smart;
+        }
         match action {
+            Action::ToolSmart => self.tool = Tool::Smart,
+            Action::ToolRange => self.tool = Tool::Range,
+            Action::ToolSplit => self.tool = Tool::Split,
+            Action::ToolErase => self.tool = Tool::Erase,
+            Action::ToolMute => self.tool = Tool::Mute,
+            Action::ZoomToSelection => self.zoom_to_selection(&doc),
             Action::Copy => self.copy(&doc),
             Action::Cut => self.cut(&mut doc, settings),
             Action::Paste => self.paste(&mut doc),
@@ -693,7 +720,7 @@ impl TimelineView {
         true
     }
 
-    pub fn show(&mut self, ui: &mut Ui, settings: &EditSettings) {
+    pub fn show(&mut self, ui: &mut Ui, settings: &mut EditSettings) {
         if let Some(at) = self.pending_midi.take() {
             self.new_midi_clip(Some(at));
         }
@@ -725,7 +752,8 @@ impl TimelineView {
         }
 
         doc.update_levels();
-        self.toolbar(ui, doc.player().position());
+        self.toolbar(ui, settings, doc.player().position());
+        let settings = &*settings;
         let all = ui.available_rect_before_wrap();
         let (_, background) = ui.allocate_exact_size(all.size(), Sense::hover());
         // The horizontal scrollbar takes the bottom.
@@ -1281,10 +1309,10 @@ mod tests {
                     events,
                     ..Default::default()
                 };
-                let settings = EditSettings::default();
+                let mut settings = EditSettings::default();
                 let view = &mut self.view;
                 self.ctx
-                    .run_ui(input, |ui| view.show(ui, &settings))
+                    .run_ui(input, |ui| view.show(ui, &mut settings))
                     .drop_without_applying_deltas();
             }
 

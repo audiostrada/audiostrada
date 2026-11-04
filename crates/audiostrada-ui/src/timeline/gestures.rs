@@ -21,6 +21,19 @@ impl TimelineView {
         let lanes_response =
             ui.interact(lanes, ui.scope_id().with("lanes"), Sense::click_and_drag());
         let modifiers = ui.input(|i| i.modifiers);
+        // Ctrl+Alt holds the scissors.
+        let tool = if modifiers.command && modifiers.alt {
+            Tool::Split
+        } else {
+            self.tool
+        };
+        // The Smart Tool draws a range in the upper half of a clip, under its name.
+        let upper = |pos: Pos2| {
+            tool == Tool::Smart
+                && hovered.is_some_and(|(_, _, r)| {
+                    r.height() >= SMART_HEIGHT && pos.y > r.top() + NAME_BAR && pos.y < r.center().y
+                })
+        };
 
         // Smart Tool zone under the pointer.
         let zone = |pos: Pos2| -> Option<(DragKind, ClipId)> {
@@ -89,6 +102,11 @@ impl TimelineView {
         {
             let cursor = match zone(pos).map(|z| z.0) {
                 _ if range_edge(pos, false).is_some() => CursorIcon::ResizeHorizontal,
+                _ if tool == Tool::Range => CursorIcon::Text,
+                Some(_) if tool == Tool::Split => CursorIcon::Crosshair,
+                Some(_) if matches!(tool, Tool::Erase | Tool::Mute) => CursorIcon::PointingHand,
+                _ if tool != Tool::Smart => CursorIcon::Default,
+                Some(DragKind::Move { copy: false }) if upper(pos) => CursorIcon::Text,
                 Some(DragKind::TrimStart | DragKind::TrimEnd) => CursorIcon::ResizeHorizontal,
                 Some(DragKind::Stretch) => CursorIcon::ResizeColumn,
                 Some(DragKind::FadeIn | DragKind::FadeOut) => CursorIcon::ResizeNwSe,
@@ -98,6 +116,7 @@ impl TimelineView {
                 _ => CursorIcon::Text,
             };
             ui.ctx().set_cursor_icon(cursor);
+            self.tool_hover(ui, project, settings, scale, lanes, tool, pos, hovered);
         }
 
         // Files dragged from the browser.
@@ -235,7 +254,17 @@ impl TimelineView {
             let edge = range_edge(pos, false);
             let (kind, clip) = match zone(pos) {
                 _ if let Some(anchor) = edge => (DragKind::RangeEdge { anchor }, None),
-                _ if modifiers.shift && !modifiers.command => {
+                _ if tool == Tool::Range || (modifiers.shift && !modifiers.command) => {
+                    (DragKind::Range { anchor: pos }, None)
+                }
+                _ if matches!(tool, Tool::Erase | Tool::Mute) => {
+                    self.swept.clear();
+                    let first = hovered.and_then(|(c, _, _)| edit::clip(project, c));
+                    let mute = (tool == Tool::Mute).then(|| !first.is_some_and(|c| c.muted));
+                    (DragKind::Sweep { mute }, None)
+                }
+                _ if tool == Tool::Split => (DragKind::Select { anchor: pos }, None),
+                Some((DragKind::Move { copy: false }, _)) if upper(pos) => {
                     (DragKind::Range { anchor: pos }, None)
                 }
                 Some((kind, clip)) => {
@@ -388,6 +417,27 @@ impl TimelineView {
                                 }
                             }
                             _ => {}
+                        }
+                    }
+                }
+                DragKind::Sweep { mute } => {
+                    if let Some(id) = self.clip_at(project, pos, lanes, scale)
+                        && !self.swept.contains(&id)
+                    {
+                        self.swept.push(id);
+                    }
+                    match mute {
+                        None => edit::delete_clips(
+                            &mut preview,
+                            &self.swept,
+                            settings.mode == EditMode::Shuffle,
+                        ),
+                        Some(on) => {
+                            for &id in &self.swept {
+                                if let Some(c) = edit::clip_mut(&mut preview, id) {
+                                    c.muted = on;
+                                }
+                            }
                         }
                     }
                 }
@@ -551,13 +601,29 @@ impl TimelineView {
                 | DragKind::RangeEdge { .. }
                 | DragKind::RulerRange { .. } => tr("Edit"),
                 DragKind::Point(..) => tr("Move automation point"),
+                DragKind::Sweep { mute: None } => tr("Delete clips"),
+                DragKind::Sweep { mute: Some(_) } => tr("Mute clips"),
                 DragKind::Comp(..) => tr("Comp takes"),
             };
             doc.history_mut().edit(label, |p| *p = preview);
         }
         if self.drag.is_none() {
             self.comping = None;
+            let swept = std::mem::take(&mut self.swept);
+            self.selection
+                .retain(|c| !swept.contains(c) || edit::clip(doc.project(), *c).is_some());
         }
+        let tool_clicked = if hit.is_none()
+            && !matches!(tool, Tool::Smart | Tool::Range)
+            && lanes_response.clicked()
+            && let Some(pos) = lanes_response.interact_pointer_pos()
+            && let Some((clip, _, _)) = hovered
+        {
+            self.tool_click(doc, project, settings, scale, tool, modifiers, clip, pos);
+            true
+        } else {
+            false
+        };
 
         // A click on a take promotes the clip under the pointer.
         if lanes_response.clicked()
@@ -709,6 +775,7 @@ impl TimelineView {
 
         // Clicks.
         if hit.is_none()
+            && !tool_clicked
             && lanes_response.clicked()
             && let Some(pos) = lanes_response.interact_pointer_pos()
         {
@@ -821,6 +888,117 @@ impl TimelineView {
                 let label = if off { tr("Loop off") } else { tr("Loop on") };
                 doc.history_mut().edit(label, |p| p.loop_off = off);
             }
+        }
+    }
+
+    /// The clip under `pos`, in the clip area of its track.
+    fn clip_at(&self, project: &Project, pos: Pos2, lanes: Rect, scale: Scale) -> Option<ClipId> {
+        let r = self.row_at(pos.y - lanes.top())?;
+        let top = lanes.top() + self.tops[r] - self.scroll_y;
+        if pos.y > top + self.track_height {
+            return None;
+        }
+        let at = scale.sample(pos.x);
+        project.tracks[self.rows[r].0]
+            .clips
+            .iter()
+            .find(|c| c.start <= at && at < c.end())
+            .map(|c| c.id)
+    }
+
+    /// What a tool will do to the clip under the pointer: the cut of the scissors, the clip
+    /// the eraser or the mute tool would take.
+    #[allow(clippy::too_many_arguments)]
+    fn tool_hover(
+        &self,
+        ui: &Ui,
+        project: &Project,
+        settings: &EditSettings,
+        scale: Scale,
+        lanes: Rect,
+        tool: Tool,
+        pos: Pos2,
+        hovered: Option<(ClipId, TrackId, Rect)>,
+    ) {
+        let Some((_, _, rect)) = hovered else {
+            return;
+        };
+        let painter = ui.painter().with_clip_rect(lanes);
+        match tool {
+            Tool::Split => {
+                let at = settings.snap(project, scale.sample(pos.x));
+                let x = scale.x(at);
+                let all = self.tool == Tool::Split && ui.input(|i| i.modifiers.alt);
+                let y = if all { lanes.y_range() } else { rect.y_range() };
+                painter.vline(x, y, Stroke::new(1.5, Color32::WHITE));
+                let (tempo, rate) = (&project.tempo, project.sample_rate.max(1));
+                let bbt = tempo.beat_to_bbt(tempo.sample_to_beat(at, rate));
+                let label = format!("{}.{}.{:03}", bbt.bar, bbt.beat, bbt.tick);
+                let galley = painter.layout_no_wrap(
+                    label,
+                    FontId::proportional(11.0),
+                    Color32::from_rgb(20, 20, 24),
+                );
+                let tag = Rect::from_min_size(pos2(x + 6.0, rect.top() + 3.0), galley.size())
+                    .expand2(vec2(4.0, 1.0));
+                painter.rect_filled(tag, 3.0, Color32::WHITE);
+                painter.galley(tag.min + vec2(4.0, 1.0), galley, Color32::BLACK);
+            }
+            Tool::Erase => {
+                painter.rect_filled(rect, 3.0, Color32::from_rgba_unmultiplied(230, 60, 60, 70));
+            }
+            Tool::Mute => {
+                painter.rect_filled(rect, 3.0, Color32::from_black_alpha(90));
+            }
+            _ => {}
+        }
+    }
+
+    /// A click of the scissors, the eraser or the mute tool on `clip`.
+    #[allow(clippy::too_many_arguments)]
+    fn tool_click(
+        &mut self,
+        doc: &mut Document,
+        project: &Project,
+        settings: &EditSettings,
+        scale: Scale,
+        tool: Tool,
+        modifiers: egui::Modifiers,
+        clip: ClipId,
+        pos: Pos2,
+    ) {
+        match tool {
+            Tool::Split => {
+                let at = settings.snap(project, scale.sample(pos.x));
+                if self.tool == Tool::Split && modifiers.alt {
+                    let tracks: Vec<TrackId> = project.tracks.iter().map(|t| t.id).collect();
+                    doc.history_mut().edit(tr("Split clips"), |p| {
+                        edit::split_at(p, &tracks, &[at]);
+                    });
+                } else {
+                    let ids = audiostrada_core::groups::edit_clips(project, &[clip]);
+                    let mut created = Vec::new();
+                    doc.history_mut().edit(tr("Split clips"), |p| {
+                        created = edit::split(p, at, &ids);
+                    });
+                    self.selection = created;
+                }
+            }
+            Tool::Erase => {
+                let shuffle = settings.mode == EditMode::Shuffle;
+                doc.history_mut().edit(tr("Delete clips"), |p| {
+                    edit::delete_clips(p, &[clip], shuffle);
+                });
+                self.selection.retain(|c| *c != clip);
+            }
+            Tool::Mute => {
+                doc.history_mut().edit(tr("Mute clips"), |p| {
+                    if let Some(c) = edit::clip_mut(p, clip) {
+                        c.muted = !c.muted;
+                    }
+                });
+            }
+            Tool::Smart | Tool::Range => {}
         }
     }
 }

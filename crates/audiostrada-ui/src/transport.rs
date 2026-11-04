@@ -138,7 +138,6 @@ pub fn step_length(project: &Project, position: u64, beats: Option<f64>) -> u64 
 pub fn show(
     ui: &mut Ui,
     doc: &mut Document,
-    edit: &mut EditSettings,
     keymap: &Keymap,
     mac: bool,
     recording: bool,
@@ -337,69 +336,9 @@ pub fn show(
                     );
                 });
             });
-        ui.add_space(10.0);
-
-        // Edit mode, grid and snap.
-        segmented(ui, &mut edit.mode, &hint);
-        egui::ComboBox::from_id_salt("grid")
-            .width(64.0)
-            .selected_text(edit.grid.name())
-            .show_ui(ui, |ui| {
-                for grid in Grid::ALL {
-                    ui.selectable_value(&mut edit.grid, grid, grid.name());
-                }
-            })
-            .response
-            .on_hover_text(tr("Grid value"));
-        if theme::icon_button(
-            ui,
-            Icon::Snap,
-            edit.snap,
-            p.accent,
-            &hint(Action::ToggleSnap),
-        )
-        .clicked()
-        {
-            edit.snap = !edit.snap;
-        }
     });
     ui.add_space(3.0);
     actions
-}
-
-/// Slip / Shuffle / Grid as one segmented control.
-fn segmented(ui: &mut Ui, mode: &mut EditMode, hint: &dyn Fn(Action) -> String) {
-    let p = theme::current(ui);
-    let item = vec2(58.0, 24.0);
-    let (rect, _) = ui.allocate_exact_size(vec2(item.x * 3.0, item.y), Sense::hover());
-    ui.painter().rect_filled(rect, 5.0, p.base);
-    for (i, m) in EditMode::ALL.into_iter().enumerate() {
-        let r = egui::Rect::from_min_size(pos2(rect.left() + item.x * i as f32, rect.top()), item)
-            .shrink(2.0);
-        let response = ui.interact(r, ui.scope_id().with(("edit-mode", i)), Sense::click());
-        let action = match m {
-            EditMode::Slip => Action::ModeSlip,
-            EditMode::Shuffle => Action::ModeShuffle,
-            EditMode::Grid => Action::ModeGrid,
-        };
-        let on = *mode == m;
-        if on {
-            ui.painter()
-                .rect_filled(r, 4.0, p.accent.gamma_multiply(0.85));
-        } else if response.hovered() {
-            ui.painter().rect_filled(r, 4.0, p.hover);
-        }
-        ui.painter().text(
-            r.center(),
-            Align2::CENTER_CENTER,
-            m.name(),
-            theme::strong(12.0),
-            if on { Color32::WHITE } else { p.weak },
-        );
-        if response.on_hover_text(hint(action)).clicked() {
-            *mode = m;
-        }
-    }
 }
 
 #[cfg(test)]

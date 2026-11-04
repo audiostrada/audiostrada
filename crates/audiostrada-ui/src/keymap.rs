@@ -149,7 +149,7 @@ pub struct Keymap {
 }
 
 /// Bumped when default bindings are added, so saved keymaps get them.
-const VERSION: u32 = 12;
+const VERSION: u32 = 13;
 
 impl Default for Keymap {
     fn default() -> Self {
@@ -263,6 +263,13 @@ const PANELS: &[Binding] = &[
     (k(PLAIN, false, true, Key::Num0), Action::ShowTimeline),
     (k(PLAIN, true, true, Key::Num0), Action::WaveformZoomReset),
     (k(CMD, false, false, Key::Slash), Action::KeyboardShortcuts),
+    // Timeline tools and zoom to the selection (added in version 13).
+    (k(PLAIN, false, false, Key::Num1), Action::ToolSmart),
+    (k(PLAIN, false, false, Key::Num2), Action::ToolRange),
+    (k(PLAIN, false, false, Key::Num3), Action::ToolSplit),
+    (k(PLAIN, false, false, Key::Num4), Action::ToolErase),
+    (k(PLAIN, false, false, Key::Num5), Action::ToolMute),
+    (k(PLAIN, false, false, Key::Z), Action::ZoomToSelection),
 ];
 
 const AUDIOSTRADA: &[Binding] = &[
@@ -322,7 +329,6 @@ const LOGIC: &[Binding] = &[
     (k(PLAIN, false, true, Key::Comma), Action::PreviousMarker),
     (k(CMD, false, false, Key::ArrowRight), Action::ZoomIn),
     (k(CMD, false, false, Key::ArrowLeft), Action::ZoomOut),
-    (k(PLAIN, false, false, Key::Z), Action::ZoomToFit),
     (k(CMD, false, false, Key::G), Action::ToggleSnap),
 ];
 

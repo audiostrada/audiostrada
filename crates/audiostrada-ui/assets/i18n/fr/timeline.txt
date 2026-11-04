@@ -667,3 +667,54 @@ Maj-glisser sur les clips trace une plage à couper ou supprimer
 
 Show the playhead
 Afficher la tête de lecture
+
+Mute tool
+Outil muet
+
+Range tool
+Outil plage
+
+Smart tool
+Outil intelligent
+
+Zoom to the selection (again: back)
+Zoom sur la sélection (à nouveau : retour)
+
+Tools
+Outils
+
+Alt+Shift+wheel: waveform zoom
+Alt+Maj+molette : zoom des formes d'onde
+
+Click a clip to delete it, drag over clips to delete them all
+Cliquer un clip le supprime, glisser sur des clips les supprime tous
+
+Click a clip to mute or unmute it, drag over clips to do it to all
+Cliquer un clip le rend muet ou le rétablit, glisser sur des clips le fait pour tous
+
+Click a clip to split it there, Alt-click splits every track
+Cliquer un clip le coupe à cet endroit, Alt-clic coupe toutes les pistes
+
+Drag across clips and tracks to select a range
+Glisser à travers les clips et les pistes sélectionne une plage
+
+Horizontal zoom
+Zoom horizontal
+
+More commands
+Plus de commandes
+
+Or the scissors tool, or Ctrl+Alt+click on a clip
+Ou l'outil ciseaux, ou Ctrl+Alt+clic sur un clip
+
+Track height
+Hauteur des pistes
+
+Upper half of a clip: a range; lower half and name: move (Alt copies); edges: trim (Alt stretches); top corners: fades
+Moitié haute d'un clip : une plage ; moitié basse et nom : déplacer (Alt copie) ; bords : rogner (Alt étire) ; coins hauts : fondus
+
+Waveform zoom
+Zoom des formes d'onde
+
+Waveforms
+Formes d'onde

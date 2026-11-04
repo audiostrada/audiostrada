@@ -79,4 +79,35 @@ impl TimelineView {
             (length * 1.05 / f64::from(self.lanes_width.max(100.0))).clamp(MIN_ZOOM, MAX_ZOOM);
         self.scroll = 0.0;
     }
+
+    /// Zooms on the range or the selected clips; again, back to the view before.
+    pub(super) fn zoom_to_selection(&mut self, doc: &Document) {
+        if let Some((zoom, scroll)) = self.zoom_back.take() {
+            (self.zoom, self.scroll) = (zoom, scroll);
+            return;
+        }
+        let project = doc.project();
+        let span = self.range.as_ref().map(|r| (r.start, r.end)).or_else(|| {
+            let clips: Vec<_> = self
+                .selection
+                .iter()
+                .filter_map(|&id| edit::clip(project, id))
+                .collect();
+            Some((
+                clips.iter().map(|c| c.start).min()?,
+                clips.iter().map(|c| c.end()).max()?,
+            ))
+        });
+        let Some((start, end)) = span.filter(|(a, b)| b > a) else {
+            self.zoom_back = Some((self.zoom, self.scroll));
+            self.zoom_to_fit(project.length());
+            return;
+        };
+        self.zoom_back = Some((self.zoom, self.scroll));
+        let width = f64::from(self.lanes_width.max(100.0));
+        let length = (end - start) as f64;
+        // A margin of a twentieth on each side.
+        self.zoom = (length * 1.1 / width).clamp(MIN_ZOOM, MAX_ZOOM);
+        self.scroll = (start as f64 - length * 0.05).max(0.0);
+    }
 }

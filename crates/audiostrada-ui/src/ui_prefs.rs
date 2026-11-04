@@ -178,6 +178,9 @@ pub struct UiPrefs {
     pub header_width: f32,
     /// Narrow mixer strips, but for the one opened by a click.
     pub mixer_compact: bool,
+    /// The timeline's tool.
+    #[serde(default)]
+    pub timeline_tool: crate::timeline::Tool,
 }
 
 impl Default for UiPrefs {
@@ -208,6 +211,7 @@ impl Default for UiPrefs {
             updates_checked: None,
             header_width: 210.0,
             mixer_compact: false,
+            timeline_tool: crate::timeline::Tool::Smart,
         }
     }
 }

@@ -216,7 +216,7 @@ impl PaneContent for Views {
                 self.mixer.detached = ui.ctx().viewport_id() != egui::ViewportId::ROOT;
                 self.mixer.show(ui);
             }
-            Pane::Timeline => self.timeline.show(ui, &self.edit),
+            Pane::Timeline => self.timeline.show(ui, &mut self.edit),
             Pane::Browser => self.browser.show(ui, &mut self.doc.borrow_mut()),
             Pane::Inspector => {
                 inspector::show(ui, &mut self.doc.borrow_mut(), &self.timeline.selection)
@@ -345,6 +345,7 @@ impl AudioStradaApp {
                 timeline: {
                     let mut timeline = TimelineView::new(Rc::clone(&doc));
                     timeline.header_width = prefs.header_width;
+                    timeline.tool = prefs.timeline_tool;
                     timeline
                 },
                 piano: piano_roll::PianoRoll::new(Rc::clone(&doc)),
@@ -1222,6 +1223,12 @@ impl AudioStradaApp {
             | Action::ZoomIn
             | Action::ZoomOut
             | Action::ZoomToFit
+            | Action::ZoomToSelection
+            | Action::ToolSmart
+            | Action::ToolRange
+            | Action::ToolSplit
+            | Action::ToolErase
+            | Action::ToolMute
             | Action::TallerTracks
             | Action::ShorterTracks
             | Action::Heal
@@ -1572,6 +1579,11 @@ impl AudioStradaApp {
         };
         if let Some(width) = resized {
             self.prefs.header_width = width;
+            (self.hooks.ui_changed)(&self.prefs);
+        }
+        let tool = self.views.borrow().timeline.tool;
+        if tool != self.prefs.timeline_tool {
+            self.prefs.timeline_tool = tool;
             (self.hooks.ui_changed)(&self.prefs);
         }
         let stem = {
@@ -1935,6 +1947,12 @@ impl AudioStradaApp {
                     }
                 });
                 ui.separator();
+                ui.menu_button(tr("Tools"), |ui| {
+                    let tool = self.views.borrow().timeline.tool;
+                    for t in crate::timeline::Tool::ALL {
+                        check(ui, &mut chosen, t.action(), tool == t);
+                    }
+                });
                 ui.menu_button(tr("Edit mode and grid"), |ui| {
                     check(
                         ui,
@@ -2071,6 +2089,7 @@ impl AudioStradaApp {
                     Action::ZoomIn,
                     Action::ZoomOut,
                     Action::ZoomToFit,
+                    Action::ZoomToSelection,
                     Action::TallerTracks,
                     Action::ShorterTracks,
                     Action::WaveformZoomIn,
@@ -2565,7 +2584,6 @@ impl eframe::App for AudioStradaApp {
             actions.extend(transport::show(
                 ui,
                 &mut doc,
-                &mut self.edit,
                 &self.prefs.keymap,
                 self.mac,
                 recording,
@@ -2581,7 +2599,7 @@ impl eframe::App for AudioStradaApp {
         let detach = {
             let mut views = views.borrow_mut();
             views.edit = self.edit;
-            egui::CentralPanel::default()
+            let detach = egui::CentralPanel::default()
                 .show(ui, |ui| {
                     let mut workspace = Workspace {
                         content: &mut *views,
@@ -2590,7 +2608,9 @@ impl eframe::App for AudioStradaApp {
                     self.tree.ui(&mut workspace, ui);
                     workspace.detach
                 })
-                .inner
+                .inner;
+            self.edit = views.edit;
+            detach
         };
         if let Some(pane) = detach {
             self.detach(pane);
