@@ -3955,3 +3955,36 @@ Basse : Grondement FM
 
 Pad: Space
 Nappe : Espace
+
+Arpeggiator
+Arpégiateur
+
+Arpeggio
+Arpège
+
+Arpeggio gate
+Durée des notes de l'arpège
+
+Arpeggio octaves
+Octaves de l'arpège
+
+Arpeggio rate
+Vitesse de l'arpège
+
+Order
+Ordre
+
+Plays the held keys one after the other, in time
+Joue les touches tenues l'une après l'autre, en mesure
+
+Keeps playing once the keys are up, until the next chord
+Continue de jouer une fois les touches relâchées, jusqu'à l'accord suivant
+
+Arp: Bright pluck
+Arpège : Pluck brillant
+
+Arp: Up and down keys
+Arpège : Claviers montants et descendants
+
+Arp: Random bells
+Arpège : Cloches aléatoires

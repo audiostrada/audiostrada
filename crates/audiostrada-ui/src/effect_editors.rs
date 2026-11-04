@@ -718,6 +718,7 @@ pub fn format_value(p: &ParamInfo, v: f32) -> String {
         // Whole steps: octaves, unison voices.
         "oct" => format!("{:+} oct", v.round() as i32),
         "voices" => format!("{}", v.round() as i32),
+        "octaves" => format!("{} oct", v.round() as i32),
         "semi" => format!("{:+} st", v.round() as i32),
         "cents" => format!("{v:.0} cents"),
         "" => format!("{v:.2}"),

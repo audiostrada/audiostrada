@@ -763,6 +763,77 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             adsr(1800.0, 3000.0, 85.0, 4500.0),
             filter(2200.0, 15.0, 10.0),
         ),
+        sound(
+            tr("Arp: Bright pluck"),
+            &[
+                ("arp", 1.0),
+                ("arp_octaves", 2.0),
+                ("arp_gate", 50.0),
+                ("osc1_voices", 3.0),
+                ("detune", 10.0),
+                ("osc2_wave", 1.0),
+                ("osc2_level", 40.0),
+                ("osc2_octave", 1.0),
+                ("filter_type", 1.0),
+                ("velocity", 40.0),
+                ("fx_delay", 25.0),
+                ("fx_reverb", 15.0),
+                ("volume", -6.5),
+            ],
+            adsr(1.0, 250.0, 0.0, 150.0),
+            filter(700.0, 30.0, 70.0),
+        ),
+        sound(
+            tr("Arp: Up and down keys"),
+            &[
+                ("arp", 1.0),
+                ("arp_mode", 2.0),
+                ("arp_note", 5.0),
+                ("arp_octaves", 2.0),
+                ("arp_gate", 80.0),
+                ("wave", 3.0),
+                ("osc1_voices", 2.0),
+                ("osc2_wave", 2.0),
+                ("osc2_level", 50.0),
+                ("osc2_octave", 1.0),
+                ("fx_chorus", 30.0),
+                ("fx_reverb", 20.0),
+                ("volume", -8.0),
+            ],
+            adsr(3.0, 600.0, 40.0, 300.0),
+            filter(4000.0, 10.0, 20.0),
+        ),
+        sound(
+            tr("Arp: Random bells"),
+            &[
+                ("arp", 1.0),
+                ("arp_mode", 3.0),
+                ("arp_note", 5.0),
+                ("arp_octaves", 3.0),
+                ("arp_gate", 40.0),
+                ("arp_hold", 1.0),
+                ("wave", 2.0),
+                ("osc1_voices", 1.0),
+                ("osc2_wave", 2.0),
+                ("osc2_level", 0.0),
+                ("osc2_octave", 2.0),
+                ("fm", 25.0),
+                ("env2_attack", 1.0),
+                ("env2_decay", 400.0),
+                ("env2_sustain", 0.0),
+                ("mod1_source", 3.0),
+                ("mod1_target", 14.0),
+                ("mod1_amount", 40.0),
+                ("spread", 70.0),
+                ("fx_delay", 30.0),
+                ("fx_delay_note", 6.0),
+                ("fx_reverb", 30.0),
+                ("fx_reverb_decay", 5.0),
+                ("volume", -6.0),
+            ],
+            adsr(1.0, 900.0, 0.0, 900.0),
+            filter(14000.0, 0.0, 0.0),
+        ),
     ];
     // A touch of space on the sounds made for it.
     // A touch of space on the sounds made for it, and the level the dry part loses back.
@@ -1136,9 +1207,59 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
             });
         }),
     });
-    // Oscillator 2 shaping oscillator 1, then the effects over the two other columns.
-    row(ui, full, &[1, 2], 100.0, |ui, c| match c {
+    // The arpeggiator, the effects, and oscillator 2 shaping oscillator 1.
+    row(ui, full, &[1, 1, 1], 100.0, |ui, c| match c {
         0 => panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                title(ui, tr("Arpeggiator"), p.weak);
+                for (id, label, hint) in [
+                    (
+                        "arp",
+                        "On",
+                        "Plays the held keys one after the other, in time",
+                    ),
+                    (
+                        "arp_hold",
+                        "Hold",
+                        "Keeps playing once the keys are up, until the next chord",
+                    ),
+                ] {
+                    params.toggle(ui, id, |ui, on| {
+                        let response = pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
+                        if response.clicked() {
+                            *on = !*on;
+                        }
+                        response
+                    });
+                }
+            });
+            spread(ui, 4, |ui, k| {
+                let (id, name) = [
+                    ("arp_mode", tr("Order")),
+                    ("arp_note", tr("Rate")),
+                    ("arp_octaves", tr("Range")),
+                    ("arp_gate", tr("Gate")),
+                ][k];
+                ui.spacing_mut().combo_width = 80.0;
+                wide_knob(ui, params, id, name, 38.0, p.accent);
+            });
+        }),
+        1 => panel(ui, |ui| {
+            title(ui, tr("Effects"), p.weak);
+            spread(ui, 6, |ui, k| {
+                let (id, name) = [
+                    ("fx_chorus", tr("Chorus")),
+                    ("fx_delay", tr("Delay")),
+                    ("fx_delay_note", tr("Time")),
+                    ("fx_delay_feedback", tr("Feedback")),
+                    ("fx_reverb", tr("Reverb")),
+                    ("fx_reverb_decay", tr("Decay")),
+                ][k];
+                ui.spacing_mut().combo_width = 56.0;
+                wide_knob(ui, params, id, name, 34.0, p.accent);
+            });
+        }),
+        _ => panel(ui, |ui| {
             ui.horizontal(|ui| {
                 title(ui, tr("Osc 2 → Osc 1"), p.weak);
                 params.toggle(ui, "sync", |ui, on| {
@@ -1155,20 +1276,6 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
             spread(ui, 2, |ui, k| {
                 let (id, name) = [("fm", tr("FM")), ("ring", tr("Ring"))][k];
                 mod_knob(ui, params, state, id, name);
-            });
-        }),
-        _ => panel(ui, |ui| {
-            title(ui, tr("Effects"), p.weak);
-            spread(ui, 6, |ui, k| {
-                let (id, name) = [
-                    ("fx_chorus", tr("Chorus")),
-                    ("fx_delay", tr("Delay")),
-                    ("fx_delay_note", tr("Time")),
-                    ("fx_delay_feedback", tr("Feedback")),
-                    ("fx_reverb", tr("Reverb")),
-                    ("fx_reverb_decay", tr("Decay")),
-                ][k];
-                wide_knob(ui, params, id, name, 38.0, p.accent);
             });
         }),
     });

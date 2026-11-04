@@ -107,6 +107,13 @@ pub(crate) mod p {
     pub const SLOTS: usize = 53;
     /// Table and position of each oscillator's wavetable.
     pub const TABLES: usize = 77;
+    /// The arpeggiator: on, mode, step note, octaves, gate and hold.
+    pub const ARP: usize = 90;
+    pub const ARP_MODE: usize = 91;
+    pub const ARP_NOTE: usize = 92;
+    pub const ARP_OCTAVES: usize = 93;
+    pub const ARP_GATE: usize = 94;
+    pub const ARP_HOLD: usize = 95;
     /// Oscillator 2 driving oscillator 1: phase modulation, hard sync, ring modulation.
     pub const FM: usize = 81;
     pub const SYNC: usize = 82;
@@ -121,6 +128,8 @@ pub(crate) mod p {
     pub const REVERB_DECAY: usize = 89;
 }
 pub const SLOTS: usize = 8;
+
+pub const ARP_MODES: [&str; 5] = ["Up", "Down", "Up and down", "Random", "As played"];
 
 /// What the editor shows live, in the meters: the output as an oscilloscope (a few periods
 /// from a rising zero crossing), then the newest note's LFO phases and values, its two
@@ -140,7 +149,7 @@ pub mod meter {
 const METERS: [&str; meter::COUNT] = [""; meter::COUNT];
 /// Samples kept for the oscilloscope: room for a trigger and the window, read every other one.
 const SCOPE_LINE: usize = 2048;
-const COUNT: usize = p::REVERB_DECAY + 1;
+const COUNT: usize = p::ARP_HOLD + 1;
 
 /// What modulates, in the order of the routings' source choice.
 pub const SOURCES: [&str; 11] = [
@@ -326,6 +335,12 @@ const EXTRA: [ParamInfo; COUNT - 35] = {
     out[more + 6] = param("fx_delay_feedback", "Delay feedback", 0.0, 90.0, 35.0, "%");
     out[more + 7] = param("fx_reverb", "Reverb", 0.0, 100.0, 0.0, "%");
     out[more + 8] = param("fx_reverb_decay", "Reverb decay", 0.3, 10.0, 2.5, "s");
+    out[more + 9] = switch("arp", "Arpeggiator", 0.0);
+    out[more + 10] = choice("arp_mode", "Arpeggio", &ARP_MODES, 0.0);
+    out[more + 11] = choice("arp_note", "Arpeggio rate", &NOTE_NAMES, 2.0);
+    out[more + 12] = param("arp_octaves", "Arpeggio octaves", 1.0, 4.0, 1.0, "octaves");
+    out[more + 13] = param("arp_gate", "Arpeggio gate", 10.0, 100.0, 60.0, "%");
+    out[more + 14] = switch("arp_hold", "Hold", 0.0);
     let mut k = 0;
     while k < SLOTS {
         let mut f = 0;
@@ -663,6 +678,22 @@ pub struct Synth {
     loaded: [Option<Arc<Table>>; 2],
     /// Chorus, delay and reverb after the voices.
     effects: Effects,
+    arp: Arp,
+}
+
+/// The arpeggiator's state: the notes it plays, where it is, and the note sounding.
+#[derive(Clone, Copy, Debug, Default)]
+struct Arp {
+    /// Channel, key and velocity, in the order played.
+    notes: [(u8, u8, u8); 16],
+    count: usize,
+    /// Keys still down: with hold, the notes stay once they are all up.
+    pressed: usize,
+    step: usize,
+    /// Samples until the next step, and until the sounding note ends.
+    next: f32,
+    gate: f32,
+    sounding: Option<(u8, u8)>,
 }
 
 /// The synth's own effects, in order.
@@ -750,6 +781,7 @@ impl Default for Synth {
             ],
             loaded: [None, None],
             effects: Effects::default(),
+            arp: Arp::default(),
         }
     }
 }
@@ -763,232 +795,8 @@ fn routes_fm(v: &[f32; COUNT]) -> bool {
 }
 
 impl Synth {
-    /// Points oscillator `o` at its chosen table: a factory one, or the loaded file.
-    fn choose_table(&mut self, o: usize) {
-        let kind = self.values[p::TABLES + o * 2].round().max(0.0) as usize;
-        let table = if kind >= LOADED {
-            self.loaded[o].clone()
-        } else {
-            crate::wavetable::factory().get(kind).cloned()
-        };
-        // Swapping an Arc does not allocate.
-        if let Some(table) = table {
-            self.tables[o] = table;
-        }
-    }
-
-    fn mode(&self) -> usize {
-        (self.values[p::MODE].round().max(0.0) as usize).min(MODES.len() - 1)
-    }
-
-    fn note_on(&mut self, channel: u8, key: u8, velocity: u8) {
-        self.clock += 1;
-        let mode = self.mode();
-        if mode > 0 {
-            let n = self.held.len();
-            self.held.copy_within(0..n - 1, 1);
-            self.held_count = (self.held_count + 1).min(self.held.len());
-            self.held[0] = (channel, key, velocity);
-        }
-        let index = if mode > 0 {
-            0
-        } else {
-            // Reuse the same key, else a free voice, else the oldest.
-            self.voices
-                .iter()
-                .position(|v| v.stage != Stage::Idle && v.key == key && v.channel == channel)
-                .or_else(|| self.voices.iter().position(|v| v.stage == Stage::Idle))
-                .unwrap_or_else(|| (0..VOICES).min_by_key(|&i| self.voices[i].age).unwrap_or(0))
-        };
-        let sensitivity = self.values[p::VELOCITY] / 100.0;
-        let drift = self.values[p::DRIFT] / 100.0;
-        let glide = self.values[p::GLIDE] > 0.5;
-        let (r1, r2, r3, r4) = (
-            self.random.next(),
-            self.random.next(),
-            self.random.next(),
-            self.random.next(),
-        );
-        let held = [self.random.next(), self.random.next()];
-        let retrigs = [0, 1].map(|l| self.values[p::LFO + l * p::LFO_FIELDS + 4] >= 0.5);
-        let free = self.lfo;
-        let mut phases = [[0.0f32; MAX_UNISON]; 2];
-        for row in &mut phases {
-            for (k, ph) in row.iter_mut().enumerate() {
-                // Unison voices start apart, as free-running oscillators would.
-                *ph = if k == 0 {
-                    0.0
-                } else {
-                    (self.random.next() * 0.5 + 0.5).fract()
-                };
-            }
-        }
-        let v = &mut self.voices[index];
-        let sounding = v.stage != Stage::Idle;
-        v.key = key;
-        v.channel = channel;
-        v.velocity = 1.0 - sensitivity + sensitivity * f32::from(velocity) / 127.0;
-        v.target = f32::from(key) - 69.0;
-        // Glide from the note that was playing; else start on the note.
-        if !(glide && sounding) {
-            v.note = v.target;
-        }
-        // Legato: a note played over another keeps its envelope going.
-        let retrigger = !(mode == 2 && sounding);
-        if !sounding {
-            v.phases = phases;
-            v.sub = 0.0;
-            v.level = 0.0;
-            v.filter = [[0.0; 4]; 2];
-        }
-        if retrigger {
-            v.stage = Stage::Attack;
-            v.env2_stage = Stage::Attack;
-            if !sounding {
-                v.env2 = 0.0;
-            }
-            for l in 0..2 {
-                v.lfo[l] = if retrigs[l] { 0.0 } else { free[l] };
-                v.held[l] = held[l];
-            }
-            v.drift_pitch = r1 * drift * DRIFT_CENTS;
-            v.drift_cutoff = r2 * drift * DRIFT_OCTAVES;
-            v.wander = r3 * std::f32::consts::PI;
-            v.wander_rate = 0.1 + 0.2 * (r4 * 0.5 + 0.5);
-        } else if v.stage == Stage::Release {
-            v.stage = Stage::Decay;
-        }
-        v.age = self.clock;
-    }
-
-    /// Bend of a voice in semitones: its own channel, plus the global channel in MPE mode.
-    fn bend(&self, channel: u8) -> f32 {
-        let state = &self.channels[usize::from(channel & 15)];
-        if self.values[p::MPE] >= 0.5 {
-            let global = self.channels[0].bend * self.values[p::BEND_RANGE];
-            if channel == 0 {
-                global
-            } else {
-                global + state.bend * MPE_BEND
-            }
-        } else {
-            state.bend * self.values[p::BEND_RANGE]
-        }
-    }
-
-    fn note_off(&mut self, channel: u8, key: u8) {
-        if self.mode() > 0 {
-            // Back to the last key still held, else the note ends.
-            let mut kept = 0;
-            for i in 0..self.held_count {
-                if self.held[i].0 != channel || self.held[i].1 != key {
-                    self.held[kept] = self.held[i];
-                    kept += 1;
-                }
-            }
-            self.held_count = kept;
-            let v = self.voices[0];
-            if v.key == key && v.channel == channel {
-                if let Some(&(c, k, vel)) = self.held[..self.held_count].first() {
-                    self.held_count -= 1;
-                    self.held.copy_within(1..=self.held_count, 0);
-                    // Played again as if pressed, without a new attack in legato.
-                    let mode = self.mode();
-                    self.values[p::MODE] = 2.0;
-                    self.note_on(c, k, vel);
-                    self.values[p::MODE] = mode as f32;
-                } else {
-                    self.voices[0].stage = Stage::Release;
-                }
-            }
-            return;
-        }
-        for v in self
-            .voices
-            .iter_mut()
-            .filter(|v| v.key == key && v.channel == channel && v.stage != Stage::Idle)
-        {
-            v.stage = Stage::Release;
-        }
-    }
-}
-
-impl Effect for Synth {
-    fn prepare(&mut self, sample_rate: u32, max_frames: usize) {
-        self.rate = sample_rate as f32;
-        self.voices = [Voice::default(); VOICES];
-        self.held_count = 0;
-        for effect in &mut self.effects.0 {
-            effect.prepare(sample_rate, max_frames);
-        }
-    }
-
-    fn set_tempo(&mut self, bpm: f64) {
-        self.bpm = bpm;
-        self.effects.0[1].set_tempo(bpm);
-    }
-
-    fn set_param(&mut self, index: usize, value: f32) {
-        if let Some(v) = self.values.get_mut(index) {
-            *v = value;
-        }
-        if index == p::TABLES || index == p::TABLES + 2 {
-            self.choose_table((index - p::TABLES) / 2);
-        }
-        self.effects.set(index, value);
-    }
-
-    fn load(&mut self, slot: &str, file: crate::FileData) -> Result<String, String> {
-        let o = match slot {
-            "table1" => 0,
-            "table2" => 1,
-            _ => return Err(format!("no file slot {slot}")),
-        };
-        let crate::FileData::Audio { channels, .. } = file else {
-            return Err("a wavetable is an audio file".into());
-        };
-        let samples = channels.first().ok_or("the file is empty")?;
-        let table = Table::from_samples(samples)?;
-        let frames = table.frames();
-        self.loaded[o] = Some(Arc::new(table));
-        self.choose_table(o);
-        Ok(format!("{frames} frames"))
-    }
-
-    fn midi(&mut self, event: &MidiEvent) {
-        if let Some((key, velocity)) = event.as_note_on() {
-            self.note_on(event.channel(), key, velocity);
-        } else if let Some(key) = event.as_note_off() {
-            self.note_off(event.channel(), key);
-        } else if event
-            .as_control()
-            .is_some_and(|(cc, _)| cc == 120 || cc == 123)
-        {
-            for v in &mut self.voices {
-                v.stage = if event.data[1] == 120 {
-                    Stage::Idle
-                } else {
-                    Stage::Release
-                };
-            }
-            self.held_count = 0;
-        } else {
-            let state = &mut self.channels[usize::from(event.channel())];
-            match (event.data[0] & 0xF0, event.data[1]) {
-                (0xE0, _) => {
-                    let value = u16::from(event.data[2]) << 7 | u16::from(event.data[1]);
-                    state.bend = ((f32::from(value) - 8192.0) / 8192.0).clamp(-1.0, 1.0);
-                }
-                (0xD0, pressure) => state.pressure = f32::from(pressure) / 127.0,
-                (0xB0, 74) => state.slide = f32::from(event.data[2]) / 127.0,
-                (0xB0, 1) => state.wheel = f32::from(event.data[2]) / 127.0,
-                (0xB0, 121) => *state = ChannelState::default(),
-                _ => {}
-            }
-        }
-    }
-
-    fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+    /// The voices, into `left` and `right`.
+    fn render(&mut self, left: &mut [f32], right: &mut [f32]) {
         let v = self.values;
         let per_ms = 1000.0 / self.rate;
         let (a, d, r) = (
@@ -1292,7 +1100,373 @@ impl Effect for Synth {
             self.scope[self.scope_at] = 0.5 * (l + r);
             self.scope_at = (self.scope_at + 1) % SCOPE_LINE;
         }
+    }
+
+    /// A key pressed while the arpeggiator is on: it joins the notes played.
+    fn arp_press(&mut self, channel: u8, key: u8, velocity: u8) {
+        let arp = &mut self.arp;
+        // With hold, a new chord replaces the one left playing.
+        if arp.pressed == 0 && self.values[p::ARP_HOLD] >= 0.5 {
+            arp.count = 0;
+        }
+        if arp.count == 0 {
+            arp.step = 0;
+            arp.next = 0.0;
+        }
+        arp.pressed += 1;
+        let known = arp.notes[..arp.count]
+            .iter()
+            .any(|n| n.0 == channel && n.1 == key);
+        if !known && arp.count < arp.notes.len() {
+            arp.notes[arp.count] = (channel, key, velocity);
+            arp.count += 1;
+        }
+    }
+
+    fn arp_release(&mut self, channel: u8, key: u8) {
+        let arp = &mut self.arp;
+        arp.pressed = arp.pressed.saturating_sub(1);
+        if self.values[p::ARP_HOLD] >= 0.5 {
+            return;
+        }
+        if let Some(i) = arp.notes[..arp.count]
+            .iter()
+            .position(|n| n.0 == channel && n.1 == key)
+        {
+            arp.notes.copy_within(i + 1..arp.count, i);
+            arp.count -= 1;
+        }
+    }
+
+    /// Ends the arpeggio and its note.
+    fn stop_arp(&mut self) {
+        if let Some((channel, key)) = self.arp.sounding.take() {
+            self.note_off(channel, key);
+        }
+        self.arp = Arp::default();
+    }
+
+    /// The note of the current step: its channel, key and velocity.
+    fn arp_note(&mut self) -> (u8, u8, u8) {
+        let arp = &self.arp;
+        let count = arp.count.max(1);
+        let octaves = self.values[p::ARP_OCTAVES].round().clamp(1.0, 4.0) as usize;
+        let length = count * octaves;
+        let mode = self.values[p::ARP_MODE].round().max(0.0) as usize;
+        let mut sorted = arp.notes;
+        let order = if mode == 4 {
+            &arp.notes[..count]
+        } else {
+            sorted[..count].sort_unstable_by_key(|n| n.1);
+            &sorted[..count]
+        };
+        let i = match mode {
+            1 => length - 1 - arp.step % length,
+            2 => {
+                let period = (2 * length).saturating_sub(2).max(1);
+                let s = arp.step % period;
+                if s < length { s } else { period - s }
+            }
+            3 => {
+                let r = (self.random.next() * 0.5 + 0.5) * length as f32;
+                (r as usize).min(length - 1)
+            }
+            _ => arp.step % length,
+        };
+        let (channel, key, velocity) = order[i % count];
+        let key = (usize::from(key) + 12 * (i / count)).min(127) as u8;
+        (channel, key, velocity)
+    }
+
+    /// The voices with the arpeggio playing its steps in time, sample-exact within the block.
+    fn arpeggiate(&mut self, left: &mut [f32], right: &mut [f32]) {
+        let step = (synced_seconds(self.values[p::ARP_NOTE], self.bpm) * self.rate).max(1.0);
+        let gate = step * self.values[p::ARP_GATE].clamp(10.0, 100.0) / 100.0;
+        let mut at = 0;
+        while at < left.len() {
+            let arp = self.arp;
+            let next = if arp.count > 0 {
+                arp.next
+            } else {
+                f32::INFINITY
+            };
+            let end = if arp.sounding.is_some() {
+                arp.gate
+            } else {
+                f32::INFINITY
+            };
+            let span = next.min(end).ceil().max(0.0).min((left.len() - at) as f32) as usize;
+            if span > 0 {
+                self.render(&mut left[at..at + span], &mut right[at..at + span]);
+                at += span;
+                self.arp.next -= span as f32;
+                self.arp.gate -= span as f32;
+            }
+            if self.arp.sounding.is_some() && self.arp.gate <= 0.0 {
+                if let Some((channel, key)) = self.arp.sounding.take() {
+                    self.note_off(channel, key);
+                }
+            }
+            if self.arp.count > 0 && self.arp.next <= 0.0 {
+                if let Some((channel, key)) = self.arp.sounding.take() {
+                    self.note_off(channel, key);
+                }
+                let (channel, key, velocity) = self.arp_note();
+                self.note_on(channel, key, velocity);
+                self.arp.sounding = Some((channel, key));
+                self.arp.gate = gate;
+                self.arp.next += step;
+                self.arp.step += 1;
+            }
+        }
+    }
+
+    /// Points oscillator `o` at its chosen table: a factory one, or the loaded file.
+    fn choose_table(&mut self, o: usize) {
+        let kind = self.values[p::TABLES + o * 2].round().max(0.0) as usize;
+        let table = if kind >= LOADED {
+            self.loaded[o].clone()
+        } else {
+            crate::wavetable::factory().get(kind).cloned()
+        };
+        // Swapping an Arc does not allocate.
+        if let Some(table) = table {
+            self.tables[o] = table;
+        }
+    }
+
+    fn mode(&self) -> usize {
+        (self.values[p::MODE].round().max(0.0) as usize).min(MODES.len() - 1)
+    }
+
+    fn note_on(&mut self, channel: u8, key: u8, velocity: u8) {
+        self.clock += 1;
+        let mode = self.mode();
+        if mode > 0 {
+            let n = self.held.len();
+            self.held.copy_within(0..n - 1, 1);
+            self.held_count = (self.held_count + 1).min(self.held.len());
+            self.held[0] = (channel, key, velocity);
+        }
+        let index = if mode > 0 {
+            0
+        } else {
+            // Reuse the same key, else a free voice, else the oldest.
+            self.voices
+                .iter()
+                .position(|v| v.stage != Stage::Idle && v.key == key && v.channel == channel)
+                .or_else(|| self.voices.iter().position(|v| v.stage == Stage::Idle))
+                .unwrap_or_else(|| (0..VOICES).min_by_key(|&i| self.voices[i].age).unwrap_or(0))
+        };
+        let sensitivity = self.values[p::VELOCITY] / 100.0;
+        let drift = self.values[p::DRIFT] / 100.0;
+        let glide = self.values[p::GLIDE] > 0.5;
+        let (r1, r2, r3, r4) = (
+            self.random.next(),
+            self.random.next(),
+            self.random.next(),
+            self.random.next(),
+        );
+        let held = [self.random.next(), self.random.next()];
+        let retrigs = [0, 1].map(|l| self.values[p::LFO + l * p::LFO_FIELDS + 4] >= 0.5);
+        let free = self.lfo;
+        let mut phases = [[0.0f32; MAX_UNISON]; 2];
+        for row in &mut phases {
+            for (k, ph) in row.iter_mut().enumerate() {
+                // Unison voices start apart, as free-running oscillators would.
+                *ph = if k == 0 {
+                    0.0
+                } else {
+                    (self.random.next() * 0.5 + 0.5).fract()
+                };
+            }
+        }
+        let v = &mut self.voices[index];
+        let sounding = v.stage != Stage::Idle;
+        v.key = key;
+        v.channel = channel;
+        v.velocity = 1.0 - sensitivity + sensitivity * f32::from(velocity) / 127.0;
+        v.target = f32::from(key) - 69.0;
+        // Glide from the note that was playing; else start on the note.
+        if !(glide && sounding) {
+            v.note = v.target;
+        }
+        // Legato: a note played over another keeps its envelope going.
+        let retrigger = !(mode == 2 && sounding);
+        if !sounding {
+            v.phases = phases;
+            v.sub = 0.0;
+            v.level = 0.0;
+            v.filter = [[0.0; 4]; 2];
+        }
+        if retrigger {
+            v.stage = Stage::Attack;
+            v.env2_stage = Stage::Attack;
+            if !sounding {
+                v.env2 = 0.0;
+            }
+            for l in 0..2 {
+                v.lfo[l] = if retrigs[l] { 0.0 } else { free[l] };
+                v.held[l] = held[l];
+            }
+            v.drift_pitch = r1 * drift * DRIFT_CENTS;
+            v.drift_cutoff = r2 * drift * DRIFT_OCTAVES;
+            v.wander = r3 * std::f32::consts::PI;
+            v.wander_rate = 0.1 + 0.2 * (r4 * 0.5 + 0.5);
+        } else if v.stage == Stage::Release {
+            v.stage = Stage::Decay;
+        }
+        v.age = self.clock;
+    }
+
+    /// Bend of a voice in semitones: its own channel, plus the global channel in MPE mode.
+    fn bend(&self, channel: u8) -> f32 {
+        let state = &self.channels[usize::from(channel & 15)];
+        if self.values[p::MPE] >= 0.5 {
+            let global = self.channels[0].bend * self.values[p::BEND_RANGE];
+            if channel == 0 {
+                global
+            } else {
+                global + state.bend * MPE_BEND
+            }
+        } else {
+            state.bend * self.values[p::BEND_RANGE]
+        }
+    }
+
+    fn note_off(&mut self, channel: u8, key: u8) {
+        if self.mode() > 0 {
+            // Back to the last key still held, else the note ends.
+            let mut kept = 0;
+            for i in 0..self.held_count {
+                if self.held[i].0 != channel || self.held[i].1 != key {
+                    self.held[kept] = self.held[i];
+                    kept += 1;
+                }
+            }
+            self.held_count = kept;
+            let v = self.voices[0];
+            if v.key == key && v.channel == channel {
+                if let Some(&(c, k, vel)) = self.held[..self.held_count].first() {
+                    self.held_count -= 1;
+                    self.held.copy_within(1..=self.held_count, 0);
+                    // Played again as if pressed, without a new attack in legato.
+                    let mode = self.mode();
+                    self.values[p::MODE] = 2.0;
+                    self.note_on(c, k, vel);
+                    self.values[p::MODE] = mode as f32;
+                } else {
+                    self.voices[0].stage = Stage::Release;
+                }
+            }
+            return;
+        }
+        for v in self
+            .voices
+            .iter_mut()
+            .filter(|v| v.key == key && v.channel == channel && v.stage != Stage::Idle)
+        {
+            v.stage = Stage::Release;
+        }
+    }
+}
+
+impl Effect for Synth {
+    fn prepare(&mut self, sample_rate: u32, max_frames: usize) {
+        self.rate = sample_rate as f32;
+        self.voices = [Voice::default(); VOICES];
+        self.held_count = 0;
+        for effect in &mut self.effects.0 {
+            effect.prepare(sample_rate, max_frames);
+        }
+    }
+
+    fn set_tempo(&mut self, bpm: f64) {
+        self.bpm = bpm;
+        self.effects.0[1].set_tempo(bpm);
+    }
+
+    fn set_param(&mut self, index: usize, value: f32) {
+        if let Some(v) = self.values.get_mut(index) {
+            *v = value;
+        }
+        if index == p::TABLES || index == p::TABLES + 2 {
+            self.choose_table((index - p::TABLES) / 2);
+        }
+        self.effects.set(index, value);
+        if index == p::ARP && value < 0.5 {
+            self.stop_arp();
+        }
+    }
+
+    fn load(&mut self, slot: &str, file: crate::FileData) -> Result<String, String> {
+        let o = match slot {
+            "table1" => 0,
+            "table2" => 1,
+            _ => return Err(format!("no file slot {slot}")),
+        };
+        let crate::FileData::Audio { channels, .. } = file else {
+            return Err("a wavetable is an audio file".into());
+        };
+        let samples = channels.first().ok_or("the file is empty")?;
+        let table = Table::from_samples(samples)?;
+        let frames = table.frames();
+        self.loaded[o] = Some(Arc::new(table));
+        self.choose_table(o);
+        Ok(format!("{frames} frames"))
+    }
+
+    fn midi(&mut self, event: &MidiEvent) {
+        if self.values[p::ARP] >= 0.5 {
+            if let Some((key, velocity)) = event.as_note_on() {
+                self.arp_press(event.channel(), key, velocity);
+                return;
+            }
+            if let Some(key) = event.as_note_off() {
+                self.arp_release(event.channel(), key);
+                return;
+            }
+        }
+        if let Some((key, velocity)) = event.as_note_on() {
+            self.note_on(event.channel(), key, velocity);
+        } else if let Some(key) = event.as_note_off() {
+            self.note_off(event.channel(), key);
+        } else if event
+            .as_control()
+            .is_some_and(|(cc, _)| cc == 120 || cc == 123)
+        {
+            for v in &mut self.voices {
+                v.stage = if event.data[1] == 120 {
+                    Stage::Idle
+                } else {
+                    Stage::Release
+                };
+            }
+            self.held_count = 0;
+        } else {
+            let state = &mut self.channels[usize::from(event.channel())];
+            match (event.data[0] & 0xF0, event.data[1]) {
+                (0xE0, _) => {
+                    let value = u16::from(event.data[2]) << 7 | u16::from(event.data[1]);
+                    state.bend = ((f32::from(value) - 8192.0) / 8192.0).clamp(-1.0, 1.0);
+                }
+                (0xD0, pressure) => state.pressure = f32::from(pressure) / 127.0,
+                (0xB0, 74) => state.slide = f32::from(event.data[2]) / 127.0,
+                (0xB0, 1) => state.wheel = f32::from(event.data[2]) / 127.0,
+                (0xB0, 121) => *state = ChannelState::default(),
+                _ => {}
+            }
+        }
+    }
+
+    fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+        if self.values[p::ARP] >= 0.5 {
+            self.arpeggiate(left, right);
+        } else {
+            self.render(left, right);
+        }
         // The effects, only those turned up.
+        let v = self.values;
         for (effect, mix) in self
             .effects
             .0
@@ -1826,5 +2000,44 @@ mod tests {
             l[4800..].iter().map(|x| x * x).sum::<f32>()
         };
         assert!(tail(50.0) > tail(0.0) * 100.0 + 1e-6);
+    }
+
+    #[test]
+    fn the_arpeggiator_plays_the_chord_in_time() {
+        // The keys heard, one per block of 1000 samples, at 120 bpm in sixteenths (6000).
+        let keys = |settings: &[(usize, f32)], blocks: usize, release: bool| {
+            let mut s = synth(&[[(p::ARP, 1.0)].as_slice(), settings].concat());
+            s.set_tempo(120.0);
+            for key in [64, 60, 67] {
+                s.midi(&MidiEvent::note_on(0, 0, key, 100));
+            }
+            if release {
+                for key in [64, 60, 67] {
+                    s.midi(&MidiEvent::note_off(0, 0, key));
+                }
+            }
+            let mut heard = Vec::new();
+            for _ in 0..blocks {
+                let (mut l, mut r) = (vec![0.0; 1000], vec![0.0; 1000]);
+                s.process(&mut l, &mut r);
+                if let Some((_, key)) = s.arp.sounding
+                    && heard.last() != Some(&key)
+                {
+                    heard.push(key);
+                }
+            }
+            heard
+        };
+        assert_eq!(keys(&[], 23, false), [60, 64, 67, 60]);
+        assert_eq!(keys(&[(p::ARP_MODE, 1.0)], 17, false), [67, 64, 60]);
+        assert_eq!(keys(&[(p::ARP_MODE, 4.0)], 17, false), [64, 60, 67]);
+        assert_eq!(
+            keys(&[(p::ARP_OCTAVES, 2.0)], 35, false),
+            [60, 64, 67, 72, 76, 79]
+        );
+        assert_eq!(keys(&[(p::ARP_MODE, 2.0)], 29, false), [60, 64, 67, 64, 60]);
+        // Released: silent at once, unless held.
+        assert!(keys(&[], 12, true).len() <= 1);
+        assert_eq!(keys(&[(p::ARP_HOLD, 1.0)], 17, true), [60, 64, 67]);
     }
 }
