@@ -1202,10 +1202,10 @@ impl Synth {
                 self.arp.next -= span as f32;
                 self.arp.gate -= span as f32;
             }
-            if self.arp.sounding.is_some() && self.arp.gate <= 0.0 {
-                if let Some((channel, key)) = self.arp.sounding.take() {
-                    self.note_off(channel, key);
-                }
+            if self.arp.gate <= 0.0
+                && let Some((channel, key)) = self.arp.sounding.take()
+            {
+                self.note_off(channel, key);
             }
             if self.arp.count > 0 && self.arp.next <= 0.0 {
                 if let Some((channel, key)) = self.arp.sounding.take() {
