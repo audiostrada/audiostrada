@@ -320,43 +320,71 @@ pub fn preset_bar(
     let root = crate::presets::root();
     let key = insert.effect.as_str();
     ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 3.0;
         let list = crate::presets::list(root.as_deref(), key);
+        let at = state
+            .preset
+            .as_ref()
+            .and_then(|name| list.iter().position(|p| &p.name == name));
+        let mut chosen = None;
+        // Previous and next go through the whole list, factory sounds first, round and round.
+        let step = |forward: bool| -> Option<usize> {
+            let n = list.len();
+            (n > 0).then(|| match (at, forward) {
+                (Some(i), true) => (i + 1) % n,
+                (Some(i), false) => (i + n - 1) % n,
+                (None, true) => 0,
+                (None, false) => n - 1,
+            })
+        };
+        if ui
+            .add_enabled(!list.is_empty(), egui::Button::new("◀"))
+            .on_hover_text(tr("Previous preset"))
+            .clicked()
+        {
+            chosen = step(false);
+        }
         let shown = state
             .preset
             .clone()
             .unwrap_or_else(|| tr("Presets").to_owned());
-        egui::ComboBox::from_id_salt(("presets", insert.id.0))
-            .width(170.0)
-            .selected_text(shown)
-            .show_ui(ui, |ui| {
-                if list.is_empty() {
-                    ui.weak(tr("No presets yet"));
-                }
-                let mut factory = true;
-                for preset in &list {
-                    if factory && !preset.factory {
-                        ui.separator();
-                        factory = false;
-                    }
-                    if ui.selectable_label(false, &preset.name).clicked() {
-                        let settings = Settings {
-                            params: preset.params.clone(),
-                            state: preset
-                                .state
-                                .as_deref()
-                                .and_then(audiostrada_core::base64::decode),
-                        };
-                        apply_settings(
-                            doc,
-                            channel,
-                            insert.id,
-                            &crate::trf!("Preset {name}", name = preset.name),
-                            &settings,
-                        );
-                        state.preset = Some(preset.name.clone());
-                    }
-                }
-            });
+        let menu =
+            egui::containers::menu::MenuButton::new(RichText::new(format!("{shown}  ▾")).strong());
+        let (_, picked) = menu.ui(ui, |ui| {
+            ui.set_min_width(200.0);
+            if list.is_empty() {
+                ui.weak(tr("No presets yet"));
+            }
+            preset_menu(ui, &list, at)
+        });
+        if let Some(Some(i)) = picked.map(|r| r.inner) {
+            chosen = Some(i);
+        }
+        if ui
+            .add_enabled(!list.is_empty(), egui::Button::new("▶"))
+            .on_hover_text(tr("Next preset"))
+            .clicked()
+        {
+            chosen = step(true);
+        }
+        if let Some(preset) = chosen.and_then(|i| list.get(i)) {
+            let settings = Settings {
+                params: preset.params.clone(),
+                state: preset
+                    .state
+                    .as_deref()
+                    .and_then(audiostrada_core::base64::decode),
+            };
+            apply_settings(
+                doc,
+                channel,
+                insert.id,
+                &crate::trf!("Preset {name}", name = preset.name),
+                &settings,
+            );
+            state.preset = Some(preset.name.clone());
+        }
+        ui.add_space(6.0);
         if ui
             .button(tr("Save…"))
             .on_hover_text(tr("Save the current settings as a preset"))
@@ -448,6 +476,71 @@ pub fn preset_bar(
             state.saving = Some(name);
         }
     }
+}
+
+/// The presets as a menu: those named "Category: name" in a submenu per category, the others
+/// at the top; the user's own under "My presets". Returns the index of the one clicked.
+fn preset_menu(
+    ui: &mut Ui,
+    list: &[crate::presets::Preset],
+    current: Option<usize>,
+) -> Option<usize> {
+    let mut chosen = None;
+    // French puts a space before the colon: both read the same.
+    let category = |name: &str| {
+        name.split_once(": ")
+            .map(|(c, n)| (c.trim().to_owned(), n.trim().to_owned()))
+    };
+    let mut item = |ui: &mut Ui, i: usize, label: &str| {
+        if ui.selectable_label(current == Some(i), label).clicked() {
+            chosen = Some(i);
+            ui.close();
+        }
+    };
+    for (group, factory) in [(None, true), (Some(tr("My presets")), false)] {
+        let members: Vec<usize> = (0..list.len())
+            .filter(|&i| list[i].factory == factory)
+            .collect();
+        if members.is_empty() {
+            continue;
+        }
+        let mut show = |ui: &mut Ui| {
+            // Uncategorized first, then each category in the order it first appears.
+            for &i in members
+                .iter()
+                .filter(|&&i| category(&list[i].name).is_none())
+            {
+                item(ui, i, &list[i].name);
+            }
+            let mut seen: Vec<String> = Vec::new();
+            for &i in &members {
+                let Some((cat, _)) = category(&list[i].name) else {
+                    continue;
+                };
+                if seen.contains(&cat) {
+                    continue;
+                }
+                seen.push(cat.clone());
+                ui.menu_button(cat.as_str(), |ui| {
+                    for &j in &members {
+                        if let Some((c, name)) = category(&list[j].name)
+                            && c == cat
+                        {
+                            item(ui, j, &name);
+                        }
+                    }
+                });
+            }
+        };
+        match group {
+            Some(title) => {
+                ui.separator();
+                ui.menu_button(title, |ui| show(ui));
+            }
+            None => show(ui),
+        }
+    }
+    chosen
 }
 
 /// Effects that only measure: they have no presets nor Match.

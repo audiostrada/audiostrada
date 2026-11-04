@@ -3607,3 +3607,36 @@ Voix
 
 Voice mode
 Mode de jeu
+
+My presets
+Mes presets
+
+Next preset
+Preset suivant
+
+Previous preset
+Preset précédent
+
+Filter drive
+Saturation du filtre
+
+Filter type
+Type de filtre
+
+Key tracking
+Suivi du clavier
+
+Ladder 24 dB
+Ladder 24 dB
+
+Low-pass 12 dB
+Passe-bas 12 dB
+
+Low-pass 24 dB
+Passe-bas 24 dB
+
+Key track
+Suivi clavier
+
+Pad: Airy
+Nappe : Aérienne

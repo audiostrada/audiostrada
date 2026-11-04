@@ -10,7 +10,7 @@ use eframe::egui::{
 };
 
 use crate::effect_editors::{
-    Params, from_unit, pill_switch, section_frame, segmented, to_unit, wide_knob,
+    Params, choice_box, from_unit, pill_switch, section_frame, segmented, to_unit, wide_knob,
 };
 use crate::i18n::tr;
 use crate::theme;
@@ -133,6 +133,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Keys: Soft"),
             &[
+                ("key_track", 40.0),
                 ("wave", 3.0),
                 ("osc1_voices", 1.0),
                 ("osc2_wave", 2.0),
@@ -193,8 +194,27 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             filter(5000.0, 25.0, 15.0),
         ),
         sound(
+            tr("Pad: Airy"),
+            &[
+                ("osc1_voices", 5.0),
+                ("detune", 18.0),
+                ("osc2_wave", 3.0),
+                ("osc2_level", 50.0),
+                ("osc2_octave", 1.0),
+                ("filter_type", 3.0),
+                ("spread", 100.0),
+                ("drift", 25.0),
+                ("velocity", 30.0),
+                ("volume", -8.0),
+            ],
+            adsr(1200.0, 2000.0, 85.0, 4000.0),
+            filter(700.0, 20.0, 0.0),
+        ),
+        sound(
             tr("Strings: Ensemble"),
             &[
+                ("filter_type", 1.0),
+                ("key_track", 30.0),
                 ("osc1_voices", 7.0),
                 ("detune", 22.0),
                 ("spread", 90.0),
@@ -208,6 +228,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Brass: Analog"),
             &[
+                ("key_track", 50.0),
                 ("detune", 10.0),
                 ("osc2_level", 70.0),
                 ("osc2_fine", 7.0),
@@ -220,6 +241,8 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Lead: Supersaw"),
             &[
+                ("filter_type", 1.0),
+                ("key_track", 30.0),
                 ("osc1_voices", 9.0),
                 ("detune", 28.0),
                 ("osc2_level", 40.0),
@@ -235,6 +258,9 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Lead: Mono glide"),
             &[
+                ("filter_type", 2.0),
+                ("drive", 20.0),
+                ("key_track", 50.0),
                 ("mode", 1.0),
                 ("glide", 120.0),
                 ("osc1_voices", 1.0),
@@ -242,7 +268,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
                 ("osc2_semi", 7.0),
                 ("osc2_level", 50.0),
                 ("sub_level", 30.0),
-                ("volume", -10.0),
+                ("volume", -5.0),
             ],
             adsr(5.0, 400.0, 80.0, 200.0),
             filter(3000.0, 30.0, 40.0),
@@ -264,6 +290,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Pluck: Bright"),
             &[
+                ("key_track", 60.0),
                 ("osc1_voices", 3.0),
                 ("detune", 12.0),
                 ("velocity", 80.0),
@@ -321,25 +348,29 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("Bass: Acid"),
             &[
+                ("filter_type", 2.0),
+                ("drive", 40.0),
                 ("osc1_voices", 1.0),
                 ("mode", 2.0),
                 ("glide", 90.0),
                 ("drift", 0.0),
-                ("volume", -8.0),
+                ("volume", -5.0),
             ],
             adsr(1.0, 180.0, 20.0, 80.0),
-            filter(350.0, 80.0, 85.0),
+            filter(300.0, 85.0, 80.0),
         ),
         sound(
             tr("Bass: Analog"),
             &[
+                ("filter_type", 2.0),
+                ("drive", 25.0),
                 ("wave", 1.0),
                 ("osc1_voices", 1.0),
                 ("osc2_level", 60.0),
                 ("osc2_octave", -1.0),
                 ("mode", 1.0),
                 ("drift", 15.0),
-                ("volume", -12.0),
+                ("volume", -7.0),
             ],
             adsr(2.0, 400.0, 50.0, 150.0),
             filter(700.0, 25.0, 55.0),
@@ -347,10 +378,11 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
         sound(
             tr("FX: Noise sweep"),
             &[
+                ("filter_type", 4.0),
                 ("osc1_level", 0.0),
                 ("noise", 100.0),
                 ("spread", 100.0),
-                ("volume", -4.0),
+                ("volume", 2.0),
             ],
             adsr(1500.0, 2000.0, 40.0, 2500.0),
             filter(500.0, 70.0, 100.0),
@@ -426,11 +458,17 @@ pub fn show(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
         section_frame(ui, tr("Filter"), p.weak, height, |ui| {
-            ui.horizontal(|ui| {
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    choice_box(ui, params, "filter_type");
+                    filter_curve(ui, params, vec2(150.0, 70.0));
+                });
                 ui.spacing_mut().item_spacing.x = 2.0;
                 knob(ui, params, "cutoff", tr("Cutoff"));
                 knob(ui, params, "resonance", tr("Resonance"));
                 knob(ui, params, "env_amount", tr("Envelope"));
+                knob(ui, params, "drive", tr("Drive"));
+                knob(ui, params, "key_track", tr("Key track"));
             });
         });
         section_frame(ui, tr("Voice"), p.weak, height, |ui| {
@@ -493,6 +531,58 @@ pub fn show(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
     });
     ui.add_space(6.0);
     keyboard(ui, params, state);
+}
+
+/// What the filter does to the spectrum, 20 Hz to 20 kHz, at its cutoff and resonance.
+fn filter_curve(ui: &mut Ui, params: &mut Params, size: egui::Vec2) {
+    use audiostrada_dsp::synth::{BP, HP, LADDER, LP12, LP24};
+    let p = theme::current(ui);
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 6.0, p.base);
+    let kind = params.get("filter_type").round() as usize;
+    let fc = params.get("cutoff");
+    let r = params.get("resonance") / 95.0;
+    let k = 2.0 * (1.0 - r * 0.95).max(0.05);
+    // Analog prototypes of the filters, in the s plane, at w = f / fc.
+    let gain = |f: f32| -> f32 {
+        let w = f / fc;
+        let svf = |num: f32| {
+            let den = ((1.0 - w * w).powi(2) + (k * w).powi(2)).sqrt();
+            num / den.max(1e-6)
+        };
+        match kind {
+            LP12 => svf(1.0),
+            LP24 => {
+                let flat = 1.0 / ((1.0 - w * w).powi(2) + 2.0 * w * w).sqrt().max(1e-6);
+                svf(1.0) * flat
+            }
+            LADDER => {
+                // 1 / ((1 + s)^4 + 4.1 r), s = jw: the four poles and their feedback.
+                let (re, im) = (1.0f32, w);
+                let (r2, i2) = (re * re - im * im, 2.0 * re * im);
+                let (r4, i4) = (r2 * r2 - i2 * i2, 2.0 * r2 * i2);
+                (1.0 + 0.8 * 4.1 * r) / ((r4 + 4.1 * r).powi(2) + i4 * i4).sqrt().max(1e-6)
+            }
+            HP => svf(w * w),
+            BP => svf(k * w),
+            _ => svf((1.0 - w * w).abs()),
+        }
+    };
+    let to_x = |f: f32| rect.left() + (f / 20.0).log10() / 3.0 * rect.width();
+    let to_y = |db: f32| rect.center().y - 6.0 - (db / 24.0).clamp(-1.6, 1.0) * rect.height() * 0.4;
+    let points: Vec<Pos2> = (0..=80)
+        .map(|i| {
+            let f = 20.0 * 1000f32.powf(i as f32 / 80.0);
+            pos2(to_x(f), to_y(20.0 * gain(f).max(1e-6).log10()))
+        })
+        .collect();
+    painter.add(Shape::line(points, Stroke::new(1.6, p.accent)));
+    painter.circle_filled(
+        pos2(to_x(fc), to_y(20.0 * gain(fc).max(1e-6).log10())),
+        3.0,
+        theme::SOLO,
+    );
 }
 
 /// The four waves as buttons drawing their shape, the chosen one lit.

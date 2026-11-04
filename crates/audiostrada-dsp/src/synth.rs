@@ -1,7 +1,9 @@
 //! Polyphonic subtractive synthesizer: two oscillators (band-limited saw and square by
 //! polyBLEP, sine, triangle), each with its octave, tuning, level and unison (up to 16 voices
 //! spread in pitch and across the stereo field), a sub oscillator and noise; a resonant filter
-//! with its envelope and an amplitude envelope. Analog drift gives each note its own small
+//! (state-variable low-pass 12 or 24 dB, high-pass, band-pass, notch, or a nonlinear 24 dB
+//! ladder that sings into self-oscillation) with drive, key tracking and its envelope, and an
+//! amplitude envelope. Analog drift gives each note its own small
 //! offsets, glide slides between notes, mono and legato play one note at a time.
 //! Pitch bend, channel pressure and (in MPE mode) CC 74 follow each voice's channel, so MPE
 //! controllers bend and shape notes one by one. Out of MPE, the host maps CC 74 to the cutoff.
@@ -27,6 +29,19 @@ pub const INFO: EffectInfo = EffectInfo {
 pub const WAVES: [&str; 4] = ["Saw", "Square", "Sine", "Triangle"];
 pub const SUB_OCTAVES: [&str; 2] = ["-1 octave", "-2 octaves"];
 pub const MODES: [&str; 3] = ["Poly", "Mono", "Legato"];
+pub const FILTERS: [&str; 6] = [
+    "Low-pass 12 dB",
+    "Low-pass 24 dB",
+    "Ladder 24 dB",
+    "High-pass",
+    "Band-pass",
+    "Notch",
+];
+pub const LP12: usize = 0;
+pub const LP24: usize = 1;
+pub const LADDER: usize = 2;
+pub const HP: usize = 3;
+pub const BP: usize = 4;
 
 pub(crate) mod p {
     pub const WAVE: usize = 0;
@@ -61,8 +76,11 @@ pub(crate) mod p {
     pub const DRIFT: usize = 29;
     pub const GLIDE: usize = 30;
     pub const MODE: usize = 31;
+    pub const FILTER: usize = 32;
+    pub const DRIVE: usize = 33;
+    pub const KEY_TRACK: usize = 34;
 }
-const COUNT: usize = 32;
+const COUNT: usize = 35;
 
 // The first thirteen keep their ids and places: projects store them.
 const PARAMS: [ParamInfo; COUNT] = [
@@ -112,6 +130,9 @@ const PARAMS: [ParamInfo; COUNT] = [
     param("drift", "Analog drift", 0.0, 100.0, 10.0, "%"),
     param("glide", "Glide", 0.0, 2000.0, 0.0, "ms"),
     choice("mode", "Voice mode", &MODES, 0.0),
+    choice("filter_type", "Filter type", &FILTERS, 0.0),
+    param("drive", "Filter drive", 0.0, 100.0, 0.0, "%"),
+    param("key_track", "Key tracking", 0.0, 100.0, 0.0, "%"),
 ];
 
 /// Pitch bend range of MPE member channels, in semitones.
@@ -163,8 +184,8 @@ struct Voice {
     sub: f32,
     stage: Stage,
     level: f32,
-    /// State of the state-variable filter of each side (its two integrators).
-    filter: [[f32; 2]; 2],
+    /// Filter state of each side: two state-variable stages, or the ladder's four poles.
+    filter: [[f32; 4]; 2],
     /// The note's own analog offsets: pitch in cents, cutoff in octaves, and a slow wander.
     drift_pitch: f32,
     drift_cutoff: f32,
@@ -185,7 +206,7 @@ impl Default for Voice {
             sub: 0.0,
             stage: Stage::Idle,
             level: 0.0,
-            filter: [[0.0; 2]; 2],
+            filter: [[0.0; 4]; 2],
             drift_pitch: 0.0,
             drift_cutoff: 0.0,
             wander: 0.0,
@@ -219,6 +240,78 @@ fn oscillator(wave: u32, phase: f32, dt: f32) -> f32 {
         }
         2 => (phase * std::f32::consts::TAU).sin(),
         _ => 1.0 - 4.0 * (phase - 0.5).abs(),
+    }
+}
+
+/// A fast tanh, close enough for saturation (a rational approximation, exact at 0).
+#[inline]
+fn soft(x: f32) -> f32 {
+    let x = x.clamp(-3.0, 3.0);
+    x * (27.0 + x * x) / (27.0 + 9.0 * x * x)
+}
+
+/// One trapezoidal state-variable stage (Simper): low, band and high outputs.
+#[inline]
+fn svf(state: &mut [f32], x: f32, g: f32, k: f32) -> (f32, f32, f32) {
+    let a1 = 1.0 / (1.0 + g * (g + k));
+    let a2 = g * a1;
+    let a3 = g * a2;
+    let v3 = x - state[1];
+    let v1 = a1 * state[0] + a2 * v3;
+    let v2 = state[1] + a2 * state[0] + a3 * v3;
+    state[0] = 2.0 * v1 - state[0];
+    state[1] = 2.0 * v2 - state[1];
+    (v2, v1, x - k * v1 - v2)
+}
+
+/// The filter of one side: `kind` from [`FILTERS`], `fc` in Hz, `resonance` 0 to 1, `drive`
+/// as a gain into the saturation (1 for none).
+#[inline]
+fn filter(
+    state: &mut [f32; 4],
+    kind: usize,
+    x: f32,
+    fc: f32,
+    rate: f32,
+    resonance: f32,
+    drive: f32,
+) -> f32 {
+    let x = if drive > 1.0 {
+        soft(x * drive) / drive.sqrt()
+    } else {
+        x
+    };
+    if kind == LADDER {
+        // Huovilainen's nonlinear ladder, run twice per sample: four saturating one-poles in a
+        // loop that oscillates by itself near full resonance; the lows it loses are given back.
+        let g = 1.0 - (-std::f32::consts::TAU * fc / (2.0 * rate)).exp();
+        let k = resonance * 4.1;
+        let mut y = 0.0;
+        for _ in 0..2 {
+            let input = soft(x - k * state[3]);
+            state[0] += g * (input - soft(state[0]));
+            state[1] += g * (soft(state[0]) - soft(state[1]));
+            state[2] += g * (soft(state[1]) - soft(state[2]));
+            state[3] += g * (soft(state[2]) - soft(state[3]));
+            y = state[3];
+        }
+        return y * (1.0 + 0.8 * k);
+    }
+    let g = (std::f32::consts::PI * fc / rate).tan();
+    let damping = 2.0 * (1.0 - resonance * 0.95).max(0.05);
+    match kind {
+        LP24 => {
+            // A flat stage, then the resonant one.
+            let (low, ..) = svf(&mut state[2..4], x, g, std::f32::consts::SQRT_2);
+            svf(&mut state[0..2], low, g, damping).0
+        }
+        HP => svf(&mut state[0..2], x, g, damping).2,
+        BP => svf(&mut state[0..2], x, g, damping).1 * damping,
+        LP12 => svf(&mut state[0..2], x, g, damping).0,
+        _ => {
+            let (low, _, high) = svf(&mut state[0..2], x, g, damping);
+            low + high
+        }
     }
 }
 
@@ -332,7 +425,7 @@ impl Synth {
             v.phases = phases;
             v.sub = 0.0;
             v.level = 0.0;
-            v.filter = [[0.0; 2]; 2];
+            v.filter = [[0.0; 4]; 2];
         }
         if retrigger {
             v.stage = Stage::Attack;
@@ -452,7 +545,10 @@ impl Effect for Synth {
             per_ms / v[p::RELEASE],
         );
         let sustain = v[p::SUSTAIN] / 100.0;
-        let damping = 2.0 * (1.0 - v[p::RESONANCE] / 100.0).max(0.05);
+        let resonance = v[p::RESONANCE] / 95.0;
+        let kind = (v[p::FILTER].round().max(0.0) as usize).min(FILTERS.len() - 1);
+        let drive = 1.0 + v[p::DRIVE] / 100.0 * 7.0;
+        let key_track = v[p::KEY_TRACK] / 100.0;
         let gain = db_to_gain(v[p::VOLUME]) * 0.5;
         let (cutoff, env_amount) = (v[p::CUTOFF], v[p::ENV_AMOUNT] / 100.0);
         // Each oscillator: wave, pitch offset in semitones, level, unison count and detune.
@@ -586,27 +682,19 @@ impl Effect for Synth {
                     out[0] += random.next() * noise * 0.5;
                     out[1] += random.next() * noise * 0.5;
                 }
-                let fc = (cutoff * brightness * (1.0 + env_amount * 4.0 * voice.level))
-                    .min(self.rate * 0.45);
-                // Trapezoidal state-variable filter (Simper), stable at any cutoff; low-pass.
-                let g = (std::f32::consts::PI * fc / self.rate).tan();
-                let a1 = 1.0 / (1.0 + g * (g + damping));
-                let a2 = g * a1;
+                // Key tracking from middle C: at 100 % the cutoff follows the notes.
+                let tracked = 2f32.powf((voice.note + 9.0) / 12.0 * key_track);
+                let fc = (cutoff * brightness * tracked * (1.0 + env_amount * 4.0 * voice.level))
+                    .clamp(20.0, self.rate * 0.45);
                 let amp = voice.level * voice.velocity * gain;
                 for (side, x) in out.into_iter().enumerate() {
-                    let [ic1, ic2] = &mut voice.filter[side];
-                    let v3 = x - *ic2;
-                    let v1 = a1 * *ic1 + a2 * v3;
-                    let v2 = *ic2 + a2 * *ic1 + g * a2 * v3;
-                    *ic1 = 2.0 * v1 - *ic1;
-                    *ic2 = 2.0 * v2 - *ic2;
-                    let y = v2 * amp;
+                    let state = &mut voice.filter[side];
+                    let y = filter(state, kind, x, fc, self.rate, resonance, drive) * amp;
                     let y = if y.is_finite() {
                         y
                     } else {
                         // Never let a broken value reach the mix.
-                        *ic1 = 0.0;
-                        *ic2 = 0.0;
+                        *state = [0.0; 4];
                         0.0
                     };
                     if side == 0 {
@@ -850,5 +938,52 @@ mod tests {
         s.midi(&MidiEvent::note_off(0, 0, 69));
         stereo(&mut s, 80);
         assert!((s.voices[0].note + 12.0).abs() < 0.05, "back to A3");
+    }
+
+    #[test]
+    fn every_filter_type_shapes_the_spectrum_and_stays_bounded() {
+        // A saw at A2 through each type at 500 Hz: low-passes keep the fundamental, the
+        // high-pass loses it.
+        let level = |kind: usize, resonance: f32| {
+            let mut s = synth(&[
+                (p::WAVE, 0.0),
+                (p::OSC1_VOICES, 1.0),
+                (p::FILTER, kind as f32),
+                (p::CUTOFF, 500.0),
+                (p::ENV_AMOUNT, 0.0),
+                (p::RESONANCE, resonance),
+            ]);
+            s.midi(&MidiEvent::note_on(0, 0, 45, 100));
+            let (l, _) = stereo(&mut s, 60);
+            assert!(l.iter().all(|x| x.is_finite() && x.abs() < 4.0), "{kind}");
+            l[l.len() / 2..].iter().map(|x| x * x).sum::<f32>()
+        };
+        let low = level(LP12, 0.0);
+        let steep = level(LP24, 0.0);
+        assert!(steep < low, "24 dB cuts more: {steep} {low}");
+        assert!(level(HP, 0.0) < low * 0.5, "the high-pass loses the lows");
+        assert!(level(LADDER, 0.0) > 0.0);
+        // Full resonance on the ladder rings by itself, bounded.
+        for kind in 0..FILTERS.len() {
+            level(kind, 95.0);
+        }
+    }
+
+    #[test]
+    fn key_tracking_opens_the_filter_with_the_notes() {
+        let bright = |key: u8, track: f32| {
+            let mut s = synth(&[
+                (p::WAVE, 0.0),
+                (p::OSC1_VOICES, 1.0),
+                (p::CUTOFF, 400.0),
+                (p::ENV_AMOUNT, 0.0),
+                (p::KEY_TRACK, track),
+            ]);
+            s.midi(&MidiEvent::note_on(0, 0, key, 100));
+            let (l, _) = stereo(&mut s, 40);
+            l[l.len() / 2..].iter().map(|x| x * x).sum::<f32>()
+        };
+        // Two octaves up with full tracking keeps much more of the sound than without.
+        assert!(bright(84, 100.0) > bright(84, 0.0) * 2.0);
     }
 }
