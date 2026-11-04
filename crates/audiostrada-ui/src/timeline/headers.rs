@@ -1,0 +1,760 @@
+//! Track headers: name, buttons, meters, lanes, and the edge that resizes them.
+
+use super::*;
+
+impl TimelineView {
+    /// Name and value range of an automation target.
+    pub(super) fn target_info(
+        &mut self,
+        doc: &mut Document,
+        track: &Track,
+        target: &AutomationTarget,
+    ) -> (String, f32, f32) {
+        match target {
+            AutomationTarget::Gain => (tr("Volume").into(), -60.0, 12.0),
+            AutomationTarget::Pan => (tr("Pan").into(), -1.0, 1.0),
+            AutomationTarget::Mute => (tr("Mute").into(), 0.0, 1.0),
+            AutomationTarget::Send(to) => {
+                let name = doc.project().track(*to).map_or("?", |t| t.name.as_str());
+                (trf!("Send → {name}", name = name), -60.0, 12.0)
+            }
+            AutomationTarget::Param { insert, param } => {
+                let found = audiostrada_core::routing::flatten(&track.inserts)
+                    .into_iter()
+                    .find(|i| i.id == *insert);
+                let Some(ins) = found else {
+                    return ("?".into(), 0.0, 1.0);
+                };
+                if let Some(info) = audiostrada_dsp::info(&ins.effect) {
+                    return info
+                        .params
+                        .iter()
+                        .find(|p| p.id == param)
+                        .map_or(("?".into(), 0.0, 1.0), |p| {
+                            (format!("{}: {}", tr(info.name), tr(p.name)), p.min, p.max)
+                        });
+                }
+                let key = (track.id, target.clone());
+                if let Some(cached) = self.target_info.get(&key) {
+                    return cached.clone();
+                }
+                let name = doc
+                    .player()
+                    .plugins()
+                    .find(&ins.effect)
+                    .map_or_else(|| ins.effect.clone(), |p| p.name.clone());
+                let info = param
+                    .parse::<u32>()
+                    .ok()
+                    .and_then(|id| {
+                        let plugin = doc.player_mut().plugin(Channel::Track(track.id), *insert)?;
+                        plugin.params().into_iter().find(|p| p.id == id)
+                    })
+                    .map_or((format!("{name}: {param}"), 0.0, 1.0), |p| {
+                        (format!("{name}: {}", p.name), p.min as f32, p.max as f32)
+                    });
+                self.target_info.insert(key, info.clone());
+                info
+            }
+        }
+    }
+
+    pub(super) fn draw_headers(
+        &mut self,
+        ui: &mut Ui,
+        header: Rect,
+        doc: &mut Document,
+        project: &Project,
+        visuals: &egui::Visuals,
+    ) {
+        let painter = ui.painter().with_clip_rect(header);
+        painter.rect_filled(header, 0.0, visuals.panel_fill);
+        let rows = self.rows.clone();
+        for (i, &(index, depth)) in rows.iter().enumerate() {
+            let track = &project.tracks[index];
+            let top = header.top() + self.tops[i] - self.scroll_y;
+            let row = Rect::from_min_max(
+                pos2(header.left(), top),
+                pos2(header.right(), top + self.track_height),
+            );
+            if row.bottom() < header.top() || row.top() > header.bottom() {
+                continue;
+            }
+            // The whole row selects, drags and opens the menu; its buttons come above it.
+            let response = ui.interact(
+                row,
+                ui.scope_id().with(("header", track.id.0)),
+                Sense::click_and_drag(),
+            );
+            let color = Color32::from_rgb(track.color[0], track.color[1], track.color[2]);
+            painter.rect_filled(
+                Rect::from_min_size(row.min, vec2(4.0, row.height() - 1.0)),
+                0.0,
+                color,
+            );
+            if doc.is_track_selected(track.id) {
+                painter.rect_filled(
+                    row.shrink(1.0),
+                    2.0,
+                    visuals.selection.bg_fill.gamma_multiply(0.15),
+                );
+            }
+            // An armed track shows it across its header.
+            if track.armed {
+                painter.rect_filled(
+                    row.shrink(1.0),
+                    2.0,
+                    crate::theme::RECORD.gamma_multiply(0.12),
+                );
+                painter.rect_stroke(
+                    row.shrink(1.0),
+                    2.0,
+                    Stroke::new(1.0, crate::theme::RECORD.gamma_multiply(0.6)),
+                    StrokeKind::Inside,
+                );
+            }
+            painter.line_segment(
+                [
+                    pos2(row.left(), row.bottom()),
+                    pos2(row.right(), row.bottom()),
+                ],
+                Stroke::new(1.0, visuals.widgets.noninteractive.bg_stroke.color),
+            );
+            let id = track.id;
+            let vca = track.kind == TrackKind::Vca;
+            // The track's meter at the right, the rest of the header before it.
+            let right = if vca {
+                row.right()
+            } else {
+                let meter = Rect::from_min_max(
+                    pos2(row.right() - HEADER_METER + 2.0, row.top() + 4.0),
+                    pos2(row.right() - 3.0, row.bottom() - 4.0),
+                );
+                self.header_meter(ui, doc, id, meter);
+                row.right() - HEADER_METER
+            };
+            let mut x = row.left() + 10.0 + depth as f32 * 12.0;
+            if routing::has_children(project, id) {
+                let arrow = Rect::from_min_size(pos2(x - 2.0, row.top() + 4.0), vec2(16.0, 18.0));
+                let text = if track.collapsed { "▸" } else { "▾" };
+                if ui
+                    .put(arrow, egui::Button::new(text).frame(false))
+                    .on_hover_text(tr("Show or hide the folder contents"))
+                    .clicked()
+                {
+                    let collapsed = !track.collapsed;
+                    doc.history_mut().modify_unrecorded(|p| {
+                        if let Some(t) = p.track_mut(id) {
+                            t.collapsed = collapsed;
+                        }
+                    });
+                }
+                x += 16.0;
+            }
+            // The instrument, in the track's color; a click picks another.
+            let icon_rect = Rect::from_min_size(pos2(x, row.top() + 5.0), vec2(17.0, 17.0));
+            let icon = crate::track_icons::of(project, track);
+            let icon_response = ui.interact(
+                icon_rect,
+                ui.scope_id().with(("icon", id.0)),
+                Sense::click(),
+            );
+            let tint = Color32::from_rgb(track.color[0], track.color[1], track.color[2]);
+            if icon_response.hovered() {
+                painter.rect_filled(
+                    icon_rect.expand(1.0),
+                    3.0,
+                    ui.visuals().widgets.hovered.bg_fill,
+                );
+            }
+            crate::track_icons::paint(ui, icon_rect, icon, tint);
+            let icon_response = icon_response.on_hover_text(crate::trf!(
+                "{name}. Click to choose the icon",
+                name = icon.label()
+            ));
+            egui::Popup::menu(&icon_response)
+                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                .show(|ui| {
+                    if crate::track_icons::picker(ui, doc, id) {
+                        ui.close();
+                    }
+                });
+            x += 21.0;
+            let group = audiostrada_core::groups::group_of(project, id).map(|g| &project.groups[g]);
+            // Up to the automation buttons (and the group tag), cut with "…" beyond.
+            let buttons = if vca {
+                6.0
+            } else if track.show_automation {
+                56.0
+            } else {
+                32.0
+            };
+            let max_width =
+                (right - buttons - x - if group.is_some() { 22.0 } else { 0.0 }).max(20.0);
+            let mut job = egui::text::LayoutJob::simple_singleline(
+                track.name.clone(),
+                crate::theme::strong(13.0),
+                visuals.strong_text_color(),
+            );
+            job.wrap = egui::text::TextWrapping::truncate_at_width(max_width);
+            let galley = ui.fonts_mut(|f| f.layout_job(job));
+            let elided = galley.elided;
+            let name = Rect::from_min_size(pos2(x, row.top() + 6.0), galley.size());
+            let renaming = self.renaming.as_ref().is_some_and(|(t, _)| *t == id);
+            if !renaming {
+                painter.galley(name.min, galley, visuals.strong_text_color());
+            }
+            if let Some(g) = group {
+                let c = Color32::from_rgb(g.color[0], g.color[1], g.color[2]);
+                let c = if g.active { c } else { c.gamma_multiply(0.4) };
+                let tag = Rect::from_min_size(
+                    pos2(name.right() + 6.0, name.top() + 1.0),
+                    vec2(14.0, 13.0),
+                );
+                painter.rect_filled(tag, 3.0, c);
+                painter.text(
+                    tag.center(),
+                    Align2::CENTER_CENTER,
+                    g.name.chars().next().unwrap_or('G').to_string(),
+                    FontId::proportional(9.5),
+                    Color32::BLACK,
+                );
+            }
+            if row.height() > 54.0 {
+                painter.text(
+                    pos2(x, row.top() + 24.0),
+                    Align2::LEFT_TOP,
+                    if vca {
+                        "VCA"
+                    } else if track.frozen.is_some() {
+                        tr("Frozen")
+                    } else {
+                        track.playlist.as_str()
+                    },
+                    FontId::proportional(10.0),
+                    visuals.weak_text_color(),
+                );
+            }
+            let y = row.bottom() - 26.0;
+            let button = |ui: &mut Ui, x: f32, text: &str, on: bool, on_color: Color32| {
+                let rect = Rect::from_min_size(pos2(row.left() + x, y), vec2(24.0, 20.0));
+                let response = ui.interact(rect, ui.scope_id().with((text, id.0)), Sense::click());
+                crate::theme::paint_letter_toggle(ui, rect, &response, text, on, on_color);
+                let hint = if text == "M" { tr("Mute") } else { tr("Solo") };
+                response.on_hover_text(hint).clicked()
+            };
+            if row.bottom() - 26.0 > header.top() {
+                if button(ui, 10.0, "M", track.mute, crate::theme::MUTE) {
+                    let mute = !track.mute;
+                    let alone = crate::mixer::clutch(ui);
+                    doc.history_mut().edit(tr("Mute"), |p| {
+                        audiostrada_core::groups::maybe_alone(p, alone, |p| {
+                            audiostrada_core::groups::set_switch(
+                                p,
+                                id,
+                                audiostrada_core::groups::Link::Mute,
+                                mute,
+                            )
+                        })
+                    });
+                }
+                if button(ui, 38.0, "S", track.solo, crate::theme::SOLO) {
+                    let solo = !track.solo;
+                    let alone = crate::mixer::clutch(ui);
+                    doc.history_mut().edit(tr("Solo"), |p| {
+                        audiostrada_core::groups::maybe_alone(p, alone, |p| {
+                            audiostrada_core::groups::set_switch(
+                                p,
+                                id,
+                                audiostrada_core::groups::Link::Solo,
+                                solo,
+                            )
+                        })
+                    });
+                }
+                let arm = Rect::from_min_size(pos2(row.left() + 66.0, y), vec2(24.0, 20.0));
+                let arm_response = (!vca).then(|| {
+                    let response =
+                        ui.interact(arm, ui.scope_id().with(("arm", id.0)), Sense::click());
+                    crate::theme::paint_arm_toggle(ui, arm, &response, track.armed);
+                    response.on_hover_text(tr("Record arm"))
+                });
+                if arm_response.is_some_and(|r| r.clicked()) {
+                    let armed = !track.armed;
+                    let alone = crate::mixer::clutch(ui);
+                    doc.history_mut().modify_unrecorded(|p| {
+                        audiostrada_core::groups::maybe_alone(p, alone, |p| {
+                            audiostrada_core::groups::set_switch(
+                                p,
+                                id,
+                                audiostrada_core::groups::Link::Arm,
+                                armed,
+                            )
+                        })
+                    });
+                }
+                let input_label = if track.stereo {
+                    trf!(
+                        "In {first}-{second}",
+                        first = track.input + 1,
+                        second = track.input + 2
+                    )
+                } else {
+                    trf!("In {input}", input = track.input + 1)
+                };
+                if !vca {
+                    let mut left = row.left() + 96.0;
+                    // An instrument plays MIDI: no audio input to hear or choose.
+                    let instrument = doc.is_instrument_track(id);
+                    if instrument {
+                        let rect = Rect::from_min_size(pos2(left, y), vec2(56.0, 20.0));
+                        painter.text(
+                            pos2(rect.left() + 4.0, rect.center().y),
+                            Align2::LEFT_CENTER,
+                            tr("MIDI"),
+                            FontId::proportional(11.0),
+                            visuals.weak_text_color(),
+                        );
+                        ui.interact(rect, ui.scope_id().with(("midi-in", id.0)), Sense::hover())
+                            .on_hover_text(tr(
+                                "Plays the MIDI it receives while armed: keyboards and \
+                                 controllers, its instrument's own keyboard or pads",
+                            ));
+                    } else {
+                        let rect = Rect::from_min_size(pos2(left, y), vec2(24.0, 20.0));
+                        crate::mixer::monitor_toggle(ui, rect, doc, track);
+                        left += 28.0;
+                    }
+                    // The input where there is room for it (else in the mixer).
+                    let width = (right - left - 4.0).min(140.0);
+                    if width >= 50.0 && !instrument {
+                        let combo_rect = Rect::from_min_size(pos2(left, y), vec2(width, 20.0));
+                        let mut ui_child =
+                            ui.new_child(egui::UiBuilder::new().max_rect(combo_rect));
+                        egui::ComboBox::from_id_salt(("input", id.0))
+                            .width(width - 6.0)
+                            .selected_text(input_label)
+                            .show_ui(&mut ui_child, |ui| {
+                                crate::mixer::input_choices(ui, doc, track)
+                            });
+                    }
+                }
+            }
+            if renaming {
+                self.rename_field(ui, doc, id, name.with_max_x(name.left() + max_width));
+            } else if response.double_clicked()
+                && response
+                    .interact_pointer_pos()
+                    .is_some_and(|p| name.expand(4.0).contains(p))
+            {
+                self.renaming = Some((id, track.name.clone()));
+            }
+            if response.clicked() {
+                let mode = SelectMode::from_modifiers(ui.input(|i| i.modifiers));
+                doc.select_track(id, mode);
+                if mode != SelectMode::Toggle {
+                    self.follow_groups(doc);
+                }
+            }
+            if response.secondary_clicked() && !doc.is_track_selected(id) {
+                doc.select_track(id, SelectMode::Only);
+            }
+            if response.drag_started() {
+                let dragged = if doc.is_track_selected(id) {
+                    doc.selected_tracks().to_vec()
+                } else {
+                    vec![id]
+                };
+                response.dnd_set_drag_payload(crate::mixer::DraggedTracks(dragged));
+            }
+            // Tracks dropped on a header move above or below it.
+            if let Some(pointer) = ui.input(|i| i.pointer.hover_pos()) {
+                let after = pointer.y > row.center().y;
+                if response
+                    .dnd_hover_payload::<crate::mixer::DraggedTracks>()
+                    .is_some()
+                {
+                    let line = if after { row.bottom() } else { row.top() };
+                    painter.line_segment(
+                        [pos2(row.left(), line), pos2(row.right(), line)],
+                        Stroke::new(3.0, visuals.selection.bg_fill),
+                    );
+                }
+                if let Some(dragged) = response.dnd_release_payload::<crate::mixer::DraggedTracks>()
+                    && !dragged.0.contains(&id)
+                {
+                    doc.history_mut().edit(tr("Move tracks"), |p| {
+                        routing::move_tracks(p, &dragged.0, id, after)
+                    });
+                }
+            }
+            let hint = tr(
+                "Click to select (Ctrl adds, Shift extends), double-click the name to rename, \
+                 drag to reorder, right-click for options",
+            );
+            // The whole name when it is cut.
+            let over_name = elided && ui.rect_contains_pointer(name);
+            response
+                .on_hover_text(if over_name {
+                    format!("{}\n\n{hint}", track.name)
+                } else {
+                    hint.to_owned()
+                })
+                .context_menu(|ui| self.header_menu(ui, doc, id));
+            if vca {
+                continue;
+            }
+            // Automation: show/hide lanes, add a lane, lane headers.
+            let a_rect = Rect::from_min_size(pos2(right - 26.0, row.top() + 4.0), vec2(22.0, 18.0));
+            if row.top() + 4.0 > header.top() {
+                let shown = track.show_automation;
+                let button = egui::Button::new(egui::RichText::new("A").size(11.0)).selected(shown);
+                if ui
+                    .put(a_rect, button)
+                    .on_hover_text(tr("Show automation lanes"))
+                    .clicked()
+                {
+                    doc.history_mut().modify_unrecorded(|p| {
+                        if let Some(t) = p.track_mut(id) {
+                            t.show_automation = !shown;
+                        }
+                    });
+                }
+                if shown {
+                    let plus =
+                        Rect::from_min_size(pos2(right - 50.0, row.top() + 4.0), vec2(22.0, 18.0));
+                    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(plus));
+                    child
+                        .menu_button("+", |ui| self.add_lane_menu(ui, doc, project, track))
+                        .response
+                        .on_hover_text(tr("Add an automation lane"));
+                }
+            }
+            if track.show_takes {
+                for (k, playlist) in track.alternates.iter().enumerate() {
+                    let top = row.bottom() + k as f32 * TAKE_HEIGHT;
+                    let take_row = Rect::from_min_max(
+                        pos2(header.left(), top),
+                        pos2(header.right(), top + TAKE_HEIGHT),
+                    );
+                    if take_row.bottom() < header.top() || take_row.top() > header.bottom() {
+                        continue;
+                    }
+                    painter.rect_filled(
+                        take_row.shrink2(vec2(0.0, 0.5)),
+                        0.0,
+                        visuals.extreme_bg_color,
+                    );
+                    painter.rect_filled(
+                        Rect::from_min_size(take_row.min, vec2(4.0, TAKE_HEIGHT)),
+                        0.0,
+                        color.gamma_multiply(0.3),
+                    );
+                    painter.text(
+                        pos2(
+                            take_row.left() + 12.0 + depth as f32 * 12.0,
+                            take_row.center().y,
+                        ),
+                        Align2::LEFT_CENTER,
+                        &playlist.name,
+                        FontId::proportional(11.0),
+                        visuals.weak_text_color(),
+                    );
+                    let use_rect = Rect::from_min_size(
+                        pos2(take_row.right() - 44.0, take_row.center().y - 9.0),
+                        vec2(40.0, 18.0),
+                    );
+                    if ui
+                        .put(
+                            use_rect,
+                            egui::Button::new(egui::RichText::new(tr("Use")).size(10.0)),
+                        )
+                        .on_hover_text(tr("Play this playlist instead of the current one"))
+                        .clicked()
+                    {
+                        doc.history_mut()
+                            .edit(tr("Select playlist"), |p| edit::select_playlist(p, id, k));
+                    }
+                }
+            }
+            for (k, li) in shown_lanes(track).into_iter().enumerate() {
+                let top = row.bottom() + takes_height(track) + k as f32 * LANE_HEIGHT;
+                let lane_row = Rect::from_min_max(
+                    pos2(header.left(), top),
+                    pos2(header.right(), top + LANE_HEIGHT),
+                );
+                if lane_row.bottom() < header.top() || lane_row.top() > header.bottom() {
+                    continue;
+                }
+                painter.rect_filled(
+                    lane_row.shrink2(vec2(0.0, 0.5)),
+                    0.0,
+                    visuals.extreme_bg_color,
+                );
+                painter.rect_filled(
+                    Rect::from_min_size(lane_row.min, vec2(4.0, LANE_HEIGHT)),
+                    0.0,
+                    color.gamma_multiply(0.5),
+                );
+                let name = self
+                    .lane_info
+                    .get(&(id, li))
+                    .map_or("?".to_owned(), |i| i.0.clone());
+                painter.text(
+                    pos2(
+                        lane_row.left() + 12.0 + depth as f32 * 12.0,
+                        lane_row.top() + 5.0,
+                    ),
+                    Align2::LEFT_TOP,
+                    name,
+                    FontId::proportional(11.0),
+                    visuals.text_color(),
+                );
+                let lane = &track.automation[li];
+                let y = lane_row.bottom() - 22.0;
+                let on = Rect::from_min_size(pos2(lane_row.left() + 12.0, y), vec2(40.0, 18.0));
+                let toggle = egui::Button::new(
+                    egui::RichText::new(if lane.enabled { "On" } else { "Off" }).size(10.0),
+                )
+                .selected(lane.enabled);
+                if ui
+                    .put(on, toggle)
+                    .on_hover_text(tr("Play this lane"))
+                    .clicked()
+                {
+                    let enabled = !lane.enabled;
+                    doc.history_mut().edit(tr("Automation lane"), |p| {
+                        if let Some(l) = p.track_mut(id).and_then(|t| t.automation.get_mut(li)) {
+                            l.enabled = enabled;
+                        }
+                    });
+                }
+                let hide = Rect::from_min_size(pos2(lane_row.left() + 56.0, y), vec2(58.0, 18.0));
+                if ui
+                    .put(
+                        hide,
+                        egui::Button::new(egui::RichText::new(tr("Hide")).size(10.0)),
+                    )
+                    .clicked()
+                {
+                    doc.history_mut().modify_unrecorded(|p| {
+                        if let Some(l) = p.track_mut(id).and_then(|t| t.automation.get_mut(li)) {
+                            l.visible = false;
+                        }
+                    });
+                }
+                let remove =
+                    Rect::from_min_size(pos2(lane_row.right() - 26.0, y), vec2(22.0, 18.0));
+                if ui
+                    .put(remove, egui::Button::new("✕"))
+                    .on_hover_text(tr("Delete this lane"))
+                    .clicked()
+                {
+                    doc.history_mut().edit(tr("Delete automation lane"), |p| {
+                        if let Some(t) = p.track_mut(id)
+                            && li < t.automation.len()
+                        {
+                            t.automation.remove(li);
+                        }
+                    });
+                }
+            }
+        }
+        // Below the tracks: a click clears the selection, a right-click adds tracks.
+        let end = (header.top() + self.content_height - self.scroll_y).max(header.top());
+        let empty = Rect::from_min_max(pos2(header.left(), end), header.max);
+        if empty.height() > 4.0 {
+            let response = ui.interact(empty, ui.scope_id().with("headers-empty"), Sense::click());
+            if response.clicked() {
+                doc.set_track_selection(Vec::new());
+            }
+            response.context_menu(|ui| {
+                for action in [
+                    Action::AddTrack,
+                    Action::AddStereoTrack,
+                    Action::AddTracks,
+                    Action::AddInstrumentTrack,
+                    Action::AddDrumTrack,
+                    Action::AddVca,
+                ] {
+                    if ui.button(action.label()).clicked() {
+                        self.requests.push(action);
+                        ui.close();
+                    }
+                }
+            });
+        }
+    }
+
+    /// A track's level (its input while armed), two thin bars beside its header; a click clears
+    /// the clip light.
+    pub(super) fn header_meter(&self, ui: &mut Ui, doc: &mut Document, id: TrackId, rect: Rect) {
+        let mut level = doc.track_level(id);
+        let response = ui.interact(rect, ui.scope_id().with(("meter", id.0)), Sense::click());
+        crate::widgets::paint_slim_meter(ui, rect, &level);
+        if response.clicked() {
+            level.clipped = false;
+            doc.set_track_level(id, level);
+        }
+        let peaks = trf!(
+            "Peak {left} / {right} dBFS. Click to clear the clip light",
+            left = format!("{:.1}", level.hold[0]),
+            right = format!("{:.1}", level.hold[1])
+        );
+        let armed =
+            doc.project().track(id).is_some_and(|t| t.armed) && !doc.is_instrument_track(id);
+        response.on_hover_text(if armed {
+            format!("{}\n{peaks}", tr("Input level (armed track)"))
+        } else {
+            peaks
+        });
+    }
+
+    /// The right edge of the track headers, dragged to widen or narrow them.
+    pub(super) fn header_edge(&mut self, ui: &mut Ui, full: Rect, header: Rect) {
+        let edge =
+            Rect::from_x_y_ranges(header.right() - 5.0..=header.right() + 1.0, full.y_range());
+        let response = ui.interact(
+            edge,
+            ui.scope_id().with("header-edge"),
+            Sense::click_and_drag(),
+        );
+        if response.hovered() || response.dragged() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+            ui.painter().line_segment(
+                [
+                    pos2(header.right(), full.top()),
+                    pos2(header.right(), full.bottom()),
+                ],
+                Stroke::new(2.0, ui.visuals().selection.bg_fill),
+            );
+        }
+        if response.dragged() {
+            self.header_width = (header.width() + response.drag_delta().x)
+                .clamp(MIN_HEADER_WIDTH, MAX_HEADER_WIDTH);
+        }
+        if response.drag_stopped() {
+            self.header_resized = true;
+        }
+        if response.double_clicked() {
+            self.header_width = HEADER_WIDTH;
+            self.header_resized = true;
+        }
+        response.on_hover_text(tr(
+            "Drag to widen or narrow the track headers; double-click for the usual width",
+        ));
+    }
+
+    /// The text field over a track's name while renaming it: Enter or a click elsewhere keeps
+    /// the name, Escape leaves it as it was.
+    pub(super) fn rename_field(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        id: TrackId,
+        rect: Rect,
+    ) {
+        let Some((_, text)) = self.renaming.as_mut() else {
+            return;
+        };
+        let edit_id = ui.scope_id().with(("rename", id.0));
+        let response = ui.put(
+            rect.expand2(vec2(2.0, 2.0)).with_min_y(rect.top() - 3.0),
+            egui::TextEdit::singleline(text)
+                .id(edit_id)
+                .font(crate::theme::strong(13.0))
+                .margin(vec2(2.0, 1.0)),
+        );
+        if !response.has_focus() && !response.lost_focus() {
+            response.request_focus();
+            // The whole name selected, to type a new one.
+            let mut state = egui::TextEdit::load_state(ui.ctx(), edit_id).unwrap_or_default();
+            state
+                .cursor
+                .set_char_range(Some(egui::text::CCursorRange::two(
+                    egui::text::CCursor::new(0),
+                    egui::text::CCursor::new(text.chars().count()),
+                )));
+            state.store(ui.ctx(), edit_id);
+        }
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.renaming = None;
+        } else if response.lost_focus() {
+            let name = text.trim().to_owned();
+            self.renaming = None;
+            if !name.is_empty() {
+                doc.history_mut().edit(tr("Rename track"), |p| {
+                    if let Some(t) = p.track_mut(id) {
+                        t.name = name;
+                    }
+                });
+            }
+        }
+    }
+
+    pub(super) fn add_lane_menu(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        project: &Project,
+        track: &Track,
+    ) {
+        let mut targets = vec![
+            AutomationTarget::Gain,
+            AutomationTarget::Pan,
+            AutomationTarget::Mute,
+        ];
+        targets.extend(track.sends.iter().map(|s| AutomationTarget::Send(s.target)));
+        for insert in &track.inserts {
+            if let Some(info) = audiostrada_dsp::info(&insert.effect) {
+                targets.extend(
+                    info.params
+                        .iter()
+                        .filter(|p| {
+                            crate::effect_editors::automatable(&insert.effect, &insert.params, p.id)
+                        })
+                        .map(|p| AutomationTarget::Param {
+                            insert: insert.id,
+                            param: p.id.to_owned(),
+                        }),
+                );
+            } else if let Some(plugin) =
+                doc.player_mut().plugin(Channel::Track(track.id), insert.id)
+            {
+                targets.extend(
+                    plugin
+                        .params()
+                        .into_iter()
+                        .filter(|p| !p.hidden && !p.read_only)
+                        .take(200)
+                        .map(|p| AutomationTarget::Param {
+                            insert: insert.id,
+                            param: p.id.to_string(),
+                        }),
+                );
+            }
+        }
+        let _ = project;
+        egui::ScrollArea::vertical()
+            .max_height(360.0)
+            .show(ui, |ui| {
+                for target in targets {
+                    let existing = track.automation.iter().position(|l| l.target == target);
+                    if existing.is_some_and(|i| track.automation[i].visible) {
+                        continue;
+                    }
+                    let (name, ..) = self.target_info(doc, track, &target);
+                    if ui.button(name).clicked() {
+                        let id = track.id;
+                        doc.history_mut().edit(tr("Add automation lane"), |p| {
+                            if let Some(t) = p.track_mut(id) {
+                                audiostrada_core::automation::lane_mut(t, &target).visible = true;
+                                t.show_automation = true;
+                            }
+                        });
+                        ui.close();
+                    }
+                }
+            });
+    }
+}
