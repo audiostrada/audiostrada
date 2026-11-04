@@ -4403,6 +4403,9 @@ Probabilité
 Clear the pattern
 Effacer le motif
 
+Flam
+Flam
+
 New drum pattern
 Nouveau motif de batterie
 
@@ -4414,6 +4417,9 @@ Pas encore de clip MIDI sur cette piste
 
 Pattern
 Motif
+
+Roll
+Roulement
 
 Start from a rhythm
 Partir d'un rythme

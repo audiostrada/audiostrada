@@ -1,7 +1,7 @@
 //! The drum machine's step sequencer: the sixteen pads as rows of sixteenth-note steps over
 //! the track's MIDI clip at the playhead, so that what is drawn here is what the piano roll
-//! shows. A lane below sets the velocity or the chance of the selected pad's steps; swing
-//! delays the off sixteenths.
+//! shows. A lane below sets the velocity, the chance, the roll or the flam of the selected
+//! pad's steps; swing delays the off sixteenths.
 
 use std::sync::Arc;
 
@@ -21,6 +21,17 @@ pub enum Lane {
     #[default]
     Velocity,
     Chance,
+    Roll,
+    Flam,
+}
+
+impl Lane {
+    const ALL: [(Lane, &str); 4] = [
+        (Lane::Velocity, "Velocity"),
+        (Lane::Chance, "Chance"),
+        (Lane::Roll, "Roll"),
+        (Lane::Flam, "Flam"),
+    ];
 }
 
 /// What the sequencer remembers between frames.
@@ -34,6 +45,8 @@ pub struct SequencerState {
     lane: Lane,
     /// Painting steps on (true) or off while the mouse is down.
     painting: Option<bool>,
+    /// Painting flams on or off in the lane.
+    flams: Option<bool>,
     /// Bars of a new pattern.
     bars: u32,
 }
@@ -46,10 +59,18 @@ impl Default for SequencerState {
             swing: 50.0,
             lane: Lane::Velocity,
             painting: None,
+            flams: None,
             bars: 1,
         }
     }
 }
+
+/// A flam's grace note sits this far before its step, in steps.
+const FLAM: f64 = 0.15;
+/// A step owns its notes from this far before it, in steps, so that its flam is its own.
+const LEAD: f64 = 0.16;
+/// The most hits of a roll.
+pub(crate) const ROLLS: usize = 4;
 
 /// Where the steps of a clip fall, in its content's time.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -63,32 +84,142 @@ pub(crate) struct Grid {
 
 impl Grid {
     /// When step `k` plays, swung.
-    pub fn time(&self, k: usize, swing: f32) -> u64 {
+    fn at(&self, k: usize, swing: f32) -> f64 {
         let delay = if k % 2 == 1 {
             self.step * f64::from((swing / 100.0 * 2.0 - 1.0).clamp(0.0, 0.5))
         } else {
             0.0
         };
-        (self.origin + k as f64 * self.step + delay).round() as u64
+        self.origin + k as f64 * self.step + delay
     }
 
-    /// The step a note sits on: the nearest, swung or not.
-    pub fn step_of(&self, start: u64) -> Option<usize> {
-        let at = (start as f64 - self.origin) / self.step;
-        let k = at.round();
-        (k >= 0.0 && (at - k).abs() < 0.45 && (k as usize) < self.steps).then_some(k as usize)
+    /// The step a note belongs to: from just before a step to just before the next.
+    pub fn step_of(&self, start: u64, swing: f32) -> Option<usize> {
+        let lead = LEAD * self.step;
+        let guess = ((start as f64 - self.origin) / self.step + LEAD).floor();
+        if guess < 0.0 {
+            return None;
+        }
+        let guess = guess as usize;
+        let start = start as f64;
+        [guess, guess.saturating_sub(1)].into_iter().find(|&k| {
+            k < self.steps
+                && start >= self.at(k, swing) - lead
+                && start < self.at(k + 1, swing) - lead
+        })
+    }
+
+    /// The time between the hits of a roll of `hits` on step `k`, kept clear of the next
+    /// step's flam.
+    fn gap(&self, k: usize, swing: f32, hits: usize) -> f64 {
+        let span = self.at(k + 1, swing) - self.at(k, swing);
+        let room = span - (LEAD + 0.01) * self.step;
+        (span / hits as f64).min(room / (hits.max(2) - 1) as f64)
+    }
+}
+
+/// A step as the sequencer sees it: one hit or a roll, with or without a flam.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Step {
+    pub key: u8,
+    pub velocity: u8,
+    pub probability: u8,
+    pub hits: usize,
+    pub flam: bool,
+}
+
+impl Step {
+    fn new(pad: usize) -> Self {
+        Self {
+            key: VOICES[pad].2,
+            velocity: 100,
+            probability: 100,
+            hits: 1,
+            flam: false,
+        }
     }
 }
 
 /// The notes of pad `pad` on step `k`.
-fn on_step(notes: &[Note], grid: &Grid, pad: usize, k: usize) -> impl Iterator<Item = usize> {
+fn on_step(notes: &[Note], grid: &Grid, pad: usize, k: usize, swing: f32) -> Vec<usize> {
     notes
         .iter()
         .enumerate()
-        .filter(move |(_, n)| voice_of(n.key) == Some(pad) && grid.step_of(n.start) == Some(k))
+        .filter(|(_, n)| voice_of(n.key) == Some(pad) && grid.step_of(n.start, swing) == Some(k))
         .map(|(i, _)| i)
-        .collect::<Vec<_>>()
-        .into_iter()
+        .collect()
+}
+
+/// Whether a note of step `k` comes before it: a flam's grace note.
+fn is_grace(grid: &Grid, k: usize, swing: f32, start: u64) -> bool {
+    (start as f64) < grid.at(k, swing) - 0.05 * grid.step
+}
+
+/// Pad `pad`'s step `k`, if it plays.
+pub(crate) fn read_step(
+    notes: &[Note],
+    grid: &Grid,
+    pad: usize,
+    k: usize,
+    swing: f32,
+) -> Option<Step> {
+    let present = on_step(notes, grid, pad, k, swing);
+    let (grace, hits): (Vec<usize>, Vec<usize>) = present
+        .iter()
+        .partition(|&&i| is_grace(grid, k, swing, notes[i].start));
+    let (grace, hits) = if hits.is_empty() {
+        (Vec::new(), grace)
+    } else {
+        (grace, hits)
+    };
+    let head = &notes[*hits.iter().min_by_key(|&&i| notes[i].start)?];
+    Some(Step {
+        key: head.key,
+        velocity: head.velocity,
+        probability: head.probability,
+        hits: hits.len(),
+        flam: !grace.is_empty(),
+    })
+}
+
+/// The notes with pad `pad`'s step `k` replaced by `step`, or emptied.
+pub(crate) fn write_step(
+    notes: &[Note],
+    grid: &Grid,
+    pad: usize,
+    k: usize,
+    swing: f32,
+    step: Option<Step>,
+) -> Vec<Note> {
+    let present = on_step(notes, grid, pad, k, swing);
+    let mut out: Vec<Note> = notes
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !present.contains(i))
+        .map(|(_, n)| *n)
+        .collect();
+    if let Some(s) = step {
+        let hits = s.hits.max(1);
+        let gap = grid.gap(k, swing, hits);
+        let start = grid.at(k, swing);
+        let note = |at: f64, velocity: u8| Note {
+            start: at.round() as u64,
+            length: (gap.min(grid.step) / 2.0).max(1.0) as u64,
+            key: s.key,
+            velocity,
+            channel: 9,
+            probability: s.probability,
+            ..Default::default()
+        };
+        let grace = start - FLAM * grid.step;
+        if s.flam && grace >= 0.0 {
+            out.push(note(grace, ((f32::from(s.velocity) * 0.6) as u8).max(1)));
+        }
+        for j in 0..hits {
+            out.push(note(start + j as f64 * gap, s.velocity));
+        }
+    }
+    out
 }
 
 /// The notes with pad `pad`'s step `k` set on or off.
@@ -100,38 +231,55 @@ pub(crate) fn set_step(
     on: bool,
     swing: f32,
 ) -> Vec<Note> {
-    let present: Vec<usize> = on_step(notes, grid, pad, k).collect();
-    let mut out: Vec<Note> = notes
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| on || !present.contains(i))
-        .map(|(_, n)| *n)
-        .collect();
-    if on && present.is_empty() {
-        out.push(Note {
-            start: grid.time(k, swing),
-            length: (grid.step / 2.0) as u64,
-            key: VOICES[pad].2,
-            velocity: 100,
-            channel: 9,
-            ..Default::default()
-        });
+    match (on, read_step(notes, grid, pad, k, swing)) {
+        (true, Some(_)) => notes.to_vec(),
+        (true, None) => write_step(notes, grid, pad, k, swing, Some(Step::new(pad))),
+        (false, _) => write_step(notes, grid, pad, k, swing, None),
     }
-    out
 }
 
-/// The notes with the odd steps moved to `swing`.
-pub(crate) fn reswing(notes: &[Note], grid: &Grid, swing: f32) -> Vec<Note> {
+/// The notes moved from swing `from` to `to`, rolls stretched with their step.
+pub(crate) fn reswing(notes: &[Note], grid: &Grid, from: f32, to: f32) -> Vec<Note> {
     notes
         .iter()
         .map(|n| {
             let mut n = *n;
-            if let Some(k) = grid.step_of(n.start) {
-                n.start = grid.time(k, swing);
+            if let Some(k) = grid.step_of(n.start, from) {
+                let (old, new) = (grid.at(k, from), grid.at(k, to));
+                let start = n.start as f64;
+                let moved = if is_grace(grid, k, from, n.start) {
+                    start - old + new
+                } else {
+                    let lead = LEAD * grid.step;
+                    let stretch =
+                        (grid.at(k + 1, to) - new - lead) / (grid.at(k + 1, from) - old - lead);
+                    new + (start - old) * stretch
+                };
+                n.start = moved.round().max(0.0) as u64;
             }
             n
         })
         .collect()
+}
+
+/// The swing the clip's off sixteenths were written with, if it has any.
+pub(crate) fn swing_of(notes: &[Note], grid: &Grid, current: f32) -> Option<f32> {
+    let fits = |swing: f32| {
+        let close = (0.004 * grid.step).max(2.0);
+        notes
+            .iter()
+            .filter(|n| {
+                grid.step_of(n.start, swing).is_some_and(|k| {
+                    k % 2 == 1 && (n.start as f64 - grid.at(k, swing)).abs() <= close
+                })
+            })
+            .count()
+    };
+    let (best, count) = (100..=150)
+        .map(|h| h as f32 / 2.0)
+        .map(|s| (s, fits(s)))
+        .fold((current, 0), |b, c| if c.1 > b.1 { c } else { b });
+    (count > 0 && fits(current) < count).then_some(best)
 }
 
 /// The MIDI clip the sequencer edits on `track`: the one under the playhead, else the one
@@ -250,6 +398,11 @@ pub fn show(
             return;
         };
         let grid = grid_of(params, clip);
+        if let Some(notes) = &clip.notes
+            && let Some(swing) = swing_of(notes, &grid, state.swing)
+        {
+            state.swing = swing;
+        }
         let pages = grid.steps.div_ceil(16).max(1);
         state.page = state.page.min(pages - 1);
         ui.label(RichText::new(&clip.name).size(11.5));
@@ -274,7 +427,7 @@ pub fn show(
             store(
                 params,
                 clip.id,
-                reswing(notes, &grid, state.swing),
+                reswing(notes, &grid, before, state.swing),
                 tr("Swing"),
                 true,
             );
@@ -283,8 +436,9 @@ pub fn show(
             params.doc.history_mut().end_gesture();
         }
         ui.add_space(10.0);
-        ui.selectable_value(&mut state.lane, Lane::Velocity, tr("Velocity"));
-        ui.selectable_value(&mut state.lane, Lane::Chance, tr("Chance"));
+        for (lane, name) in Lane::ALL {
+            ui.selectable_value(&mut state.lane, lane, tr(name));
+        }
         ui.add_space(10.0);
         let mut chosen = None;
         egui::ComboBox::from_id_salt("drum-seq-rhythm")
@@ -392,11 +546,25 @@ pub fn show(
                 Color32::from_rgb(28, 32, 41)
             };
             painter.rect_filled(cell, 3.0, base);
-            if let Some(i) = on_step(&notes, &grid, pad, k).next() {
-                let n = &notes[i];
+            if let Some(n) = read_step(&notes, &grid, pad, k, state.swing) {
                 let strength = 0.35 + 0.65 * f32::from(n.velocity) / 127.0;
                 let lit = if playing == Some(k) { 1.0 } else { strength };
                 painter.rect_filled(cell, 3.0, color.gamma_multiply(lit));
+                // A roll splits the step in its hits.
+                for j in 1..n.hits.min(8) {
+                    let x = cell.left() + cell.width() * j as f32 / n.hits as f32;
+                    painter.line_segment(
+                        [pos2(x, cell.top()), pos2(x, cell.bottom())],
+                        Stroke::new(1.5, base),
+                    );
+                }
+                if n.flam {
+                    painter.rect_filled(
+                        Rect::from_min_size(cell.min, vec2(3.0, cell.height())),
+                        1.0,
+                        Color32::from_white_alpha(170),
+                    );
+                }
                 if n.probability < 100 {
                     // A chance under 100 % leaves part of the step dark.
                     let dark = cell.width() * (1.0 - f32::from(n.probability) / 100.0);
@@ -423,8 +591,26 @@ pub fn show(
             );
         }
     }
-    // Click a step to set it, drag to paint more; click a name to select its pad.
-    if let Some(pos) = response.interact_pointer_pos()
+    // Right-click a step to roll it, one more hit at each click.
+    if response.secondary_clicked()
+        && let Some(pos) = response.interact_pointer_pos()
+        && let Some((r, c)) = cell_at(pos)
+        && c < count
+    {
+        let (pad, k) = (LAYOUT[r], first + c);
+        *selected = pad;
+        let step = read_step(&notes, &grid, pad, k, state.swing).unwrap_or(Step::new(pad));
+        let hits = if step.hits >= ROLLS { 1 } else { step.hits + 1 };
+        let changed = write_step(
+            &notes,
+            &grid,
+            pad,
+            k,
+            state.swing,
+            Some(Step { hits, ..step }),
+        );
+        store(params, clip.id, changed, tr("Roll"), false);
+    } else if let Some(pos) = response.interact_pointer_pos()
         && let Some((r, c)) = cell_at(pos)
     {
         {
@@ -435,9 +621,12 @@ pub fn show(
                 }
             } else if c < count {
                 let k = first + c;
-                let on = on_step(&notes, &grid, pad, k).next().is_some();
+                let on = read_step(&notes, &grid, pad, k, state.swing).is_some();
                 let paint = *state.painting.get_or_insert(!on);
-                if response.is_pointer_button_down_on() && on != paint {
+                if response.is_pointer_button_down_on()
+                    && ui.input(|i| i.pointer.primary_down())
+                    && on != paint
+                {
                     *selected = pad;
                     let changed = set_step(&notes, &grid, pad, k, paint, state.swing);
                     store(params, clip.id, changed, tr("Steps"), true);
@@ -463,30 +652,32 @@ pub fn show(
     }
 }
 
-/// Bars under the grid: the velocity or the chance of the selected pad's steps.
+/// Under the grid, the selected pad's steps: bars of velocity, chance or roll hits, or flams.
 #[allow(clippy::too_many_arguments)]
 fn lane(
     ui: &mut Ui,
     params: &mut Params,
-    state: &SequencerState,
+    state: &mut SequencerState,
     clip: &audiostrada_core::Clip,
     grid: &Grid,
     notes: &[Note],
     pad: usize,
     (first, count, label_width): (usize, usize, f32),
 ) {
+    let swing = state.swing;
     let width = ui.available_width();
     let (rect, response) = ui.allocate_exact_size(vec2(width, 46.0), Sense::click_and_drag());
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 8.0, Color32::from_rgb(16, 19, 25));
     let color = family(pad);
+    let name = Lane::ALL
+        .iter()
+        .find(|l| l.0 == state.lane)
+        .map_or("", |l| l.1);
     painter.text(
         pos2(rect.left() + 10.0, rect.center().y),
         Align2::LEFT_CENTER,
-        tr(match state.lane {
-            Lane::Velocity => "Velocity",
-            Lane::Chance => "Chance",
-        }),
+        tr(name),
         FontId::proportional(11.0),
         Color32::from_rgb(170, 180, 195),
     );
@@ -495,53 +686,93 @@ fn lane(
         rect.max - vec2(0.0, 4.0),
     );
     let cell_width = cells.width() / 16.0;
-    let value = |n: &Note| match state.lane {
-        Lane::Velocity => f32::from(n.velocity) / 127.0,
-        Lane::Chance => f32::from(n.probability) / 100.0,
-    };
+    let dim = Color32::from_rgb(50, 56, 68);
     for c in 0..count {
         let x = cells.left() + c as f32 * cell_width;
-        if let Some(i) = on_step(notes, grid, pad, first + c).next() {
-            let h = cells.height() * value(&notes[i]);
-            painter.rect_filled(
-                Rect::from_min_max(
-                    pos2(x + 3.0, cells.bottom() - h),
-                    pos2(x + cell_width - 3.0, cells.bottom()),
-                ),
-                2.0,
-                color,
-            );
-        } else {
+        let column = Rect::from_min_max(
+            pos2(x + 3.0, cells.top()),
+            pos2(x + cell_width - 3.0, cells.bottom()),
+        );
+        let Some(s) = read_step(notes, grid, pad, first + c, swing) else {
             painter.line_segment(
-                [
-                    pos2(x + 3.0, cells.bottom()),
-                    pos2(x + cell_width - 3.0, cells.bottom()),
-                ],
-                Stroke::new(1.0, Color32::from_rgb(50, 56, 68)),
+                [column.left_bottom(), column.right_bottom()],
+                Stroke::new(1.0, dim),
             );
+            continue;
+        };
+        let bar = |value: f32| {
+            Rect::from_min_max(
+                pos2(column.left(), column.bottom() - column.height() * value),
+                column.max,
+            )
+        };
+        match state.lane {
+            Lane::Velocity => {
+                painter.rect_filled(bar(f32::from(s.velocity) / 127.0), 2.0, color);
+            }
+            Lane::Chance => {
+                painter.rect_filled(bar(f32::from(s.probability) / 100.0), 2.0, color);
+            }
+            Lane::Roll => {
+                // One block per hit, up to the most a roll takes.
+                let h = column.height() / ROLLS as f32;
+                for j in 0..ROLLS {
+                    let block = Rect::from_min_size(
+                        pos2(column.left(), column.bottom() - (j + 1) as f32 * h + 1.0),
+                        vec2(column.width(), h - 2.0),
+                    );
+                    let fill = if j < s.hits { color } else { dim };
+                    painter.rect_filled(block, 2.0, fill);
+                }
+            }
+            Lane::Flam => {
+                let mark = Rect::from_center_size(column.center(), vec2(column.width(), 14.0));
+                if s.flam {
+                    painter.rect_filled(mark, 3.0, color);
+                } else {
+                    painter.rect_stroke(mark, 3.0, Stroke::new(1.0, dim), egui::StrokeKind::Inside);
+                }
+            }
         }
     }
-    // Drag over the bars to set them.
+    // Drag over the steps to set them; flams paint on or off from the first one touched.
     if let Some(pos) = response.interact_pointer_pos()
         && response.is_pointer_button_down_on()
         && cells.x_range().contains(pos.x)
     {
         let c = ((pos.x - cells.left()) / cell_width) as usize;
         let level = ((cells.bottom() - pos.y) / cells.height()).clamp(0.0, 1.0);
+        let k = first + c;
         if c < count
-            && let Some(i) = on_step(notes, grid, pad, first + c).next()
+            && let Some(s) = read_step(notes, grid, pad, k, swing)
         {
-            let mut changed = notes.to_vec();
-            match state.lane {
-                Lane::Velocity => changed[i].velocity = (level * 126.0).round() as u8 + 1,
-                Lane::Chance => changed[i].probability = (level * 100.0).round() as u8,
-            }
-            if changed[i] != notes[i] {
-                store(params, clip.id, changed, tr("Steps"), true);
+            let changed = match state.lane {
+                Lane::Velocity => Step {
+                    velocity: (level * 126.0).round() as u8 + 1,
+                    ..s
+                },
+                Lane::Chance => Step {
+                    probability: (level * 100.0).round() as u8,
+                    ..s
+                },
+                Lane::Roll => Step {
+                    hits: ((level * ROLLS as f32).ceil() as usize).clamp(1, ROLLS),
+                    ..s
+                },
+                Lane::Flam => Step {
+                    flam: *state.flams.get_or_insert(!s.flam),
+                    ..s
+                },
+            };
+            if changed != s {
+                let label = tr(name);
+                let written = write_step(notes, grid, pad, k, swing, Some(changed));
+                store(params, clip.id, written, label, true);
             }
         }
     }
     if response.drag_stopped() || response.clicked() {
+        state.flams = None;
         params.doc.history_mut().end_gesture();
     }
 }
@@ -570,8 +801,10 @@ mod tests {
         // An off sixteenth swings, and is still found on its step.
         let swung = set_step(&[], &g, 4, 5, true, 66.0);
         assert_eq!(swung[0].start, 5000 + 320);
-        assert_eq!(g.step_of(swung[0].start), Some(5));
-        let straight = reswing(&swung, &g, 50.0);
+        assert_eq!(g.step_of(swung[0].start, 66.0), Some(5));
+        assert_eq!(swing_of(&swung, &g, 50.0), Some(66.0));
+        assert_eq!(swing_of(&swung, &g, 66.0), None, "already right");
+        let straight = reswing(&swung, &g, 66.0, 50.0);
         assert_eq!(straight[0].start, 5000);
         // A General MIDI neighbor counts as the pad's note.
         let neighbor = Note {
@@ -579,6 +812,52 @@ mod tests {
             key: 44,
             ..Default::default()
         };
-        assert_eq!(on_step(&[neighbor], &g, 4, 2).count(), 1);
+        assert_eq!(on_step(&[neighbor], &g, 4, 2, 50.0).len(), 1);
+    }
+
+    #[test]
+    fn rolls_and_flams_stay_on_their_step() {
+        let g = grid();
+        for swing in [50.0, 66.0, 75.0] {
+            let mut notes = Vec::new();
+            for k in 0..16 {
+                let step = Step {
+                    hits: 1 + k % ROLLS,
+                    flam: k % 3 == 1,
+                    ..Step::new(1)
+                };
+                notes = write_step(&notes, &g, 1, k, swing, Some(step));
+            }
+            for k in 0..16 {
+                let s = read_step(&notes, &g, 1, k, swing).unwrap();
+                assert_eq!((s.hits, s.flam), (1 + k % ROLLS, k % 3 == 1), "{swing} {k}");
+            }
+            // A roll of four, then back to one hit.
+            let rolled = write_step(&notes, &g, 1, 2, swing, Some(Step::new(1)));
+            assert_eq!(read_step(&rolled, &g, 1, 2, swing).unwrap().hits, 1);
+            // Swung again, the rolls and flams keep their steps.
+            let other = if swing == 50.0 { 70.0 } else { 50.0 };
+            let moved = reswing(&notes, &g, swing, other);
+            assert_eq!(swing_of(&moved, &g, swing), Some(other), "{swing}");
+            for k in 0..16 {
+                let s = read_step(&moved, &g, 1, k, other).unwrap();
+                assert_eq!((s.hits, s.flam), (1 + k % ROLLS, k % 3 == 1), "{other} {k}");
+            }
+        }
+        // The flam comes first and softer; the hits of a roll share the step.
+        let notes = write_step(
+            &[],
+            &g,
+            1,
+            4,
+            50.0,
+            Some(Step {
+                hits: 2,
+                flam: true,
+                ..Step::new(1)
+            }),
+        );
+        let starts: Vec<(u64, u8)> = notes.iter().map(|n| (n.start, n.velocity)).collect();
+        assert_eq!(starts, [(3850, 60), (4000, 100), (4500, 100)]);
     }
 }
