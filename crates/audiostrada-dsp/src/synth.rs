@@ -21,7 +21,7 @@ pub const INFO: EffectInfo = EffectInfo {
     id: "synth",
     name: "Strada-Synth",
     params: &PARAMS,
-    meters: &[],
+    meters: &METERS,
     instrument: true,
     files: &[],
     category: "Instrument",
@@ -91,6 +91,25 @@ pub(crate) mod p {
     pub const SLOTS: usize = 53;
 }
 pub const SLOTS: usize = 8;
+
+/// What the editor shows live, in the meters: the output as an oscilloscope (a few periods
+/// from a rising zero crossing), then the newest note's LFO phases and values, its two
+/// envelopes (level and stage), its cutoff, the voices playing, and each target's modulation.
+pub mod meter {
+    pub const SCOPE: usize = 256;
+    pub const LFO_PHASE: usize = SCOPE;
+    pub const LFO_VALUE: usize = SCOPE + 2;
+    pub const ENV: usize = SCOPE + 4;
+    pub const STAGE: usize = SCOPE + 5;
+    pub const ENV2: usize = SCOPE + 6;
+    pub const CUTOFF: usize = SCOPE + 7;
+    pub const VOICES: usize = SCOPE + 8;
+    pub const MODS: usize = SCOPE + 9;
+    pub const COUNT: usize = MODS + super::TARGETS.len();
+}
+const METERS: [&str; meter::COUNT] = [""; meter::COUNT];
+/// Samples kept for the oscilloscope: room for a trigger and the window, read every other one.
+const SCOPE_LINE: usize = 2048;
 const COUNT: usize = p::SLOTS + SLOTS * 3;
 
 /// What modulates, in the order of the routings' source choice.
@@ -387,6 +406,9 @@ struct Voice {
     held: [f32; 2],
     env2: f32,
     env2_stage: Stage,
+    /// What the voice did last, for the editor: its modulations and its cutoff.
+    mods: [f32; TARGETS.len()],
+    cutoff: f32,
     age: u64,
 }
 
@@ -411,6 +433,8 @@ impl Default for Voice {
             held: [0.0; 2],
             env2: 0.0,
             env2_stage: Stage::Idle,
+            mods: [0.0; TARGETS.len()],
+            cutoff: 0.0,
             age: 0,
         }
     }
@@ -580,6 +604,9 @@ pub struct Synth {
     bpm: f64,
     /// Free-running LFO phases, which notes join when they do not restart them.
     lfo: [f32; 2],
+    /// The latest output (mono), for the oscilloscope.
+    scope: Vec<f32>,
+    scope_at: usize,
 }
 
 impl Default for Synth {
@@ -595,6 +622,8 @@ impl Default for Synth {
             held_count: 0,
             bpm: 120.0,
             lfo: [0.0; 2],
+            scope: vec![0.0; SCOPE_LINE],
+            scope_at: 0,
         }
     }
 }
@@ -1026,6 +1055,8 @@ impl Effect for Synth {
                 let resonance = (resonance + m[target::RESONANCE]).clamp(0.0, 1.0);
                 let drive = (drive + m[target::DRIVE] * 7.0).max(1.0);
                 let amp = voice.level * voice.velocity * gain * (1.0 + m[target::VOLUME]).max(0.0);
+                voice.mods = m;
+                voice.cutoff = fc;
                 for (side, x) in out.into_iter().enumerate() {
                     let state = &mut voice.filter[side];
                     let y = filter(state, kind, x, fc, self.rate, resonance, drive) * amp;
@@ -1045,6 +1076,66 @@ impl Effect for Synth {
                 if voice.stage == Stage::Idle {
                     break;
                 }
+            }
+        }
+        for (l, r) in left.iter().zip(right.iter()) {
+            self.scope[self.scope_at] = 0.5 * (l + r);
+            self.scope_at = (self.scope_at + 1) % SCOPE_LINE;
+        }
+    }
+
+    fn meters(&self, out: &mut [f32]) {
+        if out.len() < meter::COUNT {
+            return;
+        }
+        // The window ends at the latest sample; it starts at a rising zero crossing, so that a
+        // steady note stands still.
+        let span = meter::SCOPE * 2;
+        let at = |back: usize| self.scope[(self.scope_at + SCOPE_LINE - back) % SCOPE_LINE];
+        let start = (span + 1..SCOPE_LINE - 1)
+            .find(|&back| at(back + 1) < 0.0 && at(back) >= 0.0)
+            .unwrap_or(span);
+        for (i, o) in out[..meter::SCOPE].iter_mut().enumerate() {
+            *o = at(start - i * 2);
+        }
+        let newest = self
+            .voices
+            .iter()
+            .filter(|v| v.stage != Stage::Idle)
+            .max_by_key(|v| v.age);
+        let playing = self
+            .voices
+            .iter()
+            .filter(|v| v.stage != Stage::Idle)
+            .count();
+        out[meter::VOICES] = playing as f32;
+        match newest {
+            Some(v) => {
+                out[meter::LFO_PHASE] = v.lfo[0];
+                out[meter::LFO_PHASE + 1] = v.lfo[1];
+                for l in 0..2 {
+                    let base = p::LFO + l * p::LFO_FIELDS;
+                    let shape = (self.values[base].round().max(0.0) as usize).min(SHAPES.len() - 1);
+                    out[meter::LFO_VALUE + l] = lfo_value(shape, v.lfo[l], v.held[l]);
+                }
+                out[meter::ENV] = v.level;
+                out[meter::STAGE] = match v.stage {
+                    Stage::Attack => 1.0,
+                    Stage::Decay => 2.0,
+                    Stage::Sustain => 3.0,
+                    Stage::Release => 4.0,
+                    Stage::Idle => 0.0,
+                };
+                out[meter::ENV2] = v.env2;
+                out[meter::CUTOFF] = v.cutoff;
+                out[meter::MODS..meter::COUNT].copy_from_slice(&v.mods);
+            }
+            None => {
+                // Free LFOs keep turning without notes; nothing else moves.
+                out[meter::LFO_PHASE] = self.lfo[0];
+                out[meter::LFO_PHASE + 1] = self.lfo[1];
+                out[meter::LFO_VALUE..meter::COUNT].fill(0.0);
+                out[meter::VOICES] = 0.0;
             }
         }
     }
@@ -1396,5 +1487,22 @@ mod tests {
         env.push((p::ENV2 + 2, 100.0));
         env.extend(route(3, 3, target::CUTOFF, 60.0));
         assert!(energy(&env, 100) > closed * 2.0);
+    }
+
+    #[test]
+    fn the_meters_show_the_newest_note() {
+        let mut s = synth(&[(p::OSC1_VOICES, 1.0)]);
+        let mut out = [0.0; meter::COUNT];
+        s.meters(&mut out);
+        assert_eq!(out[meter::VOICES], 0.0);
+        s.midi(&MidiEvent::note_on(0, 0, 57, 100));
+        stereo(&mut s, 120);
+        s.meters(&mut out);
+        assert_eq!(out[meter::VOICES], 1.0);
+        assert_eq!(out[meter::STAGE], 3.0, "sustaining");
+        assert!(out[meter::CUTOFF] > 1000.0);
+        // The oscilloscope starts on a rising crossing and swings both ways.
+        let scope = &out[..meter::SCOPE];
+        assert!(scope[0] >= 0.0 && scope.iter().any(|s| *s < -0.01));
     }
 }

@@ -36,6 +36,35 @@ pub struct SynthState {
     dragging: Option<usize>,
     /// Knobs a source can be dropped on this frame: where they are and their target.
     targets: Vec<(Rect, usize)>,
+    /// What the newest note does, read from the meters.
+    live: Live,
+}
+
+/// What the synth does now, from its meters.
+#[derive(Clone, Debug, Default)]
+struct Live {
+    lfo_phase: [f32; 2],
+    /// The newest note's envelope level and stage (1 attack to 4 release), while one plays.
+    envelope: Option<(f32, usize)>,
+    cutoff: Option<f32>,
+    voices: usize,
+    mods: Vec<f32>,
+}
+
+impl Live {
+    fn read(meters: &[f32]) -> Self {
+        use audiostrada_dsp::synth::meter;
+        let at = |i: usize| meters.get(i).copied().unwrap_or(0.0);
+        let voices = at(meter::VOICES).round().max(0.0) as usize;
+        let playing = voices > 0;
+        Self {
+            lfo_phase: [at(meter::LFO_PHASE), at(meter::LFO_PHASE + 1)],
+            envelope: playing.then(|| (at(meter::ENV), at(meter::STAGE).round() as usize)),
+            cutoff: playing.then(|| at(meter::CUTOFF)),
+            voices,
+            mods: (meter::MODS..meter::COUNT).map(at).collect(),
+        }
+    }
 }
 
 impl Default for SynthState {
@@ -48,6 +77,7 @@ impl Default for SynthState {
             track: None,
             dragging: None,
             targets: Vec::new(),
+            live: Live::default(),
         }
     }
 }
@@ -588,6 +618,17 @@ fn mod_knob(ui: &mut Ui, params: &mut Params, state: &mut SynthState, id: &str, 
             .add(Shape::line(points, Stroke::new(2.5, source_color(source))));
         radius += 3.5;
     }
+    // Where the modulations take the knob now: a dot riding the outer arc.
+    if let Some(&now) = state.live.mods.get(target)
+        && now != 0.0
+        && state.live.voices > 0
+    {
+        let a = start + sweep * (value + now).clamp(0.0, 1.0);
+        let at = center + (radius - 3.5) * vec2(a.cos(), a.sin());
+        ui.painter().circle_filled(at, 3.5, Color32::WHITE);
+        ui.painter()
+            .circle_stroke(at, 3.5, Stroke::new(1.0, Color32::from_black_alpha(120)));
+    }
     if state.dragging.is_some()
         && rect.contains(ui.input(|i| i.pointer.hover_pos()).unwrap_or_default())
     {
@@ -690,9 +731,13 @@ fn drop_source(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
     params.doc.history_mut().end_gesture();
 }
 
-pub fn show(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
+pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthState) {
     let p = theme::current(ui);
     state.targets.clear();
+    let live = Live::read(meters);
+    state.live = live.clone();
+    hero(ui, meters, &live);
+    ui.add_space(6.0);
     let height = 132.0;
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
@@ -723,7 +768,10 @@ pub fn show(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
             ),
         ] {
             section_frame(ui, tr(title), p.weak, height, |ui| {
-                wave_picker(ui, params, wave);
+                ui.horizontal(|ui| {
+                    wave_picker(ui, params, wave);
+                    oscillator_view(ui, params, wave, ids[3], level);
+                });
                 ui.add_space(2.0);
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 2.0;
@@ -758,7 +806,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     choice_box(ui, params, "filter_type");
-                    filter_curve(ui, params, vec2(150.0, 70.0));
+                    filter_curve(ui, params, vec2(150.0, 70.0), live.cutoff);
                 });
                 ui.spacing_mut().item_spacing.x = 2.0;
                 for (id, name) in [
@@ -818,7 +866,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
         ui.spacing_mut().item_spacing.x = 8.0;
         section_frame(ui, tr("Envelope"), p.weak, 100.0, |ui| {
             ui.horizontal_top(|ui| {
-                envelope(ui, params, 150.0);
+                envelope(ui, params, 150.0, live.envelope);
                 ui.add_space(4.0);
                 ui.spacing_mut().item_spacing.x = 2.0;
                 for (id, name) in [
@@ -862,6 +910,7 @@ fn modulation_sources(ui: &mut Ui, params: &mut Params, state: &mut SynthState) 
                     source_pill(ui, state, l);
                     shape_picker(ui, params, &format!("lfo{l}_shape"));
                 });
+                lfo_view(ui, params, l, state.live.lfo_phase[l - 1]);
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 2.0;
                     let synced = params.get(&format!("lfo{l}_sync")) >= 0.5;
@@ -993,6 +1042,173 @@ fn routings(ui: &mut Ui, params: &mut Params) {
     });
 }
 
+/// An LFO's wave over one cycle, with a dot where it is now.
+fn lfo_view(ui: &mut Ui, params: &mut Params, l: usize, phase: f32) {
+    use audiostrada_dsp::filter::lfo_value;
+    let p = theme::current(ui);
+    let color = source_color(l);
+    let (rect, _) = ui.allocate_exact_size(vec2(200.0, 30.0), Sense::hover());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 5.0, p.base);
+    let shape = params.get(&format!("lfo{l}_shape")).round() as usize;
+    let inner = rect.shrink2(vec2(6.0, 5.0));
+    let held = [0.6, -0.3, 0.9, -0.8];
+    let point = |t: f32| {
+        let v = lfo_value(shape, t, held[((t * 4.0) as usize).min(3)]);
+        pos2(
+            inner.left() + t * inner.width(),
+            inner.center().y - v * inner.height() / 2.0,
+        )
+    };
+    let points: Vec<Pos2> = (0..=80).map(|j| point(j as f32 / 80.0)).collect();
+    painter.add(Shape::line(
+        points,
+        Stroke::new(1.5, color.gamma_multiply(0.8)),
+    ));
+    let at = point(phase.fract());
+    painter.line_segment(
+        [pos2(at.x, rect.top()), pos2(at.x, rect.bottom())],
+        Stroke::new(1.0, color.gamma_multiply(0.35)),
+    );
+    painter.circle_filled(at, 7.0, color.gamma_multiply(0.25));
+    painter.circle_filled(at, 3.5, color);
+}
+
+/// The top of the synth: the sound as an oscilloscope, glowing, and the voices playing.
+fn hero(ui: &mut Ui, meters: &[f32], live: &Live) {
+    use audiostrada_dsp::synth::meter;
+    let p = theme::current(ui);
+    let width = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(vec2(width, 84.0), Sense::hover());
+    let painter = ui.painter_at(rect);
+    // A deep screen whatever the theme, as on hardware.
+    let screen = Color32::from_rgb(12, 16, 22);
+    painter.rect_filled(rect, 10.0, screen);
+    let scope = Rect::from_min_max(
+        rect.min + vec2(14.0, 10.0),
+        pos2(rect.right() - 200.0, rect.bottom() - 10.0),
+    );
+    let grid = Color32::from_rgb(40, 52, 66);
+    for k in 1..8 {
+        let x = scope.left() + scope.width() * k as f32 / 8.0;
+        painter.line_segment(
+            [pos2(x, scope.top()), pos2(x, scope.bottom())],
+            Stroke::new(1.0, grid.gamma_multiply(0.5)),
+        );
+    }
+    painter.line_segment(
+        [
+            pos2(scope.left(), scope.center().y),
+            pos2(scope.right(), scope.center().y),
+        ],
+        Stroke::new(1.0, grid),
+    );
+    let samples = meters.get(..meter::SCOPE).unwrap_or(&[]);
+    // Scaled to the loudest sample, so that soft and loud sounds both read.
+    let peak = samples.iter().fold(0.05f32, |m, s| m.max(s.abs()));
+    let points: Vec<Pos2> = samples
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            pos2(
+                scope.left() + i as f32 / (meter::SCOPE - 1) as f32 * scope.width(),
+                scope.center().y - s / peak * scope.height() * 0.45,
+            )
+        })
+        .collect();
+    let glow = p.accent;
+    if live.voices > 0 {
+        for (width, alpha) in [(7.0, 0.08), (3.5, 0.2), (1.6, 1.0)] {
+            painter.add(Shape::line(
+                points.clone(),
+                Stroke::new(width, glow.gamma_multiply(alpha)),
+            ));
+        }
+    } else {
+        painter.line_segment(
+            [
+                pos2(scope.left(), scope.center().y),
+                pos2(scope.right(), scope.center().y),
+            ],
+            Stroke::new(1.5, glow.gamma_multiply(0.5)),
+        );
+    }
+    // The sixteen voices as lights.
+    let panel = Rect::from_min_max(
+        pos2(scope.right() + 16.0, rect.top() + 14.0),
+        rect.max - vec2(14.0, 10.0),
+    );
+    painter.text(
+        panel.left_top(),
+        Align2::LEFT_TOP,
+        crate::trf!("{count} voices", count = live.voices),
+        FontId::monospace(11.0),
+        Color32::from_rgb(170, 190, 210),
+    );
+    for v in 0..16 {
+        let (row, col) = (v / 8, v % 8);
+        let at = pos2(
+            panel.left() + 6.0 + col as f32 * 20.0,
+            panel.top() + 30.0 + row as f32 * 18.0,
+        );
+        let lit = v < live.voices;
+        if lit {
+            painter.circle_filled(at, 7.0, glow.gamma_multiply(0.18));
+        }
+        painter.circle_filled(at, 4.0, if lit { glow } else { grid });
+    }
+}
+
+/// An oscillator's wave as it sounds: its unison voices stacked, drifting apart.
+fn oscillator_view(ui: &mut Ui, params: &mut Params, wave: &str, voices: &str, level: &str) {
+    let p = theme::current(ui);
+    let (rect, _) = ui.allocate_exact_size(vec2(110.0, 22.0), Sense::hover());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 5.0, p.base);
+    let kind = params.get(wave).round() as usize;
+    let n = params.get(voices).round().clamp(1.0, 16.0) as usize;
+    let gain = (params.get(level) / 100.0).clamp(0.0, 1.0);
+    let inner = rect.shrink2(vec2(6.0, 4.0));
+    let time = ui.input(|i| i.time) as f32;
+    for k in 0..n.min(7) {
+        let offset = if n > 1 {
+            k as f32 / n as f32 * 0.35 + time * 0.05 * k as f32
+        } else {
+            0.0
+        };
+        let alpha = if k == 0 { 1.0 } else { 0.35 };
+        let points: Vec<Pos2> = (0..=60)
+            .map(|j| {
+                let t = j as f32 / 60.0;
+                let phase = (t * 2.0 + offset).fract();
+                let v = match kind {
+                    0 => 2.0 * phase - 1.0,
+                    1 => {
+                        if phase < 0.5 {
+                            1.0
+                        } else {
+                            -1.0
+                        }
+                    }
+                    2 => (phase * std::f32::consts::TAU).sin(),
+                    _ => 1.0 - 4.0 * (phase - 0.5).abs(),
+                };
+                pos2(
+                    inner.left() + t * inner.width(),
+                    inner.center().y - v * gain * inner.height() / 2.0,
+                )
+            })
+            .collect();
+        painter.add(Shape::line(
+            points,
+            Stroke::new(1.2, p.accent.gamma_multiply(alpha * (0.3 + 0.7 * gain))),
+        ));
+    }
+    if n > 1 {
+        ui.ctx().request_repaint();
+    }
+}
+
 /// LFO shapes as small buttons drawing them.
 fn shape_picker(ui: &mut Ui, params: &mut Params, id: &str) {
     use audiostrada_dsp::filter::{SHAPES, lfo_value};
@@ -1037,14 +1253,15 @@ fn shape_picker(ui: &mut Ui, params: &mut Params, id: &str) {
 }
 
 /// What the filter does to the spectrum, 20 Hz to 20 kHz, at its cutoff and resonance.
-fn filter_curve(ui: &mut Ui, params: &mut Params, size: egui::Vec2) {
+fn filter_curve(ui: &mut Ui, params: &mut Params, size: egui::Vec2, live: Option<f32>) {
     use audiostrada_dsp::synth::{BP, HP, LADDER, LP12, LP24};
     let p = theme::current(ui);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 6.0, p.base);
     let kind = params.get("filter_type").round() as usize;
-    let fc = params.get("cutoff");
+    // The cutoff the newest note has now, with its envelope and modulations.
+    let fc = live.filter(|f| *f > 0.0).unwrap_or(params.get("cutoff"));
     let r = params.get("resonance") / 95.0;
     let k = 2.0 * (1.0 - r * 0.95).max(0.05);
     // Analog prototypes of the filters, in the s plane, at w = f / fc.
@@ -1157,7 +1374,7 @@ fn wave_picker(ui: &mut Ui, params: &mut Params, id: &str) {
 }
 
 /// The envelope, its corners dragged to set attack, decay with sustain, and release.
-fn envelope(ui: &mut Ui, params: &mut Params, width: f32) {
+fn envelope(ui: &mut Ui, params: &mut Params, width: f32, live: Option<(f32, usize)>) {
     let p = theme::current(ui);
     let (rect, _) = ui.allocate_exact_size(vec2(width, 84.0), Sense::hover());
     let painter = ui.painter_at(rect);
@@ -1182,6 +1399,20 @@ fn envelope(ui: &mut Ui, params: &mut Params, width: f32) {
         Stroke::NONE,
     ));
     painter.add(Shape::line(points, Stroke::new(2.0, p.accent)));
+    // Where the newest note is on its envelope, glowing.
+    if let Some((level, stage)) = live {
+        let at = match stage {
+            1 => pos2(area.left() + (attack.x - area.left()) * level, y(level)),
+            2 => attack.lerp(
+                decay,
+                ((1.0 - level) / (1.0 - sustain).max(1e-3)).clamp(0.0, 1.0),
+            ),
+            3 => pos2((decay.x + hold.x) / 2.0, y(sustain)),
+            _ => hold.lerp(release, (1.0 - level / sustain.max(1e-3)).clamp(0.0, 1.0)),
+        };
+        painter.circle_filled(at, 9.0, Color32::WHITE.gamma_multiply(0.12));
+        painter.circle_filled(at, 4.5, Color32::WHITE);
+    }
     let handles = [
         ("attack", attack, area.left(), None),
         ("decay", decay, attack.x, Some("sustain")),
@@ -1586,7 +1817,7 @@ mod tests {
                     insert: insert.unwrap(),
                     info,
                 };
-                show(ui, &mut params, state);
+                show(ui, &mut params, &[], state);
             })
             .drop_without_applying_deltas();
         };

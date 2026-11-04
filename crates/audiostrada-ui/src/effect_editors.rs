@@ -634,7 +634,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Editor
         "gate" => gate(ui, params, meters, state),
         "limiter" => limiter(ui, params, meters, state),
         "amp_rig" => crate::rig_editor::show(ui, params, meters, &mut state.rig),
-        "synth" => crate::synth_editor::show(ui, params, &mut state.synth),
+        "synth" => crate::synth_editor::show(ui, params, meters, &mut state.synth),
         "drums" => crate::drums_editor::show(ui, params, meters, &mut state.drums),
         _ => knob_panel(ui, params, meters),
     }

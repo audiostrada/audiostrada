@@ -3817,3 +3817,6 @@ S
 
 Starts again at each note; off, every note follows the same wave
 Repart à chaque note ; sinon toutes les notes suivent la même onde
+
+{count} voices
+{count} voix
