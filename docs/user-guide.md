@@ -28,6 +28,8 @@ On Windows choose WASAPI (shared or exclusive) or ASIO; on macOS, CoreAudio.
   the counter shows bars.beats.ticks with the clock time below; tempo and time signature
   (MIDI clips keep their bars and beats when the tempo changes, audio clips their time);
   edit mode (Slip, Shuffle, Grid), grid value and snap.
+  Effects ring out after a stop (reverb and delay tails fade naturally); stop again while
+  stopped to silence them.
 - **Timeline**: tracks and their clips, the ruler with markers, loop and punch ranges.
 - **Mixer** and **Piano roll** below, in tabs.
 - AudioStrada reopens its window, and the panels in their own windows, at the size and in the

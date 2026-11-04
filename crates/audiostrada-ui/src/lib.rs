@@ -868,7 +868,12 @@ impl AudioStradaApp {
             }
             Action::Stop => {
                 let mut doc = self.doc.borrow_mut();
-                doc.player_mut().engine_mut().stop();
+                // Effects ring out after a stop; stopping again silences them.
+                if doc.player().engine().playing() {
+                    doc.player_mut().engine_mut().stop();
+                } else {
+                    doc.player_mut().engine_mut().flush();
+                }
                 doc.player_mut().locate(0);
             }
             Action::GoToStart => self.doc.borrow_mut().player_mut().locate(0),

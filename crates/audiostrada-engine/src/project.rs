@@ -2136,6 +2136,51 @@ mod tests {
     }
 
     #[test]
+    fn effects_ring_out_after_a_stop_until_flushed() {
+        let samples: Vec<f32> = (0..4800).map(|i| (i as f32 * 0.07).sin() * 0.5).collect();
+        let mut f = fixture("tails", samples);
+        let t = f.history.project().tracks[0].id;
+        f.history.edit("Reverb", |p| {
+            let id = audiostrada_core::routing::add_insert(
+                p,
+                audiostrada_core::routing::Channel::Track(t),
+                "reverb",
+                Default::default(),
+            )
+            .unwrap();
+            audiostrada_core::routing::set_insert_param(
+                p,
+                audiostrada_core::routing::Channel::Track(t),
+                id,
+                "decay",
+                8.0,
+            );
+        });
+        f.media.retain(&media_paths(f.history.project(), None));
+        assert!(f.media.wait(Duration::from_secs(10)));
+        let mut processor = f.player.processor(48_000, 64);
+        f.player.sync(f.history.project(), None, &f.media);
+        f.player.engine_mut().play();
+        render(&mut processor, 75);
+        // Stop and back to the start: the tail goes on.
+        f.player.engine_mut().stop();
+        f.player.locate(0);
+        let energy = |x: &[f32]| x.iter().map(|s| s * s).sum::<f32>();
+        let tail = render(&mut processor, 75);
+        assert!(
+            energy(&tail) > 1e-3,
+            "the reverb rings out: {}",
+            energy(&tail)
+        );
+        // Stopping again silences it.
+        f.player.engine_mut().flush();
+        render(&mut processor, 1);
+        let after = render(&mut processor, 10);
+        assert!(energy(&after) < 1e-9, "flushed: {}", energy(&after));
+        std::fs::remove_dir_all(&f.dir).unwrap();
+    }
+
+    #[test]
     fn plays_the_project_and_follows_edits() {
         let samples: Vec<f32> = (0..2000)
             .map(|i| ((i * 13) % 97) as f32 / 97.0 - 0.5)

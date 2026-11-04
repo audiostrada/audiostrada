@@ -28,6 +28,8 @@ enum Command {
     Play,
     Stop,
     Locate(u64),
+    /// Empties the effects: tails, delays, held voices.
+    Flush,
     Loop(Option<(u64, u64)>),
     Tempo(Arc<TempoMap>),
     Capture(Option<Box<Capture>>),
@@ -205,9 +207,15 @@ impl Engine {
         self.send(Command::Stop);
     }
 
+    /// Moves the transport; the effects keep ringing, as when stopping (see [`Self::flush`]).
     pub fn locate(&mut self, position: u64) {
         self.transport.position = position;
         self.send(Command::Locate(position));
+    }
+
+    /// Silences what the effects still hold: reverb and delay tails, frozen loops, voices.
+    pub fn flush(&mut self) {
+        self.send(Command::Flush);
     }
 
     pub fn set_loop(&mut self, range: Option<(u64, u64)>) {
@@ -398,8 +406,8 @@ impl EngineProcessor {
                 }
                 Command::Play => self.transport.playing = true,
                 Command::Stop => self.transport.playing = false,
-                Command::Locate(position) => {
-                    self.transport.position = position;
+                Command::Locate(position) => self.transport.position = position,
+                Command::Flush => {
                     if let Some(schedule) = &mut self.schedule {
                         schedule.nodes.iter_mut().for_each(|n| n.reset());
                     }
