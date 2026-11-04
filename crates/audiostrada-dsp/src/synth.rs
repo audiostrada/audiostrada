@@ -107,6 +107,18 @@ pub(crate) mod p {
     pub const SLOTS: usize = 53;
     /// Table and position of each oscillator's wavetable.
     pub const TABLES: usize = 77;
+    /// Oscillator 2 driving oscillator 1: phase modulation, hard sync, ring modulation.
+    pub const FM: usize = 81;
+    pub const SYNC: usize = 82;
+    pub const RING: usize = 83;
+    /// The effects after the voices: chorus mix, delay mix, note and feedback, reverb mix
+    /// and decay.
+    pub const CHORUS: usize = 84;
+    pub const DELAY: usize = 85;
+    pub const DELAY_NOTE: usize = 86;
+    pub const DELAY_FEEDBACK: usize = 87;
+    pub const REVERB: usize = 88;
+    pub const REVERB_DECAY: usize = 89;
 }
 pub const SLOTS: usize = 8;
 
@@ -128,7 +140,7 @@ pub mod meter {
 const METERS: [&str; meter::COUNT] = [""; meter::COUNT];
 /// Samples kept for the oscilloscope: room for a trigger and the window, read every other one.
 const SCOPE_LINE: usize = 2048;
-const COUNT: usize = p::TABLES + 4;
+const COUNT: usize = p::REVERB_DECAY + 1;
 
 /// What modulates, in the order of the routings' source choice.
 pub const SOURCES: [&str; 11] = [
@@ -145,7 +157,7 @@ pub const SOURCES: [&str; 11] = [
     "Macro 4",
 ];
 /// What is modulated, in the order of the routings' target choice.
-pub const TARGETS: [&str; 14] = [
+pub const TARGETS: [&str; 15] = [
     "None",
     "Pitch",
     "Osc 1 pitch",
@@ -160,6 +172,7 @@ pub const TARGETS: [&str; 14] = [
     "Volume",
     "Osc 1 position",
     "Osc 2 position",
+    "FM",
 ];
 pub mod target {
     pub const PITCH: usize = 1;
@@ -175,6 +188,7 @@ pub mod target {
     pub const VOLUME: usize = 11;
     pub const OSC1_POSITION: usize = 12;
     pub const OSC2_POSITION: usize = 13;
+    pub const FM: usize = 14;
 }
 /// Reach of a full modulation: semitones of pitch, octaves of cutoff.
 const PITCH_REACH: f32 = 12.0;
@@ -302,6 +316,16 @@ const EXTRA: [ParamInfo; COUNT - 35] = {
     out[tables + 1] = param("osc1_position", "Osc 1 position", 0.0, 100.0, 0.0, "%");
     out[tables + 2] = choice("osc2_table", "Osc 2 wavetable", &TABLES, 0.0);
     out[tables + 3] = param("osc2_position", "Osc 2 position", 0.0, 100.0, 0.0, "%");
+    let more = p::FM - 35;
+    out[more] = param("fm", "FM", 0.0, 100.0, 0.0, "%");
+    out[more + 1] = switch("sync", "Sync", 0.0);
+    out[more + 2] = param("ring", "Ring", 0.0, 100.0, 0.0, "%");
+    out[more + 3] = param("fx_chorus", "Chorus", 0.0, 100.0, 0.0, "%");
+    out[more + 4] = param("fx_delay", "Delay", 0.0, 100.0, 0.0, "%");
+    out[more + 5] = choice("fx_delay_note", "Delay time", &NOTE_NAMES, 6.0);
+    out[more + 6] = param("fx_delay_feedback", "Delay feedback", 0.0, 90.0, 35.0, "%");
+    out[more + 7] = param("fx_reverb", "Reverb", 0.0, 100.0, 0.0, "%");
+    out[more + 8] = param("fx_reverb_decay", "Reverb decay", 0.3, 10.0, 2.5, "s");
     let mut k = 0;
     while k < SLOTS {
         let mut f = 0;
@@ -637,6 +661,72 @@ pub struct Synth {
     /// Each oscillator's wavetable, and the tables loaded from files.
     tables: [Arc<Table>; 2],
     loaded: [Option<Arc<Table>>; 2],
+    /// Chorus, delay and reverb after the voices.
+    effects: Effects,
+}
+
+/// The synth's own effects, in order.
+struct Effects([Box<dyn Effect>; 3]);
+
+impl std::fmt::Debug for Effects {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Effects")
+    }
+}
+
+impl Default for Effects {
+    fn default() -> Self {
+        let make = |id: &str, settings: &[(&str, f32)]| {
+            let mut effect = crate::create(id).expect("built-in effect");
+            let info = crate::info(id).expect("built-in effect");
+            for &(name, value) in settings {
+                if let Some(i) = info.params.iter().position(|p| p.id == name) {
+                    effect.set_param(i, value);
+                }
+            }
+            effect
+        };
+        Self([
+            make("chorus", &[("mix", 0.0)]),
+            make(
+                "delay",
+                &[
+                    ("sync", 1.0),
+                    ("pingpong", 1.0),
+                    ("mix", 0.0),
+                    ("high_cut", 6000.0),
+                ],
+            ),
+            make("reverb", &[("mix", 0.0), ("predelay", 15.0)]),
+        ])
+    }
+}
+
+impl Effects {
+    /// Which effect and parameter a synth parameter drives.
+    fn route(index: usize) -> Option<(usize, &'static str)> {
+        Some(match index {
+            p::CHORUS => (0, "mix"),
+            p::DELAY => (1, "mix"),
+            p::DELAY_NOTE => (1, "note"),
+            p::DELAY_FEEDBACK => (1, "feedback"),
+            p::REVERB => (2, "mix"),
+            p::REVERB_DECAY => (2, "decay"),
+            _ => return None,
+        })
+    }
+
+    fn set(&mut self, index: usize, value: f32) {
+        let Some((k, name)) = Self::route(index) else {
+            return;
+        };
+        let id = ["chorus", "delay", "reverb"][k];
+        if let Some(i) =
+            crate::info(id).and_then(|info| info.params.iter().position(|p| p.id == name))
+        {
+            self.0[k].set_param(i, value);
+        }
+    }
 }
 
 impl Default for Synth {
@@ -659,8 +749,17 @@ impl Default for Synth {
                 Arc::clone(&crate::wavetable::factory()[0]),
             ],
             loaded: [None, None],
+            effects: Effects::default(),
         }
     }
+}
+
+/// Whether a routing moves the FM amount.
+fn routes_fm(v: &[f32; COUNT]) -> bool {
+    (0..SLOTS).any(|k| {
+        let at = p::SLOTS + k * 3;
+        v[at] >= 0.5 && v[at + 1].round() as usize == target::FM && v[at + 2] != 0.0
+    })
 }
 
 impl Synth {
@@ -815,14 +914,18 @@ impl Synth {
 }
 
 impl Effect for Synth {
-    fn prepare(&mut self, sample_rate: u32, _max_frames: usize) {
+    fn prepare(&mut self, sample_rate: u32, max_frames: usize) {
         self.rate = sample_rate as f32;
         self.voices = [Voice::default(); VOICES];
         self.held_count = 0;
+        for effect in &mut self.effects.0 {
+            effect.prepare(sample_rate, max_frames);
+        }
     }
 
     fn set_tempo(&mut self, bpm: f64) {
         self.bpm = bpm;
+        self.effects.0[1].set_tempo(bpm);
     }
 
     fn set_param(&mut self, index: usize, value: f32) {
@@ -832,6 +935,7 @@ impl Effect for Synth {
         if index == p::TABLES || index == p::TABLES + 2 {
             self.choose_table((index - p::TABLES) / 2);
         }
+        self.effects.set(index, value);
     }
 
     fn load(&mut self, slot: &str, file: crate::FileData) -> Result<String, String> {
@@ -931,6 +1035,11 @@ impl Effect for Synth {
                 detune,
             )
         });
+        let fm = v[p::FM] / 100.0;
+        let sync = v[p::SYNC] >= 0.5;
+        let ring = v[p::RING] / 100.0 / (oscs[0].3 as f32).sqrt();
+        // Oscillator 2 runs even unheard while it shapes oscillator 1.
+        let drives = fm > 0.0 || sync || ring > 0.0 || routes_fm(&v);
         let sub_level = v[p::SUB_LEVEL] / 100.0;
         let sub_ratio = if v[p::SUB_OCTAVE] >= 0.5 { 0.25 } else { 0.5 };
         let noise = v[p::NOISE] / 100.0;
@@ -1077,14 +1186,19 @@ impl Effect for Synth {
                     (v[p::TABLES + 1] / 100.0 + m[target::OSC1_POSITION]).clamp(0.0, 1.0),
                     (v[p::TABLES + 3] / 100.0 + m[target::OSC2_POSITION]).clamp(0.0, 1.0),
                 ];
-                for (o, &(wave, _, level, n, _)) in oscs.iter().enumerate() {
+                // Oscillator 2 first: it drives oscillator 1's phase, restarts and ring.
+                let mut driver = [0.0f32; MAX_UNISON];
+                let mut wrapped = [false; MAX_UNISON];
+                let fm = (fm + m[target::FM]).clamp(0.0, 2.0);
+                for o in [1, 0] {
+                    let (wave, _, level, n, _) = oscs[o];
                     let (pitch, add) = if o == 0 {
                         (m[target::OSC1_PITCH], m[target::OSC1_LEVEL])
                     } else {
                         (m[target::OSC2_PITCH], m[target::OSC2_LEVEL])
                     };
                     let level = (level + add / (n as f32).sqrt()).clamp(0.0, 2.0);
-                    if level <= 0.0 {
+                    if level <= 0.0 && !(o == 1 && drives) && !(o == 0 && ring > 0.0) {
                         continue;
                     }
                     let shift = if pitch != 0.0 {
@@ -1092,18 +1206,36 @@ impl Effect for Synth {
                     } else {
                         1.0
                     };
+                    let n2 = oscs[1].3;
                     for k in 0..n {
                         let dt = note_dt * ratios[o][k] * shift;
                         let phase = &mut voice.phases[o][k];
-                        let s = if wave == WAVETABLE {
-                            tables[o].read(*phase, positions[o], dt)
+                        // Oscillator 1 voice k follows oscillator 2's voice of the same rank.
+                        let (offset, restart, partner) = if o == 0 {
+                            let j = k % n2;
+                            (driver[j] * fm, sync && wrapped[j], driver[j])
                         } else {
-                            oscillator(wave, *phase, dt)
-                        } * level;
+                            (0.0, false, 0.0)
+                        };
+                        if restart {
+                            *phase = 0.0;
+                        }
+                        let read = (*phase + offset).rem_euclid(1.0);
+                        let raw = if wave == WAVETABLE {
+                            tables[o].read(read, positions[o], dt)
+                        } else {
+                            oscillator(wave, read, dt)
+                        };
                         *phase += dt;
-                        if *phase >= 1.0 {
+                        let wrap = *phase >= 1.0;
+                        if wrap {
                             *phase -= 1.0;
                         }
+                        if o == 1 {
+                            driver[k] = raw;
+                            wrapped[k] = wrap;
+                        }
+                        let s = raw * level + if o == 0 { raw * partner * ring } else { 0.0 };
                         let (pl, pr) = pans[o][k];
                         out[0] += s * pl;
                         out[1] += s * pr;
@@ -1159,6 +1291,17 @@ impl Effect for Synth {
         for (l, r) in left.iter().zip(right.iter()) {
             self.scope[self.scope_at] = 0.5 * (l + r);
             self.scope_at = (self.scope_at + 1) % SCOPE_LINE;
+        }
+        // The effects, only those turned up.
+        for (effect, mix) in self
+            .effects
+            .0
+            .iter_mut()
+            .zip([p::CHORUS, p::DELAY, p::REVERB])
+        {
+            if v[mix] > 0.0 {
+                effect.process(left, right);
+            }
         }
     }
 
@@ -1224,6 +1367,9 @@ impl Effect for Synth {
         }
         self.channels = [ChannelState::default(); 16];
         self.held_count = 0;
+        for effect in &mut self.effects.0 {
+            effect.reset();
+        }
     }
 }
 
@@ -1621,5 +1767,64 @@ mod tests {
         s.midi(&MidiEvent::note_on(0, 0, 100, 100));
         let (l, _) = stereo(&mut s, 20);
         assert!(l.iter().all(|x| x.is_finite()) && l.iter().any(|x| x.abs() > 0.01));
+    }
+
+    /// Normalized correlation of a signal with itself `lag` samples later.
+    fn correlation(x: &[f32], lag: usize) -> f32 {
+        let (a, b) = (&x[..x.len() - lag], &x[lag..]);
+        let dot: f32 = a.iter().zip(b).map(|(p, q)| p * q).sum();
+        let norm =
+            (a.iter().map(|p| p * p).sum::<f32>() * b.iter().map(|q| q * q).sum::<f32>()).sqrt();
+        dot / norm.max(1e-9)
+    }
+
+    /// Level of the `f` Hz component.
+    fn bin(x: &[f32], f: f32) -> f32 {
+        let w = std::f32::consts::TAU * f / 48_000.0;
+        let (re, im) = x.iter().enumerate().fold((0.0, 0.0), |(re, im), (i, s)| {
+            (re + s * (w * i as f32).cos(), im + s * (w * i as f32).sin())
+        });
+        (re * re + im * im).sqrt() / x.len() as f32
+    }
+
+    #[test]
+    fn oscillator_2_drives_oscillator_1() {
+        let base = [
+            (p::OSC1_VOICES, 1.0),
+            (p::OSC2_VOICES, 1.0),
+            (p::OSC2_WAVE, 2.0),
+        ];
+        let play = |extra: &[(usize, f32)]| {
+            let mut s = synth(&[base.as_slice(), extra].concat());
+            s.midi(&MidiEvent::note_on(0, 0, 57, 100));
+            let (l, _) = stereo(&mut s, 80);
+            l[l.len() / 2..].to_vec()
+        };
+        // FM: a pure sine gains harmonics.
+        let (plain, fm) = (play(&[]), play(&[(p::FM, 60.0)]));
+        assert!(bin(&fm, 440.0) > bin(&plain, 440.0) * 10.0 + 1e-4);
+        // Sync: oscillator 1 a fifth up restarts with oscillator 2, at the note's period.
+        let fifth = [(p::WAVE, 0.0), (p::OSC1_SEMI, 7.0)];
+        let free = play(&fifth);
+        let synced = play(&[fifth.as_slice(), &[(p::SYNC, 1.0)]].concat());
+        let period = (48_000.0f32 / 220.0).round() as usize;
+        assert!(correlation(&synced, period) > 0.9);
+        assert!(correlation(&free, period) < correlation(&synced, period) - 0.2);
+        // Ring: both oscillators silent, their product still sounds.
+        let ring = play(&[(p::OSC1_LEVEL, 0.0), (p::RING, 100.0)]);
+        assert!(ring.iter().any(|x| x.abs() > 0.01) && ring.iter().all(|x| x.is_finite()));
+    }
+
+    #[test]
+    fn the_effects_ring_on_after_the_note() {
+        let tail = |reverb: f32| {
+            let mut s = synth(&[(p::RELEASE, 10.0), (p::REVERB, reverb)]);
+            s.midi(&MidiEvent::note_on(0, 0, 60, 100));
+            stereo(&mut s, 40);
+            s.midi(&MidiEvent::note_off(0, 0, 60));
+            let (l, _) = stereo(&mut s, 60);
+            l[4800..].iter().map(|x| x * x).sum::<f32>()
+        };
+        assert!(tail(50.0) > tail(0.0) * 100.0 + 1e-6);
     }
 }

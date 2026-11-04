@@ -166,7 +166,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             preset(name, &all)
         };
     // Waves: 0 saw, 1 square, 2 sine, 3 triangle. Modes: 0 poly, 1 mono, 2 legato.
-    vec![
+    let mut presets = vec![
         preset(tr("Init"), &[]),
         sound(
             tr("Keys: Soft"),
@@ -642,7 +642,191 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             adsr(1500.0, 2000.0, 40.0, 2500.0),
             filter(500.0, 70.0, 100.0),
         ),
-    ]
+        sound(
+            tr("Keys: FM Electric"),
+            &[
+                ("wave", 2.0),
+                ("osc1_voices", 1.0),
+                ("osc2_wave", 2.0),
+                ("osc2_level", 0.0),
+                ("fm", 15.0),
+                ("env2_attack", 1.0),
+                ("env2_decay", 700.0),
+                ("env2_sustain", 0.0),
+                ("mod1_source", 3.0),
+                ("mod1_target", 14.0),
+                ("mod1_amount", 45.0),
+                ("mod2_source", 4.0),
+                ("mod2_target", 14.0),
+                ("mod2_amount", 25.0),
+                ("drift", 5.0),
+                ("velocity", 70.0),
+                ("fx_chorus", 30.0),
+                ("fx_reverb", 15.0),
+                ("volume", -11.5),
+            ],
+            adsr(2.0, 1800.0, 25.0, 450.0),
+            filter(16000.0, 0.0, 0.0),
+        ),
+        sound(
+            tr("Lead: Sync sweep"),
+            &[
+                ("wave", 0.0),
+                ("osc1_voices", 1.0),
+                ("osc1_semi", 7.0),
+                ("osc2_level", 50.0),
+                ("osc2_voices", 1.0),
+                ("sync", 1.0),
+                ("mode", 2.0),
+                ("glide", 50.0),
+                ("env2_attack", 1.0),
+                ("env2_decay", 450.0),
+                ("env2_sustain", 20.0),
+                ("mod1_source", 3.0),
+                ("mod1_target", 2.0),
+                ("mod1_amount", 70.0),
+                ("mod2_source", 5.0),
+                ("mod2_target", 2.0),
+                ("mod2_amount", 40.0),
+                ("fx_delay", 20.0),
+                ("fx_reverb", 12.0),
+                ("volume", -6.0),
+            ],
+            adsr(3.0, 400.0, 85.0, 200.0),
+            filter(6000.0, 20.0, 10.0),
+        ),
+        sound(
+            tr("Bell: Ring"),
+            &[
+                ("wave", 2.0),
+                ("osc1_voices", 1.0),
+                ("osc1_level", 30.0),
+                ("osc2_wave", 2.0),
+                ("osc2_level", 0.0),
+                ("osc2_octave", 1.0),
+                ("osc2_semi", 3.0),
+                ("osc2_fine", 12.0),
+                ("ring", 80.0),
+                ("velocity", 60.0),
+                ("spread", 60.0),
+                ("fx_reverb", 30.0),
+                ("fx_reverb_decay", 4.0),
+                ("volume", -8.0),
+            ],
+            adsr(1.0, 2200.0, 0.0, 2200.0),
+            filter(14000.0, 0.0, 0.0),
+        ),
+        sound(
+            tr("Bass: FM Growl"),
+            &[
+                ("wave", 0.0),
+                ("osc1_voices", 1.0),
+                ("osc2_wave", 2.0),
+                ("osc2_level", 0.0),
+                ("osc2_octave", -1.0),
+                ("fm", 20.0),
+                ("sub_level", 35.0),
+                ("mode", 1.0),
+                ("lfo1_sync", 1.0),
+                ("lfo1_note", 5.0),
+                ("lfo1_shape", 1.0),
+                ("mod1_source", 1.0),
+                ("mod1_target", 14.0),
+                ("mod1_amount", 40.0),
+                ("mod2_source", 5.0),
+                ("mod2_target", 8.0),
+                ("mod2_amount", 30.0),
+                ("drive", 30.0),
+                ("volume", -6.0),
+            ],
+            adsr(2.0, 300.0, 90.0, 120.0),
+            filter(1200.0, 25.0, 20.0),
+        ),
+        sound(
+            tr("Pad: Space"),
+            &[
+                ("osc1_voices", 5.0),
+                ("detune", 16.0),
+                ("osc2_wave", 3.0),
+                ("osc2_level", 50.0),
+                ("osc2_octave", 1.0),
+                ("filter_type", 1.0),
+                ("spread", 100.0),
+                ("drift", 20.0),
+                ("fx_chorus", 40.0),
+                ("fx_reverb", 45.0),
+                ("fx_reverb_decay", 7.0),
+                ("fx_delay", 15.0),
+                ("fx_delay_note", 8.0),
+                ("volume", -6.5),
+            ],
+            adsr(1800.0, 3000.0, 85.0, 4500.0),
+            filter(2200.0, 15.0, 10.0),
+        ),
+    ];
+    // A touch of space on the sounds made for it.
+    // A touch of space on the sounds made for it, and the level the dry part loses back.
+    type Space<'a> = (&'a str, f32, &'a [(&'a str, f32)]);
+    let space: [Space; 10] = [
+        (
+            "Keys: Soft",
+            1.5,
+            &[("fx_chorus", 25.0), ("fx_reverb", 15.0)],
+        ),
+        (
+            "Keys: Electric",
+            2.0,
+            &[("fx_chorus", 35.0), ("fx_reverb", 12.0)],
+        ),
+        (
+            "Pad: Warm",
+            4.0,
+            &[("fx_reverb", 25.0), ("fx_reverb_decay", 4.0)],
+        ),
+        (
+            "Pad: Glass",
+            2.0,
+            &[("fx_reverb", 30.0), ("fx_reverb_decay", 5.0)],
+        ),
+        (
+            "Pad: Airy",
+            2.5,
+            &[("fx_reverb", 35.0), ("fx_reverb_decay", 6.0)],
+        ),
+        (
+            "Strings: Ensemble",
+            4.0,
+            &[("fx_chorus", 40.0), ("fx_reverb", 20.0)],
+        ),
+        (
+            "Lead: Supersaw",
+            4.0,
+            &[("fx_delay", 15.0), ("fx_reverb", 15.0)],
+        ),
+        ("Lead: Mono glide", 2.0, &[("fx_delay", 20.0)]),
+        (
+            "Pluck: Bright",
+            6.0,
+            &[("fx_delay", 25.0), ("fx_reverb", 15.0)],
+        ),
+        (
+            "Bell",
+            2.5,
+            &[("fx_reverb", 30.0), ("fx_reverb_decay", 4.0)],
+        ),
+    ];
+    let volume = audiostrada_dsp::info("synth")
+        .and_then(|i| i.params.iter().find(|p| p.id == "volume"))
+        .map_or(-12.0, |p| p.default);
+    for (name, louder, extra) in space {
+        if let Some(sound) = presets.iter_mut().find(|p| p.name == tr(name)) {
+            for &(id, v) in extra {
+                sound.params.insert(id.to_owned(), v);
+            }
+            *sound.params.entry("volume".to_owned()).or_insert(volume) += louder;
+        }
+    }
+    presets
 }
 
 /// Color of each modulation source, as on its pill, its ring and its routing.
@@ -664,6 +848,7 @@ fn target_of(id: &str) -> Option<usize> {
     Some(match id {
         "osc1_fine" => target::OSC1_PITCH,
         "osc1_position" => target::OSC1_POSITION,
+        "fm" => target::FM,
         "osc2_position" => target::OSC2_POSITION,
         "osc2_fine" => target::OSC2_PITCH,
         "osc1_level" => target::OSC1_LEVEL,
@@ -948,6 +1133,42 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
                     ("bend_range", tr("Bend")),
                 ][k];
                 mod_knob(ui, params, state, id, name);
+            });
+        }),
+    });
+    // Oscillator 2 shaping oscillator 1, then the effects over the two other columns.
+    row(ui, full, &[1, 2], 100.0, |ui, c| match c {
+        0 => panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                title(ui, tr("Osc 2 → Osc 1"), p.weak);
+                params.toggle(ui, "sync", |ui, on| {
+                    let response = pill_switch(ui, *on, tr("Sync")).on_hover_text(tr(
+                        "Oscillator 1 starts its cycle again with oscillator 2: tune oscillator \
+                         1 higher, or sweep its pitch, for the tearing sync sound",
+                    ));
+                    if response.clicked() {
+                        *on = !*on;
+                    }
+                    response
+                });
+            });
+            spread(ui, 2, |ui, k| {
+                let (id, name) = [("fm", tr("FM")), ("ring", tr("Ring"))][k];
+                mod_knob(ui, params, state, id, name);
+            });
+        }),
+        _ => panel(ui, |ui| {
+            title(ui, tr("Effects"), p.weak);
+            spread(ui, 6, |ui, k| {
+                let (id, name) = [
+                    ("fx_chorus", tr("Chorus")),
+                    ("fx_delay", tr("Delay")),
+                    ("fx_delay_note", tr("Time")),
+                    ("fx_delay_feedback", tr("Feedback")),
+                    ("fx_reverb", tr("Reverb")),
+                    ("fx_reverb_decay", tr("Decay")),
+                ][k];
+                wide_knob(ui, params, id, name, 38.0, p.accent);
             });
         }),
     });

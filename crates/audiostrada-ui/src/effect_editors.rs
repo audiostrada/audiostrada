@@ -837,44 +837,55 @@ fn knob_with(
     } else {
         size + 18.0
     };
-    ui.vertical(|ui| {
-        ui.set_width(width);
-        ui.vertical_centered(|ui| {
-            let mut name = egui::Label::new(
-                RichText::new(label)
-                    .size(10.5)
-                    .color(theme::current(ui).weak),
-            );
-            if wide {
-                name = name.extend();
-            }
-            ui.add(name);
-            let bipolar = p.min < 0.0 && p.max > 0.0;
-            let (changed, response) = widgets::knob(
-                ui,
-                to_unit(p, value),
-                (0.0, 1.0),
-                to_unit(p, p.default),
-                size,
-                bipolar,
-                tint,
-            );
-            let changed = changed.map(|t| from_unit(p, t));
-            let shown = changed.unwrap_or(value);
-            let response = response.on_hover_text(crate::trf!(
-                "{name}: {value}. Drag, Shift for fine, double-click to reset",
-                name = tr(p.name),
-                value = format_value(p, shown)
-            ));
-            params.set(id, changed, &response);
-            let mut text =
-                egui::Label::new(RichText::new(format_value(p, shown)).monospace().size(11.0));
-            if wide {
-                text = text.extend();
-            }
-            ui.add(text);
+    let draw = |ui: &mut Ui| {
+        let mut name = egui::Label::new(
+            RichText::new(label)
+                .size(10.5)
+                .color(theme::current(ui).weak),
+        );
+        if wide {
+            name = name.extend();
+        }
+        ui.add(name);
+        let bipolar = p.min < 0.0 && p.max > 0.0;
+        let (changed, response) = widgets::knob(
+            ui,
+            to_unit(p, value),
+            (0.0, 1.0),
+            to_unit(p, p.default),
+            size,
+            bipolar,
+            tint,
+        );
+        let changed = changed.map(|t| from_unit(p, t));
+        let shown = changed.unwrap_or(value);
+        let response = response.on_hover_text(crate::trf!(
+            "{name}: {value}. Drag, Shift for fine, double-click to reset",
+            name = tr(p.name),
+            value = format_value(p, shown)
+        ));
+        params.set(id, changed, &response);
+        let mut text =
+            egui::Label::new(RichText::new(format_value(p, shown)).monospace().size(11.0));
+        if wide {
+            text = text.extend();
+        }
+        ui.add(text);
+    };
+    // In a centered column the knob sits in the middle, elsewhere at the cursor.
+    let layout = ui.layout();
+    if layout.is_vertical() && layout.horizontal_align() == egui::Align::Center {
+        ui.allocate_ui_with_layout(
+            vec2(width, 0.0),
+            egui::Layout::top_down(egui::Align::Center),
+            draw,
+        );
+    } else {
+        ui.vertical(|ui| {
+            ui.set_width(width);
+            ui.vertical_centered(draw);
         });
-    });
+    }
 }
 
 // ---------------------------------------------------------------- EQ

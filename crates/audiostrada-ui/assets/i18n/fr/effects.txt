@@ -3919,3 +3919,39 @@ Des tirettes tirées une à une : de la flûte à l'orgue plein
 
 Your own WAV file, cut into frames of 2048 samples as Serum and Vital save them
 Votre propre fichier WAV, découpé en images de 2048 échantillons comme les enregistrent Serum et Vital
+
+Delay feedback
+Réinjection du delay
+
+Delay time
+Temps du delay
+
+FM
+FM
+
+Reverb decay
+Déclin de la reverb
+
+Ring
+Anneau
+
+Osc 2 → Osc 1
+Osc 2 → Osc 1
+
+Oscillator 1 starts its cycle again with oscillator 2: tune oscillator 1 higher, or sweep its pitch, for the tearing sync sound
+L'oscillateur 1 recommence son cycle avec l'oscillateur 2 : accordez l'oscillateur 1 plus haut, ou balayez sa hauteur, pour le son déchiré de la sync
+
+Keys: FM Electric
+Claviers : Électrique FM
+
+Lead: Sync sweep
+Lead : Balayage sync
+
+Bell: Ring
+Cloche : Anneau
+
+Bass: FM Growl
+Basse : Grondement FM
+
+Pad: Space
+Nappe : Espace
