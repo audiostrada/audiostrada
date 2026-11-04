@@ -3,6 +3,7 @@
 //! back an octave up. Shared controls drive every engine, with freeze and ducking of the tail
 //! while the input plays.
 
+use crate::delay::{NOTE_NAMES, synced_seconds};
 use crate::hall::{self, Hall};
 use crate::plate::{self, Plate};
 use crate::spring::Spring;
@@ -39,7 +40,7 @@ pub const PLATE: usize = 3;
 pub const SPRING: usize = 4;
 pub const SHIMMER: usize = 5;
 
-const PARAMS: [ParamInfo; 16] = [
+const PARAMS: [ParamInfo; COUNT] = [
     choice("type", "Space", &TYPES, HALL as f32),
     param("decay", "Decay", 0.2, 20.0, 2.0, "s"),
     param("predelay", "Pre-delay", 0.0, 200.0, 20.0, "ms"),
@@ -56,6 +57,11 @@ const PARAMS: [ParamInfo; 16] = [
     param("modulation", "Modulation", 0.0, 100.0, 40.0, "%"),
     switch("freeze", "Freeze", 0.0),
     param("shimmer", "Shimmer", 0.0, 100.0, 50.0, "%"),
+    switch("predelay_sync", "Pre-delay sync", 0.0),
+    choice("predelay_note", "Pre-delay note", &NOTE_NAMES, 2.0),
+    param("mod_rate", "Modulation rate", 0.1, 5.0, 0.37, "Hz"),
+    param("crossover", "Bass crossover", 80.0, 1000.0, 250.0, "Hz"),
+    param("duck_release", "Ducking release", 50.0, 2000.0, 300.0, "ms"),
 ];
 
 const TYPE: usize = 0;
@@ -74,6 +80,12 @@ const DIFFUSION: usize = 12;
 const MODULATION: usize = 13;
 const FREEZE: usize = 14;
 const AMOUNT: usize = 15;
+const PREDELAY_SYNC: usize = 16;
+const PREDELAY_NOTE: usize = 17;
+const MOD_RATE: usize = 18;
+const CROSSOVER: usize = 19;
+const DUCK_RELEASE: usize = 20;
+const COUNT: usize = 21;
 
 /// Input level from which ducking is at its full depth.
 const DUCK_FULL: f32 = 0.25;
@@ -98,7 +110,7 @@ fn engine(kind: usize) -> Engine {
 /// Whether the space `kind` uses the parameter `id` (the editor greys the others).
 pub fn uses(kind: usize, id: &str) -> bool {
     match id {
-        "size" | "early" | "bass" => engine(kind) == Engine::Rooms,
+        "size" | "early" | "bass" | "mod_rate" | "crossover" => engine(kind) == Engine::Rooms,
         "modulation" => engine(kind) != Engine::Spring,
         "shimmer" => kind == SHIMMER,
         _ => true,
@@ -174,7 +186,9 @@ impl Octave {
 }
 
 pub struct Reverb {
-    values: [f32; 16],
+    values: [f32; COUNT],
+    rate: f32,
+    bpm: f64,
     hall: Hall,
     plate: Plate,
     spring: Spring,
@@ -197,6 +211,8 @@ impl Default for Reverb {
     fn default() -> Self {
         let mut reverb = Self {
             values: PARAMS.map(|p| p.default),
+            rate: 48_000.0,
+            bpm: 120.0,
             hall: Hall::default(),
             plate: Plate::default(),
             spring: Spring::default(),
@@ -223,9 +239,19 @@ impl Reverb {
     }
 
     fn set_rate(&mut self, rate: f32) {
+        self.rate = rate;
         self.attack = 1.0 - time_coefficient(1.0, rate);
-        self.release = 1.0 - time_coefficient(300.0, rate);
+        self.release = 1.0 - time_coefficient(self.values[DUCK_RELEASE], rate);
         self.octave.prepare(rate);
+    }
+
+    /// Pre-delay in ms: the note's length at the tempo when synced, within the engines' 200 ms.
+    fn predelay_ms(&self) -> f32 {
+        if self.values[PREDELAY_SYNC] >= 0.5 {
+            (synced_seconds(self.values[PREDELAY_NOTE], self.bpm) * 1000.0).min(200.0)
+        } else {
+            self.values[PREDELAY]
+        }
     }
 
     /// Hands a parameter to the engine settings it maps to.
@@ -246,11 +272,18 @@ impl Reverb {
                 p.set_param(1, plate::decay_percent(v));
                 s.decay = v;
             }
-            PREDELAY => {
-                h.set_param(3, v);
-                p.set_param(0, v);
-                s.predelay_ms = v;
+            PREDELAY | PREDELAY_SYNC | PREDELAY_NOTE => {
+                let ms = {
+                    let v = self.predelay_ms();
+                    self.hall.set_param(3, v);
+                    self.plate.set_param(0, v);
+                    v
+                };
+                self.spring.predelay_ms = ms;
             }
+            MOD_RATE => h.set_param(14, v),
+            CROSSOVER => h.set_param(15, v),
+            DUCK_RELEASE => self.release = 1.0 - time_coefficient(v, self.rate),
             LOW_CUT => {
                 h.set_param(9, v);
                 p.set_param(6, v);
@@ -325,6 +358,13 @@ impl Effect for Reverb {
         self.wet = [vec![0.0; max_frames.max(1)], vec![0.0; max_frames.max(1)]];
         self.envelope = 0.0;
         self.set_rate(sample_rate as f32);
+    }
+
+    fn set_tempo(&mut self, bpm: f64) {
+        if (bpm - self.bpm).abs() > 1e-6 {
+            self.bpm = bpm;
+            self.forward(PREDELAY);
+        }
     }
 
     fn set_param(&mut self, index: usize, value: f32) {
@@ -570,6 +610,40 @@ mod tests {
             let (mut l, mut r) = (vec![0.0f32; 4800], vec![0.0f32; 4800]);
             reverb.process(&mut l, &mut r);
             assert_eq!(energy(&l) + energy(&r), 0.0, "{kind}");
+        }
+    }
+
+    #[test]
+    fn synced_pre_delay_follows_the_tempo() {
+        let onset = |bpm: f64| {
+            let mut r = Reverb::default();
+            r.set_param(MIX, 100.0);
+            r.set_param(TYPE, PLATE as f32);
+            r.set_param(PREDELAY_SYNC, 1.0);
+            // A sixteenth note.
+            r.set_param(PREDELAY_NOTE, 2.0);
+            r.set_tempo(bpm);
+            r.prepare(48_000, 256);
+            let (l, _) = impulse(&mut r, 0.5);
+            l.iter().position(|s| s.abs() > 1e-4).unwrap_or(0)
+        };
+        let (fast, slow) = (onset(120.0), onset(80.0));
+        assert!((6000..6600).contains(&fast), "125 ms at 120 BPM: {fast}");
+        assert!((9000..9600).contains(&slow), "187.5 ms at 80 BPM: {slow}");
+    }
+
+    #[test]
+    fn modulation_rate_and_crossover_stay_stable() {
+        for (rate, crossover) in [(0.1, 80.0), (5.0, 1000.0)] {
+            let mut r = reverb(&[
+                (MODULATION, 100.0),
+                (MOD_RATE, rate),
+                (CROSSOVER, crossover),
+                (DECAY, 8.0),
+            ]);
+            let (l, r_) = impulse(&mut r, 3.0);
+            assert!(l.iter().chain(&r_).all(|s| s.is_finite() && s.abs() < 2.0));
+            assert!(energy(&l[96_000..]) > 0.0);
         }
     }
 }

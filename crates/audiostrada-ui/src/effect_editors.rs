@@ -128,6 +128,8 @@ pub struct EditorState {
     /// EQ band heard alone (listening only; stopped when the window closes).
     pub eq_solo: Option<usize>,
     eq_view: EqView,
+    /// Times of the last clicks on a delay's Tap button.
+    taps: Vec<f64>,
 }
 
 /// How the EQ display looks: its range and its spectra.
@@ -523,7 +525,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Editor
         "tuner" => tuner(ui, params, meters),
         "pitch_correct" => pitch_correct(ui, params, meters, state),
         "analyzer" => analyzer(ui, params, meters, &mut state.spectrum),
-        "delay" => delay(ui, params),
+        "delay" => delay(ui, params, state),
         "reverb" => reverb(ui, params),
         "maximizer" => maximizer(ui, params, meters, state),
         "tape" => tape(ui, params),
@@ -1651,13 +1653,18 @@ fn band_panel(
 
 /// A titled panel of the EQ's controls, all of one height.
 fn eq_section(ui: &mut Ui, title: &str, color: Color32, add: impl FnOnce(&mut Ui)) {
+    section_frame(ui, title, color, 112.0, add);
+}
+
+/// A titled panel of controls, `height` tall at least.
+fn section_frame(ui: &mut Ui, title: &str, color: Color32, height: f32, add: impl FnOnce(&mut Ui)) {
     let p = theme::current(ui);
     egui::Frame::new()
         .fill(p.base)
         .corner_radius(8.0)
         .inner_margin(egui::Margin::symmetric(10, 8))
         .show(ui, |ui| {
-            ui.set_min_height(112.0);
+            ui.set_min_height(height);
             ui.vertical(|ui| {
                 ui.label(RichText::new(title).strong().size(11.5).color(color));
                 ui.add_space(2.0);
@@ -1942,8 +1949,11 @@ fn grid_seconds(
 
 // ---------------------------------------------------------------- Delay
 
-fn delay(ui: &mut Ui, params: &mut Params) {
+fn delay(ui: &mut Ui, params: &mut Params, state: &mut EditorState) {
+    use audiostrada_dsp::delay::{MODEL_HINTS, MODELS};
     let p = theme::current(ui);
+    cards(ui, params, "model", &MODELS, &MODEL_HINTS);
+    ui.add_space(8.0);
     let synced = params.get("sync") >= 0.5;
     let bpm = params.doc.project().tempo.bpm_at_beat(0.0);
     let seconds = if synced {
@@ -1953,6 +1963,7 @@ fn delay(ui: &mut Ui, params: &mut Params) {
     };
     let (feedback, mix) = (params.get("feedback") / 100.0, params.get("mix") / 100.0);
     let pingpong = params.get("pingpong") >= 0.5;
+    let offset = params.get("offset") * 0.001;
     let (low, high) = (params.get("low_cut"), params.get("high_cut"));
     // Each pass through the filters loses some of the band: echoes darken as they repeat.
     let band = ((high / low).log2() / (20_000.0f32 / 20.0).log2()).clamp(0.1, 1.0);
@@ -2002,6 +2013,12 @@ fn delay(ui: &mut Ui, params: &mut Params) {
             (true, _) => &[1.0],
         };
         for side in sides {
+            // The right side, below, comes later or earlier by its offset.
+            let x = if *side > 0.0 {
+                to_x(seconds * n as f32 + offset * n as f32)
+            } else {
+                x
+            };
             painter.line_segment(
                 [pos2(x, mid), pos2(x, mid + side * half * height(level))],
                 Stroke::new(3.0, color),
@@ -2044,42 +2061,146 @@ fn delay(ui: &mut Ui, params: &mut Params) {
         theme::strong(13.0),
         p.accent,
     );
-    ui.add_space(6.0);
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(tr("Model")).size(10.5).color(p.weak));
-        choice_box(ui, params, "model");
-        ui.add_space(8.0);
-        switches(ui, params);
+    ui.add_space(8.0);
+    let tape = params.get("model") >= 0.5;
+    let accent = p.accent;
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        section_frame(ui, tr("Time"), p.weak, 118.0, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                params.toggle(ui, "sync", |ui, on| {
+                    let response = pill_switch(ui, *on, tr("Sync"))
+                        .on_hover_text(tr("A note value at the project's tempo"));
+                    if response.clicked() {
+                        *on = !*on;
+                    }
+                    response
+                });
+                if !synced {
+                    tap_button(ui, params, state);
+                }
+            });
+            ui.add_space(4.0);
+            ui.horizontal_top(|ui| {
+                if synced {
+                    note_grid(ui, params, "note", None);
+                } else {
+                    wide_knob(ui, params, "time", tr("Time"), 44.0, accent);
+                }
+                wide_knob(ui, params, "offset", tr("Right offset"), 44.0, accent);
+            });
+        });
+        section_frame(ui, tr("Repeats"), p.weak, 118.0, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                for id in ["feedback", "low_cut", "high_cut"] {
+                    let name = params.param(id).map_or("", |q| tr(q.name));
+                    wide_knob(ui, params, id, name, 44.0, accent);
+                }
+            });
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                for (id, label, hint) in [
+                    (
+                        "pingpong",
+                        "Ping-pong",
+                        "The echoes bounce from one side to the other",
+                    ),
+                    (
+                        "freeze",
+                        "Freeze",
+                        "Holds what is in the delay, repeating for ever; the input is not added",
+                    ),
+                ] {
+                    params.toggle(ui, id, |ui, on| {
+                        let response = pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
+                        if response.clicked() {
+                            *on = !*on;
+                        }
+                        response
+                    });
+                }
+            });
+        });
+        section_frame(ui, tr("Character"), p.weak, 118.0, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                ui.add_enabled_ui(tape, |ui| {
+                    wide_knob(ui, params, "wow", tr("Wow & flutter"), 44.0, theme::SOLO);
+                    wide_knob(ui, params, "drive", tr("Drive"), 44.0, theme::SOLO);
+                });
+            });
+        });
+        section_frame(ui, tr("Output"), p.weak, 118.0, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                wide_knob(ui, params, "duck", tr("Ducking"), 44.0, accent);
+                wide_knob(ui, params, "mix", tr("Mix"), 44.0, accent);
+            });
+        });
     });
-    ui.add_space(4.0);
-    let analog = params.get("model") >= 0.5;
-    ui.horizontal(|ui| {
-        param_knob(
-            ui,
-            params,
-            if synced { "note" } else { "time" },
-            56.0,
-            p.accent,
-        );
-        knobs(
-            ui,
-            params,
-            &["feedback", "low_cut", "high_cut", "mix"],
-            50.0,
-            p.accent,
-        );
-        if analog {
-            param_knob(ui, params, "wow", 50.0, theme::SOLO);
-            param_knob(ui, params, "drive", 50.0, theme::SOLO);
+}
+
+/// The note values as small buttons in rows: straight, dotted, triplets; `longest` limits
+/// them (in quarter notes), for a pre-delay.
+fn note_grid(ui: &mut Ui, params: &mut Params, id: &str, longest: Option<f32>) {
+    let current = params.get(id).round() as usize;
+    let notes = audiostrada_dsp::delay::notes_by_length();
+    let rows: [fn(&str) -> bool; 3] = [
+        |n| !n.ends_with(" D") && !n.ends_with(" T"),
+        |n| n.ends_with(" D"),
+        |n| n.ends_with(" T"),
+    ];
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = 3.0;
+        for keep in rows {
+            let row: Vec<_> = notes
+                .iter()
+                .filter(|(_, name, q)| keep(name) && longest.is_none_or(|l| *q <= l))
+                .collect();
+            if row.is_empty() {
+                continue;
+            }
+            ui.horizontal(|ui| {
+                let labels: Vec<&str> = row.iter().map(|(_, n, _)| tr(n)).collect();
+                let lit = row.iter().position(|(i, _, _)| *i == current);
+                if let Some(k) = chips(ui, &labels, &[], lit) {
+                    let response = ui.response();
+                    params.set(id, Some(row[k].0 as f32), &response);
+                    params.doc.history_mut().end_gesture();
+                }
+            });
         }
     });
+}
+
+/// Sets the delay time from the interval between clicks.
+fn tap_button(ui: &mut Ui, params: &mut Params, state: &mut EditorState) {
+    let now = ui.input(|i| i.time);
+    state.taps.retain(|t| now - t < 2.0);
+    let response = ui.button(tr("Tap")).on_hover_text(tr(
+        "Click in time: the delay takes the interval between the clicks",
+    ));
+    if response.clicked() {
+        state.taps.push(now);
+        if state.taps.len() >= 2 {
+            let n = state.taps.len();
+            let interval = (state.taps[n - 1] - state.taps[0]) / (n - 1) as f64;
+            params.set("time", Some((interval * 1000.0) as f32), &response);
+            params.doc.history_mut().end_gesture();
+        }
+    }
 }
 
 // ---------------------------------------------------------------- Reverb
 
 fn reverb(ui: &mut Ui, params: &mut Params) {
-    use audiostrada_dsp::reverb::{SHIMMER, TYPE_HINTS, decay_seconds, uses};
+    use audiostrada_dsp::reverb::{SHIMMER, TYPE_HINTS, TYPES, decay_seconds, uses};
     let kind = (params.get("type").round().max(0.0) as usize).min(SHIMMER);
+    cards(ui, params, "type", &TYPES, &TYPE_HINTS);
+    ui.add_space(8.0);
     let (lows, highs) = decay_seconds(
         kind,
         params.get("decay"),
@@ -2087,30 +2208,86 @@ fn reverb(ui: &mut Ui, params: &mut Params) {
         params.get("treble"),
     );
     space_view(ui, params, lows, highs);
-    ui.horizontal(|ui| {
-        mode_buttons(ui, params, "type", &TYPE_HINTS);
-        ui.add_space(16.0);
-        ui.vertical(|ui| {
-            ui.add_space(14.0);
-            switches(ui, params);
+    let p = theme::current(ui);
+    let accent = p.accent;
+    let knob = |ui: &mut Ui, params: &mut Params, id: &str, tint: Color32| {
+        let name = params.param(id).map_or("", |q| tr(q.name));
+        ui.add_enabled_ui(uses(kind, id), |ui| {
+            wide_knob(ui, params, id, name, 44.0, tint)
+        });
+    };
+    let pill = |ui: &mut Ui, params: &mut Params, id: &str, label: &'static str, hint| {
+        params.toggle(ui, id, |ui, on| {
+            let response = pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
+            if response.clicked() {
+                *on = !*on;
+            }
+            response
+        });
+    };
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        section_frame(ui, tr("Space"), p.weak, 118.0, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                for id in ["decay", "size", "early", "diffusion"] {
+                    knob(ui, params, id, accent);
+                }
+            });
+            ui.add_space(4.0);
+            pill(
+                ui,
+                params,
+                "freeze",
+                "Freeze",
+                "Holds the tail as it is, for ever; the input is not added",
+            );
+        });
+        section_frame(ui, tr("Pre-delay"), p.weak, 118.0, |ui| {
+            pill(
+                ui,
+                params,
+                "predelay_sync",
+                "Sync",
+                "A note value at the project's tempo, up to 200 ms",
+            );
+            ui.add_space(4.0);
+            if params.get("predelay_sync") >= 0.5 {
+                note_grid(ui, params, "predelay_note", Some(0.5));
+            } else {
+                knob(ui, params, "predelay", accent);
+            }
+        });
+        section_frame(ui, tr("Motion"), p.weak, 118.0, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                knob(ui, params, "modulation", accent);
+                knob(ui, params, "mod_rate", accent);
+            });
         });
     });
-    ui.add_space(6.0);
-    let accent = theme::current(ui).accent;
-    ui.horizontal(|ui| {
-        param_knob(ui, params, "decay", 60.0, accent);
-        let ids = ["predelay", "high_cut", "low_cut", "width", "duck", "mix"];
-        knobs(ui, params, &ids, 50.0, accent);
-        if kind == SHIMMER {
-            param_knob(ui, params, "shimmer", 50.0, theme::SOLO);
-        }
-    });
-    ui.horizontal(|ui| {
-        for id in ["size", "early", "treble", "bass", "diffusion", "modulation"] {
-            ui.add_enabled_ui(uses(kind, id), |ui| {
-                param_knob(ui, params, id, 44.0, accent)
+    ui.add_space(8.0);
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        section_frame(ui, tr("Tone"), p.weak, 118.0, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                for id in ["low_cut", "high_cut", "treble", "bass", "crossover"] {
+                    knob(ui, params, id, accent);
+                }
             });
-        }
+        });
+        section_frame(ui, tr("Output"), p.weak, 118.0, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                for id in ["width", "duck", "duck_release", "mix"] {
+                    knob(ui, params, id, accent);
+                }
+                if kind == SHIMMER {
+                    knob(ui, params, "shimmer", theme::SOLO);
+                }
+            });
+        });
     });
 }
 
@@ -2118,7 +2295,12 @@ fn reverb(ui: &mut Ui, params: &mut Params) {
 /// stereo width; shared by the reverbs.
 fn space_view(ui: &mut Ui, params: &mut Params, lows: f32, highs: f32) {
     let p = theme::current(ui);
-    let predelay = params.get("predelay") * 0.001;
+    let predelay = if params.get("predelay_sync") >= 0.5 {
+        let bpm = params.doc.project().tempo.bpm_at_beat(0.0);
+        audiostrada_dsp::delay::synced_seconds(params.get("predelay_note"), bpm).min(0.2)
+    } else {
+        params.get("predelay") * 0.001
+    };
     let (width, mix) = (params.get("width") / 100.0, params.get("mix") / 100.0);
 
     let (rect, _) =
@@ -5603,6 +5785,7 @@ mod tests {
                 ("delay", "wow"),
                 ("delay", "drive"),
                 ("reverb", "shimmer"),
+                ("reverb", "predelay_note"),
                 // Set by dragging the modules; from the console.
                 ("channel", "order"),
                 ("channel", "character"),

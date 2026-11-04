@@ -3247,3 +3247,66 @@ Retire le gain en sortie, pour juger la limitation au niveau d'entrée plutôt q
 
 Plays only what the limiter takes away
 Fait entendre seulement ce que le limiteur retire
+
+1/2 D
+1/2 P
+
+1/2 T
+1/2 T
+
+Right offset
+Décalage droite
+
+A note value at the project's tempo
+Une valeur de note au tempo du projet
+
+Click in time: the delay takes the interval between the clicks
+Cliquer en rythme : le délai prend l'intervalle entre les clics
+
+Motion
+Mouvement
+
+Repeats
+Répétitions
+
+Sync
+Synchro
+
+Tap
+Tap
+
+Bass crossover
+Séparation des basses
+
+Ducking release
+Relâchement du ducking
+
+Modulation rate
+Vitesse de modulation
+
+Pre-delay note
+Note du pré-délai
+
+Pre-delay sync
+Pré-délai synchronisé
+
+A note value at the project's tempo, up to 200 ms
+Une valeur de note au tempo du projet, jusqu'à 200 ms
+
+Holds the tail as it is, for ever; the input is not added
+Garde la queue telle quelle, indéfiniment ; l'entrée n'est pas ajoutée
+
+Holds what is in the delay, repeating for ever; the input is not added
+Garde ce qui est dans le délai, répété indéfiniment ; l'entrée n'est pas ajoutée
+
+The echoes bounce from one side to the other
+Les échos rebondissent d'un côté à l'autre
+
+Clean repeats; a new time crossfades in without a pitch sweep
+Répétitions propres ; un nouveau temps arrive en fondu, sans glissement de hauteur
+
+Wobbling, saturated repeats that darken; a new time glides like a varispeed
+Répétitions qui ondulent, saturent et s'assombrissent ; un nouveau temps glisse comme un varispeed
+
+Bucket-brigade: darker the longer the time, drifting and warm
+Bucket-brigade : plus sombre quand le temps s'allonge, flottant et chaud

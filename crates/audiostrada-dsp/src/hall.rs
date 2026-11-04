@@ -7,7 +7,7 @@ use crate::{Effect, ParamInfo, choice, lowpass_coefficient, param, pole, switch}
 
 const TYPES: [&str; 3] = ["Room", "Hall", "Space"];
 
-const PARAMS: [ParamInfo; 14] = [
+const PARAMS: [ParamInfo; 16] = [
     choice("type", "Space", &TYPES, 1.0),
     param("size", "Size", 0.0, 100.0, 60.0, "%"),
     param("decay", "Decay", 0.2, 20.0, 2.4, "s"),
@@ -22,6 +22,15 @@ const PARAMS: [ParamInfo; 14] = [
     param("width", "Width", 0.0, 150.0, 100.0, "%"),
     param("mix", "Mix", 0.0, 100.0, 25.0, "%"),
     switch("freeze", "Freeze", 0.0),
+    param("mod_rate", "Modulation rate", 0.1, 5.0, 0.37, "Hz"),
+    param(
+        "crossover",
+        "Bass crossover",
+        80.0,
+        1000.0,
+        CROSSOVER_HZ,
+        "Hz",
+    ),
 ];
 
 const LINES: usize = 8;
@@ -75,7 +84,7 @@ fn hadamard(v: &mut [f32; LINES]) {
 #[derive(Debug)]
 pub(crate) struct Hall {
     rate: f32,
-    values: [f32; 14],
+    values: [f32; 16],
     predelay: Line,
     early: Line,
     diffusers: [AllPass; 4],
@@ -208,6 +217,8 @@ impl Effect for Hall {
             width,
             mix,
             freeze,
+            mod_rate,
+            crossover,
         ] = self.values;
         let frozen = freeze >= 0.5;
         let kind = kind.round().clamp(0.0, 2.0) as usize;
@@ -216,8 +227,8 @@ impl Effect for Hall {
         let room = room_time(kind, size) * rate;
         let g_diff = 0.7 * diffusion / 100.0;
         let excursion = modulation / 100.0 * MAX_MOD_MS * 0.001 * rate;
-        let lfo_step = std::f32::consts::TAU * 0.37 / rate;
-        let split_c = lowpass_coefficient(CROSSOVER_HZ, rate);
+        let lfo_step = std::f32::consts::TAU * mod_rate / rate;
+        let split_c = lowpass_coefficient(crossover, rate);
         let hp_c = pole(low_cut, rate);
         let lp_c = lowpass_coefficient(high_cut, rate);
         let (early_gain, late_gain) = (early_mix / 100.0, 1.0 - early_mix / 100.0 * 0.6);

@@ -1,6 +1,8 @@
 //! Stereo delay with feedback, filters in the feedback path, ping-pong and dry/wet mix. The delay
-//! time glides when changed, read with linear interpolation. Tape and Analog models add wow
-//! and flutter, saturation in the loop and darker repeats.
+//! time glides when changed on the Tape and Analog models, which add wow and flutter,
+//! saturation in the loop and darker repeats; the Digital model crossfades to the new time
+//! instead, without a pitch sweep. The right side can be offset, the echoes duck while the
+//! input plays, and freeze holds the loop as it is.
 
 use crate::line::Line;
 use crate::{
@@ -8,7 +10,11 @@ use crate::{
     time_coefficient,
 };
 
-const MAX_SECONDS: f32 = 2.0;
+/// Two bars at 60 BPM.
+const MAX_SECONDS: f32 = 8.0;
+const CROSSFADE_MS: f32 = 40.0;
+/// Input level from which ducking is at its full depth.
+const DUCK_FULL: f32 = 0.25;
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "delay",
@@ -21,8 +27,9 @@ pub const INFO: EffectInfo = EffectInfo {
     description: "Digital, tape or analog echoes, ping-pong and tempo sync.",
 };
 
-/// Note values for the synced time, and their length in quarter notes.
-const NOTES: [(&str, f32); 12] = [
+/// Note values for the synced time, and their length in quarter notes; added values come
+/// last so that saved projects keep their note.
+const NOTES: [(&str, f32); 15] = [
     ("1/32", 0.125),
     ("1/16 T", 1.0 / 6.0),
     ("1/16", 0.25),
@@ -35,9 +42,12 @@ const NOTES: [(&str, f32); 12] = [
     ("1/4 D", 1.5),
     ("1/2", 2.0),
     ("1 bar", 4.0),
+    ("1/2 T", 4.0 / 3.0),
+    ("1/2 D", 3.0),
+    ("2 bars", 8.0),
 ];
 
-const NOTE_NAMES: [&str; 12] = [
+pub const NOTE_NAMES: [&str; 15] = [
     NOTES[0].0,
     NOTES[1].0,
     NOTES[2].0,
@@ -50,12 +60,31 @@ const NOTE_NAMES: [&str; 12] = [
     NOTES[9].0,
     NOTES[10].0,
     NOTES[11].0,
+    NOTES[12].0,
+    NOTES[13].0,
+    NOTES[14].0,
 ];
 
-const MODELS: [&str; 3] = ["Digital", "Tape", "Analog"];
+/// The note values from the shortest, for the editor's grid.
+pub fn notes_by_length() -> Vec<(usize, &'static str, f32)> {
+    let mut notes: Vec<_> = NOTES
+        .iter()
+        .enumerate()
+        .map(|(i, (name, quarters))| (i, *name, *quarters))
+        .collect();
+    notes.sort_by(|a, b| a.2.total_cmp(&b.2));
+    notes
+}
 
-const PARAMS: [ParamInfo; 11] = [
-    param("time", "Time", 1.0, 2000.0, 375.0, "ms"),
+pub const MODELS: [&str; 3] = ["Digital", "Tape", "Analog"];
+pub const MODEL_HINTS: [&str; 3] = [
+    "Clean repeats; a new time crossfades in without a pitch sweep",
+    "Wobbling, saturated repeats that darken; a new time glides like a varispeed",
+    "Bucket-brigade: darker the longer the time, drifting and warm",
+];
+
+const PARAMS: [ParamInfo; COUNT] = [
+    param("time", "Time", 1.0, 4000.0, 375.0, "ms"),
     param("feedback", "Feedback", 0.0, 95.0, 35.0, "%"),
     switch("pingpong", "Ping-pong", 0.0),
     param("low_cut", "Low cut", 20.0, 2000.0, 100.0, "Hz"),
@@ -66,13 +95,24 @@ const PARAMS: [ParamInfo; 11] = [
     choice("model", "Model", &MODELS, 0.0),
     param("wow", "Wow & flutter", 0.0, 100.0, 25.0, "%"),
     param("drive", "Drive", 0.0, 100.0, 30.0, "%"),
+    param("offset", "Right offset", -50.0, 50.0, 0.0, "ms"),
+    param("duck", "Ducking", 0.0, 100.0, 0.0, "%"),
+    switch("freeze", "Freeze", 0.0),
 ];
+
+const OFFSET: usize = 11;
+const DUCK: usize = 12;
+const FREEZE: usize = 13;
+const COUNT: usize = 14;
 
 #[derive(Debug)]
 pub struct Delay {
     rate: f32,
-    values: [f32; 11],
+    values: [f32; COUNT],
     bpm: f64,
+    /// Digital model: the time read, the time faded to, and how far the fade is (0 to 1).
+    heads: (f32, f32, f32),
+    envelope: f32,
     phase: [f32; 2],
     dark: [f32; 2],
     lines: [Line; 2],
@@ -89,6 +129,8 @@ impl Default for Delay {
             rate: 48_000.0,
             values: PARAMS.map(|p| p.default),
             bpm: 120.0,
+            heads: (0.0, 0.0, 1.0),
+            envelope: 0.0,
             phase: [0.0, 1.3],
             dark: [0.0; 2],
             lines: Default::default(),
@@ -131,6 +173,8 @@ impl Delay {
         let frames = (MAX_SECONDS * self.rate) as usize + 2;
         self.lines = [Line::new(frames), Line::new(frames)];
         self.current = self.target(self.seconds());
+        self.heads = (self.current, self.current, 1.0);
+        self.envelope = 0.0;
         self.glide = time_coefficient(50.0, self.rate);
         self.lp = [0.0; 2];
         self.hp = [0.0; 2];
@@ -167,6 +211,7 @@ impl Effect for Delay {
             model,
             wow,
             drive,
+            ..,
         ] = self.values;
         let model = model.round().clamp(0.0, 2.0) as usize;
         let max = self.max_delay();
@@ -198,16 +243,52 @@ impl Effect for Delay {
             _ => self.rate,
         };
         let dark = lowpass_coefficient(dark_hz, self.rate);
+        let offset = self.values[OFFSET] * 0.001 * self.rate;
+        let duck = self.values[DUCK] / 100.0;
+        let frozen = self.values[FREEZE] >= 0.5;
+        let fade_step = 1.0 / (CROSSFADE_MS * 0.001 * self.rate);
+        let (duck_attack, duck_release) = (
+            1.0 - time_coefficient(5.0, self.rate),
+            1.0 - time_coefficient(250.0, self.rate),
+        );
         for (l, r) in left.iter_mut().zip(right.iter_mut()) {
-            self.current = target + self.glide * (self.current - target);
-            let mut time = self.current;
-            if depth > 0.0 {
-                self.phase[0] = (self.phase[0] + steps[0]) % std::f32::consts::TAU;
-                self.phase[1] = (self.phase[1] + steps[1]) % std::f32::consts::TAU;
-                let wobble = self.phase[0].sin() + flutter * self.phase[1].sin();
-                time = (time * (1.0 + depth * wobble)).clamp(1.0, max);
-            }
-            let mut echoes = [self.lines[0].read(time), self.lines[1].read(time)];
+            // Where to read: a gliding time on tape and analog, two crossfaded heads in digital.
+            let (times, blend) = if model == 0 {
+                let (from, to, fade) = &mut self.heads;
+                if *fade >= 1.0 && (target - *from).abs() > 0.5 {
+                    (*to, *fade) = (target, 0.0);
+                }
+                if *fade < 1.0 {
+                    *fade = (*fade + fade_step).min(1.0);
+                    if *fade >= 1.0 {
+                        *from = *to;
+                    }
+                }
+                ([*from, *to], *fade)
+            } else {
+                self.current = target + self.glide * (self.current - target);
+                let mut time = self.current;
+                if depth > 0.0 && !frozen {
+                    self.phase[0] = (self.phase[0] + steps[0]) % std::f32::consts::TAU;
+                    self.phase[1] = (self.phase[1] + steps[1]) % std::f32::consts::TAU;
+                    let wobble = self.phase[0].sin() + flutter * self.phase[1].sin();
+                    time = (time * (1.0 + depth * wobble)).clamp(1.0, max);
+                }
+                ([time, time], 1.0)
+            };
+            let read = |line: &Line, extra: f32| {
+                let at = |t: f32| line.read((t + extra).clamp(1.0, max));
+                let new = at(times[1]);
+                if blend >= 1.0 {
+                    new
+                } else {
+                    // Equal power, so the level holds through the fade.
+                    let a = blend * std::f32::consts::FRAC_PI_2;
+                    at(times[0]) * a.cos() + new * a.sin()
+                }
+            };
+            let raw = [read(&self.lines[0], 0.0), read(&self.lines[1], offset)];
+            let mut echoes = raw;
             if model != 0 {
                 for (ch, e) in echoes.iter_mut().enumerate() {
                     self.dark[ch] += dark * (*e - self.dark[ch]);
@@ -220,7 +301,10 @@ impl Effect for Delay {
                 *e = self.lp[ch] - self.hp[ch];
             }
             let (input_l, input_r) = (*l, *r);
-            let (fb_l, fb_r) = if pingpong {
+            // Frozen: the loop goes round as it is, without the input nor any loss.
+            let (fb_l, fb_r) = if frozen {
+                (raw[0], raw[1])
+            } else if pingpong {
                 (
                     (input_l + input_r) * 0.5 + echoes[1] * feedback,
                     echoes[0] * feedback,
@@ -233,8 +317,17 @@ impl Effect for Delay {
             };
             self.lines[0].push(fb_l);
             self.lines[1].push(fb_r);
-            *l = input_l * dry + echoes[0] * wet;
-            *r = input_r * dry + echoes[1] * wet;
+            let out = if frozen { raw } else { echoes };
+            let level = input_l.abs().max(input_r.abs());
+            let k = if level > self.envelope {
+                duck_attack
+            } else {
+                duck_release
+            };
+            self.envelope += k * (level - self.envelope);
+            let gain = wet * (1.0 - duck * (self.envelope / DUCK_FULL).min(1.0));
+            *l = input_l * dry + out[0] * gain;
+            *r = input_r * dry + out[1] * gain;
         }
     }
 
@@ -244,6 +337,8 @@ impl Effect for Delay {
             line.clear();
         }
         self.current = self.target(self.seconds());
+        self.heads = (self.current, self.current, 1.0);
+        self.envelope = 0.0;
         self.lp = [0.0; 2];
         self.hp = [0.0; 2];
         self.dark = [0.0; 2];
@@ -315,7 +410,7 @@ mod tests {
         delay.reset();
         assert!((delay.current - 28_800.0).abs() < 0.01);
         delay.set_param(6, 0.0);
-        delay.set_param(0, 5000.0);
+        delay.set_param(0, 20_000.0);
         delay.reset();
         assert_eq!(delay.current, delay.max_delay(), "clamped to the line");
     }
@@ -382,5 +477,107 @@ mod tests {
                 "model {model}: {early} {late}"
             );
         }
+    }
+
+    fn index(id: &str) -> usize {
+        PARAMS.iter().position(|p| p.id == id).unwrap()
+    }
+
+    fn clean(changes: &[(&str, f32)]) -> Delay {
+        let mut delay = Delay::default();
+        for (id, v) in [("low_cut", 20.0), ("high_cut", 20000.0), ("mix", 100.0)]
+            .into_iter()
+            .chain(changes.iter().copied())
+        {
+            delay.set_param(index(id), v);
+        }
+        delay.prepare(48_000, 4800);
+        delay
+    }
+
+    fn first_peak(x: &[f32]) -> usize {
+        (1..x.len())
+            .max_by(|&a, &b| x[a].abs().total_cmp(&x[b].abs()))
+            .unwrap()
+    }
+
+    #[test]
+    fn long_synced_notes_are_not_cut_short() {
+        // A bar at 40 BPM: 6 s, three times what the delay held before.
+        let mut delay = clean(&[("sync", 1.0), ("note", 11.0)]);
+        delay.set_tempo(40.0);
+        delay.reset();
+        assert_eq!(delay.current, 288_000.0);
+        assert_eq!(synced_seconds(14.0, 60.0), 8.0, "two bars at 60 BPM");
+    }
+
+    #[test]
+    fn the_right_side_can_be_offset() {
+        let mut delay = clean(&[("time", 100.0), ("offset", 20.0), ("feedback", 0.0)]);
+        let (mut l, mut r) = (vec![0.0f32; 9600], vec![0.0f32; 9600]);
+        l[0] = 1.0;
+        r[0] = 1.0;
+        delay.process(&mut l, &mut r);
+        assert!((first_peak(&l) as i64 - 4800).abs() <= 2);
+        assert!((first_peak(&r) as i64 - 5760).abs() <= 2);
+    }
+
+    #[test]
+    fn digital_crossfades_to_a_new_time() {
+        let mut delay = clean(&[("time", 100.0)]);
+        let (mut l, mut r) = (vec![0.0f32; 480], vec![0.0f32; 480]);
+        delay.process(&mut l, &mut r);
+        delay.set_param(index("time"), 300.0);
+        let (mut l, mut r) = (vec![0.0f32; 48], vec![0.0f32; 48]);
+        delay.process(&mut l, &mut r);
+        assert!(
+            (delay.heads.1 - 14_400.0).abs() < 0.01,
+            "the new time is read at once"
+        );
+        assert!(
+            (delay.heads.0 - 4800.0).abs() < 0.01,
+            "the old one fades out"
+        );
+        let (mut l, mut r) = (vec![0.0f32; 2400], vec![0.0f32; 2400]);
+        delay.process(&mut l, &mut r);
+        let (from, to, fade) = delay.heads;
+        assert!(fade == 1.0 && from == to, "after 40 ms");
+    }
+
+    #[test]
+    fn freeze_holds_the_loop_and_ducking_lowers_the_echoes() {
+        let mut delay = clean(&[("time", 50.0), ("feedback", 0.0)]);
+        let (mut l, mut r): (Vec<f32>, Vec<f32>) = (0..2400)
+            .map(|i| {
+                let s = 0.5 * (i as f32 * 0.05).sin();
+                (s, s)
+            })
+            .unzip();
+        delay.process(&mut l, &mut r);
+        delay.set_param(index("freeze"), 1.0);
+        let mut last = 0.0;
+        for _ in 0..40 {
+            let (mut l, mut r) = (vec![0.0f32; 2400], vec![0.0f32; 2400]);
+            delay.process(&mut l, &mut r);
+            last = l.iter().map(|s| s * s).sum::<f32>();
+        }
+        assert!(
+            last > 10.0,
+            "still ringing after 2 s without feedback: {last}"
+        );
+
+        let echo = |duck: f32| {
+            let mut delay = clean(&[("time", 50.0), ("feedback", 50.0), ("duck", duck)]);
+            let (mut l, mut r) = (vec![0.4f32; 9600], vec![0.4f32; 9600]);
+            for (i, s) in l.iter_mut().chain(r.iter_mut()).enumerate() {
+                *s *= (i as f32 * 0.07).sin();
+            }
+            delay.process(&mut l, &mut r);
+            l.iter().map(|o| o * o).sum::<f32>()
+        };
+        assert!(
+            echo(100.0) < echo(0.0) * 0.2,
+            "echoes under the playing input"
+        );
     }
 }
