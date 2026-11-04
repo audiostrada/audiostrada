@@ -1910,11 +1910,6 @@ fn push_history(state: &mut EditorState, values: (f32, f32)) {
     }
 }
 
-/// The on/off parameters of the effect as a row of buttons.
-fn switches(ui: &mut Ui, params: &mut Params) {
-    ui.horizontal(|ui| toggles(ui, params));
-}
-
 /// A button for each on/off parameter of the effect.
 fn toggles(ui: &mut Ui, params: &mut Params) {
     for q in params.info.params.iter().filter(|q| q.toggle) {
@@ -4387,16 +4382,20 @@ fn plate_switch(
 }
 
 fn filter(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
+    use audiostrada_dsp::filter::{SHAPES, TYPE_HINTS, TYPES, lfo_value};
     let p = theme::current(ui);
+    cards(ui, params, "type", &TYPES, &TYPE_HINTS);
+    ui.add_space(8.0);
     let kind = params.get("type").round() as usize;
     let k = 2.0 - 1.95 * params.get("resonance") / 100.0;
+    let steep = params.get("slope") >= 0.5;
     let cutoff = meters
         .first()
         .copied()
         .filter(|c| *c > 0.0)
         .unwrap_or(params.get("cutoff"));
-    let curve = |f: f32| -> f32 {
-        let w = f / cutoff;
+    // One state-variable stage; the steep slope adds a flat one before the resonant one.
+    let stage = |w: f32, k: f32| -> f32 {
         let den = ((1.0 - w * w).powi(2) + (k * w).powi(2)).sqrt();
         let num = match kind {
             0 => 1.0,
@@ -4404,36 +4403,135 @@ fn filter(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
             2 => k * w,
             _ => (1.0 - w * w).abs(),
         };
-        20.0 * (num / den.max(1e-6)).max(1e-6).log10()
+        (num / den.max(1e-6)).max(1e-6)
+    };
+    let curve = |f: f32| -> f32 {
+        let w = f / cutoff;
+        let gain = stage(w, k)
+            * if steep {
+                stage(w, std::f32::consts::SQRT_2)
+            } else {
+                1.0
+            };
+        20.0 * gain.log10()
     };
     response_plot(ui, 170.0, 36.0, curve, p.accent, Some(cutoff));
     ui.ctx().request_repaint();
     ui.add_space(8.0);
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(tr("Type")).size(10.5).color(p.weak));
-        choice_box(ui, params, "type");
-        switches(ui, params);
-    });
-    let lfo = if params.get("sync") >= 0.5 {
-        "note"
-    } else {
-        "lfo_rate"
+    let accent = p.accent;
+    // Short names inside their section.
+    let knob = |ui: &mut Ui, params: &mut Params, id: &str, tint: Color32| {
+        let name = match id {
+            "lfo_rate" => tr("Rate"),
+            "note" => tr("Note"),
+            "lfo_depth" => tr("Depth"),
+            "lfo_phase" => tr("Stereo phase"),
+            "envelope" => tr("Amount"),
+            "env_attack" => tr("Attack"),
+            "env_release" => tr("Release"),
+            _ => params.param(id).map_or("", |q| tr(q.name)),
+        };
+        wide_knob(ui, params, id, name, 44.0, tint);
     };
-    knob_row(
-        ui,
-        params,
-        &[
-            "cutoff",
-            "resonance",
-            "drive",
-            lfo,
-            "lfo_depth",
-            "envelope",
-            "mix",
-            "output",
-        ],
-        p.accent,
-    );
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        section_frame(ui, tr("Filter"), p.weak, 118.0, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                for id in ["cutoff", "resonance", "drive"] {
+                    knob(ui, params, id, accent);
+                }
+            });
+            ui.horizontal(|ui| segmented(ui, params, "slope", &[]));
+        });
+        section_frame(ui, tr("LFO"), p.weak, 118.0, |ui| {
+            let shape = (params.get("lfo_shape").round().max(0.0) as usize).min(SHAPES.len() - 1);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 3.0;
+                // Each shape drawn on its button.
+                for (i, name) in SHAPES.iter().enumerate() {
+                    let (rect, response) = ui.allocate_exact_size(vec2(30.0, 20.0), Sense::click());
+                    let on = i == shape;
+                    let painter = ui.painter();
+                    painter.rect_filled(
+                        rect,
+                        5.0,
+                        if on {
+                            accent.gamma_multiply(0.3)
+                        } else {
+                            p.surface
+                        },
+                    );
+                    painter.rect_stroke(
+                        rect,
+                        5.0,
+                        Stroke::new(1.0, if on { accent } else { p.border }),
+                        egui::StrokeKind::Inside,
+                    );
+                    let inner = rect.shrink2(vec2(6.0, 5.0));
+                    let held = [0.6, -0.3, 0.9, -0.8];
+                    let points: Vec<Pos2> = (0..=32)
+                        .map(|j| {
+                            let t = j as f32 / 32.0;
+                            let random = held[((t * 4.0) as usize).min(3)];
+                            let v = lfo_value(i, (t * 2.0).fract(), random);
+                            pos2(
+                                inner.left() + t * inner.width(),
+                                inner.center().y - v * inner.height() / 2.0,
+                            )
+                        })
+                        .collect();
+                    painter.add(Shape::line(
+                        points,
+                        Stroke::new(1.2, if on { p.text } else { p.weak }),
+                    ));
+                    let response = response.on_hover_text(tr(name));
+                    let clicked = response.clicked();
+                    params.set("lfo_shape", clicked.then_some(i as f32), &response);
+                    if clicked {
+                        params.doc.history_mut().end_gesture();
+                    }
+                }
+                ui.add_space(6.0);
+                params.toggle(ui, "sync", |ui, on| {
+                    let response = pill_switch(ui, *on, tr("Sync"))
+                        .on_hover_text(tr("A note value at the project's tempo"));
+                    if response.clicked() {
+                        *on = !*on;
+                    }
+                    response
+                });
+            });
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                let rate = if params.get("sync") >= 0.5 {
+                    "note"
+                } else {
+                    "lfo_rate"
+                };
+                for id in [rate, "lfo_depth", "lfo_phase"] {
+                    knob(ui, params, id, accent);
+                }
+            });
+        });
+        section_frame(ui, tr("Envelope"), p.weak, 118.0, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                for id in ["envelope", "env_attack", "env_release"] {
+                    knob(ui, params, id, theme::SOLO);
+                }
+            });
+        });
+        section_frame(ui, tr("Output"), p.weak, 118.0, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                for id in ["mix", "output"] {
+                    knob(ui, params, id, accent);
+                }
+            });
+        });
+    });
 }
 
 fn drive(ui: &mut Ui, params: &mut Params) {

@@ -4423,6 +4423,7 @@ impl MixerView {
                 "transient" => [900.0, 600.0],
                 "limiter" => [900.0, 650.0],
                 "delay" => [980.0, 620.0],
+                "filter" => [1000.0, 600.0],
                 "reverb" => [980.0, 800.0],
                 "maximizer" => [900.0, 730.0],
                 "vintage_eq" => [820.0, 660.0],

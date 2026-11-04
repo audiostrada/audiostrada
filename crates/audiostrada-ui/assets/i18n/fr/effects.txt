@@ -3310,3 +3310,42 @@ Répétitions qui ondulent, saturent et s'assombrissent ; un nouveau temps gliss
 
 Bucket-brigade: darker the longer the time, drifting and warm
 Bucket-brigade : plus sombre quand le temps s'allonge, flottant et chaud
+
+LFO
+LFO
+
+Stereo phase
+Phase stéréo
+
+Envelope attack
+Attaque de l'enveloppe
+
+Envelope release
+Relâchement de l'enveloppe
+
+LFO shape
+Forme du LFO
+
+LFO stereo phase
+Phase stéréo du LFO
+
+Saw down
+Dent de scie descendante
+
+Saw up
+Dent de scie montante
+
+Keeps the lows: closing it muffles, opening it brightens
+Garde les graves : le fermer étouffe, l'ouvrir éclaircit
+
+Keeps the highs: thins the sound from the bottom
+Garde les aigus : amincit le son par le bas
+
+Keeps a band around the cutoff: a telephone or a wah
+Garde une bande autour de la coupure : un téléphone ou une wah
+
+Takes a band out around the cutoff: a hollow, phasing sound
+Retire une bande autour de la coupure : un son creux, qui phase
+
+Random
+Aléatoire
