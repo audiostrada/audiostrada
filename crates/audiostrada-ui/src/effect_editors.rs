@@ -327,14 +327,18 @@ pub fn preset_bar(
             .as_ref()
             .and_then(|name| list.iter().position(|p| &p.name == name));
         let mut chosen = None;
-        // Previous and next go through the whole list, factory sounds first, round and round.
+        // Previous and next follow the menu, category by category, round and round.
+        let order = menu_order(&list);
         let step = |forward: bool| -> Option<usize> {
-            let n = list.len();
-            (n > 0).then(|| match (at, forward) {
-                (Some(i), true) => (i + 1) % n,
-                (Some(i), false) => (i + n - 1) % n,
-                (None, true) => 0,
-                (None, false) => n - 1,
+            let n = order.len();
+            let here = at.and_then(|i| order.iter().position(|&j| j == i));
+            (n > 0).then(|| {
+                order[match (here, forward) {
+                    (Some(k), true) => (k + 1) % n,
+                    (Some(k), false) => (k + n - 1) % n,
+                    (None, true) => 0,
+                    (None, false) => n - 1,
+                }]
             })
         };
         if ui
@@ -480,17 +484,53 @@ pub fn preset_bar(
 
 /// The presets as a menu: those named "Category: name" in a submenu per category, the others
 /// at the top; the user's own under "My presets". Returns the index of the one clicked.
+/// A preset's category and name, when it has one ("Keys: Soft"); French puts a space before
+/// the colon, both read the same.
+fn preset_category(name: &str) -> Option<(String, String)> {
+    name.split_once(": ")
+        .map(|(c, n)| (c.trim().to_owned(), n.trim().to_owned()))
+        .filter(|(c, n)| !c.is_empty() && !n.is_empty())
+}
+
+/// The presets in the menu's order: factory ones then the user's, each uncategorized first,
+/// then category by category in the order they first appear.
+fn menu_order(list: &[crate::presets::Preset]) -> Vec<usize> {
+    let mut order = Vec::with_capacity(list.len());
+    for factory in [true, false] {
+        let members: Vec<usize> = (0..list.len())
+            .filter(|&i| list[i].factory == factory)
+            .collect();
+        order.extend(
+            members
+                .iter()
+                .filter(|&&i| preset_category(&list[i].name).is_none()),
+        );
+        let mut seen: Vec<String> = Vec::new();
+        for &i in &members {
+            let Some((cat, _)) = preset_category(&list[i].name) else {
+                continue;
+            };
+            if seen.contains(&cat) {
+                continue;
+            }
+            order.extend(
+                members
+                    .iter()
+                    .filter(|&&j| preset_category(&list[j].name).is_some_and(|(c, _)| c == cat)),
+            );
+            seen.push(cat);
+        }
+    }
+    order
+}
+
 fn preset_menu(
     ui: &mut Ui,
     list: &[crate::presets::Preset],
     current: Option<usize>,
 ) -> Option<usize> {
     let mut chosen = None;
-    // French puts a space before the colon: both read the same.
-    let category = |name: &str| {
-        name.split_once(": ")
-            .map(|(c, n)| (c.trim().to_owned(), n.trim().to_owned()))
-    };
+    let category = preset_category;
     let mut item = |ui: &mut Ui, i: usize, label: &str| {
         if ui.selectable_label(current == Some(i), label).clicked() {
             chosen = Some(i);
@@ -6319,6 +6359,34 @@ mod tests {
         pub(super) static SHOWN: std::cell::RefCell<Vec<String>> = const {
             std::cell::RefCell::new(Vec::new())
         };
+    }
+
+    #[test]
+    fn next_preset_follows_the_menu() {
+        let names = [
+            "Init",
+            "Keys: Soft",
+            "Pad: Warm",
+            "Keys: Organ",
+            "Bell",
+            "Pad: Glass",
+        ];
+        let list: Vec<_> = names
+            .iter()
+            .map(|n| crate::presets::preset(n, &[]))
+            .collect();
+        let order: Vec<&str> = menu_order(&list).into_iter().map(|i| names[i]).collect();
+        assert_eq!(
+            order,
+            [
+                "Init",
+                "Bell",
+                "Keys: Soft",
+                "Keys: Organ",
+                "Pad: Warm",
+                "Pad: Glass"
+            ]
+        );
     }
 
     #[test]
