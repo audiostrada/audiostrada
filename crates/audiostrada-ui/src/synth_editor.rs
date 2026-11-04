@@ -1,5 +1,6 @@
-//! The built-in synth's editor: ready-made sounds, four plain sections (tone, brightness,
-//! shape, playing) and a keyboard played with the mouse or the computer keyboard.
+//! The built-in synth's editor: ready-made sounds, the two oscillators with their sub and
+//! noise, then the filter, the voice and the output, the envelope, and a keyboard played with
+//! the mouse or the computer keyboard.
 
 use std::collections::BTreeSet;
 
@@ -8,7 +9,9 @@ use eframe::egui::{
     self, Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Shape, Stroke, Ui, pos2, vec2,
 };
 
-use crate::effect_editors::{Params, from_unit, knob_row, mode_buttons, param_knob, to_unit};
+use crate::effect_editors::{
+    Params, from_unit, pill_switch, section_frame, segmented, to_unit, wide_knob,
+};
 use crate::i18n::tr;
 use crate::theme;
 
@@ -105,198 +108,459 @@ pub(crate) fn keys_id(viewport: egui::ViewportId) -> egui::Id {
     egui::Id::unique(("computer-piano-keys", viewport))
 }
 
-/// Ready-made sounds, from the most useful.
+/// Ready-made sounds, by role; settings not listed keep their defaults (one saw with two
+/// unison voices, the filter at 2.5 kHz).
 pub(crate) fn factory() -> Vec<crate::presets::Preset> {
     use crate::presets::preset;
-    // Waveforms: saw, square, sine, triangle.
-    let sound = |name, wave: f32, adsr: [f32; 4], filter: [f32; 3], detune, velocity, volume| {
-        let [attack, decay, sustain, release] = adsr;
-        let [cutoff, resonance, env_amount] = filter;
-        preset(
-            name,
-            &[
-                ("wave", wave),
-                ("attack", attack),
-                ("decay", decay),
-                ("sustain", sustain),
-                ("release", release),
-                ("cutoff", cutoff),
-                ("resonance", resonance),
-                ("env_amount", env_amount),
-                ("detune", detune),
-                ("velocity", velocity),
-                ("volume", volume),
-            ],
-        )
+    let adsr = |a: f32, d: f32, s: f32, r: f32| {
+        [("attack", a), ("decay", d), ("sustain", s), ("release", r)]
     };
+    let filter = |cutoff: f32, resonance: f32, env: f32| {
+        [
+            ("cutoff", cutoff),
+            ("resonance", resonance),
+            ("env_amount", env),
+        ]
+    };
+    let sound =
+        |name: &str, shape: &[(&str, f32)], envelope: [(&str, f32); 4], tone: [(&str, f32); 3]| {
+            let all: Vec<(&str, f32)> = shape.iter().copied().chain(envelope).chain(tone).collect();
+            preset(name, &all)
+        };
+    // Waves: 0 saw, 1 square, 2 sine, 3 triangle. Modes: 0 poly, 1 mono, 2 legato.
     vec![
         preset(tr("Init"), &[]),
         sound(
-            tr("Soft keys"),
-            3.0,
-            [3.0, 900.0, 35.0, 500.0],
-            [3500.0, 10.0, 35.0],
-            4.0,
-            80.0,
-            -12.0,
+            tr("Keys: Soft"),
+            &[
+                ("wave", 3.0),
+                ("osc1_voices", 1.0),
+                ("osc2_wave", 2.0),
+                ("osc2_level", 40.0),
+                ("osc2_octave", 1.0),
+                ("drift", 15.0),
+                ("velocity", 80.0),
+            ],
+            adsr(3.0, 900.0, 35.0, 500.0),
+            filter(3500.0, 10.0, 35.0),
         ),
         sound(
-            tr("Warm pad"),
-            0.0,
-            [600.0, 1500.0, 80.0, 2500.0],
-            [1200.0, 15.0, 20.0],
-            18.0,
-            30.0,
-            -15.0,
+            tr("Keys: Electric"),
+            &[
+                ("wave", 2.0),
+                ("osc1_voices", 1.0),
+                ("osc2_wave", 3.0),
+                ("osc2_level", 30.0),
+                ("osc2_octave", 1.0),
+                ("velocity", 90.0),
+                ("volume", -14.0),
+            ],
+            adsr(1.0, 1500.0, 20.0, 600.0),
+            filter(6000.0, 0.0, 30.0),
         ),
         sound(
-            tr("Strings"),
-            0.0,
-            [350.0, 800.0, 85.0, 1200.0],
-            [2800.0, 5.0, 10.0],
-            25.0,
-            40.0,
-            -14.0,
+            tr("Pad: Warm"),
+            &[
+                ("osc1_voices", 4.0),
+                ("detune", 15.0),
+                ("osc2_level", 60.0),
+                ("osc2_octave", -1.0),
+                ("osc2_voices", 3.0),
+                ("osc2_detune", 12.0),
+                ("spread", 80.0),
+                ("drift", 30.0),
+                ("velocity", 30.0),
+                ("volume", -16.0),
+            ],
+            adsr(600.0, 1500.0, 80.0, 2500.0),
+            filter(1200.0, 15.0, 20.0),
         ),
         sound(
-            tr("Brass"),
-            0.0,
-            [60.0, 500.0, 70.0, 250.0],
-            [900.0, 20.0, 70.0],
-            12.0,
-            70.0,
-            -13.0,
+            tr("Pad: Glass"),
+            &[
+                ("wave", 3.0),
+                ("osc1_voices", 3.0),
+                ("detune", 10.0),
+                ("osc2_wave", 2.0),
+                ("osc2_level", 50.0),
+                ("osc2_octave", 1.0),
+                ("spread", 90.0),
+                ("drift", 20.0),
+                ("velocity", 30.0),
+                ("volume", -14.0),
+            ],
+            adsr(900.0, 2000.0, 85.0, 3500.0),
+            filter(5000.0, 25.0, 15.0),
         ),
         sound(
-            tr("Pluck"),
-            0.0,
-            [1.0, 250.0, 0.0, 250.0],
-            [600.0, 35.0, 75.0],
-            6.0,
-            80.0,
-            -11.0,
+            tr("Strings: Ensemble"),
+            &[
+                ("osc1_voices", 7.0),
+                ("detune", 22.0),
+                ("spread", 90.0),
+                ("drift", 25.0),
+                ("velocity", 40.0),
+                ("volume", -15.0),
+            ],
+            adsr(350.0, 800.0, 85.0, 1200.0),
+            filter(2800.0, 5.0, 10.0),
+        ),
+        sound(
+            tr("Brass: Analog"),
+            &[
+                ("detune", 10.0),
+                ("osc2_level", 70.0),
+                ("osc2_fine", 7.0),
+                ("drift", 20.0),
+                ("volume", -13.0),
+            ],
+            adsr(60.0, 500.0, 70.0, 250.0),
+            filter(900.0, 20.0, 70.0),
+        ),
+        sound(
+            tr("Lead: Supersaw"),
+            &[
+                ("osc1_voices", 9.0),
+                ("detune", 28.0),
+                ("osc2_level", 40.0),
+                ("osc2_octave", 1.0),
+                ("osc2_voices", 5.0),
+                ("osc2_detune", 18.0),
+                ("spread", 85.0),
+                ("volume", -14.0),
+            ],
+            adsr(5.0, 400.0, 80.0, 300.0),
+            filter(6000.0, 10.0, 25.0),
+        ),
+        sound(
+            tr("Lead: Mono glide"),
+            &[
+                ("mode", 1.0),
+                ("glide", 120.0),
+                ("osc1_voices", 1.0),
+                ("osc2_wave", 1.0),
+                ("osc2_semi", 7.0),
+                ("osc2_level", 50.0),
+                ("sub_level", 30.0),
+                ("volume", -10.0),
+            ],
+            adsr(5.0, 400.0, 80.0, 200.0),
+            filter(3000.0, 30.0, 40.0),
+        ),
+        sound(
+            tr("Lead: Chip"),
+            &[
+                ("wave", 1.0),
+                ("osc1_voices", 1.0),
+                ("osc2_wave", 1.0),
+                ("osc2_level", 25.0),
+                ("osc2_octave", 1.0),
+                ("drift", 0.0),
+                ("volume", -16.0),
+            ],
+            adsr(1.0, 200.0, 70.0, 80.0),
+            filter(18000.0, 0.0, 0.0),
+        ),
+        sound(
+            tr("Pluck: Bright"),
+            &[
+                ("osc1_voices", 3.0),
+                ("detune", 12.0),
+                ("velocity", 80.0),
+                ("volume", -11.0),
+            ],
+            adsr(1.0, 250.0, 0.0, 250.0),
+            filter(600.0, 35.0, 75.0),
         ),
         sound(
             tr("Bell"),
-            2.0,
-            [1.0, 2500.0, 0.0, 2500.0],
-            [18000.0, 0.0, 0.0],
-            0.0,
-            80.0,
-            -10.0,
+            &[
+                ("wave", 2.0),
+                ("osc1_voices", 1.0),
+                ("osc2_wave", 2.0),
+                ("osc2_level", 35.0),
+                ("osc2_octave", 1.0),
+                ("osc2_semi", 7.0),
+                ("drift", 0.0),
+                ("velocity", 80.0),
+                ("volume", -14.0),
+            ],
+            adsr(1.0, 2500.0, 0.0, 2500.0),
+            filter(18000.0, 0.0, 0.0),
         ),
         sound(
-            tr("Square lead"),
-            1.0,
-            [5.0, 400.0, 75.0, 200.0],
-            [4000.0, 25.0, 30.0],
-            10.0,
-            50.0,
-            -14.0,
+            tr("Bass: Sub"),
+            &[
+                ("wave", 2.0),
+                ("osc1_voices", 1.0),
+                ("sub_level", 60.0),
+                ("mode", 1.0),
+                ("drift", 5.0),
+                ("velocity", 40.0),
+                ("volume", -10.0),
+            ],
+            adsr(2.0, 300.0, 90.0, 120.0),
+            filter(800.0, 0.0, 0.0),
         ),
         sound(
-            tr("Sub bass"),
-            2.0,
-            [2.0, 300.0, 90.0, 120.0],
-            [800.0, 0.0, 0.0],
-            0.0,
-            40.0,
-            -10.0,
+            tr("Bass: Reese"),
+            &[
+                ("detune", 25.0),
+                ("osc2_level", 80.0),
+                ("osc2_voices", 2.0),
+                ("osc2_detune", 18.0),
+                ("osc2_fine", -10.0),
+                ("sub_level", 50.0),
+                ("mode", 1.0),
+                ("spread", 20.0),
+                ("volume", -13.0),
+            ],
+            adsr(5.0, 300.0, 100.0, 150.0),
+            filter(900.0, 15.0, 20.0),
         ),
         sound(
-            tr("Acid bass"),
-            0.0,
-            [1.0, 180.0, 20.0, 80.0],
-            [350.0, 80.0, 85.0],
-            0.0,
-            70.0,
-            -12.0,
+            tr("Bass: Acid"),
+            &[
+                ("osc1_voices", 1.0),
+                ("mode", 2.0),
+                ("glide", 90.0),
+                ("drift", 0.0),
+                ("volume", -8.0),
+            ],
+            adsr(1.0, 180.0, 20.0, 80.0),
+            filter(350.0, 80.0, 85.0),
         ),
         sound(
-            tr("Hollow pad"),
-            1.0,
-            [800.0, 2000.0, 70.0, 3000.0],
-            [1500.0, 30.0, 15.0],
-            20.0,
-            20.0,
-            -16.0,
+            tr("Bass: Analog"),
+            &[
+                ("wave", 1.0),
+                ("osc1_voices", 1.0),
+                ("osc2_level", 60.0),
+                ("osc2_octave", -1.0),
+                ("mode", 1.0),
+                ("drift", 15.0),
+                ("volume", -12.0),
+            ],
+            adsr(2.0, 400.0, 50.0, 150.0),
+            filter(700.0, 25.0, 55.0),
+        ),
+        sound(
+            tr("FX: Noise sweep"),
+            &[
+                ("osc1_level", 0.0),
+                ("noise", 100.0),
+                ("spread", 100.0),
+                ("volume", -4.0),
+            ],
+            adsr(1500.0, 2000.0, 40.0, 2500.0),
+            filter(500.0, 70.0, 100.0),
         ),
     ]
 }
 
 pub fn show(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
     let p = theme::current(ui);
-    let gap = ui.spacing().item_spacing.x;
-    // Three panels a row, their margins (10 each side) included.
-    let third = ((ui.available_width() - 2.0 * gap) / 3.0 - 20.0).max(200.0);
+    let accent = p.accent;
+    let knob = |ui: &mut Ui, params: &mut Params, id: &str, name: &str| {
+        wide_knob(ui, params, id, name, 38.0, accent);
+    };
+    let height = 132.0;
     ui.horizontal_top(|ui| {
-        panel(ui, tr("Tone"), third, |ui| {
-            mode_buttons(
-                ui,
-                params,
+        ui.spacing_mut().item_spacing.x = 8.0;
+        for (title, wave, ids, level) in [
+            (
+                "Oscillator 1",
                 "wave",
-                &[
-                    "Bright and buzzy: brass, strings, leads",
-                    "Hollow: clarinet, retro games",
-                    "Pure: sub bass, soft flutes",
-                    "Soft and round: mellow keys",
+                [
+                    "osc1_octave",
+                    "osc1_semi",
+                    "osc1_fine",
+                    "osc1_voices",
+                    "detune",
                 ],
-            );
-            ui.add_space(4.0);
-            param_knob(ui, params, "detune", 40.0, p.accent);
-        });
-        panel(ui, tr("Brightness"), third, |ui| {
-            knob_row(ui, params, &["cutoff", "resonance", "env_amount"], p.accent);
-        });
-        panel(ui, tr("Playing"), third, |ui| {
-            knob_row(ui, params, &["volume", "velocity", "bend_range"], p.accent);
-            params.toggle(ui, "mpe", |ui, on| {
-                ui.checkbox(on, tr("MPE controller")).on_hover_text(tr(
-                    "For MPE controllers (Roli Seaboard, LinnStrument, Osmose...), which send each \
-                     note on its own MIDI channel: bend, pressure and slide then shape every note \
-                     on its own. Leave it off for an ordinary keyboard.",
-                ))
+                "osc1_level",
+            ),
+            (
+                "Oscillator 2",
+                "osc2_wave",
+                [
+                    "osc2_octave",
+                    "osc2_semi",
+                    "osc2_fine",
+                    "osc2_voices",
+                    "osc2_detune",
+                ],
+                "osc2_level",
+            ),
+        ] {
+            section_frame(ui, tr(title), p.weak, height, |ui| {
+                wave_picker(ui, params, wave);
+                ui.add_space(2.0);
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    let names = [
+                        tr("Octave"),
+                        tr("Semi"),
+                        tr("Fine"),
+                        tr("Unison"),
+                        tr("Detune"),
+                    ];
+                    for (id, name) in ids.iter().zip(names) {
+                        knob(ui, params, id, name);
+                    }
+                    knob(ui, params, level, tr("Level"));
+                });
+            });
+        }
+        section_frame(ui, tr("Sub and noise"), p.weak, height, |ui| {
+            ui.horizontal(|ui| segmented(ui, params, "sub_octave", &[]));
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+                knob(ui, params, "sub_level", tr("Sub"));
+                knob(ui, params, "noise", tr("Noise"));
             });
         });
     });
     ui.add_space(6.0);
-    let full = 3.0 * third + 2.0 * (gap + 20.0);
-    panel(ui, tr("Shape"), full, |ui| {
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        section_frame(ui, tr("Filter"), p.weak, height, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+                knob(ui, params, "cutoff", tr("Cutoff"));
+                knob(ui, params, "resonance", tr("Resonance"));
+                knob(ui, params, "env_amount", tr("Envelope"));
+            });
+        });
+        section_frame(ui, tr("Voice"), p.weak, height, |ui| {
+            ui.horizontal(|ui| {
+                segmented(
+                    ui,
+                    params,
+                    "mode",
+                    &[
+                        "Chords: every note plays",
+                        "One note at a time, each with its attack",
+                        "One note at a time, a new note slides on without a new attack",
+                    ],
+                )
+            });
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+                knob(ui, params, "glide", tr("Glide"));
+                knob(ui, params, "spread", tr("Stereo"));
+                knob(ui, params, "drift", tr("Drift"));
+            });
+        });
+        section_frame(ui, tr("Output"), p.weak, height, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+                knob(ui, params, "volume", tr("Volume"));
+                knob(ui, params, "velocity", tr("Velocity"));
+                knob(ui, params, "bend_range", tr("Bend"));
+            });
+            params.toggle(ui, "mpe", |ui, on| {
+                let response = pill_switch(ui, *on, tr("MPE")).on_hover_text(tr(
+                    "For MPE controllers (Roli Seaboard, LinnStrument, Osmose...), which send each \
+                     note on its own MIDI channel: bend, pressure and slide then shape every note \
+                     on its own. Leave it off for an ordinary keyboard.",
+                ));
+                if response.clicked() {
+                    *on = !*on;
+                }
+                response
+            });
+        });
+    });
+    ui.add_space(6.0);
+    let width = ui.available_width();
+    section_frame(ui, tr("Envelope"), p.weak, 100.0, |ui| {
         ui.horizontal_top(|ui| {
-            envelope(ui, params, (full * 0.5).max(240.0));
+            envelope(ui, params, (width * 0.55).max(240.0));
             ui.add_space(8.0);
-            knob_row(
-                ui,
-                params,
-                &["attack", "decay", "sustain", "release"],
-                p.accent,
-            );
+            ui.spacing_mut().item_spacing.x = 2.0;
+            for (id, name) in [
+                ("attack", tr("Attack")),
+                ("decay", tr("Decay")),
+                ("sustain", tr("Sustain")),
+                ("release", tr("Release")),
+            ] {
+                knob(ui, params, id, name);
+            }
         });
     });
     ui.add_space(6.0);
     keyboard(ui, params, state);
 }
 
-/// A titled panel.
-fn panel(ui: &mut Ui, title: &str, width: f32, add: impl FnOnce(&mut Ui)) {
+/// The four waves as buttons drawing their shape, the chosen one lit.
+fn wave_picker(ui: &mut Ui, params: &mut Params, id: &str) {
     let p = theme::current(ui);
-    egui::Frame::new()
-        .fill(theme::mix(p.panel, p.base, 0.4))
-        .corner_radius(8.0)
-        .inner_margin(10.0)
-        .show(ui, |ui| {
-            ui.set_width(width);
-            ui.vertical(|ui| {
-                ui.label(
-                    RichText::new(title.to_uppercase())
-                        .size(9.5)
-                        .color(p.weak)
-                        .strong(),
-                );
-                ui.add_space(2.0);
-                add(ui);
-            });
-        });
+    let current = params.get(id).round() as usize;
+    let hints = [
+        "Saw: bright and buzzy, for brass, strings and leads",
+        "Square: hollow, for clarinets and retro games",
+        "Sine: pure, for sub basses and soft flutes",
+        "Triangle: soft and round, for mellow keys",
+    ];
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 3.0;
+        for (i, hint) in hints.iter().enumerate() {
+            let (rect, response) = ui.allocate_exact_size(vec2(34.0, 22.0), Sense::click());
+            let on = i == current;
+            let painter = ui.painter();
+            painter.rect_filled(
+                rect,
+                5.0,
+                if on {
+                    p.accent.gamma_multiply(0.3)
+                } else {
+                    p.surface
+                },
+            );
+            painter.rect_stroke(
+                rect,
+                5.0,
+                Stroke::new(1.0, if on { p.accent } else { p.border }),
+                egui::StrokeKind::Inside,
+            );
+            let inner = rect.shrink2(vec2(7.0, 5.0));
+            let points: Vec<Pos2> = (0..=40)
+                .map(|j| {
+                    let t = j as f32 / 40.0;
+                    let phase = (t * 2.0).fract();
+                    let v = match i {
+                        0 => 2.0 * phase - 1.0,
+                        1 => {
+                            if phase < 0.5 {
+                                1.0
+                            } else {
+                                -1.0
+                            }
+                        }
+                        2 => (phase * std::f32::consts::TAU).sin(),
+                        _ => 1.0 - 4.0 * (phase - 0.5).abs(),
+                    };
+                    pos2(
+                        inner.left() + t * inner.width(),
+                        inner.center().y - v * inner.height() / 2.0,
+                    )
+                })
+                .collect();
+            painter.add(Shape::line(
+                points,
+                Stroke::new(1.3, if on { p.text } else { p.weak }),
+            ));
+            let response = response.on_hover_text(tr(hint));
+            let clicked = response.clicked();
+            params.set(id, clicked.then_some(i as f32), &response);
+            if clicked {
+                params.doc.history_mut().end_gesture();
+            }
+        }
+    });
 }
 
 /// The envelope, its corners dragged to set attack, decay with sustain, and release.
@@ -648,5 +912,44 @@ mod tests {
         assert_eq!(black, [61, 63, 66, 68, 70]);
         assert_eq!(octave_name(48), "C3");
         assert_eq!(octave_name(60), "C4");
+    }
+
+    /// Loudness of each factory sound playing a chord, so that none jumps out of the list.
+    #[test]
+    fn factory_sounds_have_matching_levels() {
+        use audiostrada_dsp::MidiEvent;
+        let info = audiostrada_dsp::info("synth").unwrap();
+        let mut levels = Vec::new();
+        for preset in factory() {
+            let mut synth = audiostrada_dsp::create("synth").unwrap();
+            for (i, p) in info.params.iter().enumerate() {
+                synth.set_param(i, preset.params.get(p.id).copied().unwrap_or(p.default));
+            }
+            synth.prepare(48_000, 512);
+            // A held A minor chord around the middle of the keyboard, at a medium velocity.
+            for key in [57, 60, 64] {
+                synth.midi(&MidiEvent::note_on(0, 0, key, 100));
+            }
+            // The loudest 100 ms over two seconds: plucks are judged on their attack.
+            let mut db = f64::MIN;
+            let mut window = Vec::new();
+            for _ in 0..188 {
+                let (mut l, mut r) = (vec![0.0f32; 512], vec![0.0f32; 512]);
+                synth.process(&mut l, &mut r);
+                window.extend(l.iter().chain(&r).map(|s| f64::from(s * s)));
+                if window.len() >= 9600 {
+                    let mean = window.iter().sum::<f64>() / window.len() as f64;
+                    db = db.max(10.0 * mean.max(1e-12).log10());
+                    window.clear();
+                }
+            }
+            levels.push((preset.name.clone(), db));
+        }
+        for (name, db) in &levels {
+            eprintln!("{name}: {db:.1} dB");
+        }
+        for (name, db) in &levels {
+            assert!((-26.0..=-14.0).contains(db), "{name}: {db:.1} dB RMS");
+        }
     }
 }

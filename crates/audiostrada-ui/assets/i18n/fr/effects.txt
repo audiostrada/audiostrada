@@ -3430,3 +3430,180 @@ Une aiguille sur les cents
 
 Bands that run while out of tune and stand still in tune
 Des bandes qui défilent quand c'est faux et s'arrêtent quand c'est juste
+
+-1 octave
+-1 octave
+
+-2 octaves
+-2 octaves
+
+Analog drift
+Dérive analogique
+
+Bass: Acid
+Basse : Acid
+
+Bass: Analog
+Basse : Analogique
+
+Bass: Reese
+Basse : Reese
+
+Bass: Sub
+Basse : Sub
+
+Bend
+Bend
+
+Brass: Analog
+Cuivres : Analogiques
+
+Chords: every note plays
+Accords : toutes les notes sonnent
+
+Drift
+Dérive
+
+FX: Noise sweep
+FX : Balayage de bruit
+
+Fine
+Fin
+
+Glide
+Glissé
+
+Keys: Electric
+Claviers : Électrique
+
+Keys: Soft
+Claviers : Doux
+
+Lead: Chip
+Lead : Chip
+
+Lead: Mono glide
+Lead : Mono glissé
+
+Lead: Supersaw
+Lead : Supersaw
+
+MPE
+MPE
+
+Noise
+Bruit
+
+Octave
+Octave
+
+One note at a time, a new note slides on without a new attack
+Une note à la fois, la suivante glisse sans nouvelle attaque
+
+One note at a time, each with its attack
+Une note à la fois, chacune avec son attaque
+
+Osc 1 detune
+Osc 1 désaccord
+
+Osc 1 fine
+Osc 1 fin
+
+Osc 1 level
+Osc 1 niveau
+
+Osc 1 octave
+Osc 1 octave
+
+Osc 1 semitones
+Osc 1 demi-tons
+
+Osc 1 unison
+Osc 1 unisson
+
+Osc 1 wave
+Osc 1 forme d'onde
+
+Osc 2 detune
+Osc 2 désaccord
+
+Osc 2 fine
+Osc 2 fin
+
+Osc 2 level
+Osc 2 niveau
+
+Osc 2 octave
+Osc 2 octave
+
+Osc 2 semitones
+Osc 2 demi-tons
+
+Osc 2 unison
+Osc 2 unisson
+
+Osc 2 wave
+Osc 2 forme d'onde
+
+Oscillator 1
+Oscillateur 1
+
+Oscillator 2
+Oscillateur 2
+
+Pad: Glass
+Nappe : Verre
+
+Pad: Warm
+Nappe : Chaude
+
+Pluck: Bright
+Pluck : Brillant
+
+Poly
+Poly
+
+Polyphonic synthesizer: two oscillators with unison, sub, noise, analog drift, glide, MPE.
+Synthétiseur polyphonique : deux oscillateurs avec unisson, sub, bruit, dérive analogique, glissé, MPE.
+
+Saw: bright and buzzy, for brass, strings and leads
+Dent de scie : brillante et riche, pour cuivres, cordes et leads
+
+Semi
+Demi-ton
+
+Sine: pure, for sub basses and soft flutes
+Sinus : pur, pour basses profondes et flûtes douces
+
+Square: hollow, for clarinets and retro games
+Carré : creux, pour clarinettes et jeux rétro
+
+Stereo spread
+Largeur stéréo
+
+Strings: Ensemble
+Cordes : Ensemble
+
+Sub
+Sub
+
+Sub and noise
+Sub et bruit
+
+Sub level
+Niveau du sub
+
+Sub octave
+Octave du sub
+
+Triangle: soft and round, for mellow keys
+Triangle : doux et rond, pour claviers feutrés
+
+Unison
+Unisson
+
+Voice
+Voix
+
+Voice mode
+Mode de jeu

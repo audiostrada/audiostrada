@@ -622,6 +622,11 @@ pub fn format_value(p: &ParamInfo, v: f32) -> String {
         "dB" => format!("{v:+.1} dB"),
         ":1" => format!("{v:.1}:1"),
         "%" => format!("{v:.0} %"),
+        // Whole steps: octaves, unison voices.
+        "oct" => format!("{:+} oct", v.round() as i32),
+        "voices" => format!("{}", v.round() as i32),
+        "semi" => format!("{:+} st", v.round() as i32),
+        "cents" => format!("{v:.0} cents"),
         "" => format!("{v:.2}"),
         unit => format!("{v:.1} {unit}"),
     }
@@ -1657,7 +1662,13 @@ fn eq_section(ui: &mut Ui, title: &str, color: Color32, add: impl FnOnce(&mut Ui
 }
 
 /// A titled panel of controls, `height` tall at least.
-fn section_frame(ui: &mut Ui, title: &str, color: Color32, height: f32, add: impl FnOnce(&mut Ui)) {
+pub(crate) fn section_frame(
+    ui: &mut Ui,
+    title: &str,
+    color: Color32,
+    height: f32,
+    add: impl FnOnce(&mut Ui),
+) {
     let p = theme::current(ui);
     egui::Frame::new()
         .fill(p.base)
@@ -5213,7 +5224,7 @@ fn knob_sections(
 }
 
 /// A switch as a pill: its light and its name, lit in the accent while on.
-fn pill_switch(ui: &mut Ui, on: bool, label: &str) -> Response {
+pub(crate) fn pill_switch(ui: &mut Ui, on: bool, label: &str) -> Response {
     let p = theme::current(ui);
     let galley = ui
         .painter()
@@ -6009,23 +6020,8 @@ fn learn(ui: &mut Ui, params: &mut Params, state: &mut LimiterState, gain_id: &s
     });
 }
 
-/// Buttons side by side for a parameter with named values.
-pub(crate) fn mode_buttons(ui: &mut Ui, params: &mut Params, id: &str, hints: &[&'static str]) {
-    let Some(p) = params.param(id) else {
-        return;
-    };
-    ui.vertical(|ui| {
-        ui.label(
-            RichText::new(tr(p.name).to_uppercase())
-                .size(9.0)
-                .color(theme::current(ui).weak),
-        );
-        ui.horizontal(|ui| segmented(ui, params, id, hints));
-    });
-}
-
 /// One button per named value of a parameter, the current one lit.
-fn segmented(ui: &mut Ui, params: &mut Params, id: &str, hints: &[&'static str]) {
+pub(crate) fn segmented(ui: &mut Ui, params: &mut Params, id: &str, hints: &[&'static str]) {
     let Some(p) = params.param(id) else {
         return;
     };
