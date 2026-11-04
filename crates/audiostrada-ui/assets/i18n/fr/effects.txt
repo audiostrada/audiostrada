@@ -3403,3 +3403,30 @@ Deux retards par côté, décalés dans le cycle
 
 Three delays per side, as in the string ensembles
 Trois retards par côté, comme dans les string ensembles
+
+Click a note to add it to or take it from the scale: it becomes a custom one
+Cliquer une note pour l'ajouter à la gamme ou l'en retirer : elle devient personnalisée
+
+Tuning
+Accordage
+
+Custom notes
+Notes personnalisées
+
+Needle
+Aiguille
+
+Strobe
+Stroboscope
+
+Tolerance
+Tolérance
+
+Correction
+Correction
+
+A needle over the cents
+Une aiguille sur les cents
+
+Bands that run while out of tune and stand still in tune
+Des bandes qui défilent quand c'est faux et s'arrêtent quand c'est juste

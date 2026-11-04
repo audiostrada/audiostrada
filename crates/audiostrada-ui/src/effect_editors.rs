@@ -1683,46 +1683,84 @@ fn tuner(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
     let frequency = meters.first().copied().unwrap_or(0.0);
     let clarity = meters.get(1).copied().unwrap_or(0.0);
     let reference = params.get("reference");
+    let strobe = params.get("view") >= 0.5;
     let (rect, _) =
-        ui.allocate_exact_size(vec2(ui.available_width().max(360.0), 170.0), Sense::hover());
+        ui.allocate_exact_size(vec2(ui.available_width().max(360.0), 200.0), Sense::hover());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 6.0, p.base);
-    let center = pos2(rect.center().x, rect.top() + 70.0);
-    let width = rect.width() * 0.42;
-    for cents in (-50..=50).step_by(10) {
-        let x = center.x + cents as f32 / 50.0 * width;
-        let tall = cents % 50 == 0 || cents == 0;
-        painter.line_segment(
-            [
-                pos2(x, center.y - if tall { 26.0 } else { 14.0 }),
-                pos2(x, center.y),
-            ],
-            Stroke::new(if cents == 0 { 2.0 } else { 1.0 }, p.weak),
-        );
-    }
-    if clarity > 0.5 && frequency > 0.0 {
-        let (number, cents) = audiostrada_dsp::tuner::note(frequency, reference);
-        let name = NAMES[number.rem_euclid(12) as usize];
-        let octave = number.div_euclid(12) - 1;
-        let close = cents.abs() < 3.0;
-        let color = if close {
+    painter.rect_filled(rect, 8.0, p.base);
+    let heard = (clarity > 0.5 && frequency > 0.0)
+        .then(|| audiostrada_dsp::tuner::note(frequency, reference));
+    let color_of = |cents: f32| {
+        if cents.abs() < 3.0 {
             theme::PLAY
         } else if cents.abs() < 15.0 {
             theme::SOLO
         } else {
             theme::RECORD
-        };
-        let x = center.x + cents.clamp(-50.0, 50.0) / 50.0 * width;
-        painter.line_segment(
-            [pos2(x, center.y - 34.0), pos2(x, center.y + 4.0)],
-            Stroke::new(3.0, color),
-        );
+        }
+    };
+    let center = pos2(rect.center().x, rect.top() + 74.0);
+    let width = rect.width() * 0.42;
+    if strobe {
+        // Bands that run right when sharp, left when flat, and stand still in tune; the
+        // lower rows move faster, to see a few cents.
+        let key = ui.scope_id().with(("strobe", params.insert.0));
+        let dt = ui.input(|i| i.stable_dt).min(0.1);
+        let cents = heard.map_or(0.0, |(_, c)| c);
+        let phase: f32 = ui.data_mut(|d| {
+            let phase = d.get_temp_mut_or_default::<f32>(key);
+            *phase = (*phase + cents * dt * 0.08).rem_euclid(1.0);
+            *phase
+        });
+        let band = Rect::from_center_size(center, vec2(width * 2.0, 84.0));
+        painter.rect_filled(band, 6.0, p.panel);
+        let color = heard.map_or(p.weak.gamma_multiply(0.4), |(_, c)| color_of(c));
+        for (row, speed) in [1.0f32, 2.0, 4.0].into_iter().enumerate() {
+            let h = band.height() / 3.0;
+            let top = band.top() + row as f32 * h;
+            let period = 28.0 / speed.sqrt();
+            let shift = (phase * speed).fract() * period;
+            let mut x = band.left() - period + shift;
+            while x < band.right() {
+                let mark = Rect::from_min_max(
+                    pos2(x.max(band.left()), top + 3.0),
+                    pos2((x + period * 0.5).min(band.right()), top + h - 3.0),
+                );
+                if mark.width() > 0.0 {
+                    painter.rect_filled(mark, 2.0, color);
+                }
+                x += period;
+            }
+        }
+    } else {
+        for cents in (-50..=50).step_by(10) {
+            let x = center.x + cents as f32 / 50.0 * width;
+            let tall = cents % 50 == 0 || cents == 0;
+            painter.line_segment(
+                [
+                    pos2(x, center.y - if tall { 26.0 } else { 14.0 }),
+                    pos2(x, center.y),
+                ],
+                Stroke::new(if cents == 0 { 2.0 } else { 1.0 }, p.weak),
+            );
+        }
+        if let Some((_, cents)) = heard {
+            let x = center.x + cents.clamp(-50.0, 50.0) / 50.0 * width;
+            painter.line_segment(
+                [pos2(x, center.y - 34.0), pos2(x, center.y + 4.0)],
+                Stroke::new(3.0, color_of(cents)),
+            );
+        }
+    }
+    if let Some((number, cents)) = heard {
+        let name = NAMES[number.rem_euclid(12) as usize];
+        let octave = number.div_euclid(12) - 1;
         painter.text(
-            pos2(center.x, center.y + 46.0),
+            pos2(center.x, rect.bottom() - 40.0),
             Align2::CENTER_CENTER,
             format!("{name}{octave}"),
             theme::strong(40.0),
-            color,
+            color_of(cents),
         );
         painter.text(
             pos2(rect.right() - 10.0, rect.bottom() - 8.0),
@@ -1733,7 +1771,7 @@ fn tuner(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
         );
     } else {
         painter.text(
-            pos2(center.x, center.y + 46.0),
+            pos2(center.x, rect.bottom() - 40.0),
             Align2::CENTER_CENTER,
             tr("Play a note"),
             theme::strong(18.0),
@@ -1741,14 +1779,43 @@ fn tuner(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
         );
     }
     ui.ctx().request_repaint();
-    ui.add_space(6.0);
-    knob_panel(ui, params, &[]);
+    ui.add_space(8.0);
+    let accent = p.accent;
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        section_frame(ui, tr("View"), p.weak, 90.0, |ui| {
+            ui.horizontal(|ui| {
+                segmented(
+                    ui,
+                    params,
+                    "view",
+                    &[
+                        "A needle over the cents",
+                        "Bands that run while out of tune and stand still in tune",
+                    ],
+                )
+            });
+        });
+        section_frame(ui, tr("Tuning"), p.weak, 90.0, |ui| {
+            wide_knob(ui, params, "reference", tr("Reference A4"), 40.0, accent);
+        });
+        section_frame(ui, tr("Output"), p.weak, 90.0, |ui| {
+            params.toggle(ui, "mute", |ui, on| {
+                let response = pill_switch(ui, *on, tr("Mute while tuning"));
+                if response.clicked() {
+                    *on = !*on;
+                }
+                response
+            });
+        });
+    });
 }
 
 /// Pitch Correct: the sung pitch and the corrected one scrolling over the notes of the scale.
 fn pitch_correct(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState) {
     use audiostrada_dsp::pitch_correct::{NOTE_NAMES, in_scale};
     const SPAN: f32 = 14.0;
+    let notes = params.get("notes").round().max(0.0) as u32;
     let p = theme::current(ui);
     let meter = |i: usize| meters.get(i).copied().unwrap_or(0.0);
     let (input, output, target) = (meter(0), meter(1), meter(2));
@@ -1788,7 +1855,7 @@ fn pitch_correct(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut E
             pos2(graph.left(), y - row / 2.0),
             pos2(graph.right(), y + row / 2.0),
         );
-        let used = in_scale(n, key, scale);
+        let used = in_scale(n, key, scale, notes);
         if target > 0.0 && n == target as i32 {
             painter.rect_filled(band, 0.0, p.accent.gamma_multiply(0.18));
         } else if used && scale > 0 {
@@ -1864,21 +1931,93 @@ fn pitch_correct(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut E
     }
     ui.ctx().request_repaint();
     ui.add_space(8.0);
-    ui.horizontal(|ui| {
-        for id in ["key", "scale"] {
-            if let Some(q) = params.param(id) {
-                ui.label(RichText::new(tr(q.name)).size(10.5).color(p.weak));
-            }
-            choice_box(ui, params, id);
-            ui.add_space(8.0);
-        }
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        section_frame(ui, tr("Scale"), p.weak, 118.0, |ui| {
+            ui.horizontal(|ui| {
+                choice_box(ui, params, "key");
+                choice_box(ui, params, "scale");
+            });
+            ui.add_space(4.0);
+            scale_keyboard(ui, params, key, scale, notes);
+        });
+        knob_sections(
+            ui,
+            params,
+            &[
+                ("Correction", &["speed", "humanize", "tolerance"], None),
+                ("Output", &["amount", "transpose"], None),
+            ],
+            &|_| true,
+        );
     });
-    knob_row(
-        ui,
-        params,
-        &["speed", "humanize", "amount", "transpose"],
-        p.accent,
+}
+
+/// An octave of keys, lit for the notes the voice is corrected to: a click picks or drops a
+/// note, which makes the scale a custom one.
+fn scale_keyboard(ui: &mut Ui, params: &mut Params, key: i32, scale: usize, notes: u32) {
+    use audiostrada_dsp::pitch_correct::{CUSTOM, in_scale};
+    let p = theme::current(ui);
+    let (rect, response) = ui.allocate_exact_size(vec2(196.0, 52.0), Sense::click());
+    let painter = ui.painter_at(rect);
+    let lit = |pc: i32| in_scale(pc, key, scale, notes);
+    let white = [0, 2, 4, 5, 7, 9, 11];
+    let w = rect.width() / 7.0;
+    let mut keys: Vec<(i32, Rect)> = Vec::new();
+    for (i, &pc) in white.iter().enumerate() {
+        let r = Rect::from_min_size(
+            rect.min + vec2(i as f32 * w, 0.0),
+            vec2(w - 1.0, rect.height()),
+        );
+        painter.rect_filled(
+            r,
+            3.0,
+            if lit(pc) {
+                Color32::from_gray(225).lerp_to_gamma(p.accent, 0.55)
+            } else {
+                Color32::from_gray(205)
+            },
+        );
+        keys.push((pc, r));
+    }
+    for (after, pc) in [(0, 1), (1, 3), (3, 6), (4, 8), (5, 10)] {
+        let x = rect.left() + (after + 1) as f32 * w - w * 0.3;
+        let r = Rect::from_min_size(pos2(x, rect.top()), vec2(w * 0.6, rect.height() * 0.6));
+        painter.rect_filled(
+            r,
+            2.0,
+            if lit(pc) {
+                Color32::from_gray(30).lerp_to_gamma(p.accent, 0.75)
+            } else {
+                Color32::from_gray(35)
+            },
+        );
+        painter.rect_stroke(
+            r,
+            2.0,
+            Stroke::new(1.0, Color32::from_gray(20)),
+            egui::StrokeKind::Inside,
+        );
+        keys.push((pc, r));
+    }
+    // Black keys are on top: looked for first.
+    let hit = response
+        .interact_pointer_pos()
+        .and_then(|at| keys.iter().rev().find(|(_, r)| r.contains(at)).map(|k| k.0));
+    let response = response.on_hover_text(tr(
+        "Click a note to add it to or take it from the scale: it becomes a custom one",
+    ));
+    let mask: u32 = (0..12).filter(|&pc| lit(pc)).fold(0, |m, pc| m | 1 << pc);
+    let clicked = response.clicked().then_some(hit).flatten();
+    params.set(
+        "notes",
+        clicked.map(|pc| (mask ^ 1 << pc) as f32),
+        &response,
     );
+    if clicked.is_some() {
+        params.set("scale", Some(CUSTOM as f32), &response);
+        params.doc.history_mut().end_gesture();
+    }
 }
 
 // ---------------------------------------------------------------- Shared drawing

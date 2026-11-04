@@ -1,7 +1,8 @@
-//! Tuner: detects the pitch of the input (YIN on the mono sum, a few times a second) and
-//! reports it; the signal passes through, or is muted while tuning.
+//! Tuner: detects the pitch of the input (YIN on the mono sum, about fifty times a second) and
+//! reports it, smoothed while the note holds so that the needle does not shake; the signal
+//! passes through, or is muted while tuning.
 
-use crate::{Effect, EffectInfo, ParamInfo, param, switch};
+use crate::{Effect, EffectInfo, ParamInfo, choice, param, switch};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "tuner",
@@ -14,13 +15,18 @@ pub const INFO: EffectInfo = EffectInfo {
     description: "Chromatic tuner for guitar, bass and voice.",
 };
 
-const PARAMS: [ParamInfo; 2] = [
+pub const VIEWS: [&str; 2] = ["Needle", "Strobe"];
+
+const PARAMS: [ParamInfo; 3] = [
     param("reference", "Reference A4", 415.0, 466.0, 440.0, "Hz"),
     switch("mute", "Mute while tuning", 0.0),
+    choice("view", "View", &VIEWS, 0.0),
 ];
+/// How much of each new reading the shown pitch takes while the note holds.
+const SMOOTHING: f32 = 0.35;
 
 const WINDOW: usize = 4096;
-const HOP: usize = 2048;
+const HOP: usize = 1024;
 /// Lowest note tracked: a little below a five-string bass low B.
 const LOWEST_HZ: f32 = 28.0;
 const HIGHEST_HZ: f32 = 1400.0;
@@ -28,7 +34,7 @@ const HIGHEST_HZ: f32 = 1400.0;
 #[derive(Debug)]
 pub struct Tuner {
     rate: f32,
-    values: [f32; 2],
+    values: [f32; 3],
     input: Vec<f32>,
     filled: usize,
     difference: Vec<f32>,
@@ -134,7 +140,13 @@ impl Effect for Tuner {
             if self.filled == WINDOW {
                 match detect(&self.input, self.rate, &mut self.difference) {
                     Some((f, clarity)) => {
-                        self.frequency = f;
+                        // Same note: glide in cents; a new note: at once.
+                        let cents = 1200.0 * (f / self.frequency.max(1.0)).log2();
+                        self.frequency = if self.frequency > 0.0 && cents.abs() < 50.0 {
+                            self.frequency * 2f32.powf(cents * SMOOTHING / 1200.0)
+                        } else {
+                            f
+                        };
                         self.clarity = clarity;
                     }
                     None => self.clarity = 0.0,
@@ -211,5 +223,27 @@ mod tests {
         }
         tuner.meters(&mut meters);
         assert_eq!(meters[1], 0.0, "silence has no pitch");
+    }
+
+    #[test]
+    fn a_new_note_shows_at_once_and_a_held_one_settles() {
+        let mut tuner = Tuner::default();
+        tuner.prepare(48_000, 1024);
+        let tone = |f: f32, n: usize| -> Vec<f32> {
+            (0..n)
+                .map(|i| 0.4 * (i as f32 * f * std::f32::consts::TAU / 48_000.0).sin())
+                .collect()
+        };
+        let mut run = |f: f32| {
+            let mut l = tone(f, 24_000);
+            let mut r = l.clone();
+            tuner.process(&mut l, &mut r);
+            tuner.frequency
+        };
+        let a = run(110.0);
+        assert!((note(a, 110.0).1).abs() < 2.0, "{a}");
+        // An octave up is another note: no glide from the A2.
+        let b = run(220.0);
+        assert!((note(b, 220.0).1).abs() < 2.0, "{b}");
     }
 }

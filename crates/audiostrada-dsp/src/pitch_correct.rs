@@ -1,7 +1,9 @@
 //! Pitch Correct: follows the pitch of a voice (YIN on a decimated copy, refined at full rate,
 //! every 5 ms), picks the nearest note of the chosen scale and moves the voice there with
 //! TD-PSOLA, grains of two periods laid one output period apart, which keeps the formants.
-//! The retune speed glides the correction, humanize corrects the note's center only.
+//! The retune speed glides the correction, humanize corrects the note's center only, and a
+//! note already within the tolerance is left as sung. The scale can be one of its own (notes
+//! picked on a keyboard).
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::{Effect, EffectInfo, ParamInfo, choice, param, time_coefficient};
@@ -67,8 +69,8 @@ pub const SCALES: [(&str, [bool; 12]); 7] = [
     ),
 ];
 
-/// Chromatic, then [`SCALES`].
-const SCALE_NAMES: [&str; 8] = [
+/// Chromatic, then [`SCALES`], then the notes picked by hand.
+pub const SCALE_NAMES: [&str; 9] = [
     "Chromatic",
     "Major",
     "Minor",
@@ -77,15 +79,19 @@ const SCALE_NAMES: [&str; 8] = [
     "Pentatonic major",
     "Pentatonic minor",
     "Blues",
+    "Custom",
 ];
+pub const CUSTOM: usize = 8;
 
-const PARAMS: [ParamInfo; 6] = [
+const PARAMS: [ParamInfo; 8] = [
     choice("key", "Key", &NOTE_NAMES, 0.0),
     choice("scale", "Scale", &SCALE_NAMES, 0.0),
     param("speed", "Retune speed", 0.0, 400.0, 25.0, "ms"),
     param("humanize", "Humanize", 0.0, 100.0, 0.0, "%"),
     param("amount", "Amount", 0.0, 100.0, 100.0, "%"),
     param("transpose", "Transpose", -12.0, 12.0, 0.0, "st"),
+    param("notes", "Custom notes", 0.0, 4095.0, 4095.0, ""),
+    param("tolerance", "Tolerance", 0.0, 50.0, 0.0, "cents"),
 ];
 
 const LOWEST_HZ: f32 = 70.0;
@@ -103,8 +109,13 @@ const MARKS: usize = 128;
 /// Full-rate lags tried on each side of the decimated estimate.
 const REACH: usize = 16;
 
-/// Whether `note` (MIDI) belongs to `scale` (0 = chromatic) on `key`.
-pub fn in_scale(note: i32, key: i32, scale: usize) -> bool {
+/// Whether `note` (MIDI) belongs to `scale` (0 = chromatic) on `key`; the custom scale is
+/// `notes`, a bit per pitch class from C.
+pub fn in_scale(note: i32, key: i32, scale: usize, notes: u32) -> bool {
+    if scale == CUSTOM {
+        // No note picked would leave nothing to correct to: then every note.
+        return notes & 0xfff == 0 || notes >> note.rem_euclid(12) & 1 == 1;
+    }
     match scale.checked_sub(1).and_then(|s| SCALES.get(s)) {
         Some((_, steps)) => steps[(note - key).rem_euclid(12) as usize],
         None => true,
@@ -129,7 +140,7 @@ struct Mark {
 #[derive(Debug)]
 pub struct PitchCorrect {
     rate: f32,
-    values: [f32; 6],
+    values: [f32; 8],
     /// Detection: one sample in `factor`, low-passed first.
     factor: usize,
     lowpass: [Coefficients; 2],
@@ -336,7 +347,17 @@ impl PitchCorrect {
         self.pitch = pitch;
         self.period = self.rate / to_hz(pitch);
         let hop_rate = self.rate / (self.hop * self.factor) as f32;
-        let [key, scale, speed, humanize, amount, transpose] = self.values;
+        let [
+            key,
+            scale,
+            speed,
+            humanize,
+            amount,
+            transpose,
+            notes,
+            tolerance,
+        ] = self.values;
+        let notes = notes.round().max(0.0) as u32;
         if self.run == 1 {
             self.center = pitch;
             self.correction = 0.0;
@@ -348,7 +369,7 @@ impl PitchCorrect {
         let (key, scale) = (key.round() as i32, scale.round().max(0.0) as usize);
         let base = heard.round() as i32;
         let nearest = (base - 6..=base + 6)
-            .filter(|&n| in_scale(n, key, scale))
+            .filter(|&n| in_scale(n, key, scale, notes))
             .min_by(|&a, &b| {
                 (heard - a as f32)
                     .abs()
@@ -357,7 +378,7 @@ impl PitchCorrect {
             .unwrap_or(base);
         let note = match self.note {
             Some(current)
-                if in_scale(current, key, scale)
+                if in_scale(current, key, scale, notes)
                     && (heard - current as f32).abs()
                         < (heard - nearest as f32).abs() + HYSTERESIS =>
             {
@@ -366,7 +387,14 @@ impl PitchCorrect {
             _ => nearest,
         };
         self.note = Some(note);
-        let goal = (note as f32 - heard) * amount / 100.0 + transpose.round();
+        // Close enough already: left as sung (flex tuning).
+        let off = note as f32 - heard;
+        let off = if off.abs() * 100.0 < tolerance {
+            0.0
+        } else {
+            off
+        };
+        let goal = off * amount / 100.0 + transpose.round();
         let c = time_coefficient(speed, hop_rate);
         self.correction = goal + c * (self.correction - goal);
     }
@@ -615,7 +643,11 @@ mod tests {
         run(&mut p, &voice(|_| hz, 0.5));
         p.meters(&mut meters);
         assert_eq!(meters[2], 61.0);
-        assert!(in_scale(61, 2, 1) && !in_scale(61, 0, 1) && in_scale(61, 0, 0));
+        assert!(in_scale(61, 2, 1, 0) && !in_scale(61, 0, 1, 0) && in_scale(61, 0, 0, 0));
+        // C, E and G picked: C# is out, E in, whatever the key.
+        let triad = 1 | 1 << 4 | 1 << 7;
+        assert!(!in_scale(61, 0, CUSTOM, triad) && in_scale(64, 5, CUSTOM, triad));
+        assert!(in_scale(61, 0, CUSTOM, 0), "nothing picked: every note");
     }
 
     #[test]
@@ -691,5 +723,21 @@ mod tests {
         assert!(p.latency() > 2 * delay - 16);
         let out = run(&mut p, &voice(|_| 440.0, 0.3));
         assert!(out.iter().all(|s| s.is_finite()));
+    }
+
+    #[test]
+    fn a_note_within_the_tolerance_is_left_as_sung() {
+        // 20 cents sharp of A3: corrected without tolerance, left alone with 30 cents.
+        let sung = 220.0 * 2f32.powf(20.0 / 1200.0);
+        for (tolerance, corrected) in [(0.0, true), (30.0, false)] {
+            let mut p = corrector(&[(2, 0.0), (7, tolerance)]);
+            let out = pitch_of(&run(&mut p, &voice(|_| sung, 1.0)));
+            let cents = 1200.0 * (out / 220.0).log2();
+            assert_eq!(
+                cents.abs() < 8.0,
+                corrected,
+                "tolerance {tolerance}: {cents} cents"
+            );
+        }
     }
 }
