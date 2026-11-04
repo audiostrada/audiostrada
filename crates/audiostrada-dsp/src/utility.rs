@@ -1,7 +1,9 @@
 //! Utility: gain, stereo balance and width, mono, channel swap, and phase tools: polarity per
 //! side, a delay per side to time-align microphones, and a phase rotation (an all-pass) to
-//! match the lows of two sources. Meters: phase correlation and the left/right level balance.
+//! match the lows of two sources. A DC filter, and mono lows below a frequency. Meters: phase
+//! correlation and the left/right level balance.
 
+use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::line::Line;
 use crate::{Effect, EffectInfo, db_to_gain, param, switch};
 
@@ -20,6 +22,8 @@ pub const INFO: EffectInfo = EffectInfo {
         param("delay_right", "Delay right", 0.0, MAX_DELAY_MS, 0.0, "ms"),
         param("rotation", "Phase rotation", 0.0, 180.0, 0.0, "°"),
         param("rotation_freq", "Rotation at", 20.0, 2000.0, 100.0, "Hz"),
+        switch("dc", "DC filter", 0.0),
+        param("bass_mono", "Mono below", 20.0, 500.0, 20.0, "Hz"),
     ],
     meters: &["Correlation", "Balance"],
     instrument: false,
@@ -55,6 +59,13 @@ pub struct Utility {
     current: Option<[f32; 4]>,
     /// Leaky sums of l*r, l*l and r*r for the meters.
     sums: [f32; 3],
+    dc: bool,
+    /// Last input and output of each side's DC filter.
+    dc_state: [(f32, f32); 2],
+    /// High-pass on the sides below which the lows are mono, None while off.
+    bass_mono: Option<Coefficients>,
+    bass_mono_freq: f32,
+    side_hp: [Biquad; 2],
 }
 
 impl Default for Utility {
@@ -76,6 +87,11 @@ impl Default for Utility {
             allpass_state: [(0.0, 0.0); 2],
             current: None,
             sums: [0.0; 3],
+            dc: false,
+            dc_state: [(0.0, 0.0); 2],
+            bass_mono: None,
+            bass_mono_freq: 20.0,
+            side_hp: [Biquad::default(); 2],
         };
         utility.allocate();
         utility
@@ -104,6 +120,18 @@ impl Utility {
         [m[0] * gl, m[1] * gl, m[2] * gr, m[3] * gr]
     }
 
+    fn update_bass_mono(&mut self) {
+        self.bass_mono = (self.bass_mono_freq > 21.0).then(|| {
+            Coefficients::design(
+                FilterKind::HighPass,
+                f64::from(self.bass_mono_freq),
+                std::f64::consts::FRAC_1_SQRT_2,
+                0.0,
+                f64::from(self.rate),
+            )
+        });
+    }
+
     /// The all-pass delays the phase by `rotation` degrees at `rotation_freq`: 0 in the deep
     /// lows, up to 180 degrees towards the top.
     fn update_allpass(&mut self) {
@@ -121,6 +149,7 @@ impl Effect for Utility {
         self.rate = sample_rate as f32;
         self.allocate();
         self.update_allpass();
+        self.update_bass_mono();
         self.reset();
         self.current = None;
     }
@@ -145,6 +174,11 @@ impl Effect for Utility {
                 self.rotation_freq = value.clamp(20.0, 2000.0);
                 self.update_allpass();
             }
+            11 => self.dc = value >= 0.5,
+            12 => {
+                self.bass_mono_freq = value.clamp(20.0, 500.0);
+                self.update_bass_mono();
+            }
             _ => {}
         }
     }
@@ -157,8 +191,17 @@ impl Effect for Utility {
         let step = 1.0 / n.max(1) as f32;
         let delayed = self.delay != [0.0; 2] || self.delay_now != [0.0; 2];
         let leak = 1.0 - (-1.0 / (METER_TIME * self.rate)).exp();
+        // About 4 Hz, whatever the rate.
+        let dc_pole = 1.0 - 25.0 / self.rate;
         for (i, (l, r)) in left.iter_mut().zip(right.iter_mut()).enumerate() {
             let mut x = [*l, *r];
+            if self.dc {
+                for (v, (x1, y1)) in x.iter_mut().zip(&mut self.dc_state) {
+                    let y = *v - *x1 + dc_pole * *y1;
+                    (*x1, *y1) = (*v, y);
+                    *v = y;
+                }
+            }
             if delayed {
                 for (ch, v) in x.iter_mut().enumerate() {
                     // Glides to a new delay over a few milliseconds.
@@ -182,6 +225,13 @@ impl Effect for Utility {
             let m: [f32; 4] = std::array::from_fn(|k| start[k] + (target[k] - start[k]) * t);
             *l = m[0] * x[0] + m[1] * x[1];
             *r = m[2] * x[0] + m[3] * x[1];
+            if let Some(c) = &self.bass_mono {
+                let (mid, mut side) = (0.5 * (*l + *r), f64::from(0.5 * (*l - *r)));
+                for f in &mut self.side_hp {
+                    side = f.process(c, side);
+                }
+                (*l, *r) = (mid + side as f32, mid - side as f32);
+            }
             for (sum, v) in self.sums.iter_mut().zip([*l * *r, *l * *l, *r * *r]) {
                 *sum += (v - *sum) * leak;
             }
@@ -195,6 +245,8 @@ impl Effect for Utility {
         self.delay_now = self.delay;
         self.allpass_state = [(0.0, 0.0); 2];
         self.sums = [0.0; 3];
+        self.dc_state = [(0.0, 0.0); 2];
+        self.side_hp = [Biquad::default(); 2];
     }
 
     /// Phase correlation (-1 to 1), and how much louder the right side is than the left, dB.
@@ -328,5 +380,28 @@ mod tests {
         u.meters(&mut m);
         assert!(m[0] < -0.99, "opposite polarity: {}", m[0]);
         assert!((m[1] + 6.02).abs() < 0.1, "right 6 dB quieter: {}", m[1]);
+    }
+
+    #[test]
+    fn dc_filter_and_mono_lows() {
+        let mut u = Utility::default();
+        u.set_param(11, 1.0);
+        u.prepare(48_000, 4800);
+        let (mut l, mut r) = (vec![0.3f32; 48_000], vec![0.3f32; 48_000]);
+        u.process(&mut l, &mut r);
+        assert!(l[47_999].abs() < 1e-3, "offset removed: {}", l[47_999]);
+        let mut u = Utility::default();
+        u.set_param(12, 200.0);
+        u.prepare(48_000, 4800);
+        // A 50 Hz tone in opposite phase: only sides, folded to mono below 200 Hz.
+        let (mut l, mut r): (Vec<f32>, Vec<f32>) = (0..48_000)
+            .map(|i| {
+                let s = 0.5 * (i as f32 * 50.0 * std::f32::consts::TAU / 48_000.0).sin();
+                (s, -s)
+            })
+            .unzip();
+        u.process(&mut l, &mut r);
+        let peak = l[24_000..].iter().fold(0.0f32, |m, s| m.max(s.abs()));
+        assert!(peak < 0.05, "sides of the lows gone: {peak}");
     }
 }

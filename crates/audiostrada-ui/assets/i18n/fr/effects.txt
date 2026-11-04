@@ -3361,3 +3361,12 @@ Temps de stéréoïsation
 
 Bands
 Bandes
+
+DC filter
+Filtre DC
+
+Alignment
+Alignement
+
+Phase
+Phase

@@ -3392,35 +3392,64 @@ fn utility(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
         lean.abs() > 3.0,
     );
     ui.add_space(8.0);
-    let heading = |ui: &mut Ui, text: &'static str| {
-        ui.label(RichText::new(tr(text)).size(10.5).color(p.weak));
+    let accent = p.accent;
+    let section = |ui: &mut Ui,
+                   params: &mut Params,
+                   title: &'static str,
+                   knobs: &[&str],
+                   pills: &[(&str, &'static str)]| {
+        section_frame(ui, tr(title), p.weak, 118.0, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                for &id in knobs {
+                    let name = params.param(id).map_or("", |q| tr(q.name));
+                    wide_knob(ui, params, id, name, 44.0, accent);
+                }
+            });
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                for &(id, label) in pills {
+                    params.toggle(ui, id, |ui, on| {
+                        let response = pill_switch(ui, *on, tr(label));
+                        if response.clicked() {
+                            *on = !*on;
+                        }
+                        response
+                    });
+                }
+            });
+        });
     };
-    heading(ui, "Level and stereo");
-    ui.horizontal(|ui| {
-        for (id, name) in [("mono", "Mono"), ("swap", "Swap channels")] {
-            params.toggle(ui, id, |ui, on| ui.toggle_value(on, tr(name)));
-        }
-    });
-    ui.horizontal(|ui| knobs(ui, params, &["gain", "balance", "width"], 50.0, p.accent));
-    ui.add_space(6.0);
-    heading(ui, "Phase");
-    ui.horizontal(|ui| {
-        for (id, name) in [
-            ("invert_left", "Invert left"),
-            ("invert_right", "Invert right"),
-        ] {
-            params.toggle(ui, id, |ui, on| ui.toggle_value(on, tr(name)));
-        }
-    });
-    ui.horizontal(|ui| {
-        knobs(
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        section(
             ui,
             params,
-            &["rotation", "rotation_freq", "delay_left", "delay_right"],
-            50.0,
-            p.accent,
-        )
+            "Level",
+            &["gain", "balance"],
+            &[("dc", "DC filter")],
+        );
+        section(
+            ui,
+            params,
+            "Stereo",
+            &["width", "bass_mono"],
+            &[("mono", "Mono"), ("swap", "Swap channels")],
+        );
+        section(
+            ui,
+            params,
+            "Phase",
+            &["rotation", "rotation_freq"],
+            &[
+                ("invert_left", "Invert left"),
+                ("invert_right", "Invert right"),
+            ],
+        );
+        section(ui, params, "Alignment", &["delay_left", "delay_right"], &[]);
     });
+    ui.add_space(4.0);
     ui.label(
         RichText::new(tr(
             "Delay a side to line up two microphones; turn the phase to match the lows of two \
