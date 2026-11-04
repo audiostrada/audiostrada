@@ -3988,3 +3988,15 @@ Arpège : Claviers montants et descendants
 
 Arp: Random bells
 Arpège : Cloches aléatoires
+
+Simple
+Simple
+
+Advanced
+Avancé
+
+The controls that shape the sound most
+Les réglages qui façonnent le plus le son
+
+Every control: wavetables, LFOs, routings, FM...
+Tous les réglages : tables d'ondes, LFO, liaisons, FM...
