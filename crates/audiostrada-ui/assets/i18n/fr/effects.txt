@@ -4364,32 +4364,8 @@ Tambourin : accord
 909: Hard
 909 : Dur
 
-Acoustic: Studio
-Acoustique : Studio
-
-Acoustic: Rock
-Acoustique : Rock
-
-Acoustic: Jazz
-Acoustique : Jazz
-
-Acoustic: Funk
-Acoustique : Funk
-
 Lo-fi: Dusty
 Lo-fi : Poussiéreux
-
-Lo-fi: Boom bap
-Lo-fi : Boom bap
-
-Hybrid: Pop
-Hybride : Pop
-
-Hybrid: Drum and bass
-Hybride : Drum and bass
-
-Minimal: Tight and dry
-Minimal : Serré et sec
 
 An empty MIDI clip at the playhead's bar, to fill step by step
 Un clip MIDI vide à la mesure de la tête de lecture, à remplir pas à pas
@@ -4827,3 +4803,101 @@ Les pas du clip MIDI sous la tête de lecture
 
 The selected pad's sound: tune, envelope, filter and sends
 Le son du pad choisi : accord, enveloppe, filtre et départs
+
+# Drum kits and rhythms
+
+808: Miami bass
+808 : Miami bass
+
+Trap: Atlanta
+Trap : Atlanta
+
+Trap: Dark
+Trap : Sombre
+
+Trap: Rage
+Trap : Rage
+
+Trap: Plugg
+Trap : Plugg
+
+Drill: UK
+Drill : UK
+
+Drill: New York
+Drill : New York
+
+Hip hop: Boom bap
+Hip hop : Boom bap
+
+Hip hop: West coast
+Hip hop : West coast
+
+Hip hop: Phonk
+Hip hop : Phonk
+
+Lo-fi: Late night
+Lo-fi : Nuit tardive
+
+Afro: Afrobeats
+Afro : Afrobeats
+
+Afro: Amapiano
+Afro : Amapiano
+
+Afro: Afro house
+Afro : Afro house
+
+Latin: Reggaeton
+Latino : Reggaeton
+
+Latin: Dancehall
+Latino : Dancehall
+
+House: Deep
+House : Deep
+
+House: Tech house
+House : Tech house
+
+House: UK garage
+House : UK garage
+
+Techno: Berlin
+Techno : Berlin
+
+Techno: Industrial
+Techno : Industrielle
+
+Techno: Minimal
+Techno : Minimale
+
+Electro: Breaks
+Électro : Breaks
+
+Electro: Synthwave
+Électro : Synthwave
+
+Electro: Hyperpop
+Électro : Hyperpop
+
+Drum and bass: Liquid
+Drum and bass : Liquid
+
+Drum and bass: Neuro
+Drum and bass : Neuro
+
+Phonk
+Phonk
+
+UK garage
+UK garage
+
+Afrobeats
+Afrobeats
+
+Amapiano
+Amapiano
+
+Dancehall
+Dancehall
