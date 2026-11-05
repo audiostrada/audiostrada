@@ -32,9 +32,13 @@ pub struct TriggerState {
     own: Option<Vec<OwnSound>>,
     /// The sound being added, in its dialog.
     draft: Option<Draft>,
-    /// What the last tuning or recognition found.
+    /// What the last tuning found, for which sound, and the tune it set.
     note: Option<String>,
+    matched: Option<(Tuned, f32)>,
 }
+
+/// The drum, the sound and its file a tuning was made for.
+type Tuned = (usize, usize, Option<PathBuf>);
 
 /// A sound of one's own: its name, its file and its drum (0 kick, 1 snare).
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -139,9 +143,8 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Trigge
         cards(ui, params, kind, state);
         ui.add_space(12.0);
         display(ui, params, state, color);
-        ui.add_space(8.0);
-        tools(ui, params, kind, state);
-        ui.add_space(10.0);
+        ui.add_space(12.0);
+        follow_track(ui, params, kind, state);
         let knob = |id: &str, label: &'static str| (id.to_owned(), tr(label));
         modules(
             ui,
@@ -159,6 +162,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Trigge
                     tr("Sound"),
                     vec![
                         knob("tune", "Tune"),
+                        knob("match", "On the track"),
                         knob("decay", "Decay"),
                         knob("level", "Level"),
                     ],
@@ -167,6 +171,16 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Trigge
             color,
             46.0,
         );
+        if params.get("match") >= 0.5
+            && let Some(note) = &state.note
+        {
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new(note)
+                    .size(11.0)
+                    .color(INK.gamma_multiply(0.6)),
+            );
+        }
         ui.add_space(8.0);
         modules(
             ui,
@@ -209,59 +223,43 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Trigge
     ui.ctx().request_repaint();
 }
 
-/// Tuning on the track and recognizing the drum, with what they found.
-fn tools(ui: &mut Ui, params: &mut Params, kind: usize, state: &mut TriggerState) {
-    ui.horizontal(|ui| {
-        if ui
-            .button(tr("Tune to the track"))
-            .on_hover_text(tr(
-                "Finds the pitch the track's drum rings at and tunes the sound to it",
-            ))
-            .clicked()
-        {
-            state.note = Some(match match_pitch(params, kind) {
+/// While the switch is on, the sound stays tuned to the track's drum, again whenever the
+/// sound changes; turning the tune by hand lets it go.
+fn follow_track(ui: &Ui, params: &mut Params, kind: usize, state: &mut TriggerState) {
+    if params.get("match") < 0.5 {
+        state.matched = None;
+        return;
+    }
+    let id = if kind == 0 { "kick" } else { "snare" };
+    let file =
+        audiostrada_core::routing::find_insert(params.doc.project(), params.channel, params.insert)
+            .and_then(|i| i.files.get(SLOTS[kind].id).cloned());
+    let key = (kind, params.get(id).round() as usize, file);
+    let response = ui.interact(Rect::NOTHING, ui.scope_id().with("match"), Sense::hover());
+    match &state.matched {
+        Some((done, tune)) if *done == key => {
+            if (params.get("tune") - tune).abs() > 0.05 {
+                params.set("match", Some(0.0), &response);
+                params.doc.history_mut().end_gesture();
+                state.matched = None;
+            }
+        }
+        _ => {
+            let tune = match match_pitch(params, kind) {
                 Ok((semitones, note)) => {
-                    let response =
-                        ui.interact(Rect::NOTHING, ui.scope_id().with("tune"), Sense::hover());
                     params.set("tune", Some(semitones), &response);
                     params.doc.history_mut().end_gesture();
-                    note
+                    state.note = Some(note);
+                    semitones
                 }
-                Err(note) => note,
-            });
-        }
-        if ui
-            .button(tr("Recognize the drum"))
-            .on_hover_text(tr("Listens to the track to tell a kick from a snare"))
-            .clicked()
-        {
-            let guess = match params.channel {
-                Channel::Track(t) => guess_from_audio(params.doc, t),
-                Channel::Master => None,
+                Err(note) => {
+                    state.note = Some(note);
+                    params.get("tune")
+                }
             };
-            state.note = Some(match guess {
-                Some(k) => {
-                    let response =
-                        ui.interact(Rect::NOTHING, ui.scope_id().with("guess"), Sense::hover());
-                    params.set("kind", Some(k as f32), &response);
-                    params.doc.history_mut().end_gesture();
-                    if k == 0 {
-                        tr("The track sounds like a kick").to_owned()
-                    } else {
-                        tr("The track sounds like a snare").to_owned()
-                    }
-                }
-                None => tr("Not clear: choose the drum above").to_owned(),
-            });
+            state.matched = Some((key, tune));
         }
-        if let Some(note) = &state.note {
-            ui.label(
-                RichText::new(note)
-                    .size(11.5)
-                    .color(INK.gamma_multiply(0.7)),
-            );
-        }
-    });
+    }
 }
 
 /// The track's audio where its clips play, mono, up to `seconds`, at the files' rate.

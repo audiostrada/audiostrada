@@ -1433,9 +1433,21 @@ pub(crate) fn modules(
                         .max_rect(place)
                         .layout(egui::Layout::top_down(egui::Align::Center));
                     let choice = params.param(id).is_some_and(|p| !p.choices.is_empty());
+                    let toggle = params.param(id).is_some_and(|p| p.toggle);
                     let shown = ui
                         .scope_builder(builder, |ui| {
-                            if choice {
+                            if toggle {
+                                // A switch in a knob's place, level with the knobs' centers.
+                                ui.add_space(size / 2.0 + 2.0);
+                                let on = params.get(id) >= 0.5;
+                                let response = crate::effect_editors::pill_switch(ui, on, label);
+                                let changed =
+                                    response.clicked().then_some(if on { 0.0 } else { 1.0 });
+                                params.set(id, changed, &response);
+                                if changed.is_some() {
+                                    params.doc.history_mut().end_gesture();
+                                }
+                            } else if choice {
                                 // A list in a knob's place, level with the knobs' centers.
                                 ui.label(RichText::new(*label).size(10.5).color(p.weak));
                                 ui.add_space(size / 2.0 - 12.0);

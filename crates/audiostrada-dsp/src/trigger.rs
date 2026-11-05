@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::{
     Effect, EffectInfo, FileData, FileKind, FileSlot, MidiEvent, ParamInfo, choice, db_to_gain,
-    param,
+    param, switch,
 };
 
 pub const KINDS: [&str; 2] = ["Kick", "Snare"];
@@ -71,8 +71,9 @@ pub mod p {
     pub const MID: usize = 13;
     pub const HIGH: usize = 14;
     pub const DRIVE: usize = 15;
+    pub const MATCH: usize = 16;
 }
-const COUNT: usize = 16;
+const COUNT: usize = 17;
 
 const PARAMS: [ParamInfo; COUNT] = [
     choice("kind", "Drum", &KINDS, 0.0),
@@ -91,6 +92,8 @@ const PARAMS: [ParamInfo; COUNT] = [
     param("mid", "Mid", -12.0, 12.0, 0.0, "dB"),
     param("high", "Treble", -12.0, 12.0, 0.0, "dB"),
     param("drive", "Drive", 0.0, 100.0, 0.0, "%"),
+    // Read by the editor, which tunes the sound to the track's drum while it is on.
+    switch("match", "Match the track", 0.0),
 ];
 
 pub const INFO: EffectInfo = EffectInfo {
