@@ -161,7 +161,7 @@ pub struct TimelineView {
     tops: Vec<f32>,
     content_height: f32,
     /// Range and name of automation targets whose range comes from a plugin.
-    target_info: HashMap<(TrackId, AutomationTarget), (String, f32, f32)>,
+    target_info: HashMap<(TrackId, AutomationTarget), headers::LaneInfo>,
     /// Automation point under the last right click.
     point_menu: Option<(TrackId, usize, usize)>,
     /// Clip or lane under the last right click.
@@ -176,7 +176,7 @@ pub struct TimelineView {
     pub range: Option<Range>,
     clipboard: menus::Clipboard,
     /// Name and range of every shown lane, by track and lane index.
-    lane_info: HashMap<(TrackId, usize), (String, f32, f32)>,
+    lane_info: HashMap<(TrackId, usize), headers::LaneInfo>,
     /// MIDI clip to create at the next frame (track, position).
     pending_midi: Option<(TrackId, u64)>,
     /// Range being comped: track, playlist, start and end.
@@ -1080,7 +1080,7 @@ impl TimelineView {
                     pos2(lanes.left(), top),
                     pos2(lanes.right(), top + LANE_HEIGHT),
                 );
-                let Some((_, min, max)) = self.lane_info.get(&(track.id, li)).cloned() else {
+                let Some(info) = self.lane_info.get(&(track.id, li)) else {
                     continue;
                 };
                 let lane = &track.automation[li];
@@ -1090,7 +1090,7 @@ impl TimelineView {
                 } else {
                     color.gamma_multiply(0.35)
                 };
-                draw_lane(&lane_painter, rect, lane, min, max, scale, color, &visuals);
+                draw_lane(&lane_painter, rect, lane, info, scale, color, &visuals);
             }
         }
 

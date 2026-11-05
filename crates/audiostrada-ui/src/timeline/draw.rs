@@ -665,29 +665,68 @@ pub(super) fn draw_lane(
     painter: &egui::Painter,
     rect: Rect,
     lane: &audiostrada_core::automation::AutomationLane,
-    min: f32,
-    max: f32,
+    info: &super::headers::LaneInfo,
     scale: Scale,
     color: Color32,
     visuals: &egui::Visuals,
 ) {
+    let (min, max) = (info.min, info.max);
     painter.rect_filled(rect.shrink2(vec2(0.0, 0.5)), 0.0, visuals.extreme_bg_color);
+    let visible = rect.intersect(painter.clip_rect());
+    let weak = visuals.weak_text_color();
+    // The range at the left edge.
+    let small = FontId::proportional(9.0);
+    for (v, y, align) in [
+        (max, rect.top() + 2.0, Align2::LEFT_TOP),
+        (min, rect.bottom() - 2.0, Align2::LEFT_BOTTOM),
+    ] {
+        painter.text(
+            pos2(visible.left() + 4.0, y),
+            align,
+            info.text(v),
+            small.clone(),
+            weak.gamma_multiply(0.7),
+        );
+    }
+    // The value set on the control: the line the automation moves away from.
+    if let Some(base) = info.base {
+        let y = value_y(rect, base, info);
+        painter.extend(Shape::dashed_line(
+            &[pos2(visible.left(), y), pos2(visible.right(), y)],
+            Stroke::new(1.0, weak.gamma_multiply(0.8)),
+            5.0,
+            4.0,
+        ));
+        if let Some(set) = info.base_label() {
+            let text = crate::trf!("Set: {value}", value = set);
+            let galley = painter.layout_no_wrap(text, small.clone(), weak);
+            let at = pos2(
+                visible.right() - galley.size().x - 10.0,
+                (y - galley.size().y - 2.0).max(rect.top() + 1.0),
+            );
+            painter.rect_filled(
+                Rect::from_min_size(at - vec2(4.0, 1.0), galley.size() + vec2(8.0, 2.0)),
+                3.0,
+                visuals.extreme_bg_color,
+            );
+            painter.galley(at, galley, weak);
+        }
+    }
     if lane.points.is_empty() {
         painter.text(
-            pos2(rect.left() + 8.0, rect.center().y),
+            pos2(rect.left() + 60.0, rect.center().y),
             Align2::LEFT_CENTER,
             tr("Click to add points, or write them during playback"),
             FontId::proportional(11.0),
-            visuals.weak_text_color(),
+            weak,
         );
         return;
     }
-    let visible = rect.intersect(painter.clip_rect());
     let mut line = Vec::new();
     let mut x = visible.left();
     while x <= visible.right() + 2.0 {
         if let Some(v) = audiostrada_core::automation::value_at(&lane.points, scale.sample(x)) {
-            line.push(pos2(x, value_y(rect, v, min, max)));
+            line.push(pos2(x, value_y(rect, v, info)));
         }
         x += 2.0;
     }
@@ -695,10 +734,25 @@ pub(super) fn draw_lane(
     for p in &lane.points {
         let px = scale.x(p.time);
         if px >= visible.left() - 4.0 && px <= visible.right() + 4.0 {
-            let center = pos2(px, value_y(rect, p.value, min, max));
+            let center = pos2(px, value_y(rect, p.value, info));
             painter.rect_filled(Rect::from_center_size(center, vec2(7.0, 7.0)), 1.0, color);
         }
     }
+}
+
+/// A value shown by the pointer, above everything.
+pub(super) fn value_tag(ctx: &egui::Context, at: Pos2, text: String, accent: Color32) {
+    let painter = ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Tooltip,
+        egui::Id::unique("lane-value"),
+    ));
+    let style = ctx.global_style();
+    let galley =
+        painter.layout_no_wrap(text, FontId::proportional(11.5), style.visuals.text_color());
+    let tag = Rect::from_min_size(at + vec2(14.0, -26.0), galley.size() + vec2(12.0, 6.0));
+    painter.rect_filled(tag, 4.0, style.visuals.window_fill);
+    painter.rect_stroke(tag, 4.0, Stroke::new(1.0, accent), egui::StrokeKind::Inside);
+    painter.galley(tag.min + vec2(6.0, 3.0), galley, style.visuals.text_color());
 }
 
 /// Miniature of a MIDI clip's notes.

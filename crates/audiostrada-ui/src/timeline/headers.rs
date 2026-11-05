@@ -3,57 +3,125 @@
 use super::*;
 
 impl TimelineView {
-    /// Name and value range of an automation target.
+    /// What a lane shows for its target: name, range, how values read, and the value set on
+    /// the control itself, which the lane moves away from.
     pub(super) fn target_info(
         &mut self,
         doc: &mut Document,
         track: &Track,
         target: &AutomationTarget,
-    ) -> (String, f32, f32) {
+    ) -> LaneInfo {
+        let simple = |name: String, min: f32, max: f32, reading: Reading, base: f32| LaneInfo {
+            name,
+            min,
+            max,
+            reading,
+            log: false,
+            base: Some(base),
+            base_text: None,
+        };
         match target {
-            AutomationTarget::Gain => (tr("Volume").into(), -60.0, 12.0),
-            AutomationTarget::Pan => (tr("Pan").into(), -1.0, 1.0),
-            AutomationTarget::Mute => (tr("Mute").into(), 0.0, 1.0),
+            AutomationTarget::Gain => {
+                simple(tr("Volume").into(), -60.0, 12.0, Reading::Db, track.gain_db)
+            }
+            AutomationTarget::Pan => simple(tr("Pan").into(), -1.0, 1.0, Reading::Pan, track.pan),
+            AutomationTarget::Mute => simple(
+                tr("Mute").into(),
+                0.0,
+                1.0,
+                Reading::Toggle,
+                if track.mute { 1.0 } else { 0.0 },
+            ),
             AutomationTarget::Send(to) => {
                 let name = doc.project().track(*to).map_or("?", |t| t.name.as_str());
-                (trf!("Send → {name}", name = name), -60.0, 12.0)
+                let base = track
+                    .sends
+                    .iter()
+                    .find(|s| s.target == *to)
+                    .map_or(0.0, |s| s.gain_db);
+                simple(
+                    trf!("Send → {name}", name = name),
+                    -60.0,
+                    12.0,
+                    Reading::Db,
+                    base,
+                )
             }
             AutomationTarget::Param { insert, param } => {
+                let unknown = LaneInfo {
+                    name: "?".into(),
+                    min: 0.0,
+                    max: 1.0,
+                    reading: Reading::Share,
+                    log: false,
+                    base: None,
+                    base_text: None,
+                };
                 let found = audiostrada_core::routing::flatten(&track.inserts)
                     .into_iter()
-                    .find(|i| i.id == *insert);
+                    .find(|i| i.id == *insert)
+                    .cloned();
                 let Some(ins) = found else {
-                    return ("?".into(), 0.0, 1.0);
+                    return unknown;
                 };
                 if let Some(info) = audiostrada_dsp::info(&ins.effect) {
                     return info
                         .params
                         .iter()
                         .find(|p| p.id == param)
-                        .map_or(("?".into(), 0.0, 1.0), |p| {
-                            (format!("{}: {}", tr(info.name), tr(p.name)), p.min, p.max)
+                        .map_or(unknown, |p| LaneInfo {
+                            name: format!("{}: {}", tr(info.name), tr(p.name)),
+                            min: p.min,
+                            max: p.max,
+                            reading: Reading::Param(p),
+                            log: p.min > 0.0
+                                && p.max / p.min >= 20.0
+                                && matches!(p.unit, "Hz" | "s" | "ms"),
+                            base: Some(ins.params.get(param).copied().unwrap_or(p.default)),
+                            base_text: None,
                         });
                 }
                 let key = (track.id, target.clone());
-                if let Some(cached) = self.target_info.get(&key) {
-                    return cached.clone();
+                let mut info = match self.target_info.get(&key) {
+                    Some(cached) => cached.clone(),
+                    None => {
+                        let name = doc
+                            .player()
+                            .plugins()
+                            .find(&ins.effect)
+                            .map_or_else(|| ins.effect.clone(), |p| p.name.clone());
+                        let info = param
+                            .parse::<u32>()
+                            .ok()
+                            .and_then(|id| {
+                                let plugin =
+                                    doc.player_mut().plugin(Channel::Track(track.id), *insert)?;
+                                plugin.params().into_iter().find(|p| p.id == id)
+                            })
+                            .map_or(
+                                LaneInfo {
+                                    name: format!("{name}: {param}"),
+                                    ..unknown.clone()
+                                },
+                                |p| LaneInfo {
+                                    name: format!("{name}: {}", p.name),
+                                    min: p.min as f32,
+                                    max: p.max as f32,
+                                    ..unknown.clone()
+                                },
+                            );
+                        self.target_info.insert(key, info.clone());
+                        info
+                    }
+                };
+                // The plugin's current value, in its own words when it has them.
+                if let Ok(id) = param.parse::<u32>()
+                    && let Some(plugin) = doc.player_mut().plugin(Channel::Track(track.id), *insert)
+                    && let Some(value) = plugin.param_value(id)
+                {
+                    info.base = Some(value as f32);
+                    info.base_text = plugin.value_text(id, value);
                 }
-                let name = doc
-                    .player()
-                    .plugins()
-                    .find(&ins.effect)
-                    .map_or_else(|| ins.effect.clone(), |p| p.name.clone());
-                let info = param
-                    .parse::<u32>()
-                    .ok()
-                    .and_then(|id| {
-                        let plugin = doc.player_mut().plugin(Channel::Track(track.id), *insert)?;
-                        plugin.params().into_iter().find(|p| p.id == id)
-                    })
-                    .map_or((format!("{name}: {param}"), 0.0, 1.0), |p| {
-                        (format!("{name}: {}", p.name), p.min as f32, p.max as f32)
-                    });
-                self.target_info.insert(key, info.clone());
                 info
             }
         }
@@ -497,10 +565,8 @@ impl TimelineView {
                     0.0,
                     color.gamma_multiply(0.5),
                 );
-                let name = self
-                    .lane_info
-                    .get(&(id, li))
-                    .map_or("?".to_owned(), |i| i.0.clone());
+                let info = self.lane_info.get(&(id, li)).cloned();
+                let name = info.as_ref().map_or("?".to_owned(), |i| i.name.clone());
                 painter.text(
                     pos2(
                         lane_row.left() + 12.0 + depth as f32 * 12.0,
@@ -543,6 +609,20 @@ impl TimelineView {
                             l.visible = false;
                         }
                     });
+                }
+                // The value set on the control, which the lane moves away from.
+                if let Some(set) = info.as_ref().and_then(LaneInfo::base_label) {
+                    let room = Rect::from_min_max(
+                        pos2(lane_row.left() + 120.0, y),
+                        pos2(lane_row.right() - 30.0, y + 18.0),
+                    );
+                    painter.with_clip_rect(room).text(
+                        room.right_center(),
+                        Align2::RIGHT_CENTER,
+                        trf!("Set: {value}", value = set),
+                        FontId::proportional(10.0),
+                        visuals.weak_text_color(),
+                    );
                 }
                 let remove =
                     Rect::from_min_size(pos2(lane_row.right() - 26.0, y), vec2(22.0, 18.0));
@@ -792,7 +872,7 @@ impl TimelineView {
                     if existing.is_some_and(|i| track.automation[i].visible) {
                         continue;
                     }
-                    let (name, ..) = self.target_info(doc, track, &target);
+                    let name = self.target_info(doc, track, &target).name;
                     if ui.button(name).clicked() {
                         let id = track.id;
                         doc.history_mut().edit(tr("Add automation lane"), |p| {
@@ -805,5 +885,91 @@ impl TimelineView {
                     }
                 }
             });
+    }
+}
+
+/// How a lane's values read.
+#[derive(Clone, Debug)]
+pub(super) enum Reading {
+    Db,
+    Pan,
+    Toggle,
+    Param(&'static audiostrada_dsp::ParamInfo),
+    /// A plugin's value, as a share of its range.
+    Share,
+}
+
+/// What an automation lane shows: its name and range, how a value reads, and the value set on
+/// the control itself (the fader, the effect's knob).
+#[derive(Clone, Debug)]
+pub(super) struct LaneInfo {
+    pub name: String,
+    pub min: f32,
+    pub max: f32,
+    pub reading: Reading,
+    /// Drawn on a logarithmic scale: times and frequencies over a wide range.
+    pub log: bool,
+    pub base: Option<f32>,
+    /// The plugin's own words for the base value.
+    pub base_text: Option<String>,
+}
+
+impl LaneInfo {
+    /// Where a value sits in the range, 0 to 1.
+    pub fn share(&self, v: f32) -> f32 {
+        let f = if self.log {
+            (v.max(self.min) / self.min).ln() / (self.max / self.min).ln()
+        } else {
+            (v - self.min) / (self.max - self.min).max(1e-9)
+        };
+        f.clamp(0.0, 1.0)
+    }
+
+    /// The value at a share of the range.
+    pub fn at_share(&self, f: f32) -> f32 {
+        if self.log {
+            self.min * (self.max / self.min).powf(f)
+        } else {
+            self.min + f * (self.max - self.min)
+        }
+    }
+
+    /// A value in the control's unit: "-3.0 dB", "L 20", "2.40 kHz", "62 %".
+    pub fn text(&self, v: f32) -> String {
+        match self.reading {
+            Reading::Db if v <= -59.5 => "-∞ dB".to_owned(),
+            Reading::Db => format!("{v:+.1} dB"),
+            Reading::Pan => {
+                let side = (v * 100.0).round() as i32;
+                match side {
+                    0 => tr("Center").to_owned(),
+                    s if s < 0 => format!("L {}", -s),
+                    s => format!("R {s}"),
+                }
+            }
+            Reading::Toggle if v >= 0.5 => tr("Muted").to_owned(),
+            Reading::Toggle => tr("Not muted").to_owned(),
+            Reading::Param(p) => crate::effect_editors::format_value(p, v),
+            Reading::Share => {
+                format!(
+                    "{:.0} %",
+                    (v - self.min) / (self.max - self.min).max(1e-9) * 100.0
+                )
+            }
+        }
+    }
+
+    pub fn base_label(&self) -> Option<String> {
+        self.base_text
+            .clone()
+            .or_else(|| self.base.map(|b| self.text(b)))
+    }
+
+    /// A value and, beside it, the one set on the control.
+    pub fn compared(&self, v: f32) -> String {
+        match self.base_label() {
+            Some(set) => trf!("{value} · set {base}", value = self.text(v), base = set),
+            None => self.text(v),
+        }
     }
 }

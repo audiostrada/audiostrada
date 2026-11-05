@@ -790,3 +790,18 @@ Aller au transitoire précédent
 
 AudioStrada clips
 Clips AudioStrada
+
+Set: {value}
+Réglé : {value}
+
+Center
+Centre
+
+Muted
+Muet
+
+Not muted
+Non muet
+
+{value} · set {base}
+{value} · réglé {base}

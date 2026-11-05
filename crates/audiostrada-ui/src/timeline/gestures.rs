@@ -233,11 +233,7 @@ impl TimelineView {
             let (r, li, top) = self.lane_at(project, pos.y - lanes.top())?;
             let track = &project.tracks[self.rows[r].0];
             let lane = track.automation.get(li)?;
-            let (_, min, max) = *self
-                .lane_info
-                .get(&(track.id, li))
-                .map(|i| (&i.0, i.1, i.2))
-                .as_ref()?;
+            let info = self.lane_info.get(&(track.id, li))?;
             let rect = Rect::from_min_max(
                 pos2(lanes.left(), lanes.top() + top),
                 pos2(lanes.right(), lanes.top() + top + LANE_HEIGHT),
@@ -247,7 +243,7 @@ impl TimelineView {
                 .iter()
                 .enumerate()
                 .map(|(i, p)| {
-                    let d = pos2(scale.x(p.time), value_y(rect, p.value, min, max)) - pos;
+                    let d = pos2(scale.x(p.time), value_y(rect, p.value, info)) - pos;
                     (i, d.length())
                 })
                 .filter(|&(_, d)| d < POINT_GRAB)
@@ -268,6 +264,25 @@ impl TimelineView {
         let start_pos = press.or(lanes_response.interact_pointer_pos());
         if self.drag.is_none() && hit.is_some() && lanes_response.hovered() {
             let point = hit.as_ref().and_then(|h| h.3);
+            // What the pointer would set here, or the point under it, beside the set value.
+            if let (Some((track, li, rect, point)), Some(pos)) =
+                (hit.as_ref(), lanes_response.hover_pos())
+                && let Some(info) = self.lane_info.get(&(*track, *li))
+            {
+                let value = point
+                    .and_then(|i| {
+                        project
+                            .track(*track)?
+                            .automation
+                            .get(*li)?
+                            .points
+                            .get(i)
+                            .map(|p| p.value)
+                    })
+                    .unwrap_or_else(|| y_value(*rect, pos.y, info));
+                let accent = ui.visuals().selection.bg_fill;
+                value_tag(ui.ctx(), pos, info.compared(value), accent);
+            }
             ui.ctx().set_cursor_icon(if point.is_some() {
                 CursorIcon::Grab
             } else {
@@ -553,13 +568,15 @@ impl TimelineView {
                     preview.markers.sort_by_key(|m| (m.position, m.id));
                 }
                 DragKind::Point(track, li, point, top) => {
-                    if let Some((_, min, max)) = self.lane_info.get(&(track, li)).cloned() {
+                    if let Some(info) = self.lane_info.get(&(track, li)).cloned() {
                         let rect = Rect::from_min_max(
                             pos2(lanes.left(), top),
                             pos2(lanes.right(), top + LANE_HEIGHT),
                         );
                         let time = magnet.snap(scale.sample(pos.x));
-                        let value = y_value(rect, pos.y, min, max);
+                        let value = y_value(rect, pos.y, &info);
+                        let accent = ui.visuals().selection.bg_fill;
+                        value_tag(ui.ctx(), pos, info.compared(value), accent);
                         if let Some(lane) = preview
                             .track_mut(track)
                             .and_then(|t| t.automation.get_mut(li))
@@ -789,10 +806,10 @@ impl TimelineView {
                 });
             } else if lanes_response.clicked()
                 && point.is_none()
-                && let Some((_, min, max)) = self.lane_info.get(&(track, li)).cloned()
+                && let Some(info) = self.lane_info.get(&(track, li)).cloned()
             {
                 let time = magnet.snap(scale.sample(pos.x));
-                let value = y_value(rect, pos.y, min, max);
+                let value = y_value(rect, pos.y, &info);
                 doc.history_mut().edit(tr("Add automation point"), |p| {
                     if let Some(lane) = p.track_mut(track).and_then(|t| t.automation.get_mut(li)) {
                         lane.add(time, value, CurveShape::Linear);
@@ -1203,14 +1220,14 @@ impl TimelineView {
     }
 }
 
-pub(super) fn value_y(rect: Rect, value: f32, min: f32, max: f32) -> f32 {
-    let f = ((value - min) / (max - min).max(1e-9)).clamp(0.0, 1.0);
+pub(super) fn value_y(rect: Rect, value: f32, info: &super::headers::LaneInfo) -> f32 {
+    let f = info.share(value);
     rect.bottom() - LANE_PAD - f * (rect.height() - 2.0 * LANE_PAD)
 }
 
-pub(super) fn y_value(rect: Rect, y: f32, min: f32, max: f32) -> f32 {
+pub(super) fn y_value(rect: Rect, y: f32, info: &super::headers::LaneInfo) -> f32 {
     let f = ((rect.bottom() - LANE_PAD - y) / (rect.height() - 2.0 * LANE_PAD)).clamp(0.0, 1.0);
-    min + f * (max - min)
+    info.at_share(f)
 }
 
 /// Shuffle mode: clips after `trimmed` on its track follow its new end.
