@@ -1037,7 +1037,11 @@ impl TimelineView {
                 lane_painter.galley(at, galley, Color32::from_rgb(12, 32, 28));
             }
         }
+        // Rows scrolled past the header's edges must not catch the tool bar's or ruler's clicks.
+        let clip = ui.clip_rect();
+        ui.set_clip_rect(header.intersect(clip));
         self.draw_headers(ui, header, &mut doc, &project, &visuals);
+        ui.set_clip_rect(clip);
         self.processing_windows(ui.ctx(), &mut doc, settings.grid);
         self.interact(
             ui,
@@ -1389,6 +1393,17 @@ mod tests {
                 "Lead"
             );
             assert!(h.view.renaming.is_none());
+        }
+
+        #[test]
+        fn tools_over_the_headers_stay_clickable_when_scrolled() {
+            let (mut h, _, _) = harness();
+            h.view.scroll_y = 50.0;
+            h.frame(vec![]);
+            // The third tool, the scissors, sits above the track headers.
+            let scissors = pos2(6.0 + 2.0 * 30.0 + 14.0, toolbar::HEIGHT / 2.0);
+            h.click(scissors, Modifiers::NONE);
+            assert_eq!(h.view.tool, Tool::Split);
         }
 
         #[test]
