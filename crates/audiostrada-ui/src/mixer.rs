@@ -5,7 +5,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::Instant;
 
 use audiostrada_core::automation::{AutomationMode, AutomationTarget};
 use audiostrada_core::routing::{self, Channel};
@@ -20,7 +19,7 @@ use crate::i18n::tr;
 use crate::settings::{ERROR, OK, WARN};
 use crate::theme;
 use crate::trf;
-use crate::widgets::{self, MeterState};
+use crate::widgets;
 use audiostrada_core::groups::{self, Link};
 
 mod rack;
@@ -50,8 +49,6 @@ pub struct MixerView {
     expanded: Option<TrackId>,
     /// Height under the fader rows, as measured last frame.
     bottom_last: f32,
-    master_levels: MeterState,
-    last_frame: Instant,
     /// Plugins whose own window opens (or comes to the front) once they are loaded.
     open_gui: Vec<(Channel, InsertId)>,
     /// Where this view's windows were, kept in the context's data (see [`WindowPlaces`]).
@@ -1672,8 +1669,6 @@ impl MixerView {
             rack: Default::default(),
             expanded: None,
             bottom_last: 0.0,
-            master_levels: MeterState::default(),
-            last_frame: Instant::now(),
             open_gui: Vec::new(),
             places: egui::Id::unique((
                 "mixer-windows",
@@ -1720,15 +1715,10 @@ impl MixerView {
 
     /// Clears per-project state after another document was opened.
     pub fn reset(&mut self) {
-        self.master_levels = MeterState::default();
         self.editors.clear();
     }
 
     pub fn show(&mut self, ui: &mut Ui) {
-        let now = Instant::now();
-        let elapsed = now.duration_since(self.last_frame).as_secs_f32();
-        self.last_frame = now;
-
         self.toolbar(ui);
         self.missing_media(ui);
         let doc_rc = Rc::clone(&self.doc);
@@ -1807,7 +1797,7 @@ impl MixerView {
                         },
                     );
                     ui.separator();
-                    self.master_strip(ui, &mut doc, &project, elapsed);
+                    self.master_strip(ui, &mut doc, &project);
                 })
             });
         self.drop_insert(ui, &mut doc);
@@ -3619,10 +3609,8 @@ impl MixerView {
         });
     }
 
-    fn master_strip(&mut self, ui: &mut Ui, doc: &mut Document, project: &Project, elapsed: f32) {
-        self.master_levels
-            .take(doc.player().master_meter(), elapsed);
-        let mut levels = self.master_levels;
+    fn master_strip(&mut self, ui: &mut Ui, doc: &mut Document, project: &Project) {
+        let mut levels = doc.master_level();
         let sizes = self.sizes;
         let fader_height = self.fader_height;
         let width = STRIP_WIDTH + 24.0;
@@ -3754,7 +3742,7 @@ impl MixerView {
             }
             name_plate(ui, width, "Master", Color32::from_gray(150), false, None);
         });
-        self.master_levels = levels;
+        doc.set_master_level(levels);
     }
 
     /// The buttons beside a docked strip's fader that open its inserts and sends.

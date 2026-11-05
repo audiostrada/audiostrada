@@ -3,6 +3,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::thread::JoinHandle;
+use std::time::Instant;
 
 use audiostrada_rt::{alloc_violations, rt_section};
 
@@ -73,6 +74,9 @@ pub struct StreamStatus {
     failed: AtomicBool,
     frames: AtomicU32,
     sample_rate: AtomicU32,
+    /// Processing time over the buffer's duration: averaged, and the highest since read.
+    load: AtomicU32,
+    load_peak: AtomicU32,
 }
 
 impl StreamStatus {
@@ -113,6 +117,21 @@ impl StreamStatus {
         self.sample_rate.load(Ordering::Relaxed)
     }
 
+    /// Share of each buffer's time spent processing, averaged over about half a second.
+    pub fn load(&self) -> f32 {
+        f32::from_bits(self.load.load(Ordering::Relaxed))
+    }
+
+    /// Highest share of a buffer's time spent processing since the last call.
+    pub fn take_load_peak(&self) -> f32 {
+        f32::from_bits(self.load_peak.swap(0, Ordering::Relaxed))
+    }
+
+    fn add_load(&self, average: f32, load: f32) {
+        self.load.store(average.to_bits(), Ordering::Relaxed);
+        self.load_peak.fetch_max(load.to_bits(), Ordering::Relaxed);
+    }
+
     pub(crate) fn add_xruns(&self, count: u64) {
         self.xruns.fetch_add(count, Ordering::Relaxed);
     }
@@ -124,6 +143,7 @@ pub(crate) struct CallbackRunner {
     status: Arc<StreamStatus>,
     sample_rate: u32,
     position: u64,
+    load: f32,
 }
 
 impl CallbackRunner {
@@ -137,6 +157,7 @@ impl CallbackRunner {
             status,
             sample_rate,
             position: 0,
+            load: 0.0,
         }
     }
 
@@ -159,6 +180,7 @@ impl CallbackRunner {
     }
 
     pub(crate) fn run(&mut self, buffers: &mut AudioBuffers<'_>) {
+        let start = Instant::now();
         if self.status.panicked() {
             buffers.clear_outputs();
         } else {
@@ -183,6 +205,13 @@ impl CallbackRunner {
             }
         }
         let frames = buffers.frames();
+        let span = frames as f32 / self.sample_rate.max(1) as f32;
+        if span > 0.0 {
+            let load = start.elapsed().as_secs_f32() / span;
+            let k = (span / 0.5).min(1.0);
+            self.load += k * (load - self.load);
+            self.status.add_load(self.load, load);
+        }
         self.position += frames as u64;
         self.status.frames.store(frames as u32, Ordering::Relaxed);
         self.status
@@ -203,6 +232,8 @@ impl fmt::Debug for CallbackRunner {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use crate::{CallbackTime, ChannelBuffers};
 
@@ -232,6 +263,24 @@ mod tests {
         assert_eq!(status.xruns(), 2);
         assert!(status.failed());
         assert!(format!("{runner:?}").contains("position: 28"));
+    }
+
+    #[test]
+    fn the_load_is_the_share_of_the_buffer_spent_processing() {
+        let status = Arc::new(StreamStatus::default());
+        // 1000 frames at 100 kHz last 10 ms; the callback works for about 6 of them.
+        let busy = |_: &mut AudioBuffers<'_>, _: &CallbackTime| {
+            let start = Instant::now();
+            while start.elapsed() < Duration::from_millis(6) {}
+        };
+        let mut runner = CallbackRunner::new(Box::new(busy), Arc::clone(&status), 100_000);
+        let mut storage = ChannelBuffers::new(0, 1, 1000);
+        for _ in 0..200 {
+            runner.run(&mut storage.buffers(1000));
+        }
+        assert!((0.55..1.5).contains(&status.load()), "{}", status.load());
+        assert!(status.take_load_peak() >= 0.6);
+        assert_eq!(status.take_load_peak(), 0.0);
     }
 
     #[test]

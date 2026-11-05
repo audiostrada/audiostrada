@@ -1092,3 +1092,18 @@ Timecode, {fps} i/s
 
 Transients
 Transitoires
+
+Audio processing: {load} % of each buffer's time on average, {peak} % at most lately. Above 100 %, the sound drops out: raise the buffer size or bypass effects. Click for the audio settings
+Traitement audio : {load} % du temps de chaque tampon en moyenne, {peak} % au plus ces derniers instants. Au-delà de 100 %, le son décroche : augmentez la taille du tampon ou contournez des effets. Cliquez pour les réglages audio
+
+DSP
+DSP
+
+LUFS short-term
+LUFS court terme
+
+Master: peak {left} / {right} dBFS, short-term loudness (3 s) in LUFS. Click to clear the clip light
+Master : crête {left} / {right} dBFS, sonie court terme (3 s) en LUFS. Cliquez pour éteindre le témoin de saturation
+
+No dropout
+Aucun décrochage

@@ -13,6 +13,8 @@ use crate::keymap::Keymap;
 use crate::mixer::{end_gesture, format_time};
 use crate::theme::{self, Icon};
 use crate::trf;
+use crate::widgets::METER_FLOOR;
+use audiostrada_io::StreamStatus;
 
 /// How the counter tells a position.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -234,12 +236,18 @@ pub fn step_length(project: &Project, position: u64, beats: Option<f64>) -> u64 
 }
 
 /// Returns the actions triggered by the transport buttons this frame.
+/// The audio stream as the transport shows it, and whether its settings were asked for.
+pub struct Audio<'a> {
+    pub status: Option<&'a StreamStatus>,
+    pub open_settings: bool,
+}
+
 pub fn show(
     ui: &mut Ui,
     doc: &mut Document,
     keymap: &Keymap,
     mac: bool,
-    recording: bool,
+    (recording, audio): (bool, &mut Audio<'_>),
     counter: &mut Counter,
 ) -> Vec<Action> {
     let mut actions = Vec::new();
@@ -360,6 +368,14 @@ pub fn show(
         counter_well(ui, doc, counter, position, playing, recording);
         ui.add_space(2.0);
         tempo_well(ui, doc, &tempo);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.add_space(4.0);
+            master_well(ui, doc);
+            ui.add_space(4.0);
+            if let Some(status) = audio.status {
+                audio.open_settings |= load_well(ui, status);
+            }
+        });
     });
     ui.add_space(5.0);
     actions
@@ -442,6 +458,216 @@ fn counter_well(
             }
         }
     });
+}
+
+/// The master's level: both channels' peaks with their holds, the clip light (a click clears
+/// it) and the short-term loudness.
+fn master_well(ui: &mut Ui, doc: &mut Document) {
+    doc.update_levels();
+    let dark = ui.visuals().dark_mode;
+    let p = theme::palette(dark);
+    let mut level = doc.master_level();
+    let (rect, response) = ui.allocate_exact_size(vec2(264.0, HEIGHT), Sense::click());
+    theme::well(ui.painter(), rect, dark);
+    let painter = ui.painter_at(rect);
+    let small = FontId::proportional(8.5);
+    let bars = Rect::from_min_max(
+        pos2(rect.left() + 20.0, rect.top() + 7.0),
+        pos2(rect.right() - 92.0, rect.top() + 23.0),
+    );
+    let x_of = |db: f32| bars.left() + bars.width() * fraction(db);
+    for (ch, name) in ["L", "R"].into_iter().enumerate() {
+        let bar = Rect::from_min_size(
+            pos2(bars.left(), bars.top() + ch as f32 * 9.0),
+            vec2(bars.width(), 7.0),
+        );
+        painter.rect_filled(bar, 1.0, Color32::from_black_alpha(90));
+        painter.text(
+            pos2(rect.left() + 10.0, bar.center().y),
+            Align2::CENTER_CENTER,
+            name,
+            small.clone(),
+            p.weak,
+        );
+        let lit = Rect::from_min_max(bar.min, pos2(x_of(level.level[ch]), bar.bottom()));
+        if lit.width() > 0.0 {
+            gradient(&painter.with_clip_rect(lit), bar);
+        }
+        if level.hold[ch] > METER_FLOOR {
+            let x = x_of(level.hold[ch]);
+            painter.line_segment(
+                [pos2(x, bar.top()), pos2(x, bar.bottom())],
+                egui::Stroke::new(1.5, Color32::from_gray(230)),
+            );
+        }
+    }
+    for db in [-48.0f32, -24.0, -12.0, -6.0, -3.0, 0.0] {
+        painter.text(
+            pos2(x_of(db), bars.bottom() + 8.0),
+            Align2::CENTER_CENTER,
+            format!("{}", db.abs()),
+            small.clone(),
+            p.weak,
+        );
+    }
+    // The clip light, lit until clicked.
+    let clip = Rect::from_center_size(pos2(bars.right() + 10.0, bars.center().y), vec2(8.0, 13.0));
+    painter.rect_filled(
+        clip,
+        2.0,
+        if level.clipped {
+            theme::RECORD
+        } else {
+            Color32::from_black_alpha(90)
+        },
+    );
+    let loudness = doc.player().loudness().short_term();
+    let shown = match loudness {
+        Some(v) if v.is_finite() && v > -70.0 => format!("{v:.1}"),
+        _ => "--".to_owned(),
+    };
+    let loud = loudness.is_some_and(|v| v > -9.0);
+    painter.text(
+        pos2(rect.right() - 10.0, rect.top() + 15.0),
+        Align2::RIGHT_CENTER,
+        shown,
+        FontId::monospace(16.0),
+        if loud { theme::RECORD } else { p.text },
+    );
+    painter.text(
+        pos2(rect.right() - 10.0, rect.bottom() - 9.0),
+        Align2::RIGHT_CENTER,
+        tr("LUFS short-term"),
+        small,
+        p.weak,
+    );
+    if response.clicked() {
+        level.clipped = false;
+        doc.set_master_level(level);
+    }
+    response.on_hover_text(trf!(
+        "Master: peak {left} / {right} dBFS, short-term loudness (3 s) in LUFS. Click to clear \
+         the clip light",
+        left = format!("{:.1}", level.hold[0]),
+        right = format!("{:.1}", level.hold[1])
+    ));
+}
+
+/// Where a level sits on the master's bar: -60 to 0 dB, the top decibels spread wider.
+fn fraction(db: f32) -> f32 {
+    (1.0 - (-db).clamp(0.0, -METER_FLOOR) / -METER_FLOOR).powi(2)
+}
+
+/// Green to yellow to red along a horizontal bar, as the vertical meters.
+fn gradient(painter: &egui::Painter, bar: Rect) {
+    let x_of = |db: f32| bar.left() + bar.width() * fraction(db);
+    let stops = [
+        (METER_FLOOR, Color32::from_rgb(40, 150, 90)),
+        (-18.0, Color32::from_rgb(80, 200, 120)),
+        (-9.0, Color32::from_rgb(200, 210, 80)),
+        (-3.0, Color32::from_rgb(240, 170, 60)),
+        (0.0, Color32::from_rgb(240, 80, 70)),
+    ];
+    let mut mesh = egui::Mesh::default();
+    for w in stops.windows(2) {
+        let (x0, x1) = (x_of(w[0].0), x_of(w[1].0));
+        let i = mesh.vertices.len() as u32;
+        mesh.colored_vertex(pos2(x0, bar.top()), w[0].1);
+        mesh.colored_vertex(pos2(x1, bar.top()), w[1].1);
+        mesh.colored_vertex(pos2(x1, bar.bottom()), w[1].1);
+        mesh.colored_vertex(pos2(x0, bar.bottom()), w[0].1);
+        mesh.add_triangle(i, i + 1, i + 2);
+        mesh.add_triangle(i, i + 2, i + 3);
+    }
+    painter.add(egui::Shape::mesh(mesh));
+}
+
+/// The audio processing load, its recent peak and the dropouts; a click opens the audio
+/// settings.
+fn load_well(ui: &mut Ui, status: &StreamStatus) -> bool {
+    let dark = ui.visuals().dark_mode;
+    let p = theme::palette(dark);
+    let (rect, response) = ui.allocate_exact_size(vec2(118.0, HEIGHT), Sense::click());
+    // The peak holds for two seconds, then follows.
+    let id = ui.scope_id().with("dsp-peak");
+    let now = ui.input(|i| i.time);
+    let fresh = status.take_load_peak();
+    let (mut peak, mut since) = ui
+        .data(|d| d.get_temp::<(f32, f64)>(id))
+        .unwrap_or((0.0, now));
+    if fresh >= peak || now - since > 2.0 {
+        peak = fresh;
+        since = now;
+    }
+    ui.data_mut(|d| d.insert_temp(id, (peak, since)));
+    let load = status.load();
+    let xruns = status.xruns();
+    theme::well(ui.painter(), rect, dark);
+    let painter = ui.painter_at(rect);
+    let small = FontId::proportional(8.5);
+    let color = |v: f32| {
+        if v > 0.9 {
+            theme::RECORD
+        } else if v > 0.7 {
+            Color32::from_rgb(240, 170, 60)
+        } else {
+            Color32::from_rgb(80, 200, 120)
+        }
+    };
+    painter.text(
+        pos2(rect.left() + 10.0, rect.top() + 12.0),
+        Align2::LEFT_CENTER,
+        tr("DSP"),
+        small.clone(),
+        p.weak,
+    );
+    painter.text(
+        pos2(rect.right() - 10.0, rect.top() + 12.0),
+        Align2::RIGHT_CENTER,
+        format!("{:.0} %", load * 100.0),
+        FontId::monospace(13.0),
+        color(load),
+    );
+    let bar = Rect::from_min_max(
+        pos2(rect.left() + 10.0, rect.top() + 21.0),
+        pos2(rect.right() - 10.0, rect.top() + 26.0),
+    );
+    painter.rect_filled(bar, 1.0, Color32::from_black_alpha(90));
+    let x_of = |v: f32| bar.left() + bar.width() * v.clamp(0.0, 1.0);
+    painter.rect_filled(
+        Rect::from_min_max(bar.min, pos2(x_of(load), bar.bottom())),
+        1.0,
+        color(load),
+    );
+    let x = x_of(peak);
+    painter.line_segment(
+        [pos2(x, bar.top()), pos2(x, bar.bottom())],
+        egui::Stroke::new(1.5, color(peak)),
+    );
+    let (text, tint) = if xruns == 0 {
+        (tr("No dropout").to_owned(), p.weak)
+    } else {
+        (
+            trf!("{count} dropouts", count = xruns),
+            Color32::from_rgb(240, 170, 60),
+        )
+    };
+    painter.text(
+        pos2(rect.left() + 10.0, rect.bottom() - 7.0),
+        Align2::LEFT_CENTER,
+        text,
+        small,
+        tint,
+    );
+    response
+        .on_hover_text(trf!(
+            "Audio processing: {load} % of each buffer's time on average, {peak} % at most \
+             lately. Above 100 %, the sound drops out: raise the buffer size or bypass effects. \
+             Click for the audio settings",
+            load = format!("{:.0}", load * 100.0),
+            peak = format!("{:.0}", peak * 100.0)
+        ))
+        .clicked()
 }
 
 /// Tempo and time signature, each over its caption.

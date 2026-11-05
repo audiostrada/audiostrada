@@ -2675,6 +2675,10 @@ impl eframe::App for AudioStradaApp {
             .frame(menu_frame)
             .show(ui, |ui| actions.extend(self.menu_bar(ui)));
         let mut counter = self.prefs.counter;
+        let mut audio = transport::Audio {
+            status: self.host.stream().map(|s| s.status()),
+            open_settings: false,
+        };
         egui::Panel::top("transport").show(ui, |ui| {
             let mut doc = self.doc.borrow_mut();
             let recording = doc.recording().is_some();
@@ -2683,13 +2687,16 @@ impl eframe::App for AudioStradaApp {
                 &mut doc,
                 &self.prefs.keymap,
                 self.mac,
-                recording,
+                (recording, &mut audio),
                 &mut counter,
             ));
             crate::metronome_window::show(ui.ctx(), &mut doc);
             versions_window::show(ui.ctx(), &mut doc);
             reference_window::show(ui.ctx(), &mut doc);
         });
+        if audio.open_settings {
+            self.preferences.open_audio();
+        }
         if counter != self.prefs.counter {
             self.prefs.counter = counter;
             (self.hooks.ui_changed)(&self.prefs);

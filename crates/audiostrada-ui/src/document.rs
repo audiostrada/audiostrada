@@ -239,6 +239,7 @@ pub struct Document {
     /// Track meters, shared by the views (reading a meter takes its peaks), and when they were
     /// last read.
     levels: HashMap<TrackId, crate::widgets::MeterState>,
+    master_level: crate::widgets::MeterState,
     levels_read: std::time::Instant,
 }
 
@@ -342,6 +343,7 @@ impl Document {
             archiving: None,
             reference_lufs: None,
             levels: HashMap::new(),
+            master_level: Default::default(),
             levels_read: std::time::Instant::now(),
         };
         doc.controllers = doc.player.live_midi().reader();
@@ -511,6 +513,7 @@ impl Document {
             .filter(|t| self.is_instrument_track(t.id))
             .map(|t| t.id)
             .collect();
+        self.master_level.take(self.player.master_meter(), elapsed);
         let project = self.history.project();
         self.levels.retain(|id, _| project.track(*id).is_some());
         for track in &project.tracks {
@@ -533,6 +536,15 @@ impl Document {
                 _ => level.take(output, elapsed),
             }
         }
+    }
+
+    pub fn master_level(&self) -> crate::widgets::MeterState {
+        self.master_level
+    }
+
+    /// Keeps the master's clip light as a view left it.
+    pub fn set_master_level(&mut self, level: crate::widgets::MeterState) {
+        self.master_level.clipped = level.clipped;
     }
 
     pub fn track_level(&self, id: TrackId) -> crate::widgets::MeterState {
