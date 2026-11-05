@@ -30,6 +30,8 @@ struct ReelLook {
 
 const TAPE: Color32 = Color32::from_rgb(58, 38, 27);
 const PACK: Color32 = Color32::from_rgb(78, 52, 36);
+/// How flat an upright roller's round top looks from the slanted view.
+const SQUASH: f32 = 0.38;
 const SCREW: Color32 = Color32::from_rgb(176, 178, 182);
 
 /// How far each reel has turned: the tape travelled over each pack's radius.
@@ -456,17 +458,20 @@ pub fn vintage(ui: &mut Ui, rect: Rect, params: &mut Params, travel: f32) -> Met
     let block = Rect::from_center_size(at(0.5, 182.0), vec2(170.0, 76.0));
     let tension = [at(0.085, 240.0), at(0.915, 240.0)];
     let guides = [at(0.29, 250.0), at(0.71, 250.0)];
-    thread(
+    // The tape runs round the rollers' bodies, halfway up.
+    let waist = |c: Pos2, height: f32| c + vec2(0.0, height / 2.0);
+    thread_round(
         &painter,
         &[
-            (reels[0], radius * packs[0], false),
-            (tension[0], 34.0, false),
-            (guides[0], 20.0, true),
-            (guides[1], 20.0, true),
-            (tension[1], 34.0, false),
-            (reels[1], radius * packs[1], false),
+            (reels[0], radius * packs[0], false, 1.0),
+            (waist(tension[0], 30.0), 34.0, false, SQUASH),
+            (waist(guides[0], 34.0), 20.0, true, SQUASH),
+            (waist(guides[1], 34.0), 20.0, true, SQUASH),
+            (waist(tension[1], 30.0), 34.0, false, SQUASH),
+            (reels[1], radius * packs[1], false, 1.0),
         ],
     );
+    let tape_y = waist(guides[0], 34.0).y - 20.0 * SQUASH;
     let spokes = ReelLook {
         metal: Color32::from_rgb(196, 198, 200),
         hub: Color32::from_rgb(176, 178, 182),
@@ -530,18 +535,21 @@ pub fn vintage(ui: &mut Ui, rect: Rect, params: &mut Params, travel: f32) -> Met
     ] {
         screw(&painter, s, 4.0, s.x);
     }
+    // The head stack down to the tape, which runs against it.
     let heads = Rect::from_min_max(
         pos2(block.left() + 18.0, block.bottom()),
-        pos2(block.right() - 18.0, block.bottom() + 16.0),
+        pos2(block.right() - 18.0, tape_y + 1.0),
     );
     painter.rect_filled(heads, 2.0, Color32::from_rgb(44, 40, 38));
-    painter.line_segment(
-        [
-            pos2(heads.left() - 30.0, heads.center().y),
-            pos2(heads.right() + 30.0, heads.center().y),
-        ],
-        Stroke::new(3.0, TAPE),
-    );
+    for k in 0..3 {
+        let x = heads.left() + heads.width() * (0.2 + 0.3 * k as f32);
+        painter.rect_filled(
+            Rect::from_center_size(pos2(x, heads.bottom() - 6.0), vec2(16.0, 10.0)),
+            2.0,
+            Color32::from_rgb(150, 150, 154),
+        );
+    }
+    painter.hline(heads.x_range().expand(4.0), tape_y, Stroke::new(3.2, TAPE));
     // The lower panel: tape and speed keys, the plaque, the meters.
     let ink = Color32::from_gray(225);
     let mut x = lower.left() + 24.0;
@@ -868,9 +876,18 @@ fn window(
 /// The tape threaded round circles, each passed on its left (true) or right side of the
 /// direction of travel.
 fn thread(painter: &Painter, path: &[(Pos2, f32, bool)]) {
+    let flat: Vec<_> = path.iter().map(|&(c, r, l)| (c, r, l, 1.0)).collect();
+    thread_round(painter, &flat);
+}
+
+/// The tape threaded as `thread`, some circles seen at a slant: upright rollers whose round
+/// section is squashed in height by the given factor.
+fn thread_round(painter: &Painter, path: &[(Pos2, f32, bool, f32)]) {
     for pair in path.windows(2) {
-        let [(c1, r1, l1), (c2, r2, l2)] = [pair[0], pair[1]];
+        let [(c1, r1, l1, k1), (c2, r2, l2, k2)] = [pair[0], pair[1]];
         let (a, b) = belt((c1, r1, l1), (c2, r2, l2));
+        let a = c1 + vec2(a.x - c1.x, (a.y - c1.y) * k1);
+        let b = c2 + vec2(b.x - c2.x, (b.y - c2.y) * k2);
         painter.line_segment([a, b], Stroke::new(3.2, TAPE));
         painter.line_segment(
             [a - vec2(0.0, 0.8), b - vec2(0.0, 0.8)],
@@ -1095,7 +1112,7 @@ fn cylinder(painter: &Painter, c: Pos2, r: f32, height: f32) {
         Color32::from_black_alpha(0),
     );
     let metal = Color32::from_rgb(196, 198, 202);
-    let squash = 0.38;
+    let squash = SQUASH;
     let mut body = Mesh::default();
     let n = 24;
     for i in 0..=n {
