@@ -1,8 +1,9 @@
-//! Transport bar: playback controls, position, tempo, edit mode and grid.
+//! Transport bar: playback controls, the position counter (its formats on a right click),
+//! tempo and time signature. The edit mode and grid types live here, shown by the timeline.
 
 use audiostrada_core::{Project, edit};
 use audiostrada_engine::tempo::TempoMap;
-use eframe::egui::{self, Align2, Color32, FontId, RichText, Sense, Ui, pos2, vec2};
+use eframe::egui::{self, Align2, Color32, FontId, Rect, RichText, Sense, Ui, pos2, vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::actions::Action;
@@ -12,6 +13,82 @@ use crate::keymap::Keymap;
 use crate::mixer::{end_gesture, format_time};
 use crate::theme::{self, Icon};
 use crate::trf;
+
+/// How the counter tells a position.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum TimeFormat {
+    /// Bars, beats and ticks.
+    #[default]
+    Bars,
+    /// Minutes, seconds and milliseconds.
+    Time,
+    /// Hours, minutes, seconds and frames at this many frames per second.
+    Timecode(u32),
+    Samples,
+}
+
+impl TimeFormat {
+    pub const ALL: [TimeFormat; 6] = [
+        TimeFormat::Bars,
+        TimeFormat::Time,
+        TimeFormat::Timecode(24),
+        TimeFormat::Timecode(25),
+        TimeFormat::Timecode(30),
+        TimeFormat::Samples,
+    ];
+
+    pub fn name(self) -> String {
+        match self {
+            TimeFormat::Bars => tr("Bars and beats").to_owned(),
+            TimeFormat::Time => tr("Minutes and seconds").to_owned(),
+            TimeFormat::Timecode(fps) => trf!("Timecode, {fps} fps", fps = fps),
+            TimeFormat::Samples => tr("Samples").to_owned(),
+        }
+    }
+
+    pub fn format(self, project: &Project, position: u64) -> String {
+        let rate = project.sample_rate.max(1);
+        match self {
+            TimeFormat::Bars => {
+                let tempo = &project.tempo;
+                let bbt = tempo.beat_to_bbt(tempo.sample_to_beat(position, rate));
+                format!("{:>3}.{}.{:03}", bbt.bar, bbt.beat, bbt.tick)
+            }
+            TimeFormat::Time => format_time(position, rate),
+            TimeFormat::Timecode(fps) => {
+                let frames = position * u64::from(fps) / u64::from(rate);
+                let seconds = frames / u64::from(fps);
+                format!(
+                    "{:02}:{:02}:{:02}:{:02}",
+                    seconds / 3600,
+                    seconds / 60 % 60,
+                    seconds % 60,
+                    frames % u64::from(fps)
+                )
+            }
+            TimeFormat::Samples => position.to_string(),
+        }
+    }
+}
+
+/// The counter's large line and the small one under it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Counter {
+    pub main: TimeFormat,
+    pub second: Option<TimeFormat>,
+}
+
+impl Default for Counter {
+    fn default() -> Self {
+        Self {
+            main: TimeFormat::Bars,
+            second: Some(TimeFormat::Time),
+        }
+    }
+}
+
+/// Height of everything on the transport bar.
+const HEIGHT: f32 = 40.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum EditMode {
@@ -141,13 +218,11 @@ pub fn show(
     keymap: &Keymap,
     mac: bool,
     recording: bool,
+    counter: &mut Counter,
 ) -> Vec<Action> {
     let mut actions = Vec::new();
-    let rate = doc.project().sample_rate;
     let looping = doc.project().looping().is_some();
     let tempo = doc.project().tempo.clone();
-    let mut bpm = tempo.bpm_at_beat(0.0);
-    let signature = tempo.signature_at_beat(0.0);
     let position = doc.player().position();
     let playing = doc.player().engine().playing();
     let hint = |action: Action| match keymap.label(action, mac) {
@@ -156,8 +231,9 @@ pub fn show(
     };
     let dark = ui.visuals().dark_mode;
     let p = theme::palette(dark);
-    ui.add_space(3.0);
+    ui.add_space(5.0);
     ui.horizontal(|ui| {
+        ui.set_height(HEIGHT);
         ui.spacing_mut().item_spacing.x = 4.0;
         let icon = |ui: &mut Ui, icon: Icon, on: bool, tint: Color32, action: Action| {
             theme::icon_button(ui, icon, on, tint, &hint(action))
@@ -169,7 +245,7 @@ pub fn show(
             .fill(p.base)
             .stroke(egui::Stroke::new(1.0, p.border))
             .corner_radius(7.0)
-            .inner_margin(egui::Margin::same(3));
+            .inner_margin(egui::Margin::symmetric(5, 6));
         group.show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 3.0;
@@ -258,87 +334,169 @@ pub fn show(
         });
         ui.add_space(10.0);
 
-        // Counter: bars and beats large, clock time below.
-        let bbt = tempo.beat_to_bbt(tempo.sample_to_beat(position, rate));
-        let (rect, _) = ui.allocate_exact_size(vec2(186.0, 40.0), Sense::hover());
-        theme::well(ui.painter(), rect, dark);
-        let color = if recording {
-            theme::RECORD
-        } else if playing {
-            theme::PLAY
-        } else {
-            p.text
-        };
+        ui.add_space(4.0);
+        counter_well(ui, doc, counter, position, playing, recording);
+        ui.add_space(2.0);
+        tempo_well(ui, doc, &tempo);
+    });
+    ui.add_space(5.0);
+    actions
+}
+
+/// The position, large in the main format and small in the second; a right click chooses
+/// them.
+fn counter_well(
+    ui: &mut Ui,
+    doc: &Document,
+    counter: &mut Counter,
+    position: u64,
+    playing: bool,
+    recording: bool,
+) {
+    let dark = ui.visuals().dark_mode;
+    let p = theme::palette(dark);
+    let (rect, response) = ui.allocate_exact_size(vec2(196.0, HEIGHT), Sense::click());
+    theme::well(ui.painter(), rect, dark);
+    let color = if recording {
+        theme::RECORD
+    } else if playing {
+        theme::PLAY
+    } else {
+        p.text
+    };
+    let project = doc.project();
+    let main_y = if counter.second.is_some() {
+        rect.top() + 15.0
+    } else {
+        rect.center().y
+    };
+    ui.painter().text(
+        pos2(rect.right() - 10.0, main_y),
+        Align2::RIGHT_CENTER,
+        counter.main.format(project, position),
+        FontId::monospace(19.0),
+        color,
+    );
+    if let Some(second) = counter.second {
         ui.painter().text(
-            pos2(rect.left() + 10.0, rect.top() + 2.0),
-            Align2::LEFT_TOP,
-            format!("{:>3}.{}.{:03}", bbt.bar, bbt.beat, bbt.tick),
-            FontId::monospace(20.0),
-            color,
-        );
-        ui.painter().text(
-            pos2(rect.right() - 8.0, rect.bottom() - 2.0),
-            Align2::RIGHT_BOTTOM,
-            format_time(position, rate),
+            pos2(rect.right() - 10.0, rect.bottom() - 9.0),
+            Align2::RIGHT_CENTER,
+            second.format(project, position),
             FontId::monospace(10.5),
             p.weak,
         );
-
-        // Tempo and time signature.
-        ui.add_space(4.0);
-        egui::Frame::new()
-            .fill(p.base)
-            .stroke(egui::Stroke::new(1.0, p.border))
-            .corner_radius(4.0)
-            .inner_margin(egui::Margin::symmetric(8, 4))
-            .show(ui, |ui| {
-                ui.vertical(|ui| {
-                    ui.spacing_mut().item_spacing.y = 0.0;
-                    ui.horizontal(|ui| {
-                        let response = ui
-                            .add(
-                                egui::DragValue::new(&mut bpm)
-                                    .range(20.0..=400.0)
-                                    .speed(0.5)
-                                    .fixed_decimals(1),
-                            )
-                            .on_hover_text(tr("Tempo (drag or type)"));
-                        let mut numerator = signature.numerator;
-                        let mut denominator = signature.denominator;
-                        let sig = ui
-                            .add(egui::DragValue::new(&mut numerator).range(1..=32))
-                            .on_hover_text(tr("Beats per bar"));
-                        ui.label(RichText::new("/").color(p.weak));
-                        let mut den_changed = false;
-                        egui::ComboBox::from_id_salt("signature-denominator")
-                            .width(36.0)
-                            .selected_text(denominator.to_string())
-                            .show_ui(ui, |ui| {
-                                for d in [2, 4, 8, 16] {
-                                    den_changed |= ui
-                                        .selectable_value(&mut denominator, d, d.to_string())
-                                        .changed();
-                                }
-                            });
-                        if response.changed() || sig.changed() || den_changed {
-                            doc.history_mut().edit_merged(tr("Tempo"), "tempo", |p| {
-                                let tempo = TempoMap::constant(bpm, numerator, denominator);
-                                audiostrada_core::edit::set_tempo(p, tempo);
-                            });
-                        }
-                        end_gesture(doc.history_mut(), &response);
-                        end_gesture(doc.history_mut(), &sig);
-                    });
-                    ui.label(
-                        RichText::new(tr("BPM        SIGNATURE"))
-                            .size(8.5)
-                            .color(p.weak),
-                    );
-                });
-            });
+    }
+    let response = response.on_hover_text(tr("Right-click to choose how the position is shown"));
+    response.context_menu(|ui| {
+        ui.label(RichText::new(tr("Main display")).small().weak());
+        for format in TimeFormat::ALL {
+            if ui
+                .selectable_label(counter.main == format, format.name())
+                .clicked()
+            {
+                counter.main = format;
+                if counter.second == Some(format) {
+                    counter.second = None;
+                }
+                ui.close();
+            }
+        }
+        ui.separator();
+        ui.label(RichText::new(tr("Second line")).small().weak());
+        if ui
+            .selectable_label(counter.second.is_none(), tr("None"))
+            .clicked()
+        {
+            counter.second = None;
+            ui.close();
+        }
+        for format in TimeFormat::ALL.into_iter().filter(|f| *f != counter.main) {
+            if ui
+                .selectable_label(counter.second == Some(format), format.name())
+                .clicked()
+            {
+                counter.second = Some(format);
+                ui.close();
+            }
+        }
     });
-    ui.add_space(3.0);
-    actions
+}
+
+/// Tempo and time signature, each over its caption.
+fn tempo_well(ui: &mut Ui, doc: &mut Document, tempo: &TempoMap) {
+    let dark = ui.visuals().dark_mode;
+    let p = theme::palette(dark);
+    let mut bpm = tempo.bpm_at_beat(0.0);
+    let signature = tempo.signature_at_beat(0.0);
+    let (mut numerator, mut denominator) = (signature.numerator, signature.denominator);
+    let (rect, _) = ui.allocate_exact_size(vec2(178.0, HEIGHT), Sense::hover());
+    theme::well(ui.painter(), rect, dark);
+    let divider = rect.left() + 74.0;
+    ui.painter().vline(
+        divider,
+        rect.top() + 7.0..=rect.bottom() - 7.0,
+        egui::Stroke::new(1.0, p.border),
+    );
+    let caption = |x: f32, text: &str| {
+        ui.painter().text(
+            pos2(x, rect.bottom() - 7.0),
+            Align2::CENTER_CENTER,
+            text.to_uppercase(),
+            FontId::proportional(8.5),
+            p.weak,
+        );
+    };
+    caption((rect.left() + divider) / 2.0, tr("BPM"));
+    caption((divider + rect.right()) / 2.0, tr("Signature"));
+    let top = rect.top() + 4.0;
+    let row = 20.0;
+    let tempo_cell = Rect::from_min_size(pos2(rect.left() + 8.0, top), vec2(58.0, row));
+    let response = ui
+        .put(
+            tempo_cell,
+            egui::DragValue::new(&mut bpm)
+                .range(20.0..=400.0)
+                .speed(0.5)
+                .fixed_decimals(1),
+        )
+        .on_hover_text(tr("Tempo (drag or type)"));
+    let mut sig = None;
+    let mut den_changed = false;
+    let cell = Rect::from_min_size(
+        pos2(divider + 10.0, top),
+        vec2(rect.right() - divider - 18.0, row),
+    );
+    ui.scope_builder(egui::UiBuilder::new().max_rect(cell), |ui| {
+        ui.horizontal_centered(|ui| {
+            ui.spacing_mut().item_spacing.x = 3.0;
+            sig = Some(
+                ui.add(egui::DragValue::new(&mut numerator).range(1..=32))
+                    .on_hover_text(tr("Beats per bar")),
+            );
+            ui.label(RichText::new("/").color(p.weak));
+            egui::ComboBox::from_id_salt("signature-denominator")
+                .width(34.0)
+                .selected_text(denominator.to_string())
+                .show_ui(ui, |ui| {
+                    for d in [2, 4, 8, 16] {
+                        den_changed |= ui
+                            .selectable_value(&mut denominator, d, d.to_string())
+                            .changed();
+                    }
+                });
+        });
+    });
+    let sig_changed = sig.as_ref().is_some_and(|r| r.changed());
+    if response.changed() || sig_changed || den_changed {
+        doc.history_mut().edit_merged(tr("Tempo"), "tempo", |p| {
+            let tempo = TempoMap::constant(bpm, numerator, denominator);
+            audiostrada_core::edit::set_tempo(p, tempo);
+        });
+    }
+    end_gesture(doc.history_mut(), &response);
+    if let Some(sig) = &sig {
+        end_gesture(doc.history_mut(), sig);
+    }
 }
 
 #[cfg(test)]
@@ -380,5 +538,16 @@ mod tests {
         project.tempo = TempoMap::constant(120.0, 6, 8);
         assert_eq!(bars.grid_step(&project, 0), 72_000);
         assert_eq!(step_length(&project, 0, Some(0.5)), 12_000);
+    }
+
+    #[test]
+    fn the_counter_formats() {
+        let project = Project::new("t", 48_000);
+        // 61.5 s at 120 BPM in 4/4: 123 beats, bar 31, beat 4.
+        let at = 48_000 * 61 + 24_000;
+        assert_eq!(TimeFormat::Bars.format(&project, at), " 31.4.000");
+        assert_eq!(TimeFormat::Time.format(&project, at), "01:01.500");
+        assert_eq!(TimeFormat::Timecode(25).format(&project, at), "00:01:01:12");
+        assert_eq!(TimeFormat::Samples.format(&project, at), "2952000");
     }
 }

@@ -1863,8 +1863,6 @@ impl AudioStradaApp {
             ui.menu_button(tr("File"), |ui| {
                 item(ui, &mut chosen, Action::NewProject, None, true);
                 item(ui, &mut chosen, Action::OpenProject, None, true);
-                item(ui, &mut chosen, Action::NewProjectTab, None, true);
-                item(ui, &mut chosen, Action::OpenProjectInTab, None, true);
                 ui.menu_button(tr("Open recent"), |ui| {
                     if self.recent.is_empty() {
                         ui.weak(tr("No recent projects"));
@@ -1876,21 +1874,34 @@ impl AudioStradaApp {
                         }
                     }
                 });
+                ui.menu_button(tr("Tabs"), |ui| {
+                    for action in [
+                        Action::NewProjectTab,
+                        Action::OpenProjectInTab,
+                        Action::NextTab,
+                        Action::PreviousTab,
+                        Action::CloseTab,
+                    ] {
+                        item(ui, &mut chosen, action, None, true);
+                    }
+                });
                 ui.separator();
                 item(ui, &mut chosen, Action::Save, None, true);
                 item(ui, &mut chosen, Action::SaveAs, None, true);
                 item(ui, &mut chosen, Action::ProjectVersions, None, true);
-                item(ui, &mut chosen, Action::CollectMedia, None, true);
-                item(ui, &mut chosen, Action::ArchiveProject, None, true);
                 ui.separator();
-                item(ui, &mut chosen, Action::CloseTab, None, true);
-                item(ui, &mut chosen, Action::NextTab, None, true);
-                item(ui, &mut chosen, Action::PreviousTab, None, true);
-                ui.separator();
-                item(ui, &mut chosen, Action::ImportAudio, None, true);
-                item(ui, &mut chosen, Action::Export, None, true);
-                item(ui, &mut chosen, Action::ImportMidi, None, true);
-                item(ui, &mut chosen, Action::ExportMidi, None, true);
+                ui.menu_button(tr("Import"), |ui| {
+                    item(ui, &mut chosen, Action::ImportAudio, None, true);
+                    item(ui, &mut chosen, Action::ImportMidi, None, true);
+                });
+                ui.menu_button(tr("Export"), |ui| {
+                    item(ui, &mut chosen, Action::Export, None, true);
+                    item(ui, &mut chosen, Action::ExportMidi, None, true);
+                });
+                ui.menu_button(tr("Project files"), |ui| {
+                    item(ui, &mut chosen, Action::CollectMedia, None, true);
+                    item(ui, &mut chosen, Action::ArchiveProject, None, true);
+                });
                 ui.separator();
                 item(ui, &mut chosen, Action::Quit, None, true);
             });
@@ -1901,33 +1912,17 @@ impl AudioStradaApp {
                 item(ui, &mut chosen, Action::Redo, text, redo.is_some());
                 ui.separator();
                 for action in [
-                    Action::SelectAll,
-                    Action::Deselect,
-                    Action::Copy,
                     Action::Cut,
+                    Action::Copy,
                     Action::Paste,
-                    Action::Delete,
-                    Action::Split,
                     Action::Duplicate,
-                    Action::NudgeLeft,
-                    Action::NudgeRight,
+                    Action::Delete,
                 ] {
                     item(ui, &mut chosen, action, None, true);
                 }
                 ui.separator();
-                ui.menu_button(tr("Process clips"), |ui| {
-                    for action in [
-                        Action::Heal,
-                        Action::Consolidate,
-                        Action::StripSilence,
-                        Action::ProcessClips,
-                        Action::BeatDetective,
-                        Action::Groove,
-                        Action::Quantize,
-                    ] {
-                        item(ui, &mut chosen, action, None, true);
-                    }
-                });
+                item(ui, &mut chosen, Action::SelectAll, None, true);
+                item(ui, &mut chosen, Action::Deselect, None, true);
                 ui.menu_button(tr("Time range"), |ui| {
                     for action in [
                         Action::RangeFromClips,
@@ -1936,6 +1931,12 @@ impl AudioStradaApp {
                     ] {
                         item(ui, &mut chosen, action, None, true);
                     }
+                });
+                ui.separator();
+                item(ui, &mut chosen, Action::Split, None, true);
+                ui.menu_button(tr("Nudge"), |ui| {
+                    item(ui, &mut chosen, Action::NudgeLeft, None, true);
+                    item(ui, &mut chosen, Action::NudgeRight, None, true);
                 });
                 ui.menu_button(tr("Whole project"), |ui| {
                     for action in [
@@ -1954,28 +1955,77 @@ impl AudioStradaApp {
                     }
                 });
                 ui.menu_button(tr("Edit mode and grid"), |ui| {
-                    check(
-                        ui,
-                        &mut chosen,
-                        Action::ModeSlip,
-                        self.edit.mode == EditMode::Slip,
-                    );
-                    check(
-                        ui,
-                        &mut chosen,
-                        Action::ModeShuffle,
-                        self.edit.mode == EditMode::Shuffle,
-                    );
-                    check(
-                        ui,
-                        &mut chosen,
-                        Action::ModeGrid,
-                        self.edit.mode == EditMode::Grid,
-                    );
+                    for (action, mode) in [
+                        (Action::ModeSlip, EditMode::Slip),
+                        (Action::ModeShuffle, EditMode::Shuffle),
+                        (Action::ModeGrid, EditMode::Grid),
+                    ] {
+                        check(ui, &mut chosen, action, self.edit.mode == mode);
+                    }
+                    ui.separator();
                     check(ui, &mut chosen, Action::ToggleSnap, self.edit.snap);
                     item(ui, &mut chosen, Action::GridFiner, None, true);
                     item(ui, &mut chosen, Action::GridCoarser, None, true);
                 });
+                ui.separator();
+                item(ui, &mut chosen, Action::Preferences, None, true);
+            });
+            ui.menu_button(tr("Clip"), |ui| {
+                item(ui, &mut chosen, Action::NewMidiClip, None, true);
+                ui.separator();
+                for action in [Action::Heal, Action::Consolidate, Action::StripSilence] {
+                    item(ui, &mut chosen, action, None, true);
+                }
+                ui.separator();
+                for action in [Action::ProcessClips, Action::BeatDetective, Action::Groove] {
+                    item(ui, &mut chosen, action, None, true);
+                }
+                ui.separator();
+                item(ui, &mut chosen, Action::Quantize, None, true);
+            });
+            ui.menu_button(tr("Track"), |ui| {
+                ui.menu_button(tr("Add"), |ui| {
+                    for action in [
+                        Action::AddTrack,
+                        Action::AddStereoTrack,
+                        Action::AddInstrumentTrack,
+                        Action::AddDrumTrack,
+                        Action::AddVca,
+                    ] {
+                        item(ui, &mut chosen, action, None, true);
+                    }
+                    ui.separator();
+                    item(ui, &mut chosen, Action::AddTracks, None, true);
+                });
+                ui.separator();
+                ui.label(egui::RichText::new(tr("Selected tracks")).small().weak());
+                for action in [
+                    Action::DuplicateTracks,
+                    Action::DeleteTracks,
+                    Action::GroupTracks,
+                ] {
+                    item(ui, &mut chosen, action, None, true);
+                }
+                for action in [Action::MuteTracks, Action::SoloTracks, Action::ArmTracks] {
+                    item(ui, &mut chosen, action, None, true);
+                }
+                ui.menu_button(tr("Move and select"), |ui| {
+                    for action in [
+                        Action::MoveTrackUp,
+                        Action::MoveTrackDown,
+                        Action::SelectPreviousTrack,
+                        Action::SelectNextTrack,
+                    ] {
+                        item(ui, &mut chosen, action, None, true);
+                    }
+                });
+                ui.menu_button(tr("Playlists"), |ui| {
+                    for action in [Action::NewPlaylist, Action::NextPlaylist] {
+                        item(ui, &mut chosen, action, None, true);
+                    }
+                });
+                ui.separator();
+                item(ui, &mut chosen, Action::ToggleGroups, None, true);
             });
             ui.menu_button(tr("Transport"), |ui| {
                 for action in [
@@ -1988,96 +2038,72 @@ impl AudioStradaApp {
                     item(ui, &mut chosen, action, None, true);
                 }
                 ui.separator();
-                item(ui, &mut chosen, Action::ToggleLoop, None, true);
-                check(ui, &mut chosen, Action::LoopFollowsSelection, !loop_fixed);
-                for action in [
-                    Action::LoopSelection,
-                    Action::TogglePunch,
-                    Action::ToggleMetronome,
-                    Action::MetronomeSettings,
-                    Action::ReferenceTrack,
-                    Action::ListenToReference,
-                ] {
-                    item(ui, &mut chosen, action, None, true);
-                }
+                ui.menu_button(tr("Loop and punch"), |ui| {
+                    item(ui, &mut chosen, Action::ToggleLoop, None, true);
+                    item(ui, &mut chosen, Action::LoopSelection, None, true);
+                    check(ui, &mut chosen, Action::LoopFollowsSelection, !loop_fixed);
+                    ui.separator();
+                    item(ui, &mut chosen, Action::TogglePunch, None, true);
+                });
+                ui.menu_button(tr("Markers"), |ui| {
+                    for action in [
+                        Action::AddMarker,
+                        Action::PreviousMarker,
+                        Action::NextMarker,
+                    ] {
+                        item(ui, &mut chosen, action, None, true);
+                    }
+                });
+                ui.menu_button(tr("Metronome"), |ui| {
+                    item(ui, &mut chosen, Action::ToggleMetronome, None, true);
+                    item(ui, &mut chosen, Action::MetronomeSettings, None, true);
+                });
+                ui.menu_button(tr("Reference track"), |ui| {
+                    item(ui, &mut chosen, Action::ListenToReference, None, true);
+                    item(ui, &mut chosen, Action::ReferenceTrack, None, true);
+                });
+                ui.separator();
                 let low = self.doc.borrow().player().low_latency();
                 check(ui, &mut chosen, Action::LowLatency, low);
-                ui.separator();
-                for action in [
-                    Action::AddMarker,
-                    Action::NextMarker,
-                    Action::PreviousMarker,
-                ] {
-                    item(ui, &mut chosen, action, None, true);
-                }
-            });
-            ui.menu_button(tr("Track"), |ui| {
-                for action in [
-                    Action::AddTrack,
-                    Action::AddStereoTrack,
-                    Action::AddTracks,
-                    Action::AddInstrumentTrack,
-                    Action::AddDrumTrack,
-                    Action::AddVca,
-                    Action::NewMidiClip,
-                ] {
-                    item(ui, &mut chosen, action, None, true);
-                }
-                ui.separator();
-                ui.label(egui::RichText::new(tr("Selected tracks")).small().weak());
-                for action in [
-                    Action::DuplicateTracks,
-                    Action::DeleteTracks,
-                    Action::GroupTracks,
-                    Action::ToggleGroups,
-                    Action::MuteTracks,
-                    Action::SoloTracks,
-                    Action::ArmTracks,
-                    Action::MoveTrackUp,
-                    Action::MoveTrackDown,
-                    Action::SelectPreviousTrack,
-                    Action::SelectNextTrack,
-                ] {
-                    item(ui, &mut chosen, action, None, true);
-                }
-                ui.separator();
-                for action in [Action::NewPlaylist, Action::NextPlaylist] {
-                    item(ui, &mut chosen, action, None, true);
-                }
             });
             ui.menu_button(tr("View"), |ui| {
-                for pane in Pane::ALL {
-                    let action = match pane {
-                        Pane::Timeline => Action::ShowTimeline,
-                        Pane::Mixer => Action::ShowMixer,
-                        Pane::Browser => Action::ShowBrowser,
-                        Pane::Inspector => Action::ShowInspector,
-                        Pane::Markers => Action::ShowMarkers,
-                        Pane::PianoRoll => Action::ShowPianoRoll,
-                        Pane::Rack => Action::ShowRack,
-                    };
+                ui.menu_button(tr("Panels"), |ui| {
+                    for pane in Pane::ALL {
+                        let action = match pane {
+                            Pane::Timeline => Action::ShowTimeline,
+                            Pane::Mixer => Action::ShowMixer,
+                            Pane::Browser => Action::ShowBrowser,
+                            Pane::Inspector => Action::ShowInspector,
+                            Pane::Markers => Action::ShowMarkers,
+                            Pane::PianoRoll => Action::ShowPianoRoll,
+                            Pane::Rack => Action::ShowRack,
+                        };
+                        check(
+                            ui,
+                            &mut chosen,
+                            action,
+                            layout::is_visible(&self.tree, pane) || self.detached.contains(&pane),
+                        );
+                    }
+                    ui.separator();
+                    item(ui, &mut chosen, Action::ResetLayout, None, true);
+                });
+                ui.menu_button(tr("Windows"), |ui| {
                     check(
                         ui,
                         &mut chosen,
-                        action,
-                        layout::is_visible(&self.tree, pane) || self.detached.contains(&pane),
+                        Action::DetachMixer,
+                        self.detached.contains(&Pane::Mixer),
                     );
-                }
-                check(
-                    ui,
-                    &mut chosen,
-                    Action::DetachMixer,
-                    self.detached.contains(&Pane::Mixer),
-                );
+                    check(
+                        ui,
+                        &mut chosen,
+                        Action::DetachPianoRoll,
+                        self.detached.contains(&Pane::PianoRoll),
+                    );
+                });
                 let compact = self.views.borrow().mixer.compact;
                 check(ui, &mut chosen, Action::CompactMixer, compact);
-                check(
-                    ui,
-                    &mut chosen,
-                    Action::DetachPianoRoll,
-                    self.detached.contains(&Pane::PianoRoll),
-                );
-                item(ui, &mut chosen, Action::ResetLayout, None, true);
                 check(
                     ui,
                     &mut chosen,
@@ -2085,22 +2111,31 @@ impl AudioStradaApp {
                     fullscreen(ui.ctx()),
                 );
                 ui.separator();
-                for action in [
-                    Action::ZoomIn,
-                    Action::ZoomOut,
-                    Action::ZoomToFit,
-                    Action::ZoomToSelection,
-                    Action::TallerTracks,
-                    Action::ShorterTracks,
-                    Action::WaveformZoomIn,
-                    Action::WaveformZoomOut,
-                    Action::WaveformZoomReset,
-                ] {
-                    item(ui, &mut chosen, action, None, true);
-                }
+                ui.menu_button(tr("Zoom"), |ui| {
+                    for action in [
+                        Action::ZoomIn,
+                        Action::ZoomOut,
+                        Action::ZoomToSelection,
+                        Action::ZoomToFit,
+                    ] {
+                        item(ui, &mut chosen, action, None, true);
+                    }
+                });
+                ui.menu_button(tr("Track height"), |ui| {
+                    item(ui, &mut chosen, Action::TallerTracks, None, true);
+                    item(ui, &mut chosen, Action::ShorterTracks, None, true);
+                });
+                ui.menu_button(tr("Waveforms"), |ui| {
+                    for action in [
+                        Action::WaveformZoomIn,
+                        Action::WaveformZoomOut,
+                        Action::WaveformZoomReset,
+                    ] {
+                        item(ui, &mut chosen, action, None, true);
+                    }
+                });
                 ui.separator();
                 item(ui, &mut chosen, Action::CommandPalette, None, true);
-                item(ui, &mut chosen, Action::Preferences, None, true);
             });
             ui.menu_button(tr("Help"), |ui| {
                 item(ui, &mut chosen, Action::KeyboardShortcuts, None, true);
@@ -2578,6 +2613,7 @@ impl eframe::App for AudioStradaApp {
         egui::Panel::top("menu-bar")
             .frame(menu_frame)
             .show(ui, |ui| actions.extend(self.menu_bar(ui)));
+        let mut counter = self.prefs.counter;
         egui::Panel::top("transport").show(ui, |ui| {
             let mut doc = self.doc.borrow_mut();
             let recording = doc.recording().is_some();
@@ -2587,11 +2623,16 @@ impl eframe::App for AudioStradaApp {
                 &self.prefs.keymap,
                 self.mac,
                 recording,
+                &mut counter,
             ));
             crate::metronome_window::show(ui.ctx(), &mut doc);
             versions_window::show(ui.ctx(), &mut doc);
             reference_window::show(ui.ctx(), &mut doc);
         });
+        if counter != self.prefs.counter {
+            self.prefs.counter = counter;
+            (self.hooks.ui_changed)(&self.prefs);
+        }
         if self.tabs.len() > 1 {
             egui::Panel::top("tabs").show(ui, |ui| self.tab_bar(ui));
         }

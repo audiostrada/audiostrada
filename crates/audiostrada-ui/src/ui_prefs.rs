@@ -181,6 +181,8 @@ pub struct UiPrefs {
     /// The timeline's tool.
     #[serde(default)]
     pub timeline_tool: crate::timeline::Tool,
+    /// How the transport's counter shows the position.
+    pub counter: crate::transport::Counter,
 }
 
 impl Default for UiPrefs {
@@ -212,6 +214,7 @@ impl Default for UiPrefs {
             header_width: 210.0,
             mixer_compact: false,
             timeline_tool: crate::timeline::Tool::Smart,
+            counter: crate::transport::Counter::default(),
         }
     }
 }

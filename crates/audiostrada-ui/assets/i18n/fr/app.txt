@@ -778,9 +778,6 @@ Temps par mesure
 Tempo
 Tempo
 
-BPM        SIGNATURE
-BPM        MÉTRIQUE
-
 Grid value
 Valeur de grille
 
@@ -1041,3 +1038,54 @@ Ajouter une piste au-dessus
 
 Add a track below
 Ajouter une piste en dessous
+
+Loop and punch
+Boucle et punch
+
+Move and select
+Déplacer et sélectionner
+
+Panels
+Panneaux
+
+Playlists
+Playlists
+
+Project files
+Fichiers du projet
+
+Tabs
+Onglets
+
+Windows
+Fenêtres
+
+Zoom
+Zoom
+
+BPM
+BPM
+
+Bars and beats
+Mesures et temps
+
+Main display
+Affichage principal
+
+Minutes and seconds
+Minutes et secondes
+
+Right-click to choose how the position is shown
+Clic droit pour choisir comment la position est affichée
+
+Samples
+Échantillons
+
+Second line
+Deuxième ligne
+
+Signature
+Métrique
+
+Timecode, {fps} fps
+Timecode, {fps} i/s
