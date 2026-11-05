@@ -27,6 +27,7 @@ pub mod limiter;
 mod line;
 pub mod loudness;
 pub mod maximizer;
+pub mod modulator;
 pub mod multiband;
 mod nam;
 pub mod phaser;
@@ -272,6 +273,7 @@ pub const EFFECTS: &[&EffectInfo] = &[
     &chorus::INFO,
     &flanger::INFO,
     &phaser::INFO,
+    &modulator::INFO,
     &trigger::INFO,
 ];
 
@@ -341,6 +343,7 @@ pub fn create(id: &str) -> Option<Box<dyn Effect>> {
         "chorus" => Some(Box::new(chorus::Chorus::default())),
         "flanger" => Some(Box::new(flanger::Flanger::default())),
         "phaser" => Some(Box::new(phaser::Phaser::default())),
+        "modulator" => Some(Box::new(modulator::Modulator::default())),
         "trigger" => Some(Box::new(trigger::Trigger::default())),
         _ => None,
     }

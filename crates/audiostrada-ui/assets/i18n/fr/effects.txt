@@ -5417,3 +5417,182 @@ Réponse
 
 Band split
 Découpage
+
+# Strada-Mod
+
+Movement
+Mouvement
+
+1/16D
+1/16 pointée
+
+1/16T
+1/16 triolet
+
+1/4D
+1/4 pointée
+
+1/4T
+1/4 triolet
+
+1/8D
+1/8 pointée
+
+1/8T
+1/8 triolet
+
+Auto-pan
+Panoramique auto
+
+Cutter
+Cutter
+
+Gate length
+Durée d'ouverture
+
+Ring mod
+Modulation en anneau
+
+Strada-Mod
+Strada-Mod
+
+Tremolo, auto-pan, rhythmic cutter, vibrato and ring modulation, synced to the tempo: from vintage amp wobble to wild stutters.
+Tremolo, panoramique auto, cutter rythmique, vibrato et modulation en anneau, calés sur le tempo : de l'ondulation d'ampli vintage aux bégaiements délirants.
+
+Vibrato
+Vibrato
+
+Auto-pan: gentle 1/2
+Panoramique auto : doux 1/2
+
+Auto-pan: ping-pong 1/4
+Panoramique auto : ping-pong 1/4
+
+Auto-pan: random drift
+Panoramique auto : dérive aléatoire
+
+Auto-pan: wide circle 1/8
+Panoramique auto : grand cercle 1/8
+
+Cutter: dotted groove
+Cutter : groove pointé
+
+Cutter: glitch
+Cutter : glitch
+
+Cutter: half-time duck
+Cutter : creux en demi-temps
+
+Cutter: offbeat stabs
+Cutter : coups à contretemps
+
+Cutter: stutter 1/32
+Cutter : bégaiement 1/32
+
+Cutter: trance gate
+Cutter : trance gate
+
+Pump: sidechain 1/4
+Pompage : sidechain 1/4
+
+Pump: soft 1/8
+Pompage : doux 1/8
+
+Ring: alien radio
+Anneau : radio extraterrestre
+
+Ring: dalek
+Anneau : Dalek
+
+Ring: metallic bell
+Anneau : cloche métallique
+
+Ring: robot voice
+Anneau : voix de robot
+
+Tremolo: choppy 1/16
+Tremolo : haché 1/16
+
+Tremolo: slow swell
+Tremolo : houle lente
+
+Tremolo: stereo shimmer
+Tremolo : scintillement stéréo
+
+Tremolo: surf
+Tremolo : surf
+
+Tremolo: vintage amp
+Tremolo : ampli vintage
+
+Vibrato: chorus-like
+Vibrato : façon chorus
+
+Vibrato: seasick
+Vibrato : mal de mer
+
+Vibrato: subtle
+Vibrato : subtil
+
+Vibrato: warped tape
+Vibrato : bande voilée
+
+Step 1
+Pas 1
+
+Step 2
+Pas 2
+
+Step 3
+Pas 3
+
+Step 4
+Pas 4
+
+Step 5
+Pas 5
+
+Step 6
+Pas 6
+
+Step 7
+Pas 7
+
+Step 8
+Pas 8
+
+Step 9
+Pas 9
+
+Step 10
+Pas 10
+
+Step 11
+Pas 11
+
+Step 12
+Pas 12
+
+Step 13
+Pas 13
+
+Step 14
+Pas 14
+
+Step 15
+Pas 15
+
+Step 16
+Pas 16
+
+Carrier
+Porteuse
+
+4
+4
+
+8
+8
+
+16
+16

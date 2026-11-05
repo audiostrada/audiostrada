@@ -668,6 +668,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Editor
         "maximizer" => maximizer(ui, params, meters, state),
         "tape" => crate::tape_editor::show(ui, params, meters, &mut state.tape),
         "mb_comp" => crate::mb_editor::show(ui, params, meters, &mut state.mb),
+        "modulator" => crate::mod_editor::show(ui, params, meters),
         "flanger" | "phaser" | "chorus" => modulation(ui, params),
         "imager" => imager(ui, params, meters),
         "utility" => utility(ui, params, meters),
@@ -5990,6 +5991,12 @@ mod tests {
             ];
             for p in info.params {
                 // The synth's routings show once used, its LFO notes once synced.
+                // The modulator shows what its mode uses: here the synced tremolo.
+                let modal = info.id == "modulator"
+                    && (matches!(p.id, "rate" | "steps" | "gate" | "freq")
+                        || p.id
+                            .strip_prefix('s')
+                            .is_some_and(|n| n.parse::<u8>().is_ok()));
                 let routed = info.id == "synth"
                     && (p.id.starts_with("mod")
                         || p.id.ends_with("_note")
@@ -5998,6 +6005,7 @@ mod tests {
                 if !shown.iter().any(|s| s == p.id)
                     && !conditional.contains(&(info.id, p.id))
                     && !routed
+                    && !modal
                 {
                     missing.push(format!("{}: {}", info.id, p.id));
                 }

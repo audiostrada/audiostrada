@@ -26,6 +26,7 @@ mod markers;
 mod mb_editor;
 mod metronome_window;
 mod mixer;
+mod mod_editor;
 mod nam_library;
 mod palette;
 mod piano_roll;
