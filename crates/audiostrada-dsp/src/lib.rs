@@ -388,7 +388,7 @@ mod tests {
         effect.midi(&MidiEvent::note_on(0, 0, 60, 100));
         assert_eq!(effect.latency(), 0);
         let mut meters = [7.0];
-        create("tape").unwrap().meters(&mut meters);
+        create("chorus").unwrap().meters(&mut meters);
         assert_eq!(meters, [7.0], "no meters by default");
         let (mut l, mut r) = ([0.5f32; 4], [0.5f32; 4]);
         effect.process_keyed(&mut l, &mut r, (&[1.0; 4], &[1.0; 4]));

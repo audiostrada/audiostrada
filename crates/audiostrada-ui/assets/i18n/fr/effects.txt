@@ -5176,3 +5176,113 @@ Voxy 15 Top Boost
 
 Strada-Amp captures and cabinets
 Captures et baffles de Strada-Amp
+
+# Strada-Tape
+
+Mix bus: glue 30 ips
+Bus de mix : cohésion 30 ips
+
+Mix bus: warm 15 ips
+Bus de mix : chaleur 15 ips
+
+Mix bus: vintage
+Bus de mix : vintage
+
+Mastering: transparent 30 ips
+Mastering : transparent 30 ips
+
+Mastering: analog sheen
+Mastering : éclat analogique
+
+Drums: punchy 15 ips
+Batterie : percutante 15 ips
+
+Drums: crushed room
+Batterie : room écrasée
+
+Drums: parallel smash
+Batterie : écrasement parallèle
+
+Bass: round 15 ips
+Basse : ronde 15 ips
+
+Bass: thick 7.5 ips
+Basse : épaisse 7,5 ips
+
+Vocal: smooth 30 ips
+Voix : douce 30 ips
+
+Vocal: vintage warmth
+Voix : chaleur vintage
+
+Guitars: glue 15 ips
+Guitares : cohésion 15 ips
+
+Keys: warm wobble
+Claviers : ondulation chaude
+
+Lo-fi: cassette demo
+Lo-fi : démo cassette
+
+Lo-fi: worn cassette
+Lo-fi : cassette usée
+
+Lo-fi: warbly tape
+Lo-fi : bande qui ondule
+
+250
+250
+
+456
+456
+
+GP9
+GP9
+
+Cassette
+Cassette
+
+Machine
+Machine
+
+Mastering 102
+Mastering 102
+
+Studio A80
+Studio A80
+
+Vintage J37
+Vintage J37
+
+Tape machine: four machines, three tapes, warm saturation, head bump, wow and flutter, hiss.
+Magnétophone : quatre machines, trois bandes, saturation chaude, bosse de tête, pleurage et scintillement, souffle.
+
+2-inch studio deck: punchy lows, firm mids, the sound of countless records
+Magnétophone de studio 2 pouces : graves percutants, médiums fermes, le son d'innombrables disques
+
+Half-inch mastering deck: wide, clean and smooth, the lightest touch
+Magnétophone de mastering demi-pouce : large, propre et doux, la touche la plus légère
+
+Vintage four-track: darker, rounder, saturates early, wobbles a little
+Quatre-pistes vintage : plus sombre, plus rond, sature tôt, ondule un peu
+
+Cassette deck: soft top, warble and hiss, for lo-fi color
+Platine cassette : aigus doux, ondulation et souffle, pour une couleur lo-fi
+
+Modern high-output tape: most headroom, cleanest
+Bande moderne à haut niveau : le plus de marge, la plus propre
+
+The classic studio tape: compresses and warms when pushed
+La bande de studio classique : compresse et réchauffe quand on la pousse
+
+Vintage tape: saturates early, softer and rounder
+Bande vintage : sature tôt, plus douce et plus ronde
+
+RECORD
+ENREGISTREMENT
+
+PLAYBACK
+LECTURE
+
+Recording
+Enregistrement

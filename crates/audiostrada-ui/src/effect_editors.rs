@@ -116,6 +116,8 @@ pub struct EditorState {
     dynamics: VecDeque<[f32; 3]>,
     /// Position of an analog meter's needle, with its ballistics.
     needle: f32,
+    /// The tape machine's input and output needles.
+    pub needles: [f32; 2],
     rig: crate::rig_editor::RigState,
     limiter: LimiterState,
     spectrum: SpectrumState,
@@ -662,7 +664,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Editor
         "delay" => delay(ui, params, state),
         "reverb" => reverb(ui, params),
         "maximizer" => maximizer(ui, params, meters, state),
-        "tape" => tape(ui, params),
+        "tape" => crate::tape_editor::show(ui, params, meters, &mut state.needles),
         "flanger" | "phaser" | "chorus" => modulation(ui, params),
         "imager" => imager(ui, params, meters),
         "utility" => utility(ui, params, meters),
@@ -2783,13 +2785,19 @@ fn gate_light(ui: &mut Ui, gain: f32, range: f32, mode: usize, height: f32) {
 // ---------------------------------------------------------------- Vintage compressor
 
 /// An analog VU meter showing gain reduction: cream face, needle with VU ballistics.
-fn vu_meter(ui: &mut Ui, reduction: f32, needle: &mut f32, size: egui::Vec2, amber: bool) {
+pub(crate) fn vu_meter(
+    ui: &mut Ui,
+    reduction: f32,
+    needle: &mut f32,
+    size: egui::Vec2,
+    (amber, caption): (bool, &str),
+) {
     let p = theme::current(ui);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let painter = ui.painter_at(rect);
     // VU ballistics: about 300 ms to settle, from the frame time.
     let dt = ui.input(|i| i.stable_dt).min(0.1);
-    let target = reduction.clamp(-20.0, 0.0);
+    let target = reduction.clamp(-20.0, 3.0);
     *needle += (target - *needle) * (1.0 - (-dt / 0.12).exp());
     // Face, ink and needle: backlit amber, or the theme's dark or cream.
     let (face_top, face_bottom, ink, red, hand) = if amber {
@@ -2920,7 +2928,7 @@ fn vu_meter(ui: &mut Ui, reduction: f32, needle: &mut f32, size: egui::Vec2, amb
     painter.text(
         mark + vec2(0.0, 6.0),
         Align2::CENTER_CENTER,
-        tr("GAIN REDUCTION"),
+        caption,
         small,
         ink.gamma_multiply(0.75),
     );
@@ -2955,14 +2963,6 @@ fn vu_meter(ui: &mut Ui, reduction: f32, needle: &mut f32, size: egui::Vec2, amb
 }
 
 // ---------------------------------------------------------------- New effects
-
-/// A row of knobs for parameter ids, the first one larger.
-pub(crate) fn knob_row(ui: &mut Ui, params: &mut Params, ids: &[&str], tint: Color32) {
-    ui.horizontal(|ui| {
-        param_knob(ui, params, ids[0], 58.0, tint);
-        knobs(ui, params, &ids[1..], 50.0, tint);
-    });
-}
 
 /// Knobs of one size for parameter ids, in the current layout.
 fn knobs(ui: &mut Ui, params: &mut Params, ids: &[&str], size: f32, tint: Color32) {
@@ -3029,97 +3029,6 @@ pub(crate) fn display(ui: &mut Ui, height: f32) -> (Rect, egui::Painter) {
     );
     (rect, painter)
 }
-
-fn tape(ui: &mut Ui, params: &mut Params) {
-    let p = theme::current(ui);
-    let (rect, painter) = display(ui, 160.0);
-    let speed = [0.6, 1.0, 1.6][(params.get("speed").round() as usize).min(2)];
-    let wow = params.get("wow") / 100.0;
-    let time = ui.input(|i| i.time) as f32;
-    let angle = time * speed * 2.2 + wow * 0.15 * (time * 3.7).sin();
-    let reel = |center: Pos2, radius: f32, full: f32, angle: f32| {
-        painter.circle_filled(center, radius, Color32::from_rgb(52, 46, 40));
-        painter.circle_filled(
-            center,
-            radius * (0.35 + 0.6 * full),
-            Color32::from_rgb(70, 52, 38),
-        );
-        painter.circle_stroke(
-            center,
-            radius,
-            Stroke::new(2.0, Color32::from_rgb(150, 140, 125)),
-        );
-        for k in 0..3 {
-            let a = angle + k as f32 * std::f32::consts::TAU / 3.0;
-            let hole = center + vec2(a.cos(), a.sin()) * radius * 0.55;
-            painter.circle_filled(hole, radius * 0.18, p.base);
-        }
-        painter.circle_filled(center, radius * 0.12, Color32::from_rgb(190, 180, 160));
-    };
-    let r = rect.height() * 0.36;
-    let left = pos2(rect.left() + r + 24.0, rect.center().y - 6.0);
-    let right = pos2(rect.left() + r * 3.0 + 70.0, rect.center().y - 6.0);
-    reel(left, r, 0.75, angle);
-    reel(right, r, 0.45, angle * 1.3);
-    let head = pos2((left.x + right.x) / 2.0, rect.bottom() - 18.0);
-    painter.line_segment(
-        [left + vec2(0.0, r * 0.95), head],
-        Stroke::new(2.0, Color32::from_rgb(90, 66, 44)),
-    );
-    painter.line_segment(
-        [head, right + vec2(0.0, r * 0.75)],
-        Stroke::new(2.0, Color32::from_rgb(90, 66, 44)),
-    );
-    painter.rect_filled(
-        Rect::from_center_size(head + vec2(0.0, 6.0), vec2(30.0, 10.0)),
-        2.0,
-        Color32::from_rgb(170, 170, 175),
-    );
-    let info_x = right.x + r + 30.0;
-    let drive = params.get("drive");
-    painter.text(
-        pos2(info_x, rect.top() + 22.0),
-        Align2::LEFT_TOP,
-        SPEED_NAMES[(params.get("speed").round() as usize).min(2)],
-        theme::strong(20.0),
-        theme::SOLO,
-    );
-    painter.text(
-        pos2(info_x, rect.top() + 52.0),
-        Align2::LEFT_TOP,
-        format!("{} {drive:+.1} dB", tr("Drive")),
-        FontId::proportional(12.0),
-        p.text,
-    );
-    painter.text(
-        pos2(info_x, rect.top() + 72.0),
-        Align2::LEFT_TOP,
-        format!("{} {:.1} dB", tr("Head bump"), params.get("bump")),
-        FontId::proportional(12.0),
-        p.weak,
-    );
-    painter.text(
-        pos2(info_x, rect.top() + 92.0),
-        Align2::LEFT_TOP,
-        format!("{} {:.0} %", tr("Wow & flutter"), params.get("wow")),
-        FontId::proportional(12.0),
-        p.weak,
-    );
-    ui.ctx().request_repaint();
-    ui.add_space(8.0);
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(tr("Speed")).size(10.5).color(p.weak));
-        choice_box(ui, params, "speed");
-    });
-    knob_row(
-        ui,
-        params,
-        &["drive", "bump", "wow", "hiss", "bias", "output", "mix"],
-        theme::SOLO,
-    );
-}
-
-const SPEED_NAMES: [&str; 3] = ["7.5 ips", "15 ips", "30 ips"];
 
 /// The LFO of a modulation effect drawn over two cycles, with a dot running along it.
 fn modulation(ui: &mut Ui, params: &mut Params) {
@@ -4803,7 +4712,7 @@ fn compressor(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Edit
                 reduction,
                 &mut state.needle,
                 vec2(height * 1.45, height),
-                amber,
+                (amber, tr("GAIN REDUCTION")),
             );
         }
         reduction_meter(ui, reduction, height);
