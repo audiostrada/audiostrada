@@ -705,7 +705,7 @@ fn pedalboard(ui: &mut Ui, params: &mut Params, state: &mut RigState) {
     let shown: Vec<usize> = (0..SLOTS).filter(|&s| pedal_kind(params, s) != 0).collect();
     let free = free_slot(params);
     let width = ui.available_width().max(520.0);
-    let (gap, w, h, add_w) = (12.0, 124.0, 150.0, 46.0);
+    let (gap, w, h, add_w) = (12.0, 124.0, 150.0, 124.0);
     let per_row = (((width - gap) / (w + gap)).floor() as usize).max(1);
     // The narrow "+" tile follows the last pedal, on a new row only when there is no room.
     let n = shown.len();
@@ -725,7 +725,20 @@ fn pedalboard(ui: &mut Ui, params: &mut Params, state: &mut RigState) {
     let (board, _) =
         ui.allocate_exact_size(vec2(width, rows as f32 * (h + gap) + gap), Sense::hover());
     let painter = ui.painter_at(board.expand(12.0));
-    crate::gear::board(&painter, board);
+    let places: Vec<Rect> = (0..per_row * rows)
+        .map(|i| {
+            let (row, col) = (i / per_row, i % per_row);
+            Rect::from_min_size(
+                pos2(
+                    board.left() + gap + col as f32 * (w + gap),
+                    board.top() + gap + row as f32 * (h + gap),
+                ),
+                vec2(w, h),
+            )
+        })
+        .filter(|r| r.right() <= board.right() - gap * 0.5)
+        .collect();
+    crate::gear::board(&painter, board, &places);
     if shown.is_empty() {
         let galley = painter.layout_no_wrap(
             tr("Add a pedal: an effect capture, or one from TONE3000").to_owned(),

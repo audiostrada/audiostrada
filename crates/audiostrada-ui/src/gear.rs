@@ -674,41 +674,21 @@ pub fn cabinet(painter: &Painter, rect: Rect, cab: usize, look: &Look) {
     }
 }
 
-/// A pedalboard: a dark board with brushed rails across it.
-pub fn board(painter: &Painter, rect: Rect) {
-    shadow(painter, rect);
-    tile(
-        painter,
+/// A pedalboard: a dark plain board, with a light outline where each pedal can stand.
+pub fn board(painter: &Painter, rect: Rect, places: &[Rect]) {
+    painter.rect_filled(rect, 8.0, Color32::from_rgb(22, 23, 26));
+    painter.rect_stroke(
         rect,
-        Texture::Tolex,
-        1.0,
-        Color32::from_rgb(44, 42, 40),
+        8.0,
+        Stroke::new(1.0, Color32::from_white_alpha(14)),
+        egui::StrokeKind::Inside,
     );
-    let mut y = rect.top() + 18.0;
-    while y < rect.bottom() - 10.0 {
-        let rail = Rect::from_min_max(
-            pos2(rect.left() + 6.0, y),
-            pos2(rect.right() - 6.0, y + 12.0),
+    for place in places {
+        painter.rect_stroke(
+            place.expand(3.0),
+            11.0,
+            Stroke::new(1.0, Color32::from_white_alpha(20)),
+            egui::StrokeKind::Inside,
         );
-        tile(
-            painter,
-            rail,
-            Texture::Brushed,
-            1.0,
-            Color32::from_rgb(120, 122, 126),
-        );
-        painter.line_segment(
-            [rail.left_center(), rail.right_center()],
-            Stroke::new(2.0, Color32::from_black_alpha(110)),
-        );
-        bevel(painter, rail, 0.8);
-        y += 38.0;
     }
-    sheen(
-        painter,
-        rect,
-        Color32::from_white_alpha(10),
-        Color32::from_black_alpha(60),
-    );
-    bevel(painter, rect, 1.0);
 }
