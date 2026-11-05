@@ -8,7 +8,7 @@ Pete Shorthose, licensed under the GNU GPL v2 or later. Stored as 48 kHz little-
 |---|---|---|
 | cab0.f32 | 4x12 V30 | mesa |
 | cab1.f32 | 4x12 Greenback | 4x12 |
-| cab2.f32 | 2x12 Blue (open) | AC30 |
+| cab2.f32 | 2x12 Blue (open) | 2x10 |
 | cab3.f32 | 2x12 US (open) | Twin |
 | cab4.f32 | 4x10 US (open) | Bassman |
 | cab5.f32 | 1x12 US (open) | 1x12 |

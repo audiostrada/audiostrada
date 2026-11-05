@@ -52,7 +52,6 @@ pub const FACTORY: [&[&[u8]]; 16] = [
         include_bytes!("../assets/amps/amp06_1.bin"),
         include_bytes!("../assets/amps/amp06_2.bin"),
         include_bytes!("../assets/amps/amp06_3.bin"),
-        include_bytes!("../assets/amps/amp06_4.bin"),
     ],
     &[],
     &[
@@ -144,7 +143,7 @@ fn factory_models() -> &'static [Vec<NamModel>] {
     })
 }
 
-/// A cabinet's impulse response at `rate`, its level set by its mids (300 Hz to 3 kHz).
+/// A cabinet's impulse response at `rate`, at the level of the others.
 fn cab_ir(cab: usize, rate: f32) -> Vec<f32> {
     let Some(bytes) = CAB_IRS.get(cab) else {
         return Vec::new();
@@ -166,17 +165,19 @@ fn cab_ir(cab: usize, rate: f32) -> Vec<f32> {
             a + (source.get(i + 1).copied().unwrap_or(a) - a) * frac
         })
         .collect();
-    let mids: Vec<f32> = (0..24)
-        .map(|k| 300.0 * 10f32.powf(k as f32 / 23.0))
+    // Its level as a guitar hears it: the power it passes from 100 Hz to 5 kHz.
+    let power = (0..32)
+        .map(|k| 100.0 * 50f32.powf(k as f32 / 31.0))
         .map(|f| {
             let w = std::f32::consts::TAU * f / rate;
             let (re, im) = ir.iter().enumerate().fold((0.0, 0.0), |(re, im), (n, h)| {
                 (re + h * (w * n as f32).cos(), im - h * (w * n as f32).sin())
             });
-            (re * re + im * im).sqrt()
+            re * re + im * im
         })
-        .collect();
-    let level = mids.iter().sum::<f32>() / mids.len() as f32;
+        .sum::<f32>()
+        / 32.0;
+    let level = power.sqrt();
     for h in &mut ir {
         *h /= level.max(1e-6);
     }
