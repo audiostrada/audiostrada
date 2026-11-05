@@ -110,4 +110,26 @@ impl TimelineView {
         self.zoom = (length * 1.1 / width).clamp(MIN_ZOOM, MAX_ZOOM);
         self.scroll = (start as f64 - length * 0.05).max(0.0);
     }
+
+    /// Fades on the range's edges (crossfades where clips meet inside it), or else short
+    /// fades against clicks on the selected clips that have none.
+    pub(super) fn fades(&mut self, doc: &mut Document) {
+        if let Some(r) = self.range.clone() {
+            doc.history_mut().edit(Action::Fades.label(), |p| {
+                edit::fades_in_range(p, &r.tracks, r.start, r.end);
+            });
+            return;
+        }
+        let ids = self.selection.clone();
+        let short = u64::from(doc.project().sample_rate) / 100;
+        doc.history_mut().edit(Action::Fades.label(), |p| {
+            for id in &ids {
+                if let Some(c) = edit::clip(p, *id).cloned() {
+                    let fade_in = if c.fade_in == 0 { short } else { c.fade_in };
+                    let fade_out = if c.fade_out == 0 { short } else { c.fade_out };
+                    edit::set_fades(p, *id, fade_in, fade_out);
+                }
+            }
+        });
+    }
 }

@@ -567,3 +567,67 @@ pub(super) fn envelope(clip: &audiostrada_core::Clip, pos: u64) -> f32 {
     }
     gain
 }
+
+/// The handles on a clip's top edge: its volume in the middle, the middle of its fades.
+pub(super) fn draw_handles(
+    painter: &egui::Painter,
+    rect: Rect,
+    clip: &audiostrada_core::Clip,
+    zoom: f64,
+    hovered: bool,
+) {
+    let color = if hovered {
+        Color32::WHITE
+    } else {
+        Color32::from_white_alpha(170)
+    };
+    if rect.width() >= 48.0 && !clip.is_midi() {
+        let handle =
+            Rect::from_center_size(pos2(rect.center().x, rect.top() + 4.0), vec2(16.0, 5.0));
+        painter.rect_filled(handle, 2.5, color);
+        painter.rect_stroke(
+            handle,
+            2.5,
+            Stroke::new(1.0, Color32::from_black_alpha(140)),
+            StrokeKind::Outside,
+        );
+    }
+    for fade_in in [true, false] {
+        if let Some(middle) = super::gestures::fade_middle(rect, clip, fade_in, zoom) {
+            painter.circle_filled(middle, 3.5, color);
+            painter.circle_stroke(
+                middle,
+                3.5,
+                Stroke::new(1.0, Color32::from_black_alpha(140)),
+            );
+        }
+    }
+}
+
+/// Where two clips of a track overlap, a cross over the overlap and its handle on top.
+pub(super) fn draw_crossfades(painter: &egui::Painter, row: Rect, track: &Track, scale: Scale) {
+    for pair in track.clips.windows(2) {
+        let (a, b) = (&pair[0], &pair[1]);
+        if a.end() <= b.start {
+            continue;
+        }
+        let r = Rect::from_x_y_ranges(
+            scale.x(b.start)..=scale.x(a.end()),
+            row.top() + 2.0..=row.bottom() - 2.0,
+        );
+        let stroke = Stroke::new(1.0, Color32::from_white_alpha(110));
+        painter.line_segment([r.left_top(), r.right_bottom()], stroke);
+        painter.line_segment([r.left_bottom(), r.right_top()], stroke);
+        let c = pos2(r.center().x, r.top() + 5.0);
+        painter.add(Shape::convex_polygon(
+            vec![
+                c + vec2(0.0, -4.5),
+                c + vec2(4.5, 0.0),
+                c + vec2(0.0, 4.5),
+                c + vec2(-4.5, 0.0),
+            ],
+            Color32::WHITE,
+            Stroke::new(1.0, Color32::from_black_alpha(140)),
+        ));
+    }
+}

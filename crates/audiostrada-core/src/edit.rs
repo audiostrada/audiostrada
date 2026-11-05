@@ -382,6 +382,87 @@ pub fn set_fades(project: &mut Project, id: ClipId, fade_in: u64, fade_out: u64)
     }
 }
 
+/// The crossfade between `left` and `right` (the next clip on its track) set to `length`,
+/// centered where they meet: both edges move within their source, the fades cover the overlap.
+pub fn set_crossfade(project: &mut Project, left: ClipId, right: ClipId, length: u64) {
+    let (Some(a), Some(b)) = (clip(project, left).cloned(), clip(project, right).cloned()) else {
+        return;
+    };
+    let center = (b.start + a.end().max(b.start)) / 2;
+    let half = length / 2;
+    trim_end(project, left, center + (length - half));
+    trim_start(project, right, center.saturating_sub(half));
+    let (Some(a), Some(b)) = (clip(project, left).cloned(), clip(project, right).cloned()) else {
+        return;
+    };
+    let overlap = a.end().saturating_sub(b.start);
+    set_fades(
+        project,
+        left,
+        a.fade_in.min(a.length - overlap.min(a.length)),
+        overlap,
+    );
+    set_fades(
+        project,
+        right,
+        overlap,
+        b.fade_out.min(b.length - overlap.min(b.length)),
+    );
+}
+
+/// Moves the audio inside a clip by `delta` samples (later when positive), the clip staying
+/// in place, within its source.
+pub fn slip_content(project: &mut Project, id: ClipId, delta: i64) {
+    let Some(c) = clip(project, id).cloned() else {
+        return;
+    };
+    let latest = source_length(project, &c)
+        .saturating_sub(c.length)
+        .min(i64::MAX as u64) as i64;
+    if let Some(m) = clip_mut(project, id) {
+        m.offset = (c.offset as i64 - delta).clamp(0, latest.max(0)) as u64;
+    }
+}
+
+/// Fades over a range on `tracks`, as its edges fall: over a clip's start a fade-in, over its
+/// end a fade-out, over the meeting of two clips a crossfade.
+pub fn fades_in_range(project: &mut Project, tracks: &[TrackId], start: u64, end: u64) {
+    if end <= start {
+        return;
+    }
+    let length = end - start;
+    for &track in tracks {
+        let Some(t) = project.track(track) else {
+            continue;
+        };
+        let clips: Vec<Clip> = t.clips.clone();
+        let mut joined: Vec<ClipId> = Vec::new();
+        for pair in clips.windows(2) {
+            let (a, b) = (&pair[0], &pair[1]);
+            let meet = (a.end().min(b.end()) + b.start) / 2;
+            if a.end() >= b.start && meet > start && meet < end {
+                set_crossfade(project, a.id, b.id, length);
+                joined.extend([a.id, b.id]);
+            }
+        }
+        for c in &clips {
+            let Some(now) = clip(project, c.id).cloned() else {
+                continue;
+            };
+            let (mut fade_in, mut fade_out) = (now.fade_in, now.fade_out);
+            let in_range = |x: u64| x >= start && x < end;
+            let crossfaded = joined.contains(&c.id);
+            if in_range(now.start) && now.end() > end && !crossfaded {
+                fade_in = end - now.start;
+            }
+            if now.end() > start && now.end() <= end && now.start < start && !crossfaded {
+                fade_out = now.end() - start;
+            }
+            set_fades(project, c.id, fade_in, fade_out);
+        }
+    }
+}
+
 /// Changes the tempo map. MIDI clips keep their place in bars and beats, with their notes and
 /// controllers, as on ticks-based tracks; audio clips stay at their time.
 pub fn set_tempo(project: &mut Project, tempo: TempoMap) {
@@ -1615,5 +1696,38 @@ mod tests {
         let mut chord: Vec<Note> = (0..20).map(|_| note(0, 10)).collect();
         spread_mpe_channels(&mut chord);
         assert!(chord.iter().all(|n| (1..=15).contains(&n.channel)));
+    }
+
+    #[test]
+    fn crossfades_slips_and_range_fades() {
+        let (mut p, t, ids) = project();
+        // Butted at 8 000, then crossfaded over 2 000 around the cut.
+        trim_end(&mut p, ids[0], 8_000);
+        if let Some(c) = clip_mut(&mut p, ids[1]) {
+            (c.start, c.offset, c.length) = (8_000, 2_000, 8_000);
+        }
+        set_crossfade(&mut p, ids[0], ids[1], 2_000);
+        let all = clips(&p, t);
+        assert_eq!(
+            all[0].0 + all[0].1,
+            9_000,
+            "left ends 1 000 past the cut: {all:?}"
+        );
+        assert_eq!(all[1].0, 7_000);
+        assert_eq!((all[0].4, all[1].3), (2_000, 2_000));
+        // The audio slides inside the clip, within the source.
+        let (mut p, t, ids) = project();
+        trim_start(&mut p, ids[0], 2_000);
+        slip_content(&mut p, ids[0], 500);
+        assert_eq!(clips(&p, t)[0].2, 1_500);
+        slip_content(&mut p, ids[0], 10_000);
+        assert_eq!(clips(&p, t)[0].2, 0);
+        slip_content(&mut p, ids[0], -50_000);
+        assert_eq!(clips(&p, t)[0].2, 2_000, "no further than the source's end");
+        // A range over a clip's end fades it out, over a start fades it in.
+        let (mut p, t, _) = project();
+        fades_in_range(&mut p, &[t], 9_000, 21_000);
+        let all = clips(&p, t);
+        assert_eq!((all[0].4, all[1].3), (1_000, 1_000));
     }
 }

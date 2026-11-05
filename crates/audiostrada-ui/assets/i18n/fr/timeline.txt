@@ -718,3 +718,45 @@ Zoom des formes d'onde
 
 Waveforms
 Formes d'onde
+
+Fades on the range, or short ones on the selected clips
+Fondus sur la plage, ou courts fondus sur les clips sélectionnés
+
+Content {shift}
+Contenu {shift}
+
+Crossfade
+Fondu enchaîné
+
+Crossfade {length}
+Fondu enchaîné {length}
+
+Fade in {length}, {shape}
+Fondu d'entrée {length}, {shape}
+
+Fade out {length}, {shape}
+Fondu de sortie {length}, {shape}
+
+Slip content
+Glisser le contenu
+
+{edge}   length {length}
+{edge}   longueur {length}
+
+Clip edge
+Bord de clip
+
+Marker
+Marqueur
+
+Playhead
+Tête de lecture
+
+Clip edges
+Bords des clips
+
+Edges, markers and the playhead pull from a few pixels away, before the grid
+Les bords, les marqueurs et la tête de lecture attirent à quelques pixels, avant la grille
+
+What the edits snap to
+Ce qui aimante les éditions

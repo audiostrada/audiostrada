@@ -280,6 +280,7 @@ impl TimelineView {
                 {
                     settings.snap = !settings.snap;
                 }
+                snap_targets(ui, settings);
                 if show_commands {
                     separator(ui);
                     for &(command, glyph) in COMMANDS {
@@ -428,6 +429,43 @@ impl TimelineView {
         let visible = f64::from(self.lanes_width) * self.zoom;
         self.scroll = (playhead as f64 - visible / 3.0).max(0.0);
     }
+}
+
+/// What pulls while snapping, in a menu beside the snap button.
+fn snap_targets(ui: &mut Ui, settings: &mut EditSettings) {
+    let p = theme::current(ui);
+    let (rect, response) = ui.allocate_exact_size(vec2(14.0, BUTTON.y), Sense::click());
+    if response.hovered() {
+        ui.painter().rect_filled(rect, 3.0, p.hover);
+    }
+    let c = rect.center();
+    ui.painter().add(Shape::convex_polygon(
+        vec![
+            c + vec2(-3.5, -1.5),
+            c + vec2(3.5, -1.5),
+            c + vec2(0.0, 2.5),
+        ],
+        p.text.gamma_multiply(0.8),
+        Stroke::NONE,
+    ));
+    let response = response.on_hover_text(tr("What the edits snap to"));
+    egui::Popup::menu(&response)
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+        .show(|ui| {
+            let t = &mut settings.targets;
+            ui.checkbox(&mut t.grid, tr("Grid"));
+            ui.checkbox(&mut t.clips, tr("Clip edges"));
+            ui.checkbox(&mut t.markers, tr("Markers"));
+            ui.checkbox(&mut t.playhead, tr("Playhead"));
+            ui.separator();
+            ui.label(
+                egui::RichText::new(tr(
+                    "Edges, markers and the playhead pull from a few pixels away, before the grid",
+                ))
+                .small()
+                .weak(),
+            );
+        });
 }
 
 /// Slip / Shuffle / Grid as one segmented control.

@@ -28,6 +28,7 @@ mod draw;
 mod fades;
 mod gestures;
 mod headers;
+mod magnet;
 mod menus;
 mod processing;
 mod toolbar;
@@ -108,6 +109,20 @@ enum DragKind {
     Sweep {
         mute: Option<bool>,
     },
+    /// The middle of a fade, up or down for its shape; the clip's top and height on screen.
+    FadeCurve {
+        fade_in: bool,
+        top: f32,
+        height: f32,
+    },
+    /// The handle of the crossfade between two clips, their overlap when grabbed.
+    Crossfade {
+        left: ClipId,
+        right: ClipId,
+        overlap: u64,
+    },
+    /// Ctrl+Alt: the audio slides inside the clips.
+    Slip,
 }
 
 #[derive(Debug)]
@@ -560,6 +575,7 @@ impl TimelineView {
             Action::ToolErase => self.tool = Tool::Erase,
             Action::ToolMute => self.tool = Tool::Mute,
             Action::ZoomToSelection => self.zoom_to_selection(&doc),
+            Action::Fades => self.fades(&mut doc),
             Action::Copy => self.copy(&doc),
             Action::Cut => self.cut(&mut doc, settings),
             Action::Paste => self.paste(&mut doc),
@@ -920,10 +936,14 @@ impl TimelineView {
                     selected,
                     &visuals,
                 );
+                if selected {
+                    draw_handles(&lane_painter, rect, clip, self.zoom, false);
+                }
                 if pointer.is_some_and(|p| rect.contains(p) && lanes.contains(p)) {
                     hovered_clip = Some((clip.id, track.id, rect));
                 }
             }
+            draw_crossfades(&lane_painter, row, track, scale);
             if let Some((start, tracks)) = &recording
                 && tracks.contains(&track.id)
             {
@@ -999,6 +1019,14 @@ impl TimelineView {
                 };
                 draw_lane(&lane_painter, rect, lane, min, max, scale, color, &visuals);
             }
+        }
+
+        if let Some((id, track, rect)) = hovered_clip
+            && let Some(clip) = project
+                .track(track)
+                .and_then(|t| t.clips.iter().find(|c| c.id == id))
+        {
+            draw_handles(&lane_painter, rect, clip, self.zoom, true);
         }
 
         // Playhead.
@@ -1393,6 +1421,45 @@ mod tests {
                 "Lead"
             );
             assert!(h.view.renaming.is_none());
+        }
+
+        #[test]
+        fn the_handles_set_the_volume_and_the_fade_shape() {
+            let (mut h, doc, tracks) = harness();
+            let lanes = h.view.lanes_rect;
+            let x = |s: u64, h: &Harness| {
+                lanes.left() + ((s as f64 - h.view.scroll) / h.view.zoom) as f32
+            };
+            let top = lanes.top() + h.view.tops[1] + 2.0;
+            let clip = |doc: &Rc<RefCell<Document>>| {
+                doc.borrow().project().track(tracks[1]).unwrap().clips[0].clone()
+            };
+            // The volume handle, in the middle of the top edge, dragged up.
+            let middle = pos2(x(500, &h), top + 4.0);
+            h.drag(middle, middle - vec2(0.0, 30.0));
+            assert!(
+                (clip(&doc).gain_db - 3.0).abs() < 0.2,
+                "{}",
+                clip(&doc).gain_db
+            );
+            // A double-click on it goes back to 0 dB.
+            h.click(middle, Modifiers::NONE);
+            h.click(middle, Modifiers::NONE);
+            assert_eq!(clip(&doc).gain_db, 0.0);
+            // The middle of a fade, pulled down, slows it.
+            let id = clip(&doc).id;
+            doc.borrow_mut()
+                .history_mut()
+                .edit("Fade", |p| edit::set_fades(p, id, 400, 0));
+            h.frame(vec![]);
+            let height = h.view.track_height - 4.0;
+            let shape = clip(&doc).fade_shape;
+            let at = pos2(x(200, &h), top + height - shape.gain(0.5) * height);
+            h.drag(at, pos2(at.x, top + height - 4.0));
+            assert_eq!(
+                clip(&doc).fade_shape,
+                audiostrada_core::model::FadeShape::Slow
+            );
         }
 
         #[test]

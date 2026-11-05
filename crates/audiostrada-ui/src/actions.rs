@@ -66,6 +66,7 @@ actions! {
     ModeSlip => ("Edit", "Edit mode: Slip"),
     ModeShuffle => ("Edit", "Edit mode: Shuffle"),
     ModeGrid => ("Edit", "Edit mode: Grid"),
+    Fades => ("Edit", "Fades on the range, or short ones on the selected clips"),
     ToolSmart => ("Edit", "Smart tool"),
     ToolRange => ("Edit", "Range tool"),
     ToolSplit => ("Edit", "Scissors"),

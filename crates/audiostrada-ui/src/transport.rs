@@ -168,11 +168,33 @@ impl Grid {
     }
 }
 
+/// What positions pull edits while snapping.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SnapTargets {
+    pub grid: bool,
+    pub clips: bool,
+    pub markers: bool,
+    pub playhead: bool,
+}
+
+impl Default for SnapTargets {
+    fn default() -> Self {
+        Self {
+            grid: true,
+            clips: true,
+            markers: true,
+            playhead: true,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct EditSettings {
     pub mode: EditMode,
     pub grid: Grid,
     pub snap: bool,
+    #[serde(default)]
+    pub targets: SnapTargets,
 }
 
 impl EditSettings {

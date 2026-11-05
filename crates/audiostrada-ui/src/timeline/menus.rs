@@ -143,6 +143,10 @@ impl TimelineView {
             self.set_range(doc, Action::RangeAllTracks);
             ui.close();
         }
+        if ui.button(Action::Fades.label()).clicked() {
+            self.fades(doc);
+            ui.close();
+        }
         if ui.button(tr("Split at the edges")).clicked() {
             doc.history_mut().edit(tr("Split range"), |p| {
                 edit::split_range(p, &r.tracks, r.start, r.end);

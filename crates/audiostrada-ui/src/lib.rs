@@ -1224,6 +1224,7 @@ impl AudioStradaApp {
             | Action::ZoomOut
             | Action::ZoomToFit
             | Action::ZoomToSelection
+            | Action::Fades
             | Action::ToolSmart
             | Action::ToolRange
             | Action::ToolSplit
@@ -1973,6 +1974,7 @@ impl AudioStradaApp {
             ui.menu_button(tr("Clip"), |ui| {
                 item(ui, &mut chosen, Action::NewMidiClip, None, true);
                 ui.separator();
+                item(ui, &mut chosen, Action::Fades, None, true);
                 for action in [Action::Heal, Action::Consolidate, Action::StripSilence] {
                     item(ui, &mut chosen, action, None, true);
                 }

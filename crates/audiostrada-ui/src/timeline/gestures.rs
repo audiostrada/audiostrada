@@ -1,7 +1,9 @@
 //! Mouse gestures on the lanes and the ruler: each drag previews its edit on a copy of the
 //! project, releasing commits it as one undo step.
 
+use super::magnet::{Magnet, Pull};
 use super::*;
+use audiostrada_core::model::FadeShape;
 
 impl TimelineView {
     #[allow(clippy::too_many_arguments)]
@@ -21,6 +23,18 @@ impl TimelineView {
         let lanes_response =
             ui.interact(lanes, ui.scope_id().with("lanes"), Sense::click_and_drag());
         let modifiers = ui.input(|i| i.modifiers);
+        let moving = if self.drag.is_some() {
+            self.selection.clone()
+        } else {
+            Vec::new()
+        };
+        let magnet = Magnet::new(
+            settings,
+            project,
+            scale.zoom,
+            doc.player().position(),
+            &moving,
+        );
         // Ctrl+Alt holds the scissors.
         let tool = if modifiers.command && modifiers.alt {
             Tool::Split
@@ -40,14 +54,25 @@ impl TimelineView {
             let (clip_id, _, rect) = hovered?;
             let clip = edit::clip(project, clip_id)?;
             let px = |s: u64| (s as f64 / scale.zoom) as f32;
-            let kind = if pos.y < rect.top() + FADE_ZONE_HEIGHT
-                && pos.x < rect.left() + px(clip.fade_in) + 10.0
-            {
+            let top = pos.y < rect.top() + FADE_ZONE_HEIGHT;
+            let edge = pos.x < rect.left() + EDGE_ZONE || pos.x > rect.right() - EDGE_ZONE;
+            let near_curve = |fade_in: bool| {
+                fade_middle(rect, clip, fade_in, scale.zoom).is_some_and(|m| m.distance(pos) < 7.0)
+            };
+            let kind = if modifiers.command && modifiers.alt && !edge {
+                DragKind::Slip
+            } else if near_curve(true) || near_curve(false) {
+                DragKind::FadeCurve {
+                    fade_in: near_curve(true),
+                    top: rect.top(),
+                    height: rect.height(),
+                }
+            } else if top && pos.x < rect.left() + px(clip.fade_in) + 10.0 {
                 DragKind::FadeIn
-            } else if pos.y < rect.top() + FADE_ZONE_HEIGHT
-                && pos.x > rect.right() - px(clip.fade_out) - 10.0
-            {
+            } else if top && pos.x > rect.right() - px(clip.fade_out) - 10.0 {
                 DragKind::FadeOut
+            } else if top && rect.width() >= 48.0 && (pos.x - rect.center().x).abs() < 9.0 {
+                DragKind::Gain
             } else if pos.x < rect.left() + EDGE_ZONE {
                 DragKind::TrimStart
             } else if pos.x > rect.right() - EDGE_ZONE && modifiers.alt && !clip.is_midi() {
@@ -62,6 +87,24 @@ impl TimelineView {
                 }
             };
             Some((kind, clip_id))
+        };
+
+        // The crossfade handle, at the top of two overlapping clips.
+        let crossfade = |pos: Pos2| -> Option<DragKind> {
+            let (_, track, rect) = hovered?;
+            if pos.y > rect.top() + FADE_ZONE_HEIGHT || tool != Tool::Smart {
+                return None;
+            }
+            let clips = &project.track(track)?.clips;
+            clips.windows(2).find_map(|pair| {
+                let (a, b) = (&pair[0], &pair[1]);
+                let x = scale.x((b.start + a.end()) / 2);
+                (a.end() > b.start && (pos.x - x).abs() < 8.0).then(|| DragKind::Crossfade {
+                    left: a.id,
+                    right: b.id,
+                    overlap: a.end() - b.start,
+                })
+            })
         };
 
         // An edge of the range, on its tracks or in the ruler: the edge that stays.
@@ -102,6 +145,9 @@ impl TimelineView {
         {
             let cursor = match zone(pos).map(|z| z.0) {
                 _ if range_edge(pos, false).is_some() => CursorIcon::ResizeHorizontal,
+                _ if crossfade(pos).is_some() => CursorIcon::ResizeHorizontal,
+                Some(DragKind::Slip) => CursorIcon::AllScroll,
+                Some(DragKind::FadeCurve { .. }) => CursorIcon::ResizeVertical,
                 _ if tool == Tool::Range => CursorIcon::Text,
                 Some(_) if tool == Tool::Split => CursorIcon::Crosshair,
                 Some(_) if matches!(tool, Tool::Erase | Tool::Mute) => CursorIcon::PointingHand,
@@ -125,7 +171,7 @@ impl TimelineView {
                 .hover_pos()
                 .or(ui.input(|i| i.pointer.hover_pos())),
         ) {
-            let x = scale.x(settings.snap(project, scale.sample(pos.x)));
+            let x = scale.x(magnet.snap(scale.sample(pos.x)));
             ui.painter().line_segment(
                 [pos2(x, lanes.top()), pos2(x, lanes.bottom())],
                 Stroke::new(2.0, ui.visuals().selection.bg_fill),
@@ -138,7 +184,7 @@ impl TimelineView {
                 .track_at(project, pos.y - lanes.top())
                 .filter(|t| t.kind == TrackKind::Audio)
                 .map(|t| t.id);
-            let position = settings.snap(project, scale.sample(pos.x));
+            let position = magnet.snap(scale.sample(pos.x));
             doc.import_at(std::slice::from_ref(&file.0), track, position);
         }
 
@@ -147,7 +193,7 @@ impl TimelineView {
             && let Some(pos) = ruler_response.interact_pointer_pos()
         {
             let pos = ui.input(|i| i.pointer.press_origin()).unwrap_or(pos);
-            let sample = settings.snap(project, scale.sample(pos.x));
+            let sample = magnet.snap(scale.sample(pos.x));
             let marker = project
                 .markers
                 .iter()
@@ -242,7 +288,7 @@ impl TimelineView {
             && let Some((track, playlist)) = self.take_at(project, pos.y - lanes.top())
         {
             self.drag = Some(Drag {
-                kind: DragKind::Comp(track, playlist, settings.snap(project, scale.sample(pos.x))),
+                kind: DragKind::Comp(track, playlist, magnet.snap(scale.sample(pos.x))),
                 clip: None,
                 origin: pos,
                 original: doc.project().clone(),
@@ -254,6 +300,7 @@ impl TimelineView {
             let edge = range_edge(pos, false);
             let (kind, clip) = match zone(pos) {
                 _ if let Some(anchor) = edge => (DragKind::RangeEdge { anchor }, None),
+                _ if let Some(kind) = crossfade(pos) => (kind, None),
                 _ if tool == Tool::Range || (modifiers.shift && !modifiers.command) => {
                     (DragKind::Range { anchor: pos }, None)
                 }
@@ -262,6 +309,12 @@ impl TimelineView {
                     let first = hovered.and_then(|(c, _, _)| edit::clip(project, c));
                     let mute = (tool == Tool::Mute).then(|| !first.is_some_and(|c| c.muted));
                     (DragKind::Sweep { mute }, None)
+                }
+                Some((DragKind::Slip, clip)) => {
+                    if !self.selection.contains(&clip) {
+                        self.selection = vec![clip];
+                    }
+                    (DragKind::Slip, Some(clip))
                 }
                 _ if tool == Tool::Split => (DragKind::Select { anchor: pos }, None),
                 Some((DragKind::Move { copy: false }, _)) if upper(pos) => {
@@ -326,7 +379,7 @@ impl TimelineView {
                     let mut samples = scale.samples(delta.x);
                     if let Some(c) = drag.clip.and_then(|c| edit::clip(&drag.original, c)) {
                         let target = (c.start as i64 + samples).max(0) as u64;
-                        samples = settings.snap(project, target) as i64 - c.start as i64;
+                        samples = magnet.snap_span(target, c.length) as i64 - c.start as i64;
                     }
                     edit::move_clips(&mut preview, &ids, samples, track_offset);
                 }
@@ -335,13 +388,15 @@ impl TimelineView {
                 | DragKind::Stretch
                 | DragKind::FadeIn
                 | DragKind::FadeOut
+                | DragKind::FadeCurve { .. }
+                | DragKind::Slip
                 | DragKind::Gain => {
                     if let Some(c) = drag
                         .clip
                         .and_then(|c| edit::clip(&drag.original, c))
                         .cloned()
                     {
-                        let at = |x: u64| settings.snap(project, x);
+                        let at = |x: u64| magnet.snap(x);
                         // Trims, fades and gain act on every selected clip by the same amount.
                         let others: Vec<audiostrada_core::Clip> = if self.selection.contains(&c.id)
                         {
@@ -407,6 +462,29 @@ impl TimelineView {
                                     );
                                 }
                             }
+                            DragKind::FadeCurve {
+                                fade_in,
+                                top,
+                                height,
+                            } => {
+                                let level = ((top + height - pos.y) / height).clamp(0.0, 1.0);
+                                let shape = shape_for(level);
+                                for o in std::iter::once(&c).chain(&others) {
+                                    if let Some(m) = edit::clip_mut(&mut preview, o.id) {
+                                        if fade_in {
+                                            m.fade_shape = shape;
+                                        } else {
+                                            m.fade_out_shape = Some(shape);
+                                        }
+                                    }
+                                }
+                            }
+                            DragKind::Slip => {
+                                let d = scale.samples(delta.x);
+                                for o in std::iter::once(&c).chain(&others) {
+                                    edit::slip_content(&mut preview, o.id, d);
+                                }
+                            }
                             DragKind::Gain => {
                                 for o in std::iter::once(&c).chain(&others) {
                                     edit::set_clip_gain(
@@ -441,8 +519,16 @@ impl TimelineView {
                         }
                     }
                 }
+                DragKind::Crossfade {
+                    left,
+                    right,
+                    overlap,
+                } => {
+                    let length = (overlap as i64 + 2 * scale.samples(delta.x)).max(0) as u64;
+                    edit::set_crossfade(&mut preview, left, right, length);
+                }
                 DragKind::Loop { anchor, punch } => {
-                    let other = settings.snap(project, scale.sample(pos.x));
+                    let other = magnet.snap(scale.sample(pos.x));
                     let (a, b) = (anchor.min(other), anchor.max(other));
                     let range = (b > a).then_some((a, b));
                     if punch {
@@ -460,7 +546,7 @@ impl TimelineView {
                     }
                 }
                 DragKind::Marker(id) => {
-                    let target = settings.snap(project, scale.sample(pos.x));
+                    let target = magnet.snap(scale.sample(pos.x));
                     if let Some(m) = preview.markers.iter_mut().find(|m| m.id == id) {
                         m.position = target;
                     }
@@ -472,7 +558,7 @@ impl TimelineView {
                             pos2(lanes.left(), top),
                             pos2(lanes.right(), top + LANE_HEIGHT),
                         );
-                        let time = settings.snap(project, scale.sample(pos.x));
+                        let time = magnet.snap(scale.sample(pos.x));
                         let value = y_value(rect, pos.y, min, max);
                         if let Some(lane) = preview
                             .track_mut(track)
@@ -483,15 +569,15 @@ impl TimelineView {
                     }
                 }
                 DragKind::Comp(track, playlist, anchor) => {
-                    let other = settings.snap(project, scale.sample(pos.x));
+                    let other = magnet.snap(scale.sample(pos.x));
                     let (a, b) = (anchor.min(other), anchor.max(other));
                     edit::comp_range(&mut preview, track, playlist, a, b);
                     self.comping = (b > a).then_some((track, playlist, a, b));
                 }
                 DragKind::Range { anchor } => {
                     let (a, b) = (
-                        settings.snap(project, scale.sample(anchor.x.min(pos.x))),
-                        settings.snap(project, scale.sample(anchor.x.max(pos.x))),
+                        magnet.snap(scale.sample(anchor.x.min(pos.x))),
+                        magnet.snap(scale.sample(anchor.x.max(pos.x))),
                     );
                     let first = self.row_at(anchor.y.min(pos.y) - lanes.top()).unwrap_or(0);
                     let last = self
@@ -517,7 +603,7 @@ impl TimelineView {
                     self.selection.clear();
                 }
                 DragKind::RulerRange { anchor } => {
-                    let at = settings.snap(project, scale.sample(pos.x));
+                    let at = magnet.snap(scale.sample(pos.x));
                     let tracks = self
                         .rows
                         .iter()
@@ -531,7 +617,7 @@ impl TimelineView {
                     self.selection.clear();
                 }
                 DragKind::RangeEdge { anchor } => {
-                    let at = settings.snap(project, scale.sample(pos.x));
+                    let at = magnet.snap(scale.sample(pos.x));
                     if let Some(r) = &mut self.range
                         && at != anchor
                     {
@@ -581,6 +667,46 @@ impl TimelineView {
             }
         }
 
+        // While dragging: what pulled the position, and the value being set.
+        if let Some(drag) = &self.drag
+            && let Some(pos) = pointer
+        {
+            if let Some((at, pull)) = magnet.hit.get()
+                && !matches!(
+                    drag.kind,
+                    DragKind::Select { .. } | DragKind::Sweep { .. } | DragKind::Gain
+                )
+            {
+                let x = scale.x(at);
+                let guide = Color32::from_rgb(255, 196, 64);
+                let painter = ui.painter().with_clip_rect(lanes.union(ruler));
+                painter.vline(x, ruler.top()..=lanes.bottom(), Stroke::new(1.0, guide));
+                if pull != Pull::Grid {
+                    let galley = painter.layout_no_wrap(
+                        pull.name().to_owned(),
+                        FontId::proportional(10.5),
+                        Color32::BLACK,
+                    );
+                    let tag = Rect::from_min_size(pos2(x + 4.0, lanes.top() + 4.0), galley.size())
+                        .expand2(vec2(4.0, 1.0));
+                    painter.rect_filled(tag, 3.0, guide);
+                    painter.galley(tag.min + vec2(4.0, 1.0), galley, Color32::BLACK);
+                }
+            }
+            if let Some(text) = self.preview.as_ref().and_then(|p| drag_label(drag, p)) {
+                let painter = ui.ctx().layer_painter(egui::LayerId::new(
+                    egui::Order::Tooltip,
+                    egui::Id::unique("timeline-drag-label"),
+                ));
+                let galley =
+                    painter.layout_no_wrap(text, FontId::proportional(11.5), Color32::WHITE);
+                let tag = Rect::from_min_size(pos + vec2(16.0, 14.0), galley.size())
+                    .expand2(vec2(6.0, 3.0));
+                painter.rect_filled(tag, 4.0, Color32::from_black_alpha(215));
+                painter.galley(tag.min + vec2(6.0, 3.0), galley, Color32::WHITE);
+            }
+        }
+
         // Committing.
         if (lanes_response.drag_stopped() || ruler_response.drag_stopped())
             && let Some(drag) = self.drag.take()
@@ -592,6 +718,9 @@ impl TimelineView {
                 DragKind::TrimStart | DragKind::TrimEnd => tr("Trim clip"),
                 DragKind::Stretch => tr("Stretch clip"),
                 DragKind::FadeIn | DragKind::FadeOut => tr("Fade"),
+                DragKind::FadeCurve { .. } => tr("Fade shape"),
+                DragKind::Crossfade { .. } => tr("Crossfade"),
+                DragKind::Slip => tr("Slip content"),
                 DragKind::Gain => tr("Clip gain"),
                 DragKind::Loop { punch: true, .. } => tr("Set punch range"),
                 DragKind::Loop { .. } => tr("Set loop"),
@@ -662,7 +791,7 @@ impl TimelineView {
                 && point.is_none()
                 && let Some((_, min, max)) = self.lane_info.get(&(track, li)).cloned()
             {
-                let time = settings.snap(project, scale.sample(pos.x));
+                let time = magnet.snap(scale.sample(pos.x));
                 let value = y_value(rect, pos.y, min, max);
                 doc.history_mut().edit(tr("Add automation point"), |p| {
                     if let Some(lane) = p.track_mut(track).and_then(|t| t.automation.get_mut(li)) {
@@ -678,7 +807,7 @@ impl TimelineView {
             && hit.is_none()
             && let Some(pos) = lanes_response.interact_pointer_pos()
         {
-            let at = settings.snap(project, scale.sample(pos.x));
+            let at = magnet.snap(scale.sample(pos.x));
             self.point_menu = None;
             let row_track = self.track_at(project, pos.y - lanes.top()).map(|t| t.id);
             let in_range = self.range.as_ref().is_some_and(|r| {
@@ -773,9 +902,67 @@ impl TimelineView {
             self.pending_midi = Some((track.id, scale.sample(pos.x)));
         }
 
+        // On the handles: Alt-click turns a fade's shape, a double-click resets the fade, the
+        // volume or the crossfade.
+        let handle_clicked = if hit.is_none()
+            && ((lanes_response.clicked() && modifiers.alt) || lanes_response.double_clicked())
+            && let Some(pos) = lanes_response.interact_pointer_pos()
+        {
+            let double = lanes_response.double_clicked();
+            if let Some(DragKind::Crossfade { left, right, .. }) = crossfade(pos) {
+                if double {
+                    doc.history_mut().edit(tr("Crossfade"), |p| {
+                        edit::set_crossfade(p, left, right, 0);
+                    });
+                }
+                true
+            } else if let Some((kind, clip)) = zone(pos).filter(|z| match z.0 {
+                DragKind::FadeIn | DragKind::FadeOut | DragKind::FadeCurve { .. } => true,
+                // The volume handle itself, not Ctrl anywhere on the clip.
+                DragKind::Gain => {
+                    hovered.is_some_and(|(_, _, r)| pos.y < r.top() + FADE_ZONE_HEIGHT)
+                }
+                _ => false,
+            }) {
+                let fade_in = match kind {
+                    DragKind::FadeCurve { fade_in, .. } => Some(fade_in),
+                    DragKind::FadeIn => Some(true),
+                    DragKind::FadeOut => Some(false),
+                    _ => None,
+                };
+                let ids = if self.selection.contains(&clip) {
+                    self.selection.clone()
+                } else {
+                    vec![clip]
+                };
+                doc.history_mut().edit(tr("Fade"), |p| {
+                    for id in &ids {
+                        let Some(c) = edit::clip_mut(p, *id) else {
+                            continue;
+                        };
+                        match (fade_in, double) {
+                            (None, _) => c.gain_db = 0.0,
+                            (Some(true), true) => c.fade_in = 0,
+                            (Some(false), true) => c.fade_out = 0,
+                            (Some(true), false) => c.fade_shape = next_shape(c.fade_shape),
+                            (Some(false), false) => {
+                                c.fade_out_shape = Some(next_shape(c.out_shape()))
+                            }
+                        }
+                    }
+                });
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
         // Clicks.
         if hit.is_none()
             && !tool_clicked
+            && !handle_clicked
             && lanes_response.clicked()
             && let Some(pos) = lanes_response.interact_pointer_pos()
         {
@@ -784,7 +971,7 @@ impl TimelineView {
             }
             let extend = modifiers.shift && self.range.is_some();
             if extend {
-                let at = settings.snap(project, scale.sample(pos.x));
+                let at = magnet.snap(scale.sample(pos.x));
                 self.extend_range(project, at, self.row_at(pos.y - lanes.top()));
             }
             match hovered {
@@ -826,13 +1013,13 @@ impl TimelineView {
                     }
                 }
             }
-            let target = settings.snap(project, scale.sample(pos.x));
+            let target = magnet.snap(scale.sample(pos.x));
             doc.player_mut().locate(target);
         }
         if ruler_response.clicked()
             && let Some(pos) = ruler_response.interact_pointer_pos()
         {
-            let target = settings.snap(project, scale.sample(pos.x));
+            let target = magnet.snap(scale.sample(pos.x));
             doc.player_mut().locate(target);
         }
         // Over a fade handle, or dragging one: the pointer is the fade's curve.
@@ -873,7 +1060,7 @@ impl TimelineView {
                 .iter()
                 .find(|m| (scale.x(m.position) - pos.x).abs() < 6.0)
                 .map(|m| m.id);
-            let at = settings.snap(project, scale.sample(pos.x));
+            let at = magnet.snap(scale.sample(pos.x));
             self.ruler_target = Some((at, marker));
         }
         if let Some((at, marker)) = self.ruler_target {
@@ -1073,4 +1260,148 @@ pub(super) fn edit_tracks(project: &Project, clips: &[ClipId]) -> Vec<TrackId> {
         }
     }
     tracks
+}
+
+/// Where the middle of a fade's curve is drawn, when the fade is wide enough to grab it.
+pub(super) fn fade_middle(
+    rect: Rect,
+    clip: &audiostrada_core::Clip,
+    fade_in: bool,
+    zoom: f64,
+) -> Option<Pos2> {
+    let samples = if fade_in { clip.fade_in } else { clip.fade_out };
+    let width = (samples as f64 / zoom) as f32;
+    (width >= 16.0 && rect.height() >= 30.0).then(|| {
+        let shape = if fade_in {
+            clip.fade_shape
+        } else {
+            clip.out_shape()
+        };
+        let x = if fade_in {
+            rect.left() + width / 2.0
+        } else {
+            rect.right() - width / 2.0
+        };
+        pos2(x, rect.bottom() - shape.gain(0.5) * rect.height())
+    })
+}
+
+/// The fade shape whose middle is nearest `level` (0 at the bottom, 1 at the top).
+pub(super) fn shape_for(level: f32) -> FadeShape {
+    [
+        FadeShape::Slow,
+        FadeShape::Linear,
+        FadeShape::EqualPower,
+        FadeShape::Fast,
+    ]
+    .into_iter()
+    .min_by(|a, b| {
+        (a.gain(0.5) - level)
+            .abs()
+            .total_cmp(&(b.gain(0.5) - level).abs())
+    })
+    .unwrap_or_default()
+}
+
+fn seconds(project: &Project, samples: i64) -> String {
+    format!(
+        "{:+.3} s",
+        samples as f64 / f64::from(project.sample_rate.max(1))
+    )
+}
+
+fn millis(project: &Project, samples: u64) -> String {
+    format!(
+        "{:.0} ms",
+        samples as f64 * 1000.0 / f64::from(project.sample_rate.max(1))
+    )
+}
+
+fn bars(project: &Project, at: u64) -> String {
+    let (tempo, rate) = (&project.tempo, project.sample_rate.max(1));
+    let bbt = tempo.beat_to_bbt(tempo.sample_to_beat(at, rate));
+    format!("{}.{}.{:03}", bbt.bar, bbt.beat, bbt.tick)
+}
+
+/// What a drag is setting, told beside the pointer.
+fn drag_label(drag: &Drag, preview: &Project) -> Option<String> {
+    let before = drag.clip.and_then(|c| edit::clip(&drag.original, c));
+    let after = drag.clip.and_then(|c| edit::clip(preview, c));
+    Some(match drag.kind {
+        DragKind::Move { .. } => {
+            let (a, b) = (before?, after?);
+            let mut text = format!(
+                "{}   {}",
+                bars(preview, b.start),
+                seconds(preview, b.start as i64 - a.start as i64)
+            );
+            let from = edit::track_of_clip(&drag.original, a.id);
+            let to = edit::track_of_clip(preview, b.id);
+            if from != to
+                && let Some(track) = to.and_then(|t| preview.track(t))
+            {
+                text.push_str(&format!("   → {}", track.name));
+            }
+            text
+        }
+        DragKind::TrimStart | DragKind::TrimEnd => {
+            let b = after?;
+            let edge = if drag.kind == DragKind::TrimStart {
+                b.start
+            } else {
+                b.end()
+            };
+            trf!(
+                "{edge}   length {length}",
+                edge = bars(preview, edge),
+                length = format!(
+                    "{:.3} s",
+                    b.length as f64 / f64::from(preview.sample_rate.max(1))
+                )
+            )
+        }
+        DragKind::Stretch => format!("{:.1} %", after?.stretch * 100.0),
+        DragKind::FadeIn => trf!(
+            "Fade in {length}, {shape}",
+            length = millis(preview, after?.fade_in),
+            shape = tr(after?.fade_shape.name())
+        ),
+        DragKind::FadeOut => trf!(
+            "Fade out {length}, {shape}",
+            length = millis(preview, after?.fade_out),
+            shape = tr(after?.out_shape().name())
+        ),
+        DragKind::FadeCurve { fade_in, .. } => {
+            let c = after?;
+            tr(if fade_in { c.fade_shape } else { c.out_shape() }.name()).to_owned()
+        }
+        DragKind::Gain => {
+            let gain = after?.gain_db;
+            if gain <= audiostrada_core::model::MIN_GAIN_DB {
+                "-inf dB".to_owned()
+            } else {
+                format!("{gain:+.1} dB")
+            }
+        }
+        DragKind::Slip => {
+            let (a, b) = (before?, after?);
+            trf!(
+                "Content {shift}",
+                shift = seconds(preview, a.offset as i64 - b.offset as i64)
+            )
+        }
+        DragKind::Crossfade { left, right, .. } => {
+            let (a, b) = (edit::clip(preview, left)?, edit::clip(preview, right)?);
+            trf!(
+                "Crossfade {length}",
+                length = millis(preview, a.end().saturating_sub(b.start))
+            )
+        }
+        _ => return None,
+    })
+}
+
+fn next_shape(shape: FadeShape) -> FadeShape {
+    let i = FadeShape::ALL.iter().position(|s| *s == shape).unwrap_or(0);
+    FadeShape::ALL[(i + 1) % FadeShape::ALL.len()]
 }
