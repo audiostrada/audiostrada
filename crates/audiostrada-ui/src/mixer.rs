@@ -3206,6 +3206,11 @@ impl MixerView {
             return None;
         }
         let mut added = None;
+        let settings = if key == "trigger" {
+            crate::trigger_editor::first_settings(doc, channel)
+        } else {
+            Default::default()
+        };
         // An instrument leads its track, in place of the one there.
         let replaced = match channel {
             Channel::Track(t) if is_instrument(doc, key) => Some(
@@ -3219,7 +3224,7 @@ impl MixerView {
         };
         doc.history_mut()
             .edit(&trf!("Insert {name}", name = name), |p| {
-                added = routing::add_insert(p, channel, key, Default::default());
+                added = routing::add_insert(p, channel, key, settings);
                 if monitor
                     && let Some(i) = p.master.inserts.iter_mut().find(|i| Some(i.id) == added)
                 {

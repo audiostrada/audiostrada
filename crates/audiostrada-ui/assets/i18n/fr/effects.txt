@@ -5074,3 +5074,42 @@ Sample de grosse caisse
 
 Snare sample
 Sample de caisse claire
+
+Finds the pitch the track's drum rings at and tunes the sound to it
+Trouve la hauteur à laquelle sonne le fût de la piste et y accorde le son
+
+Listens to the track to tell a kick from a snare
+Écoute la piste pour distinguer une grosse caisse d'une caisse claire
+
+No audio on this track yet
+Pas encore d'audio sur cette piste
+
+No clear pitch in the sound
+Pas de hauteur nette dans le son
+
+No clear pitch on the track
+Pas de hauteur nette sur la piste
+
+Not clear: choose the drum above
+Pas net : choisissez le fût au-dessus
+
+Only on a track
+Seulement sur une piste
+
+Recognize the drum
+Reconnaître le fût
+
+The track sounds like a kick
+La piste sonne comme une grosse caisse
+
+The track sounds like a snare
+La piste sonne comme une caisse claire
+
+Track {track} Hz, sound {sound} Hz: tuned {shift} semitones
+Piste {track} Hz, son {sound} Hz : accordé de {shift} demi-tons
+
+Tune to the track
+Accorder sur la piste
+
+Mid range
+Médiums

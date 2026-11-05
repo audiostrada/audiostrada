@@ -11,10 +11,14 @@ use eframe::egui::{
     self, Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Shape, Stroke, Ui, pos2, vec2,
 };
 
+use crate::document::Document;
 use crate::drums_editor::{MODULE, family, modules, screen, waveform};
 use crate::effect_editors::Params;
 use crate::i18n::tr;
 use crate::theme;
+use audiostrada_core::TrackId;
+use audiostrada_core::routing::Channel;
+use std::collections::BTreeMap;
 
 /// What the editor remembers between frames: the detection lately and the hits found.
 #[derive(Debug, Default)]
@@ -28,6 +32,8 @@ pub struct TriggerState {
     own: Option<Vec<OwnSound>>,
     /// The sound being added, in its dialog.
     draft: Option<Draft>,
+    /// What the last tuning or recognition found.
+    note: Option<String>,
 }
 
 /// A sound of one's own: its name, its file and its drum (0 kick, 1 snare).
@@ -133,7 +139,9 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Trigge
         cards(ui, params, kind, state);
         ui.add_space(12.0);
         display(ui, params, state, color);
-        ui.add_space(12.0);
+        ui.add_space(8.0);
+        tools(ui, params, kind, state);
+        ui.add_space(10.0);
         let knob = |id: &str, label: &'static str| (id.to_owned(), tr(label));
         modules(
             ui,
@@ -159,6 +167,25 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Trigge
             color,
             46.0,
         );
+        ui.add_space(8.0);
+        modules(
+            ui,
+            params,
+            &[
+                (tr("Compression"), vec![knob("comp", "Amount")]),
+                (
+                    tr("EQ"),
+                    vec![
+                        knob("low", "Bass"),
+                        knob("mid", "Mid range"),
+                        knob("high", "Treble"),
+                    ],
+                ),
+                (tr("Drive"), vec![knob("drive", "Amount")]),
+            ],
+            color,
+            46.0,
+        );
         ui.add_space(14.0);
         fader(
             ui,
@@ -180,6 +207,169 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Trigge
     });
     add_dialog(ui, params, state);
     ui.ctx().request_repaint();
+}
+
+/// Tuning on the track and recognizing the drum, with what they found.
+fn tools(ui: &mut Ui, params: &mut Params, kind: usize, state: &mut TriggerState) {
+    ui.horizontal(|ui| {
+        if ui
+            .button(tr("Tune to the track"))
+            .on_hover_text(tr(
+                "Finds the pitch the track's drum rings at and tunes the sound to it",
+            ))
+            .clicked()
+        {
+            state.note = Some(match match_pitch(params, kind) {
+                Ok((semitones, note)) => {
+                    let response =
+                        ui.interact(Rect::NOTHING, ui.scope_id().with("tune"), Sense::hover());
+                    params.set("tune", Some(semitones), &response);
+                    params.doc.history_mut().end_gesture();
+                    note
+                }
+                Err(note) => note,
+            });
+        }
+        if ui
+            .button(tr("Recognize the drum"))
+            .on_hover_text(tr("Listens to the track to tell a kick from a snare"))
+            .clicked()
+        {
+            let guess = match params.channel {
+                Channel::Track(t) => guess_from_audio(params.doc, t),
+                Channel::Master => None,
+            };
+            state.note = Some(match guess {
+                Some(k) => {
+                    let response =
+                        ui.interact(Rect::NOTHING, ui.scope_id().with("guess"), Sense::hover());
+                    params.set("kind", Some(k as f32), &response);
+                    params.doc.history_mut().end_gesture();
+                    if k == 0 {
+                        tr("The track sounds like a kick").to_owned()
+                    } else {
+                        tr("The track sounds like a snare").to_owned()
+                    }
+                }
+                None => tr("Not clear: choose the drum above").to_owned(),
+            });
+        }
+        if let Some(note) = &state.note {
+            ui.label(
+                RichText::new(note)
+                    .size(11.5)
+                    .color(INK.gamma_multiply(0.7)),
+            );
+        }
+    });
+}
+
+/// The track's audio where its clips play, mono, up to `seconds`, at the files' rate.
+fn track_audio(doc: &Document, track: TrackId, seconds: f32) -> Option<(Vec<f32>, u32)> {
+    let project = doc.project();
+    let track = project.track(track)?;
+    let mut out = Vec::new();
+    let mut rate = None;
+    for clip in track.clips.iter().filter(|c| !c.muted && c.notes.is_none()) {
+        let Some(path) = audiostrada_engine::project::clip_media(project, doc.paths(), clip) else {
+            continue;
+        };
+        let Some(audio) = doc.media().audio(&path) else {
+            continue;
+        };
+        let file_rate = audio.sample_rate();
+        if *rate.get_or_insert(file_rate) != file_rate {
+            continue;
+        }
+        let ratio = f64::from(file_rate) / f64::from(project.sample_rate.max(1));
+        let start = ((clip.offset as f64 * ratio) as usize).min(audio.frames());
+        let end = (start + (clip.length as f64 * ratio) as usize).min(audio.frames());
+        let channels = audio.channels().max(1);
+        out.extend(
+            (start..end)
+                .map(|i| (0..channels).map(|c| audio.channel(c)[i]).sum::<f32>() / channels as f32),
+        );
+        if out.len() as f32 > seconds * file_rate as f32 {
+            break;
+        }
+    }
+    Some((out, rate?))
+}
+
+/// The drum a track's name says, when it says one.
+fn kind_from_name(name: &str) -> Option<usize> {
+    let lower = name.to_lowercase();
+    let words: Vec<&str> = lower
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    let has = |list: &[&str]| words.iter().any(|w| list.contains(w));
+    let kick = lower.contains("kick")
+        || lower.contains("grosse")
+        || has(&["kik", "kck", "bd", "bassdrum", "gc", "kd"]);
+    let snare =
+        lower.contains("snare") || lower.contains("claire") || has(&["sn", "snr", "sd", "cc"]);
+    match (kick, snare) {
+        (true, false) => Some(0),
+        (false, true) => Some(1),
+        _ => None,
+    }
+}
+
+fn guess_from_audio(doc: &Document, track: TrackId) -> Option<usize> {
+    let (audio, rate) = track_audio(doc, track, 30.0)?;
+    trigger::guess_kind(&audio, rate)
+}
+
+/// The settings of a trigger put on a track: its drum, from the track's name or its sound.
+pub(crate) fn first_settings(doc: &Document, channel: Channel) -> BTreeMap<String, f32> {
+    let Channel::Track(t) = channel else {
+        return BTreeMap::new();
+    };
+    let named = doc.project().track(t).and_then(|t| kind_from_name(&t.name));
+    named
+        .or_else(|| guess_from_audio(doc, t))
+        .map(|k| BTreeMap::from([("kind".to_owned(), k as f32)]))
+        .unwrap_or_default()
+}
+
+/// Tunes the sound to the pitch the track's drum rings at, by the nearest octave.
+fn match_pitch(params: &Params, kind: usize) -> Result<(f32, String), String> {
+    let Channel::Track(t) = params.channel else {
+        return Err(tr("Only on a track").to_owned());
+    };
+    let (audio, rate) =
+        track_audio(params.doc, t, 30.0).ok_or_else(|| tr("No audio on this track yet"))?;
+    let target = trigger::fundamental(&audio, rate, kind)
+        .ok_or_else(|| tr("No clear pitch on the track"))?;
+    let id = if kind == 0 { "kick" } else { "snare" };
+    let sound = params.get(id).round() as usize;
+    let own = if sound < BUILT_IN[kind] {
+        trigger::sound_fundamental(kind, sound)
+    } else {
+        let slot = SLOTS[kind].id;
+        audiostrada_core::routing::find_insert(params.doc.project(), params.channel, params.insert)
+            .and_then(|i| i.files.get(slot).cloned())
+            .and_then(|file| audiostrada_media::load(&params.doc.resolve(&file)).ok())
+            .and_then(|a| trigger::fundamental(a.channel(0), a.sample_rate(), kind))
+    }
+    .ok_or_else(|| tr("No clear pitch in the sound"))?;
+    let mut semitones = 12.0 * (target / own).log2();
+    // Drums sound right a few semitones away, not an octave: the nearest one is kept.
+    while semitones > 6.0 {
+        semitones -= 12.0;
+    }
+    while semitones < -6.0 {
+        semitones += 12.0;
+    }
+    let semitones = (semitones * 10.0).round() / 10.0;
+    let note = crate::trf!(
+        "Track {track} Hz, sound {sound} Hz: tuned {shift} semitones",
+        track = format!("{target:.0}"),
+        sound = format!("{own:.0}"),
+        shift = format!("{semitones:+.1}")
+    );
+    Ok((semitones, note))
 }
 
 /// Keeps the levels and the hits of the last seconds.
@@ -658,7 +848,7 @@ fn audition(params: &mut Params, kind: usize, sound: usize) {
 /// and a mark at each hit as strong as it was.
 fn display(ui: &mut Ui, params: &mut Params, state: &TriggerState, color: Color32) {
     let (rect, response) =
-        ui.allocate_exact_size(vec2(ui.available_width(), 170.0), Sense::click_and_drag());
+        ui.allocate_exact_size(vec2(ui.available_width(), 140.0), Sense::click_and_drag());
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 8.0, MODULE);
     let plot = rect.shrink2(vec2(10.0, 10.0));
@@ -943,4 +1133,27 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             ],
         ),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn track_names_tell_the_drum() {
+        for (name, kind) in [
+            ("01-KICK-consolidated", Some(0)),
+            ("Kik in", Some(0)),
+            ("BD", Some(0)),
+            ("Grosse caisse", Some(0)),
+            ("03-SN-consolidated", Some(1)),
+            ("04-SN DO-consolidated", Some(1)),
+            ("Snare top", Some(1)),
+            ("Caisse claire", Some(1)),
+            ("Overheads", None),
+            ("Kick and snare", None),
+        ] {
+            assert_eq!(kind_from_name(name), kind, "{name}");
+        }
+    }
 }

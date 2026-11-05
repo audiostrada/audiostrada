@@ -66,8 +66,13 @@ pub mod p {
     pub const TUNE: usize = 8;
     pub const DECAY: usize = 9;
     pub const LEVEL: usize = 10;
+    pub const COMP: usize = 11;
+    pub const LOW: usize = 12;
+    pub const MID: usize = 13;
+    pub const HIGH: usize = 14;
+    pub const DRIVE: usize = 15;
 }
-const COUNT: usize = 11;
+const COUNT: usize = 16;
 
 const PARAMS: [ParamInfo; COUNT] = [
     choice("kind", "Drum", &KINDS, 0.0),
@@ -81,6 +86,11 @@ const PARAMS: [ParamInfo; COUNT] = [
     param("tune", "Tune", -12.0, 12.0, 0.0, "st"),
     param("decay", "Decay", 10.0, 100.0, 100.0, "%"),
     param("level", "Level", -24.0, 12.0, 0.0, "dB"),
+    param("comp", "Compression", 0.0, 100.0, 0.0, "%"),
+    param("low", "Bass", -12.0, 12.0, 0.0, "dB"),
+    param("mid", "Mid", -12.0, 12.0, 0.0, "dB"),
+    param("high", "Treble", -12.0, 12.0, 0.0, "dB"),
+    param("drive", "Drive", 0.0, 100.0, 0.0, "%"),
 ];
 
 pub const INFO: EffectInfo = EffectInfo {
@@ -303,6 +313,20 @@ struct Voice {
     falloff: f32,
 }
 
+/// A hit being heard whole on the track, to set the sample's level by its body: the track's
+/// energy so far, until when, and what the sample gave over the same time at the gain used.
+#[derive(Clone, Copy, Debug)]
+struct Measure {
+    until: u64,
+    track: f32,
+    count: u32,
+    sample: f32,
+    sound: (usize, usize),
+}
+
+/// How long a hit's body is measured for its level.
+const BODY_MS: f32 = 80.0;
+
 /// A hit found, its peak measured until `until`.
 #[derive(Clone, Copy, Debug)]
 struct Pending {
@@ -335,6 +359,17 @@ pub struct Trigger {
     voices: [Voice; VOICES],
     take: usize,
     custom: [Option<Sound>; 2],
+    measure: Option<Measure>,
+    /// Gain that brings the samples to the track's level over their body (dB), and the sound
+    /// it was found for.
+    calibration: Option<(f32, (usize, usize))>,
+    /// Gain of a sample at the strongest hit's level: the processing works below it.
+    reference: f32,
+    eq: [Biquad; 3],
+    eq_coefficients: [Coefficients; 3],
+    eq_for: Option<[u32; 4]>,
+    work: [Vec<f32>; 2],
+    comp: Box<dyn Effect>,
     room: Box<dyn Effect>,
     bus: [Vec<f32>; 2],
     meters: [f32; 4],
@@ -365,6 +400,18 @@ impl Default for Trigger {
                 room.set_param(i, value);
             }
         }
+        let mut comp = crate::create("compressor").expect("built-in compressor");
+        let info = crate::info("compressor").expect("built-in compressor");
+        for (name, value) in [
+            ("type", 1.0),
+            ("attack", 10.0),
+            ("release", 100.0),
+            ("knee", 6.0),
+        ] {
+            if let Some(i) = info.params.iter().position(|q| q.id == name) {
+                comp.set_param(i, value);
+            }
+        }
         Self {
             rate: RATE,
             values: PARAMS.map(|p| p.default),
@@ -384,6 +431,14 @@ impl Default for Trigger {
             voices: [Voice::default(); VOICES],
             take: 0,
             custom: [None, None],
+            measure: None,
+            calibration: None,
+            reference: 0.0,
+            eq: [Biquad::default(); 3],
+            eq_coefficients: [Coefficients::IDENTITY; 3],
+            eq_for: None,
+            work: Default::default(),
+            comp,
             room,
             bus: Default::default(),
             meters: [0.0; 4],
@@ -463,7 +518,29 @@ impl Trigger {
         let read = ((span as f64 * step) as usize).max(1);
         let body = &hits.close[start + attack..start + (attack + read).min(length)];
         let own = (body.iter().map(|v| v * v).sum::<f32>() / body.len().max(1) as f32).sqrt();
-        let strength = energy / own.max(1e-6) * hits.close[start + attack].signum();
+        let matched = energy.abs() / own.max(1e-6);
+        let calibration = match self.calibration {
+            Some((db, for_sound)) if for_sound == (kind, sound) => db_to_gain(db),
+            _ => 1.0,
+        };
+        let strength =
+            matched * calibration * energy.signum() * hits.close[start + attack].signum();
+        // What the sample gives over its body at this gain, to compare with the track's.
+        let room = self.values[p::ROOM] / 100.0;
+        let end = (attack + (f64::from(BODY_MS / 1000.0 * self.rate) * step) as usize).min(length);
+        let heard = (attack..end)
+            .map(|k| {
+                let (c, r) = (hits.close[start + k], hits.room[start + k]);
+                let x = c + (r - c) * room;
+                x * x
+            })
+            .sum::<f32>()
+            / (end - attack).max(1) as f32;
+        if let Some(m) = &mut self.measure {
+            m.sample = heard.sqrt() * strength.abs() * shaped / relative.max(1e-4);
+            m.sound = (kind, sound);
+        }
+        self.reference = (strength / relative.max(1e-4)).abs();
         let decay = self.values[p::DECAY] / 100.0;
         let seconds = length as f32 / hits.rate;
         // A new hit damps the ones still ringing, as on a real head.
@@ -541,6 +618,69 @@ impl Trigger {
     }
 }
 
+impl Trigger {
+    /// Brings the samples to the track's level over a hit's body, by halves after the first.
+    fn calibrate(&mut self, m: &Measure) {
+        if m.sound.0 == usize::MAX || m.sample <= 1e-9 || m.count == 0 {
+            return;
+        }
+        let track = (m.track / m.count as f32).sqrt();
+        let step = 20.0 * (track / m.sample).max(1e-6).log10();
+        let db = match self.calibration {
+            Some((db, sound)) if sound == m.sound => db + 0.5 * step,
+            _ => step,
+        };
+        self.calibration = Some((db.clamp(-15.0, 15.0), m.sound));
+    }
+
+    /// The sample's EQ, compression and drive, worked at the strongest hit's level.
+    fn shape(&mut self, n: usize) {
+        let (low, mid, high) = (
+            self.values[p::LOW],
+            self.values[p::MID],
+            self.values[p::HIGH],
+        );
+        let comp = self.values[p::COMP] / 100.0;
+        let drive = self.values[p::DRIVE] / 100.0;
+        if (low, mid, high, comp, drive) == (0.0, 0.0, 0.0, 0.0, 0.0) {
+            return;
+        }
+        let kind = self.kind();
+        let key = [low.to_bits(), mid.to_bits(), high.to_bits(), kind as u32];
+        if self.eq_for != Some(key) {
+            self.eq_for = Some(key);
+            let rate = f64::from(self.rate);
+            let middle = if kind == 0 { 400.0 } else { 900.0 };
+            self.eq_coefficients = [
+                Coefficients::design(FilterKind::LowShelf, 90.0, 0.7, f64::from(low), rate),
+                Coefficients::design(FilterKind::Peak, middle, 1.0, f64::from(mid), rate),
+                Coefficients::design(FilterKind::HighShelf, 5000.0, 0.7, f64::from(high), rate),
+            ];
+        }
+        let reference = self.reference.max(1e-6);
+        let push = 1.0 + 6.0 * drive;
+        let makeup = 1.0 / push.tanh().max(0.2) / (1.0 + drive);
+        let [a, b] = &mut self.work;
+        for i in 0..n {
+            let mut x = f64::from(a[i] / reference);
+            for (f, c) in self.eq.iter_mut().zip(&self.eq_coefficients) {
+                x = f.process(c, x);
+            }
+            a[i] = x as f32;
+            b[i] = a[i];
+        }
+        if comp > 0.0 {
+            self.comp.process(&mut a[..n], &mut b[..n]);
+        }
+        for v in &mut a[..n] {
+            if drive > 0.0 {
+                *v = (*v * push).tanh() * makeup;
+            }
+            *v *= reference;
+        }
+    }
+}
+
 impl Effect for Trigger {
     fn prepare(&mut self, sample_rate: u32, max_frames: usize) {
         self.rate = sample_rate as f32;
@@ -550,7 +690,10 @@ impl Effect for Trigger {
             vec![0.0; ((BACK_MS + WINDOW_MS + BEFORE_MS) / 1000.0 * self.rate) as usize + 2];
         self.helds = vec![0.0; (RISE_MS / 1000.0 * self.rate) as usize + 1];
         self.bus = [vec![0.0; max_frames], vec![0.0; max_frames]];
+        self.work = [vec![0.0; max_frames], vec![0.0; max_frames]];
         self.room.prepare(sample_rate, max_frames);
+        self.comp.prepare(sample_rate, max_frames);
+        self.eq_for = None;
         self.filtered_for = None;
         self.reset();
     }
@@ -558,6 +701,23 @@ impl Effect for Trigger {
     fn set_param(&mut self, index: usize, value: f32) {
         if let Some(v) = self.values.get_mut(index) {
             *v = value;
+        }
+        if index == p::COMP {
+            // From a light hold to a squash that brings the body up, at about the same level.
+            let amount = value / 100.0;
+            let threshold = -6.0 - 24.0 * amount;
+            let ratio = 1.5 + 4.5 * amount;
+            if let Some(info) = crate::info("compressor") {
+                for (name, v) in [
+                    ("threshold", threshold),
+                    ("ratio", ratio),
+                    ("makeup", 0.6 * (-threshold - 6.0) * (1.0 - 1.0 / ratio)),
+                ] {
+                    if let Some(i) = info.params.iter().position(|q| q.id == name) {
+                        self.comp.set_param(i, v);
+                    }
+                }
+            }
         }
     }
 
@@ -596,8 +756,8 @@ impl Effect for Trigger {
         let wet = (2.0 * amount).min(1.0) * db_to_gain(self.values[p::LEVEL]);
         let room = self.values[p::ROOM] / 100.0;
         let send = 0.6 * room * room;
-        if self.bus[0].len() < n {
-            for b in &mut self.bus {
+        if self.bus[0].len() < n || self.work[0].len() < n {
+            for b in self.bus.iter_mut().chain(&mut self.work) {
                 b.resize(n, 0.0);
             }
         }
@@ -653,6 +813,14 @@ impl Effect for Trigger {
                         .sqrt();
                     self.strongest = self.strongest.max(hit.raw);
                     let relative = hit.raw / self.strongest.max(1e-9);
+                    let body = (BODY_MS / 1000.0 * rate) as u64;
+                    self.measure = Some(Measure {
+                        until: attack + body,
+                        track: energy * energy * span as f32,
+                        count: span as u32,
+                        sample: 0.0,
+                        sound: (usize::MAX, 0),
+                    });
                     // Heard where the track's attack comes out of the delay.
                     let wait = (attack + self.lookahead as u64) as f64 - t as f64;
                     self.play(relative, (energy * polarity, span), wait);
@@ -664,15 +832,33 @@ impl Effect for Trigger {
                     detected: self.fast,
                     raw: mono.abs(),
                 });
+                // A new hit over the last one's body: that body is not the drum alone.
+                self.measure = None;
                 self.armed = t + gap;
             }
+            if let Some(mut m) = self.measure {
+                if t < m.until {
+                    m.track += mono * mono;
+                    m.count += 1;
+                    self.measure = Some(m);
+                } else {
+                    self.measure = None;
+                    self.calibrate(&m);
+                }
+            }
             let (close, ambience) = self.voices();
-            let sample = close + (ambience - close) * room;
+            self.work[0][i] = close + (ambience - close) * room;
+            left[i] = dl * dry;
+            right[i] = dr * dry;
+            self.now += 1;
+        }
+        self.shape(n);
+        for i in 0..n {
+            let sample = self.work[0][i];
+            left[i] += sample * wet;
+            right[i] += sample * wet;
             self.bus[0][i] = sample * send;
             self.bus[1][i] = sample * send;
-            left[i] = dl * dry + sample * wet;
-            right[i] = dr * dry + sample * wet;
-            self.now += 1;
         }
         if send > 0.0 {
             let [bl, br] = &mut self.bus;
@@ -708,7 +894,10 @@ impl Effect for Trigger {
         self.helds.fill(0.0);
         self.armed = 0;
         self.filters = [Biquad::default(); 3];
+        self.eq = [Biquad::default(); 3];
+        self.measure = None;
         self.room.reset();
+        self.comp.reset();
     }
 
     fn meters(&self, out: &mut [f32]) {
@@ -751,6 +940,133 @@ pub fn shape(kind: usize, sound: usize, bins: usize) -> Vec<f32> {
     body.chunks(per)
         .map(|c| c.iter().fold(0.0f32, |m, v| m.max(v.abs())))
         .collect()
+}
+
+/// The loud attacks of a recording, at least 100 ms apart, at most 32.
+fn find_hits(samples: &[f32], rate: f32) -> Vec<usize> {
+    let block = ((rate / 1000.0) as usize).max(1);
+    let envelope: Vec<f32> = samples
+        .chunks(block)
+        .map(|c| c.iter().fold(0.0f32, |m, v| m.max(v.abs())))
+        .collect();
+    let top = envelope.iter().fold(0.0f32, |m, v| m.max(*v));
+    let mut hits = Vec::new();
+    let mut last: Option<usize> = None;
+    for k in 1..envelope.len() {
+        let rising = envelope[k] > 2.0 * envelope[k.saturating_sub(4)].max(top * 0.01);
+        if envelope[k] > top * 0.25 && rising && last.is_none_or(|l| k - l > 100) {
+            hits.push(k.saturating_sub(1) * block);
+            last = Some(k);
+            if hits.len() == 32 {
+                break;
+            }
+        }
+    }
+    hits
+}
+
+/// Whether a recording is a kick (0) or a snare (1), by the low end's share of its hits'
+/// first 60 ms; `None` when it is not clear.
+pub fn guess_kind(samples: &[f32], rate: u32) -> Option<usize> {
+    let rate_f = rate as f32;
+    let length = (0.06 * rate_f) as usize;
+    let low = Coefficients::design(
+        FilterKind::LowPass,
+        120.0,
+        std::f64::consts::FRAC_1_SQRT_2,
+        0.0,
+        f64::from(rate),
+    );
+    let mut shares: Vec<f32> = find_hits(samples, rate_f)
+        .into_iter()
+        .filter(|&h| h + length <= samples.len())
+        .map(|h| {
+            let mut filters = [Biquad::default(); 2];
+            let (mut lows, mut all) = (0.0f32, 0.0f32);
+            for &x in &samples[h..h + length] {
+                let mut y = f64::from(x);
+                for f in &mut filters {
+                    y = f.process(&low, y);
+                }
+                lows += (y * y) as f32;
+                all += x * x;
+            }
+            lows / all.max(1e-12)
+        })
+        .collect();
+    if shares.len() < 2 {
+        return None;
+    }
+    shares.sort_by(f32::total_cmp);
+    let median = shares[shares.len() / 2];
+    if median > 0.2 {
+        Some(0)
+    } else if median < 0.1 {
+        Some(1)
+    } else {
+        None
+    }
+}
+
+/// The pitch a drum rings at once its attack has passed: the lowest clear resonance of its
+/// hits between 30 and 150 Hz for a kick, 120 and 400 Hz for a snare.
+pub fn fundamental(samples: &[f32], rate: u32, kind: usize) -> Option<f32> {
+    use realfft::RealFftPlanner;
+    const SIZE: usize = 8192;
+    let rate_f = rate as f32;
+    let skip = (0.015 * rate_f) as usize;
+    let window: Vec<f32> = (0..SIZE)
+        .map(|i| 0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / SIZE as f32).cos())
+        .collect();
+    let fft = RealFftPlanner::<f32>::new().plan_fft_forward(SIZE);
+    let mut frame = vec![0.0f32; SIZE];
+    let mut spectrum = fft.make_output_vec();
+    let mut sum = vec![0.0f32; spectrum.len()];
+    let mut count = 0;
+    for hit in find_hits(samples, rate_f).into_iter().take(16) {
+        let from = hit + skip;
+        if from >= samples.len() {
+            continue;
+        }
+        for (i, f) in frame.iter_mut().enumerate() {
+            *f = samples.get(from + i).copied().unwrap_or(0.0) * window[i];
+        }
+        let _ = fft.process(&mut frame, &mut spectrum);
+        let total: f32 = spectrum.iter().map(|c| c.norm()).sum::<f32>().max(1e-12);
+        for (s, c) in sum.iter_mut().zip(&spectrum) {
+            *s += c.norm() / total;
+        }
+        count += 1;
+    }
+    if count == 0 {
+        return None;
+    }
+    let (low, high) = if kind == 0 {
+        (30.0, 150.0)
+    } else {
+        (120.0, 400.0)
+    };
+    let bin = |hz: f32| (hz / rate_f * SIZE as f32).ceil() as usize;
+    let (from, to) = (bin(low).max(1), bin(high).min(sum.len() - 2));
+    let strongest = (from..=to).map(|k| sum[k]).fold(0.0f32, f32::max);
+    // The lowest clear resonance: the fundamental rather than a stronger overtone.
+    let peak = (from..=to)
+        .find(|&k| sum[k] >= 0.35 * strongest && sum[k] >= sum[k - 1] && sum[k] >= sum[k + 1])?;
+    // Between the bins, from the curve through the peak and its neighbours.
+    let (a, b, c) = (
+        sum[peak - 1].max(1e-12).ln(),
+        sum[peak].max(1e-12).ln(),
+        sum[peak + 1].max(1e-12).ln(),
+    );
+    let offset = 0.5 * (a - c) / (a - 2.0 * b + c).min(-1e-9);
+    Some((peak as f32 + offset.clamp(-0.5, 0.5)) * rate_f / SIZE as f32)
+}
+
+/// The pitch of a built-in sound's hardest hit.
+pub fn sound_fundamental(kind: usize, sound: usize) -> Option<f32> {
+    let s = sounds(kind.min(1)).get(sound)?;
+    let (start, length, _) = s.hit(LAYERS - 1, 0);
+    fundamental(&s.close[start..start + length], RATE as u32, kind)
 }
 
 #[cfg(test)]
@@ -921,6 +1237,102 @@ mod tests {
         let sample = rms(&out[2_400 + latency..2_400 + latency + 14_400]);
         let difference = 20.0 * (sample / track).log10();
         assert!(difference.abs() < 1.5, "{difference:.1} dB");
+    }
+
+    #[test]
+    fn the_level_follows_a_dense_track_after_a_few_hits() {
+        // A compressed, saturated kick: more body than the sample for the same attack.
+        let kick = &sounds(0)[2];
+        let (start, length, _) = kick.hit(LAYERS - 1, 0);
+        let hit: Vec<f32> = (0..length.min(20_000))
+            .map(|k| (kick.close[start + k] * 10.0).tanh() * 0.3)
+            .collect();
+        let mut input = vec![0.0f32; 6 * 24_000];
+        for n in 0..6 {
+            for (k, v) in hit.iter().enumerate() {
+                input[2_400 + n * 24_000 + k] += v;
+            }
+        }
+        let mut t = trigger(&[(p::AMOUNT, 100.0), (p::ROOM, 0.0), (p::KICK, 2.0)]);
+        let out = run(&mut t, &input);
+        let latency = t.latency() as usize;
+        let rms = |x: &[f32]| (x.iter().map(|v| v * v).sum::<f32>() / x.len() as f32).sqrt();
+        let last = 2_400 + 5 * 24_000;
+        let body = (BODY_MS / 1000.0 * 48_000.0) as usize;
+        let track = rms(&input[last..last + body]);
+        let sample = rms(&out[last + latency..last + latency + body]);
+        let difference = 20.0 * (sample / track).log10();
+        assert!(difference.abs() < 1.5, "{difference:.1} dB");
+    }
+
+    #[test]
+    fn eq_compression_and_drive_shape_the_sample_near_its_level() {
+        let input = hits(&[(4_800, 0.8), (28_800, 0.8)], 48_000, 55.0);
+        let render = |values: &[(usize, f32)]| {
+            let mut all = vec![(p::AMOUNT, 100.0), (p::ROOM, 0.0)];
+            all.extend_from_slice(values);
+            let mut t = trigger(&all);
+            run(&mut t, &input)
+        };
+        let rms = |x: &[f32]| (x.iter().map(|v| v * v).sum::<f32>() / x.len() as f32).sqrt();
+        let plain = render(&[]);
+        for values in [
+            &[(p::COMP, 100.0)][..],
+            &[(p::DRIVE, 100.0)],
+            &[(p::LOW, 6.0), (p::HIGH, -6.0)],
+        ] {
+            let shaped = render(values);
+            let difference = 20.0 * (rms(&shaped) / rms(&plain)).log10();
+            assert!(difference.abs() < 4.0, "{values:?}: {difference:.1} dB");
+            assert!(shaped.iter().zip(&plain).any(|(a, b)| (a - b).abs() > 1e-3));
+        }
+    }
+
+    #[test]
+    fn kicks_and_snares_are_told_apart_and_tuned() {
+        let play = |sound: &Sound, times: usize| {
+            let (start, length, _) = sound.hit(LAYERS - 1, 0);
+            let mut out = vec![0.0f32; times * 24_000 + length];
+            for n in 0..times {
+                for k in 0..length {
+                    out[n * 24_000 + 1_000 + k] += sound.close[start + k];
+                }
+            }
+            out
+        };
+        for (kind, count) in BUILT_IN.into_iter().enumerate() {
+            for k in 0..count {
+                let recording = play(&sounds(kind)[k], 4);
+                assert_eq!(guess_kind(&recording, 48_000), Some(kind), "{kind} {k}");
+            }
+        }
+        // A sine kick at 60 Hz reads as 60 Hz.
+        let sine: Vec<f32> = (0..4 * 24_000)
+            .map(|i| {
+                let k = i % 24_000;
+                let t = k as f32 / 48_000.0;
+                (std::f32::consts::TAU * 60.0 * t).sin() * (-t / 0.2).exp()
+            })
+            .collect();
+        let f = fundamental(&sine, 48_000, 0).unwrap();
+        assert!((f - 60.0).abs() < 1.5, "{f}");
+        // Kicks ring low, the 24-inch ones lower than the 20-inch; snares above.
+        let pitch = |kind, k| sound_fundamental(kind, k).unwrap();
+        for k in 0..BUILT_IN[0] {
+            assert!(
+                (30.0..=70.0).contains(&pitch(0, k)),
+                "kick {k}: {}",
+                pitch(0, k)
+            );
+        }
+        assert!(pitch(0, 2) < pitch(0, 0) && pitch(0, 3) < pitch(0, 1));
+        for k in 0..BUILT_IN[1] {
+            assert!(
+                (120.0..=400.0).contains(&pitch(1, k)),
+                "snare {k}: {}",
+                pitch(1, k)
+            );
+        }
     }
 
     #[test]
