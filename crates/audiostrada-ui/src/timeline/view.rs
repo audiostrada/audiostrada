@@ -3,44 +3,137 @@
 use super::*;
 
 impl TimelineView {
-    /// The horizontal scrollbar: its thumb shows the visible part of the session, dragged to
-    /// scroll; a click beside it centers the view there.
-    pub(super) fn scrollbar(&mut self, ui: &mut Ui, rect: Rect, length: u64) {
-        let visible = f64::from(rect.width()) * self.zoom;
-        let extent = (length as f64 * 1.05).max(self.scroll + visible).max(1.0);
-        let width = f64::from(rect.width());
-        let thumb_width = (visible / extent * width).max(24.0).min(width) as f32;
-        let travel = (rect.width() - thumb_width).max(1.0);
-        let samples_per_px = (extent - visible).max(0.0) / f64::from(travel);
-        let thumb_left = rect.left() + (self.scroll / samples_per_px.max(1e-9)) as f32;
-        let thumb = Rect::from_min_size(
-            pos2(thumb_left.min(rect.right() - thumb_width), rect.top() + 2.0),
-            vec2(thumb_width, rect.height() - 4.0),
+    /// The whole project in small under the lanes: each track's clips in its color, the
+    /// markers, the loop and the playhead, and the part shown in a frame. Drag the frame to
+    /// scroll, its edges to zoom; a click elsewhere centers the view there, a double-click
+    /// shows everything.
+    pub(super) fn overview(&mut self, ui: &mut Ui, rect: Rect, project: &Project, playhead: u64) {
+        let visible = f64::from(self.lanes_width.max(1.0)) * self.zoom;
+        let extent = (project.length() as f64 * 1.05)
+            .max(self.scroll + visible)
+            .max(1.0);
+        let width = f64::from(rect.width().max(1.0));
+        let x = |s: f64| rect.left() + (s / extent * width) as f32;
+        let sample = |x: f32| (f64::from(x - rect.left()) / width * extent).max(0.0);
+        let frame = Rect::from_x_y_ranges(
+            x(self.scroll)..=x(self.scroll + visible).max(x(self.scroll) + 6.0),
+            rect.top() + 2.0..=rect.bottom() - 2.0,
         );
         let response = ui.interact(
             rect,
-            ui.scope_id().with("h-scrollbar"),
+            ui.scope_id().with("overview"),
             Sense::click_and_drag(),
         );
-        if response.dragged() {
-            self.scroll = (self.scroll + f64::from(response.drag_delta().x) * samples_per_px)
-                .clamp(0.0, (extent - visible).max(0.0));
-        } else if response.clicked()
-            && let Some(pos) = response.interact_pointer_pos()
-            && !thumb.contains(pos)
+        let near = |p: Pos2, edge: f32| (p.x - edge).abs() <= 5.0;
+        if let Some(p) = response.hover_pos()
+            && self.overview_grab.is_none()
+            && (near(p, frame.left()) || near(p, frame.right()))
         {
-            let center = f64::from(pos.x - rect.left()) / width * extent;
-            self.scroll = (center - visible / 2.0).clamp(0.0, (extent - visible).max(0.0));
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
         }
-        let visuals = ui.visuals();
-        let painter = ui.painter();
-        painter.rect_filled(rect, 0.0, visuals.extreme_bg_color);
-        let fill = if response.dragged() || response.hovered() {
-            visuals.weak_text_color().gamma_multiply(0.8)
-        } else {
-            visuals.weak_text_color().gamma_multiply(0.45)
-        };
-        painter.rect_filled(thumb, 4.0, fill);
+        if response.drag_started()
+            && let Some(p) = ui.input(|i| i.pointer.press_origin())
+        {
+            self.overview_grab = Some(if near(p, frame.left()) {
+                Grab::Left
+            } else if near(p, frame.right()) {
+                Grab::Right
+            } else {
+                Grab::Move
+            });
+        }
+        if response.dragged()
+            && let (Some(grab), Some(p)) = (self.overview_grab, response.interact_pointer_pos())
+        {
+            let lanes = f64::from(self.lanes_width.max(1.0));
+            let right = self.scroll + visible;
+            match grab {
+                Grab::Move => {
+                    let delta = f64::from(response.drag_delta().x) / width * extent;
+                    self.scroll = (self.scroll + delta).max(0.0);
+                }
+                Grab::Left => {
+                    let left = sample(p.x).min(right - MIN_ZOOM * lanes);
+                    self.zoom = ((right - left) / lanes).clamp(MIN_ZOOM, MAX_ZOOM);
+                    self.scroll = (right - self.zoom * lanes).max(0.0);
+                }
+                Grab::Right => {
+                    let end = sample(p.x).max(self.scroll + MIN_ZOOM * lanes);
+                    self.zoom = ((end - self.scroll) / lanes).clamp(MIN_ZOOM, MAX_ZOOM);
+                }
+            }
+        }
+        if response.drag_stopped() {
+            self.overview_grab = None;
+        }
+        if response.double_clicked() {
+            self.zoom_to_fit(project.length());
+        } else if response.clicked()
+            && let Some(p) = response.interact_pointer_pos()
+            && !frame.contains(p)
+        {
+            self.scroll = (sample(p.x) - visible / 2.0).max(0.0);
+        }
+
+        let p = crate::theme::current(ui);
+        let painter = ui.painter().with_clip_rect(rect);
+        painter.rect_filled(rect, 0.0, p.base);
+        painter.hline(rect.x_range(), rect.top(), Stroke::new(1.0, p.border));
+        if let Some((a, b)) = project.looping() {
+            painter.rect_filled(
+                Rect::from_x_y_ranges(x(a as f64)..=x(b as f64), rect.y_range()),
+                0.0,
+                p.accent.gamma_multiply(0.12),
+            );
+        }
+        // One thin band per shown track, its clips in its color.
+        let rows = self.rows.len().max(1) as f32;
+        let band = ((rect.height() - 6.0) / rows).clamp(1.0, 6.0);
+        let top = rect.center().y - band * rows / 2.0;
+        for (i, &(index, _)) in self.rows.iter().enumerate() {
+            let track = &project.tracks[index];
+            let color = Color32::from_rgb(track.color[0], track.color[1], track.color[2]);
+            let y = top + i as f32 * band;
+            for clip in &track.clips {
+                let r = Rect::from_x_y_ranges(
+                    x(clip.start as f64)..=x(clip.end() as f64).max(x(clip.start as f64) + 1.0),
+                    y..=y + (band - 1.0).max(1.0),
+                );
+                painter.rect_filled(r, 0.0, color.gamma_multiply(0.85));
+            }
+        }
+        for marker in &project.markers {
+            painter.vline(
+                x(marker.position as f64),
+                rect.y_range(),
+                Stroke::new(1.0, Color32::from_rgb(240, 200, 80).gamma_multiply(0.7)),
+            );
+        }
+        painter.vline(
+            x(playhead as f64),
+            rect.y_range(),
+            Stroke::new(1.5, Color32::from_rgb(240, 80, 70)),
+        );
+        // The part shown.
+        let active = response.hovered() || response.dragged();
+        painter.rect_filled(
+            frame,
+            3.0,
+            Color32::from_white_alpha(if active { 26 } else { 16 }),
+        );
+        painter.rect_stroke(
+            frame,
+            3.0,
+            Stroke::new(
+                1.0,
+                Color32::from_white_alpha(if active { 200 } else { 120 }),
+            ),
+            StrokeKind::Inside,
+        );
+        response.on_hover_text(tr(
+            "The whole project: drag the frame to move, its edges to zoom; click to go there, \
+             double-click to see everything",
+        ));
     }
 
     pub(super) fn zoom_around(&mut self, factor: f64, anchor_sample: f64, anchor_offset: f32) {

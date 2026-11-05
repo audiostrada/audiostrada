@@ -56,7 +56,8 @@ const MAX_TRACK_HEIGHT: f32 = 600.0;
 /// Most a waveform is magnified vertically.
 const MAX_WAVE_ZOOM: f32 = 64.0;
 const MIN_ZOOM: f64 = 0.05;
-const SCROLLBAR_HEIGHT: f32 = 12.0;
+/// The overview of the whole project under the lanes.
+const OVERVIEW_HEIGHT: f32 = 26.0;
 const MAX_ZOOM: f64 = 200_000.0;
 const LANE_HEIGHT: f32 = 46.0;
 const TAKE_HEIGHT: f32 = 36.0;
@@ -205,6 +206,15 @@ pub struct TimelineView {
     zoom_back: Option<(f64, f64)>,
     /// Clips swept by the eraser or the mute tool during a drag.
     swept: Vec<ClipId>,
+    /// What a drag in the overview holds: the view's left edge, its right edge or all of it.
+    overview_grab: Option<Grab>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Grab {
+    Left,
+    Right,
+    Move,
 }
 
 /// A time range on some tracks.
@@ -281,6 +291,7 @@ impl TimelineView {
             wave_view: WaveView::default(),
             zoom_back: None,
             swept: Vec::new(),
+            overview_grab: None,
         }
     }
 
@@ -787,7 +798,7 @@ impl TimelineView {
         let all = ui.available_rect_before_wrap();
         let (_, background) = ui.allocate_exact_size(all.size(), Sense::hover());
         // The horizontal scrollbar takes the bottom.
-        let full = Rect::from_min_max(all.min, pos2(all.right(), all.bottom() - SCROLLBAR_HEIGHT));
+        let full = Rect::from_min_max(all.min, pos2(all.right(), all.bottom() - OVERVIEW_HEIGHT));
         let header_width = self.header_width.clamp(
             MIN_HEADER_WIDTH,
             MAX_HEADER_WIDTH
@@ -864,10 +875,11 @@ impl TimelineView {
                 self.scroll = (position as f64 - visible * 0.05).max(0.0);
             }
         }
-        self.scrollbar(
+        self.overview(
             ui,
             Rect::from_min_max(pos2(lanes.left(), full.bottom()), all.max),
-            length,
+            &project,
+            position,
         );
         let scale = Scale {
             left: lanes.left(),
@@ -1500,6 +1512,29 @@ mod tests {
             h.view.set_track_height(144.0, None);
             h.frame(vec![]);
             assert!((h.view.heights[0] - 216.0).abs() < 2.0);
+        }
+
+        #[test]
+        fn the_overview_moves_and_fits_the_view() {
+            let (mut h, _, _) = harness();
+            let fitted = h.view.zoom;
+            h.view.zoom = fitted / 4.0;
+            h.view.scroll = 0.0;
+            h.frame(vec![]);
+            let lanes = h.view.lanes_rect;
+            let y = 600.0 - OVERVIEW_HEIGHT / 2.0;
+            h.click(pos2(lanes.right() - 20.0, y), Modifiers::NONE);
+            assert!(h.view.scroll > 0.0, "a click goes there");
+            // Long enough after that click for the next two to be a double-click.
+            for _ in 0..10 {
+                h.frame(vec![]);
+            }
+            h.click(pos2(lanes.left() + 200.0, y), Modifiers::NONE);
+            h.click(pos2(lanes.left() + 200.0, y), Modifiers::NONE);
+            assert!(
+                (h.view.zoom - fitted).abs() < fitted * 0.01,
+                "a double-click shows all"
+            );
         }
 
         #[test]

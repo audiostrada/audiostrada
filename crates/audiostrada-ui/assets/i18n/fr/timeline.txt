@@ -778,3 +778,6 @@ Chaque clip aussi haut que possible (affichage seulement)
 
 Drag to make the track taller or shorter (all the selected ones); double-click for the others' height
 Glisser pour agrandir ou réduire la piste (toutes celles sélectionnées) ; double-clic pour la hauteur des autres
+
+The whole project: drag the frame to move, its edges to zoom; click to go there, double-click to see everything
+Tout le projet : glisser le cadre pour se déplacer, ses bords pour zoomer ; cliquer pour y aller, double-cliquer pour tout voir
