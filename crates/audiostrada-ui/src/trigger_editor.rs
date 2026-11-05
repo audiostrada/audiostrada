@@ -146,7 +146,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Trigge
         ui.add_space(12.0);
         follow_track(ui, params, kind, state);
         let knob = |id: &str, label: &'static str| (id.to_owned(), tr(label));
-        modules(
+        let places = modules(
             ui,
             params,
             &[
@@ -171,15 +171,18 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Trigge
             color,
             46.0,
         );
+        // What the tuning found, small under its switch, in the room the knobs leave there.
         if params.get("match") >= 0.5
-            && let Some(note) = &state.note
+            && let (Some(note), Some(place)) = (&state.note, places.get(4))
         {
-            ui.add_space(4.0);
-            ui.label(
-                RichText::new(note)
-                    .size(11.0)
-                    .color(INK.gamma_multiply(0.6)),
+            let galley = ui.painter().layout(
+                note.clone(),
+                FontId::proportional(10.0),
+                INK.gamma_multiply(0.6),
+                place.width() - 4.0,
             );
+            let at = pos2(place.center().x - galley.size().x / 2.0, place.bottom() + 4.0);
+            ui.painter().galley(at, galley, INK);
         }
         ui.add_space(8.0);
         modules(
@@ -362,7 +365,7 @@ fn match_pitch(params: &Params, kind: usize) -> Result<(f32, String), String> {
     }
     let semitones = (semitones * 10.0).round() / 10.0;
     let note = crate::trf!(
-        "Track {track} Hz, sound {sound} Hz: tuned {shift} semitones",
+        "Track {track} Hz, sound {sound} Hz: {shift} st",
         track = format!("{target:.0}"),
         sound = format!("{own:.0}"),
         shift = format!("{semitones:+.1}")

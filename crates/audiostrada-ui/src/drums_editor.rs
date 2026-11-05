@@ -1394,16 +1394,18 @@ fn tabs(ui: &mut Ui, tab: &mut Tab, pad: usize) {
     }
 }
 
-/// Modules side by side across the width, each as wide as its knobs, titled in `tint`.
+/// Modules side by side across the width, each as wide as its knobs, titled in `tint`; the
+/// place of each control, in order, from its top to the bottom of what it drew.
 pub(crate) fn modules(
     ui: &mut Ui,
     params: &mut Params,
     list: &[(&str, Vec<(String, &str)>)],
     tint: Color32,
     size: f32,
-) {
+) -> Vec<Rect> {
     let p = theme::current(ui);
     let gap = 8.0;
+    let mut places = Vec::new();
     let full = ui.available_width();
     let count: usize = list.iter().map(|m| m.1.len()).sum();
     let unit = (full - gap * (list.len().max(1) - 1) as f32) / count.max(1) as f32;
@@ -1459,6 +1461,10 @@ pub(crate) fn modules(
                         .response
                         .rect;
                     low = low.max(shown.bottom());
+                    places.push(Rect::from_min_max(
+                        place.min,
+                        pos2(place.right(), shown.bottom()),
+                    ));
                 }
                 ui.allocate_rect(
                     Rect::from_min_max(row, pos2(row.x + inner.width(), low)),
@@ -1480,6 +1486,7 @@ pub(crate) fn modules(
         Rect::from_min_max(top, pos2(top.x + full, bottom)),
         Sense::hover(),
     );
+    places
 }
 
 /// The panels inside the screen.

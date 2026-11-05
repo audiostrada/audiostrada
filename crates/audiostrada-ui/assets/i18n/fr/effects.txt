@@ -5087,8 +5087,8 @@ Pas de hauteur nette sur la piste
 Only on a track
 Seulement sur une piste
 
-Track {track} Hz, sound {sound} Hz: tuned {shift} semitones
-Piste {track} Hz, son {sound} Hz : accordé de {shift} demi-tons
+Track {track} Hz, sound {sound} Hz: {shift} st
+Piste {track} Hz, son {sound} Hz : {shift} st
 
 Mid range
 Médiums
