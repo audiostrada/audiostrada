@@ -99,7 +99,7 @@ impl Pitch {
         self.shifters = std::array::from_fn(|_| [Shifter::new(window), Shifter::new(window)]);
         let echo = (MAX_DELAY_MS * 0.001 * self.rate) as usize + 4;
         self.echo = [Line::new(echo), Line::new(echo)];
-        let dry = latency_of(&[0.0; COUNT].map(|_| MAX_WINDOW_MS), self.rate) as usize + 4;
+        let dry = Shifter::latency(MAX_WINDOW_MS * 0.001 * self.rate) as usize + 4;
         self.dry = [Line::new(dry), Line::new(dry)];
         self.update();
     }

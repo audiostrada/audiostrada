@@ -279,9 +279,15 @@ impl MultibandComp {
     /// One channel's sample split into its bands, all in phase with each other.
     #[inline]
     fn split(&mut self, ch: usize, x: f64, count: usize) -> [f64; BANDS] {
-        let (lp, hp, ap) = (self.lp, self.hp, self.ap);
-        let splits = &mut self.splits[ch];
-        let aligns = &mut self.aligns[ch];
+        let Self {
+            lp,
+            hp,
+            ap,
+            splits,
+            aligns,
+            ..
+        } = self;
+        let (splits, aligns) = (&mut splits[ch], &mut aligns[ch]);
         let (low, high) = splits[0].run(x, &lp[0], &hp[0]);
         match count {
             2 => [low, high, 0.0, 0.0],

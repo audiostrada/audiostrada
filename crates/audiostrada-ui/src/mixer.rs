@@ -604,7 +604,6 @@ struct WindowPlaces {
     opened: HashMap<egui::ViewportId, Option<egui::Pos2>>,
 }
 
-#[allow(clippy::too_many_arguments)]
 fn editor_window(
     ctx: &egui::Context,
     places: egui::Id,
@@ -612,7 +611,6 @@ fn editor_window(
     title: &str,
     size: [f32; 2],
     raise: bool,
-    fit: bool,
     add: impl FnOnce(&mut Ui),
 ) -> bool {
     fn contents(ui: &mut Ui, add: impl FnOnce(&mut Ui)) -> egui::Vec2 {
@@ -651,7 +649,7 @@ fn editor_window(
         });
         // The window follows its content, as it changes: no empty space below or at the right,
         // nothing cut when controls appear.
-        if fit && let Some(content) = content {
+        if let Some(content) = content {
             let ctx = ui.ctx().clone();
             let margins = egui::Frame::central_panel(&ctx.global_style())
                 .total_margin()
@@ -4181,7 +4179,7 @@ impl MixerView {
             } else {
                 [300.0, 460.0]
             };
-            let open = editor_window(ctx, places, key, &title, size, false, true, |ui| {
+            let open = editor_window(ctx, places, key, &title, size, false, |ui| {
                 self.list_header(ui, doc, project, channel, list);
                 ui.add_space(6.0);
                 match list {
@@ -4491,7 +4489,6 @@ impl MixerView {
                 &title,
                 size,
                 raise,
-                true,
                 |ui| {
                     let state = self.editor_states.entry(id).or_default();
                     let meter = effect_editors::is_meter(info.id);
@@ -4640,7 +4637,6 @@ impl MixerView {
             &title,
             [600.0, 520.0],
             raise,
-            true,
             |ui| {
                 if let Some(error) = &error {
                     ui.colored_label(
