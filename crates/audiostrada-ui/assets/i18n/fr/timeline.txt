@@ -772,3 +772,6 @@ Redressée (niveau seul, deux fois plus haute)
 
 Spectral colors (lows red, mids green, highs blue)
 Couleurs spectrales (graves en rouge, médiums en vert, aigus en bleu)
+
+Each clip as tall as it can be (display only)
+Chaque clip aussi haut que possible (affichage seulement)

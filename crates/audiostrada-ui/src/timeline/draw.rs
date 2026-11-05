@@ -29,6 +29,9 @@ pub struct WaveView {
     pub spectral: bool,
     /// The channels of a clip as one waveform.
     pub merged: bool,
+    /// Each clip as tall as its loudest peak allows (the sound does not change).
+    #[serde(default)]
+    pub fit: bool,
 }
 
 /// `a` towards `b` by `t`.
@@ -460,7 +463,22 @@ impl TimelineView {
                 (top + band_height / 2.0, band_height / 2.0 - 1.0)
             }
         };
-        let zoom = self.wave_zoom;
+        let mut zoom = self.wave_zoom;
+        if view.fit
+            && let Some(peaks) = &peaks
+        {
+            let frames = (clip.length as f64 * ratio).max(1.0);
+            let mut whole = [Peak::EMPTY];
+            let loudest = (0..channels)
+                .map(|c| {
+                    peaks.query(c, clip.offset as f64 * ratio, frames, &mut whole);
+                    whole[0].hi.max(-whole[0].lo)
+                })
+                .fold(0.0f32, f32::max);
+            if loudest > 1e-4 {
+                zoom = (zoom * 0.95 / loudest).min(MAX_WAVE_ZOOM);
+            }
+        }
         let clip_px = (clip.length as f64 / self.zoom) as f32;
         let gain_at_x = |x: f32| {
             let rel = ((x - rect.left()) / clip_px.max(1.0)) as f64 * clip.length as f64;
@@ -794,3 +812,4 @@ pub(super) fn draw_crossfades(painter: &egui::Painter, row: Rect, track: &Track,
         ));
     }
 }
+
