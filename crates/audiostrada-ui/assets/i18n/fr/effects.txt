@@ -5286,3 +5286,134 @@ LECTURE
 
 Recording
 Enregistrement
+
+# Strada-MB-Comp
+
+2 bands
+2 bandes
+
+3 bands
+3 bandes
+
+4 bands
+4 bandes
+
+Band 1 lift ratio
+Bande 1 ratio de remontée
+
+Band 1 lift threshold
+Bande 1 seuil de remontée
+
+Band 1 ratio
+Bande 1 ratio
+
+Band 2 lift ratio
+Bande 2 ratio de remontée
+
+Band 2 lift threshold
+Bande 2 seuil de remontée
+
+Band 2 ratio
+Bande 2 ratio
+
+Band 3 lift ratio
+Bande 3 ratio de remontée
+
+Band 3 lift threshold
+Bande 3 seuil de remontée
+
+Band 3 ratio
+Bande 3 ratio
+
+Band 4 lift ratio
+Bande 4 ratio de remontée
+
+Band 4 lift threshold
+Bande 4 seuil de remontée
+
+Band 4 ratio
+Bande 4 ratio
+
+Crossover 1
+Séparation 1
+
+Crossover 2
+Séparation 2
+
+Crossover 3
+Séparation 3
+
+Multiband compressor: up to four bands, each compressed from above and lifted from below, for mastering, buses and the OTT sound.
+Compresseur multibande : jusqu'à quatre bandes, chacune compressée par le haut et remontée par le bas, pour le mastering, les bus et le son OTT.
+
+Strada-MB-Comp
+Strada-MB-Comp
+
+Band on or bypassed
+Bande active ou contournée
+
+Comp
+Comp
+
+Compress above
+Compresser au-dessus
+
+Lift
+Remontée
+
+Lift below
+Remonter en dessous
+
+Solo: hear this band alone
+Solo : écouter cette bande seule
+
+Whole
+Ensemble
+
+Bass: even
+Basse : homogène
+
+Broadcast: loud and even
+Diffusion : fort et homogène
+
+Drum bus: punch
+Bus batterie : punch
+
+Guitars: smooth
+Guitares : douceur
+
+Mastering: gentle glue
+Mastering : cohésion douce
+
+Mastering: tame harshness
+Mastering : adoucir les aigus durs
+
+Mastering: tight low end
+Mastering : grave resserré
+
+Mix bus: clear the mud
+Bus de mix : nettoyer le bas-médium
+
+OTT: full
+OTT : complet
+
+OTT: light
+OTT : léger
+
+Upward: bring out details
+Vers le haut : faire ressortir les détails
+
+Vocal: control
+Voix : contrôle
+
+Vocal: de-ess and smooth
+Voix : désessage et douceur
+
+Mids
+Médiums
+
+Response
+Réponse
+
+Band split
+Découpage

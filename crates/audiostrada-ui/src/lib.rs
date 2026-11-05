@@ -23,6 +23,7 @@ mod keymap;
 mod layout;
 mod license_window;
 mod markers;
+mod mb_editor;
 mod metronome_window;
 mod mixer;
 mod nam_library;

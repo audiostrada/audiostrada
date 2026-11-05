@@ -27,6 +27,7 @@ pub mod limiter;
 mod line;
 pub mod loudness;
 pub mod maximizer;
+pub mod multiband;
 mod nam;
 pub mod phaser;
 pub mod pitch_correct;
@@ -257,6 +258,7 @@ pub const EFFECTS: &[&EffectInfo] = &[
     &deesser::INFO,
     &limiter::INFO,
     &maximizer::INFO,
+    &multiband::INFO,
     &reverb::INFO,
     &delay::INFO,
     &imager::INFO,
@@ -325,6 +327,7 @@ pub fn create(id: &str) -> Option<Box<dyn Effect>> {
         "deesser" => Some(Box::new(deesser::DeEsser::default())),
         "limiter" => Some(Box::new(limiter::Limiter::default())),
         "maximizer" => Some(Box::new(maximizer::Maximizer::default())),
+        "mb_comp" => Some(Box::new(multiband::MultibandComp::default())),
         "reverb" => Some(Box::new(reverb::Reverb::default())),
         "delay" => Some(Box::new(delay::Delay::default())),
         "analyzer" => Some(Box::new(analyzer::Analyzer::default())),

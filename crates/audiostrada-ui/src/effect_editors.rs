@@ -116,6 +116,8 @@ pub struct EditorState {
     dynamics: VecDeque<[f32; 3]>,
     /// Position of an analog meter's needle, with its ballistics.
     needle: f32,
+    /// The multiband compressor's chosen band and solo.
+    pub mb: crate::mb_editor::MbState,
     /// The tape machine's needles and reels.
     pub tape: crate::tape_editor::TapeState,
     rig: crate::rig_editor::RigState,
@@ -665,6 +667,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Editor
         "reverb" => reverb(ui, params),
         "maximizer" => maximizer(ui, params, meters, state),
         "tape" => crate::tape_editor::show(ui, params, meters, &mut state.tape),
+        "mb_comp" => crate::mb_editor::show(ui, params, meters, &mut state.mb),
         "flanger" | "phaser" | "chorus" => modulation(ui, params),
         "imager" => imager(ui, params, meters),
         "utility" => utility(ui, params, meters),
@@ -1054,6 +1057,9 @@ pub(crate) fn automatable(
     params: &std::collections::BTreeMap<String, f32>,
     id: &str,
 ) -> bool {
+    if effect == "mb_comp" {
+        return id != "solo";
+    }
     if effect != "eq" {
         return true;
     }
@@ -1089,8 +1095,8 @@ fn edit_params(params: &mut Params, label: &str, changes: &[(String, f32)]) {
     });
 }
 
-/// Hears band `band` alone (its range), or the whole EQ again; never saved.
-fn solo_band(params: &mut Params, band: Option<usize>) {
+/// Hears band `band` alone, or all of them again (EQ, multiband); never saved.
+pub(crate) fn solo_band(params: &mut Params, band: Option<usize>) {
     let project = params.doc.project().clone();
     let target = AutomationTarget::Param {
         insert: params.insert,
@@ -5932,7 +5938,7 @@ mod tests {
         let mut missing = Vec::new();
         for info in audiostrada_dsp::EFFECTS {
             // The drum machine shows the settings of one voice at a time.
-            if matches!(info.id, "amp_rig" | "eq" | "drums") {
+            if matches!(info.id, "amp_rig" | "eq" | "drums" | "mb_comp") {
                 continue;
             }
             let mut doc = Document::new(AppDirs::default());

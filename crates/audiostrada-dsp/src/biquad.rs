@@ -12,6 +12,8 @@ pub enum FilterKind {
     Notch,
     /// Unity gain at the center.
     BandPass,
+    /// Flat, only the phase turns around the frequency.
+    AllPass,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -82,6 +84,14 @@ impl Coefficients {
             ),
             FilterKind::Notch => (1.0, -2.0 * cos, 1.0, 1.0 + alpha, -2.0 * cos, 1.0 - alpha),
             FilterKind::BandPass => (alpha, 0.0, -alpha, 1.0 + alpha, -2.0 * cos, 1.0 - alpha),
+            FilterKind::AllPass => (
+                1.0 - alpha,
+                -2.0 * cos,
+                1.0 + alpha,
+                1.0 + alpha,
+                -2.0 * cos,
+                1.0 - alpha,
+            ),
         };
         Self {
             b: [b0 / a0, b1 / a0, b2 / a0],
