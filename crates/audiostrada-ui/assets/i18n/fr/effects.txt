@@ -5124,3 +5124,32 @@ Pente des deux filtres, par octave
 
 The track's input gain, before everything else. Drag, double-click to reset
 Le gain d'entrée de la piste, avant tout le reste. Glissez, double-clic pour revenir à 0
+
+# Strada-Amp
+
+AMP AND CABINET
+AMPLI ET BAFFLE
+
+Add a pedal: an effect capture, or one from TONE3000
+Ajoutez une pédale : une capture d'effet, ou une de TONE3000
+
+Filter this list by name or creator…
+Filtrer cette liste par nom ou par auteur…
+
+Free amp, effect and cabinet captures
+Captures gratuites d'amplis, d'effets et de baffles
+
+Gear
+Matériel
+
+Lists
+Listes
+
+Load
+Charger
+
+ON
+ON
+
+Your browser opens; come back here once signed in.
+Votre navigateur s'ouvre ; revenez ici une fois connecté.

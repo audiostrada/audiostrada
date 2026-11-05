@@ -121,6 +121,96 @@ impl Style {
         }
     }
 
+    /// The materials of an amp or a cabinet of this style.
+    fn look(self) -> crate::gear::Look {
+        use crate::gear::{KnobStyle, Look, Texture};
+        let c = Color32::from_rgb;
+        let red = c(225, 40, 28);
+        match self {
+            Style::Blackface => Look {
+                covering: (Texture::Tolex, c(34, 34, 36)),
+                cloth: (Texture::Sparkle, c(196, 198, 202)),
+                panel: c(44, 44, 48),
+                piping: Some(c(220, 220, 220)),
+                corners: false,
+                knob: KnobStyle::Skirted,
+                letters: c(236, 236, 236),
+                lamp: red,
+            },
+            Style::Plexi => Look {
+                covering: (Texture::Tolex, c(30, 28, 26)),
+                cloth: (Texture::Basket, c(196, 178, 136)),
+                panel: c(218, 180, 92),
+                piping: Some(c(232, 224, 204)),
+                corners: true,
+                knob: KnobStyle::GoldCap,
+                letters: c(32, 26, 18),
+                lamp: red,
+            },
+            Style::Voxy => Look {
+                covering: (Texture::Tolex, c(38, 34, 32)),
+                cloth: (Texture::Diamond, c(132, 88, 64)),
+                panel: c(196, 126, 74),
+                piping: Some(c(232, 224, 204)),
+                corners: true,
+                knob: KnobStyle::ChickenHead,
+                letters: c(34, 24, 16),
+                lamp: red,
+            },
+            Style::Boutique => Look {
+                covering: (Texture::Tolex, c(26, 26, 28)),
+                cloth: (Texture::Cane, c(178, 156, 118)),
+                panel: c(56, 52, 48),
+                piping: Some(c(204, 174, 104)),
+                corners: false,
+                knob: KnobStyle::Knurled,
+                letters: c(224, 194, 124),
+                lamp: c(255, 166, 50),
+            },
+            Style::Modern => Look {
+                covering: (Texture::Tolex, c(22, 22, 24)),
+                cloth: (Texture::Basket, c(70, 70, 76)),
+                panel: c(178, 182, 188),
+                piping: None,
+                corners: true,
+                knob: KnobStyle::Knurled,
+                letters: c(20, 20, 22),
+                lamp: c(70, 190, 255),
+            },
+            Style::Tweed => Look {
+                covering: (Texture::Tweed, c(206, 170, 112)),
+                cloth: (Texture::Sparkle, c(128, 78, 56)),
+                panel: c(200, 202, 206),
+                piping: None,
+                corners: false,
+                knob: KnobStyle::ChickenHead,
+                letters: c(24, 22, 20),
+                lamp: red,
+            },
+            Style::Bass => Look {
+                covering: (Texture::Tolex, c(26, 26, 30)),
+                cloth: (Texture::Perforated, c(168, 172, 178)),
+                panel: c(204, 208, 214),
+                piping: None,
+                corners: true,
+                knob: KnobStyle::Skirted,
+                letters: c(30, 60, 140),
+                lamp: red,
+            },
+        }
+    }
+
+    /// The look of a cabinet, from what it is.
+    fn of_cab(cab: usize) -> Style {
+        match cab {
+            0 => Style::Modern,
+            1 => Style::Plexi,
+            2 => Style::Voxy,
+            3..=5 => Style::Blackface,
+            _ => Style::Bass,
+        }
+    }
+
     /// A style for gear from its description and gain (0 to 1), when the files say little.
     pub fn guess(text: &str, gain: Option<f32>) -> Style {
         let t = text.to_lowercase();
@@ -172,6 +262,8 @@ impl Style {
 pub struct RigState {
     picker: Option<Picker>,
     filter: String,
+    /// What the TONE3000 browser's list is narrowed to.
+    search: String,
     tab: Tab,
     /// The TONE3000 browser, when open, and the lists it loaded.
     browser: Option<Browse>,
@@ -337,8 +429,7 @@ fn face_knob(
     center: Pos2,
     diameter: f32,
     value: f32,
-    body: Color32,
-    line: Color32,
+    look: &crate::gear::Look,
     key: impl std::hash::Hash + std::fmt::Debug,
 ) -> (Option<f32>, Response) {
     let rect = Rect::from_center_size(center, vec2(diameter, diameter));
@@ -356,22 +447,13 @@ fn face_knob(
             v = (v + wheel.signum() * span * 0.02).clamp(min, max);
         }
     }
-    let painter = ui.painter();
-    let r = diameter / 2.0;
-    painter.circle_filled(center + vec2(1.5, 2.0), r, Color32::from_black_alpha(90));
-    painter.circle_filled(center, r, body);
-    painter.circle_stroke(center, r, Stroke::new(1.0, Color32::from_white_alpha(40)));
-    painter.circle_filled(
-        center - vec2(r * 0.25, r * 0.3),
-        r * 0.35,
-        Color32::from_white_alpha(18),
-    );
-    let t = (v - min) / span;
-    let angle = std::f32::consts::PI * (0.75 + 1.5 * t);
-    let dir = vec2(angle.cos(), angle.sin());
-    painter.line_segment(
-        [center + dir * r * 0.2, center + dir * r * 0.9],
-        Stroke::new(2.0, line),
+    crate::gear::knob(
+        ui.painter(),
+        center,
+        diameter,
+        (v - min) / span,
+        look.knob,
+        look.letters,
     );
     ((v != value).then_some(v), response)
 }
@@ -436,22 +518,36 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut RigSta
         None => {}
     }
     pedalboard(ui, params, state);
-    match section(ui, tr("AMP"), &[tr("All amps…"), tr("Amps on TONE3000…")]) {
+    match section(
+        ui,
+        tr("AMP AND CABINET"),
+        &[
+            tr("All amps…"),
+            tr("Amps on TONE3000…"),
+            tr("Impulses…"),
+            tr("Cabs on TONE3000…"),
+        ],
+    ) {
         Some(0) => open_picker(state, Picker::Amp),
-        Some(_) => open_browser(state, Kind::Amps),
-        None => {}
-    }
-    let width = ui.available_width().max(560.0);
-    let (row, _) = ui.allocate_exact_size(vec2(width, 140.0), Sense::hover());
-    let head = Rect::from_center_size(row.center(), vec2(row.width().min(860.0), row.height()));
-    amp(ui, params, state, head);
-    match section(ui, tr("CAB"), &[tr("Impulses…"), tr("Cabs on TONE3000…")]) {
-        Some(0) => open_picker(state, Picker::Cab),
+        Some(1) => open_browser(state, Kind::Amps),
+        Some(2) => open_picker(state, Picker::Cab),
         Some(_) => open_browser(state, Kind::Cabs),
         None => {}
     }
-    let (row, _) = ui.allocate_exact_size(vec2(width, 165.0), Sense::hover());
-    cabinet(ui, params, row);
+    // The head sits on its cabinet, as on stage.
+    let width = ui.available_width().max(560.0);
+    let cab = (params.get("cab").round().max(0.0) as usize).min(CABS.len() - 1);
+    let size = cab_size(cab, width);
+    let head_width = size.x.max(520.0).min(width - 120.0);
+    ui.add_space(10.0);
+    let (row, _) = ui.allocate_exact_size(vec2(width, 170.0 + 20.0), Sense::hover());
+    let head = Rect::from_center_size(
+        pos2(row.center().x, row.top() + 12.0 + 80.0),
+        vec2(head_width, 160.0),
+    );
+    amp(ui, params, state, head.expand2(vec2(52.0, 0.0)));
+    let (row, _) = ui.allocate_exact_size(vec2(width, size.y + 36.0), Sense::hover());
+    cabinet(ui, params, row, size);
     poll_session(ui, params, state);
     picker(ui, params, state);
     browser(ui, params, state);
@@ -628,15 +724,21 @@ fn pedalboard(ui: &mut Ui, params: &mut Params, state: &mut RigState) {
     };
     let (board, _) =
         ui.allocate_exact_size(vec2(width, rows as f32 * (h + gap) + gap), Sense::hover());
-    let painter = ui.painter_at(board);
-    painter.rect_filled(board, 8.0, Color32::from_rgb(34, 32, 30));
-    let mut y = board.top() + 12.0;
-    while y < board.bottom() - 6.0 {
-        painter.line_segment(
-            [pos2(board.left() + 8.0, y), pos2(board.right() - 8.0, y)],
-            Stroke::new(1.0, Color32::from_white_alpha(6)),
+    let painter = ui.painter_at(board.expand(12.0));
+    crate::gear::board(&painter, board);
+    if shown.is_empty() {
+        let galley = painter.layout_no_wrap(
+            tr("Add a pedal: an effect capture, or one from TONE3000").to_owned(),
+            FontId::proportional(13.0),
+            Color32::from_white_alpha(190),
         );
-        y += 30.0;
+        let at = board.left_center() + vec2(gap + add_w + 24.0, -galley.size().y / 2.0);
+        painter.rect_filled(
+            Rect::from_min_size(at, galley.size()).expand2(vec2(10.0, 5.0)),
+            6.0,
+            Color32::from_black_alpha(170),
+        );
+        painter.galley(at, galley, Color32::WHITE);
     }
     let place = |i: usize| {
         let (row, col) = (i / per_row, i % per_row);
@@ -752,11 +854,29 @@ fn stompbox(
         Color32::from_black_alpha(110),
     );
     painter.rect_filled(rect, 9.0, color);
+    // Painted metal: lighter at the top, a soft edge.
+    painter.rect_filled(
+        Rect::from_min_size(rect.min, vec2(rect.width(), rect.height() * 0.45)),
+        egui::CornerRadius {
+            nw: 9,
+            ne: 9,
+            sw: 0,
+            se: 0,
+        },
+        Color32::from_white_alpha(18),
+    );
     painter.rect_stroke(
         rect,
         9.0,
         Stroke::new(1.0, Color32::from_white_alpha(50)),
         egui::StrokeKind::Inside,
+    );
+    painter.line_segment(
+        [
+            rect.left_bottom() + vec2(9.0, -1.0),
+            rect.right_bottom() + vec2(-9.0, -1.0),
+        ],
+        Stroke::new(2.0, Color32::from_black_alpha(70)),
     );
     let dark = color.r() as u16 + color.g() as u16 + color.b() as u16 > 420;
     let ink = if dark {
@@ -789,13 +909,18 @@ fn stompbox(
     let spacing = rect.width() / (used.len() as f32 + 1.0);
     // Silver knobs on black pedals, black ones elsewhere.
     let black = (color.r() as u16 + color.g() as u16 + color.b() as u16) < 200;
-    let (knob_body, knob_line) = if black {
-        (
-            Color32::from_rgb(196, 198, 202),
-            Color32::from_rgb(20, 20, 22),
-        )
-    } else {
-        (Color32::from_rgb(28, 28, 30), Color32::WHITE)
+    let look = crate::gear::Look {
+        knob: if black {
+            crate::gear::KnobStyle::Skirted
+        } else {
+            crate::gear::KnobStyle::Knurled
+        },
+        letters: if black {
+            Color32::from_rgb(230, 230, 230)
+        } else {
+            Color32::from_rgb(24, 24, 26)
+        },
+        ..Style::Blackface.look()
     };
     for (n, &k) in used.iter().enumerate() {
         let id = slot_id(slot, &format!("k{}", k + 1));
@@ -805,8 +930,7 @@ fn stompbox(
             center,
             (spacing * 0.6).min(26.0),
             params.get(&id),
-            knob_body,
-            knob_line,
+            &look,
             ("pedal-knob", slot, k),
         );
         let response = response.on_hover_text(format!(
@@ -1135,55 +1259,7 @@ fn amp(ui: &mut Ui, params: &mut Params, state: &mut RigState, area: Rect) {
         apply_choice(ui, params, &choice);
     }
     let style = amp_style(params);
-    let [covering, panel, _, knob, letters] = style.colors();
-    let painter = ui.painter_at(rect);
-    painter.rect_filled(
-        rect.translate(vec2(3.0, 4.0)),
-        12.0,
-        Color32::from_black_alpha(120),
-    );
-    painter.rect_filled(rect, 12.0, covering);
-    if style == Style::Tweed {
-        for i in 0..(rect.width() / 6.0) as usize {
-            let x = rect.left() + i as f32 * 6.0;
-            painter.line_segment(
-                [pos2(x, rect.top()), pos2(x + 30.0, rect.bottom())],
-                Stroke::new(1.0, Color32::from_black_alpha(25)),
-            );
-        }
-    }
-    // Handle.
-    let handle = Rect::from_center_size(pos2(rect.center().x, rect.top() + 7.0), vec2(120.0, 8.0));
-    painter.rect_filled(handle, 4.0, Color32::from_rgb(20, 20, 20));
-    // Control panel.
-    let face = Rect::from_min_max(
-        pos2(rect.left() + 14.0, rect.top() + 20.0),
-        pos2(rect.right() - 14.0, rect.bottom() - 14.0),
-    );
-    painter.rect_filled(face, 6.0, panel);
-    if style == Style::Modern {
-        for i in 0..(face.width() / 14.0) as usize {
-            for j in 0..(face.height() / 14.0) as usize {
-                let c = pos2(
-                    face.left() + 7.0 + i as f32 * 14.0,
-                    face.top() + 7.0 + j as f32 * 14.0,
-                );
-                painter.line_segment(
-                    [c - vec2(3.0, 1.5), c + vec2(3.0, 1.5)],
-                    Stroke::new(1.5, Color32::from_white_alpha(30)),
-                );
-            }
-        }
-    }
-    if style == Style::Bass {
-        painter.line_segment(
-            [
-                pos2(face.left(), face.bottom() - 10.0),
-                pos2(face.right(), face.bottom() - 10.0),
-            ],
-            Stroke::new(3.0, letters),
-        );
-    }
+    let look = style.look();
     let loaded = params
         .doc
         .player()
@@ -1200,32 +1276,24 @@ fn amp(ui: &mut Ui, params: &mut Params, state: &mut RigState, area: Rect) {
                 .and_then(|c| c.split(' ').next())
                 .and_then(|n| n.parse::<usize>().ok())
         });
-    // Name plate: opens the amp picker.
     let built_in = builtin(params);
     let name = match built_in {
         Some(model) => model.name.to_owned(),
         None => capture_name(params, "amp").unwrap_or_else(|| tr("Choose an amp").into()),
     };
-    let plate_rect = Rect::from_min_size(
-        pos2(face.left() + 14.0, face.top() + 10.0),
-        vec2(260.0, 26.0),
-    );
-    let plate = ui.interact(plate_rect, ui.scope_id().with("amp-plate"), Sense::click());
-    // A long capture name takes the room of the details on its right, never more.
-    let room = face.right() - 58.0 - plate_rect.left();
-    let font = theme::strong(if plate.hovered() { 18.5 } else { 18.0 });
-    let shown = fit(&painter, &name, &font, room * 0.62);
-    let used = painter
-        .layout_no_wrap(shown.clone(), font.clone(), letters)
-        .size()
-        .x;
-    painter.text(
-        plate_rect.left_center(),
-        Align2::LEFT_CENTER,
-        &shown,
-        font,
-        letters,
-    );
+    let painter = ui.painter().clone();
+    let shown = fit(&painter, &name, &theme::strong(18.0), rect.width() * 0.6);
+    let head = crate::gear::head(&painter, rect, &look, &shown);
+    // The name plate opens the amp picker.
+    let plate = ui.interact(head.plate, ui.scope_id().with("amp-plate"), Sense::click());
+    if plate.hovered() {
+        painter.rect_stroke(
+            head.plate.expand(2.0),
+            5.0,
+            Stroke::new(1.5, Color32::from_white_alpha(120)),
+            egui::StrokeKind::Outside,
+        );
+    }
     let details = match &loaded {
         _ if built_in.is_some() => match at {
             Some(i) => trf!(
@@ -1246,14 +1314,6 @@ fn amp(ui: &mut Ui, params: &mut Params, state: &mut RigState, area: Rect) {
             }
         ),
     };
-    let small = FontId::proportional(9.5);
-    painter.text(
-        pos2(face.right() - 44.0, plate_rect.center().y),
-        Align2::RIGHT_CENTER,
-        fit(&painter, &details, &small, room - used - 16.0),
-        small,
-        letters.gamma_multiply(0.7),
-    );
     let hint = match built_in {
         Some(model) => trf!(
             "Based on the {gear}\nClick to choose the amp",
@@ -1262,14 +1322,26 @@ fn amp(ui: &mut Ui, params: &mut Params, state: &mut RigState, area: Rect) {
         None if shown != name => trf!("{name}\nClick to choose the amp", name = name),
         None => tr("Choose the amp").to_owned(),
     };
-    if plate.on_hover_text(hint).clicked() {
+    if plate.on_hover_text(format!("{hint}\n{details}")).clicked() {
         state.picker = Some(Picker::Amp);
         state.filter.clear();
     }
-    // Pilot lamp.
-    let lamp = pos2(face.right() - 22.0, face.top() + 22.0);
-    painter.circle_filled(lamp, 8.0, Color32::from_rgb(200, 30, 20));
-    painter.circle_filled(lamp, 14.0, Color32::from_rgba_unmultiplied(255, 40, 20, 40));
+    let p = theme::current(ui);
+    painter.text(
+        pos2(area.center().x, area.bottom() + 2.0),
+        Align2::CENTER_TOP,
+        &details,
+        FontId::proportional(10.0),
+        p.weak,
+    );
+    crate::gear::lamp(&painter, head.lamp, head.panel.height() * 0.13, look.lamp);
+    painter.text(
+        head.lamp + vec2(0.0, head.panel.height() * 0.22),
+        Align2::CENTER_TOP,
+        tr("ON"),
+        FontId::proportional(8.5),
+        look.letters,
+    );
     // Knobs: Gain steps through the captures, the others shape the tone after the amp.
     let knobs = [
         ("gain", tr("GAIN")),
@@ -1279,12 +1351,14 @@ fn amp(ui: &mut Ui, params: &mut Params, state: &mut RigState, area: Rect) {
         ("presence", tr("PRESENCE")),
         ("master", tr("MASTER")),
     ];
-    let start = face.left() + 10.0;
-    let step = (face.right() - 10.0 - start) / knobs.len() as f32;
+    let start = head.panel.left() + head.panel.width() * 0.04;
+    let end = head.lamp.x - head.panel.height() * 0.5;
+    let step = (end - start) / knobs.len() as f32;
+    let diameter = (step * 0.5).min(head.panel.height() * 0.46);
     for (i, (id, label)) in knobs.iter().enumerate() {
         let center = pos2(
             start + step * (i as f32 + 0.5),
-            face.top() + face.height() * 0.6,
+            head.panel.center().y + head.panel.height() * 0.06,
         );
         // Master is in dB; the face shows it from 0 to 10.
         let value = if *id == "master" {
@@ -1292,15 +1366,7 @@ fn amp(ui: &mut Ui, params: &mut Params, state: &mut RigState, area: Rect) {
         } else {
             params.get(id)
         };
-        let (changed, response) = face_knob(
-            ui,
-            center,
-            (step * 0.62).min(32.0),
-            value,
-            knob,
-            letters,
-            ("amp-knob", i),
-        );
+        let (changed, response) = face_knob(ui, center, diameter, value, &look, ("amp-knob", i));
         let hint = match *id {
             "gain" if built_in.is_some() => tr("Gain").to_owned(),
             "gain" => match captures {
@@ -1324,158 +1390,75 @@ fn amp(ui: &mut Ui, params: &mut Params, state: &mut RigState, area: Rect) {
         let changed = changed.map(|v| if *id == "master" { v * 3.6 - 24.0 } else { v });
         params.set(id, changed, &response);
         painter.text(
-            center + vec2(0.0, 21.0),
-            Align2::CENTER_TOP,
+            center - vec2(0.0, diameter / 2.0 + 10.0),
+            Align2::CENTER_BOTTOM,
             *label,
-            FontId::proportional(9.5),
-            letters,
+            FontId::proportional(9.0),
+            look.letters,
         );
-        for t in [0.0f32, 0.5, 1.0] {
-            let a = std::f32::consts::PI * (0.75 + 1.5 * t);
-            let r = (step * 0.62).min(32.0) / 2.0 + 6.0;
-            painter.circle_filled(
-                center + vec2(a.cos(), a.sin()) * r,
-                1.3,
-                letters.gamma_multiply(0.7),
-            );
-        }
     }
 }
 
-/// A drawn cabinet (or DI box, or impulse) centered in `area`.
+/// A DI box, or an impulse response, drawn in `area`.
 fn draw_cab(painter: &egui::Painter, area: Rect, cab: usize) {
     let c = Color32::from_rgb;
-    let (size, cols, rows) = match cab {
-        0 | 1 | 4 | 6 => (vec2(150.0, 150.0), 2, 2),
-        2 | 3 => (vec2(210.0, 118.0), 2, 1),
-        5 => (vec2(130.0, 120.0), 1, 1),
-        7 => (vec2(118.0, 160.0), 2, 4),
-        8 => (vec2(130.0, 150.0), 1, 1),
-        _ => (vec2(0.0, 0.0), 0, 0),
-    };
-    if cols == 0 {
-        // Direct: a DI box; impulse response: a box with a waveform.
-        let rect = Rect::from_center_size(area.center(), vec2(110.0, 64.0));
-        painter.rect_filled(rect, 6.0, c(70, 74, 82));
-        painter.rect_stroke(
-            rect,
-            6.0,
-            Stroke::new(1.0, Color32::from_white_alpha(40)),
-            egui::StrokeKind::Inside,
-        );
-        if cab == CABS.len() - 2 {
-            painter.text(
-                rect.center(),
-                Align2::CENTER_CENTER,
-                "DI",
-                theme::strong(20.0),
-                c(230, 230, 230),
-            );
-        } else {
-            let points: Vec<Pos2> = (0..60)
-                .map(|i| {
-                    let t = i as f32 / 59.0;
-                    let decay = (-t * 5.0).exp();
-                    pos2(
-                        rect.left() + 10.0 + t * (rect.width() - 20.0),
-                        rect.center().y + (t * 60.0).sin() * 22.0 * decay,
-                    )
-                })
-                .collect();
-            painter.add(egui::Shape::line(
-                points,
-                Stroke::new(1.5, c(120, 200, 255)),
-            ));
-        }
-        return;
-    }
-    let size = size * (area.height() / 165.0).min(area.width() / 215.0).min(1.0);
-    let rect = Rect::from_center_size(area.center(), size);
-    painter.rect_filled(
-        rect.translate(vec2(3.0, 4.0)),
-        8.0,
-        Color32::from_black_alpha(110),
+    // Direct: a DI box; impulse response: a box with a waveform.
+    let rect = Rect::from_center_size(area.center(), vec2(110.0, 64.0));
+    painter.rect_filled(rect, 6.0, c(70, 74, 82));
+    painter.rect_stroke(
+        rect,
+        6.0,
+        Stroke::new(1.0, Color32::from_white_alpha(40)),
+        egui::StrokeKind::Inside,
     );
-    painter.rect_filled(rect, 8.0, c(22, 22, 24));
-    let cloth = rect.shrink(9.0);
-    let fill = match cab {
-        0 => c(36, 36, 38),
-        1 => c(186, 168, 128),
-        2 => c(96, 64, 50),
-        3..=5 => c(170, 172, 176),
-        _ => c(44, 44, 48),
-    };
-    painter.rect_filled(cloth, 4.0, fill);
-    let weave = Stroke::new(1.0, Color32::from_black_alpha(35));
-    let painter = &painter.with_clip_rect(cloth);
-    match cab {
-        1..=5 => {
-            let mut x = cloth.left() - cloth.height();
-            while x < cloth.right() {
-                let (a, b) = (
-                    pos2(x, cloth.bottom()),
-                    pos2(x + cloth.height(), cloth.top()),
-                );
-                painter.line_segment([a, b], weave);
-                if cab == 2 {
-                    let (a, b) = (
-                        pos2(x, cloth.top()),
-                        pos2(x + cloth.height(), cloth.bottom()),
-                    );
-                    painter.line_segment([a, b], weave);
-                }
-                x += 6.0;
-            }
-        }
-        6..=8 => {
-            // Perforated metal grille.
-            let mut y = cloth.top() + 4.0;
-            while y < cloth.bottom() {
-                let mut x = cloth.left() + 4.0;
-                while x < cloth.right() {
-                    painter.circle_filled(pos2(x, y), 1.0, Color32::from_black_alpha(120));
-                    x += 6.0;
-                }
-                y += 6.0;
-            }
-        }
-        _ => {
-            painter.rect_stroke(
-                cloth.shrink(3.0),
-                3.0,
-                Stroke::new(1.0, Color32::from_white_alpha(60)),
-                egui::StrokeKind::Inside,
-            );
-        }
-    }
-    // Speakers behind the cloth.
-    let (w, h) = (cloth.width() / cols as f32, cloth.height() / rows as f32);
-    for col in 0..cols {
-        for row in 0..rows {
-            let center = pos2(
-                cloth.left() + w * (col as f32 + 0.5),
-                cloth.top() + h * (row as f32 + 0.5),
-            );
-            let r = w.min(h) * 0.42;
-            painter.circle_filled(center, r, Color32::from_black_alpha(45));
-            painter.circle_filled(center, r * 0.3, Color32::from_black_alpha(40));
-        }
+    if cab == CABS.len() - 2 {
+        painter.text(
+            rect.center(),
+            Align2::CENTER_CENTER,
+            "DI",
+            theme::strong(20.0),
+            c(230, 230, 230),
+        );
+    } else {
+        let points: Vec<Pos2> = (0..60)
+            .map(|i| {
+                let t = i as f32 / 59.0;
+                let decay = (-t * 5.0).exp();
+                pos2(
+                    rect.left() + 10.0 + t * (rect.width() - 20.0),
+                    rect.center().y + (t * 60.0).sin() * 22.0 * decay,
+                )
+            })
+            .collect();
+        painter.add(egui::Shape::line(
+            points,
+            Stroke::new(1.5, c(120, 200, 255)),
+        ));
     }
 }
 
-fn cabinet(ui: &mut Ui, params: &mut Params, area: Rect) {
+/// The size a cabinet is drawn at in `width`: its own proportions, big.
+fn cab_size(cab: usize, width: f32) -> egui::Vec2 {
+    match crate::gear::cab_ratio(cab) {
+        Some(ratio) => {
+            let height = if ratio < 0.8 { 400.0 } else { 300.0 };
+            let size = vec2(height * ratio, height);
+            size * ((width - 140.0) / size.x).min(1.0)
+        }
+        None => vec2(240.0, 140.0),
+    }
+}
+
+fn cabinet(ui: &mut Ui, params: &mut Params, area: Rect, size: egui::Vec2) {
     let p = theme::current(ui);
     let cab = (params.get("cab").round().max(0.0) as usize).min(CABS.len() - 1);
     let n = CABS.len();
     let response = ui.interact(Rect::NOTHING, ui.scope_id().with("cab-set"), Sense::hover());
-    let drawing = Rect::from_center_size(
-        pos2(area.center().x, area.top() + 70.0),
-        vec2(240.0_f32.min(area.width() - 80.0), 140.0),
-    );
+    let drawing = Rect::from_center_size(pos2(area.center().x, area.top() + size.y / 2.0), size);
     let middle = drawing.center().y;
     if arrow(
         ui,
-        pos2(drawing.left() - 22.0, middle),
+        pos2(drawing.left() - 30.0, middle),
         true,
         "cab-prev",
         tr("Previous cabinet"),
@@ -1484,7 +1467,7 @@ fn cabinet(ui: &mut Ui, params: &mut Params, area: Rect) {
     }
     if arrow(
         ui,
-        pos2(drawing.right() + 22.0, middle),
+        pos2(drawing.right() + 30.0, middle),
         false,
         "cab-next",
         tr("Next cabinet"),
@@ -1492,7 +1475,11 @@ fn cabinet(ui: &mut Ui, params: &mut Params, area: Rect) {
         set_now(params, "cab", ((cab + 1) % n) as f32, &response);
     }
     let pick = ui.interact(drawing, ui.scope_id().with("cab-pick"), Sense::click());
-    draw_cab(ui.painter(), drawing, cab);
+    if crate::gear::cab_ratio(cab).is_some() {
+        crate::gear::cabinet(ui.painter(), drawing, cab, &Style::of_cab(cab).look());
+    } else {
+        draw_cab(ui.painter(), drawing, cab);
+    }
     let pick = pick.on_hover_text(tr("Click to choose the cabinet"));
     egui::Popup::menu(&pick).show(|ui| {
         for (i, name) in CABS.iter().enumerate() {
@@ -1502,7 +1489,7 @@ fn cabinet(ui: &mut Ui, params: &mut Params, area: Rect) {
             }
         }
     });
-    let label = pos2(area.center().x, area.top() + 148.0);
+    let label = pos2(area.center().x, drawing.bottom() + 10.0);
     if cab == n - 1 {
         let loaded = capture_name(params, "ir");
         let text = loaded
@@ -2083,33 +2070,44 @@ fn browser(ui: &mut Ui, params: &mut Params, state: &mut RigState) {
     let signed_in = crate::tone3000::signed_in();
     let modal =
         egui::Modal::new(egui::Id::unique(("tone3000-browser", params.insert.0))).show(&ctx, |ui| {
-            ui.set_width(900.0);
-            ui.set_height(580.0);
+            ui.set_width(980.0);
+            ui.set_height(640.0);
+            // The header: the service, the account, the search on the site, closing.
             ui.horizontal(|ui| {
-                ui.label(RichText::new("TONE3000").font(theme::strong(17.0)).color(p.text));
-                ui.add_space(8.0);
-                if signed_in {
-                    let user = state.user.get_or_insert_with(crate::tone3000::user);
-                    if let Some(Ok(user)) = ready(&ctx, user) {
-                        avatar(ui, user.avatar.as_deref(), 18.0);
-                        ui.label(&user.name);
-                    }
-                    if ui.small_button(tr("Sign out")).clicked() {
-                        crate::tone3000::sign_out();
-                        state.feeds.clear();
-                        state.user = None;
-                    }
-                }
+                ui.label(RichText::new("TONE3000").font(theme::strong(20.0)).color(p.accent));
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new(tr("Free amp, effect and cabinet captures"))
+                        .size(12.0)
+                        .color(p.weak),
+                );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button(tr("Close")).clicked() {
+                    if ui
+                        .add(egui::Button::new(RichText::new("✕").size(14.0)).frame(false))
+                        .on_hover_text(tr("Close"))
+                        .clicked()
+                    {
                         open = false;
                     }
+                    ui.add_space(6.0);
                     if ui
                         .button(tr("Search all of TONE3000…"))
                         .on_hover_text(tr("Search the whole catalog in your browser; the tone you pick is downloaded and loaded here"))
                         .clicked()
                     {
                         start_tone3000(&ctx, state, None);
+                    }
+                    if signed_in {
+                        if ui.small_button(tr("Sign out")).clicked() {
+                            crate::tone3000::sign_out();
+                            state.feeds.clear();
+                            state.user = None;
+                        }
+                        let user = state.user.get_or_insert_with(crate::tone3000::user);
+                        if let Some(Ok(user)) = ready(&ctx, user) {
+                            ui.label(&user.name);
+                            avatar(ui, user.avatar.as_deref(), 22.0);
+                        }
                     }
                 });
             });
@@ -2130,76 +2128,92 @@ fn browser(ui: &mut Ui, params: &mut Params, state: &mut RigState) {
             if let Some(info) = &state.info {
                 ui.colored_label(p.accent, info);
             }
-            ui.separator();
+            ui.add_space(4.0);
             if !signed_in {
-                ui.add_space(40.0);
-                ui.vertical_centered(|ui| {
-                    ui.label(tr(
-                        "TONE3000 shares thousands of free amp, effect and cabinet captures. \
-                         Sign in (free account) to browse them here.",
-                    ));
-                    ui.add_space(8.0);
-                    if ui.button(RichText::new(tr("Sign in to TONE3000…")).size(15.0)).clicked() {
-                        start_tone3000(&ctx, state, None);
-                    }
-                });
+                sign_in_card(ui, &ctx, state);
                 return;
             }
-            ui.horizontal(|ui| {
-                for kind in Kind::ALL {
-                    let text = RichText::new(kind.name()).font(theme::strong(14.0));
-                    if ui.selectable_label(browse.kind == kind, text).clicked() {
-                        browse.kind = kind;
+            ui.horizontal_top(|ui| {
+                // The sidebar: what to look for, and in which list.
+                ui.vertical(|ui| {
+                    ui.set_width(170.0);
+                    ui.label(RichText::new(tr("Gear")).size(11.0).color(p.weak));
+                    for kind in Kind::ALL {
+                        if side_item(ui, browse.kind == kind, kind.name()) {
+                            browse.kind = kind;
+                        }
                     }
-                }
+                    ui.add_space(10.0);
+                    ui.label(RichText::new(tr("Lists")).size(11.0).color(p.weak));
+                    for list in List::ALL {
+                        if side_item(ui, browse.list == list, list.name()) {
+                            browse.list = list;
+                        }
+                    }
+                    ui.add_space(10.0);
+                    if ui.small_button(tr("Refresh")).clicked() {
+                        state.feeds.remove(&(browse.kind, browse.list));
+                    }
+                });
                 ui.separator();
-                for list in List::ALL {
-                    if ui.selectable_label(browse.list == list, list.name()).clicked() {
-                        browse.list = list;
+                ui.vertical(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut state.search)
+                            .hint_text(tr("Filter this list by name or creator…"))
+                            .desired_width(f32::INFINITY),
+                    );
+                    ui.add_space(6.0);
+                    let filter = state.search.to_lowercase();
+                    let feed = state.feeds.entry((browse.kind, browse.list)).or_default();
+                    feed.poll(&ctx, browse.kind, browse.list);
+                    if feed.tones.is_empty() && !feed.done {
+                        feed.more(browse.kind, browse.list);
                     }
-                }
-                if ui.small_button(tr("Refresh")).clicked() {
-                    state.feeds.remove(&(browse.kind, browse.list));
-                }
-            });
-            let feed = state.feeds.entry((browse.kind, browse.list)).or_default();
-            feed.poll(&ctx, browse.kind, browse.list);
-            if feed.tones.is_empty() && !feed.done {
-                feed.more(browse.kind, browse.list);
-            }
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    let width = ui.available_width();
-                    let columns = ((width / 280.0).floor() as usize).max(1);
-                    let card_width = width / columns as f32 - 8.0;
-                    for row in feed.tones.chunks(columns) {
-                        ui.horizontal(|ui| {
-                            for tone in row {
-                                if tone_card(ui, tone, card_width, browse.kind) {
-                                    picked = Some(tone.clone());
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            let width = ui.available_width();
+                            let columns = ((width / 230.0).floor() as usize).max(1);
+                            let card_width = (width - 10.0 * (columns - 1) as f32) / columns as f32;
+                            let shown: Vec<&Tone> = feed
+                                .tones
+                                .iter()
+                                .filter(|t| {
+                                    filter.is_empty()
+                                        || t.title.to_lowercase().contains(&filter)
+                                        || t.creator.to_lowercase().contains(&filter)
+                                })
+                                .collect();
+                            for row in shown.chunks(columns) {
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 10.0;
+                                    for tone in row {
+                                        if tone_card(ui, tone, card_width, browse.kind) {
+                                            picked = Some((*tone).clone());
+                                        }
+                                    }
+                                });
+                                ui.add_space(10.0);
+                            }
+                            if let Some(e) = &feed.error {
+                                ui.colored_label(theme::RECORD, e);
+                            } else if feed.pending.is_some() {
+                                ui.horizontal(|ui| {
+                                    ui.spinner();
+                                    ui.label(tr("Loading…"));
+                                });
+                            } else if feed.done && shown.is_empty() {
+                                ui.weak(tr("Nothing in this list."));
+                            } else if !feed.done {
+                                // Reaching the end of the list loads the next page.
+                                let end = ui.allocate_response(vec2(width, 20.0), Sense::hover());
+                                if ui.is_rect_visible(end.rect) {
+                                    feed.more(browse.kind, browse.list);
                                 }
                             }
                         });
-                        ui.add_space(4.0);
-                    }
-                    if let Some(e) = &feed.error {
-                        ui.colored_label(theme::RECORD, e);
-                    } else if feed.pending.is_some() {
-                        ui.horizontal(|ui| {
-                            ui.spinner();
-                            ui.label(tr("Loading…"));
-                        });
-                    } else if feed.done && feed.tones.is_empty() {
-                        ui.weak(tr("Nothing in this list."));
-                    } else if !feed.done {
-                        // Reaching the end of the list loads the next page.
-                        let end = ui.allocate_response(vec2(width, 20.0), Sense::hover());
-                        if ui.is_rect_visible(end.rect) {
-                            feed.more(browse.kind, browse.list);
-                        }
-                    }
                 });
+            });
         });
     if modal.should_close() {
         open = false;
@@ -2221,6 +2235,90 @@ fn browser(ui: &mut Ui, params: &mut Params, state: &mut RigState) {
         }
     }
     state.browser = open.then_some(browse);
+}
+
+/// An entry of the browser's sidebar; true when clicked.
+fn side_item(ui: &mut Ui, on: bool, text: &str) -> bool {
+    let p = theme::current(ui);
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+    let fill = if on {
+        p.accent.gamma_multiply(0.25)
+    } else if response.hovered() {
+        p.hover
+    } else {
+        Color32::TRANSPARENT
+    };
+    ui.painter().rect_filled(rect, 6.0, fill);
+    if on {
+        ui.painter().rect_filled(
+            Rect::from_min_size(rect.min + vec2(0.0, 6.0), vec2(3.0, rect.height() - 12.0)),
+            2.0,
+            p.accent,
+        );
+    }
+    ui.painter().text(
+        rect.left_center() + vec2(12.0, 0.0),
+        Align2::LEFT_CENTER,
+        text,
+        if on {
+            theme::strong(13.0)
+        } else {
+            FontId::proportional(13.0)
+        },
+        if on {
+            p.text
+        } else {
+            p.text.gamma_multiply(0.85)
+        },
+    );
+    response.clicked()
+}
+
+/// Before signing in: what TONE3000 is, a rig drawn, and the button.
+fn sign_in_card(ui: &mut Ui, ctx: &egui::Context, state: &mut RigState) {
+    let p = theme::current(ui);
+    ui.add_space(30.0);
+    ui.vertical_centered(|ui| {
+        let (rect, _) = ui.allocate_exact_size(vec2(360.0, 220.0), Sense::hover());
+        let painter = ui.painter();
+        let look = Style::Plexi.look();
+        let head = Rect::from_min_size(rect.min + vec2(40.0, 14.0), vec2(280.0, 80.0));
+        let shown = crate::gear::head(painter, head, &look, "TONE3000");
+        for k in 0..5 {
+            let x = shown.panel.left() + 22.0 + k as f32 * 38.0;
+            crate::gear::knob(
+                painter,
+                pos2(x, shown.panel.center().y + 2.0),
+                16.0,
+                0.3 + 0.1 * k as f32,
+                look.knob,
+                look.letters,
+            );
+        }
+        let cab = Rect::from_min_size(
+            pos2(head.left() + 40.0, head.bottom() + 4.0),
+            vec2(200.0, 110.0),
+        );
+        crate::gear::cabinet(painter, cab, 2, &Style::Voxy.look());
+        ui.add_space(14.0);
+        ui.label(
+            RichText::new(tr(
+                "TONE3000 shares thousands of free amp, effect and cabinet captures. \
+                 Sign in (free account) to browse them here.",
+            ))
+            .size(14.0),
+        );
+        ui.add_space(12.0);
+        if theme::primary_button(ui, tr("Sign in to TONE3000…")).clicked() {
+            start_tone3000(ctx, state, None);
+        }
+        ui.add_space(6.0);
+        ui.label(
+            RichText::new(tr("Your browser opens; come back here once signed in."))
+                .size(11.0)
+                .color(p.weak),
+        );
+    });
 }
 
 fn avatar(ui: &mut Ui, url: Option<&str>, size: f32) {
@@ -2249,40 +2347,54 @@ fn short(n: u64) -> String {
 /// A TONE3000 tone: its photo, title, gear, format, license and creator; true when clicked.
 fn tone_card(ui: &mut Ui, tone: &Tone, width: f32, kind: Kind) -> bool {
     let p = theme::current(ui);
-    let (rect, response) = ui.allocate_exact_size(vec2(width, 96.0), Sense::click());
-    ui.painter().rect_filled(
-        rect,
-        6.0,
-        if response.hovered() {
-            p.accent.gamma_multiply(0.18)
-        } else {
-            p.base
-        },
-    );
-    let thumb = Rect::from_min_size(rect.min + vec2(8.0, 8.0), vec2(80.0, 80.0));
-    match tone.image.as_deref().and_then(|u| picture(ui.ctx(), u)) {
-        Some(texture) => paint_picture(ui.painter(), thumb, &texture),
-        None if kind == Kind::Cabs => draw_cab(ui.painter(), thumb, 0),
-        None => face_thumb(
-            ui.painter(),
-            thumb.shrink2(vec2(0.0, 8.0)),
-            kind == Kind::Effects,
-            Style::guess(&tone.title, None),
-        ),
+    let (rect, response) = ui.allocate_exact_size(vec2(width, 236.0), Sense::click());
+    let hot = response.hovered();
+    let painter = ui.painter_at(rect.expand(2.0));
+    painter.rect_filled(rect, 8.0, p.base);
+    if hot {
+        painter.rect_stroke(
+            rect,
+            8.0,
+            Stroke::new(1.5, p.accent),
+            egui::StrokeKind::Inside,
+        );
     }
-    let painter = ui.painter();
-    let left = rect.left() + 98.0;
+    // The picture: the creator's photo, or the gear drawn.
+    let thumb = Rect::from_min_size(rect.min, vec2(width, 128.0)).shrink(1.0);
+    crate::gear::sheen(
+        &painter,
+        thumb,
+        Color32::from_rgb(44, 46, 52),
+        Color32::from_rgb(22, 23, 26),
+    );
+    match tone.image.as_deref().and_then(|u| picture(ui.ctx(), u)) {
+        Some(texture) => cover_picture(&painter, thumb, &texture),
+        None => gear_thumb(&painter, thumb.shrink(14.0), kind, &tone.title),
+    }
+    if hot {
+        painter.rect_filled(thumb, 0.0, Color32::from_black_alpha(90));
+        let button = Rect::from_center_size(thumb.center(), vec2(110.0, 30.0));
+        painter.rect_filled(button, 15.0, p.accent);
+        painter.text(
+            button.center(),
+            Align2::CENTER_CENTER,
+            tr("Load"),
+            theme::strong(13.0),
+            Color32::WHITE,
+        );
+    }
+    let left = rect.left() + 10.0;
     let mut job = egui::text::LayoutJob::simple(
         tone.title.clone(),
-        theme::strong(12.5),
+        theme::strong(13.0),
         p.text,
-        rect.right() - left - 8.0,
+        width - 20.0,
     );
     job.wrap.max_rows = 2;
-    job.wrap.break_anywhere = true;
+    job.wrap.overflow_character = Some('…');
     let title = painter.layout_job(job);
-    let title_height = title.size().y;
-    painter.galley(pos2(left, rect.top() + 8.0), title, p.text);
+    painter.galley(pos2(left, thumb.bottom() + 8.0), title, p.text);
+    // What it is, as small chips.
     let gear = match tone.gear.as_str() {
         "amp-cab" | "full-rig" => tr("Full rig"),
         "amp" => tr("Amp"),
@@ -2291,48 +2403,100 @@ fn tone_card(ui: &mut Ui, tone: &Tone, width: f32, kind: Kind) -> bool {
         "cab" => tr("Cabinet"),
         other => other,
     };
-    painter.text(
-        pos2(left, rect.top() + 12.0 + title_height),
-        Align2::LEFT_TOP,
-        trf!(
-            "{gear} · {format} · {models} models · {license}",
-            gear = gear,
-            format = tone.format.to_uppercase(),
-            models = tone.models,
-            license = tone.license.to_uppercase(),
-        ),
-        FontId::proportional(10.0),
-        p.weak,
-    );
-    let face = Rect::from_min_size(pos2(left, rect.bottom() - 24.0), vec2(16.0, 16.0));
+    let mut x = left;
+    let chip_y = rect.bottom() - 56.0;
+    for text in [
+        gear.to_owned(),
+        if tone.models > 1 {
+            trf!("{n} captures", n = tone.models)
+        } else {
+            tr("1 capture").to_owned()
+        },
+        tone.license.to_uppercase(),
+    ] {
+        if text.is_empty() {
+            continue;
+        }
+        let galley = painter.layout_no_wrap(text, FontId::proportional(10.0), p.text);
+        let chip = Rect::from_min_size(pos2(x, chip_y), galley.size() + vec2(12.0, 6.0));
+        if chip.right() > rect.right() - 8.0 {
+            break;
+        }
+        painter.rect_filled(chip, 9.0, p.panel);
+        painter.galley(chip.min + vec2(6.0, 3.0), galley, p.text);
+        x = chip.right() + 5.0;
+    }
+    let face = Rect::from_min_size(pos2(left, rect.bottom() - 26.0), vec2(18.0, 18.0));
     paint_avatar(ui, face, tone.avatar.as_deref());
-    let painter = ui.painter();
-    painter.text(
-        pos2(left + 22.0, face.center().y),
-        Align2::LEFT_CENTER,
-        &tone.creator,
+    let painter = ui.painter_at(rect);
+    let downloads = painter.text(
+        rect.right_bottom() - vec2(10.0, 12.0),
+        Align2::RIGHT_CENTER,
+        format!("↓ {}", short(tone.downloads)),
         FontId::proportional(10.5),
-        p.text,
-    );
-    let mark = painter.text(
-        rect.right_bottom() - vec2(8.0, 8.0),
-        Align2::RIGHT_BOTTOM,
-        "T3K",
-        theme::strong(9.0),
-        p.accent,
+        p.weak,
     );
     painter.text(
-        pos2(mark.left() - 8.0, mark.bottom()),
-        Align2::RIGHT_BOTTOM,
-        trf!("{count} downloads", count = short(tone.downloads)),
-        FontId::proportional(9.5),
-        p.weak,
+        pos2(left + 24.0, face.center().y),
+        Align2::LEFT_CENTER,
+        fit(
+            &painter,
+            &tone.creator,
+            &FontId::proportional(11.0),
+            downloads.left() - left - 32.0,
+        ),
+        FontId::proportional(11.0),
+        p.text,
     );
     let hint = match &tone.url {
         Some(url) => trf!("Download and load\n{url}", url = url),
         None => tr("Download and load").to_owned(),
     };
     response.on_hover_text(hint).clicked()
+}
+
+/// A picture filling `rect`, cropped to keep its proportions.
+fn cover_picture(painter: &egui::Painter, rect: Rect, texture: &egui::TextureHandle) {
+    let [w, h] = texture.size().map(|v| v as f32);
+    let (rw, rh) = (rect.width() / w, rect.height() / h);
+    let uv = if rw > rh {
+        let keep = rh / rw;
+        Rect::from_min_max(pos2(0.0, (1.0 - keep) / 2.0), pos2(1.0, (1.0 + keep) / 2.0))
+    } else {
+        let keep = rw / rh;
+        Rect::from_min_max(pos2((1.0 - keep) / 2.0, 0.0), pos2((1.0 + keep) / 2.0, 1.0))
+    };
+    painter.image(texture.id(), rect, uv, Color32::WHITE);
+}
+
+/// The gear of a tone drawn in its likely style, when it has no picture.
+fn gear_thumb(painter: &egui::Painter, area: Rect, kind: Kind, title: &str) {
+    let style = Style::guess(title, None);
+    match kind {
+        Kind::Effects => face_thumb(painter, area, true, style),
+        Kind::Cabs => {
+            let size = vec2(area.height() * 1.1, area.height());
+            let rect = Rect::from_center_size(area.center(), size);
+            crate::gear::cabinet(painter, rect, 1, &style.look());
+        }
+        Kind::Amps => {
+            let size = vec2(area.width().min(200.0), area.height() * 0.62);
+            let rect = Rect::from_center_size(area.center() + vec2(0.0, 6.0), size);
+            let look = style.look();
+            let head = crate::gear::head(painter, rect, &look, style.name());
+            for k in 0..5 {
+                let x = head.panel.left() + head.panel.width() * (0.1 + 0.16 * k as f32);
+                crate::gear::knob(
+                    painter,
+                    pos2(x, head.panel.center().y + 2.0),
+                    12.0,
+                    0.5,
+                    look.knob,
+                    look.letters,
+                );
+            }
+        }
+    }
 }
 
 /// A miniature amp or pedal face.

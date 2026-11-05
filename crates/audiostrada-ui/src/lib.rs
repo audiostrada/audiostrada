@@ -15,6 +15,7 @@ mod drums_editor;
 mod effect_browser;
 mod effect_editors;
 mod export_window;
+mod gear;
 mod host;
 pub mod i18n;
 mod inspector;
