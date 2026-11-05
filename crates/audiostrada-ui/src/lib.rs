@@ -808,6 +808,10 @@ impl AudioStradaApp {
 
     /// Runs a user command, whatever triggered it (menu, shortcut, palette, button).
     fn run(&mut self, ctx: &egui::Context, action: Action) {
+        // Something on the system clipboard, so that Ctrl+V reaches the application.
+        if matches!(action, Action::Copy | Action::Cut) {
+            ctx.copy_text(tr("AudioStrada clips").to_owned());
+        }
         match action {
             Action::NewProject => self.request(ctx, Pending::New),
             Action::OpenProject => dialogs::start(ctx, "open-project", dialogs::pick_project),
@@ -1740,6 +1744,23 @@ fn pressed_actions(ctx: &egui::Context, keymap: &Keymap) -> Vec<Action> {
     ctx.input_mut(|i| {
         let mut actions = Vec::new();
         i.events.retain(|e| {
+            // The system turns Ctrl+C, X and V into clipboard events: outside text fields they
+            // are the bound edits.
+            let clipboard = match e {
+                Event::Copy => Some(egui::Key::C),
+                Event::Cut => Some(egui::Key::X),
+                Event::Paste(_) | Event::PasteImage(_) => Some(egui::Key::V),
+                _ => None,
+            };
+            if let Some(key) = clipboard {
+                if typing {
+                    return true;
+                }
+                if let Some(action) = keymap.action_for(key, egui::Modifiers::COMMAND) {
+                    actions.push(action);
+                }
+                return false;
+            }
             let Event::Key {
                 key,
                 pressed,
@@ -2620,6 +2641,10 @@ impl eframe::App for AudioStradaApp {
             self.title = title;
         }
 
+        // A press anywhere takes the shortcuts from the piano roll, unless it lands in it.
+        if ctx.input(|i| i.pointer.any_pressed()) {
+            self.views.borrow_mut().piano.focused = false;
+        }
         let mut actions = self.pressed_actions(&ctx);
         let menu_frame = egui::Frame::side_top_panel(&ctx.global_style())
             .inner_margin(egui::Margin::symmetric(10, 6));
@@ -2847,5 +2872,19 @@ mod tests {
             .drop_without_applying_deltas();
         assert_eq!(inbox.borrow().actions, [Action::PlayPause]);
         INBOX.with(|i| *i.borrow_mut() = None);
+    }
+
+    #[test]
+    fn the_system_clipboard_keys_run_copy_cut_and_paste() {
+        let ctx = egui::Context::default();
+        let keymap = Keymap::default();
+        let input = egui::RawInput {
+            events: vec![Event::Copy, Event::Cut, Event::Paste("x".into())],
+            ..Default::default()
+        };
+        let mut actions = Vec::new();
+        ctx.run_ui(input, |ui| actions = pressed_actions(ui.ctx(), &keymap))
+            .drop_without_applying_deltas();
+        assert_eq!(actions, [Action::Copy, Action::Cut, Action::Paste]);
     }
 }

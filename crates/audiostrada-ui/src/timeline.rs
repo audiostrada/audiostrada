@@ -672,6 +672,26 @@ impl TimelineView {
                 });
                 self.selection.extend(created);
             }
+            Action::Duplicate if self.range.is_some() => {
+                // The range's content again right after it, the range following; the
+                // clipboard stays as it was.
+                if let Some(r) = self.range.clone() {
+                    let saved = self.clipboard.clone();
+                    self.copy(&doc);
+                    let project = doc.project();
+                    let base = routing::visible_tracks(project)
+                        .iter()
+                        .position(|&(i, _)| r.tracks.contains(&project.tracks[i].id))
+                        .unwrap_or(0);
+                    self.paste_at(&mut doc, r.end, base, Action::Duplicate.label());
+                    self.clipboard = saved;
+                    self.range = Some(Range {
+                        start: r.end,
+                        end: r.end + (r.end - r.start),
+                        tracks: r.tracks,
+                    });
+                }
+            }
             Action::Duplicate if !selection.is_empty() => {
                 let mut created = Vec::new();
                 doc.history_mut().edit(Action::Duplicate.label(), |p| {
@@ -1561,6 +1581,130 @@ mod tests {
             assert!(
                 (h.view.zoom - fitted).abs() < fitted * 0.01,
                 "a double-click shows all"
+            );
+        }
+
+        /// Screen x of a sample, and the sample under an x, in the harness's view.
+        fn scale(h: &Harness) -> (impl Fn(u64) -> f32 + use<>, impl Fn(f32) -> u64 + use<>) {
+            let (left, scroll, zoom) = (h.view.lanes_rect.left(), h.view.scroll, h.view.zoom);
+            (
+                move |s: u64| left + ((s as f64 - scroll) / zoom) as f32,
+                move |x: f32| (scroll + f64::from(x - left) * zoom) as u64,
+            )
+        }
+
+        fn clips(doc: &Rc<RefCell<Document>>, t: TrackId) -> Vec<(u64, u64, u64)> {
+            doc.borrow()
+                .project()
+                .track(t)
+                .unwrap()
+                .clips
+                .iter()
+                .map(|c| (c.start, c.length, c.offset))
+                .collect()
+        }
+
+        fn near(a: u64, b: u64, slack: f64) -> bool {
+            (a as f64 - b as f64).abs() <= slack
+        }
+
+        #[test]
+        fn a_range_is_copied_then_pasted_where_the_cursor_is_clicked_and_again_after() {
+            let (mut h, doc, tracks) = harness();
+            let settings = EditSettings::default();
+            let (x, sample) = scale(&h);
+            let slack = h.view.zoom * 2.0;
+            let top = |i: usize, h: &Harness| h.view.lanes_rect.top() + h.view.tops[i];
+            // A range in the upper half of the first track's clips.
+            let y = top(0, &h) + 25.0;
+            h.drag(pos2(x(200), y), pos2(x(800), y));
+            let r = h.view.range.clone().expect("a range");
+            assert_eq!(r.tracks, [tracks[0]]);
+            h.view.run(Action::Copy, &settings);
+            // A click lower on the second track, past its clip: the cursor goes there.
+            let at = x(2500);
+            h.click(pos2(at, top(1, &h) + 55.0), Modifiers::NONE);
+            assert!(h.view.range.is_none());
+            assert_eq!(doc.borrow().focused_track(), Some(tracks[1]));
+            let cursor = doc.borrow().player().position();
+            assert!(near(cursor, sample(at), slack), "{cursor}");
+            h.view.run(Action::Paste, &settings);
+            let b = clips(&doc, tracks[1]);
+            assert_eq!(b.len(), 2, "{b:?}");
+            let pasted = b[1];
+            let length = r.end - r.start;
+            assert_eq!((pasted.0, pasted.1), (cursor, length));
+            assert_eq!(pasted.2, r.start, "the same audio as the range");
+            // The cursor moved to its end: pasting again puts the next copy right after.
+            assert_eq!(doc.borrow().player().position(), cursor + length);
+            h.view.run(Action::Paste, &settings);
+            let b = clips(&doc, tracks[1]);
+            assert_eq!(b.len(), 3);
+            assert_eq!(b[2].0, cursor + length);
+            // Both pastes undo, and the first track never changed.
+            doc.borrow_mut().history_mut().undo();
+            doc.borrow_mut().history_mut().undo();
+            assert_eq!(clips(&doc, tracks[1]).len(), 1);
+            assert_eq!(clips(&doc, tracks[0]).len(), 3);
+        }
+
+        #[test]
+        fn a_clip_is_copied_onto_the_track_clicked_and_a_cut_range_goes_elsewhere() {
+            let (mut h, doc, tracks) = harness();
+            let settings = EditSettings::default();
+            let (x, sample) = scale(&h);
+            let top = |i: usize, h: &Harness| h.view.lanes_rect.top() + h.view.tops[i];
+            // Click the last clip of the first track (lower half), copy it.
+            h.click(pos2(x(3500), top(0, &h) + 55.0), Modifiers::NONE);
+            assert_eq!(h.view.selection.len(), 1);
+            h.view.run(Action::Copy, &settings);
+            // Click on the empty part of the second track, paste: the clip lands there whole.
+            let at = x(2000);
+            h.click(pos2(at, top(1, &h) + 55.0), Modifiers::NONE);
+            h.view.run(Action::Paste, &settings);
+            let b = clips(&doc, tracks[1]);
+            assert_eq!(b.len(), 2);
+            assert_eq!((b[1].0, b[1].1), (sample(at), 1000));
+            // A range with the range tool over both tracks, cut, pasted later on the first one.
+            h.view.tool = Tool::Range;
+            h.drag(
+                pos2(x(500), top(0, &h) + 30.0),
+                pos2(x(1500), top(1, &h) + 30.0),
+            );
+            let r = h.view.range.clone().expect("a range");
+            assert_eq!(r.tracks.len(), 2);
+            h.view.run(Action::Cut, &settings);
+            assert!(
+                clips(&doc, tracks[0])
+                    .iter()
+                    .all(|c| c.0 + c.1 <= r.start || c.0 >= r.end)
+            );
+            h.view.tool = Tool::Smart;
+            h.click(pos2(x(4100), top(0, &h) + 55.0), Modifiers::NONE);
+            let cursor = doc.borrow().player().position();
+            h.view.run(Action::Paste, &settings);
+            let pasted: Vec<_> = clips(&doc, tracks[0])
+                .into_iter()
+                .filter(|c| c.0 >= cursor)
+                .collect();
+            // The range cut the end of one clip and the start of the next: both pieces.
+            assert_eq!(pasted.len(), 2, "the first track's part on the first track");
+            assert_eq!(pasted[0].0, cursor);
+            assert!(
+                clips(&doc, tracks[1]).iter().any(|c| c.0 >= cursor),
+                "the second's below it"
+            );
+            // Duplicate a range: its content again right after it, the range following.
+            h.view.range = Some(Range {
+                start: 3000,
+                end: 3500,
+                tracks: vec![tracks[0]],
+            });
+            h.view.run(Action::Duplicate, &settings);
+            assert!(clips(&doc, tracks[0]).contains(&(3500, 500, 0)));
+            assert_eq!(
+                h.view.range.as_ref().map(|r| (r.start, r.end)),
+                Some((3500, 4000))
             );
         }
 

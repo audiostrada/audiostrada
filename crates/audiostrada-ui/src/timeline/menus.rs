@@ -16,6 +16,7 @@ use crate::document::Document;
 use crate::i18n::tr;
 use crate::transport::EditSettings;
 use crate::trf;
+use audiostrada_core::routing;
 
 /// Copied clips, ready to paste into this project or one in another tab.
 #[derive(Clone, Debug, Default)]
@@ -27,6 +28,8 @@ pub(crate) struct Clipboard {
     sources: BTreeMap<SourceId, Source>,
     /// Sample rate of the project they come from.
     rate: u32,
+    /// How long the copy lasts: the range, or from the first clip's start to the last's end.
+    span: u64,
 }
 
 /// The source of `project` reading the same file as `source`, added when there is none.
@@ -269,39 +272,50 @@ impl TimelineView {
     }
 
     /// Copies the range, or else the selected clips.
+    /// Copies the range (its clips cut at its edges, with the empty time it covers), or else
+    /// the selected clips. Tracks are counted in the order shown, from the first copied one.
     pub(super) fn copy(&mut self, doc: &Document) {
         let project = doc.project();
-        let index = |id: TrackId| project.tracks.iter().position(|t| t.id == id);
+        let shown: Vec<TrackId> = routing::visible_tracks(project)
+            .iter()
+            .map(|&(i, _)| project.tracks[i].id)
+            .collect();
+        let row = |id: TrackId| shown.iter().position(|t| *t == id);
         let mut copied: Vec<(usize, Clip)> = Vec::new();
+        let span;
         if let Some(r) = &self.range {
             let mut scratch = project.clone();
             let inside = edit::split_range(&mut scratch, &r.tracks, r.start, r.end);
             for t in &scratch.tracks {
                 for c in t.clips.iter().filter(|c| inside.contains(&c.id)) {
-                    if let Some(i) = index(t.id) {
+                    if let Some(i) = row(t.id) {
                         copied.push((i, c.clone()));
                     }
                 }
             }
-            let first = copied.iter().map(|c| c.0).min().unwrap_or(0);
+            // The first track is the range's own, even when it has no clip at the start.
+            let first = r.tracks.iter().filter_map(|&t| row(t)).min().unwrap_or(0);
             for (i, c) in &mut copied {
-                *i -= first;
+                *i -= first.min(*i);
                 c.start -= r.start;
             }
+            span = r.end - r.start;
         } else {
             for t in &project.tracks {
                 for c in t.clips.iter().filter(|c| self.selection.contains(&c.id)) {
-                    if let Some(i) = index(t.id) {
+                    if let Some(i) = row(t.id) {
                         copied.push((i, c.clone()));
                     }
                 }
             }
             let first = copied.iter().map(|c| c.0).min().unwrap_or(0);
             let start = copied.iter().map(|c| c.1.start).min().unwrap_or(0);
+            let end = copied.iter().map(|c| c.1.end()).max().unwrap_or(0);
             for (i, c) in &mut copied {
                 *i -= first;
                 c.start -= start;
             }
+            span = end.saturating_sub(start);
         }
         if !copied.is_empty() {
             let sources = copied
@@ -316,6 +330,7 @@ impl TimelineView {
                 clips: copied,
                 sources,
                 rate: project.sample_rate,
+                span,
             };
         }
     }
@@ -335,33 +350,52 @@ impl TimelineView {
         }
     }
 
-    /// Pastes at the playhead, the first copied track landing on the selected track.
+    /// Pastes at the playhead, the first copied track on the selected one (else the first
+    /// shown), then moves the playhead to the end of what was pasted, so pasting again follows.
     pub(super) fn paste(&mut self, doc: &mut Document) {
-        if self.clipboard.clips.is_empty() {
-            return;
-        }
         let at = doc.player().position();
-        let paths = doc.paths().cloned();
         let project = doc.project();
         let base = doc
             .focused_track()
-            .and_then(|id| project.tracks.iter().position(|t| t.id == id))
+            .and_then(|id| {
+                routing::visible_tracks(project)
+                    .iter()
+                    .position(|&(i, _)| project.tracks[i].id == id)
+            })
             .unwrap_or(0);
+        if let Some(end) = self.paste_at(doc, at, base, tr("Paste")) {
+            doc.player_mut().locate(end);
+        }
+    }
+
+    /// Pastes the clipboard at `at`, its first track on shown row `base`; selects what was
+    /// pasted and gives where it ends.
+    pub(super) fn paste_at(
+        &mut self,
+        doc: &mut Document,
+        at: u64,
+        base: usize,
+        label: &str,
+    ) -> Option<u64> {
+        if self.clipboard.clips.is_empty() {
+            return None;
+        }
+        let paths = doc.paths().cloned();
+        let project = doc.project();
+        let rows = routing::visible_tracks(project);
         let targets: Vec<Option<TrackId>> = self
             .clipboard
             .clips
             .iter()
             .map(|(off, _)| {
-                project
-                    .tracks
-                    .get(base + off)
-                    .filter(|t| t.kind == TrackKind::Audio)
-                    .map(|t| t.id)
+                let &(index, _) = rows.get(base + off)?;
+                let t = &project.tracks[index];
+                (t.kind == TrackKind::Audio).then_some(t.id)
             })
             .collect();
         let board = self.clipboard.clone();
         let mut pasted = Vec::new();
-        doc.history_mut().edit(tr("Paste"), |p| {
+        doc.history_mut().edit(label, |p| {
             let mut tracks = Vec::new();
             // Clips from another project bring their files along.
             let mut sources = BTreeMap::new();
@@ -395,6 +429,13 @@ impl TimelineView {
         });
         self.selection = pasted;
         self.range = None;
+        let span = if board.rate != doc.project().sample_rate && board.rate > 0 {
+            (board.span as f64 * f64::from(doc.project().sample_rate) / f64::from(board.rate))
+                as u64
+        } else {
+            board.span
+        };
+        Some(at + span)
     }
 
     /// Clips a clip menu acts on: the selection when it holds the clicked clip, else the clip
