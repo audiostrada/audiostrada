@@ -4910,9 +4910,6 @@ Crédits
 Strada-Trigger drum samples
 Échantillons de batterie de Strada-Trigger
 
-DRS
-DRS
-
 Drum
 Fût
 
@@ -4922,41 +4919,11 @@ Son de grosse caisse
 Snare sound
 Son de caisse claire
 
-Muldjord
-Muldjord
-
 Reinforces or replaces a kick or a snare with sampled drums, hit for hit.
 Renforce ou remplace une grosse caisse ou une caisse claire par des fûts échantillonnés, coup pour coup.
 
-Rusty 24
-Rusty 24
-
-Rusty 24 open
-Rusty 24 ouverte
-
-Rusty rimshot
-Rusty rimshot
-
-SM
-SM
-
 Strada-Trigger
 Strada-Trigger
-
-Swirly
-Swirly
-
-Unruly 13
-Unruly 13
-
-Unruly 14
-Unruly 14
-
-Unruly 20
-Unruly 20
-
-Unruly 20 dirty
-Unruly 20 sale
 
 20 ms look-ahead, compensated by the mix
 Anticipation de 20 ms, compensée par le mixage
@@ -5044,3 +5011,66 @@ Longue résonance
 
 Top, bottom and room
 Dessus, dessous et room
+
+Boom
+Boom
+
+Crisp
+Claquante
+
+Deep
+Profonde
+
+Garage
+Garage
+
+Rimshot
+Rimshot
+
+Ringing
+Résonante
+
+Session
+Session
+
+Studio
+Studio
+
+Your sound
+Votre son
+
+Add a sound
+Ajouter un son
+
+Add a sound of your own: a file with one hit, named as you like
+Ajoutez votre propre son : un fichier d'un seul coup, nommé comme vous voulez
+
+Choose a file…
+Choisir un fichier…
+
+Click to choose it and hear it; right-click to take it off the list
+Cliquez pour le choisir et l'écouter ; clic droit pour le retirer de la liste
+
+File of this project
+Fichier du projet
+
+My kick
+Ma grosse caisse
+
+No file yet
+Aucun fichier
+
+One hit per file. The silence before it is taken off and its level follows the track's hits. WAV, FLAC, AIFF, OGG or MP3.
+Un seul coup par fichier. Le silence avant le coup est retiré et son niveau suit celui des coups de la piste. WAV, FLAC, AIFF, OGG ou MP3.
+
+Plays 20 ms ahead: the mix delays the rest to stay in time
+Joue avec 20 ms d'avance : le mixage retarde le reste pour rester calé
+
+Take off the list
+Retirer de la liste
+
+Kick sample
+Sample de grosse caisse
+
+Snare sample
+Sample de caisse claire

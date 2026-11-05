@@ -2,30 +2,56 @@
 //! the hit's strength, from the close mics to the room; the amount goes from the track alone to
 //! the sample alone, both whole at half way. A short look-ahead puts each sample on its hit's
 //! attack. A hit counts once it passes the threshold and stands out from what still rings
-//! before it; the tolerance decides by how much, and how soon a new hit may come.
+//! before it; the tolerance decides by how much, and how soon a new hit may come. The sample
+//! matches the energy of the track's attack. Each drum can also play a file of one's own.
 
 use std::sync::OnceLock;
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
-use crate::{Effect, EffectInfo, MidiEvent, ParamInfo, choice, db_to_gain, param};
+use crate::{
+    Effect, EffectInfo, FileData, FileKind, FileSlot, MidiEvent, ParamInfo, choice, db_to_gain,
+    param,
+};
 
 pub const KINDS: [&str; 2] = ["Kick", "Snare"];
-pub const KICKS: [&str; 6] = [
-    "Unruly 20",
-    "Unruly 20 dirty",
-    "Rusty 24",
-    "Rusty 24 open",
-    "SM",
-    "Muldjord",
+/// The sounds of each drum; the last one plays the file loaded for it.
+pub const KICKS: [&str; 7] = [
+    "Studio",
+    "Garage",
+    "Deep",
+    "Boom",
+    "Vintage",
+    "Rock",
+    "Your sound",
 ];
-pub const SNARES: [&str; 7] = [
-    "Unruly 13",
-    "Unruly 14",
-    "Rusty rimshot",
-    "SM",
-    "Swirly",
-    "Muldjord",
-    "DRS",
+pub const SNARES: [&str; 8] = [
+    "Crisp",
+    "Studio",
+    "Rimshot",
+    "Vintage",
+    "Ringing",
+    "Rock",
+    "Session",
+    "Your sound",
+];
+/// Built-in sounds of each drum.
+pub const BUILT_IN: [usize; 2] = [KICKS.len() - 1, SNARES.len() - 1];
+
+const EXTENSIONS: &[&str] = &["wav", "flac", "aif", "aiff", "ogg", "mp3"];
+/// The file each drum plays as its own sound.
+pub const SLOTS: [FileSlot; 2] = [
+    FileSlot {
+        id: "kick_file",
+        name: "Kick sample",
+        kind: FileKind::Audio,
+        extensions: EXTENSIONS,
+    },
+    FileSlot {
+        id: "snare_file",
+        name: "Snare sample",
+        kind: FileKind::Audio,
+        extensions: EXTENSIONS,
+    },
 ];
 
 pub mod p {
@@ -63,7 +89,7 @@ pub const INFO: EffectInfo = EffectInfo {
     params: &PARAMS,
     meters: &["Input", "Detection", "Hits", "Velocity"],
     instrument: false,
-    files: &[],
+    files: &SLOTS,
     category: "Dynamics",
     description: "Reinforces or replaces a kick or a snare with sampled drums, hit for hit.",
 };
@@ -91,6 +117,7 @@ pub struct Sound {
     pub close: Vec<f32>,
     pub room: Vec<f32>,
     pub hits: Vec<(usize, usize, usize)>,
+    pub rate: f32,
 }
 
 impl Sound {
@@ -133,9 +160,9 @@ pub fn sounds(kind: usize) -> &'static [Sound] {
             .collect()
     });
     if kind == 0 {
-        &all[..KICKS.len()]
+        &all[..BUILT_IN[0]]
     } else {
-        &all[KICKS.len()..]
+        &all[BUILT_IN[0]..]
     }
 }
 
@@ -154,7 +181,57 @@ fn decode(data: &'static [u8], lengths: &[usize]) -> Sound {
         hits.push((start, end - start, attack));
         start = end;
     }
-    Sound { close, room, hits }
+    Sound {
+        close,
+        room,
+        hits,
+        rate: RATE,
+    }
+}
+
+/// A file of one's own as a sound: one hit, mono, without the silence before it.
+fn own(channels: &[Vec<f32>], rate: u32) -> Result<Sound, String> {
+    let length = channels.iter().map(Vec::len).max().unwrap_or(0);
+    let n = channels.len().max(1) as f32;
+    let mono: Vec<f32> = (0..length)
+        .map(|i| {
+            channels
+                .iter()
+                .map(|c| c.get(i).copied().unwrap_or(0.0))
+                .sum::<f32>()
+                / n
+        })
+        .collect();
+    let peak = mono.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+    if peak < 1e-4 {
+        return Err("the file is silent".into());
+    }
+    let first = mono
+        .iter()
+        .position(|s| s.abs() >= peak * 0.02)
+        .unwrap_or(0);
+    let start = first.saturating_sub(12);
+    let end = (start + (4.0 * rate as f32) as usize).min(length);
+    let close: Vec<f32> = mono[start..end].iter().map(|s| s * 0.95 / peak).collect();
+    let attack = close
+        .iter()
+        .position(|s| s.abs() >= 0.95 * ATTACK)
+        .unwrap_or(0);
+    Ok(Sound {
+        room: close.clone(),
+        hits: vec![(0, close.len(), attack)],
+        close,
+        rate: rate as f32,
+    })
+}
+
+/// A sound of a drum: built in, or its own file once loaded.
+fn lookup(custom: &[Option<Sound>; 2], kind: usize, sound: usize) -> Option<&Sound> {
+    if sound >= BUILT_IN[kind] {
+        custom[kind].as_ref()
+    } else {
+        sounds(kind).get(sound)
+    }
 }
 
 /// The two channels of an embedded FLAC file.
@@ -257,6 +334,7 @@ pub struct Trigger {
     strongest: f32,
     voices: [Voice; VOICES],
     take: usize,
+    custom: [Option<Sound>; 2],
     room: Box<dyn Effect>,
     bus: [Vec<f32>; 2],
     meters: [f32; 4],
@@ -305,6 +383,7 @@ impl Default for Trigger {
             strongest: 0.0,
             voices: [Voice::default(); VOICES],
             take: 0,
+            custom: [None, None],
             room,
             bus: Default::default(),
             meters: [0.0; 4],
@@ -332,12 +411,8 @@ impl Trigger {
 
     fn sound(&self) -> usize {
         let kind = self.kind();
-        let (index, count) = if kind == 0 {
-            (p::KICK, KICKS.len())
-        } else {
-            (p::SNARE, SNARES.len())
-        };
-        (self.values[index].round().max(0.0) as usize).min(count - 1)
+        let index = if kind == 0 { p::KICK } else { p::SNARE };
+        (self.values[index].round().max(0.0) as usize).min(BUILT_IN[kind])
     }
 
     /// The detection hears the kick's low end, or the snare above the kick's: steep slopes,
@@ -367,9 +442,10 @@ impl Trigger {
         self.filters = [Biquad::default(); 3];
     }
 
-    /// Starts the sound for a hit `relative` to the strongest, `strength` loud (linear), whose
-    /// attack is heard `wait` samples from now.
-    fn play(&mut self, relative: f32, strength: f32, wait: f64) {
+    /// Starts the sound for a hit `relative` to the strongest, whose attack is heard `wait`
+    /// samples from now and should carry the energy `energy` (RMS over `span` samples, signed
+    /// as the track's attack).
+    fn play(&mut self, relative: f32, (energy, span): (f32, usize), wait: f64) {
         let kind = self.kind();
         let sound = self.sound();
         let dynamics = self.values[p::DYNAMICS] / 100.0;
@@ -378,13 +454,18 @@ impl Trigger {
         let shaped = 10f32.powf(dynamics * 20.0 * relative.max(1e-4).log10() / 20.0);
         let layer = layer_of(shaped);
         self.take = self.take.wrapping_add(1);
-        let hits = &sounds(kind)[sound];
+        let Some(hits) = lookup(&self.custom, kind, sound) else {
+            return;
+        };
         let (start, length, attack) = hits.hit(layer, self.take);
-        // The sample's attack goes the way the track's does.
-        let strength = strength * hits.close[start + attack].signum();
-        let step = f64::from(RATE / self.rate * 2f32.powf(self.values[p::TUNE] / 12.0));
+        let step = f64::from(hits.rate / self.rate * 2f32.powf(self.values[p::TUNE] / 12.0));
+        // As much energy as the track's attack over the same time, the same way up.
+        let read = ((span as f64 * step) as usize).max(1);
+        let body = &hits.close[start + attack..start + (attack + read).min(length)];
+        let own = (body.iter().map(|v| v * v).sum::<f32>() / body.len().max(1) as f32).sqrt();
+        let strength = energy / own.max(1e-6) * hits.close[start + attack].signum();
         let decay = self.values[p::DECAY] / 100.0;
-        let seconds = length as f32 / RATE;
+        let seconds = length as f32 / hits.rate;
         // A new hit damps the ones still ringing, as on a real head.
         let damp = falloff(0.025, self.rate);
         for v in self.voices.iter_mut().filter(|v| v.active) {
@@ -415,7 +496,7 @@ impl Trigger {
             } else {
                 f64::MAX
             },
-            falloff: falloff(0.3 * decay * seconds, RATE / step as f32),
+            falloff: falloff(0.3 * decay * seconds, hits.rate / step as f32),
         };
         self.meters[2] = (self.meters[2] + 1.0) % 1_000_000.0;
         self.meters[3] = shaped;
@@ -424,6 +505,7 @@ impl Trigger {
     /// The next sample of the sounds playing: close and room mics.
     fn voices(&mut self) -> (f32, f32) {
         let (mut close, mut room) = (0.0, 0.0);
+        let custom = &self.custom;
         for v in &mut self.voices {
             if !v.active {
                 continue;
@@ -438,7 +520,10 @@ impl Trigger {
                 v.active = false;
                 continue;
             }
-            let sound = &sounds(v.kind)[v.sound];
+            let Some(sound) = lookup(custom, v.kind, v.sound) else {
+                v.active = false;
+                continue;
+            };
             let frac = (at - i as f64) as f32;
             let read = |buffer: &[f32]| {
                 let a = buffer[v.start + i];
@@ -483,7 +568,7 @@ impl Effect for Trigger {
     fn midi(&mut self, event: &MidiEvent) {
         if let Some((_, velocity)) = event.as_note_on() {
             let strength = f32::from(velocity) / 127.0;
-            self.play(strength, 0.7 * strength, 0.0);
+            self.play(strength, (0.25 * strength, 480), 0.0);
         }
     }
 
@@ -562,11 +647,15 @@ impl Effect for Trigger {
                         .find(|&k| magnitude(k) >= level)
                         .unwrap_or(hit.onset);
                     let polarity = signed(attack).signum();
+                    let span = (t + 1 - attack.min(t)) as usize;
+                    let energy = ((attack..=t).map(|k| signed(k) * signed(k)).sum::<f32>()
+                        / span as f32)
+                        .sqrt();
                     self.strongest = self.strongest.max(hit.raw);
                     let relative = hit.raw / self.strongest.max(1e-9);
                     // Heard where the track's attack comes out of the delay.
                     let wait = (attack + self.lookahead as u64) as f64 - t as f64;
-                    self.play(relative, hit.raw * 1.05 * polarity, wait);
+                    self.play(relative, (energy * polarity, span), wait);
                 }
             } else if t >= self.armed && x > threshold && self.fast > before * rise {
                 self.pending = Some(Pending {
@@ -593,6 +682,20 @@ impl Effect for Trigger {
                 right[i] += br[i] * wet;
             }
         }
+    }
+
+    fn load(&mut self, slot: &str, file: FileData) -> Result<String, String> {
+        let kind = SLOTS
+            .iter()
+            .position(|s| s.id == slot)
+            .ok_or_else(|| format!("no slot {slot}"))?;
+        let FileData::Audio { channels, rate } = file else {
+            return Err("a drum plays an audio file".into());
+        };
+        let sound = own(&channels, rate)?;
+        let seconds = sound.close.len() as f32 / sound.rate;
+        self.custom[kind] = Some(sound);
+        Ok(format!("{seconds:.2} s"))
     }
 
     fn reset(&mut self) {
@@ -688,8 +791,7 @@ mod tests {
 
     #[test]
     fn every_sound_decodes_with_its_hits() {
-        for kind in 0..2 {
-            let count = if kind == 0 { KICKS.len() } else { SNARES.len() };
+        for (kind, count) in BUILT_IN.into_iter().enumerate() {
             assert_eq!(sounds(kind).len(), count);
             for (k, s) in sounds(kind).iter().enumerate() {
                 assert_eq!(s.close.len(), s.room.len(), "{kind} {k}");
@@ -767,12 +869,6 @@ mod tests {
             energy(&half) > energy(&input) && energy(&half) > energy(&full),
             "both whole at half way, adding up"
         );
-        let peak = |x: &[f32]| x.iter().fold(0.0f32, |m, v| m.max(v.abs()));
-        let ratio = 20.0 * (peak(&full) / peak(&input)).log10();
-        assert!(
-            ratio.abs() < 3.0,
-            "the sample peaks as the track: {ratio:.1} dB"
-        );
     }
 
     #[test]
@@ -806,6 +902,59 @@ mod tests {
         let mut t = trigger(&[(p::THRESHOLD, -36.0)]);
         run(&mut t, &input);
         assert_eq!(t.meters[2] as usize, kicks.len());
+    }
+
+    #[test]
+    fn the_sample_matches_the_track_level() {
+        // The track is a recorded kick; the trigger plays the same one alone.
+        let kick = &sounds(0)[0];
+        let (start, length, _) = kick.hit(LAYERS - 1, 0);
+        let mut input = vec![0.0f32; 48_000];
+        for k in 0..length.min(40_000) {
+            input[2_400 + k] = kick.close[start + k] * 0.5;
+        }
+        let mut t = trigger(&[(p::AMOUNT, 100.0), (p::ROOM, 0.0)]);
+        let out = run(&mut t, &input);
+        let latency = t.latency() as usize;
+        let rms = |x: &[f32]| (x.iter().map(|v| v * v).sum::<f32>() / x.len() as f32).sqrt();
+        let track = rms(&input[2_400..2_400 + 14_400]);
+        let sample = rms(&out[2_400 + latency..2_400 + latency + 14_400]);
+        let difference = 20.0 * (sample / track).log10();
+        assert!(difference.abs() < 1.5, "{difference:.1} dB");
+    }
+
+    #[test]
+    fn a_file_of_ones_own_plays_once_loaded() {
+        let mut hit = vec![0.0f32; 4_800];
+        hit.extend((0..9_600).map(|k| {
+            let t = k as f32 / 44_100.0;
+            0.4 * (std::f32::consts::TAU * 70.0 * t).sin() * (-t / 0.1).exp()
+        }));
+        let mut t = Trigger::default();
+        assert!(
+            t.load(
+                "kick_file",
+                FileData::Audio {
+                    channels: vec![hit],
+                    rate: 44_100
+                }
+            )
+            .is_ok()
+        );
+        t.set_param(p::KICK, BUILT_IN[0] as f32);
+        t.set_param(p::AMOUNT, 100.0);
+        t.set_param(p::ROOM, 0.0);
+        t.prepare(48_000, 512);
+        let own = t.custom[0].as_ref().unwrap();
+        assert!(own.hits[0].2 < 100, "the silence before it is gone");
+        let input = hits(&[(4_800, 0.8)], 48_000, 55.0);
+        let out = run(&mut t, &input);
+        assert_eq!(t.meters[2] as usize, 1);
+        assert!(out.iter().any(|v| v.abs() > 0.1), "it is heard");
+        // Without its file, the last choice stays silent.
+        let mut empty = trigger(&[(p::KICK, BUILT_IN[0] as f32), (p::AMOUNT, 100.0)]);
+        let out = run(&mut empty, &input);
+        assert!(out.iter().all(|v| v.abs() < 1e-6));
     }
 
     #[test]

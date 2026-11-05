@@ -2,10 +2,11 @@
 //! a threshold to drag, then the detection and sound knobs, and two faders: close mics to
 //! room, and the track to the trigger.
 
-use std::collections::VecDeque;
-use std::sync::Arc;
+use std::collections::{HashMap, VecDeque};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
-use audiostrada_dsp::trigger::{self, KICKS, SNARES};
+use audiostrada_dsp::trigger::{self, BUILT_IN, KICKS, SLOTS, SNARES};
 use eframe::egui::{
     self, Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Shape, Stroke, Ui, pos2, vec2,
 };
@@ -23,6 +24,52 @@ pub struct TriggerState {
     /// Time and strength (0 to 1) of each hit.
     hits: VecDeque<(f64, f32)>,
     count: Option<f32>,
+    /// The sounds of one's own, read once from the settings.
+    own: Option<Vec<OwnSound>>,
+    /// The sound being added, in its dialog.
+    draft: Option<Draft>,
+}
+
+/// A sound of one's own: its name, its file and its drum (0 kick, 1 snare).
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+struct OwnSound {
+    name: String,
+    path: PathBuf,
+    kind: usize,
+}
+
+#[derive(Debug, Default)]
+struct Draft {
+    name: String,
+    path: Option<PathBuf>,
+    kind: usize,
+}
+
+/// Where the sounds of one's own are listed, for every project.
+fn own_file() -> Option<PathBuf> {
+    if cfg!(test) {
+        return None;
+    }
+    dirs::config_dir().map(|d| d.join("audiostrada").join("trigger_sounds.json"))
+}
+
+fn read_own() -> Vec<OwnSound> {
+    own_file()
+        .and_then(|f| std::fs::read_to_string(f).ok())
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+fn write_own(list: &[OwnSound]) {
+    let Some(file) = own_file() else {
+        return;
+    };
+    if let Some(dir) = file.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Ok(text) = serde_json::to_string_pretty(list) {
+        let _ = std::fs::write(file, text);
+    }
 }
 
 /// Seconds of history drawn.
@@ -83,7 +130,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Trigge
     screen(ui, |ui| {
         kind_switch(ui, params, kind);
         ui.add_space(10.0);
-        cards(ui, params, kind);
+        cards(ui, params, kind, state);
         ui.add_space(12.0);
         display(ui, params, state, color);
         ui.add_space(12.0);
@@ -131,6 +178,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Trigge
             44.0,
         );
     });
+    add_dialog(ui, params, state);
     ui.ctx().request_repaint();
 }
 
@@ -189,91 +237,412 @@ fn kind_switch(ui: &mut Ui, params: &mut Params, kind: usize) {
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.label(
-                RichText::new(tr("20 ms look-ahead, compensated by the mix"))
-                    .size(11.0)
-                    .color(INK.gamma_multiply(0.45)),
+                RichText::new(tr(
+                    "Plays 20 ms ahead: the mix delays the rest to stay in time",
+                ))
+                .size(11.0)
+                .color(INK.gamma_multiply(0.45)),
             );
         });
     });
 }
 
-/// The sounds of the drum as cards across the width: click one to choose and hear it.
-fn cards(ui: &mut Ui, params: &mut Params, kind: usize) {
+/// What a card stands for.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Card {
+    BuiltIn(usize),
+    /// A sound of one's own, by its place in the list.
+    Own(usize),
+    /// The file the project plays, not in one's list.
+    Loaded,
+    Add,
+}
+
+/// The sounds of the drum as cards across the width, then one's own and a card to add one:
+/// click one to choose it and hear it.
+fn cards(ui: &mut Ui, params: &mut Params, kind: usize, state: &mut TriggerState) {
     let (id, names): (&str, &[&str]) = if kind == 0 {
         ("kick", &KICKS)
     } else {
         ("snare", &SNARES)
     };
+    let own = state.own.get_or_insert_with(read_own).clone();
     let chosen = params.get(id).round() as usize;
+    let slot = SLOTS[kind].id;
+    let loaded =
+        audiostrada_core::routing::find_insert(params.doc.project(), params.channel, params.insert)
+            .and_then(|i| i.files.get(slot).cloned());
+    let loaded_name = loaded
+        .as_ref()
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_os_string());
+    let is_loaded = |o: &OwnSound| o.path.file_name().map(|n| n.to_os_string()) == loaded_name;
+    let mut list: Vec<Card> = (0..BUILT_IN[kind]).map(Card::BuiltIn).collect();
+    list.extend(
+        own.iter()
+            .enumerate()
+            .filter(|(_, o)| o.kind == kind)
+            .map(|(k, _)| Card::Own(k)),
+    );
+    if loaded.is_some() && !own.iter().any(|o| o.kind == kind && is_loaded(o)) {
+        list.push(Card::Loaded);
+    }
+    list.push(Card::Add);
     let color = tint(kind);
     let gap = 8.0;
-    let width =
-        ((ui.available_width() - gap * (names.len() - 1) as f32) / names.len() as f32).floor();
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = gap;
-        for (k, name) in names.iter().enumerate() {
-            let (rect, response) = ui.allocate_exact_size(vec2(width, 78.0), Sense::click());
-            let on = k == chosen;
-            let painter = ui.painter_at(rect.expand(3.0));
-            let fill = theme::mix(
-                MODULE,
-                color,
-                if on {
+    let per_row = list.len().min(8);
+    let width = ((ui.available_width() - gap * (per_row - 1) as f32) / per_row as f32).floor();
+    let mut remove = None;
+    for row in list.chunks(per_row) {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            for &card in row {
+                let (rect, response) = ui.allocate_exact_size(vec2(width, 78.0), Sense::click());
+                let on = match card {
+                    Card::BuiltIn(k) => k == chosen,
+                    Card::Own(k) => chosen == BUILT_IN[kind] && is_loaded(&own[k]),
+                    Card::Loaded => chosen == BUILT_IN[kind],
+                    Card::Add => false,
+                };
+                let painter = ui.painter_at(rect.expand(3.0));
+                let strength = if on {
                     0.32
                 } else if response.hovered() {
                     0.16
                 } else {
                     0.06
-                },
-            );
-            painter.rect_filled(rect, 8.0, fill);
-            if on {
-                painter.rect_stroke(
-                    rect,
-                    8.0,
-                    Stroke::new(2.0, color),
-                    egui::StrokeKind::Outside,
+                };
+                if card == Card::Add {
+                    painter.rect_stroke(
+                        rect.shrink(1.0),
+                        8.0,
+                        Stroke::new(1.5, INK.gamma_multiply(0.25 + strength)),
+                        egui::StrokeKind::Inside,
+                    );
+                    painter.text(
+                        rect.center() - vec2(0.0, 8.0),
+                        Align2::CENTER_CENTER,
+                        "+",
+                        FontId::proportional(24.0),
+                        INK.gamma_multiply(0.7),
+                    );
+                    painter.text(
+                        rect.center() + vec2(0.0, 16.0),
+                        Align2::CENTER_CENTER,
+                        tr("Your sound"),
+                        FontId::proportional(11.0),
+                        INK.gamma_multiply(0.6),
+                    );
+                    let response = response.on_hover_text(tr(
+                        "Add a sound of your own: a file with one hit, named as you like",
+                    ));
+                    if response.clicked() {
+                        state.draft = Some(Draft {
+                            kind,
+                            ..Draft::default()
+                        });
+                    }
+                    continue;
+                }
+                painter.rect_filled(rect, 8.0, theme::mix(MODULE, color, strength));
+                if on {
+                    painter.rect_stroke(
+                        rect,
+                        8.0,
+                        Stroke::new(2.0, color),
+                        egui::StrokeKind::Outside,
+                    );
+                }
+                let (name, subtitle, shape) = match card {
+                    Card::BuiltIn(k) => (
+                        tr(names[k]).to_owned(),
+                        tr(subtitle(kind, k)),
+                        Arc::new(trigger::shape(kind, k, 80)),
+                    ),
+                    Card::Own(k) => (
+                        own[k].name.clone(),
+                        tr("Your sound"),
+                        file_shape(&own[k].path),
+                    ),
+                    _ => (
+                        loaded
+                            .as_ref()
+                            .and_then(|p| p.file_stem())
+                            .map_or_else(String::new, |s| s.to_string_lossy().into_owned()),
+                        tr("File of this project"),
+                        file_shape(&project_path(params, loaded.as_deref())),
+                    ),
+                };
+                painter.text(
+                    rect.left_top() + vec2(9.0, 8.0),
+                    Align2::LEFT_TOP,
+                    name,
+                    theme::strong(13.0),
+                    INK,
                 );
+                painter.text(
+                    rect.left_top() + vec2(9.0, 26.0),
+                    Align2::LEFT_TOP,
+                    subtitle,
+                    FontId::proportional(10.5),
+                    INK.gamma_multiply(0.6),
+                );
+                let wave = Rect::from_min_max(
+                    rect.left_top() + vec2(9.0, 44.0),
+                    rect.right_bottom() - vec2(9.0, 7.0),
+                );
+                waveform(
+                    &painter,
+                    wave,
+                    &shape,
+                    if on { color } else { INK.gamma_multiply(0.55) },
+                );
+                let hint = match card {
+                    Card::BuiltIn(k) => {
+                        format!(
+                            "{}\n{}",
+                            tr("Click to choose it and hear it"),
+                            source(kind, k)
+                        )
+                    }
+                    Card::Own(k) => format!(
+                        "{}\n{}",
+                        tr("Click to choose it and hear it; right-click to take it off the list"),
+                        own[k].path.display()
+                    ),
+                    _ => tr("Click to choose it and hear it").to_owned(),
+                };
+                let response = response.on_hover_text(hint);
+                if let Card::Own(k) = card {
+                    response.context_menu(|ui| {
+                        if ui.button(tr("Take off the list")).clicked() {
+                            remove = Some(k);
+                            ui.close();
+                        }
+                    });
+                }
+                let value = match card {
+                    Card::BuiltIn(k) => k,
+                    _ => BUILT_IN[kind],
+                };
+                let changed = (response.clicked() && !on).then_some(value as f32);
+                if changed.is_some()
+                    && let Card::Own(k) = card
+                    && let Err(e) = params.doc.set_effect_file(
+                        params.channel,
+                        params.insert,
+                        slot,
+                        Some(&own[k].path),
+                    )
+                {
+                    params.doc.notify(e);
+                }
+                params.set(id, changed, &response);
+                if changed.is_some() {
+                    params.doc.history_mut().end_gesture();
+                }
+                if response.clicked() {
+                    match card {
+                        Card::BuiltIn(k) => audition(params, kind, k),
+                        Card::Own(k) => play_file(params, &own[k].path),
+                        _ => {
+                            let path = project_path(params, loaded.as_deref());
+                            play_file(params, &path);
+                        }
+                    }
+                }
             }
-            painter.text(
-                rect.left_top() + vec2(9.0, 8.0),
-                Align2::LEFT_TOP,
-                tr(name),
-                theme::strong(13.0),
-                INK,
-            );
-            painter.text(
-                rect.left_top() + vec2(9.0, 26.0),
-                Align2::LEFT_TOP,
-                tr(subtitle(kind, k)),
-                FontId::proportional(10.5),
-                INK.gamma_multiply(0.6),
-            );
-            let wave = Rect::from_min_max(
-                rect.left_top() + vec2(9.0, 44.0),
-                rect.right_bottom() - vec2(9.0, 7.0),
-            );
-            waveform(
-                &painter,
-                wave,
-                &trigger::shape(kind, k, 80),
-                if on { color } else { INK.gamma_multiply(0.55) },
-            );
-            let response = response.on_hover_text(format!(
-                "{}\n{}",
-                tr("Click to choose it and hear it"),
-                source(kind, k)
-            ));
-            let changed = (response.clicked() && !on).then_some(k as f32);
-            params.set(id, changed, &response);
-            if changed.is_some() {
-                params.doc.history_mut().end_gesture();
+        });
+        ui.add_space(gap - ui.spacing().item_spacing.y);
+    }
+    if let Some(k) = remove
+        && let Some(list) = &mut state.own
+    {
+        list.remove(k);
+        write_own(list);
+    }
+}
+
+/// A file the project keeps, as a path to read.
+fn project_path(params: &Params, file: Option<&Path>) -> PathBuf {
+    let Some(file) = file else {
+        return PathBuf::new();
+    };
+    params.doc.resolve(file)
+}
+
+/// Peaks of a file's first channel, for its card, read once.
+fn file_shape(path: &Path) -> Arc<Vec<f32>> {
+    static CACHE: Mutex<Option<HashMap<PathBuf, Arc<Vec<f32>>>>> = Mutex::new(None);
+    let Ok(mut cache) = CACHE.lock() else {
+        return Arc::default();
+    };
+    let cache = cache.get_or_insert_with(HashMap::new);
+    if let Some(peaks) = cache.get(path) {
+        return Arc::clone(peaks);
+    }
+    let samples = audiostrada_media::load(path)
+        .map(|a| a.channel(0).to_vec())
+        .unwrap_or_default();
+    let top = samples.iter().fold(1e-6f32, |m, v| m.max(v.abs()));
+    let end = samples
+        .iter()
+        .rposition(|v| v.abs() > top * 2e-3)
+        .map_or(0, |i| i + 1);
+    let per = (end / 80).max(1);
+    let peaks: Vec<f32> = samples[..end]
+        .chunks(per)
+        .map(|c| c.iter().fold(0.0f32, |m, v| m.max(v.abs())) / top)
+        .collect();
+    let peaks = Arc::new(peaks);
+    cache.insert(path.to_path_buf(), Arc::clone(&peaks));
+    peaks
+}
+
+/// Plays a file as it is, at the engine's rate.
+fn play_file(params: &mut Params, path: &Path) {
+    let Ok(audio) = audiostrada_media::load(path) else {
+        return;
+    };
+    let rate = params.doc.player().engine().sample_rate();
+    let step = f64::from(audio.sample_rate()) / f64::from(rate);
+    let channels = (0..audio.channels().min(2))
+        .map(|c| {
+            let x = audio.channel(c);
+            let n = (x.len() as f64 / step) as usize;
+            (0..n)
+                .map(|k| {
+                    let at = k as f64 * step;
+                    let i = at as usize;
+                    let frac = (at - i as f64) as f32;
+                    let a = x[i];
+                    a + (x.get(i + 1).copied().unwrap_or(a) - a) * frac
+                })
+                .collect()
+        })
+        .collect();
+    let data = audiostrada_media::AudioData::new(channels, rate);
+    params.doc.player_mut().preview(Some(Arc::new(data)));
+}
+
+/// The dialog adding a sound of one's own: its name, its drum and its file, heard before
+/// it is added.
+fn add_dialog(ui: &Ui, params: &mut Params, state: &mut TriggerState) {
+    let Some(draft) = &mut state.draft else {
+        return;
+    };
+    let (mut cancel, mut add) = (false, false);
+    egui::Modal::new(egui::Id::unique("trigger-add-sound")).show(ui.ctx(), |ui| {
+        ui.set_width(420.0);
+        ui.label(RichText::new(tr("Add a sound")).strong().size(16.0));
+        ui.add_space(8.0);
+        egui::Grid::new("trigger-add-grid")
+            .num_columns(2)
+            .spacing([12.0, 10.0])
+            .show(ui, |ui| {
+                ui.label(tr("Name"));
+                ui.add(
+                    egui::TextEdit::singleline(&mut draft.name)
+                        .hint_text(tr("My kick"))
+                        .desired_width(260.0),
+                );
+                ui.end_row();
+                ui.label(tr("Drum"));
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut draft.kind, 0, tr("Kick"));
+                    ui.selectable_value(&mut draft.kind, 1, tr("Snare"));
+                });
+                ui.end_row();
+                ui.label(tr("File"));
+                ui.horizontal(|ui| {
+                    let open = ui.button(tr("Choose a file…")).clicked();
+                    if let Some(file) =
+                        crate::dialogs::ask(ui.ctx(), "trigger-own-file", open, || {
+                            rfd::FileDialog::new()
+                                .add_filter(tr("Audio"), SLOTS[0].extensions)
+                                .pick_file()
+                        })
+                    {
+                        if draft.name.trim().is_empty()
+                            && let Some(stem) = file.file_stem()
+                        {
+                            draft.name = stem.to_string_lossy().into_owned();
+                        }
+                        draft.path = Some(file);
+                    }
+                    match &draft.path {
+                        Some(path) => {
+                            let name = path
+                                .file_name()
+                                .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+                            ui.label(name).on_hover_text(path.display().to_string());
+                            if ui.button(tr("Listen")).clicked() {
+                                play_file(params, path);
+                            }
+                        }
+                        None => {
+                            ui.weak(tr("No file yet"));
+                        }
+                    }
+                });
+                ui.end_row();
+            });
+        ui.add_space(8.0);
+        ui.weak(tr(
+            "One hit per file. The silence before it is taken off and its level follows the \
+             track's hits. WAV, FLAC, AIFF, OGG or MP3.",
+        ));
+        theme::footer(ui, |ui| {
+            let ready = draft.path.is_some() && !draft.name.trim().is_empty();
+            if theme::primary_button_enabled(ui, ready, tr("Add")).clicked() {
+                add = true;
             }
-            if response.clicked() {
-                audition(params, kind, k);
+            if ui.button(tr("Cancel")).clicked() {
+                cancel = true;
             }
-        }
+        });
     });
+    if cancel || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        state.draft = None;
+        return;
+    }
+    if !add {
+        return;
+    }
+    let Some(draft) = state.draft.take() else {
+        return;
+    };
+    let Some(path) = draft.path else {
+        return;
+    };
+    let kind = draft.kind;
+    let list = state.own.get_or_insert_with(read_own);
+    list.push(OwnSound {
+        name: draft.name.trim().to_owned(),
+        path: path.clone(),
+        kind,
+    });
+    write_own(list);
+    if let Err(e) =
+        params
+            .doc
+            .set_effect_file(params.channel, params.insert, SLOTS[kind].id, Some(&path))
+    {
+        params.doc.notify(e);
+        return;
+    }
+    let response = ui.interact(
+        Rect::NOTHING,
+        ui.scope_id().with("trigger-add"),
+        Sense::hover(),
+    );
+    params.set("kind", Some(kind as f32), &response);
+    params.set(
+        if kind == 0 { "kick" } else { "snare" },
+        Some(BUILT_IN[kind] as f32),
+        &response,
+    );
+    params.doc.history_mut().end_gesture();
 }
 
 /// Plays a hard hit of a sound, close to room as set.
@@ -329,7 +698,8 @@ fn display(ui: &mut Ui, params: &mut Params, state: &TriggerState, color: Color3
         plot.bottom(),
         color.gamma_multiply(0.28),
     );
-    if detection.len() > 1 {
+    let heard = state.levels.iter().any(|l| l.1 > 1e-3 || l.2 > 1e-3);
+    if heard && detection.len() > 1 {
         painter.add(Shape::line(
             detection.clone(),
             Stroke::new(1.5, color.gamma_multiply(0.9)),
@@ -377,7 +747,7 @@ fn display(ui: &mut Ui, params: &mut Params, state: &TriggerState, color: Color3
     );
     if state.levels.iter().all(|l| l.1 < 1e-3 && l.2 < 1e-3) {
         painter.text(
-            rect.center(),
+            pos2(rect.center().x, y_of(-50.0)),
             Align2::CENTER_CENTER,
             tr("Play the track: its hits show here, each one found is marked"),
             FontId::proportional(12.5),

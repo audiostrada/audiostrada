@@ -4512,7 +4512,10 @@ impl MixerView {
                     }
                     ui.add_space(4.0);
                     // The synth shows its wavetable files on its own face.
-                    if !rig && !info.files.is_empty() && !matches!(info.id, "synth" | "drums") {
+                    if !rig
+                        && !info.files.is_empty()
+                        && !matches!(info.id, "synth" | "drums" | "trigger")
+                    {
                         effect_files(ui, doc, channel, insert, info);
                         ui.separator();
                     }
