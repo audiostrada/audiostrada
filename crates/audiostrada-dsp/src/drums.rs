@@ -1,11 +1,13 @@
 //! Drum machine: sixteen pads on the General MIDI drum notes. Each drum is built from a recipe
 //! of layers (a tuned body with its pitch drop, two more modes, filtered noise, a click, a bank
 //! of metallic oscillators, the bursts of a clap) in three characters: 808, 909 and acoustic.
-//! A pad can play a WAV file instead. Level, pan, tune, decay and tone per pad; accent, drive,
-//! room and crush for the kit. The closed hat chokes the open one.
+//! A pad can play a WAV file instead. Level, pan, tune, decay, tone, attack, pitch envelope,
+//! filters and sends per pad; accent, drive, crush, compression, EQ, delay and room for the kit.
+//! The closed hat chokes the open one.
 
 use std::sync::Arc;
 
+use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::{
     Effect, EffectInfo, FileData, FileKind, FileSlot, MidiEvent, ParamInfo, choice, db_to_gain,
     param,
@@ -89,6 +91,19 @@ pub mod p {
     pub const MODELS: usize = 83;
     pub const ROOM: usize = 99;
     pub const CRUSH: usize = 100;
+    pub const COMP: usize = 101;
+    pub const LOW: usize = 102;
+    pub const HIGH: usize = 103;
+    pub const DELAY_NOTE: usize = 104;
+    pub const DELAY_FEEDBACK: usize = 105;
+    pub const DELAY: usize = 106;
+    pub const ROOM_SIZE: usize = 107;
+    pub const SHAPES: usize = 108;
+
+    /// Attack, pitch envelope, its decay, low cut, high cut, delay and reverb sends of `pad`.
+    pub const fn shape(pad: usize) -> usize {
+        SHAPES + pad * super::SHAPE_FIELDS
+    }
 
     /// Level, tune, decay and tone of pad `pad`, in this order from the index returned.
     pub const fn fields(pad: usize) -> usize {
@@ -101,7 +116,9 @@ pub mod p {
 }
 /// Settings per pad among the first four: level, tune, decay, tone.
 pub const PER_VOICE: usize = 4;
-const COUNT: usize = p::CRUSH + 1;
+/// Settings per pad among the last ones.
+pub const SHAPE_FIELDS: usize = 7;
+const COUNT: usize = p::SHAPES + VOICES.len() * SHAPE_FIELDS;
 
 macro_rules! pad_fields {
     ($($id:literal, $name:literal;)*) => {
@@ -122,6 +139,22 @@ macro_rules! pad_more {
             [$(param(concat!($id, "_pan"), concat!($name, " pan"), -100.0, 100.0, 0.0, "%"),)*],
             [$(choice(concat!($id, "_model"), concat!($name, " character"), &MODELS, 0.0),)*],
         )
+    };
+}
+
+macro_rules! pad_shapes {
+    ($($id:literal, $name:literal;)*) => {
+        [
+            $(
+                param(concat!($id, "_attack"), concat!($name, " attack"), 0.0, 100.0, 0.0, "ms"),
+                param(concat!($id, "_pitch"), concat!($name, " pitch envelope"), -24.0, 24.0, 0.0, "st"),
+                param(concat!($id, "_pitch_decay"), concat!($name, " pitch decay"), 5.0, 1000.0, 80.0, "ms"),
+                param(concat!($id, "_low_cut"), concat!($name, " low cut"), 20.0, 2000.0, 20.0, "Hz"),
+                param(concat!($id, "_high_cut"), concat!($name, " high cut"), 500.0, 20000.0, 20000.0, "Hz"),
+                param(concat!($id, "_delay"), concat!($name, " delay send"), 0.0, 100.0, 100.0, "%"),
+                param(concat!($id, "_reverb"), concat!($name, " reverb send"), 0.0, 100.0, 100.0, "%"),
+            )*
+        ]
     };
 }
 
@@ -173,7 +206,35 @@ const LAST: [ParamInfo; 2] = [
     param("crush", "Crush", 0.0, 100.0, 0.0, "%"),
 ];
 
-const PARAMS: [ParamInfo; COUNT] = {
+const EFFECTS: [ParamInfo; 7] = [
+    param("comp", "Compression", 0.0, 100.0, 0.0, "%"),
+    param("low", "Bass", -12.0, 12.0, 0.0, "dB"),
+    param("high", "Treble", -12.0, 12.0, 0.0, "dB"),
+    choice("delay_note", "Delay time", &crate::delay::NOTE_NAMES, 6.0),
+    param("delay_feedback", "Delay feedback", 0.0, 90.0, 35.0, "%"),
+    param("delay", "Delay", 0.0, 100.0, 0.0, "%"),
+    param("room_size", "Room size", 0.0, 100.0, 35.0, "%"),
+];
+const SHAPES: [ParamInfo; VOICES.len() * SHAPE_FIELDS] = pad_shapes! {
+    "kick", "Kick";
+    "rim", "Rim shot";
+    "snare", "Snare";
+    "clap", "Clap";
+    "closed", "Closed hat";
+    "open", "Open hat";
+    "low_tom", "Low tom";
+    "mid_tom", "Mid tom";
+    "high_tom", "High tom";
+    "cymbal", "Crash";
+    "cowbell", "Cowbell";
+    "clave", "Clave";
+    "kick2", "Kick 2";
+    "snare2", "Snare 2";
+    "ride", "Ride";
+    "tambourine", "Tambourine";
+};
+
+static PARAMS: [ParamInfo; COUNT] = {
     let mut out = [KIT[0]; COUNT];
     let mut i = 0;
     while i < 48 {
@@ -192,6 +253,16 @@ const PARAMS: [ParamInfo; COUNT] = {
     }
     out[p::ROOM] = LAST[0];
     out[p::CRUSH] = LAST[1];
+    i = 0;
+    while i < EFFECTS.len() {
+        out[p::COMP + i] = EFFECTS[i];
+        i += 1;
+    }
+    i = 0;
+    while i < SHAPES.len() {
+        out[p::SHAPES + i] = SHAPES[i];
+        i += 1;
+    }
     out
 };
 
@@ -636,6 +707,13 @@ struct Voice {
     sample: Option<(f64, f64)>,
     fade: (f32, f32),
     tone: Option<(Filter, Pass)>,
+    /// Attack in samples; pitch envelope in semitones, its per-sample falloff and its level.
+    attack: f32,
+    pitch: (f32, f32, f32),
+    low_cut: Option<Filter>,
+    high_cut: Option<Filter>,
+    /// Delay and reverb sends.
+    sends: (f32, f32),
 }
 
 /// A pad's own sound: its samples (mono) and their rate.
@@ -652,7 +730,23 @@ pub struct Drums {
     samples: [Option<Sample>; VOICES.len()],
     seed: u32,
     room: Box<dyn Effect>,
+    delay: Box<dyn Effect>,
+    comp: Box<dyn Effect>,
     crush: (f32, u32, f32),
+    /// Low and high shelves per channel, their coefficients and the gains they were made for.
+    eq: [Biquad; 4],
+    shelves: (Coefficients, Coefficients),
+    shelf_gains: (f32, f32),
+    /// Delay and reverb send buses, left and right.
+    bus: [Vec<f32>; 4],
+}
+
+/// Sets `effect`'s setting `name`, if the built-in effect `id` has it.
+fn set_named(effect: &mut dyn Effect, id: &str, name: &str, value: f32) {
+    if let Some(i) = crate::info(id).and_then(|info| info.params.iter().position(|q| q.id == name))
+    {
+        effect.set_param(i, value);
+    }
 }
 
 impl std::fmt::Debug for Drums {
@@ -666,27 +760,49 @@ impl std::fmt::Debug for Drums {
 impl Default for Drums {
     fn default() -> Self {
         let mut room = crate::create("reverb").expect("built-in reverb");
-        let info = crate::info("reverb").expect("built-in reverb");
-        for (name, value) in [
-            ("type", 0.0),
-            ("decay", 0.7),
-            ("predelay", 4.0),
-            ("mix", 0.0),
-            ("size", 35.0),
-        ] {
-            if let Some(i) = info.params.iter().position(|p| p.id == name) {
-                room.set_param(i, value);
-            }
+        for (name, value) in [("type", 0.0), ("predelay", 4.0), ("mix", 100.0)] {
+            set_named(&mut *room, "reverb", name, value);
         }
-        Self {
+        let mut delay = crate::create("delay").expect("built-in delay");
+        for (name, value) in [
+            ("pingpong", 1.0),
+            ("low_cut", 250.0),
+            ("high_cut", 6000.0),
+            ("mix", 100.0),
+            ("sync", 1.0),
+            ("wow", 0.0),
+            ("drive", 0.0),
+        ] {
+            set_named(&mut *delay, "delay", name, value);
+        }
+        let mut comp = crate::create("compressor").expect("built-in compressor");
+        for (name, value) in [
+            ("type", 1.0),
+            ("attack", 8.0),
+            ("release", 120.0),
+            ("knee", 6.0),
+        ] {
+            set_named(&mut *comp, "compressor", name, value);
+        }
+        let mut drums = Self {
             rate: 48_000.0,
             values: PARAMS.map(|p| p.default),
             voices: [Voice::default(); VOICES.len()],
             samples: Default::default(),
             seed: 0x1234_5678,
             room,
+            delay,
+            comp,
             crush: (0.0, 0, 0.0),
+            eq: [Biquad::default(); 4],
+            shelves: (Coefficients::IDENTITY, Coefficients::IDENTITY),
+            shelf_gains: (0.0, 0.0),
+            bus: Default::default(),
+        };
+        for i in [p::COMP, p::DELAY_NOTE, p::DELAY_FEEDBACK, p::ROOM_SIZE] {
+            drums.set_param(i, PARAMS[i].default);
         }
+        drums
     }
 }
 
@@ -767,6 +883,7 @@ impl Drums {
             };
             v.sample = Some((0.0, f64::from(sample.rate / rate * ratio)));
             v.gain = level * level * velocity * 1.4;
+            self.shaping(pad, &mut v);
             self.voices[pad] = v;
             return;
         }
@@ -814,7 +931,41 @@ impl Drums {
         v.bursts = (r.bursts.0, r.bursts.1 * rate);
         v.tail = r.noise.4 * loud;
         v.drive = r.drive;
+        self.shaping(pad, &mut v);
         self.voices[pad] = v;
+    }
+
+    /// The pad's attack, pitch envelope, filters and sends.
+    fn shaping(&self, pad: usize, v: &mut Voice) {
+        let at = p::shape(pad);
+        let field = |k: usize| self.values[at + k];
+        let rate = self.rate;
+        v.attack = field(0) / 1000.0 * rate;
+        v.pitch = (field(1), falloff(field(2) / 1000.0, rate), 1.0);
+        let filter = |hz: f32| {
+            let mut f = Filter::default();
+            f.set(hz, std::f32::consts::FRAC_1_SQRT_2, rate);
+            f
+        };
+        v.low_cut = (field(3) > 21.0).then(|| filter(field(3)));
+        v.high_cut = (field(4) < 19_900.0).then(|| filter(field(4)));
+        v.sends = (field(5) / 100.0, field(6) / 100.0);
+    }
+
+    /// The next sample of a pad, shaped, before its pan.
+    fn render(&mut self, pad: usize) -> f32 {
+        let mut x = self.source(pad);
+        let v = &mut self.voices[pad];
+        if v.attack > 0.0 && (v.time as f32) < v.attack {
+            x *= v.time as f32 / v.attack;
+        }
+        if let Some(f) = &mut v.low_cut {
+            x = f.run(x, Pass::High);
+        }
+        if let Some(f) = &mut v.high_cut {
+            x = f.run(x, Pass::Low);
+        }
+        x
     }
 
     fn noise(&mut self) -> f32 {
@@ -824,11 +975,18 @@ impl Drums {
         self.seed as f32 / u32::MAX as f32 * 2.0 - 1.0
     }
 
-    /// The next sample of a pad, before its pan.
-    fn render(&mut self, pad: usize) -> f32 {
+    /// The next sample of a pad's drum or sample.
+    fn source(&mut self, pad: usize) -> f32 {
         let rate = self.rate;
         let white = self.noise();
         let v = &mut self.voices[pad];
+        let bend = if v.pitch.0 == 0.0 {
+            1.0
+        } else {
+            let bend = 2f32.powf(v.pitch.0 * v.pitch.2 / 12.0);
+            v.pitch.2 *= v.pitch.1;
+            bend
+        };
         if let Some((at, step)) = v.sample {
             let Some(sample) = &self.samples[pad] else {
                 v.active = false;
@@ -845,7 +1003,7 @@ impl Drums {
             if let Some((filter, pass)) = &mut v.tone {
                 x = filter.run(x, *pass);
             }
-            v.sample = Some((at + step, step));
+            v.sample = Some((at + step * f64::from(bend), step));
             let t = v.time as f32;
             v.time = v.time.saturating_add(1);
             if t > v.fade.0 {
@@ -862,7 +1020,7 @@ impl Drums {
         let tau = std::f32::consts::TAU;
         let mut out = 0.0;
         if v.frequency > 0.0 {
-            let f = v.frequency * (1.0 + v.drop * (-t / v.drop_time.max(1.0)).exp());
+            let f = v.frequency * (1.0 + v.drop * (-t / v.drop_time.max(1.0)).exp()) * bend;
             v.phase[0] = (v.phase[0] + f / rate).fract();
             out += (tau * v.phase[0]).sin() * v.levels[0];
             for k in 0..2 {
@@ -895,11 +1053,12 @@ impl Drums {
             let (first, count, sines, pass) = v.metal;
             let mut metal = 0.0;
             for k in first..first + count {
-                v.metal_phase[k] = (v.metal_phase[k] + v.metal_steps[k]).fract();
+                let step = v.metal_steps[k] * bend;
+                v.metal_phase[k] = (v.metal_phase[k] + step).fract();
                 metal += if sines {
                     (tau * v.metal_phase[k]).sin()
                 } else {
-                    square(v.metal_phase[k], v.metal_steps[k])
+                    square(v.metal_phase[k], step)
                 };
             }
             out += v.metal_filter.run(metal / count.max(1) as f32, pass) * v.levels[5];
@@ -930,7 +1089,7 @@ impl Drums {
 pub fn preview(values: &[f32], pad: usize, seconds: f32) -> Vec<f32> {
     let mut drums = Drums::default();
     for (i, v) in values.iter().enumerate().take(COUNT) {
-        if i != p::ROOM && i != p::VOLUME {
+        if i != p::ROOM && i != p::VOLUME && !(p::COMP..p::SHAPES).contains(&i) {
             drums.set_param(i, *v);
         }
     }
@@ -950,17 +1109,41 @@ impl Effect for Drums {
         self.rate = sample_rate as f32;
         self.voices = [Voice::default(); VOICES.len()];
         self.room.prepare(sample_rate, max_frames);
+        self.delay.prepare(sample_rate, max_frames);
+        self.comp.prepare(sample_rate, max_frames);
+        self.bus = std::array::from_fn(|_| vec![0.0; max_frames]);
+        self.shelf_gains = (f32::NAN, f32::NAN);
+    }
+
+    fn set_tempo(&mut self, bpm: f64) {
+        self.delay.set_tempo(bpm);
     }
 
     fn set_param(&mut self, index: usize, value: f32) {
         if let Some(v) = self.values.get_mut(index) {
             *v = value;
         }
-        if index == p::ROOM
-            && let Some(i) = crate::info("reverb")
-                .and_then(|info| info.params.iter().position(|q| q.id == "mix"))
-        {
-            self.room.set_param(i, value * 0.6);
+        match index {
+            p::ROOM_SIZE => {
+                set_named(&mut *self.room, "reverb", "size", value);
+                set_named(&mut *self.room, "reverb", "decay", 0.2 + 0.0143 * value);
+            }
+            p::DELAY_NOTE => set_named(&mut *self.delay, "delay", "note", value),
+            p::DELAY_FEEDBACK => set_named(&mut *self.delay, "delay", "feedback", value),
+            p::COMP => {
+                // From a light glue to a squash that brings the room and tails up.
+                let amount = value / 100.0;
+                let threshold = -4.0 - 26.0 * amount;
+                let ratio = 1.5 + 4.5 * amount;
+                for (name, v) in [
+                    ("threshold", threshold),
+                    ("ratio", ratio),
+                    ("makeup", 0.6 * (-threshold - 4.0) * (1.0 - 1.0 / ratio)),
+                ] {
+                    set_named(&mut *self.comp, "compressor", name, v);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -1010,6 +1193,7 @@ impl Effect for Drums {
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+        let n = left.len().min(right.len());
         let drive = self.values[p::DRIVE] / 100.0;
         let volume = db_to_gain(self.values[p::VOLUME]);
         let push = 1.0 + 6.0 * drive;
@@ -1019,15 +1203,51 @@ impl Effect for Drums {
         // Fewer bits and a lower rate as the crush rises: 16 bits to 6, full rate to an eighth.
         let steps = 2f32.powf(15.0 - 9.0 * crush);
         let hold = 1 + (7.0 * crush * crush) as u32;
-        for (l, r) in left.iter_mut().zip(right.iter_mut()) {
+        let shelves = (self.values[p::LOW], self.values[p::HIGH]);
+        if shelves != self.shelf_gains {
+            self.shelf_gains = shelves;
+            let rate = f64::from(self.rate);
+            self.shelves = (
+                Coefficients::design(FilterKind::LowShelf, 110.0, 0.7, f64::from(shelves.0), rate),
+                Coefficients::design(
+                    FilterKind::HighShelf,
+                    5500.0,
+                    0.7,
+                    f64::from(shelves.1),
+                    rate,
+                ),
+            );
+        }
+        let equalize = shelves != (0.0, 0.0);
+        let duck = 0.6 * self.values[p::ROOM] / 100.0;
+        if self.bus[0].len() < n {
+            for b in &mut self.bus {
+                b.resize(n, 0.0);
+            }
+        }
+        for b in &mut self.bus {
+            b[..n].fill(0.0);
+        }
+        for i in 0..n {
             let (mut a, mut b) = (0.0f32, 0.0f32);
+            let mut sends = [0.0f32; 4];
             for pad in 0..VOICES.len() {
                 if self.voices[pad].active {
                     let x = self.render(pad);
-                    let (pl, pr) = self.voices[pad].pan;
-                    a += x * pl;
-                    b += x * pr;
+                    let v = &self.voices[pad];
+                    let (l, r) = (x * v.pan.0, x * v.pan.1);
+                    // The room takes its share of what each pad sends it, as a wet/dry mix.
+                    let dry = 1.0 - duck * v.sends.1;
+                    a += l * dry;
+                    b += r * dry;
+                    sends[0] += l * v.sends.0;
+                    sends[1] += r * v.sends.0;
+                    sends[2] += l * v.sends.1;
+                    sends[3] += r * v.sends.1;
                 }
+            }
+            for (bus, send) in self.bus.iter_mut().zip(sends) {
+                bus[i] = send * HEADROOM;
             }
             // The mix reaches the drive with headroom: a kick peaks near half scale there.
             a *= HEADROOM;
@@ -1046,12 +1266,35 @@ impl Effect for Drums {
                 a = *held;
                 b = *other;
             }
-            // A soft guard from -1 dBFS: hard hits never clip.
-            *l = crate::transient::soft_clip(a * volume * 0.5 / HEADROOM);
-            *r = crate::transient::soft_clip(b * volume * 0.5 / HEADROOM);
+            if equalize {
+                let (low, high) = &self.shelves;
+                let [l1, l2, r1, r2] = &mut self.eq;
+                a = l2.process(high, l1.process(low, f64::from(a))) as f32;
+                b = r2.process(high, r1.process(low, f64::from(b))) as f32;
+            }
+            left[i] = a;
+            right[i] = b;
         }
-        if self.values[p::ROOM] > 0.0 {
-            self.room.process(left, right);
+        if self.values[p::COMP] > 0.0 {
+            self.comp.process(&mut left[..n], &mut right[..n]);
+        }
+        let echo = self.values[p::DELAY] / 100.0;
+        let room = self.values[p::ROOM] / 100.0;
+        let [dl, dr, rl, rr] = &mut self.bus;
+        if echo > 0.0 {
+            self.delay.process(&mut dl[..n], &mut dr[..n]);
+        }
+        if room > 0.0 {
+            self.room.process(&mut rl[..n], &mut rr[..n]);
+        }
+        let out = volume * 0.5 / HEADROOM;
+        let (echo, room) = (0.7 * echo, 0.6 * room);
+        for i in 0..n {
+            let a = left[i] + dl[i] * echo + rl[i] * room;
+            let b = right[i] + dr[i] * echo + rr[i] * room;
+            // A soft guard from -1 dBFS: hard hits never clip.
+            left[i] = crate::transient::soft_clip(a * out);
+            right[i] = crate::transient::soft_clip(b * out);
         }
     }
 
@@ -1060,6 +1303,11 @@ impl Effect for Drums {
             v.active = false;
         }
         self.room.reset();
+        self.delay.reset();
+        self.comp.reset();
+        for f in &mut self.eq {
+            f.reset();
+        }
     }
 
     fn meters(&self, out: &mut [f32]) {
@@ -1272,5 +1520,84 @@ mod tests {
         let distinct: std::collections::BTreeSet<i32> =
             out.iter().map(|s| (s * 1e6) as i32).collect();
         assert!(distinct.len() < out.len() / 4);
+    }
+
+    fn energy(samples: &[f32]) -> f32 {
+        samples.iter().map(|s| s * s).sum()
+    }
+
+    fn crossings(samples: &[f32]) -> usize {
+        samples
+            .windows(2)
+            .filter(|w| w[0] < 0.0 && w[1] >= 0.0)
+            .count()
+    }
+
+    #[test]
+    fn attack_pitch_and_filters_shape_a_pad() {
+        let shaped = |field: usize, value: f32, key: u8| {
+            let mut drums = fresh(0);
+            let pad = voice_of(key).unwrap();
+            drums.set_param(p::shape(pad) + field, value);
+            play(&mut drums, key, 50)
+        };
+        let plain = shaped(0, 0.0, 36);
+        let slow = shaped(0, 40.0, 36);
+        assert!(peak(&slow[..240]) < peak(&plain[..240]) * 0.3, "attack");
+        let mut drums = fresh(0);
+        drums.set_param(p::shape(0) + 1, 24.0);
+        drums.set_param(p::shape(0) + 2, 400.0);
+        let bent = play(&mut drums, 36, 50);
+        assert!(
+            crossings(&bent[..4800]) > 2 * crossings(&plain[..4800]),
+            "pitch"
+        );
+        let thin = shaped(3, 1500.0, 36);
+        assert!(energy(&thin) < energy(&plain) * 0.2, "low cut");
+        let hat = shaped(4, 20_000.0, 42);
+        let dark = shaped(4, 800.0, 42);
+        assert!(energy(&dark) < energy(&hat) * 0.3, "high cut");
+    }
+
+    #[test]
+    fn sends_feed_the_delay_and_room_returns() {
+        let tail = |delay: f32, send: f32| {
+            let mut drums = fresh(0);
+            drums.set_tempo(120.0);
+            drums.set_param(p::DELAY, delay);
+            drums.set_param(p::shape(2) + 5, send);
+            let out = play(&mut drums, 38, 100);
+            energy(&out[24_000..])
+        };
+        assert!(tail(80.0, 100.0) > tail(0.0, 100.0) * 10.0 + 1e-9);
+        assert!(tail(80.0, 0.0) < tail(80.0, 100.0) * 0.01);
+    }
+
+    #[test]
+    fn compression_and_eq_keep_the_kit_near_its_level() {
+        let loudness = |settings: &[(usize, f32)]| {
+            let mut drums = fresh(0);
+            for (i, v) in settings {
+                drums.set_param(*i, *v);
+            }
+            let mut out = Vec::new();
+            for key in [36, 42, 38, 42, 36, 42, 38, 46] {
+                out.extend(play(&mut drums, key, 12));
+            }
+            10.0 * (energy(&out) / out.len() as f32).log10()
+        };
+        let plain = loudness(&[]);
+        for settings in [
+            &[(p::COMP, 50.0)][..],
+            &[(p::COMP, 100.0)],
+            &[(p::LOW, 6.0), (p::HIGH, -6.0)],
+        ] {
+            let level = loudness(settings);
+            assert!(
+                (level - plain).abs() < 4.0,
+                "{settings:?}: {plain:.1} {level:.1}"
+            );
+        }
+        assert!((loudness(&[(p::HIGH, 9.0)]) - plain).abs() > 0.5);
     }
 }

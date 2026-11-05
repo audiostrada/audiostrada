@@ -607,6 +607,7 @@ struct WindowPlaces {
     opened: HashMap<egui::ViewportId, Option<egui::Pos2>>,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn editor_window(
     ctx: &egui::Context,
     places: egui::Id,
@@ -614,12 +615,15 @@ fn editor_window(
     title: &str,
     size: [f32; 2],
     raise: bool,
+    fit: bool,
     add: impl FnOnce(&mut Ui),
 ) -> bool {
-    fn contents(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
+    fn contents(ui: &mut Ui, add: impl FnOnce(&mut Ui)) -> f32 {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
-            .show(ui, add);
+            .show(ui, add)
+            .content_size
+            .y
     }
     let id = egui::ViewportId::from_hash_of(key);
     if raise {
@@ -643,11 +647,37 @@ fn editor_window(
     let open = ctx.show_viewport_immediate(id, builder, |ui, _| {
         // Before the widgets, so that Space plays instead of pressing a focused button.
         crate::window_shortcuts(ui.ctx());
+        let mut height = None;
         egui::CentralPanel::default().show(ui, |ui| {
             if let Some(add) = add.take() {
-                contents(ui, add);
+                height = Some(contents(ui, add));
             }
         });
+        // The window follows its content's height, as the content changes.
+        if fit && let Some(height) = height {
+            let ctx = ui.ctx().clone();
+            let wanted = (height
+                + egui::Frame::central_panel(&ctx.global_style())
+                    .total_margin()
+                    .sum()
+                    .y)
+                .ceil();
+            let key = egui::Id::unique(("fit-height", id));
+            if ctx.data(|d| d.get_temp::<f32>(key)) != Some(wanted) {
+                ctx.data_mut(|d| d.insert_temp(key, wanted));
+                let (width, screen) = ctx.input(|i| {
+                    let v = i.viewport();
+                    (
+                        v.inner_rect.map_or(size[0], |r| r.width()),
+                        v.monitor_size.map_or(f32::MAX, |m| m.y - 60.0),
+                    )
+                });
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(
+                    width,
+                    wanted.min(screen),
+                )));
+            }
+        }
         if let Some(rect) = ui.ctx().input(|i| i.viewport().outer_rect) {
             ui.ctx().data_mut(|d| {
                 let p = d.get_temp_mut_or_default::<WindowPlaces>(places);
@@ -4157,7 +4187,7 @@ impl MixerView {
             } else {
                 [300.0, 460.0]
             };
-            let open = editor_window(ctx, places, key, &title, size, false, |ui| {
+            let open = editor_window(ctx, places, key, &title, size, false, false, |ui| {
                 self.list_header(ui, doc, project, channel, list);
                 ui.add_space(6.0);
                 match list {
@@ -4433,7 +4463,7 @@ impl MixerView {
                 "amp_rig" => [960.0, 820.0],
                 "channel" => [1000.0, 700.0],
                 "synth" => [1180.0, 1000.0],
-                "drums" => [1000.0, 1120.0],
+                "drums" => [1000.0, 720.0],
                 "compressor" => [980.0, 720.0],
                 "gate" => [980.0, 700.0],
                 "deesser" => [980.0, 680.0],
@@ -4461,6 +4491,7 @@ impl MixerView {
                 &title,
                 size,
                 raise,
+                info.id == "drums",
                 |ui| {
                     let state = self.editor_states.entry(id).or_default();
                     let meter = effect_editors::is_meter(info.id);
@@ -4606,6 +4637,7 @@ impl MixerView {
             &title,
             [600.0, 520.0],
             raise,
+            false,
             |ui| {
                 if let Some(error) = &error {
                     ui.colored_label(

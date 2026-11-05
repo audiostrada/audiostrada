@@ -4465,3 +4465,365 @@ Normal
 
 Steps
 Pas
+
+# Drums: pad shaping and kit effects
+
+Kick attack
+Grosse caisse : attaque
+
+Kick pitch envelope
+Grosse caisse : enveloppe de hauteur
+
+Kick pitch decay
+Grosse caisse : durée de hauteur
+
+Kick low cut
+Grosse caisse : coupe-bas
+
+Kick high cut
+Grosse caisse : coupe-haut
+
+Kick delay send
+Grosse caisse : départ delay
+
+Kick reverb send
+Grosse caisse : départ réverb
+
+Rim shot attack
+Rim shot : attaque
+
+Rim shot pitch envelope
+Rim shot : enveloppe de hauteur
+
+Rim shot pitch decay
+Rim shot : durée de hauteur
+
+Rim shot low cut
+Rim shot : coupe-bas
+
+Rim shot high cut
+Rim shot : coupe-haut
+
+Rim shot delay send
+Rim shot : départ delay
+
+Rim shot reverb send
+Rim shot : départ réverb
+
+Snare attack
+Caisse claire : attaque
+
+Snare pitch envelope
+Caisse claire : enveloppe de hauteur
+
+Snare pitch decay
+Caisse claire : durée de hauteur
+
+Snare low cut
+Caisse claire : coupe-bas
+
+Snare high cut
+Caisse claire : coupe-haut
+
+Snare delay send
+Caisse claire : départ delay
+
+Snare reverb send
+Caisse claire : départ réverb
+
+Clap attack
+Clap : attaque
+
+Clap pitch envelope
+Clap : enveloppe de hauteur
+
+Clap pitch decay
+Clap : durée de hauteur
+
+Clap low cut
+Clap : coupe-bas
+
+Clap high cut
+Clap : coupe-haut
+
+Clap delay send
+Clap : départ delay
+
+Clap reverb send
+Clap : départ réverb
+
+Closed hat attack
+Charley fermé : attaque
+
+Closed hat pitch envelope
+Charley fermé : enveloppe de hauteur
+
+Closed hat pitch decay
+Charley fermé : durée de hauteur
+
+Closed hat low cut
+Charley fermé : coupe-bas
+
+Closed hat high cut
+Charley fermé : coupe-haut
+
+Closed hat delay send
+Charley fermé : départ delay
+
+Closed hat reverb send
+Charley fermé : départ réverb
+
+Open hat attack
+Charley ouvert : attaque
+
+Open hat pitch envelope
+Charley ouvert : enveloppe de hauteur
+
+Open hat pitch decay
+Charley ouvert : durée de hauteur
+
+Open hat low cut
+Charley ouvert : coupe-bas
+
+Open hat high cut
+Charley ouvert : coupe-haut
+
+Open hat delay send
+Charley ouvert : départ delay
+
+Open hat reverb send
+Charley ouvert : départ réverb
+
+Low tom attack
+Tom grave : attaque
+
+Low tom pitch envelope
+Tom grave : enveloppe de hauteur
+
+Low tom pitch decay
+Tom grave : durée de hauteur
+
+Low tom low cut
+Tom grave : coupe-bas
+
+Low tom high cut
+Tom grave : coupe-haut
+
+Low tom delay send
+Tom grave : départ delay
+
+Low tom reverb send
+Tom grave : départ réverb
+
+Mid tom attack
+Tom médium : attaque
+
+Mid tom pitch envelope
+Tom médium : enveloppe de hauteur
+
+Mid tom pitch decay
+Tom médium : durée de hauteur
+
+Mid tom low cut
+Tom médium : coupe-bas
+
+Mid tom high cut
+Tom médium : coupe-haut
+
+Mid tom delay send
+Tom médium : départ delay
+
+Mid tom reverb send
+Tom médium : départ réverb
+
+High tom attack
+Tom aigu : attaque
+
+High tom pitch envelope
+Tom aigu : enveloppe de hauteur
+
+High tom pitch decay
+Tom aigu : durée de hauteur
+
+High tom low cut
+Tom aigu : coupe-bas
+
+High tom high cut
+Tom aigu : coupe-haut
+
+High tom delay send
+Tom aigu : départ delay
+
+High tom reverb send
+Tom aigu : départ réverb
+
+Crash attack
+Crash : attaque
+
+Crash pitch envelope
+Crash : enveloppe de hauteur
+
+Crash pitch decay
+Crash : durée de hauteur
+
+Crash low cut
+Crash : coupe-bas
+
+Crash high cut
+Crash : coupe-haut
+
+Crash delay send
+Crash : départ delay
+
+Crash reverb send
+Crash : départ réverb
+
+Cowbell attack
+Cloche : attaque
+
+Cowbell pitch envelope
+Cloche : enveloppe de hauteur
+
+Cowbell pitch decay
+Cloche : durée de hauteur
+
+Cowbell low cut
+Cloche : coupe-bas
+
+Cowbell high cut
+Cloche : coupe-haut
+
+Cowbell delay send
+Cloche : départ delay
+
+Cowbell reverb send
+Cloche : départ réverb
+
+Clave attack
+Clave : attaque
+
+Clave pitch envelope
+Clave : enveloppe de hauteur
+
+Clave pitch decay
+Clave : durée de hauteur
+
+Clave low cut
+Clave : coupe-bas
+
+Clave high cut
+Clave : coupe-haut
+
+Clave delay send
+Clave : départ delay
+
+Clave reverb send
+Clave : départ réverb
+
+Kick 2 attack
+Grosse caisse 2 : attaque
+
+Kick 2 pitch envelope
+Grosse caisse 2 : enveloppe de hauteur
+
+Kick 2 pitch decay
+Grosse caisse 2 : durée de hauteur
+
+Kick 2 low cut
+Grosse caisse 2 : coupe-bas
+
+Kick 2 high cut
+Grosse caisse 2 : coupe-haut
+
+Kick 2 delay send
+Grosse caisse 2 : départ delay
+
+Kick 2 reverb send
+Grosse caisse 2 : départ réverb
+
+Snare 2 attack
+Caisse claire 2 : attaque
+
+Snare 2 pitch envelope
+Caisse claire 2 : enveloppe de hauteur
+
+Snare 2 pitch decay
+Caisse claire 2 : durée de hauteur
+
+Snare 2 low cut
+Caisse claire 2 : coupe-bas
+
+Snare 2 high cut
+Caisse claire 2 : coupe-haut
+
+Snare 2 delay send
+Caisse claire 2 : départ delay
+
+Snare 2 reverb send
+Caisse claire 2 : départ réverb
+
+Ride attack
+Ride : attaque
+
+Ride pitch envelope
+Ride : enveloppe de hauteur
+
+Ride pitch decay
+Ride : durée de hauteur
+
+Ride low cut
+Ride : coupe-bas
+
+Ride high cut
+Ride : coupe-haut
+
+Ride delay send
+Ride : départ delay
+
+Ride reverb send
+Ride : départ réverb
+
+Tambourine attack
+Tambourin : attaque
+
+Tambourine pitch envelope
+Tambourin : enveloppe de hauteur
+
+Tambourine pitch decay
+Tambourin : durée de hauteur
+
+Tambourine low cut
+Tambourin : coupe-bas
+
+Tambourine high cut
+Tambourin : coupe-haut
+
+Tambourine delay send
+Tambourin : départ delay
+
+Tambourine reverb send
+Tambourin : départ réverb
+
+Compression
+Compression
+
+Room size
+Taille de la pièce
+
+Return
+Retour
+
+Compression, color, EQ, delay and reverb of the whole kit
+Compression, couleur, EQ, delay et réverb de tout le kit
+
+Each pad sends to the delay and the reverb: set how much in its Sends
+Chaque pad part vers le delay et la réverb : réglez combien dans ses Départs
+
+Kit effects
+Effets du kit
+
+Steps of the MIDI clip under the playhead
+Les pas du clip MIDI sous la tête de lecture
+
+The selected pad's sound: tune, envelope, filter and sends
+Le son du pad choisi : accord, enveloppe, filtre et départs

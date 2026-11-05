@@ -1,6 +1,5 @@
-//! The drum machine's editor: small pads lit while their voice sounds, played with the mouse
-//! and selected to show their settings; the kit's accent, drive and volume; and ready-made
-//! rhythms written into a MIDI clip on the track, to edit in the piano roll.
+//! The drum machine's editor: pads lit while their voice sounds, played with the mouse and
+//! selected to edit; under them, tabs for the pad's sound, the pattern and the kit's effects.
 
 use audiostrada_core::Note;
 use audiostrada_core::routing::Channel;
@@ -12,7 +11,7 @@ use eframe::egui::{
     self, Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Shape, Stroke, Ui, pos2, vec2,
 };
 
-use crate::effect_editors::{Params, named_knob, param_knob, segmented};
+use crate::effect_editors::{Params, choice_box, named_knob, segmented};
 use crate::i18n::tr;
 use crate::theme;
 
@@ -24,6 +23,16 @@ pub struct DrumsState {
     /// The voice whose settings are shown.
     selected: usize,
     sequencer: crate::drum_sequencer::SequencerState,
+    tab: Tab,
+}
+
+/// What the lower half of the editor shows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Tab {
+    #[default]
+    Pad,
+    Pattern,
+    Effects,
 }
 
 impl DrumsState {
@@ -530,7 +539,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
                 ("snare_tone", 55.0),
                 ("room", 25.0),
                 ("drive", 8.0),
-                ("volume", -7.6),
+                ("volume", -8.1),
             ],
         ),
         preset(
@@ -980,7 +989,6 @@ fn pad_file(params: &Params, pad: usize) -> Option<std::path::PathBuf> {
 }
 
 pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DrumsState) {
-    let p = theme::current(ui);
     let mut pressed = None;
     // The pads, four by four on the dark screen, each with its sound drawn.
     egui::Frame::new()
@@ -990,7 +998,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DrumsS
         .show(ui, |ui| {
             let gap = 8.0;
             let width = ((ui.available_width() - 3.0 * gap) / 4.0).floor();
-            let height = 62.0;
+            let height = 58.0;
             for row in LAYOUT.chunks(4) {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = gap;
@@ -1025,32 +1033,18 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DrumsS
             }
         });
     ui.add_space(8.0);
-    editor(ui, params, state.selected.min(VOICES.len() - 1), meters);
+    tabs(ui, &mut state.tab, state.selected);
     ui.add_space(8.0);
-    egui::Frame::new()
-        .fill(SCREEN)
-        .corner_radius(10.0)
-        .inner_margin(10.0)
-        .show(ui, |ui| {
-            let selection = ui.visuals().selection;
-            *ui.visuals_mut() = egui::Visuals::dark();
-            ui.visuals_mut().selection = selection;
-            ui.set_width(ui.available_width());
-            crate::drum_sequencer::show(
-                ui,
-                params,
-                &mut state.sequencer,
-                &mut state.selected,
-                meters,
-            );
-        });
-    ui.add_space(8.0);
-    panel(ui, tr("Kit"), |ui| {
-        ui.horizontal(|ui| {
-            for id in ["accent", "drive", "room", "crush", "volume"] {
-                param_knob(ui, params, id, 38.0, p.accent);
-            }
-        });
+    screen(ui, |ui| match state.tab {
+        Tab::Pad => editor(ui, params, state.selected.min(VOICES.len() - 1), meters),
+        Tab::Pattern => crate::drum_sequencer::show(
+            ui,
+            params,
+            &mut state.sequencer,
+            &mut state.selected,
+            meters,
+        ),
+        Tab::Effects => effects(ui, params),
     });
 
     // The mouse plays one pad at a time.
@@ -1154,11 +1148,8 @@ fn cell(
     );
 }
 
-/// The pad being edited: its sound large, its character or its file, and its settings.
-fn editor(ui: &mut Ui, params: &mut Params, pad: usize, meters: &[f32]) {
-    let (id, name, _) = VOICES[pad];
-    let color = family(pad);
-    let file = pad_file(params, pad);
+/// The dark screen filling the width, with light controls whatever the theme.
+fn screen(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
     egui::Frame::new()
         .fill(SCREEN)
         .corner_radius(10.0)
@@ -1168,98 +1159,323 @@ fn editor(ui: &mut Ui, params: &mut Params, pad: usize, meters: &[f32]) {
             *ui.visuals_mut() = egui::Visuals::dark();
             ui.visuals_mut().selection = selection;
             ui.set_width(ui.available_width());
-            ui.horizontal_top(|ui| {
-                // The sound, wide, under the pad's name.
-                ui.vertical(|ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new(tr(name)).size(20.0).strong().color(color));
-                        ui.add_space(8.0);
-                        if file.is_none() {
-                            segmented(
-                                ui,
-                                params,
-                                &format!("{id}_model"),
-                                &[
-                                    "Deep and long, the classic analog machine",
-                                    "Punchy and bright, made for house and techno",
-                                    "Modeled skins, wires and cymbals: closer to a real kit",
-                                ],
-                            );
-                        }
-                    });
-                    let width = (ui.available_width() - 330.0).max(260.0);
-                    let (rect, _) = ui.allocate_exact_size(vec2(width, 72.0), Sense::hover());
-                    let painter = ui.painter_at(rect);
-                    painter.rect_filled(rect, 8.0, Color32::from_rgb(24, 28, 36));
-                    let glow = meters.get(pad).copied().unwrap_or(0.0).min(1.0);
-                    waveform(
-                        &painter,
-                        rect.shrink2(vec2(10.0, 8.0)),
-                        &shape(params, pad, file.as_deref()),
-                        color.gamma_multiply(0.7 + 0.3 * glow),
-                    );
-                    ui.horizontal(|ui| {
-                        let slot = &audiostrada_dsp::drums::SLOTS[pad];
-                        match &file {
-                            Some(path) => {
-                                let shown = path
-                                    .file_name()
-                                    .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
-                                ui.label(RichText::new(shown).size(11.0))
-                                    .on_hover_text(path.display().to_string());
-                                if let Some(Err(e)) =
-                                    params.doc.player().effect_file(params.insert, slot.id)
-                                {
-                                    ui.colored_label(crate::settings::ERROR, e);
-                                }
-                            }
-                            None => {
-                                ui.weak(tr("Synthesized: load a sample to play it instead"));
-                            }
-                        }
-                        let (doc, channel, insert) =
-                            (&mut *params.doc, params.channel, params.insert);
-                        crate::mixer::load_button(ui, doc, channel, insert, slot);
-                        if file.is_some() && ui.button(tr("Remove")).clicked() {
-                            let _ = params.doc.set_effect_file(
-                                params.channel,
-                                params.insert,
-                                slot.id,
-                                None,
-                            );
-                        }
-                    });
-                });
-                ui.add_space(12.0);
-                ui.horizontal(|ui| {
-                    for (field, label) in [
-                        ("level", tr("Level")),
-                        ("pan", tr("Pan")),
-                        ("tune", tr("Tune")),
-                        ("decay", tr("Decay")),
-                        ("tone", tr("Tone")),
-                    ] {
-                        named_knob(ui, params, &format!("{id}_{field}"), label, 44.0, color);
-                    }
-                });
-            });
+            add(ui);
         });
 }
 
-/// A titled panel.
-fn panel(ui: &mut Ui, title: &str, add: impl FnOnce(&mut Ui)) {
+/// The tabs over the lower half, as wide as the editor.
+fn tabs(ui: &mut Ui, tab: &mut Tab, pad: usize) {
     let p = theme::current(ui);
-    egui::Frame::new()
-        .fill(theme::mix(p.panel, p.base, 0.4))
-        .corner_radius(8.0)
-        .inner_margin(10.0)
-        .show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label(RichText::new(title).size(11.5).color(p.weak).strong());
-                ui.add_space(2.0);
-                add(ui);
+    let pad_name = tr(VOICES[pad.min(VOICES.len() - 1)].1);
+    let list = [
+        (
+            Tab::Pad,
+            pad_name,
+            tr("The selected pad's sound: tune, envelope, filter and sends"),
+        ),
+        (
+            Tab::Pattern,
+            tr("Pattern"),
+            tr("Steps of the MIDI clip under the playhead"),
+        ),
+        (
+            Tab::Effects,
+            tr("Kit effects"),
+            tr("Compression, color, EQ, delay and reverb of the whole kit"),
+        ),
+    ];
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 8.0, theme::mix(p.panel, p.base, 0.5));
+    let width = rect.width() / list.len() as f32;
+    for (k, (which, label, hint)) in list.into_iter().enumerate() {
+        let cell = Rect::from_min_size(
+            pos2(rect.left() + k as f32 * width, rect.top()),
+            vec2(width, rect.height()),
+        )
+        .shrink(3.0);
+        let response = ui
+            .interact(cell, ui.scope_id().with(("drums-tab", k)), Sense::click())
+            .on_hover_text(hint);
+        let on = *tab == which;
+        let fill = if on {
+            SCREEN
+        } else if response.hovered() {
+            p.hover
+        } else {
+            Color32::TRANSPARENT
+        };
+        painter.rect_filled(cell, 6.0, fill);
+        let ink = match (on, which) {
+            (true, Tab::Pad) => family(pad),
+            (true, _) => Color32::from_rgb(236, 240, 246),
+            (false, _) => p.weak,
+        };
+        painter.text(
+            cell.center(),
+            Align2::CENTER_CENTER,
+            label,
+            theme::strong(13.0),
+            ink,
+        );
+        if response.clicked() {
+            *tab = which;
+        }
+    }
+}
+
+/// Modules side by side across the width, each as wide as its knobs, titled in `tint`.
+fn modules(
+    ui: &mut Ui,
+    params: &mut Params,
+    list: &[(&str, Vec<(String, &str)>)],
+    tint: Color32,
+    size: f32,
+) {
+    let p = theme::current(ui);
+    let gap = 8.0;
+    let full = ui.available_width();
+    let count: usize = list.iter().map(|m| m.1.len()).sum();
+    let unit = (full - gap * (list.len().max(1) - 1) as f32) / count.max(1) as f32;
+    let top = ui.cursor().min;
+    let backs: Vec<_> = list.iter().map(|_| ui.painter().add(Shape::Noop)).collect();
+    let (mut x, mut bottom) = (top.x, top.y);
+    let mut rects = Vec::new();
+    for (title, knobs) in list {
+        let width = unit * knobs.len() as f32;
+        let rect = Rect::from_min_size(pos2(x, top.y), vec2(width, 0.0));
+        let inner = rect.shrink2(vec2(8.0, 0.0)).translate(vec2(0.0, 8.0));
+        let builder = egui::UiBuilder::new()
+            .max_rect(Rect::from_min_size(inner.min, vec2(inner.width(), 400.0)))
+            .layout(egui::Layout::top_down(egui::Align::Min));
+        let used = ui
+            .scope_builder(builder, |ui| {
+                ui.label(RichText::new(*title).strong().size(12.0).color(tint));
+                let row = ui.cursor().min;
+                let cell = inner.width() / knobs.len() as f32;
+                let mut low = row.y;
+                for (k, (id, label)) in knobs.iter().enumerate() {
+                    let place = Rect::from_min_size(
+                        pos2(row.x + k as f32 * cell, row.y),
+                        vec2(cell, 200.0),
+                    );
+                    let builder = egui::UiBuilder::new()
+                        .max_rect(place)
+                        .layout(egui::Layout::top_down(egui::Align::Center));
+                    let choice = params.param(id).is_some_and(|p| !p.choices.is_empty());
+                    let shown = ui
+                        .scope_builder(builder, |ui| {
+                            if choice {
+                                // A list in a knob's place, level with the knobs' centers.
+                                ui.label(RichText::new(*label).size(10.5).color(p.weak));
+                                ui.add_space(size / 2.0 - 12.0);
+                                choice_box(ui, params, id);
+                            } else {
+                                named_knob(ui, params, id, label, size, tint);
+                            }
+                        })
+                        .response
+                        .rect;
+                    low = low.max(shown.bottom());
+                }
+                ui.allocate_rect(
+                    Rect::from_min_max(row, pos2(row.x + inner.width(), low)),
+                    Sense::hover(),
+                );
+            })
+            .response
+            .rect;
+        bottom = bottom.max(used.bottom() + 8.0);
+        rects.push(rect);
+        x += width + gap;
+    }
+    for (rect, back) in rects.into_iter().zip(backs) {
+        let rect = Rect::from_min_max(rect.min, pos2(rect.right(), bottom));
+        ui.painter()
+            .set(back, Shape::rect_filled(rect, 8.0, MODULE));
+    }
+    ui.allocate_rect(
+        Rect::from_min_max(top, pos2(top.x + full, bottom)),
+        Sense::hover(),
+    );
+}
+
+/// The panels inside the screen.
+const MODULE: Color32 = Color32::from_rgb(25, 29, 38);
+
+/// The pad being edited: its sound large with its character or file and its main knobs, then
+/// its envelope, pitch, filter and sends.
+fn editor(ui: &mut Ui, params: &mut Params, pad: usize, meters: &[f32]) {
+    let (id, name, _) = VOICES[pad];
+    let color = family(pad);
+    let file = pad_file(params, pad);
+    let side = 260.0;
+    ui.horizontal_top(|ui| {
+        let wide = ui.available_width() - side - 12.0;
+        ui.vertical(|ui| {
+            ui.set_width(wide);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(tr(name)).size(19.0).strong().color(color));
+                ui.add_space(8.0);
+                if file.is_none() {
+                    segmented(
+                        ui,
+                        params,
+                        &format!("{id}_model"),
+                        &[
+                            "Deep and long, the classic analog machine",
+                            "Punchy and bright, made for house and techno",
+                            "Modeled skins, wires and cymbals: closer to a real kit",
+                        ],
+                    );
+                }
+            });
+            let (rect, _) = ui.allocate_exact_size(vec2(wide, 84.0), Sense::hover());
+            let painter = ui.painter_at(rect);
+            painter.rect_filled(rect, 8.0, MODULE);
+            let glow = meters.get(pad).copied().unwrap_or(0.0).min(1.0);
+            waveform(
+                &painter,
+                rect.shrink2(vec2(10.0, 8.0)),
+                &shape(params, pad, file.as_deref()),
+                color.gamma_multiply(0.7 + 0.3 * glow),
+            );
+            ui.horizontal(|ui| {
+                let slot = &audiostrada_dsp::drums::SLOTS[pad];
+                match &file {
+                    Some(path) => {
+                        let shown = path
+                            .file_name()
+                            .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
+                        ui.label(RichText::new(shown).size(11.0))
+                            .on_hover_text(path.display().to_string());
+                        if let Some(Err(e)) =
+                            params.doc.player().effect_file(params.insert, slot.id)
+                        {
+                            ui.colored_label(crate::settings::ERROR, e);
+                        }
+                    }
+                    None => {
+                        ui.weak(tr("Synthesized: load a sample to play it instead"));
+                    }
+                }
+                let (doc, channel, insert) = (&mut *params.doc, params.channel, params.insert);
+                crate::mixer::load_button(ui, doc, channel, insert, slot);
+                if file.is_some() && ui.button(tr("Remove")).clicked() {
+                    let _ =
+                        params
+                            .doc
+                            .set_effect_file(params.channel, params.insert, slot.id, None);
+                }
             });
         });
+        ui.add_space(12.0);
+        ui.vertical(|ui| {
+            ui.set_width(side);
+            modules(
+                ui,
+                params,
+                &[(
+                    tr("Sound"),
+                    vec![
+                        (format!("{id}_level"), tr("Level")),
+                        (format!("{id}_pan"), tr("Pan")),
+                        (format!("{id}_tune"), tr("Tune")),
+                    ],
+                )],
+                color,
+                46.0,
+            );
+        });
+    });
+    ui.add_space(10.0);
+    let field = |f: &str| format!("{id}_{f}");
+    modules(
+        ui,
+        params,
+        &[
+            (
+                tr("Envelope"),
+                vec![
+                    (field("attack"), tr("Attack")),
+                    (field("decay"), tr("Decay")),
+                ],
+            ),
+            (
+                tr("Pitch"),
+                vec![
+                    (field("pitch"), tr("Amount")),
+                    (field("pitch_decay"), tr("Length")),
+                ],
+            ),
+            (
+                tr("Filter"),
+                vec![
+                    (field("tone"), tr("Tone")),
+                    (field("low_cut"), tr("Low cut")),
+                    (field("high_cut"), tr("High cut")),
+                ],
+            ),
+            (
+                tr("Sends"),
+                vec![
+                    (field("delay"), tr("Delay")),
+                    (field("reverb"), tr("Reverb")),
+                ],
+            ),
+        ],
+        color,
+        44.0,
+    );
+}
+
+/// The kit's effects, in the order the sound goes through them.
+fn effects(ui: &mut Ui, params: &mut Params) {
+    let tint = theme::current(ui).accent;
+    let knob = |id: &str, label: &'static str| (id.to_owned(), tr(label));
+    modules(
+        ui,
+        params,
+        &[
+            (
+                tr("Dynamics"),
+                vec![knob("accent", "Accent"), knob("comp", "Compression")],
+            ),
+            (
+                tr("Color"),
+                vec![knob("drive", "Drive"), knob("crush", "Crush")],
+            ),
+            (tr("EQ"), vec![knob("low", "Bass"), knob("high", "Treble")]),
+        ],
+        tint,
+        52.0,
+    );
+    ui.add_space(8.0);
+    modules(
+        ui,
+        params,
+        &[
+            (
+                tr("Delay"),
+                vec![
+                    knob("delay_note", "Time"),
+                    knob("delay_feedback", "Feedback"),
+                    knob("delay", "Return"),
+                ],
+            ),
+            (
+                tr("Reverb"),
+                vec![knob("room_size", "Size"), knob("room", "Return")],
+            ),
+            (tr("Output"), vec![knob("volume", "Volume")]),
+        ],
+        tint,
+        52.0,
+    );
+    ui.add_space(4.0);
+    ui.weak(tr(
+        "Each pad sends to the delay and the reverb: set how much in its Sends",
+    ));
 }
 
 #[cfg(test)]
