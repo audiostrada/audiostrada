@@ -5098,3 +5098,29 @@ Accorder sur la piste
 
 On the track
 Sur la piste
+
+# Strada-Channel
+
+High bell
+Aigus en cloche
+
+Low bell
+Graves en cloche
+
+A bell around its frequency instead of a shelf
+Une cloche autour de sa fréquence plutôt qu'un plateau
+
+Freq
+Fréq.
+
+Input set to {gain} dB
+Entrée réglée à {gain} dB
+
+Sets the input gain so the track plays around -18 dBFS
+Règle le gain d'entrée pour que la piste joue autour de -18 dBFS
+
+Slope of both filters, per octave
+Pente des deux filtres, par octave
+
+The track's input gain, before everything else. Drag, double-click to reset
+Le gain d'entrée de la piste, avant tout le reste. Glissez, double-clic pour revenir à 0

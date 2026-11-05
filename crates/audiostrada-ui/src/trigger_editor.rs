@@ -181,7 +181,10 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Trigge
                 INK.gamma_multiply(0.6),
                 place.width() - 4.0,
             );
-            let at = pos2(place.center().x - galley.size().x / 2.0, place.bottom() + 4.0);
+            let at = pos2(
+                place.center().x - galley.size().x / 2.0,
+                place.bottom() + 4.0,
+            );
             ui.painter().galley(at, galley, INK);
         }
         ui.add_space(8.0);

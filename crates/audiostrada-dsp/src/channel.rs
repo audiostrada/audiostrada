@@ -1,6 +1,7 @@
 //! Channel strip: the processing of a console channel, ahead of the inserts. Filters (high and
-//! low pass), gate, compressor, a four-band EQ and a soft drive, each switched on alone; off,
-//! a module is not processed at all, so a strip left alone is transparent.
+//! low pass), gate, compressor, a four-band EQ (its outer bands shelves or bells) and a soft
+//! drive, each switched on alone; off, a module is not processed at all, so a strip left alone
+//! is transparent. The input gain and polarity are the track's own.
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::{Effect, EffectInfo, choice, db_to_gain, gain_to_db, param, switch};
@@ -44,6 +45,8 @@ pub const INFO: EffectInfo = EffectInfo {
         param("output", "Output", -18.0, 18.0, 0.0, "dB"),
         // Set by the engine from the track's console color.
         choice("character", "Character", &CHARACTERS, 0.0),
+        switch("low_bell", "Low bell", 0.0),
+        switch("high_bell", "High bell", 0.0),
     ],
     meters: &["Gate", "Reduction", "Input", "Output"],
     instrument: false,
@@ -112,7 +115,10 @@ mod p {
     pub const DRIVE_AMOUNT: usize = 30;
     pub const OUTPUT: usize = 31;
     pub const CHARACTER: usize = 32;
+    pub const LOW_BELL: usize = 33;
+    pub const HIGH_BELL: usize = 34;
 }
+const COUNT: usize = 35;
 
 /// Butterworth sections: one for 12 dB/oct, two for 24.
 const Q12: [f64; 1] = [std::f64::consts::FRAC_1_SQRT_2];
@@ -120,7 +126,7 @@ const Q24: [f64; 2] = [0.541_196_1, 1.306_563];
 
 #[derive(Debug)]
 pub struct Channel {
-    values: [f32; 33],
+    values: [f32; COUNT],
     rate: f64,
     /// High pass then low pass sections, and their state per side.
     filters: Vec<Coefficients>,
@@ -138,7 +144,7 @@ pub struct Channel {
 
 impl Default for Channel {
     fn default() -> Self {
-        let mut values = [0.0; 33];
+        let mut values = [0.0; COUNT];
         for (v, info) in values.iter_mut().zip(INFO.params) {
             *v = info.default;
         }
@@ -206,11 +212,19 @@ impl Channel {
         let bell = |q: f32, gain: f32| {
             f64::from(q) * broad * (1.0 + f64::from(gain.abs()) / 15.0 * proportional)
         };
+        // The outer bands as bells: broad, as on the consoles that switch them.
+        let outer = |kind, bell_on: bool, freq: f32, gain: f32| {
+            if bell_on {
+                band(FilterKind::Peak, freq, gain, bell(0.7, gain))
+            } else {
+                band(kind, freq, gain, shelf)
+            }
+        };
         self.bands = [
-            band(FilterKind::LowShelf, v[18], v[19], shelf),
+            outer(FilterKind::LowShelf, v[p::LOW_BELL] >= 0.5, v[18], v[19]),
             band(FilterKind::Peak, v[20], v[21], bell(v[22], v[21])),
             band(FilterKind::Peak, v[23], v[24], bell(v[25], v[24])),
-            band(FilterKind::HighShelf, v[26], v[27], shelf),
+            outer(FilterKind::HighShelf, v[p::HIGH_BELL] >= 0.5, v[26], v[27]),
         ];
     }
 
@@ -339,7 +353,7 @@ impl Effect for Channel {
         }
         *v = value;
         match index {
-            p::HPF | p::LPF | p::SLOPE | p::CHARACTER => self.design(),
+            p::HPF | p::LPF | p::SLOPE | p::CHARACTER | p::LOW_BELL | p::HIGH_BELL => self.design(),
             i if (p::EQ_FIRST..=p::EQ_LAST).contains(&i) => self.design(),
             p::ORDER => self.order = module_order(value),
             _ => self.forward(index),
@@ -438,7 +452,7 @@ mod tests {
 
     #[test]
     fn the_indices_match_the_table_and_off_is_transparent() {
-        assert_eq!(INFO.params.len(), 33);
+        assert_eq!(INFO.params.len(), COUNT);
         for (name, i) in [
             ("filters", p::FILTERS),
             ("hpf", p::HPF),
@@ -456,6 +470,8 @@ mod tests {
             ("drive_amount", p::DRIVE_AMOUNT),
             ("output", p::OUTPUT),
             ("character", p::CHARACTER),
+            ("low_bell", p::LOW_BELL),
+            ("high_bell", p::HIGH_BELL),
         ] {
             assert_eq!(index(name), i, "{name}");
         }
@@ -466,6 +482,29 @@ mod tests {
         let original = left.clone();
         channel.process(&mut left, &mut right);
         assert_eq!(left, original, "untouched while every module is off");
+    }
+
+    #[test]
+    fn the_outer_bands_turn_to_bells() {
+        // A shelf lifts everything under it; a bell only around its frequency.
+        let mut shelf = Channel::default();
+        shelf.prepare(48_000, 256);
+        for (i, v) in [(p::EQ, 1.0), (p::EQ_FIRST, 100.0), (p::EQ_FIRST + 1, 9.0)] {
+            shelf.set_param(i, v);
+        }
+        let mut bell = Channel::default();
+        bell.prepare(48_000, 256);
+        for (i, v) in [
+            (p::EQ, 1.0),
+            (p::EQ_FIRST, 100.0),
+            (p::EQ_FIRST + 1, 9.0),
+            (p::LOW_BELL, 1.0),
+        ] {
+            bell.set_param(i, v);
+        }
+        assert!(shelf.eq_response_db(20.0) > 8.0);
+        assert!(bell.eq_response_db(20.0) < 3.0);
+        assert!(bell.eq_response_db(100.0) > 8.0);
     }
 
     #[test]

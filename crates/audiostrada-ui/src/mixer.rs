@@ -4466,7 +4466,7 @@ impl MixerView {
             let size = match info.id {
                 "eq" => [1040.0, 800.0],
                 "amp_rig" => [960.0, 820.0],
-                "channel" => [1000.0, 700.0],
+                "channel" => [1060.0, 720.0],
                 "synth" => [1180.0, 1000.0],
                 "drums" => [1000.0, 720.0],
                 "trigger" => [960.0, 760.0],
@@ -4497,7 +4497,7 @@ impl MixerView {
                 &title,
                 size,
                 raise,
-                matches!(info.id, "drums" | "trigger"),
+                matches!(info.id, "drums" | "trigger" | "channel"),
                 |ui| {
                     let state = self.editor_states.entry(id).or_default();
                     let meter = effect_editors::is_meter(info.id);

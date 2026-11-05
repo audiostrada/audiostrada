@@ -419,7 +419,11 @@ pub fn stage_gains(doc: &mut Document, target: f32) -> usize {
 
 /// Average level of a track's audio where it plays (silences left out), with its clips'
 /// gains, before its input gain: dBFS.
-fn working_level(doc: &Document, project: &audiostrada_core::Project, id: TrackId) -> Option<f32> {
+pub(crate) fn working_level(
+    doc: &Document,
+    project: &audiostrada_core::Project,
+    id: TrackId,
+) -> Option<f32> {
     const WINDOW: usize = 4_800;
     let track = project.track(id)?;
     let (mut power, mut windows) = (0.0f64, 0usize);

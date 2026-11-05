@@ -5,6 +5,7 @@ mod add_tracks;
 mod browser;
 mod captures;
 mod chains;
+mod channel_editor;
 mod console_ui;
 pub mod control;
 mod dialogs;
