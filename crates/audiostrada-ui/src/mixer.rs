@@ -615,12 +615,11 @@ fn editor_window(
     fit: bool,
     add: impl FnOnce(&mut Ui),
 ) -> bool {
-    fn contents(ui: &mut Ui, add: impl FnOnce(&mut Ui)) -> f32 {
+    fn contents(ui: &mut Ui, add: impl FnOnce(&mut Ui)) -> egui::Vec2 {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, add)
             .content_size
-            .y
     }
     let id = egui::ViewportId::from_hash_of(key);
     if raise {
@@ -644,35 +643,37 @@ fn editor_window(
     let open = ctx.show_viewport_immediate(id, builder, |ui, _| {
         // Before the widgets, so that Space plays instead of pressing a focused button.
         crate::window_shortcuts(ui.ctx());
-        let mut height = None;
+        let mut content = None;
         egui::CentralPanel::default().show(ui, |ui| {
             if let Some(add) = add.take() {
-                height = Some(contents(ui, add));
+                content = Some(contents(ui, add));
             }
         });
-        // The window follows its content's height, as the content changes.
-        if fit && let Some(height) = height {
+        // The window follows its content, as it changes: no empty space below or at the right,
+        // nothing cut when controls appear.
+        if fit && let Some(content) = content {
             let ctx = ui.ctx().clone();
-            let wanted = (height
-                + egui::Frame::central_panel(&ctx.global_style())
-                    .total_margin()
-                    .sum()
-                    .y)
-                .ceil();
-            let key = egui::Id::unique(("fit-height", id));
-            if ctx.data(|d| d.get_temp::<f32>(key)) != Some(wanted) {
-                ctx.data_mut(|d| d.insert_temp(key, wanted));
-                let (width, screen) = ctx.input(|i| {
-                    let v = i.viewport();
-                    (
-                        v.inner_rect.map_or(size[0], |r| r.width()),
-                        v.monitor_size.map_or(f32::MAX, |m| m.y - 60.0),
-                    )
-                });
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(
-                    width,
-                    wanted.min(screen),
-                )));
+            let margins = egui::Frame::central_panel(&ctx.global_style())
+                .total_margin()
+                .sum();
+            let (inner, monitor) = ctx.input(|i| {
+                let v = i.viewport();
+                (
+                    v.inner_rect
+                        .map_or(egui::vec2(size[0], size[1]), |r| r.size()),
+                    v.monitor_size.unwrap_or(egui::vec2(f32::MAX, f32::MAX)),
+                )
+            });
+            let wanted = egui::vec2(
+                (content.x + margins.x).ceil().min(monitor.x - 40.0),
+                (content.y + margins.y).ceil().min(monitor.y - 60.0),
+            );
+            if (wanted - inner).abs().max_elem() > 1.0 {
+                let key = egui::Id::unique(("fit-size", id));
+                if ctx.data(|d| d.get_temp::<egui::Vec2>(key)) != Some(wanted) {
+                    ctx.data_mut(|d| d.insert_temp(key, wanted));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(wanted));
+                }
             }
         }
         if let Some(rect) = ui.ctx().input(|i| i.viewport().outer_rect) {
@@ -4180,7 +4181,7 @@ impl MixerView {
             } else {
                 [300.0, 460.0]
             };
-            let open = editor_window(ctx, places, key, &title, size, false, false, |ui| {
+            let open = editor_window(ctx, places, key, &title, size, false, true, |ui| {
                 self.list_header(ui, doc, project, channel, list);
                 ui.add_space(6.0);
                 match list {
@@ -4490,18 +4491,7 @@ impl MixerView {
                 &title,
                 size,
                 raise,
-                matches!(
-                    info.id,
-                    "drums"
-                        | "trigger"
-                        | "channel"
-                        | "amp_rig"
-                        | "tape"
-                        | "mb_comp"
-                        | "modulator"
-                        | "pitch"
-                        | "doubler"
-                ),
+                true,
                 |ui| {
                     let state = self.editor_states.entry(id).or_default();
                     let meter = effect_editors::is_meter(info.id);
@@ -4650,7 +4640,7 @@ impl MixerView {
             &title,
             [600.0, 520.0],
             raise,
-            false,
+            true,
             |ui| {
                 if let Some(error) = &error {
                     ui.colored_label(

@@ -1828,18 +1828,68 @@ pub(crate) fn section_frame(
     add: impl FnOnce(&mut Ui),
 ) {
     let p = theme::current(ui);
+    // Sections side by side share a row: as tall as the tallest, the free width shared among
+    // them; stacked, each takes the whole width. Sizes come from the previous frame, each
+    // section's own (natural) size measured without what the row gave it.
+    let layout = *ui.layout();
+    let in_row = layout.main_dir().is_horizontal() && !layout.main_wrap;
+    let row = ui.scope_id().with("section-row");
+    let frame_nr = ui.ctx().cumulative_frame_nr();
+    let spacing = ui.spacing().item_spacing.x;
+    let available = ui.available_width();
+    let (index, given) = ui.ctx().data_mut(|d| {
+        let memo = d.get_temp_mut_or_default::<SectionRow>(row);
+        if memo.frame != frame_nr {
+            memo.frame = frame_nr;
+            memo.last = std::mem::take(&mut memo.sizes);
+            memo.start = available;
+        }
+        let index = memo.sizes.len();
+        memo.sizes.push(egui::Vec2::ZERO);
+        let natural = memo.last.get(index).copied().unwrap_or_default();
+        let given = if in_row && !memo.last.is_empty() {
+            let used: f32 =
+                memo.last.iter().map(|v| v.x).sum::<f32>() + spacing * (memo.last.len() - 1) as f32;
+            let extra = ((memo.start - used) / memo.last.len() as f32).max(0.0);
+            let tallest = memo.last.iter().map(|v| v.y).fold(0.0f32, f32::max);
+            egui::vec2(natural.x + extra, tallest)
+        } else {
+            egui::vec2(available, natural.y)
+        };
+        (index, given)
+    });
+    let margin = egui::Margin::symmetric(10, 8);
+    let pad = margin.sum();
+    let mut natural = egui::Vec2::ZERO;
     egui::Frame::new()
         .fill(p.base)
         .corner_radius(8.0)
-        .inner_margin(egui::Margin::symmetric(10, 8))
+        .inner_margin(margin)
         .show(ui, |ui| {
-            ui.set_min_height(height);
-            ui.vertical(|ui| {
+            ui.set_min_height(height.max(given.y - pad.y));
+            ui.set_min_width((given.x - pad.x).max(0.0));
+            let inner = ui.vertical(|ui| {
                 ui.label(RichText::new(title).strong().size(11.5).color(color));
                 ui.add_space(2.0);
                 add(ui);
             });
+            natural = inner.response.rect.size() + pad;
         });
+    ui.ctx().data_mut(|d| {
+        let memo = d.get_temp_mut_or_default::<SectionRow>(row);
+        if let Some(slot) = memo.sizes.get_mut(index) {
+            *slot = egui::vec2(natural.x, natural.y.max(height + pad.y));
+        }
+    });
+}
+
+/// The sections of a row as they were last drawn, and the row's width.
+#[derive(Clone, Debug, Default)]
+struct SectionRow {
+    frame: u64,
+    start: f32,
+    sizes: Vec<egui::Vec2>,
+    last: Vec<egui::Vec2>,
 }
 
 // ---------------------------------------------------------------- Tuner
@@ -4868,51 +4918,53 @@ fn knob_sections(
     sections: &[(&'static str, &[&str], SectionSwitch)],
     enabled: &dyn Fn(&str) -> bool,
 ) {
-    let p = theme::current(ui);
-    let accent = p.accent;
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
-        for &(title, ids, switch) in sections {
-            egui::Frame::new()
-                .fill(p.base)
-                .corner_radius(8.0)
-                .inner_margin(egui::Margin::symmetric(10, 8))
-                .show(ui, |ui| {
-                    ui.set_min_height(118.0);
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new(tr(title)).strong().size(11.5).color(p.weak));
-                        ui.add_space(2.0);
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 4.0;
-                            for &id in ids {
-                                let tint = if id == "color" { theme::SOLO } else { accent };
-                                let name = match id {
-                                    "sc_hpf" => tr("High pass"),
-                                    "sc_lpf" => tr("Low pass"),
-                                    _ => params.param(id).map_or("", |q| tr(q.name)),
-                                };
-                                ui.add_enabled_ui(enabled(id), |ui| {
-                                    wide_knob(ui, params, id, name, 44.0, tint)
-                                });
-                            }
-                        });
-                        if let Some((id, label, hint)) = switch {
-                            ui.add_space(4.0);
-                            ui.add_enabled_ui(enabled(id), |ui| {
-                                params.toggle(ui, id, |ui, on| {
-                                    let response =
-                                        pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
-                                    if response.clicked() {
-                                        *on = !*on;
-                                    }
-                                    response
-                                });
-                            });
-                        }
-                    });
-                });
-        }
+        knob_section_items(ui, params, sections, enabled);
     });
+}
+
+/// The sections of `knob_sections`, in the row `ui` already is.
+fn knob_section_items(
+    ui: &mut Ui,
+    params: &mut Params,
+    sections: &[(&'static str, &[&str], SectionSwitch)],
+    enabled: &dyn Fn(&str) -> bool,
+) {
+    let p = theme::current(ui);
+    let accent = p.accent;
+    {
+        for &(title, ids, switch) in sections {
+            section_frame(ui, tr(title), p.weak, 118.0, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    for &id in ids {
+                        let tint = if id == "color" { theme::SOLO } else { accent };
+                        let name = match id {
+                            "sc_hpf" => tr("High pass"),
+                            "sc_lpf" => tr("Low pass"),
+                            _ => params.param(id).map_or("", |q| tr(q.name)),
+                        };
+                        ui.add_enabled_ui(enabled(id), |ui| {
+                            wide_knob(ui, params, id, name, 44.0, tint)
+                        });
+                    }
+                });
+                if let Some((id, label, hint)) = switch {
+                    ui.add_space(4.0);
+                    ui.add_enabled_ui(enabled(id), |ui| {
+                        params.toggle(ui, id, |ui, on| {
+                            let response = pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
+                            if response.clicked() {
+                                *on = !*on;
+                            }
+                            response
+                        });
+                    });
+                }
+            });
+        }
+    }
 }
 
 /// A switch as a pill: its light and its name, lit in the accent while on.
@@ -5227,7 +5279,8 @@ pub struct LimiterState {
 fn limiter(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState) {
     limiter_view(ui, params, meters, &mut state.limiter, "input");
     ui.horizontal_top(|ui| {
-        knob_sections(
+        ui.spacing_mut().item_spacing.x = 8.0;
+        knob_section_items(
             ui,
             params,
             &[
@@ -5263,7 +5316,8 @@ fn maximizer(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Edito
     ui.add_space(8.0);
     limiter_view(ui, params, meters, &mut state.limiter, "gain");
     ui.horizontal_top(|ui| {
-        knob_sections(
+        ui.spacing_mut().item_spacing.x = 8.0;
+        knob_section_items(
             ui,
             params,
             &[("Release", &["release", "link"], None)],
@@ -5276,44 +5330,31 @@ fn maximizer(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Edito
 /// How to listen to a limiter: at the level it came in, or only what it takes away.
 fn monitor_switches(ui: &mut Ui, params: &mut Params) {
     let p = theme::current(ui);
-    egui::Frame::new()
-        .fill(p.base)
-        .corner_radius(8.0)
-        .inner_margin(egui::Margin::symmetric(10, 8))
-        .show(ui, |ui| {
-            ui.set_min_height(118.0);
-            ui.vertical(|ui| {
-                ui.label(
-                    RichText::new(tr("Listen"))
-                        .strong()
-                        .size(11.5)
-                        .color(p.weak),
-                );
-                ui.add_space(6.0);
-                for (id, label, hint) in [
-                    (
-                        "unity",
-                        "Unity gain",
-                        "Takes the gain back off the output, to judge the limiting at the \
+    section_frame(ui, tr("Listen"), p.weak, 118.0, |ui| {
+        ui.add_space(4.0);
+        for (id, label, hint) in [
+            (
+                "unity",
+                "Unity gain",
+                "Takes the gain back off the output, to judge the limiting at the \
                          level it came in rather than louder",
-                    ),
-                    (
-                        "audition",
-                        "Audition",
-                        "Plays only what the limiter takes away",
-                    ),
-                ] {
-                    params.toggle(ui, id, |ui, on| {
-                        let response = pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
-                        if response.clicked() {
-                            *on = !*on;
-                        }
-                        response
-                    });
-                    ui.add_space(4.0);
+            ),
+            (
+                "audition",
+                "Audition",
+                "Plays only what the limiter takes away",
+            ),
+        ] {
+            params.toggle(ui, id, |ui, on| {
+                let response = pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
+                if response.clicked() {
+                    *on = !*on;
                 }
+                response
             });
-        });
+            ui.add_space(4.0);
+        }
+    });
 }
 
 /// A mastering limiter's face: the input meter with the threshold, what the limiter takes
