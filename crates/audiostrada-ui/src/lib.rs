@@ -346,6 +346,7 @@ impl AudioStradaApp {
                     let mut timeline = TimelineView::new(Rc::clone(&doc));
                     timeline.header_width = prefs.header_width;
                     timeline.tool = prefs.timeline_tool;
+                    timeline.wave_view = prefs.waveforms;
                     timeline
                 },
                 piano: piano_roll::PianoRoll::new(Rc::clone(&doc)),
@@ -1582,9 +1583,13 @@ impl AudioStradaApp {
             self.prefs.header_width = width;
             (self.hooks.ui_changed)(&self.prefs);
         }
-        let tool = self.views.borrow().timeline.tool;
-        if tool != self.prefs.timeline_tool {
+        let (tool, waves) = {
+            let views = self.views.borrow();
+            (views.timeline.tool, views.timeline.wave_view)
+        };
+        if tool != self.prefs.timeline_tool || waves != self.prefs.waveforms {
             self.prefs.timeline_tool = tool;
+            self.prefs.waveforms = waves;
             (self.hooks.ui_changed)(&self.prefs);
         }
         let stem = {

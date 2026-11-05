@@ -12,7 +12,7 @@ use std::path::Path;
 pub use data::AudioData;
 pub use decode::load;
 pub use encode::{Dither, FileFormat, encode};
-pub use peaks::Peaks;
+pub use peaks::{Peak, Peaks};
 pub use resample::resample;
 pub use wav::{WavWriter, write_wav};
 

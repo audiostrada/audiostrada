@@ -183,6 +183,8 @@ pub struct UiPrefs {
     pub timeline_tool: crate::timeline::Tool,
     /// How the transport's counter shows the position.
     pub counter: crate::transport::Counter,
+    /// How the timeline draws waveforms.
+    pub waveforms: crate::timeline::WaveView,
 }
 
 impl Default for UiPrefs {
@@ -215,6 +217,7 @@ impl Default for UiPrefs {
             mixer_compact: false,
             timeline_tool: crate::timeline::Tool::Smart,
             counter: crate::transport::Counter::default(),
+            waveforms: crate::timeline::WaveView::default(),
         }
     }
 }

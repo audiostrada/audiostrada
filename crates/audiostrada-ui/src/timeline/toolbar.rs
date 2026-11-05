@@ -6,7 +6,7 @@
 use eframe::egui::{self, Color32, Painter, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use serde::{Deserialize, Serialize};
 
-use super::{MAX_TRACK_HEIGHT, MAX_ZOOM, MIN_TRACK_HEIGHT, MIN_ZOOM, TimelineView};
+use super::{MAX_TRACK_HEIGHT, MAX_ZOOM, MIN_TRACK_HEIGHT, MIN_ZOOM, TimelineView, WaveScale};
 use crate::actions::Action;
 use crate::i18n::tr;
 use crate::theme;
@@ -411,17 +411,38 @@ impl TimelineView {
             Some(tr("Alt+Shift+wheel: waveform zoom")),
         );
         let response = button(ui, Glyph::Waveform, false, &text);
-        egui::Popup::menu(&response).show(|ui| {
-            ui.label(tr("Waveform zoom"));
-            ui.add(
-                egui::Slider::new(&mut self.wave_zoom, 1.0..=super::MAX_WAVE_ZOOM)
-                    .logarithmic(true)
-                    .suffix(" ×"),
-            );
-            if ui.button(Action::WaveformZoomReset.label()).clicked() {
-                requests.push(Action::WaveformZoomReset);
-            }
-        });
+        egui::Popup::menu(&response)
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+            .show(|ui| {
+                let view = &mut self.wave_view;
+                ui.label(egui::RichText::new(tr("Scale")).small().weak());
+                for (scale, name) in [
+                    (WaveScale::Linear, tr("Linear")),
+                    (WaveScale::Log, tr("Logarithmic (quiet details show)")),
+                    (
+                        WaveScale::Rectified,
+                        tr("Rectified (level only, twice as tall)"),
+                    ),
+                ] {
+                    ui.radio_value(&mut view.scale, scale, name);
+                }
+                ui.separator();
+                ui.checkbox(
+                    &mut view.spectral,
+                    tr("Spectral colors (lows red, mids green, highs blue)"),
+                );
+                ui.checkbox(&mut view.merged, tr("Channels merged"));
+                ui.separator();
+                ui.label(tr("Waveform zoom"));
+                ui.add(
+                    egui::Slider::new(&mut self.wave_zoom, 1.0..=super::MAX_WAVE_ZOOM)
+                        .logarithmic(true)
+                        .suffix(" ×"),
+                );
+                if ui.button(Action::WaveformZoomReset.label()).clicked() {
+                    requests.push(Action::WaveformZoomReset);
+                }
+            });
     }
 
     /// Scrolls so that the playhead is a third into the lanes.

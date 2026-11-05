@@ -760,3 +760,15 @@ Les bords, les marqueurs et la tête de lecture attirent à quelques pixels, ava
 
 What the edits snap to
 Ce qui aimante les éditions
+
+Channels merged
+Canaux fusionnés
+
+Logarithmic (quiet details show)
+Logarithmique (les détails faibles se voient)
+
+Rectified (level only, twice as tall)
+Redressée (niveau seul, deux fois plus haute)
+
+Spectral colors (lows red, mids green, highs blue)
+Couleurs spectrales (graves en rouge, médiums en vert, aigus en bleu)

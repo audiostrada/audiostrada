@@ -34,6 +34,7 @@ mod processing;
 mod toolbar;
 mod view;
 use draw::*;
+pub use draw::{WaveScale, WaveView};
 use gestures::*;
 pub use menus::TRACK_COLORS;
 pub use toolbar::Tool;
@@ -196,6 +197,8 @@ pub struct TimelineView {
     pub header_resized: bool,
     /// What the mouse does on the clips.
     pub tool: Tool,
+    /// How waveforms are drawn.
+    pub wave_view: WaveView,
     /// Zoom and scroll before a zoom to the selection, to go back to.
     zoom_back: Option<(f64, f64)>,
     /// Clips swept by the eraser or the mute tool during a drag.
@@ -272,6 +275,7 @@ impl TimelineView {
             header_width: HEADER_WIDTH,
             header_resized: false,
             tool: Tool::Smart,
+            wave_view: WaveView::default(),
             zoom_back: None,
             swept: Vec::new(),
         }

@@ -1,6 +1,66 @@
 //! Drawing the ruler, the grid, clips with their waveforms and fades, takes and lanes.
 
 use super::*;
+use audiostrada_media::Peak;
+use serde::{Deserialize, Serialize};
+
+/// Decibels shown by the logarithmic scale, from its line to its edge.
+const LOG_RANGE: f32 = 48.0;
+/// A sample this loud is drawn as clipping.
+const CLIP_LEVEL: f32 = 0.999;
+/// Colors of the lows, mids and highs in the spectral view.
+const SPECTRAL: [[u8; 3]; 3] = [[238, 92, 72], [118, 214, 112], [84, 168, 255]];
+
+/// How the waveforms are drawn.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WaveScale {
+    #[default]
+    Linear,
+    /// In decibels: quiet details show.
+    Log,
+    /// The level only, from the bottom, twice as tall.
+    Rectified,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WaveView {
+    pub scale: WaveScale,
+    /// Colored by where the energy is: lows red, mids green, highs blue.
+    pub spectral: bool,
+    /// The channels of a clip as one waveform.
+    pub merged: bool,
+}
+
+/// `a` towards `b` by `t`.
+pub(super) fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
+    let m = |x: u8, y: u8| (f32::from(x) + (f32::from(y) - f32::from(x)) * t) as u8;
+    Color32::from_rgba_unmultiplied(m(a.r(), b.r()), m(a.g(), b.g()), m(a.b(), b.b()), a.a())
+}
+
+/// One column of a filled waveform, joined to the previous one when `join`.
+fn strip(mesh: &mut egui::Mesh, join: bool, x: f32, top: f32, bottom: f32, color: Color32) {
+    if !join {
+        // A lone column still shows: a pixel-wide quad.
+        let i = mesh.vertices.len() as u32;
+        for p in [
+            pos2(x - 0.5, top),
+            pos2(x - 0.5, bottom),
+            pos2(x + 0.5, top),
+            pos2(x + 0.5, bottom),
+        ] {
+            mesh.colored_vertex(p, color);
+        }
+        mesh.add_triangle(i, i + 1, i + 2);
+        mesh.add_triangle(i + 1, i + 3, i + 2);
+        return;
+    }
+    let i = mesh.vertices.len() as u32;
+    mesh.colored_vertex(pos2(x, top), color);
+    mesh.colored_vertex(pos2(x, bottom), color);
+    // The previous column's two last vertices.
+    mesh.add_triangle(i - 2, i - 1, i);
+    mesh.add_triangle(i - 1, i + 1, i);
+}
 
 impl TimelineView {
     pub(super) fn draw_ruler(
@@ -167,34 +227,49 @@ impl TimelineView {
         if clip.muted {
             base = visuals.weak_text_color();
         }
-        let fill = if selected {
-            base.gamma_multiply(0.55)
-        } else {
-            base.gamma_multiply(0.3)
-        };
-        painter.rect_filled(rect, 3.0, fill);
-        // Name bar in the track color.
-        let bar = Rect::from_min_max(
-            rect.min,
-            pos2(rect.right(), rect.top() + 14.0_f32.min(rect.height() / 3.0)),
+        // A dark body for the waveform to stand out, lighter when selected.
+        let body = mix(
+            visuals.extreme_bg_color,
+            base,
+            if selected { 0.34 } else { 0.2 },
         );
+        painter.rect_filled(rect, 4.0, body);
+        // A thin name bar in the track color.
+        let name_height = NAME_BAR.min(rect.height() / 3.0);
+        let bar = Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + name_height));
         painter.rect_filled(
             bar,
             egui::CornerRadius {
-                nw: 3,
-                ne: 3,
+                nw: 4,
+                ne: 4,
                 sw: 0,
                 se: 0,
             },
-            base.gamma_multiply(if selected { 0.95 } else { 0.7 }),
+            base.gamma_multiply(if selected { 1.0 } else { 0.72 }),
         );
         let outline = if selected {
-            Stroke::new(1.5, visuals.strong_text_color())
+            Stroke::new(1.5, Color32::WHITE)
         } else {
-            Stroke::new(1.0, base.gamma_multiply(0.8))
+            Stroke::new(1.0, base.gamma_multiply(0.55))
         };
-        painter.rect_stroke(rect, 3.0, outline, StrokeKind::Inside);
-        let wave_rect = rect.shrink2(vec2(1.0, 14.0_f32.min(rect.height() / 4.0)));
+        painter.rect_stroke(rect, 4.0, outline, StrokeKind::Inside);
+        if clip.muted {
+            // Hatched across.
+            let hatch = Stroke::new(1.0, visuals.weak_text_color().gamma_multiply(0.35));
+            let clipped = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
+            let mut x = rect.left() - rect.height();
+            while x < rect.right() {
+                clipped.line_segment(
+                    [pos2(x, rect.bottom()), pos2(x + rect.height(), rect.top())],
+                    hatch,
+                );
+                x += 10.0;
+            }
+        }
+        let wave_rect = Rect::from_min_max(
+            pos2(rect.left() + 1.0, bar.bottom() + 1.0),
+            pos2(rect.right() - 1.0, rect.bottom() - 2.0),
+        );
         if let Some(notes) = &clip.notes {
             draw_notes(painter, wave_rect, clip, notes, self.zoom, base);
         } else {
@@ -280,7 +355,7 @@ impl TimelineView {
                 Align2::LEFT_TOP,
                 label,
                 crate::theme::strong(10.5),
-                Color32::from_rgb(20, 20, 24),
+                crate::theme::text_on(base),
             );
     }
 
@@ -366,17 +441,24 @@ impl TimelineView {
             (None, Some(d)) => d.channels(),
             _ => return,
         };
-        // Each channel in its own band (left above right) unless the track is too low.
-        let bands = if rect.height() / channels as f32 >= 10.0 {
+        let view = self.wave_view;
+        // Each channel in its own band (left above right) unless merged or the track is low.
+        let bands = if !view.merged && rect.height() / channels as f32 >= 24.0 {
             channels
         } else {
             1
         };
         let band_height = rect.height() / bands as f32;
+        let rectified = view.scale == WaveScale::Rectified;
+        // The line the band's waveform grows from, and how far it may go.
         let band = |ch: usize| {
             let b = ch.min(bands - 1) as f32;
-            let mid = rect.top() + band_height * (b + 0.5);
-            (mid, band_height / 2.0 - 1.0)
+            let top = rect.top() + band_height * b;
+            if rectified {
+                (top + band_height - 1.0, band_height - 2.0)
+            } else {
+                (top + band_height / 2.0, band_height / 2.0 - 1.0)
+            }
         };
         let zoom = self.wave_zoom;
         let clip_px = (clip.length as f64 / self.zoom) as f32;
@@ -384,18 +466,32 @@ impl TimelineView {
             let rel = ((x - rect.left()) / clip_px.max(1.0)) as f64 * clip.length as f64;
             envelope(clip, rel as u64)
         };
-        let y = |mid: f32, half: f32, v: f32| mid - (v * zoom).clamp(-1.0, 1.0) * half;
-        let zero = Stroke::new(1.0, color.gamma_multiply(0.25));
+        // A level (signed) to a height from the line, -1..=1, linear or in decibels.
+        let shape = |v: f32| -> f32 {
+            let v = v * zoom;
+            match view.scale {
+                WaveScale::Log => {
+                    let a = v.abs();
+                    if a < 1e-6 {
+                        0.0
+                    } else {
+                        (1.0 + 20.0 * a.log10() / LOG_RANGE)
+                            .clamp(0.0, 1.0)
+                            .copysign(v)
+                    }
+                }
+                _ => v.clamp(-1.0, 1.0),
+            }
+        };
+        let line = Stroke::new(1.0, color.gamma_multiply(0.25));
         for ch in 0..bands {
-            let (mid, _) = band(ch);
-            painter.line_segment(
-                [pos2(visible.left(), mid), pos2(visible.right(), mid)],
-                zero,
-            );
+            let (base, _) = band(ch);
+            painter.hline(visible.x_range(), base, line);
             if ch > 0 {
                 let edge = rect.top() + band_height * ch as f32;
-                painter.line_segment(
-                    [pos2(visible.left(), edge), pos2(visible.right(), edge)],
+                painter.hline(
+                    visible.x_range(),
+                    edge,
                     Stroke::new(1.0, color.gamma_multiply(0.45)),
                 );
             }
@@ -410,70 +506,137 @@ impl TimelineView {
             let x_of = |i: usize| {
                 rect.left() + first_px as f32 + ((i as f64 - start) / source_per_px) as f32
             };
+            let bright = mix(color, Color32::WHITE, 0.35);
             for ch in 0..channels {
-                let (mid, half) = band(ch);
+                let b = ch.min(bands - 1) as f32;
+                let mid = rect.top() + band_height * (b + 0.5);
+                let half = band_height / 2.0 - 1.0;
                 let samples = data.channel(ch);
                 let points: Vec<Pos2> = (first..last)
                     .map(|i| {
                         let x = x_of(i);
-                        pos2(x, y(mid, half, samples[i] * gain_at_x(x)))
+                        let v = (samples[i] * gain_at_x(x) * zoom).clamp(-1.0, 1.0);
+                        pos2(x, mid - v * half)
                     })
                     .collect();
                 if source_per_px < 0.15 {
                     for p in &points {
-                        painter.circle_filled(*p, 1.8, color);
+                        painter.circle_filled(*p, 1.8, bright);
                     }
                 }
-                painter.add(egui::Shape::line(points, Stroke::new(1.2, color)));
+                painter.add(egui::Shape::line(points, Stroke::new(1.2, bright)));
             }
             return;
         }
-        for ch in 0..channels {
-            // Peaks of this channel (with one band, the channels are merged).
-            let mut columns = vec![(f32::MAX, f32::MIN); pixels];
-            match (&peaks, &original) {
-                (Some(peaks), _) if source_per_px >= f64::from(peaks.finest()) => {
-                    peaks.query(ch, start, source_per_px, &mut columns);
-                }
-                (_, Some(data)) => {
-                    let samples = data.channel(ch);
-                    for (i, column) in columns.iter_mut().enumerate() {
-                        let from = (start + i as f64 * source_per_px) as usize;
-                        let to = ((start + (i + 1) as f64 * source_per_px) as usize)
-                            .max(from + 1)
-                            .min(data.frames());
-                        for &s in samples.get(from..to).unwrap_or(&[]) {
-                            column.0 = column.0.min(s);
-                            column.1 = column.1.max(s);
-                        }
+        let peak_color = |p: &Peak| -> Color32 {
+            let s = p.spectrum();
+            if view.spectral && s.iter().sum::<f32>() > 0.0 {
+                let mut c = [0.0f32; 3];
+                for (share, band) in s.iter().zip(SPECTRAL) {
+                    for (k, v) in c.iter_mut().enumerate() {
+                        *v += share * f32::from(band[k]);
                     }
                 }
-                _ => return,
+                Color32::from_rgb(c[0] as u8, c[1] as u8, c[2] as u8)
+            } else {
+                mix(color, Color32::WHITE, 0.2)
             }
-            let (mid, half) = band(ch);
-            let mut previous: Option<(f32, f32)> = None;
-            for (i, &(lo, hi)) in columns.iter().enumerate() {
-                if lo > hi {
+        };
+        let mut outer = egui::Mesh::default();
+        let mut inner = egui::Mesh::default();
+        let mut clipped: Vec<(f32, f32)> = Vec::new();
+        for ch in 0..bands {
+            // The band's peaks; one band for several channels merges them.
+            let mut columns = vec![Peak::EMPTY; pixels];
+            let merged: Vec<usize> = if bands == 1 {
+                (0..channels).collect()
+            } else {
+                vec![ch]
+            };
+            for (n, &c) in merged.iter().enumerate() {
+                let mut these = vec![Peak::EMPTY; pixels];
+                match (&peaks, &original) {
+                    (Some(peaks), _) if source_per_px >= f64::from(peaks.finest()) => {
+                        peaks.query(c, start, source_per_px, &mut these);
+                    }
+                    (_, Some(data)) => {
+                        let samples = data.channel(c);
+                        for (i, column) in these.iter_mut().enumerate() {
+                            let from = (start + i as f64 * source_per_px) as usize;
+                            let to = ((start + (i + 1) as f64 * source_per_px) as usize)
+                                .max(from + 1)
+                                .min(data.frames());
+                            let slice = samples.get(from..to).unwrap_or(&[]);
+                            for &s in slice {
+                                column.lo = column.lo.min(s);
+                                column.hi = column.hi.max(s);
+                                column.mean_square += s * s;
+                            }
+                            column.mean_square /= slice.len().max(1) as f32;
+                        }
+                    }
+                    _ => return,
+                }
+                if n == 0 {
+                    columns = these;
+                } else {
+                    for (a, b) in columns.iter_mut().zip(&these) {
+                        a.lo = a.lo.min(b.lo);
+                        a.hi = a.hi.max(b.hi);
+                        a.mean_square = a.mean_square.max(b.mean_square);
+                    }
+                }
+            }
+            let (base, reach) = band(ch);
+            let mut previous: Option<usize> = None;
+            for (i, p) in columns.iter().enumerate() {
+                let x = rect.left() + (first_px + i) as f32 + 0.5;
+                if p.is_empty() || x > rect.right() {
                     previous = None;
                     continue;
                 }
-                // Each column reaches the previous one, so the waveform has no gaps.
-                let (lo, hi) = match previous.replace((lo, hi)) {
-                    Some((plo, phi)) => (lo.min(phi), hi.max(plo)),
-                    None => (lo, hi),
-                };
-                let x = rect.left() + (first_px + i) as f32 + 0.5;
-                if x > rect.right() {
-                    break;
-                }
                 let gain = gain_at_x(x);
-                let top = y(mid, half, hi * gain);
-                let bottom = y(mid, half, lo * gain);
-                painter.line_segment(
-                    [pos2(x, top), pos2(x, bottom.max(top + 0.5))],
-                    Stroke::new(1.0, color),
+                let (top, bottom, rms_top, rms_bottom) = if rectified {
+                    let peak = shape(p.lo.abs().max(p.hi.abs()) * gain);
+                    let rms = shape(p.rms() * gain).min(peak);
+                    (base - peak * reach, base, base - rms * reach, base)
+                } else {
+                    let (hi, lo) = (shape(p.hi * gain), shape(p.lo * gain));
+                    let rms = shape(p.rms() * gain).min(hi.max(0.0)).min(-lo.min(0.0));
+                    (
+                        base - hi * reach,
+                        base - lo * reach,
+                        base - rms * reach,
+                        base + rms * reach,
+                    )
+                };
+                let bottom = bottom.max(top + 1.0);
+                let tint = peak_color(p);
+                let soft = tint.gamma_multiply(0.55);
+                let strong = mix(tint, Color32::WHITE, 0.25);
+                strip(&mut outer, previous.is_some(), x, top, bottom, soft);
+                strip(
+                    &mut inner,
+                    previous.is_some(),
+                    x,
+                    rms_top,
+                    rms_bottom.max(rms_top + 0.5),
+                    strong,
                 );
+                previous = Some(i);
+                if p.hi >= CLIP_LEVEL || p.lo <= -CLIP_LEVEL {
+                    clipped.push((x, if rectified { top } else { base - reach }));
+                }
             }
+        }
+        painter.add(Shape::mesh(outer));
+        painter.add(Shape::mesh(inner));
+        for (x, y) in clipped {
+            painter.rect_filled(
+                Rect::from_min_size(pos2(x - 0.5, y), vec2(1.5, 3.0)),
+                0.0,
+                Color32::from_rgb(255, 64, 64),
+            );
         }
     }
 }
