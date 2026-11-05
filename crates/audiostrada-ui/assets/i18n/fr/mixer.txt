@@ -1283,3 +1283,6 @@ Retirer du rack
 
 Right-click to choose the parameters shown here
 Clic droit pour choisir les paramètres affichés ici
+
+Click to edit; drag the module to move it
+Clic pour éditer ; glisser le module pour le déplacer

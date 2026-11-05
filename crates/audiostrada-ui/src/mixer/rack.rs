@@ -275,6 +275,26 @@ fn faceplate(ui: &Ui, rect: Rect, tint: Color32, lit: bool) {
 }
 
 /// The button removing a module, at its faceplate's top right corner.
+/// Two columns of dots at a plate's left edge: where it is taken to move it.
+fn grip(ui: &Ui, plate: Rect, hot: bool) {
+    let p = theme::current(ui);
+    let ink = if hot {
+        p.accent
+    } else {
+        p.weak.gamma_multiply(0.6)
+    };
+    let middle = plate.center().y;
+    for row in -2..=2 {
+        for column in 0..2 {
+            let at = pos2(
+                plate.left() + 6.0 + column as f32 * 4.0,
+                middle + row as f32 * 5.0,
+            );
+            ui.painter().circle_filled(at, 1.2, ink);
+        }
+    }
+}
+
 fn close_button(ui: &mut Ui, plate: Rect, salt: u64) -> bool {
     let p = theme::current(ui);
     let rect = Rect::from_center_size(plate.right_top() + vec2(-15.0, 16.0), vec2(18.0, 18.0));
@@ -435,6 +455,8 @@ impl MixerView {
             return;
         };
         self.rack.gaps.clear();
+        // Dragging across the modules moves them, it never selects their text.
+        ui.style_mut().interaction.selectable_labels = false;
         // One chassis: the channel strip's unit on top, the modules under it; it scrolls when
         // the panel is too low.
         egui::ScrollArea::vertical()
@@ -490,7 +512,7 @@ impl MixerView {
     fn slot(
         &mut self,
         ui: &mut Ui,
-        width: f32,
+        (width, insert): (f32, InsertId),
         (tint, lit): (Color32, bool),
         add: impl FnOnce(&mut Self, &mut Ui),
     ) -> Rect {
@@ -501,6 +523,22 @@ impl MixerView {
             pos2(rect.right() - 2.0, rect.bottom() - RAIL + 3.0),
         );
         faceplate(ui, plate, tint, lit);
+        // The whole plate is a handle: its controls, laid over it, keep their own gestures.
+        let handle = ui
+            .interact(
+                plate,
+                ui.scope_id().with(("rack-plate", insert.0)),
+                Sense::drag(),
+            )
+            .on_hover_cursor(egui::CursorIcon::Grab);
+        if handle.drag_started() {
+            self.rack.drag = Some(insert);
+        }
+        grip(
+            ui,
+            plate,
+            handle.hovered() || self.rack.drag == Some(insert),
+        );
         let inner = Rect::from_min_max(plate.min + vec2(16.0, 8.0), plate.max - vec2(16.0, 6.0));
         let mut child = ui.new_child(
             egui::UiBuilder::new()
@@ -929,7 +967,7 @@ impl MixerView {
             egui::FontId::proportional(17.0),
             ink,
         );
-        egui::Popup::menu(&response).show(|ui| {
+        egui::Popup::menu(&response).at_pointer_fixed().show(|ui| {
             self.add_menu(ui, doc, channel, (place, index), place.is_none());
         });
     }
@@ -987,7 +1025,7 @@ impl MixerView {
             egui::FontId::proportional(11.0),
             ink,
         );
-        egui::Popup::menu(&response).show(|ui| {
+        egui::Popup::menu(&response).at_pointer_fixed().show(|ui| {
             self.add_menu(ui, doc, channel, (None, index), true);
         });
     }
@@ -1038,7 +1076,7 @@ impl MixerView {
         let error = doc.player().plugin_error(id).is_some();
         let latency = latency_label(doc, channel, id);
         let tint = theme::family_color(family(doc, &insert.effect));
-        let plate = self.slot(ui, MODULE, (tint, !insert.bypass), |view, ui| {
+        let plate = self.slot(ui, (MODULE, id), (tint, !insert.bypass), |view, ui| {
             let p = theme::current(ui);
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -1065,7 +1103,7 @@ impl MixerView {
                             .truncate()
                             .sense(Sense::click_and_drag()),
                     )
-                    .on_hover_text(tr("Click to edit, drag to move"));
+                    .on_hover_text(tr("Click to edit; drag the module to move it"));
                 #[cfg(test)]
                 super::tests::seen(format!("module {}", id.0), head.rect);
                 if head.drag_started() {
@@ -1085,8 +1123,11 @@ impl MixerView {
             let face_area = ui.interact(
                 area,
                 ui.scope_id().with(("rack-face", id.0)),
-                Sense::click(),
+                Sense::click_and_drag(),
             );
+            if face_area.drag_started() {
+                view.rack.drag = Some(id);
+            }
             if audiostrada_dsp::info(&insert.effect).is_none() {
                 face_area
                     .on_hover_text(tr("Right-click to choose the parameters shown here"))
@@ -1159,7 +1200,7 @@ impl MixerView {
     ) {
         let id = insert.id;
         let tint = theme::family_color("Utility");
-        let plate = self.slot(ui, PARALLEL, (tint, !insert.bypass), |view, ui| {
+        let plate = self.slot(ui, (PARALLEL, id), (tint, !insert.bypass), |view, ui| {
             let p = theme::current(ui);
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -1339,7 +1380,7 @@ impl MixerView {
         let add = ui
             .add(egui::Button::new(RichText::new("+").strong()).min_size(vec2(18.0, 18.0)))
             .on_hover_text(tr("Add an effect to this branch"));
-        egui::Popup::menu(&add).show(|ui| {
+        egui::Popup::menu(&add).at_pointer_fixed().show(|ui| {
             self.add_menu(
                 ui,
                 doc,
@@ -1456,6 +1497,33 @@ impl MixerView {
         };
         if ui.input(|i| i.pointer.any_down()) {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+            // The module's name follows the pointer to where it will land.
+            if let (Some(pos), Some(insert)) = (
+                ui.input(|i| i.pointer.hover_pos()),
+                routing::find_insert(doc.project(), channel, id),
+            ) {
+                let name = if insert.effect == routing::PARALLEL {
+                    tr("Parallel chain").to_owned()
+                } else {
+                    effect_name(doc, &insert.effect)
+                };
+                let p = theme::current(ui);
+                let painter = ui.ctx().layer_painter(egui::LayerId::new(
+                    egui::Order::Tooltip,
+                    egui::Id::unique("rack-drag"),
+                ));
+                let galley = painter.layout_no_wrap(name, egui::FontId::proportional(12.0), p.text);
+                let label =
+                    Rect::from_min_size(pos + vec2(14.0, 10.0), galley.size() + vec2(16.0, 8.0));
+                painter.rect_filled(label, 6.0, p.surface);
+                painter.rect_stroke(
+                    label,
+                    6.0,
+                    egui::Stroke::new(1.0, p.accent),
+                    egui::StrokeKind::Inside,
+                );
+                painter.galley(label.min + vec2(8.0, 4.0), galley, p.text);
+            }
             return;
         }
         self.rack.drag = None;
@@ -1710,6 +1778,58 @@ mod tests {
         assert!(shown_macros(&plugin, &params[..1]).is_empty());
         plugin.macros = vec!["9".into()];
         assert_eq!(shown_macros(&plugin, &params), ["9"]);
+    }
+
+    #[test]
+    fn a_module_drags_by_its_plate_not_only_its_name() {
+        for below in [None, Some(false), Some(true)] {
+            let doc = Rc::new(RefCell::new(Document::new(AppDirs::default())));
+            let (mut t, mut delay, mut comp) = (None, None, None);
+            doc.borrow_mut().history_mut().edit("Setup", |p| {
+                let id = p.add_track("A");
+                let c = Channel::Track(id);
+                delay = routing::add_insert(p, c, "delay", Default::default());
+                comp = routing::add_insert(p, c, "compressor", Default::default());
+                t = Some(id);
+            });
+            let (t, delay, comp) = (t.unwrap(), delay.unwrap(), comp.unwrap());
+            doc.borrow_mut()
+                .select_track(t, crate::document::SelectMode::Only);
+            let mut view = MixerView::new(Rc::clone(&doc));
+            let ctx = egui::Context::default();
+            rack_frame(&ctx, &mut view, vec![]);
+            rack_frame(&ctx, &mut view, vec![]);
+            // Taken by the grip at the left edge, or by the face under the knobs.
+            let title = rect(&format!("module {}", comp.0));
+            let from = match below {
+                None => title.center(),
+                Some(true) => pos2(title.left() + 30.0, title.bottom() + 106.0),
+                Some(false) => pos2(title.left() - 30.0, title.center().y + 60.0),
+            };
+            let to = rect(&format!("module {}", delay.0)).left_center() - vec2(55.0, 0.0);
+            let button = |pos: Pos2, pressed| Event::PointerButton {
+                pos,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: Modifiers::NONE,
+            };
+            rack_frame(&ctx, &mut view, vec![Event::PointerMoved(from)]);
+            rack_frame(&ctx, &mut view, vec![button(from, true)]);
+            for k in 1..=4 {
+                let at = from.lerp(to, k as f32 / 4.0);
+                rack_frame(&ctx, &mut view, vec![Event::PointerMoved(at)]);
+            }
+            rack_frame(&ctx, &mut view, vec![button(to, false)]);
+            rack_frame(&ctx, &mut view, vec![]);
+            let project = doc.borrow().project().clone();
+            let list = routing::inserts(&project, Channel::Track(t));
+            let order: Vec<_> = list
+                .iter()
+                .filter(|i| i.effect != routing::STRIP)
+                .map(|i| i.id)
+                .collect();
+            assert_eq!(order, vec![comp, delay], "taken below: {below:?}");
+        }
     }
 
     #[test]
