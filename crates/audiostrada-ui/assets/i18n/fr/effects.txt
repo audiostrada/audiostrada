@@ -5596,3 +5596,194 @@ Porteuse
 
 16
 16
+
+# Strada-Pitch, Strada-Doubler
+
+4 voices
+4 voix
+
+Double tracking: detuned, delayed and drifting copies spread across the sides, for wide vocals and guitars.
+Doublage : des copies désaccordées, retardées et flottantes réparties sur les côtés, pour des voix et des guitares larges.
+
+Doubles
+Doublures
+
+Strada-Doubler
+Strada-Doubler
+
+Pitch shifter with two voices, delay and feedback: harmonies, octaves, spiralling arpeggios.
+Transpositeur à deux voix, avec retard et réinjection : harmonies, octaves, arpèges en spirale.
+
+Strada-Pitch
+Strada-Pitch
+
+Voice A cents
+Voix A cents
+
+Voice A level
+Voix A niveau
+
+Voice A pan
+Voix A panoramique
+
+Voice A semitones
+Voix A demi-tons
+
+Voice B cents
+Voix B cents
+
+Voice B level
+Voix B niveau
+
+Voice B pan
+Voix B panoramique
+
+Voice B semitones
+Voix B demi-tons
+
+Window
+Fenêtre
+
+Click: voice A. Right-click: voice B
+Clic : voix A. Clic droit : voix B
+
+Echo
+Écho
+
+Grain
+Grain
+
+Original
+Original
+
+Voice A
+Voix A
+
+Voice B
+Voix B
+
+octave
+octave
+
+{count} octaves
+{count} octaves
+
+{interval} + {count} octave(s)
+{interval} + {count} octave(s)
+
+{interval} down
+{interval} en dessous
+
+{interval} up
+{interval} au-dessus
+
+unison
+unisson
+
+minor second
+seconde mineure
+
+second
+seconde
+
+minor third
+tierce mineure
+
+major third
+tierce majeure
+
+fourth
+quarte
+
+tritone
+triton
+
+fifth
+quinte
+
+minor sixth
+sixte mineure
+
+major sixth
+sixte majeure
+
+minor seventh
+septième mineure
+
+major seventh
+septième majeure
+
+ADT: vintage double tracking
+ADT : doublage vintage
+
+Chipmunk
+Chipmunk
+
+Detuned wide
+Désaccordé large
+
+Falling spiral
+Spirale descendante
+
+Fifth staircase
+Escalier de quintes
+
+Glitch cascade
+Cascade glitch
+
+Guitar: subtle stereo
+Guitare : stéréo subtile
+
+Guitar: wall
+Guitare : mur
+
+Harmony: fifth above
+Harmonie : quinte au-dessus
+
+Harmony: major third above
+Harmonie : tierce majeure au-dessus
+
+Harmony: third and fifth
+Harmonie : tierce et quinte
+
+Monster voice
+Voix de monstre
+
+Octave up
+Octave au-dessus
+
+Octaves up and down
+Octaves dessus et dessous
+
+Out of tune choir
+Chœur faux
+
+Shimmer spiral
+Spirale scintillante
+
+Slapback double
+Doublage slapback
+
+Sub octave for bass
+Sous-octave pour la basse
+
+Synth: wide pad
+Synthé : nappe large
+
+Thicken: octave below
+Épaissir : octave en dessous
+
+Vocal: natural double
+Voix : doublage naturel
+
+Vocal: stack of takes
+Voix : empilement de prises
+
+Vocal: tight widen
+Voix : élargissement serré
+
+Cents
+Cents
+
+2
+2

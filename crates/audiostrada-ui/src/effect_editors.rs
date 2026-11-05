@@ -669,6 +669,8 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Editor
         "tape" => crate::tape_editor::show(ui, params, meters, &mut state.tape),
         "mb_comp" => crate::mb_editor::show(ui, params, meters, &mut state.mb),
         "modulator" => crate::mod_editor::show(ui, params, meters),
+        "pitch" => crate::pitch_editor::pitch(ui, params),
+        "doubler" => crate::pitch_editor::doubler(ui, params),
         "flanger" | "phaser" | "chorus" => modulation(ui, params),
         "imager" => imager(ui, params, meters),
         "utility" => utility(ui, params, meters),

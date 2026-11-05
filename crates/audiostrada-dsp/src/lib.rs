@@ -14,6 +14,7 @@ pub mod console;
 pub mod convolver;
 pub mod deesser;
 pub mod delay;
+pub mod doubler;
 pub mod drive;
 pub mod drums;
 pub mod eq;
@@ -31,11 +32,13 @@ pub mod modulator;
 pub mod multiband;
 mod nam;
 pub mod phaser;
+pub mod pitch;
 pub mod pitch_correct;
 mod plate;
 pub mod resample;
 pub mod reverb;
 pub mod rig;
+mod shift;
 mod spring;
 pub mod stomp;
 pub mod stretch;
@@ -274,6 +277,8 @@ pub const EFFECTS: &[&EffectInfo] = &[
     &flanger::INFO,
     &phaser::INFO,
     &modulator::INFO,
+    &pitch::INFO,
+    &doubler::INFO,
     &trigger::INFO,
 ];
 
@@ -286,6 +291,7 @@ pub fn declared_latency(id: &str, values: &[f32], rate: u32) -> Option<u32> {
         "deesser" => Some(deesser::latency_of(values, rate as f32)),
         "limiter" => Some(limiter::latency_of(values, rate as f32)),
         "flanger" => Some(flanger::latency_of(values, rate as f32)),
+        "pitch" => Some(pitch::latency_of(values, rate as f32)),
         "channel" => {
             let index = |id: &str| channel::INFO.params.iter().position(|p| p.id == id);
             let value = |id: &str| {
@@ -344,6 +350,8 @@ pub fn create(id: &str) -> Option<Box<dyn Effect>> {
         "flanger" => Some(Box::new(flanger::Flanger::default())),
         "phaser" => Some(Box::new(phaser::Phaser::default())),
         "modulator" => Some(Box::new(modulator::Modulator::default())),
+        "pitch" => Some(Box::new(pitch::Pitch::default())),
+        "doubler" => Some(Box::new(doubler::Doubler::default())),
         "trigger" => Some(Box::new(trigger::Trigger::default())),
         _ => None,
     }

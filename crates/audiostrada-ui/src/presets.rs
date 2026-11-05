@@ -1608,6 +1608,218 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
         ],
+        "pitch" => vec![
+            preset(tr("Octave up"), &[("a_semis", 12.0)]),
+            preset(tr("Octave down"), &[("a_semis", -12.0)]),
+            preset(
+                tr("Octaves up and down"),
+                &[
+                    ("a_semis", 12.0),
+                    ("a_level", 70.0),
+                    ("b_semis", -12.0),
+                    ("b_level", 70.0),
+                    ("mix", 60.0),
+                ],
+            ),
+            preset(
+                tr("Harmony: fifth above"),
+                &[("a_semis", 7.0), ("mix", 50.0)],
+            ),
+            preset(
+                tr("Harmony: major third above"),
+                &[("a_semis", 4.0), ("mix", 50.0)],
+            ),
+            preset(
+                tr("Harmony: third and fifth"),
+                &[
+                    ("a_semis", 4.0),
+                    ("a_level", 80.0),
+                    ("a_pan", -50.0),
+                    ("b_semis", 7.0),
+                    ("b_level", 80.0),
+                    ("b_pan", 50.0),
+                    ("mix", 50.0),
+                ],
+            ),
+            preset(
+                tr("Thicken: octave below"),
+                &[
+                    ("a_semis", -12.0),
+                    ("a_level", 70.0),
+                    ("tone", 4000.0),
+                    ("mix", 35.0),
+                ],
+            ),
+            preset(
+                tr("Sub octave for bass"),
+                &[
+                    ("a_semis", -12.0),
+                    ("tone", 1500.0),
+                    ("window", 60.0),
+                    ("mix", 40.0),
+                ],
+            ),
+            preset(
+                tr("Detuned wide"),
+                &[
+                    ("a_semis", 0.0),
+                    ("a_cents", 12.0),
+                    ("a_pan", -100.0),
+                    ("b_semis", 0.0),
+                    ("b_cents", -12.0),
+                    ("b_level", 100.0),
+                    ("b_pan", 100.0),
+                    ("window", 30.0),
+                    ("mix", 50.0),
+                ],
+            ),
+            preset(tr("Chipmunk"), &[("a_semis", 12.0), ("window", 25.0)]),
+            preset(tr("Monster voice"), &[("a_semis", -7.0), ("window", 60.0)]),
+            preset(
+                tr("Shimmer spiral"),
+                &[
+                    ("a_semis", 12.0),
+                    ("delay", 250.0),
+                    ("feedback", 70.0),
+                    ("tone", 8000.0),
+                    ("mix", 40.0),
+                ],
+            ),
+            preset(
+                tr("Falling spiral"),
+                &[
+                    ("a_semis", -12.0),
+                    ("delay", 180.0),
+                    ("feedback", 65.0),
+                    ("mix", 40.0),
+                ],
+            ),
+            preset(
+                tr("Fifth staircase"),
+                &[
+                    ("a_semis", 7.0),
+                    ("delay", 300.0),
+                    ("feedback", 75.0),
+                    ("mix", 35.0),
+                ],
+            ),
+            preset(
+                tr("Glitch cascade"),
+                &[
+                    ("a_semis", 5.0),
+                    ("b_semis", -7.0),
+                    ("b_level", 80.0),
+                    ("delay", 90.0),
+                    ("feedback", 80.0),
+                    ("window", 15.0),
+                    ("mix", 50.0),
+                ],
+            ),
+        ],
+        "doubler" => vec![
+            preset(
+                tr("Vocal: natural double"),
+                &[
+                    ("voices", 0.0),
+                    ("detune", 6.0),
+                    ("delay", 18.0),
+                    ("width", 80.0),
+                    ("drift", 40.0),
+                    ("low_cut", 150.0),
+                    ("mix", 45.0),
+                ],
+            ),
+            preset(
+                tr("Vocal: tight widen"),
+                &[
+                    ("voices", 0.0),
+                    ("detune", 9.0),
+                    ("delay", 4.0),
+                    ("width", 100.0),
+                    ("drift", 10.0),
+                    ("mix", 40.0),
+                ],
+            ),
+            preset(
+                tr("Vocal: stack of takes"),
+                &[
+                    ("voices", 1.0),
+                    ("detune", 12.0),
+                    ("delay", 22.0),
+                    ("width", 100.0),
+                    ("drift", 60.0),
+                    ("mix", 55.0),
+                ],
+            ),
+            preset(
+                tr("Guitar: wall"),
+                &[
+                    ("voices", 1.0),
+                    ("detune", 10.0),
+                    ("delay", 15.0),
+                    ("width", 100.0),
+                    ("drift", 40.0),
+                    ("low_cut", 120.0),
+                    ("mix", 60.0),
+                ],
+            ),
+            preset(
+                tr("Guitar: subtle stereo"),
+                &[
+                    ("voices", 0.0),
+                    ("detune", 5.0),
+                    ("delay", 12.0),
+                    ("width", 70.0),
+                    ("drift", 25.0),
+                    ("mix", 35.0),
+                ],
+            ),
+            preset(
+                tr("Synth: wide pad"),
+                &[
+                    ("voices", 1.0),
+                    ("detune", 18.0),
+                    ("delay", 25.0),
+                    ("width", 100.0),
+                    ("drift", 50.0),
+                    ("low_cut", 200.0),
+                    ("mix", 60.0),
+                ],
+            ),
+            preset(
+                tr("ADT: vintage double tracking"),
+                &[
+                    ("voices", 0.0),
+                    ("detune", 4.0),
+                    ("delay", 30.0),
+                    ("width", 60.0),
+                    ("drift", 70.0),
+                    ("mix", 50.0),
+                ],
+            ),
+            preset(
+                tr("Slapback double"),
+                &[
+                    ("voices", 0.0),
+                    ("detune", 3.0),
+                    ("delay", 60.0),
+                    ("width", 90.0),
+                    ("drift", 20.0),
+                    ("mix", 45.0),
+                ],
+            ),
+            preset(
+                tr("Out of tune choir"),
+                &[
+                    ("voices", 1.0),
+                    ("detune", 35.0),
+                    ("delay", 30.0),
+                    ("width", 100.0),
+                    ("drift", 80.0),
+                    ("mix", 60.0),
+                ],
+            ),
+        ],
         "maximizer" => vec![
             preset(
                 tr("Master: acoustic, gentle"),

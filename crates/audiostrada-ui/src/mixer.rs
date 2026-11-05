@@ -4461,6 +4461,8 @@ impl MixerView {
                 "tape" => [980.0, 900.0],
                 "mb_comp" => [1000.0, 860.0],
                 "modulator" => [940.0, 640.0],
+                "pitch" => [940.0, 720.0],
+                "doubler" => [900.0, 600.0],
                 "compressor" => [980.0, 720.0],
                 "gate" => [980.0, 700.0],
                 "deesser" => [980.0, 680.0],
@@ -4490,7 +4492,15 @@ impl MixerView {
                 raise,
                 matches!(
                     info.id,
-                    "drums" | "trigger" | "channel" | "amp_rig" | "tape" | "mb_comp" | "modulator"
+                    "drums"
+                        | "trigger"
+                        | "channel"
+                        | "amp_rig"
+                        | "tape"
+                        | "mb_comp"
+                        | "modulator"
+                        | "pitch"
+                        | "doubler"
                 ),
                 |ui| {
                     let state = self.editor_states.entry(id).or_default();
