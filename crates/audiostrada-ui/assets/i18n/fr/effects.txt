@@ -4901,3 +4901,146 @@ Amapiano
 
 Dancehall
 Dancehall
+
+# Strada-Trigger
+
+Credits
+Crédits
+
+Strada-Trigger drum samples
+Échantillons de batterie de Strada-Trigger
+
+DRS
+DRS
+
+Drum
+Fût
+
+Kick sound
+Son de grosse caisse
+
+Snare sound
+Son de caisse claire
+
+Muldjord
+Muldjord
+
+Reinforces or replaces a kick or a snare with sampled drums, hit for hit.
+Renforce ou remplace une grosse caisse ou une caisse claire par des fûts échantillonnés, coup pour coup.
+
+Rusty 24
+Rusty 24
+
+Rusty 24 open
+Rusty 24 ouverte
+
+Rusty rimshot
+Rusty rimshot
+
+SM
+SM
+
+Strada-Trigger
+Strada-Trigger
+
+Swirly
+Swirly
+
+Unruly 13
+Unruly 13
+
+Unruly 14
+Unruly 14
+
+Unruly 20
+Unruly 20
+
+Unruly 20 dirty
+Unruly 20 sale
+
+20 ms look-ahead, compensated by the mix
+Anticipation de 20 ms, compensée par le mixage
+
+Blend
+Mélange
+
+Click to choose it and hear it
+Cliquez pour le choisir et l'écouter
+
+Drag up or down to set the threshold: hits over the line play the sample
+Glissez vers le haut ou le bas pour régler le seuil : les coups au-dessus de la ligne jouent le sample
+
+Drag, or click a point; double-click to reset
+Glissez, ou cliquez un point ; double-clic pour revenir au défaut
+
+Kick: big and open
+Grosse caisse : grosse et ouverte
+
+Kick: fast double pedal
+Grosse caisse : double pédale rapide
+
+Kick: reinforce
+Grosse caisse : renfort
+
+Kick: replace
+Grosse caisse : remplacement
+
+Play the track: its hits show here, each one found is marked
+Lancez la lecture : les coups de la piste s'affichent ici, chacun détecté est marqué
+
+Snare: in the room
+Caisse claire : dans la pièce
+
+Snare: reinforce
+Caisse claire : renfort
+
+Snare: replace
+Caisse claire : remplacement
+
+Snare: tight and dry
+Caisse claire : serrée et sèche
+
+Close mics
+Proche
+
+Room mics
+Room
+
+Triggered sound
+Trigger
+
+20-inch, clean
+20 pouces, propre
+
+20-inch, rough
+20 pouces, sale
+
+24-inch, damped
+24 pouces, étouffée
+
+24-inch, open and long
+24 pouces, ouverte et longue
+
+Vintage, stereo mix
+Vintage, mix stéréo
+
+Two mics and room
+Deux micros et room
+
+13-inch, center
+13 pouces, au centre
+
+14-inch, center
+14 pouces, au centre
+
+14-inch, rimshot
+14 pouces, rimshot
+
+Short and dry
+Courte et sèche
+
+Long ring
+Longue résonance
+
+Top, bottom and room
+Dessus, dessous et room

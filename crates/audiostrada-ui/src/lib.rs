@@ -41,6 +41,7 @@ mod tone3000;
 mod track_icons;
 mod track_menu;
 mod transport;
+mod trigger_editor;
 mod ui_prefs;
 mod updates;
 mod versions_window;
@@ -2388,6 +2389,17 @@ impl AudioStradaApp {
                     if ui.link(tr("Source code")).clicked() {
                         ctx.open_url(egui::OpenUrl::new_tab(audiostrada_license::link("source")));
                     }
+                    ui.add_space(6.0);
+                    ui.collapsing(tr("Credits"), |ui| {
+                        ui.label(egui::RichText::new(tr("Strada-Trigger drum samples")).strong());
+                        for line in [
+                            "Karoryfer Samples: Unruly, Big Rusty and Swirly Drums (CC0 1.0)",
+                            "SM Drums: Scott McLean, Tod Stillwell, Suleiman Ali",
+                            "DrumGizmo team: MuldjordKit and DRSKit (CC BY 4.0)",
+                        ] {
+                            ui.weak(line);
+                        }
+                    });
                 });
                 theme::footer(ui, |ui| {
                     if theme::primary_button(ui, tr("OK")).clicked() {

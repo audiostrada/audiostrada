@@ -135,6 +135,7 @@ fn factory(effect: &str) -> Vec<Preset> {
     match effect {
         "synth" => crate::synth_editor::factory(),
         "drums" => crate::drums_editor::factory(),
+        "trigger" => crate::trigger_editor::factory(),
         "eq" => vec![
             preset(tr("Default: flat"), &[]),
             eq_preset(

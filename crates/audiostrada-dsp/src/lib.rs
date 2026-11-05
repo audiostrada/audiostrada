@@ -41,6 +41,7 @@ pub mod synth;
 pub mod tape;
 pub mod tempo;
 pub mod transient;
+pub mod trigger;
 pub mod tuner;
 mod utility;
 mod vintage;
@@ -269,6 +270,7 @@ pub const EFFECTS: &[&EffectInfo] = &[
     &chorus::INFO,
     &flanger::INFO,
     &phaser::INFO,
+    &trigger::INFO,
 ];
 
 /// The delay an effect adds with these parameter values (in its order), when its settings
@@ -336,6 +338,7 @@ pub fn create(id: &str) -> Option<Box<dyn Effect>> {
         "chorus" => Some(Box::new(chorus::Chorus::default())),
         "flanger" => Some(Box::new(flanger::Flanger::default())),
         "phaser" => Some(Box::new(phaser::Phaser::default())),
+        "trigger" => Some(Box::new(trigger::Trigger::default())),
         _ => None,
     }
 }

@@ -569,6 +569,7 @@ dependencies = [
  "audiostrada-midi",
  "nam-rs",
  "realfft",
+ "symphonia",
 ]
 
 [[package]]

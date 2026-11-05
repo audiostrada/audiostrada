@@ -123,6 +123,7 @@ pub struct EditorState {
     pitch_view: f32,
     pub synth: crate::synth_editor::SynthState,
     pub drums: crate::drums_editor::DrumsState,
+    pub trigger: crate::trigger_editor::TriggerState,
     /// Match is on (listening only; switched off when the window closes).
     pub matching: bool,
     /// EQ band heard alone (listening only; stopped when the window closes).
@@ -676,6 +677,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Editor
         "amp_rig" => crate::rig_editor::show(ui, params, meters, &mut state.rig),
         "synth" => crate::synth_editor::show(ui, params, meters, &mut state.synth),
         "drums" => crate::drums_editor::show(ui, params, meters, &mut state.drums),
+        "trigger" => crate::trigger_editor::show(ui, params, meters, &mut state.trigger),
         _ => knob_panel(ui, params, meters),
     }
 }
@@ -6441,6 +6443,8 @@ mod tests {
                 // Set by dragging the modules; from the console.
                 ("channel", "order"),
                 ("channel", "character"),
+                // The cards of the drum chosen.
+                ("trigger", "snare"),
             ];
             for p in info.params {
                 // The synth's routings show once used, its LFO notes once synced.

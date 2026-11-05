@@ -1051,7 +1051,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
 }
 
 /// The dark screen behind the pads and the pad's editor.
-const SCREEN: Color32 = Color32::from_rgb(16, 19, 25);
+pub(crate) const SCREEN: Color32 = Color32::from_rgb(16, 19, 25);
 
 /// The color of a pad's family: kicks, snares and claps, hats, toms, cymbals, percussion.
 pub(crate) fn family(pad: usize) -> Color32 {
@@ -1120,7 +1120,7 @@ fn shape(params: &Params, pad: usize, file: Option<&std::path::Path>) -> Arc<Vec
 }
 
 /// A sound's peaks as a mirrored waveform in `rect`.
-fn waveform(painter: &egui::Painter, rect: Rect, peaks: &[f32], color: Color32) {
+pub(crate) fn waveform(painter: &egui::Painter, rect: Rect, peaks: &[f32], color: Color32) {
     if peaks.is_empty() {
         return;
     }
@@ -1319,7 +1319,7 @@ fn cell(
 }
 
 /// The dark screen filling the width, with light controls whatever the theme.
-fn screen(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
+pub(crate) fn screen(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
     egui::Frame::new()
         .fill(SCREEN)
         .corner_radius(10.0)
@@ -1395,7 +1395,7 @@ fn tabs(ui: &mut Ui, tab: &mut Tab, pad: usize) {
 }
 
 /// Modules side by side across the width, each as wide as its knobs, titled in `tint`.
-fn modules(
+pub(crate) fn modules(
     ui: &mut Ui,
     params: &mut Params,
     list: &[(&str, Vec<(String, &str)>)],
@@ -1471,7 +1471,7 @@ fn modules(
 }
 
 /// The panels inside the screen.
-const MODULE: Color32 = Color32::from_rgb(25, 29, 38);
+pub(crate) const MODULE: Color32 = Color32::from_rgb(25, 29, 38);
 
 /// The pad being edited: its sound large with its character or file and its main knobs, then
 /// its envelope, pitch, filter and sends.
