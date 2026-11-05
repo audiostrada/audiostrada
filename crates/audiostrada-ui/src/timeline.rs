@@ -1709,6 +1709,22 @@ mod tests {
         }
 
         #[test]
+        fn shift_click_draws_a_range_from_the_cursor() {
+            let (mut h, doc, tracks) = harness();
+            let (x, sample) = scale(&h);
+            let y = h.view.lanes_rect.top() + h.view.tops[1] + 55.0;
+            h.click(pos2(x(1500), y), Modifiers::NONE);
+            for _ in 0..10 {
+                h.frame(vec![]);
+            }
+            h.click(pos2(x(3000), y), Modifiers::SHIFT);
+            let r = h.view.range.clone().expect("a range");
+            assert_eq!((r.start, r.end), (sample(x(1500)), sample(x(3000))));
+            assert_eq!(r.tracks, [tracks[1]]);
+            assert!(doc.borrow().project().track(tracks[1]).is_some());
+        }
+
+        #[test]
         fn tools_over_the_headers_stay_clickable_when_scrolled() {
             let (mut h, _, _) = harness();
             h.view.scroll_y = 50.0;

@@ -969,6 +969,19 @@ impl TimelineView {
             if !modifiers.shift {
                 self.range = None;
             }
+            // Shift+click on an empty part: a range from the cursor to there, on that track.
+            if modifiers.shift
+                && self.range.is_none()
+                && hovered.is_none()
+                && let Some(track) = self.track_at(project, pos.y - lanes.top())
+            {
+                let (a, b) = (doc.player().position(), magnet.snap(scale.sample(pos.x)));
+                self.range = (a != b).then(|| Range {
+                    start: a.min(b),
+                    end: a.max(b),
+                    tracks: vec![track.id],
+                });
+            }
             let extend = modifiers.shift && self.range.is_some();
             if extend {
                 let at = magnet.snap(scale.sample(pos.x));
