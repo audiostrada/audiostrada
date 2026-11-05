@@ -432,7 +432,10 @@ impl TimelineView {
                     tr("Spectral colors (lows red, mids green, highs blue)"),
                 );
                 ui.checkbox(&mut view.merged, tr("Channels merged"));
-            ui.checkbox(&mut view.fit, tr("Each clip as tall as it can be (display only)"));
+                ui.checkbox(
+                    &mut view.fit,
+                    tr("Each clip as tall as it can be (display only)"),
+                );
                 ui.separator();
                 ui.label(tr("Waveform zoom"));
                 ui.add(

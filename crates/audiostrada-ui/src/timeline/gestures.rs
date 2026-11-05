@@ -116,7 +116,7 @@ impl TimelineView {
                 .filter(|(_, (index, _))| r.tracks.contains(&project.tracks[*index].id))
                 .map(|(i, _)| {
                     let top = lanes.top() + self.tops[i] - self.scroll_y;
-                    (top, top + self.track_height)
+                    (top, top + self.row_height(i))
                 })
                 .collect();
             (r.start, r.end, spans)
@@ -1082,7 +1082,7 @@ impl TimelineView {
     fn clip_at(&self, project: &Project, pos: Pos2, lanes: Rect, scale: Scale) -> Option<ClipId> {
         let r = self.row_at(pos.y - lanes.top())?;
         let top = lanes.top() + self.tops[r] - self.scroll_y;
-        if pos.y > top + self.track_height {
+        if pos.y > top + self.row_height(r) {
             return None;
         }
         let at = scale.sample(pos.x);

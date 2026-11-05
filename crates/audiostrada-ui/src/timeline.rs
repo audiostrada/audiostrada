@@ -143,6 +143,8 @@ pub struct TimelineView {
     scroll: f64,
     scroll_y: f32,
     track_height: f32,
+    /// Height of each shown track's clips, by row.
+    heights: Vec<f32>,
     /// Vertical magnification of the waveforms.
     wave_zoom: f32,
     pub selection: Vec<ClipId>,
@@ -243,6 +245,7 @@ impl TimelineView {
             scroll: 0.0,
             scroll_y: 0.0,
             track_height: 72.0,
+            heights: Vec::new(),
             wave_zoom: 1.0,
             selection: Vec::new(),
             drag: None,
@@ -423,17 +426,22 @@ impl TimelineView {
         (i > 0 && y < self.content_height).then(|| i - 1)
     }
 
+    /// Height of the clips of the track on row `r`.
+    fn row_height(&self, r: usize) -> f32 {
+        self.heights.get(r).copied().unwrap_or(self.track_height)
+    }
+
     /// Track whose clip area is under `y` (relative to the top of the lanes).
     fn track_at<'a>(&self, project: &'a Project, y: f32) -> Option<&'a Track> {
         let r = self.row_at(y)?;
-        (y + self.scroll_y - self.tops[r] < self.track_height)
+        (y + self.scroll_y - self.tops[r] < self.row_height(r))
             .then(|| project.tracks[self.rows[r].0].as_ref())
     }
 
     /// Automation lane under `y`: row, index of the lane in its track, and the lane's top.
     fn lane_at(&self, project: &Project, y: f32) -> Option<(usize, usize, f32)> {
         let r = self.row_at(y)?;
-        let offset = y + self.scroll_y - self.tops[r] - self.track_height;
+        let offset = y + self.scroll_y - self.tops[r] - self.row_height(r);
         if offset < 0.0 {
             return None;
         }
@@ -447,7 +455,7 @@ impl TimelineView {
         Some((
             r,
             lane,
-            self.tops[r] + self.track_height + takes_height(track) + k as f32 * LANE_HEIGHT
+            self.tops[r] + self.row_height(r) + takes_height(track) + k as f32 * LANE_HEIGHT
                 - self.scroll_y,
         ))
     }
@@ -456,7 +464,7 @@ impl TimelineView {
     fn take_at(&self, project: &Project, y: f32) -> Option<(TrackId, usize)> {
         let r = self.row_at(y)?;
         let track = &project.tracks[self.rows[r].0];
-        let offset = y + self.scroll_y - self.tops[r] - self.track_height;
+        let offset = y + self.scroll_y - self.tops[r] - self.row_height(r);
         (offset >= 0.0 && offset < takes_height(track))
             .then(|| (track.id, (offset / TAKE_HEIGHT) as usize))
     }
@@ -753,13 +761,15 @@ impl TimelineView {
         let length = project.length();
         self.rows = routing::visible_tracks(&project);
         self.tops.clear();
+        self.heights.clear();
         let mut y = 0.0;
         for &(index, _) in &self.rows {
             self.tops.push(y);
             let track = &project.tracks[index];
-            y += self.track_height
-                + takes_height(track)
-                + shown_lanes(track).len() as f32 * LANE_HEIGHT;
+            let height =
+                (self.track_height * track.height).clamp(MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT);
+            self.heights.push(height);
+            y += height + takes_height(track) + shown_lanes(track).len() as f32 * LANE_HEIGHT;
         }
         self.content_height = y;
         self.lane_info.clear();
@@ -895,7 +905,7 @@ impl TimelineView {
             let top = lanes.top() + self.tops[i] - self.scroll_y;
             let row = Rect::from_min_max(
                 pos2(lanes.left(), top),
-                pos2(lanes.right(), top + self.track_height),
+                pos2(lanes.right(), top + self.heights[i]),
             );
             if row.bottom() < lanes.top() || row.top() > lanes.bottom() {
                 continue;
@@ -1049,7 +1059,7 @@ impl TimelineView {
                     continue;
                 }
                 let top = lanes.top() + self.tops[i] - self.scroll_y;
-                let r = Rect::from_x_y_ranges(x0..=x1, top..=top + self.track_height);
+                let r = Rect::from_x_y_ranges(x0..=x1, top..=top + self.heights[i]);
                 lane_painter.rect_filled(r, 0.0, RANGE.gamma_multiply(0.28));
                 lane_painter.rect_stroke(r, 0.0, Stroke::new(1.0, RANGE), StrokeKind::Inside);
             }
@@ -1464,6 +1474,32 @@ mod tests {
                 clip(&doc).fade_shape,
                 audiostrada_core::model::FadeShape::Slow
             );
+        }
+
+        #[test]
+        fn a_track_gets_its_own_height_from_its_header_edge() {
+            let (mut h, doc, tracks) = harness();
+            let lanes = h.view.lanes_rect;
+            let edge = pos2(
+                lanes.left() - HEADER_WIDTH + 60.0,
+                lanes.top() + h.view.tops[0] + h.view.track_height - 1.0,
+            );
+            h.drag(edge, edge + vec2(0.0, 36.0));
+            h.frame(vec![]);
+            assert!(
+                (h.view.heights[0] - 108.0).abs() < 1.0,
+                "{:?}",
+                h.view.heights
+            );
+            assert_eq!(h.view.heights[1], 72.0, "the other track stays");
+            let track = |doc: &Rc<RefCell<Document>>| {
+                doc.borrow().project().track(tracks[0]).unwrap().height
+            };
+            assert!((track(&doc) - 1.5).abs() < 0.02);
+            // The global height scales it too.
+            h.view.set_track_height(144.0, None);
+            h.frame(vec![]);
+            assert!((h.view.heights[0] - 216.0).abs() < 2.0);
         }
 
         #[test]

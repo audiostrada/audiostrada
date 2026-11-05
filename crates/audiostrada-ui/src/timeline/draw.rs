@@ -812,4 +812,3 @@ pub(super) fn draw_crossfades(painter: &egui::Painter, row: Rect, track: &Track,
         ));
     }
 }
-

@@ -775,3 +775,6 @@ Couleurs spectrales (graves en rouge, médiums en vert, aigus en bleu)
 
 Each clip as tall as it can be (display only)
 Chaque clip aussi haut que possible (affichage seulement)
+
+Drag to make the track taller or shorter (all the selected ones); double-click for the others' height
+Glisser pour agrandir ou réduire la piste (toutes celles sélectionnées) ; double-clic pour la hauteur des autres

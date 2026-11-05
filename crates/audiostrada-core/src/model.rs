@@ -390,6 +390,17 @@ pub struct Track {
     /// Icon chosen for the track (else found from its name and content).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    /// Height in the timeline, relative to the others' (1 for the same).
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub height: f32,
+}
+
+fn one() -> f32 {
+    1.0
+}
+
+fn is_one(v: &f32) -> bool {
+    *v == 1.0
 }
 
 /// A finished song to compare the mix with (heard instead of it, never exported).
@@ -954,6 +965,7 @@ impl Project {
             fx_off: false,
             console: None,
             icon: None,
+            height: 1.0,
         }));
         id
     }

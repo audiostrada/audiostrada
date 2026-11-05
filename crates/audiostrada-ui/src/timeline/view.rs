@@ -52,18 +52,20 @@ impl TimelineView {
     /// lanes) in place.
     pub(super) fn set_track_height(&mut self, height: f32, pointer_y: Option<f32>) {
         let height = height.clamp(MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT);
+        let scale = height / self.track_height;
         if let Some(y) = pointer_y
             && let Some(i) = self.tops.iter().rposition(|&t| t <= self.scroll_y + y)
         {
             let within = self.scroll_y + y - self.tops[i];
-            let delta = height - self.track_height;
+            let row = self.row_height(i);
+            let above: f32 = (0..i).map(|r| self.row_height(r)).sum::<f32>() * (scale - 1.0);
             // Lanes below the track keep their height.
-            let moved = if within <= self.track_height {
-                within * height / self.track_height
+            let moved = if within <= row {
+                within * scale
             } else {
-                within + delta
+                within + row * (scale - 1.0)
             };
-            self.scroll_y = (self.tops[i] + i as f32 * delta + moved - y).max(0.0);
+            self.scroll_y = (self.tops[i] + above + moved - y).max(0.0);
         }
         self.track_height = height;
     }

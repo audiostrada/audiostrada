@@ -75,7 +75,7 @@ impl TimelineView {
             let top = header.top() + self.tops[i] - self.scroll_y;
             let row = Rect::from_min_max(
                 pos2(header.left(), top),
-                pos2(header.right(), top + self.track_height),
+                pos2(header.right(), top + self.heights[i]),
             );
             if row.bottom() < header.top() || row.top() > header.bottom() {
                 continue;
@@ -86,6 +86,7 @@ impl TimelineView {
                 ui.scope_id().with(("header", track.id.0)),
                 Sense::click_and_drag(),
             );
+            self.height_edge(ui, doc, row, track.id);
             let color = Color32::from_rgb(track.color[0], track.color[1], track.color[2]);
             painter.rect_filled(
                 Rect::from_min_size(row.min, vec2(4.0, row.height() - 1.0)),
@@ -611,6 +612,54 @@ impl TimelineView {
     }
 
     /// The right edge of the track headers, dragged to widen or narrow them.
+    /// The bottom edge of a track's header: dragged, the track (or the selected ones) gets
+    /// taller or shorter; a double-click gives it the others' height again.
+    fn height_edge(&mut self, ui: &mut Ui, doc: &mut Document, row: Rect, id: TrackId) {
+        let edge = Rect::from_x_y_ranges(row.x_range(), row.bottom() - 3.0..=row.bottom() + 2.0);
+        let response = ui.interact(
+            edge,
+            ui.scope_id().with(("height-edge", id.0)),
+            Sense::click_and_drag(),
+        );
+        if response.hovered() || response.dragged() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+            ui.painter().hline(
+                row.x_range(),
+                row.bottom(),
+                Stroke::new(2.0, ui.visuals().selection.bg_fill),
+            );
+        }
+        let tracks = if doc.is_track_selected(id) {
+            doc.selected_tracks().to_vec()
+        } else {
+            vec![id]
+        };
+        let base = self.track_height;
+        if response.dragged() {
+            let height =
+                (row.height() + response.drag_delta().y).clamp(MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT);
+            doc.history_mut().modify_unrecorded(|p| {
+                for t in &tracks {
+                    if let Some(t) = p.track_mut(*t) {
+                        t.height = height / base;
+                    }
+                }
+            });
+        }
+        if response.double_clicked() {
+            doc.history_mut().modify_unrecorded(|p| {
+                for t in &tracks {
+                    if let Some(t) = p.track_mut(*t) {
+                        t.height = 1.0;
+                    }
+                }
+            });
+        }
+        response.on_hover_text(tr(
+            "Drag to make the track taller or shorter (all the selected ones); double-click for the others' height",
+        ));
+    }
+
     pub(super) fn header_edge(&mut self, ui: &mut Ui, full: Rect, header: Rect) {
         let edge =
             Rect::from_x_y_ranges(header.right() - 5.0..=header.right() + 1.0, full.y_range());
