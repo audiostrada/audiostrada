@@ -11,6 +11,8 @@ use crate::i18n::tr;
 use crate::tape_deck;
 use crate::theme;
 
+/// Every machine's face is this tall, so the window keeps its size between them.
+const FACE_HEIGHT: f32 = 460.0;
 const INK: Color32 = Color32::from_rgb(236, 232, 222);
 
 /// Each machine's panel color and its accent.
@@ -113,7 +115,7 @@ fn deck_face(
     machine: usize,
 ) {
     let width = ui.available_width();
-    let height = if machine == 1 { 460.0 } else { 450.0 };
+    let height = FACE_HEIGHT;
     let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
     ui.painter()
         .rect_filled(rect.expand(1.0), 4.0, Color32::from_black_alpha(120));
@@ -126,11 +128,7 @@ fn deck_face(
         let place = face.places[k];
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(place));
         let value = meters.get(k).copied().unwrap_or(-60.0);
-        let look = if face.cream {
-            VuFace::Cream
-        } else {
-            VuFace::Amber
-        };
+        let look = face.face;
         vu_meter(
             &mut child,
             value,
@@ -162,9 +160,8 @@ fn machine_face(
     state: &mut TapeState,
     panel: Color32,
 ) {
-    let machine = 3;
     let width = ui.available_width();
-    let (rect, _) = ui.allocate_exact_size(vec2(width, 210.0), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(vec2(width, FACE_HEIGHT), Sense::hover());
     let painter = ui.painter_at(rect.expand(12.0));
     gear::shadow(&painter, rect);
     gear::tile(&painter, rect, Texture::Brushed, 1.0, panel);
@@ -184,45 +181,40 @@ fn machine_face(
         painter.circle_filled(corner, 4.0, Color32::from_black_alpha(90));
         painter.circle_filled(corner - vec2(0.5, 0.5), 3.0, Color32::from_gray(200));
     }
-    let meter_width = 168.0;
-    let deck = Rect::from_min_max(
-        rect.min + vec2(24.0, 18.0),
-        pos2(
-            rect.right() - 2.0 * meter_width - 40.0,
-            rect.bottom() - 18.0,
+    // Input on the left, output on the right, the cassette between them.
+    let meter = vec2(214.0, 142.0);
+    let middle = rect.center().y - 14.0;
+    let places = [
+        Rect::from_min_size(pos2(rect.left() + 26.0, middle - meter.y / 2.0), meter),
+        Rect::from_min_size(
+            pos2(rect.right() - 26.0 - meter.x, middle - meter.y / 2.0),
+            meter,
         ),
+    ];
+    let room = places[1].left() - places[0].right() - 40.0;
+    let scale = (room / 300.0).min(1.6);
+    cassette(
+        &painter,
+        pos2(rect.center().x, middle),
+        scale,
+        state.travel / 40.0,
     );
-    cassette(&painter, deck, state.travel / 40.0);
-    // The name on the panel.
-    let name = audiostrada_dsp::tape::MACHINES[machine];
-    let letters = if machine == 3 {
-        INK
-    } else {
-        Color32::from_rgb(28, 28, 30)
-    };
     painter.text(
-        pos2(deck.center().x, rect.bottom() - 14.0),
+        pos2(rect.center().x, rect.bottom() - 24.0),
         Align2::CENTER_BOTTOM,
         format!(
             "{}  ·  {}",
-            tr(name),
+            tr(audiostrada_dsp::tape::MACHINES[3]),
             audiostrada_dsp::tape::SPEEDS[(params.get("speed").round() as usize).min(2)]
         ),
-        theme::strong(13.0),
-        letters,
+        theme::strong(14.0),
+        INK,
     );
-    // The meters.
     for (k, label, caption) in [
         (0, tr("Input"), tr("RECORD")),
         (1, tr("Output"), tr("PLAYBACK")),
     ] {
-        let place = Rect::from_min_size(
-            pos2(
-                rect.right() - (2 - k) as f32 * (meter_width + 12.0) - 12.0,
-                rect.top() + 22.0,
-            ),
-            vec2(meter_width, 140.0),
-        );
+        let place = places[k];
         // A child of its own: drawn over the face without moving what follows.
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(place));
         let value = meters.get(k).copied().unwrap_or(-60.0);
@@ -234,71 +226,92 @@ fn machine_face(
             (VuFace::Amber, caption),
         );
         painter.text(
-            pos2(place.center().x, place.bottom() + 8.0),
+            pos2(place.center().x, place.bottom() + 10.0),
             Align2::CENTER_TOP,
             label,
-            theme::strong(11.0),
-            letters,
+            theme::strong(12.0),
+            INK,
         );
     }
 }
 
-/// A cassette in its deck: the shell, the label and the two hubs turning.
-fn cassette(painter: &egui::Painter, deck: Rect, angle: f32) {
-    let shell = Rect::from_center_size(
-        deck.center() - vec2(0.0, 6.0),
-        vec2(deck.width().min(300.0), deck.height().min(150.0)),
-    );
+/// A cassette in its deck, `scale` times its natural size: the shell and its screws, the
+/// label, and the two hubs turning.
+fn cassette(painter: &egui::Painter, center: egui::Pos2, scale: f32, angle: f32) {
+    let s = scale;
+    let shell = Rect::from_center_size(center, vec2(300.0, 150.0) * s);
     gear::shadow(painter, shell);
-    painter.rect_filled(shell, 10.0, Color32::from_rgb(34, 34, 38));
-    let label = shell.shrink2(vec2(18.0, 14.0));
-    let label = Rect::from_min_max(label.min, pos2(label.right(), label.bottom() - 30.0));
-    painter.rect_filled(label, 6.0, Color32::from_rgb(232, 224, 200));
+    painter.rect_filled(shell, 10.0 * s, Color32::from_rgb(34, 34, 38));
+    gear::sheen(
+        painter,
+        shell.shrink(6.0 * s),
+        Color32::from_white_alpha(14),
+        Color32::from_black_alpha(0),
+    );
+    for corner in [
+        shell.left_top() + vec2(9.0, 9.0) * s,
+        shell.right_top() + vec2(-9.0, 9.0) * s,
+        shell.left_bottom() + vec2(9.0, -9.0) * s,
+        shell.right_bottom() + vec2(-9.0, -9.0) * s,
+        pos2(shell.center().x, shell.bottom() - 9.0 * s),
+    ] {
+        painter.circle_filled(corner, 3.0 * s, Color32::from_gray(70));
+        painter.line_segment(
+            [corner - vec2(2.0, 0.0) * s, corner + vec2(2.0, 0.0) * s],
+            Stroke::new(1.0, Color32::from_gray(30)),
+        );
+    }
+    let label = shell.shrink2(vec2(18.0, 14.0) * s);
+    let label = Rect::from_min_max(label.min, pos2(label.right(), label.bottom() - 30.0 * s));
+    painter.rect_filled(label, 6.0 * s, Color32::from_rgb(232, 224, 200));
     painter.rect_filled(
-        Rect::from_min_size(label.min + vec2(0.0, 10.0), vec2(label.width(), 6.0)),
+        Rect::from_min_size(
+            label.min + vec2(0.0, 10.0 * s),
+            vec2(label.width(), 6.0 * s),
+        ),
         0.0,
         Color32::from_rgb(220, 90, 70),
     );
     let window = Rect::from_center_size(
-        label.center() + vec2(0.0, 12.0),
-        vec2(label.width() * 0.62, 38.0),
+        label.center() + vec2(0.0, 12.0 * s),
+        vec2(label.width() * 0.62, 38.0 * s),
     );
-    painter.rect_filled(window, 8.0, Color32::from_rgb(28, 24, 22));
-    for (k, x) in [window.left() + 26.0, window.right() - 26.0]
+    painter.rect_filled(window, 8.0 * s, Color32::from_rgb(28, 24, 22));
+    for (k, x) in [window.left() + 26.0 * s, window.right() - 26.0 * s]
         .into_iter()
         .enumerate()
     {
         let center = pos2(x, window.center().y);
         painter.circle_filled(
             center,
-            if k == 0 { 15.0 } else { 11.0 },
+            if k == 0 { 15.0 } else { 11.0 } * s,
             Color32::from_rgb(70, 46, 30),
         );
-        painter.circle_filled(center, 8.0, Color32::from_gray(225));
+        painter.circle_filled(center, 8.0 * s, Color32::from_gray(225));
         for t in 0..6 {
             let a = angle * 2.0 + t as f32 * std::f32::consts::TAU / 6.0;
             painter.line_segment(
                 [
-                    center + vec2(a.cos(), a.sin()) * 4.0,
-                    center + vec2(a.cos(), a.sin()) * 7.5,
+                    center + vec2(a.cos(), a.sin()) * 4.0 * s,
+                    center + vec2(a.cos(), a.sin()) * 7.5 * s,
                 ],
-                Stroke::new(1.5, Color32::from_gray(90)),
+                Stroke::new(1.5 * s, Color32::from_gray(90)),
             );
         }
     }
     painter.rect_filled(
         Rect::from_center_size(
-            pos2(shell.center().x, shell.bottom() - 12.0),
-            vec2(shell.width() * 0.55, 14.0),
+            pos2(shell.center().x, shell.bottom() - 12.0 * s),
+            vec2(shell.width() * 0.55, 14.0 * s),
         ),
-        3.0,
+        3.0 * s,
         MODULE,
     );
     painter.text(
-        label.left_top() + vec2(10.0, 22.0),
+        label.left_top() + vec2(10.0, 22.0) * s,
         Align2::LEFT_TOP,
         "C-90",
-        FontId::proportional(11.0),
+        FontId::proportional(11.0 * s),
         Color32::from_rgb(40, 34, 30),
     );
 }

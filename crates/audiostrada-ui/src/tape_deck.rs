@@ -9,14 +9,14 @@ use eframe::egui::{
     vec2,
 };
 
-use crate::effect_editors::Params;
+use crate::effect_editors::{Params, VuFace};
 use crate::gear::{self, Texture};
 use crate::theme;
 
 /// Where a machine wants its two meters, and their face.
 pub struct Meters {
     pub places: [Rect; 2],
-    pub cream: bool,
+    pub face: VuFace,
 }
 
 /// How a reel looks: its metal, its hub and its windows (count, span in degrees, inner and
@@ -42,30 +42,34 @@ pub fn studio(ui: &mut Ui, rect: Rect, params: &mut Params, travel: f32) -> Mete
     let w = rect.width();
     let deck = Rect::from_min_size(rect.min, vec2(w, 300.0));
     let lower = Rect::from_min_max(pos2(rect.left(), deck.bottom()), rect.max);
-    let aluminium = Color32::from_rgb(196, 198, 200);
+    let aluminium = Color32::from_rgb(202, 204, 207);
     panel(&painter, deck, aluminium, 1.0);
-    panel(&painter, lower, Color32::from_rgb(186, 188, 191), 1.0);
+    panel(&painter, lower, Color32::from_rgb(192, 194, 197), 1.0);
+    let path = deck.top() + 236.0;
+    seam(&painter, path, rect.x_range());
     seam(&painter, deck.bottom(), rect.x_range());
-    seam(&painter, deck.top() + 236.0, rect.x_range());
     let at = |x: f32, y: f32| pos2(rect.left() + w * x, rect.top() + y);
     let radius = 128.0;
     let packs = [0.82, 0.5];
     let turn = turns(travel, radius, packs);
     let reels = [at(0.25, 112.0), at(0.75, 112.0)];
-    // The motor housings under the reels.
-    for c in reels {
-        let c = c + vec2(0.0, radius * 0.62);
-        painter.circle_filled(c, 44.0, Color32::from_black_alpha(26));
-        ring(&painter, c, 0.0, 42.0, aluminium, 0.6);
-        painter.circle_stroke(c, 42.0, Stroke::new(1.0, Color32::from_black_alpha(70)));
+    // The spindle motors' cups, between the reels and the heads.
+    for (k, c) in reels.into_iter().enumerate() {
+        let inward = if k == 0 { 1.0 } else { -1.0 };
+        recess(
+            &painter,
+            c + vec2(inward * radius * 0.5, radius * 0.92),
+            46.0,
+            aluminium,
+        );
     }
-    let cover = Rect::from_center_size(at(0.5, 262.0), vec2(w * 0.4, 62.0));
-    let arm_left = at(0.075, 226.0);
-    let arm_right = at(0.925, 226.0);
-    let guide_left = pos2(cover.left() - 24.0, cover.bottom() - 4.0);
-    let pinch = pos2(cover.right() + 12.0, cover.bottom() - 2.0);
-    let capstan = pos2(cover.right() + 54.0, cover.center().y);
-    let guide_right = pos2(capstan.x + 52.0, cover.bottom() - 4.0);
+    let cover = Rect::from_center_size(at(0.5, 266.0), vec2(w * 0.38, 58.0));
+    let arm_left = at(0.07, 222.0);
+    let arm_right = at(0.93, 222.0);
+    let guide_left = pos2(cover.left() - 26.0, cover.bottom() - 4.0);
+    let pinch = pos2(cover.right() + 14.0, cover.bottom() - 2.0);
+    let capstan = pos2(cover.right() + 62.0, cover.center().y + 2.0);
+    let guide_right = pos2(capstan.x + 58.0, cover.bottom() - 4.0);
     thread(
         &painter,
         &[
@@ -79,79 +83,121 @@ pub fn studio(ui: &mut Ui, rect: Rect, params: &mut Params, travel: f32) -> Mete
         ],
     );
     let silver = ReelLook {
-        metal: Color32::from_rgb(170, 172, 176),
-        hub: Color32::from_rgb(150, 152, 156),
+        metal: Color32::from_rgb(172, 174, 178),
+        hub: Color32::from_rgb(40, 40, 42),
         windows: (3, 62.0, 0.37, 0.86),
     };
     let gold = ReelLook {
-        metal: Color32::from_rgb(212, 182, 104),
+        metal: Color32::from_rgb(214, 184, 106),
         ..silver
     };
     reel(&painter, reels[0], radius, packs[0], turn[0], silver);
     reel(&painter, reels[1], radius, packs[1], turn[1], gold);
-    arm(&painter, at(0.12, 268.0), arm_left, aluminium);
-    arm(&painter, at(0.88, 268.0), arm_right, aluminium);
+    bracket(&painter, at(0.125, 272.0), arm_left, aluminium);
+    bracket(&painter, at(0.875, 272.0), arm_right, aluminium);
     roller(&painter, arm_left, 11.0, aluminium);
     roller(&painter, arm_right, 11.0, aluminium);
+    roller(&painter, arm_left + vec2(24.0, 14.0), 6.0, aluminium);
+    roller(&painter, arm_right + vec2(-24.0, 14.0), 6.0, aluminium);
     roller(&painter, guide_left, 9.0, aluminium);
     roller(&painter, guide_right, 9.0, aluminium);
-    head_cover(&painter, cover, Color32::from_rgb(206, 208, 211), 26.0);
-    painter.rect_filled(
-        Rect::from_center_size(
-            pos2(cover.center().x, cover.bottom() - 3.0),
-            vec2(46.0, 10.0),
-        ),
-        3.0,
-        Color32::from_rgb(120, 122, 126),
+    pill_cover(&painter, cover);
+    roller(
+        &painter,
+        pos2(cover.center().x - 58.0, cover.bottom() + 14.0),
+        8.0,
+        aluminium,
     );
-    roller(&painter, pinch, 11.0, Color32::from_rgb(70, 70, 72));
-    roller(&painter, capstan, 30.0, Color32::from_rgb(214, 216, 220));
-    for x in [0.02, 0.98] {
-        for y in [12.0, 224.0, 312.0, 438.0] {
+    roller(
+        &painter,
+        pos2(cover.center().x + 74.0, cover.bottom() + 14.0),
+        8.0,
+        Color32::from_rgb(196, 160, 92),
+    );
+    roller(&painter, pinch, 11.0, Color32::from_rgb(62, 62, 64));
+    machined(&painter, capstan, 33.0);
+    for y in [12.0, 224.0, 248.0, 288.0] {
+        for x in [0.015, 0.985] {
             screw(&painter, at(x, y), 4.0, x * 7.0 + y);
         }
     }
-    // The lower panel: the plate, the tape and speed selectors, the meters.
-    let plate = Rect::from_min_size(lower.min + vec2(24.0, 36.0), vec2(176.0, 78.0));
+    for x in [0.33, 0.67] {
+        screw(&painter, at(x, 248.0), 3.5, x * 11.0);
+    }
+    // The lower panel: the door's latch, the plate, the selectors and the meters in their slot.
+    for y in [312.0, rect.height() - 12.0] {
+        for x in [0.015, 0.985] {
+            screw(&painter, at(x, y), 4.0, x + y);
+        }
+    }
+    let plate = Rect::from_min_size(lower.min + vec2(26.0, 56.0), vec2(180.0, 80.0));
+    let latch = pos2(plate.center().x, lower.top() + 22.0);
+    painter.add(Shape::line(
+        vec![latch + vec2(-7.0, 4.0), latch, latch + vec2(7.0, 4.0)],
+        Stroke::new(1.6, Color32::from_gray(70)),
+    ));
+    painter.text(
+        latch + vec2(0.0, 14.0),
+        Align2::CENTER_CENTER,
+        "OPEN",
+        theme::strong(9.0),
+        Color32::from_gray(70),
+    );
     gear::shadow(&painter, plate);
-    painter.rect_filled(plate, 3.0, Color32::from_rgb(238, 238, 236));
-    let band = Rect::from_min_size(plate.min, vec2(plate.width(), 26.0));
-    painter.rect_filled(band.shrink(3.0), 2.0, Color32::from_rgb(28, 28, 30));
+    painter.rect_filled(plate, 3.0, Color32::from_rgb(240, 240, 238));
+    let band = Rect::from_min_size(plate.min, vec2(plate.width(), 28.0)).shrink(3.0);
+    painter.rect_filled(band, 2.0, Color32::from_rgb(26, 26, 28));
     painter.text(
         band.center(),
         Align2::CENTER_CENTER,
         "S T R A D A",
         theme::strong(15.0),
-        Color32::from_gray(236),
+        Color32::from_gray(238),
     );
     painter.text(
         pos2(plate.center().x, band.bottom() + 9.0),
         Align2::CENTER_CENTER,
-        "STUDIO TAPE RECORDER",
-        FontId::proportional(7.5),
-        Color32::from_gray(90),
+        "MULTICHANNEL TAPE RECORDER",
+        FontId::proportional(7.0),
+        Color32::from_gray(96),
     );
     painter.text(
         pos2(plate.center().x, plate.bottom() - 18.0),
         Align2::CENTER_CENTER,
         "A80",
-        theme::strong(22.0),
+        theme::strong(24.0),
         Color32::from_rgb(30, 30, 32),
     );
     gear::bevel(&painter, plate, 0.6);
-    let tape_knob = pos2(lower.left() + 270.0, lower.top() + 84.0);
+    let tape_knob = pos2(plate.right() + 78.0, lower.top() + 92.0);
     choice_knob(ui, &painter, tape_knob, params, "tape", "TAPE");
-    let speed_knob = pos2(lower.right() - 76.0, lower.top() + 84.0);
+    let speed_knob = pos2(lower.right() - 80.0, lower.top() + 92.0);
     choice_knob(ui, &painter, speed_knob, params, "speed", "SPEED");
-    let span = (speed_knob.x - 56.0) - (tape_knob.x + 56.0);
-    let size = vec2(((span - 16.0) / 2.0).min(214.0), 128.0);
-    let left = tape_knob.x + 56.0 + (span - 2.0 * size.x - 16.0) / 2.0;
-    Meters {
-        places: [
-            Rect::from_min_size(pos2(left, lower.top() + 11.0), size),
-            Rect::from_min_size(pos2(left + size.x + 16.0, lower.top() + 11.0), size),
+    let span = (speed_knob.x - 62.0) - (tape_knob.x + 62.0);
+    let size = vec2(((span - 30.0) / 2.0).min(206.0), 126.0);
+    let left = tape_knob.x + 62.0 + (span - 2.0 * size.x - 14.0) / 2.0;
+    let places = [
+        Rect::from_min_size(pos2(left, lower.top() + 18.0), size),
+        Rect::from_min_size(pos2(left + size.x + 14.0, lower.top() + 18.0), size),
+    ];
+    let slot = places[0].union(places[1]).expand(7.0);
+    painter.rect_filled(slot, 3.0, Color32::from_rgb(150, 152, 155));
+    painter.rect_stroke(
+        slot,
+        3.0,
+        Stroke::new(1.5, Color32::from_black_alpha(110)),
+        egui::StrokeKind::Inside,
+    );
+    painter.line_segment(
+        [
+            slot.left_bottom() + vec2(3.0, 0.5),
+            slot.right_bottom() + vec2(-3.0, 0.5),
         ],
-        cream: false,
+        Stroke::new(1.0, Color32::from_white_alpha(120)),
+    );
+    Meters {
+        places,
+        face: VuFace::Bright,
     }
 }
 
@@ -389,7 +435,7 @@ pub fn mastering(ui: &mut Ui, rect: Rect, params: &mut Params, travel: f32) -> M
     }
     Meters {
         places,
-        cream: false,
+        face: VuFace::Amber,
     }
 }
 
@@ -557,7 +603,7 @@ pub fn vintage(ui: &mut Ui, rect: Rect, params: &mut Params, travel: f32) -> Met
             Rect::from_min_size(pos2(right - 2.0 * size.x - 14.0, lower.top() + 11.0), size),
             Rect::from_min_size(pos2(right - size.x, lower.top() + 11.0), size),
         ],
-        cream: true,
+        face: VuFace::Cream,
     }
 }
 
@@ -847,6 +893,156 @@ fn belt((c1, r1, l1): (Pos2, f32, bool), (c2, r2, l2): (Pos2, f32, bool)) -> (Po
     (c1 + m * s1 * r1, c2 + m * s2 * r2)
 }
 
+/// A shallow round cup in the panel, in shadow at its top.
+fn recess(painter: &Painter, c: Pos2, r: f32, metal: Color32) {
+    ring(painter, c, 0.0, r, shade(metal, 0.94), 0.5);
+    painter.circle_stroke(c, r, Stroke::new(1.5, Color32::from_black_alpha(80)));
+    let top = |a: f32| c + vec2(a.cos(), a.sin()) * (r - 2.0);
+    let arc: Vec<Pos2> = (0..=24)
+        .map(|i| top(-2.9 + 2.65 * i as f32 / 24.0))
+        .collect();
+    painter.add(Shape::line(
+        arc,
+        Stroke::new(3.0, Color32::from_black_alpha(36)),
+    ));
+    let low: Vec<Pos2> = (0..=24).map(|i| top(0.3 + 2.5 * i as f32 / 24.0)).collect();
+    painter.add(Shape::line(
+        low,
+        Stroke::new(1.2, Color32::from_white_alpha(110)),
+    ));
+    for k in 0..3 {
+        let a = 0.6 + k as f32 * TAU / 3.0;
+        screw(painter, c + vec2(a.cos(), a.sin()) * r * 0.7, 3.0, a);
+    }
+    painter.circle_filled(c, r * 0.2, shade(metal, 0.8));
+    painter.circle_stroke(c, r * 0.2, Stroke::new(1.0, Color32::from_black_alpha(90)));
+}
+
+/// A tension arm as a bent bracket: its thickness in shade, its top face lit.
+fn bracket(painter: &Painter, pivot: Pos2, end: Pos2, metal: Color32) {
+    let d = (end - pivot).normalized();
+    let elbow = pivot + (end - pivot) * 0.45 + vec2(d.y, -d.x) * 6.0;
+    for (from, to) in [(pivot, elbow), (elbow, end)] {
+        painter.line_segment(
+            [from + vec2(2.0, 4.0), to + vec2(2.0, 4.0)],
+            Stroke::new(15.0, Color32::from_black_alpha(70)),
+        );
+    }
+    for (from, to) in [(pivot, elbow), (elbow, end)] {
+        painter.line_segment([from, to], Stroke::new(14.0, shade(metal, 0.72)));
+        painter.circle_filled(from, 7.0, shade(metal, 0.72));
+    }
+    for (from, to) in [(pivot, elbow), (elbow, end)] {
+        painter.line_segment(
+            [from - vec2(0.0, 2.0), to - vec2(0.0, 2.0)],
+            Stroke::new(9.0, shade(metal, 1.02)),
+        );
+        painter.line_segment(
+            [from - vec2(0.0, 4.5), to - vec2(0.0, 4.5)],
+            Stroke::new(1.5, Color32::from_white_alpha(130)),
+        );
+    }
+    roller(painter, pivot, 8.0, metal);
+}
+
+/// The heads' cover, a polished pill with its notch and a slot for the tape.
+fn pill_cover(painter: &Painter, rect: Rect) {
+    let round = rect.height() / 2.0;
+    gear::shadow(painter, rect);
+    painter.rect_filled(rect, round, Color32::from_rgb(150, 152, 156));
+    let body = rect.shrink(1.5);
+    let mut mesh = Mesh::default();
+    let stops = [
+        (0.0f32, 236.0f32),
+        (0.18, 248.0),
+        (0.42, 214.0),
+        (0.7, 186.0),
+        (1.0, 160.0),
+    ];
+    for (t, g) in stops {
+        let y = body.top() + body.height() * t;
+        let inset = round
+            - (round * round - (y - body.center().y).powi(2))
+                .max(0.0)
+                .sqrt();
+        let c = Color32::from_rgb(g as u8, (g + 2.0) as u8, (g + 5.0).min(255.0) as u8);
+        mesh.colored_vertex(pos2(body.left() + inset, y), c);
+        mesh.colored_vertex(pos2(body.right() - inset, y), c);
+    }
+    for i in 0..stops.len() as u32 - 1 {
+        let j = 2 * i;
+        mesh.add_triangle(j, j + 1, j + 2);
+        mesh.add_triangle(j + 1, j + 3, j + 2);
+    }
+    painter.add(mesh);
+    painter.rect_stroke(
+        rect,
+        round,
+        Stroke::new(1.2, Color32::from_black_alpha(140)),
+        egui::StrokeKind::Inside,
+    );
+    // The notch at the bottom, where the tape is seen on the heads.
+    let notch =
+        Rect::from_center_size(pos2(rect.center().x, rect.bottom() - 9.0), vec2(54.0, 18.0));
+    painter.rect_filled(notch, 6.0, Color32::from_rgb(58, 58, 62));
+    painter.rect_filled(
+        Rect::from_min_max(
+            pos2(notch.left() + 6.0, notch.top() + 4.0),
+            pos2(notch.right() - 6.0, notch.top() + 9.0),
+        ),
+        2.0,
+        Color32::from_rgb(120, 122, 126),
+    );
+    painter.hline(
+        notch.x_range().shrink(4.0),
+        notch.top() + 11.0,
+        Stroke::new(2.5, TAPE),
+    );
+    for x in [rect.left() + round * 0.9, rect.right() - round * 0.9] {
+        screw(painter, pos2(x, rect.center().y - 4.0), 3.0, x);
+    }
+}
+
+/// A machined cap, its rings turned on the lathe.
+fn machined(painter: &Painter, c: Pos2, r: f32) {
+    gear::glow(
+        painter,
+        c + vec2(3.0, 6.0),
+        r * 1.35,
+        Color32::from_black_alpha(130),
+        Color32::from_black_alpha(0),
+    );
+    ring(painter, c, 0.0, r, Color32::from_rgb(206, 208, 212), 1.4);
+    let mut rr = r - 2.0;
+    let mut k = 0;
+    while rr > r * 0.3 {
+        let stroke = if k % 2 == 0 {
+            Stroke::new(0.8, Color32::from_white_alpha(46))
+        } else {
+            Stroke::new(0.8, Color32::from_black_alpha(26))
+        };
+        painter.circle_stroke(c, rr, stroke);
+        rr -= 1.7;
+        k += 1;
+    }
+    painter.circle_stroke(c, r, Stroke::new(1.5, Color32::from_black_alpha(150)));
+    painter.circle_stroke(c, r - 1.5, Stroke::new(1.0, Color32::from_white_alpha(90)));
+    ring(
+        painter,
+        c,
+        0.0,
+        r * 0.28,
+        Color32::from_rgb(186, 188, 192),
+        1.4,
+    );
+    painter.circle_stroke(
+        c,
+        r * 0.28,
+        Stroke::new(1.0, Color32::from_black_alpha(110)),
+    );
+    painter.circle_filled(c, 3.0, Color32::from_gray(70));
+}
+
 /// A guide roller of spun metal on its post.
 fn roller(painter: &Painter, c: Pos2, r: f32, metal: Color32) {
     gear::glow(
@@ -861,20 +1057,6 @@ fn roller(painter: &Painter, c: Pos2, r: f32, metal: Color32) {
     ring(painter, c, 0.0, r * 0.42, shade(metal, 0.85), 1.0);
     painter.circle_stroke(c, r * 0.42, Stroke::new(0.8, Color32::from_black_alpha(90)));
     painter.circle_filled(c, r * 0.12, Color32::from_gray(50));
-}
-
-/// A tension arm from its pivot to its roller.
-fn arm(painter: &Painter, pivot: Pos2, end: Pos2, metal: Color32) {
-    painter.line_segment(
-        [pivot + vec2(1.5, 3.0), end + vec2(1.5, 3.0)],
-        Stroke::new(11.0, Color32::from_black_alpha(80)),
-    );
-    painter.line_segment([pivot, end], Stroke::new(10.0, shade(metal, 0.82)));
-    painter.line_segment(
-        [pivot - vec2(0.0, 2.0), end - vec2(0.0, 2.0)],
-        Stroke::new(3.0, shade(metal, 1.12)),
-    );
-    roller(painter, pivot, 9.0, metal);
 }
 
 /// The cover over the heads, a rounded block lit from above.
@@ -1000,7 +1182,7 @@ fn choice_knob(
     let count = param.choices.len().max(1);
     let value = params.get(id).round().clamp(0.0, count as f32 - 1.0) as usize;
     let angle_of = |i: usize| (-90.0 + (i as f32 - (count as f32 - 1.0) / 2.0) * 48.0).to_radians();
-    let r = 24.0;
+    let r = 28.0;
     for (i, name) in param.choices.iter().enumerate() {
         let a = angle_of(i);
         let at = c + vec2(a.cos(), a.sin()) * (r + 18.0);
@@ -1039,8 +1221,25 @@ fn choice_knob(
         theme::strong(11.0),
         Color32::from_gray(40),
     );
-    painter.circle_filled(c + vec2(2.0, 5.0), r + 2.0, Color32::from_black_alpha(90));
+    gear::glow(
+        painter,
+        c + vec2(3.0, 7.0),
+        r * 1.5,
+        Color32::from_black_alpha(120),
+        Color32::from_black_alpha(0),
+    );
     ring(painter, c, 0.0, r, Color32::from_rgb(214, 216, 220), 1.0);
+    for k in 0..48 {
+        let a = k as f32 / 48.0 * TAU;
+        let d = vec2(a.cos(), a.sin());
+        painter.line_segment(
+            [c + d * (r - 3.0), c + d * r],
+            Stroke::new(
+                1.0,
+                Color32::from_black_alpha(if k % 2 == 0 { 70 } else { 20 }),
+            ),
+        );
+    }
     painter.circle_stroke(c, r, Stroke::new(1.0, Color32::from_black_alpha(140)));
     ring(
         painter,

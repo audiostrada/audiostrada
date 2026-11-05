@@ -2788,6 +2788,8 @@ fn gate_light(ui: &mut Ui, gain: f32, range: f32, mode: usize, height: f32) {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum VuFace {
     Amber,
+    /// Amber, in a light bezel.
+    Bright,
     Cream,
     Theme,
 }
@@ -2808,7 +2810,8 @@ pub(crate) fn vu_meter(
     let target = reduction.clamp(-20.0, 3.0);
     *needle += (target - *needle) * (1.0 - (-dt / 0.12).exp());
     // Face, ink and needle: backlit amber, or the theme's dark or cream.
-    let (face_top, face_bottom, ink, red, hand) = if face == VuFace::Amber {
+    let (face_top, face_bottom, ink, red, hand) = if matches!(face, VuFace::Amber | VuFace::Bright)
+    {
         (
             Color32::from_rgb(250, 206, 112),
             Color32::from_rgb(222, 152, 52),
@@ -2844,7 +2847,7 @@ pub(crate) fn vu_meter(
     // The bezel, then the face behind its glass.
     let (bezel_top, bezel_bottom) = if face == VuFace::Cream {
         (Color32::from_gray(44), Color32::from_gray(12))
-    } else if p.dark {
+    } else if p.dark && face != VuFace::Bright {
         (Color32::from_gray(58), Color32::from_gray(26))
     } else {
         (Color32::from_gray(212), Color32::from_gray(170))
