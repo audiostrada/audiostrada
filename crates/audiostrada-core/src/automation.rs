@@ -58,6 +58,12 @@ pub struct AutomationLane {
     /// Shown under its track in the editor.
     #[serde(default)]
     pub visible: bool,
+    /// Height in the editor, relative to the usual one.
+    #[serde(
+        default = "crate::model::one",
+        skip_serializing_if = "crate::model::is_one"
+    )]
+    pub height: f32,
 }
 
 /// How a track's automation reacts to playback and to its controls.
@@ -140,6 +146,7 @@ impl AutomationLane {
             points: Vec::new(),
             enabled: true,
             visible: true,
+            height: 1.0,
         }
     }
 

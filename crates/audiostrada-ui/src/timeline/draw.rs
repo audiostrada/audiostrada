@@ -839,7 +839,8 @@ pub(super) fn draw_handles(
     }
 }
 
-/// Where two clips of a track overlap, a cross over the overlap and its handle on top.
+/// Where two clips of a track overlap: the overlap shaded, the fade-out of the one and the
+/// fade-in of the other crossing as they are shaped, and the length handle on top.
 pub(super) fn draw_crossfades(painter: &egui::Painter, row: Rect, track: &Track, scale: Scale) {
     for pair in track.clips.windows(2) {
         let (a, b) = (&pair[0], &pair[1]);
@@ -850,9 +851,34 @@ pub(super) fn draw_crossfades(painter: &egui::Painter, row: Rect, track: &Track,
             scale.x(b.start)..=scale.x(a.end()),
             row.top() + 2.0..=row.bottom() - 2.0,
         );
-        let stroke = Stroke::new(1.0, Color32::from_white_alpha(110));
-        painter.line_segment([r.left_top(), r.right_bottom()], stroke);
-        painter.line_segment([r.left_bottom(), r.right_top()], stroke);
+        painter.rect_filled(r, 0.0, Color32::from_black_alpha(50));
+        let curve = |shape: audiostrada_core::model::FadeShape, rising: bool| -> Vec<Pos2> {
+            (0..=32)
+                .map(|i| {
+                    let t = i as f32 / 32.0;
+                    let gain = shape.gain(if rising { t } else { 1.0 - t });
+                    pos2(r.left() + r.width() * t, r.bottom() - r.height() * gain)
+                })
+                .collect()
+        };
+        painter.add(Shape::line(
+            curve(a.out_shape(), false),
+            Stroke::new(1.5, Color32::from_rgb(240, 170, 90)),
+        ));
+        painter.add(Shape::line(
+            curve(b.fade_shape, true),
+            Stroke::new(1.5, Color32::from_rgb(120, 200, 240)),
+        ));
+        painter.vline(
+            r.left(),
+            r.y_range(),
+            Stroke::new(1.0, Color32::from_white_alpha(60)),
+        );
+        painter.vline(
+            r.right(),
+            r.y_range(),
+            Stroke::new(1.0, Color32::from_white_alpha(60)),
+        );
         let c = pos2(r.center().x, r.top() + 5.0);
         painter.add(Shape::convex_polygon(
             vec![

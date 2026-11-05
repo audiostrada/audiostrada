@@ -395,11 +395,11 @@ pub struct Track {
     pub height: f32,
 }
 
-fn one() -> f32 {
+pub(crate) fn one() -> f32 {
     1.0
 }
 
-fn is_one(v: &f32) -> bool {
+pub(crate) fn is_one(v: &f32) -> bool {
     *v == 1.0
 }
 

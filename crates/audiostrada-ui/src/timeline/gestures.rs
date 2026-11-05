@@ -89,21 +89,35 @@ impl TimelineView {
             Some((kind, clip_id))
         };
 
-        // The crossfade handle, at the top of two overlapping clips.
+        // A crossfade, as in Reaper: its top edge sets its length, its body slides it.
         let crossfade = |pos: Pos2| -> Option<DragKind> {
             let (_, track, rect) = hovered?;
-            if pos.y > rect.top() + FADE_ZONE_HEIGHT || tool != Tool::Smart {
+            if tool != Tool::Smart {
                 return None;
             }
             let clips = &project.track(track)?.clips;
             clips.windows(2).find_map(|pair| {
                 let (a, b) = (&pair[0], &pair[1]);
-                let x = scale.x((b.start + a.end()) / 2);
-                (a.end() > b.start && (pos.x - x).abs() < 8.0).then(|| DragKind::Crossfade {
-                    left: a.id,
-                    right: b.id,
-                    overlap: a.end() - b.start,
-                })
+                if a.end() <= b.start {
+                    return None;
+                }
+                let (x0, x1) = (scale.x(b.start), scale.x(a.end()));
+                let middle = (x0 + x1) / 2.0;
+                if pos.y <= rect.top() + FADE_ZONE_HEIGHT {
+                    let near = (pos.x - middle).abs() < 8.0 || (pos.x > x0 && pos.x < x1);
+                    near.then_some(DragKind::Crossfade {
+                        left: a.id,
+                        right: b.id,
+                        overlap: a.end() - b.start,
+                    })
+                } else {
+                    (x1 - x0 >= 10.0 && pos.x > x0 + 2.0 && pos.x < x1 - 2.0).then_some(
+                        DragKind::CrossfadeMove {
+                            left: a.id,
+                            right: b.id,
+                        },
+                    )
+                }
             })
         };
 
@@ -145,6 +159,7 @@ impl TimelineView {
         {
             let cursor = match zone(pos).map(|z| z.0) {
                 _ if range_edge(pos, false).is_some() => CursorIcon::ResizeHorizontal,
+                _ if let Some(DragKind::CrossfadeMove { .. }) = crossfade(pos) => CursorIcon::Move,
                 _ if crossfade(pos).is_some() => CursorIcon::ResizeHorizontal,
                 Some(DragKind::Slip) => CursorIcon::AllScroll,
                 Some(DragKind::FadeCurve { .. }) => CursorIcon::ResizeVertical,
@@ -236,7 +251,7 @@ impl TimelineView {
             let info = self.lane_info.get(&(track.id, li))?;
             let rect = Rect::from_min_max(
                 pos2(lanes.left(), lanes.top() + top),
-                pos2(lanes.right(), lanes.top() + top + LANE_HEIGHT),
+                pos2(lanes.right(), lanes.top() + top + lane_height(lane)),
             );
             let point = lane
                 .points
@@ -424,6 +439,9 @@ impl TimelineView {
                             Vec::new()
                         };
                         let shifted = |v: u64, d: i64| (v as i64 + d).max(0) as u64;
+                        let trimmed: Vec<ClipId> = std::iter::once(c.id)
+                            .chain(others.iter().map(|o| o.id))
+                            .collect();
                         match drag.kind {
                             DragKind::TrimStart => {
                                 let target =
@@ -433,6 +451,8 @@ impl TimelineView {
                                 for o in &others {
                                     edit::trim_start(&mut preview, o.id, shifted(o.start, d));
                                 }
+                                let before = edit::clips_around(&drag.original, &trimmed);
+                                edit::crossfade_after(&mut preview, &trimmed, &before);
                             }
                             DragKind::TrimEnd => {
                                 let target =
@@ -445,6 +465,8 @@ impl TimelineView {
                                 if settings.mode == EditMode::Shuffle && others.is_empty() {
                                     ripple_after(&mut preview, &drag.original, c.id);
                                 }
+                                let before = edit::clips_around(&drag.original, &trimmed);
+                                edit::crossfade_after(&mut preview, &trimmed, &before);
                             }
                             DragKind::Stretch => {
                                 let target =
@@ -542,6 +564,9 @@ impl TimelineView {
                     let length = (overlap as i64 + 2 * scale.samples(delta.x)).max(0) as u64;
                     edit::set_crossfade(&mut preview, left, right, length);
                 }
+                DragKind::CrossfadeMove { left, right } => {
+                    edit::move_crossfade(&mut preview, left, right, scale.samples(delta.x));
+                }
                 DragKind::Loop { anchor, punch } => {
                     let other = magnet.snap(scale.sample(pos.x));
                     let (a, b) = (anchor.min(other), anchor.max(other));
@@ -568,10 +593,15 @@ impl TimelineView {
                     preview.markers.sort_by_key(|m| (m.position, m.id));
                 }
                 DragKind::Point(track, li, point, top) => {
+                    let height = drag
+                        .original
+                        .track(track)
+                        .and_then(|t| t.automation.get(li))
+                        .map_or(LANE_HEIGHT, lane_height);
                     if let Some(info) = self.lane_info.get(&(track, li)).cloned() {
                         let rect = Rect::from_min_max(
                             pos2(lanes.left(), top),
-                            pos2(lanes.right(), top + LANE_HEIGHT),
+                            pos2(lanes.right(), top + height),
                         );
                         let time = magnet.snap(scale.sample(pos.x));
                         let value = y_value(rect, pos.y, &info);
@@ -737,6 +767,7 @@ impl TimelineView {
                 DragKind::FadeIn | DragKind::FadeOut => tr("Fade"),
                 DragKind::FadeCurve { .. } => tr("Fade shape"),
                 DragKind::Crossfade { .. } => tr("Crossfade"),
+                DragKind::CrossfadeMove { .. } => tr("Move crossfade"),
                 DragKind::Slip => tr("Slip content"),
                 DragKind::Gain => tr("Clip gain"),
                 DragKind::Loop { punch: true, .. } => tr("Set punch range"),
@@ -844,8 +875,16 @@ impl TimelineView {
                     _ => None,
                 }
             });
+            let joint = match crossfade(pos) {
+                Some(
+                    DragKind::Crossfade { left, right, .. }
+                    | DragKind::CrossfadeMove { left, right },
+                ) => Some((left, right)),
+                _ => None,
+            };
             self.menu = Some(match hovered {
                 _ if in_range => menus::Menu::Range,
+                _ if let Some((left, right)) = joint => menus::Menu::Crossfade { left, right },
                 _ if let Some((clip, fade_in)) = fade => menus::Menu::Fade { clip, fade_in },
                 Some((clip, track, _)) => {
                     if !doc.is_track_selected(track) {
@@ -871,6 +910,9 @@ impl TimelineView {
                     Some(menus::Menu::Range) => self.range_menu(ui, doc, settings),
                     Some(menus::Menu::Fade { clip, fade_in }) => {
                         self.fade_menu(ui, doc, clip, fade_in)
+                    }
+                    Some(menus::Menu::Crossfade { left, right }) => {
+                        self.crossfade_menu(ui, doc, left, right)
                     }
                     None => ui.close(),
                 }

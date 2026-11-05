@@ -87,6 +87,11 @@ pub(super) enum Menu {
         clip: ClipId,
         fade_in: bool,
     },
+    /// On the crossfade between two clips.
+    Crossfade {
+        left: ClipId,
+        right: ClipId,
+    },
 }
 
 /// Track colors offered in the header menu.

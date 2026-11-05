@@ -805,3 +805,15 @@ Non muet
 
 {value} · set {base}
 {value} · réglé {base}
+
+Crossfade shape
+Forme du fondu enchaîné
+
+Remove the crossfade
+Retirer le fondu enchaîné
+
+Move crossfade
+Déplacer le fondu enchaîné
+
+Drag to resize the lane, double-click for its usual height
+Glisser pour redimensionner la ligne, double-clic pour sa hauteur habituelle

@@ -546,22 +546,25 @@ impl TimelineView {
                     }
                 }
             }
-            for (k, li) in shown_lanes(track).into_iter().enumerate() {
-                let top = row.bottom() + takes_height(track) + k as f32 * LANE_HEIGHT;
+            let mut top = row.bottom() + takes_height(track);
+            for li in shown_lanes(track) {
+                let height = lane_height(&track.automation[li]);
                 let lane_row = Rect::from_min_max(
                     pos2(header.left(), top),
-                    pos2(header.right(), top + LANE_HEIGHT),
+                    pos2(header.right(), top + height),
                 );
+                top += height;
                 if lane_row.bottom() < header.top() || lane_row.top() > header.bottom() {
                     continue;
                 }
+                self.lane_edge(ui, doc, lane_row, (id, li));
                 painter.rect_filled(
                     lane_row.shrink2(vec2(0.0, 0.5)),
                     0.0,
                     visuals.extreme_bg_color,
                 );
                 painter.rect_filled(
-                    Rect::from_min_size(lane_row.min, vec2(4.0, LANE_HEIGHT)),
+                    Rect::from_min_size(lane_row.min, vec2(4.0, height)),
                     0.0,
                     color.gamma_multiply(0.5),
                 );
@@ -694,6 +697,51 @@ impl TimelineView {
     /// The right edge of the track headers, dragged to widen or narrow them.
     /// The bottom edge of a track's header: dragged, the track (or the selected ones) gets
     /// taller or shorter; a double-click gives it the others' height again.
+    /// The bottom edge of a lane's header: dragged, it makes the lane taller or shorter;
+    /// double-clicked, it brings it back to its usual height.
+    fn lane_edge(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        row: Rect,
+        (id, li): (TrackId, usize),
+    ) {
+        let edge = Rect::from_x_y_ranges(row.x_range(), row.bottom() - 3.0..=row.bottom() + 2.0);
+        let response = ui
+            .interact(
+                edge,
+                ui.scope_id().with(("lane-edge", id.0, li)),
+                Sense::click_and_drag(),
+            )
+            .on_hover_text(tr(
+                "Drag to resize the lane, double-click for its usual height",
+            ));
+        if response.hovered() || response.dragged() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+            ui.painter().hline(
+                row.x_range(),
+                row.bottom(),
+                Stroke::new(2.0, ui.visuals().selection.bg_fill),
+            );
+        }
+        let height = if response.double_clicked() {
+            Some(1.0)
+        } else if response.dragged() {
+            let pixels =
+                (row.height() + response.drag_delta().y).clamp(MIN_LANE_HEIGHT, MAX_LANE_HEIGHT);
+            Some(pixels / LANE_HEIGHT)
+        } else {
+            None
+        };
+        if let Some(height) = height {
+            doc.history_mut().modify_unrecorded(|p| {
+                if let Some(lane) = p.track_mut(id).and_then(|t| t.automation.get_mut(li)) {
+                    lane.height = height;
+                }
+            });
+        }
+    }
+
     fn height_edge(&mut self, ui: &mut Ui, doc: &mut Document, row: Rect, id: TrackId) {
         let edge = Rect::from_x_y_ranges(row.x_range(), row.bottom() - 3.0..=row.bottom() + 2.0);
         let response = ui.interact(

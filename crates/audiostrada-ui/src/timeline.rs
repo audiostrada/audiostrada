@@ -60,6 +60,8 @@ const MIN_ZOOM: f64 = 0.05;
 const OVERVIEW_HEIGHT: f32 = 26.0;
 const MAX_ZOOM: f64 = 200_000.0;
 const LANE_HEIGHT: f32 = 46.0;
+const MIN_LANE_HEIGHT: f32 = 36.0;
+const MAX_LANE_HEIGHT: f32 = 320.0;
 const TAKE_HEIGHT: f32 = 36.0;
 /// Distance in pixels within which an automation point can be grabbed.
 const POINT_GRAB: f32 = 9.0;
@@ -122,6 +124,11 @@ enum DragKind {
         left: ClipId,
         right: ClipId,
         overlap: u64,
+    },
+    /// The body of a crossfade: it slides, keeping its length.
+    CrossfadeMove {
+        left: ClipId,
+        right: ClipId,
     },
     /// Ctrl+Alt: the audio slides inside the clips.
     Slip,
@@ -464,14 +471,19 @@ impl TimelineView {
         if offset < 0.0 {
             return None;
         }
-        let k = (offset / LANE_HEIGHT) as usize;
-        let lane = *shown_lanes(track).get(k)?;
-        Some((
-            r,
-            lane,
-            self.tops[r] + self.row_height(r) + takes_height(track) + k as f32 * LANE_HEIGHT
-                - self.scroll_y,
-        ))
+        let mut top = 0.0;
+        for li in shown_lanes(track) {
+            let height = lane_height(&track.automation[li]);
+            if offset < top + height {
+                return Some((
+                    r,
+                    li,
+                    self.tops[r] + self.row_height(r) + takes_height(track) + top - self.scroll_y,
+                ));
+            }
+            top += height;
+        }
+        None
     }
 
     /// Take lane under `y`: track and index of the playlist in its alternates.
@@ -822,7 +834,7 @@ impl TimelineView {
             let height =
                 (self.track_height * track.height).clamp(MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT);
             self.heights.push(height);
-            y += height + takes_height(track) + shown_lanes(track).len() as f32 * LANE_HEIGHT;
+            y += height + takes_height(track) + lanes_height(track);
         }
         self.content_height = y;
         self.lane_info.clear();
@@ -1074,12 +1086,12 @@ impl TimelineView {
             }
             let reading =
                 track.automation_mode != audiostrada_core::automation::AutomationMode::Off;
-            for (k, li) in shown_lanes(track).into_iter().enumerate() {
-                let top = row.bottom() + takes_height(track) + k as f32 * LANE_HEIGHT;
-                let rect = Rect::from_min_max(
-                    pos2(lanes.left(), top),
-                    pos2(lanes.right(), top + LANE_HEIGHT),
-                );
+            let mut top = row.bottom() + takes_height(track);
+            for li in shown_lanes(track) {
+                let height = lane_height(&track.automation[li]);
+                let rect =
+                    Rect::from_min_max(pos2(lanes.left(), top), pos2(lanes.right(), top + height));
+                top += height;
                 let Some(info) = self.lane_info.get(&(track.id, li)) else {
                     continue;
                 };
@@ -1226,6 +1238,19 @@ fn takes_height(track: &Track) -> f32 {
 }
 
 /// Indices of the automation lanes shown under a track.
+/// Height of an automation lane in the editor.
+fn lane_height(lane: &audiostrada_core::automation::AutomationLane) -> f32 {
+    (LANE_HEIGHT * lane.height).clamp(MIN_LANE_HEIGHT, MAX_LANE_HEIGHT)
+}
+
+/// Height of a track's shown lanes together.
+fn lanes_height(track: &Track) -> f32 {
+    shown_lanes(track)
+        .into_iter()
+        .map(|li| lane_height(&track.automation[li]))
+        .sum()
+}
+
 fn shown_lanes(track: &Track) -> Vec<usize> {
     if !track.show_automation {
         return Vec::new();
@@ -2025,6 +2050,17 @@ mod tests {
         assert_eq!(view.track_at(&p, 10.0).map(|t| t.id), Some(a));
         assert!(view.track_at(&p, 80.0).is_none(), "on the lane");
         assert_eq!(view.lane_at(&p, 80.0), Some((0, 1, 72.0)));
+        // A taller lane takes more of the row.
+        let mut tall = p.clone();
+        tall.track_mut(a).unwrap().automation[1].height = 2.0;
+        assert_eq!(lanes_height(tall.track(a).unwrap()), 2.0 * LANE_HEIGHT);
+        let short = view.tops[1];
+        view.tops[1] = 72.0 + 2.0 * LANE_HEIGHT;
+        assert_eq!(
+            view.lane_at(&tall, 72.0 + LANE_HEIGHT + 10.0),
+            Some((0, 1, 72.0))
+        );
+        view.tops[1] = short;
         assert_eq!(view.lane_at(&p, 10.0), None);
         assert_eq!(view.take_at(&p, 200.0), Some((b, 0)));
         assert_eq!(view.take_at(&p, 130.0), None);

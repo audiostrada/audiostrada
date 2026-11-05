@@ -1,9 +1,10 @@
 //! Editing operations on a project: move, trim, split, delete, duplicate, fades, markers,
 //! playlists and grid snapping. Each is meant to run inside one `History::edit`.
 //!
-//! Overlaps on a track follow simple rules: a clip dropped across the edge of another one
-//! crossfades with it (fades as long as the overlap); a clip covering another one, or covered
-//! by it, replaces the covered part.
+//! Overlaps on a track follow simple rules, as in Reaper: a clip moved or trimmed across the
+//! edge of another one crossfades with it, over exactly their common part, and the crossfade
+//! follows the overlap as it grows, shrinks or goes; a clip covering another one, or covered by
+//! it, replaces the covered part.
 
 use crate::model::{
     Clip, ClipId, MAX_CLIP_GAIN_DB, MIN_GAIN_DB, Marker, MarkerId, Note, Playlist, Project,
@@ -296,12 +297,12 @@ pub fn resolve_overlaps(project: &mut Project, track: TrackId, placed: &[ClipId]
             let (p_start, p_end) = (t.clips[pi].start, t.clips[pi].end());
             if o_start < p_start && o_end > p_start && o_end < p_end {
                 let overlap = o_end - p_start;
-                t.clips[oi].fade_out = t.clips[oi].fade_out.max(overlap);
-                t.clips[pi].fade_in = t.clips[pi].fade_in.max(overlap);
+                t.clips[oi].fade_out = overlap;
+                t.clips[pi].fade_in = overlap;
             } else if o_start > p_start && o_start < p_end && o_end > p_end {
                 let overlap = p_end - o_start;
-                t.clips[oi].fade_in = t.clips[oi].fade_in.max(overlap);
-                t.clips[pi].fade_out = t.clips[pi].fade_out.max(overlap);
+                t.clips[oi].fade_in = overlap;
+                t.clips[pi].fade_out = overlap;
             }
         }
     }
@@ -310,8 +311,132 @@ pub fn resolve_overlaps(project: &mut Project, track: TrackId, placed: &[ClipId]
     project.reserve_ids(next_id);
 }
 
+/// Neighbours partly overlapping: each pair, its common part.
+fn crossfaded_pairs(clips: &[Clip]) -> Vec<(ClipId, ClipId, u64)> {
+    let mut sorted: Vec<&Clip> = clips.iter().collect();
+    sorted.sort_by_key(|c| (c.start, c.id));
+    sorted
+        .windows(2)
+        .filter(|w| w[0].end() > w[1].start && w[0].end() < w[1].end() && w[0].start < w[1].start)
+        .map(|w| (w[0].id, w[1].id, w[0].end() - w[1].start))
+        .collect()
+}
+
+/// Reaper's crossfades on `track`: neighbours partly overlapping fade over exactly their
+/// common part; a pair that crossfaded in `before` and no longer meets loses those fades.
+pub fn update_crossfades(project: &mut Project, track: TrackId, before: &[Clip]) {
+    for (a, b, overlap) in crossfaded_pairs(before) {
+        let meets = match (locate(project, a), locate(project, b)) {
+            (Some((ta, _)), Some((tb, _))) if ta == tb => {
+                let (ca, cb) = (clip(project, a), clip(project, b));
+                ca.zip(cb)
+                    .is_some_and(|(x, y)| x.end() > y.start && x.start < y.start)
+            }
+            _ => false,
+        };
+        if meets {
+            continue;
+        }
+        if let Some(m) = clip_mut(project, a)
+            && m.fade_out == overlap
+        {
+            m.fade_out = 0;
+        }
+        if let Some(m) = clip_mut(project, b)
+            && m.fade_in == overlap
+        {
+            m.fade_in = 0;
+        }
+    }
+    let Some(t) = project.track_mut(track) else {
+        return;
+    };
+    t.clips.sort_by_key(|c| (c.start, c.id));
+    for (a, b, overlap) in crossfaded_pairs(&t.clips) {
+        for c in t.clips.iter_mut() {
+            if c.id == a {
+                c.fade_out = overlap;
+            } else if c.id == b {
+                c.fade_in = overlap;
+            }
+        }
+    }
+    t.clips.iter_mut().for_each(clamp_fades);
+}
+
+/// The crossfades of every track holding `ids` now or in `before` (their clips then), after
+/// the clips were moved or trimmed.
+pub fn crossfade_after(project: &mut Project, ids: &[ClipId], before: &[Clip]) {
+    let mut tracks: Vec<TrackId> = Vec::new();
+    for id in ids {
+        if let Some((t, _)) = locate(project, *id) {
+            let track = project.tracks[t].id;
+            if !tracks.contains(&track) {
+                tracks.push(track);
+            }
+        }
+    }
+    for c in before {
+        if let Some((t, _)) = locate(project, c.id) {
+            let track = project.tracks[t].id;
+            if !tracks.contains(&track) {
+                tracks.push(track);
+            }
+        }
+    }
+    for track in tracks {
+        update_crossfades(project, track, before);
+    }
+}
+
+/// The clips of the tracks holding `ids`, as they are before an edit.
+pub fn clips_around(project: &Project, ids: &[ClipId]) -> Vec<Clip> {
+    project
+        .tracks
+        .iter()
+        .filter(|t| t.clips.iter().any(|c| ids.contains(&c.id)))
+        .flat_map(|t| t.clips.iter().cloned())
+        .collect()
+}
+
+/// Slides the crossfade between `left` and `right` by `delta` samples, keeping its length:
+/// the end of one and the start of the other move together, within their sources.
+pub fn move_crossfade(project: &mut Project, left: ClipId, right: ClipId, delta: i64) {
+    let (Some(a), Some(b)) = (clip(project, left).cloned(), clip(project, right).cloned()) else {
+        return;
+    };
+    let before = clips_around(project, &[left, right]);
+    // As far as both edges can go: the material before the right clip and after the left one,
+    // and each keeping some length.
+    let back = b.offset.min(a.length.saturating_sub(MIN_LENGTH)) as i64;
+    let after = source_length(project, &a).saturating_sub(a.offset + a.length);
+    let forth = after.min(b.length.saturating_sub(MIN_LENGTH)) as i64;
+    let delta = delta.clamp(-back, forth);
+    trim_end(project, left, (a.end() as i64 + delta).max(0) as u64);
+    trim_start(project, right, (b.start as i64 + delta).max(0) as u64);
+    crossfade_after(project, &[left, right], &before);
+}
+
+/// Both sides of a crossfade take `shape`: the end of `left`, the start of `right`.
+pub fn set_crossfade_shape(
+    project: &mut Project,
+    left: ClipId,
+    right: ClipId,
+    shape: crate::model::FadeShape,
+) {
+    if let Some(a) = clip_mut(project, left) {
+        a.fade_out_shape = Some(shape);
+    }
+    if let Some(b) = clip_mut(project, right) {
+        let out = b.out_shape();
+        b.fade_shape = shape;
+        b.fade_out_shape = Some(out);
+    }
+}
+
 /// Moves clips by `delta` samples (never before 0) and `track_offset` tracks.
 pub fn move_clips(project: &mut Project, ids: &[ClipId], delta: i64, track_offset: isize) {
+    let before = clips_around(project, ids);
     let track_count = project.tracks.len() as isize;
     let mut destinations: Vec<TrackId> = Vec::new();
     for &id in ids {
@@ -341,6 +466,7 @@ pub fn move_clips(project: &mut Project, ids: &[ClipId], delta: i64, track_offse
         sort_track(project, track);
         resolve_overlaps(project, track, ids);
     }
+    crossfade_after(project, ids, &before);
 }
 
 /// Moves the start of a clip, keeping its end in place.
@@ -1312,6 +1438,42 @@ mod tests {
         assert_eq!(
             clips(&p, t),
             vec![(0, 10_000, 0, 0, 2_000), (8_000, 10_000, 0, 2_000, 0)]
+        );
+    }
+
+    #[test]
+    fn crossfades_follow_the_overlap_as_in_reaper() {
+        let (mut p, t, ids) = project();
+        // Moved in, then back a little, then away: the crossfade grows, shrinks and goes.
+        move_clips(&mut p, &[ids[1]], -12_000, 0);
+        move_clips(&mut p, &[ids[1]], 1_000, 0);
+        assert_eq!(
+            clips(&p, t),
+            vec![(0, 10_000, 0, 0, 1_000), (9_000, 10_000, 0, 1_000, 0)]
+        );
+        move_clips(&mut p, &[ids[1]], 5_000, 0);
+        assert_eq!(
+            clips(&p, t),
+            vec![(0, 10_000, 0, 0, 0), (14_000, 10_000, 0, 0, 0)]
+        );
+        // Trimmed into its neighbour, a clip crossfades with it.
+        trim_end(&mut p, ids[0], 6_000);
+        move_clips(&mut p, &[ids[1]], -6_000, 0);
+        let before = clips_around(&p, &[ids[0]]);
+        trim_end(&mut p, ids[0], 10_000);
+        crossfade_after(&mut p, &[ids[0]], &before);
+        assert_eq!(
+            clips(&p, t),
+            vec![(0, 10_000, 0, 0, 2_000), (8_000, 10_000, 0, 2_000, 0)]
+        );
+        // Slid, the crossfade keeps its length, as far as both clips have material.
+        let before = clips_around(&p, &[ids[1]]);
+        trim_start(&mut p, ids[1], 9_000);
+        crossfade_after(&mut p, &[ids[1]], &before);
+        move_crossfade(&mut p, ids[0], ids[1], -1_500);
+        assert_eq!(
+            clips(&p, t),
+            vec![(0, 9_000, 0, 0, 1_000), (8_000, 10_000, 0, 1_000, 0)]
         );
     }
 

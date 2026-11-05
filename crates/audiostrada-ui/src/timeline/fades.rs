@@ -177,6 +177,65 @@ impl TimelineView {
         });
     }
 
+    /// The menu of a crossfade: its shape, drawn as both curves crossing, and its removal.
+    pub(super) fn crossfade_menu(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        left: ClipId,
+        right: ClipId,
+    ) {
+        let Some(current) = edit::clip(doc.project(), right).map(|c| c.fade_shape) else {
+            ui.close();
+            return;
+        };
+        let p = theme::current(ui);
+        ui.label(egui::RichText::new(tr("Crossfade")).strong());
+        ui.label(egui::RichText::new(tr("Shape")).weak().size(11.0));
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            for shape in FadeShape::ALL {
+                let (rect, response) = ui.allocate_exact_size(vec2(54.0, 40.0), Sense::click());
+                let chosen = shape == current;
+                let fill = if chosen {
+                    p.accent.gamma_multiply(0.25)
+                } else if response.hovered() {
+                    p.hover
+                } else {
+                    p.surface
+                };
+                ui.painter().rect_filled(rect, 4.0, fill);
+                let ink = if chosen { p.accent } else { p.text };
+                let area = rect.shrink2(vec2(8.0, 7.0));
+                for fade_in in [false, true] {
+                    let points: Vec<Pos2> = (0..=20)
+                        .map(|i| {
+                            let t = i as f32 / 20.0;
+                            let gain = shape.gain(if fade_in { t } else { 1.0 - t });
+                            pos2(
+                                area.left() + area.width() * t,
+                                area.bottom() - area.height() * gain,
+                            )
+                        })
+                        .collect();
+                    ui.painter().add(Shape::line(points, Stroke::new(1.5, ink)));
+                }
+                if response.on_hover_text(tr(shape.name())).clicked() {
+                    doc.history_mut().edit(tr("Crossfade shape"), |p| {
+                        edit::set_crossfade_shape(p, left, right, shape)
+                    });
+                    ui.close();
+                }
+            }
+        });
+        ui.separator();
+        if ui.button(tr("Remove the crossfade")).clicked() {
+            doc.history_mut()
+                .edit(tr("Crossfade"), |p| edit::set_crossfade(p, left, right, 0));
+            ui.close();
+        }
+    }
+
     /// The menu of a fade, right-clicked on it.
     pub(super) fn fade_menu(
         &mut self,
