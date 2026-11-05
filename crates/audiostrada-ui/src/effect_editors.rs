@@ -116,8 +116,8 @@ pub struct EditorState {
     dynamics: VecDeque<[f32; 3]>,
     /// Position of an analog meter's needle, with its ballistics.
     needle: f32,
-    /// The tape machine's input and output needles.
-    pub needles: [f32; 2],
+    /// The tape machine's needles and reels.
+    pub tape: crate::tape_editor::TapeState,
     rig: crate::rig_editor::RigState,
     limiter: LimiterState,
     spectrum: SpectrumState,
@@ -664,7 +664,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Editor
         "delay" => delay(ui, params, state),
         "reverb" => reverb(ui, params),
         "maximizer" => maximizer(ui, params, meters, state),
-        "tape" => crate::tape_editor::show(ui, params, meters, &mut state.needles),
+        "tape" => crate::tape_editor::show(ui, params, meters, &mut state.tape),
         "flanger" | "phaser" | "chorus" => modulation(ui, params),
         "imager" => imager(ui, params, meters),
         "utility" => utility(ui, params, meters),
@@ -2784,13 +2784,21 @@ fn gate_light(ui: &mut Ui, gain: f32, range: f32, mode: usize, height: f32) {
 
 // ---------------------------------------------------------------- Vintage compressor
 
+/// The face of an analog meter: backlit amber, cream, or the theme's.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum VuFace {
+    Amber,
+    Cream,
+    Theme,
+}
+
 /// An analog VU meter showing gain reduction: cream face, needle with VU ballistics.
 pub(crate) fn vu_meter(
     ui: &mut Ui,
     reduction: f32,
     needle: &mut f32,
     size: egui::Vec2,
-    (amber, caption): (bool, &str),
+    (face, caption): (VuFace, &str),
 ) {
     let p = theme::current(ui);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
@@ -2800,13 +2808,21 @@ pub(crate) fn vu_meter(
     let target = reduction.clamp(-20.0, 3.0);
     *needle += (target - *needle) * (1.0 - (-dt / 0.12).exp());
     // Face, ink and needle: backlit amber, or the theme's dark or cream.
-    let (face_top, face_bottom, ink, red, hand) = if amber {
+    let (face_top, face_bottom, ink, red, hand) = if face == VuFace::Amber {
         (
             Color32::from_rgb(250, 206, 112),
             Color32::from_rgb(222, 152, 52),
             Color32::from_rgb(52, 34, 18),
             Color32::from_rgb(214, 46, 24),
             Color32::from_rgb(30, 22, 14),
+        )
+    } else if face == VuFace::Cream {
+        (
+            Color32::from_rgb(250, 246, 232),
+            Color32::from_rgb(230, 222, 200),
+            Color32::from_rgb(40, 36, 30),
+            Color32::from_rgb(196, 48, 36),
+            Color32::from_rgb(20, 18, 16),
         )
     } else if p.dark {
         (
@@ -2826,7 +2842,9 @@ pub(crate) fn vu_meter(
         )
     };
     // The bezel, then the face behind its glass.
-    let (bezel_top, bezel_bottom) = if p.dark {
+    let (bezel_top, bezel_bottom) = if face == VuFace::Cream {
+        (Color32::from_gray(44), Color32::from_gray(12))
+    } else if p.dark {
         (Color32::from_gray(58), Color32::from_gray(26))
     } else {
         (Color32::from_gray(212), Color32::from_gray(170))
@@ -4712,7 +4730,10 @@ fn compressor(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Edit
                 reduction,
                 &mut state.needle,
                 vec2(height * 1.45, height),
-                (amber, tr("GAIN REDUCTION")),
+                (
+                    if amber { VuFace::Amber } else { VuFace::Theme },
+                    tr("GAIN REDUCTION"),
+                ),
             );
         }
         reduction_meter(ui, reduction, height);

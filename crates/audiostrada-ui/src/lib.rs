@@ -37,6 +37,7 @@ mod screens;
 mod settings;
 mod synth_editor;
 mod tabs;
+mod tape_deck;
 mod tape_editor;
 mod theme;
 mod timeline;

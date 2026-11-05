@@ -2,12 +2,13 @@
 //! input and output VU meters, the machine, speed and tape chosen above, then the knobs.
 
 use audiostrada_dsp::tape::{MACHINE_HINTS, TAPE_HINTS};
-use eframe::egui::{self, Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Ui, pos2, vec2};
+use eframe::egui::{self, Align2, Color32, FontId, Rect, Sense, Stroke, Ui, pos2, vec2};
 
 use crate::drums_editor::{MODULE, modules, screen};
-use crate::effect_editors::{Params, segmented, vu_meter};
+use crate::effect_editors::{Params, VuFace, segmented, vu_meter};
 use crate::gear::{self, Texture};
 use crate::i18n::tr;
+use crate::tape_deck;
 use crate::theme;
 
 const INK: Color32 = Color32::from_rgb(236, 232, 222);
@@ -34,10 +35,31 @@ fn colors(machine: usize) -> (Color32, Color32) {
     }
 }
 
-pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], needles: &mut [f32; 2]) {
+/// The meters' needles, and the tape run so far with how fast it runs now (0 to 1).
+#[derive(Debug, Default)]
+pub struct TapeState {
+    needles: [f32; 2],
+    travel: f32,
+    spin: f32,
+}
+
+pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut TapeState) {
     let machine = (params.get("machine").round() as usize).min(3);
     let (panel, accent) = colors(machine);
-    machine_face(ui, params, meters, needles, machine, panel);
+    // The reels roll while sound comes in, starting and stopping gently.
+    let dt = ui.input(|i| i.stable_dt).min(0.1);
+    let sounding = meters.first().is_some_and(|v| *v > -40.0);
+    let target = if sounding { 1.0 } else { 0.0 };
+    state.spin += (target - state.spin) * (1.0 - (-dt / 0.6).exp());
+    let speed = [0.5, 1.0, 2.0][(params.get("speed").round() as usize).min(2)];
+    let wow = params.get("wow") / 100.0;
+    let time = ui.input(|i| i.time) as f32;
+    state.travel += dt * state.spin * speed * 70.0 * (1.0 + wow * 0.08 * (time * 3.3).sin());
+    if machine == 3 {
+        machine_face(ui, params, meters, state, panel);
+    } else {
+        deck_face(ui, params, meters, state, machine);
+    }
     ui.add_space(10.0);
     screen(ui, |ui| {
         ui.horizontal(|ui| {
@@ -74,7 +96,49 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], needles: &mut [f32
             48.0,
         );
     });
-    ui.ctx().request_repaint();
+    if sounding || state.spin > 0.002 {
+        ui.ctx().request_repaint();
+    } else {
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(100));
+    }
+}
+
+/// A reel-to-reel machine, its meters where it has them.
+fn deck_face(
+    ui: &mut Ui,
+    params: &mut Params,
+    meters: &[f32],
+    state: &mut TapeState,
+    machine: usize,
+) {
+    let width = ui.available_width();
+    let height = if machine == 1 { 460.0 } else { 450.0 };
+    let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
+    ui.painter()
+        .rect_filled(rect.expand(1.0), 4.0, Color32::from_black_alpha(120));
+    let face = match machine {
+        1 => tape_deck::mastering(ui, rect, params, state.travel),
+        2 => tape_deck::vintage(ui, rect, params, state.travel),
+        _ => tape_deck::studio(ui, rect, params, state.travel),
+    };
+    for (k, caption) in [tr("RECORD"), tr("PLAYBACK")].into_iter().enumerate() {
+        let place = face.places[k];
+        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(place));
+        let value = meters.get(k).copied().unwrap_or(-60.0);
+        let look = if face.cream {
+            VuFace::Cream
+        } else {
+            VuFace::Amber
+        };
+        vu_meter(
+            &mut child,
+            value,
+            &mut state.needles[k],
+            place.size(),
+            (look, caption),
+        );
+    }
 }
 
 /// A labeled segmented choice.
@@ -95,10 +159,10 @@ fn machine_face(
     ui: &mut Ui,
     params: &mut Params,
     meters: &[f32],
-    needles: &mut [f32; 2],
-    machine: usize,
+    state: &mut TapeState,
     panel: Color32,
 ) {
+    let machine = 3;
     let width = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(vec2(width, 210.0), Sense::hover());
     let painter = ui.painter_at(rect.expand(12.0));
@@ -128,15 +192,7 @@ fn machine_face(
             rect.bottom() - 18.0,
         ),
     );
-    let speed = [0.5, 1.0, 2.0][(params.get("speed").round() as usize).min(2)];
-    let wow = params.get("wow") / 100.0;
-    let time = ui.input(|i| i.time) as f32;
-    let angle = time * speed * 1.6 + wow * 0.12 * (time * 3.3).sin();
-    if machine == 3 {
-        cassette(&painter, deck, angle);
-    } else {
-        reels(&painter, deck, angle);
-    }
+    cassette(&painter, deck, state.travel / 40.0);
     // The name on the panel.
     let name = audiostrada_dsp::tape::MACHINES[machine];
     let letters = if machine == 3 {
@@ -173,9 +229,9 @@ fn machine_face(
         vu_meter(
             &mut child,
             value,
-            &mut needles[k],
+            &mut state.needles[k],
             place.size(),
-            (true, caption),
+            (VuFace::Amber, caption),
         );
         painter.text(
             pos2(place.center().x, place.bottom() + 8.0),
@@ -183,105 +239,6 @@ fn machine_face(
             label,
             theme::strong(11.0),
             letters,
-        );
-    }
-}
-
-/// Two open reels with their tape and the head block between them.
-fn reels(painter: &egui::Painter, deck: Rect, angle: f32) {
-    let r = (deck.height() * 0.42).min(deck.width() * 0.22);
-    let left = pos2(deck.left() + r + 10.0, deck.top() + r + 4.0);
-    let right = pos2(deck.right() - r - 10.0, deck.top() + r + 4.0);
-    let head = Rect::from_center_size(
-        pos2(deck.center().x, deck.bottom() - 26.0),
-        vec2(70.0, 26.0),
-    );
-    // The tape path: from each reel's pack round the guides to the heads.
-    let tape = Stroke::new(3.0, Color32::from_rgb(70, 46, 30));
-    painter.line_segment(
-        [
-            left + vec2(-r * 0.78, r * 0.3),
-            head.left_top() + vec2(-8.0, 6.0),
-        ],
-        tape,
-    );
-    painter.line_segment(
-        [
-            head.left_top() + vec2(-8.0, 6.0),
-            head.right_top() + vec2(8.0, 6.0),
-        ],
-        tape,
-    );
-    painter.line_segment(
-        [
-            head.right_top() + vec2(8.0, 6.0),
-            right + vec2(r * 0.6, r * 0.5),
-        ],
-        tape,
-    );
-    for (center, pack, turn) in [(left, 0.8, angle), (right, 0.5, angle * 1.35)] {
-        reel(painter, center, r, pack, turn);
-    }
-    painter.rect_filled(head, 4.0, Color32::from_rgb(60, 62, 66));
-    gear::bevel(painter, head, 1.0);
-    for k in 0..3 {
-        let x = head.left() + 14.0 + k as f32 * 21.0;
-        painter.rect_filled(
-            Rect::from_center_size(pos2(x, head.top() + 4.0), vec2(12.0, 8.0)),
-            2.0,
-            Color32::from_gray(180),
-        );
-    }
-}
-
-/// A metal reel: the brown pack of tape, three windows and the hub.
-fn reel(painter: &egui::Painter, center: Pos2, r: f32, pack: f32, angle: f32) {
-    gear::glow(
-        painter,
-        center + vec2(3.0, 5.0),
-        r * 1.08,
-        Color32::from_black_alpha(110),
-        Color32::from_black_alpha(0),
-    );
-    painter.circle_filled(
-        center,
-        r * (0.32 + 0.6 * pack),
-        Color32::from_rgb(64, 42, 28),
-    );
-    painter.circle_stroke(
-        center,
-        r * (0.32 + 0.6 * pack),
-        Stroke::new(1.0, Color32::from_rgb(90, 62, 42)),
-    );
-    painter.circle_stroke(center, r, Stroke::new(3.0, Color32::from_gray(205)));
-    painter.circle_stroke(
-        center,
-        r - 2.0,
-        Stroke::new(1.0, Color32::from_black_alpha(90)),
-    );
-    for k in 0..3 {
-        let a = angle + k as f32 * std::f32::consts::TAU / 3.0;
-        let dir = vec2(a.cos(), a.sin());
-        let side = vec2(-dir.y, dir.x);
-        painter.add(egui::Shape::convex_polygon(
-            vec![
-                center + dir * r * 0.3 + side * r * 0.05,
-                center + dir * r * 0.94 + side * r * 0.32,
-                center + dir * r * 0.94 - side * r * 0.32,
-                center + dir * r * 0.3 - side * r * 0.05,
-            ],
-            Color32::from_gray(185),
-            Stroke::new(1.0, Color32::from_black_alpha(80)),
-        ));
-    }
-    painter.circle_filled(center, r * 0.22, Color32::from_gray(160));
-    painter.circle_filled(center, r * 0.08, Color32::from_gray(60));
-    for k in 0..3 {
-        let a = angle + (k as f32 + 0.5) * std::f32::consts::TAU / 3.0;
-        painter.circle_filled(
-            center + vec2(a.cos(), a.sin()) * r * 0.15,
-            2.0,
-            Color32::from_gray(90),
         );
     }
 }
