@@ -1226,6 +1226,8 @@ impl AudioStradaApp {
             | Action::ZoomToFit
             | Action::ZoomToSelection
             | Action::Fades
+            | Action::NextTransient
+            | Action::PreviousTransient
             | Action::ToolSmart
             | Action::ToolRange
             | Action::ToolSplit
@@ -2060,6 +2062,10 @@ impl AudioStradaApp {
                     ] {
                         item(ui, &mut chosen, action, None, true);
                     }
+                });
+                ui.menu_button(tr("Transients"), |ui| {
+                    item(ui, &mut chosen, Action::PreviousTransient, None, true);
+                    item(ui, &mut chosen, Action::NextTransient, None, true);
                 });
                 ui.menu_button(tr("Metronome"), |ui| {
                     item(ui, &mut chosen, Action::ToggleMetronome, None, true);

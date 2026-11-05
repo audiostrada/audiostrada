@@ -206,6 +206,8 @@ pub struct TimelineView {
     zoom_back: Option<(f64, f64)>,
     /// Clips swept by the eraser or the mute tool during a drag.
     swept: Vec<ClipId>,
+    /// Attacks found in each media file, in its frames.
+    onsets: HashMap<std::path::PathBuf, Rc<Vec<usize>>>,
     /// What a drag in the overview holds: the view's left edge, its right edge or all of it.
     overview_grab: Option<Grab>,
 }
@@ -291,6 +293,7 @@ impl TimelineView {
             wave_view: WaveView::default(),
             zoom_back: None,
             swept: Vec::new(),
+            onsets: HashMap::new(),
             overview_grab: None,
         }
     }
@@ -599,6 +602,25 @@ impl TimelineView {
             Action::ToolMute => self.tool = Tool::Mute,
             Action::ZoomToSelection => self.zoom_to_selection(&doc),
             Action::Fades => self.fades(&mut doc),
+            Action::NextTransient | Action::PreviousTransient => {
+                let tracks: Vec<TrackId> = if selection.is_empty() {
+                    track.into_iter().collect()
+                } else {
+                    edit_tracks(doc.project(), &selection)
+                };
+                let all: Vec<u64> = tracks
+                    .iter()
+                    .flat_map(|t| self.transients(&doc, *t))
+                    .collect();
+                let target = if action == Action::NextTransient {
+                    all.iter().filter(|&&t| t > position + 1).min()
+                } else {
+                    all.iter().filter(|&&t| t + 1 < position).max()
+                };
+                if let Some(&target) = target {
+                    doc.player_mut().locate(target);
+                }
+            }
             Action::Copy => self.copy(&doc),
             Action::Cut => self.cut(&mut doc, settings),
             Action::Paste => self.paste(&mut doc),
@@ -929,6 +951,11 @@ impl TimelineView {
                 visuals.faint_bg_color
             };
             lane_painter.rect_filled(row.shrink2(vec2(0.0, 0.5)), 0.0, lane_fill);
+            // A folder shows its tracks' clips in small, one thin band each.
+            let members = routing::subtree(&project, track.id);
+            if track.clips.is_empty() && members.len() > 1 {
+                draw_folder(&lane_painter, row, &project, &members[1..], scale);
+            }
             if track.kind == TrackKind::Vca {
                 let members = project
                     .tracks

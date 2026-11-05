@@ -1089,3 +1089,6 @@ Métrique
 
 Timecode, {fps} fps
 Timecode, {fps} i/s
+
+Transients
+Transitoires

@@ -227,4 +227,39 @@ impl TimelineView {
             }
         });
     }
+
+    /// Where the attacks of `track`'s audio clips fall on the timeline, in order.
+    pub(super) fn transients(&mut self, doc: &Document, track: TrackId) -> Vec<u64> {
+        let project = doc.project();
+        let Some(t) = project.track(track) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for clip in t.clips.iter().filter(|c| !c.is_midi() && !c.muted) {
+            let Some(path) = audiostrada_engine::project::clip_media(project, doc.paths(), clip)
+            else {
+                continue;
+            };
+            let Some(data) = doc.media().original(&path) else {
+                continue;
+            };
+            let onsets = Rc::clone(self.onsets.entry(path).or_insert_with(|| {
+                let channels: Vec<&[f32]> = (0..data.channels()).map(|c| data.channel(c)).collect();
+                Rc::new(audiostrada_dsp::analysis::onsets(
+                    &channels,
+                    data.sample_rate(),
+                    0.5,
+                ))
+            }));
+            let per_frame = f64::from(project.sample_rate) / f64::from(data.sample_rate().max(1))
+                * clip.stretch;
+            out.extend(onsets.iter().filter_map(|&frame| {
+                let at = (frame as f64 * per_frame).round() as u64;
+                (at >= clip.offset && at < clip.offset + clip.length)
+                    .then(|| clip.start + at - clip.offset)
+            }));
+        }
+        out.sort_unstable();
+        out
+    }
 }

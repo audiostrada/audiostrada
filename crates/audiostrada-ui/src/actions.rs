@@ -67,6 +67,8 @@ actions! {
     ModeShuffle => ("Edit", "Edit mode: Shuffle"),
     ModeGrid => ("Edit", "Edit mode: Grid"),
     Fades => ("Edit", "Fades on the range, or short ones on the selected clips"),
+    NextTransient => ("Transport", "Go to the next transient"),
+    PreviousTransient => ("Transport", "Go to the previous transient"),
     ToolSmart => ("Edit", "Smart tool"),
     ToolRange => ("Edit", "Range tool"),
     ToolSplit => ("Edit", "Scissors"),

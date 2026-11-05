@@ -812,3 +812,35 @@ pub(super) fn draw_crossfades(painter: &egui::Painter, row: Rect, track: &Track,
         ));
     }
 }
+
+/// The clips of a folder's tracks in its row, a band per track in its color.
+pub(super) fn draw_folder(
+    painter: &egui::Painter,
+    row: Rect,
+    project: &Project,
+    members: &[TrackId],
+    scale: Scale,
+) {
+    let inner = row.shrink2(vec2(0.0, 6.0));
+    let band = (inner.height() / members.len() as f32).clamp(2.0, 10.0);
+    let top = inner.center().y - band * members.len() as f32 / 2.0;
+    for (k, id) in members.iter().enumerate() {
+        let Some(track) = project.track(*id) else {
+            continue;
+        };
+        let color = Color32::from_rgb(track.color[0], track.color[1], track.color[2]);
+        let y = top + k as f32 * band;
+        for clip in &track.clips {
+            let (a, b) = (scale.x(clip.start), scale.x(clip.end()));
+            if b < row.left() || a > row.right() {
+                continue;
+            }
+            let r = Rect::from_x_y_ranges(a..=b.max(a + 1.0), y..=y + (band - 1.0).max(1.0));
+            painter.rect_filled(
+                r,
+                1.0,
+                color.gamma_multiply(if clip.muted { 0.3 } else { 0.75 }),
+            );
+        }
+    }
+}

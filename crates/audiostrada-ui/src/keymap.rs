@@ -272,6 +272,8 @@ const PANELS: &[Binding] = &[
     (k(PLAIN, false, false, Key::Z), Action::ZoomToSelection),
     // Fades (added in version 14).
     (k(CMD, false, false, Key::F), Action::Fades),
+    (k(PLAIN, false, false, Key::Tab), Action::NextTransient),
+    (k(PLAIN, true, false, Key::Tab), Action::PreviousTransient),
 ];
 
 const AUDIOSTRADA: &[Binding] = &[
