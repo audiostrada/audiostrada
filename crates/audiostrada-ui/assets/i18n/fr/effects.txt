@@ -5787,3 +5787,6 @@ Cents
 
 2
 2
+
+Drag sideways for the width, up or down for the delay
+Glisser sur les côtés pour la largeur, vers le haut ou le bas pour le retard

@@ -394,6 +394,32 @@ fn field(ui: &mut Ui, params: &mut Params) {
         let y = front.y - 26.0 - (delay * late).min(80.0) * 1.3;
         let at = pos2(x, y) + wobble;
         let radius = 8.0 + 10.0 * level;
+        // A double taken by the hand: sideways sets the width, up and down the delay, for all
+        // of them at once since they share these settings.
+        let reach = rect.width() / 2.0 - 70.0;
+        let response = ui
+            .interact(
+                Rect::from_center_size(at, vec2(2.0 * radius + 12.0, 2.0 * radius + 12.0)),
+                ui.scope_id().with(("double", k)),
+                Sense::drag(),
+            )
+            .on_hover_cursor(egui::CursorIcon::Grab)
+            .on_hover_text(tr("Drag sideways for the width, up or down for the delay"));
+        let held = response.dragged();
+        let pointer = response.interact_pointer_pos().filter(|_| held);
+        let width =
+            pointer.map(|pos| ((pos.x - rect.center().x) * side / reach * 100.0).clamp(0.0, 100.0));
+        let late_ms = pointer.map(|pos| ((front.y - 26.0 - pos.y) / 1.3 / late).clamp(0.0, 60.0));
+        params.set("width", width, &response);
+        params.change("delay", late_ms, &response);
+        if held {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+        }
+        let radius = if held || response.hovered() {
+            radius + 3.0
+        } else {
+            radius
+        };
         painter.line_segment([front, at], Stroke::new(1.0, VOICE_B.gamma_multiply(0.25)));
         painter.circle_filled(at, radius + 6.0, VOICE_B.gamma_multiply(0.12));
         painter.circle_filled(at, radius, VOICE_B.gamma_multiply(0.4 + 0.5 * level));
