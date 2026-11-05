@@ -2401,6 +2401,14 @@ impl AudioStradaApp {
                         ] {
                             ui.weak(line);
                         }
+                        ui.add_space(4.0);
+                        ui.label(egui::RichText::new(tr("Strada-Amp captures and cabinets")).strong());
+                        for line in [
+                            "Neural Amp Modeler community captures (GPL v3): Tim R, Phillipe P, George B, Sascha S, Roman A",
+                            "Guitarix cabinet impulse responses (GPL v2 or later)",
+                        ] {
+                            ui.weak(line);
+                        }
                     });
                 });
                 theme::footer(ui, |ui| {

@@ -13,6 +13,7 @@ nam-rs.workspace = true
 realfft.workspace = true
 audiostrada-midi.workspace = true
 symphonia.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

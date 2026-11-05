@@ -569,6 +569,7 @@ dependencies = [
  "audiostrada-midi",
  "nam-rs",
  "realfft",
+ "serde_json",
  "symphonia",
 ]
 

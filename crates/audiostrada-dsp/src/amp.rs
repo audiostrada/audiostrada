@@ -231,12 +231,13 @@ pub const CAB_BASS810: usize = 7;
 pub const CAB_BASS115: usize = 8;
 
 /// The built-in amps, after "Capture" in the rig's model list. Chosen among the most played
-/// and most downloaded amps (TONE3000 download counts, classic amp lists).
+/// and most downloaded amps (TONE3000 download counts, classic amp lists). Those with captures
+/// in [`crate::rig::FACTORY`] play them; the others are modeled here.
 pub const MODELS: [Model; 16] = [
     Model {
         name: "US Twin",
         face: "blackface",
-        based_on: "Fender Twin Reverb (1965 blackface)",
+        based_on: "Fender Twin Reverb, normal and vibrato channels (captures by Tim R)",
         blurb: "Huge clean headroom, sparkling highs, scooped mids.",
         cab: CAB_US212,
         stages: &[
@@ -339,10 +340,10 @@ pub const MODELS: [Model; 16] = [
         lp: 9000.0,
     },
     Model {
-        name: "Voxy 30 Top Boost",
+        name: "Voxy 15 Top Boost",
         face: "voxy",
-        based_on: "Vox AC30 Top Boost (1964)",
-        blurb: "Chiming upper mids, class A compression, jangle to crunch.",
+        based_on: "Vox AC15 (captures by Phillipe P)",
+        blurb: "Chiming class A breakup, from jangle to the Top Boost's bite.",
         cab: CAB_BLUE,
         stages: &[
             st(12.0, 40.0, 13_000.0, 0.2),
@@ -383,7 +384,7 @@ pub const MODELS: [Model; 16] = [
     Model {
         name: "Brit Plexi 100",
         face: "plexi",
-        based_on: "Marshall 1959 Super Lead (1968)",
+        based_on: "Ceriatone King Kong, a Plexi-style head (captures by George B)",
         blurb: "The classic rock roar: crank it for crunch and sustain.",
         cab: CAB_GREENBACK,
         stages: &[
@@ -402,10 +403,10 @@ pub const MODELS: [Model; 16] = [
         lp: 9000.0,
     },
     Model {
-        name: "Brit 800",
+        name: "Brit 900",
         face: "plexi",
-        based_on: "Marshall JCM800 2203 (1981)",
-        blurb: "Hard rock and metal crunch with a forward midrange.",
+        based_on: "Marshall JCM900 50 W Dual Reverb (captures by Tim R)",
+        blurb: "From British clean to hard rock and lead, eight captures of gain.",
         cab: CAB_V30,
         stages: &[
             st(12.0, 30.0, 9000.0, 0.2),
@@ -426,8 +427,8 @@ pub const MODELS: [Model; 16] = [
     Model {
         name: "Brit Hot Mod",
         face: "plexi",
-        based_on: "Friedman BE-100 (hot-rodded Plexi)",
-        blurb: "A modded Plexi with more gain and tighter lows.",
+        based_on: "Friedman Dirty Shirley Mini (captures by Sascha S)",
+        blurb: "A hot-rodded Plexi voice, clean to tight crunch.",
         cab: CAB_V30,
         stages: &[
             st(12.0, 40.0, 9000.0, 0.2),
@@ -446,10 +447,10 @@ pub const MODELS: [Model; 16] = [
         lp: 6800.0,
     },
     Model {
-        name: "Boutique ODS",
+        name: "Boutique 59",
         face: "boutique",
-        based_on: "Dumble Overdrive Special / Two-Rock",
-        blurb: "Smooth, vocal overdrive over a clean, deep foundation.",
+        based_on: "Magnatone Super 59 Mk II (captures by Tim R)",
+        blurb: "Lush boutique cleans that bloom into warm drive.",
         cab: CAB_US212,
         stages: &[
             st(8.0, 20.0, 11_000.0, 0.15),
@@ -468,10 +469,10 @@ pub const MODELS: [Model; 16] = [
         lp: 8000.0,
     },
     Model {
-        name: "Cali Recto",
+        name: "Cali Mark IV",
         face: "modern",
-        based_on: "Mesa/Boogie Dual Rectifier",
-        blurb: "Thick, saturated modern metal with a deep low end.",
+        based_on: "Mesa/Boogie Mark IV (capture by Roman A)",
+        blurb: "Focused, singing Californian lead with a tight low end.",
         cab: CAB_V30,
         stages: &[
             st(12.0, 30.0, 9000.0, 0.2),
@@ -491,10 +492,10 @@ pub const MODELS: [Model; 16] = [
         lp: 6500.0,
     },
     Model {
-        name: "Panama 51",
+        name: "Panama 52",
         face: "modern",
-        based_on: "Peavey 5150 / EVH lead channel",
-        blurb: "Aggressive, tight high gain: the modern metal reference.",
+        based_on: "Peavey 5150 II (captures by Tim R)",
+        blurb: "Tight high gain, from clean-ish to the classic lead channel.",
         cab: CAB_V30,
         stages: &[
             st(12.0, 60.0, 9000.0, 0.2),
@@ -514,10 +515,10 @@ pub const MODELS: [Model; 16] = [
         lp: 6500.0,
     },
     Model {
-        name: "German Lead",
+        name: "Brit Lead 100",
         face: "modern",
-        based_on: "Diezel VH4 channel 3",
-        blurb: "Dense, articulate saturation with a big, tight bottom.",
+        based_on: "Laney GH100S (captures by Phillipe P)",
+        blurb: "British high gain: from just past breakup to a saturated lead.",
         cab: CAB_V30,
         stages: &[
             st(12.0, 40.0, 9000.0, 0.2),

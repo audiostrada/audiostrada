@@ -36,6 +36,153 @@ pub const INFO: EffectInfo = EffectInfo {
     description: "Pick an amp, add pedals, choose a cabinet: a whole guitar or bass rig.",
 };
 
+/// Captures of the built-in amps, clean to driven, by model (empty: modeled in `amp`).
+/// From the Neural Amp Modeler community collection (GPL-3.0), see assets/amps/CREDITS.md.
+pub const FACTORY: [&[&[u8]]; 16] = [
+    &[
+        include_bytes!("../assets/amps/amp01_0.bin"),
+        include_bytes!("../assets/amps/amp01_1.bin"),
+    ],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[
+        include_bytes!("../assets/amps/amp06_0.bin"),
+        include_bytes!("../assets/amps/amp06_1.bin"),
+        include_bytes!("../assets/amps/amp06_2.bin"),
+        include_bytes!("../assets/amps/amp06_3.bin"),
+        include_bytes!("../assets/amps/amp06_4.bin"),
+    ],
+    &[],
+    &[
+        include_bytes!("../assets/amps/amp08_0.bin"),
+        include_bytes!("../assets/amps/amp08_1.bin"),
+        include_bytes!("../assets/amps/amp08_2.bin"),
+        include_bytes!("../assets/amps/amp08_3.bin"),
+        include_bytes!("../assets/amps/amp08_4.bin"),
+    ],
+    &[
+        include_bytes!("../assets/amps/amp09_0.bin"),
+        include_bytes!("../assets/amps/amp09_1.bin"),
+        include_bytes!("../assets/amps/amp09_2.bin"),
+        include_bytes!("../assets/amps/amp09_3.bin"),
+        include_bytes!("../assets/amps/amp09_4.bin"),
+        include_bytes!("../assets/amps/amp09_5.bin"),
+        include_bytes!("../assets/amps/amp09_6.bin"),
+        include_bytes!("../assets/amps/amp09_7.bin"),
+    ],
+    &[
+        include_bytes!("../assets/amps/amp10_0.bin"),
+        include_bytes!("../assets/amps/amp10_1.bin"),
+        include_bytes!("../assets/amps/amp10_2.bin"),
+        include_bytes!("../assets/amps/amp10_3.bin"),
+    ],
+    &[
+        include_bytes!("../assets/amps/amp11_0.bin"),
+        include_bytes!("../assets/amps/amp11_1.bin"),
+        include_bytes!("../assets/amps/amp11_2.bin"),
+        include_bytes!("../assets/amps/amp11_3.bin"),
+        include_bytes!("../assets/amps/amp11_4.bin"),
+        include_bytes!("../assets/amps/amp11_5.bin"),
+        include_bytes!("../assets/amps/amp11_6.bin"),
+        include_bytes!("../assets/amps/amp11_7.bin"),
+    ],
+    &[include_bytes!("../assets/amps/amp12_0.bin")],
+    &[
+        include_bytes!("../assets/amps/amp13_0.bin"),
+        include_bytes!("../assets/amps/amp13_1.bin"),
+        include_bytes!("../assets/amps/amp13_2.bin"),
+    ],
+    &[
+        include_bytes!("../assets/amps/amp14_0.bin"),
+        include_bytes!("../assets/amps/amp14_1.bin"),
+        include_bytes!("../assets/amps/amp14_2.bin"),
+        include_bytes!("../assets/amps/amp14_3.bin"),
+    ],
+    &[],
+    &[],
+];
+
+/// Impulse responses of the simulated cabinets, at 48 kHz (Guitarix, GPL-2.0-or-later).
+const CAB_IRS: [&[u8]; 9] = [
+    include_bytes!("../assets/cabs/cab0.f32"),
+    include_bytes!("../assets/cabs/cab1.f32"),
+    include_bytes!("../assets/cabs/cab2.f32"),
+    include_bytes!("../assets/cabs/cab3.f32"),
+    include_bytes!("../assets/cabs/cab4.f32"),
+    include_bytes!("../assets/cabs/cab5.f32"),
+    include_bytes!("../assets/cabs/cab6.f32"),
+    include_bytes!("../assets/cabs/cab7.f32"),
+    include_bytes!("../assets/cabs/cab8.f32"),
+];
+
+/// A packed capture: its JSON without the weights, then the weights.
+fn unpack(bytes: &[u8]) -> Option<NamModel> {
+    let length = u32::from_le_bytes(bytes.get(..4)?.try_into().ok()?) as usize;
+    let text = std::str::from_utf8(bytes.get(4..4 + length)?).ok()?;
+    let mut value: serde_json::Value = serde_json::from_str(text).ok()?;
+    value["weights"] = serde_json::Value::Array(Vec::new());
+    let mut model = NamModel::from_json_str(&value.to_string()).ok()?;
+    model.weights = bytes[4 + length..]
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|b| f32::from_le_bytes(*b))
+        .collect();
+    Some(model)
+}
+
+/// The captures of every built-in amp, read once.
+fn factory_models() -> &'static [Vec<NamModel>] {
+    static MODELS: std::sync::OnceLock<Vec<Vec<NamModel>>> = std::sync::OnceLock::new();
+    MODELS.get_or_init(|| {
+        FACTORY
+            .iter()
+            .map(|files| files.iter().filter_map(|b| unpack(b)).collect())
+            .collect()
+    })
+}
+
+/// A cabinet's impulse response at `rate`, its level set by its mids (300 Hz to 3 kHz).
+fn cab_ir(cab: usize, rate: f32) -> Vec<f32> {
+    let Some(bytes) = CAB_IRS.get(cab) else {
+        return Vec::new();
+    };
+    let source: Vec<f32> = bytes
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|b| f32::from_le_bytes(*b))
+        .collect();
+    let step = 48_000.0 / rate;
+    let length = (source.len() as f32 / step) as usize;
+    let mut ir: Vec<f32> = (0..length)
+        .map(|k| {
+            let at = k as f32 * step;
+            let i = at as usize;
+            let frac = at - i as f32;
+            let a = source[i];
+            a + (source.get(i + 1).copied().unwrap_or(a) - a) * frac
+        })
+        .collect();
+    let mids: Vec<f32> = (0..24)
+        .map(|k| 300.0 * 10f32.powf(k as f32 / 23.0))
+        .map(|f| {
+            let w = std::f32::consts::TAU * f / rate;
+            let (re, im) = ir.iter().enumerate().fold((0.0, 0.0), |(re, im), (n, h)| {
+                (re + h * (w * n as f32).cos(), im - h * (w * n as f32).sin())
+            });
+            (re * re + im * im).sqrt()
+        })
+        .collect();
+    let level = mids.iter().sum::<f32>() / mids.len() as f32;
+    for h in &mut ir {
+        *h /= level.max(1e-6);
+    }
+    ir
+}
+
 /// Pedal types of a slot, in parameter order (new types are added at the end).
 pub const PEDALS: [&str; 22] = [
     "Empty",
@@ -127,15 +274,15 @@ pub const AMPS: [&str; 17] = [
     "US Deluxe",
     "Tweed Deluxe 57",
     "Tweed Bass 59",
-    "Voxy 30 Top Boost",
+    "Voxy 15 Top Boost",
     "Brit 45 Bluesbreaker",
     "Brit Plexi 100",
-    "Brit 800",
+    "Brit 900",
     "Brit Hot Mod",
-    "Boutique ODS",
-    "Cali Recto",
-    "Panama 51",
-    "German Lead",
+    "Boutique 59",
+    "Cali Mark IV",
+    "Panama 52",
+    "Brit Lead 100",
     "Bass Classic",
     "Bass Flip 15",
 ];
@@ -631,97 +778,13 @@ impl Slot {
     }
 }
 
-/// Cabinet simulations: each a series of filters (kind, frequency, Q, gain), shaped after
-/// the published responses of their speakers.
-const CAB_FILTERS: [[(FilterKind, f32, f64, f32); 6]; 9] = [
-    // 4x12 closed back, Celestion Vintage 30: thump, upper-mid bite, steep top.
-    [
-        (FilterKind::HighPass, 75.0, 0.9, 0.0),
-        (FilterKind::Peak, 110.0, 1.3, 3.5),
-        (FilterKind::Peak, 450.0, 1.0, -2.5),
-        (FilterKind::Peak, 2500.0, 1.6, 5.0),
-        (FilterKind::LowPass, 5200.0, 0.9, 0.0),
-        (FilterKind::LowPass, 6500.0, 0.6, 0.0),
-    ],
-    // 4x12 closed back, Greenback: woody low mids, softer and darker top.
-    [
-        (FilterKind::HighPass, 85.0, 0.8, 0.0),
-        (FilterKind::Peak, 120.0, 1.2, 2.0),
-        (FilterKind::Peak, 800.0, 1.0, 1.5),
-        (FilterKind::Peak, 2200.0, 1.4, 4.5),
-        (FilterKind::LowPass, 5000.0, 0.8, 0.0),
-        (FilterKind::LowPass, 6300.0, 0.6, 0.0),
-    ],
-    // 2x12 open back, alnico Blue: light lows, chiming 3 kHz.
-    [
-        (FilterKind::HighPass, 95.0, 0.7, 0.0),
-        (FilterKind::LowShelf, 180.0, 0.7, -1.5),
-        (FilterKind::Peak, 1200.0, 1.0, 1.0),
-        (FilterKind::Peak, 3000.0, 1.3, 5.0),
-        (FilterKind::LowPass, 5800.0, 0.8, 0.0),
-        (FilterKind::LowPass, 7000.0, 0.6, 0.0),
-    ],
-    // 2x12 open back, American speakers: big, clean, slightly scooped.
-    [
-        (FilterKind::HighPass, 70.0, 0.7, 0.0),
-        (FilterKind::Peak, 120.0, 1.0, 1.5),
-        (FilterKind::Peak, 500.0, 0.9, -2.0),
-        (FilterKind::Peak, 2600.0, 1.2, 2.5),
-        (FilterKind::LowPass, 5200.0, 0.8, 0.0),
-        (FilterKind::LowPass, 6500.0, 0.6, 0.0),
-    ],
-    // 4x10 open back, American speakers: tight lows, airy mids.
-    [
-        (FilterKind::HighPass, 85.0, 0.8, 0.0),
-        (FilterKind::Peak, 160.0, 1.0, 2.0),
-        (FilterKind::Peak, 1400.0, 1.0, 2.0),
-        (FilterKind::Peak, 3500.0, 1.5, 2.0),
-        (FilterKind::LowPass, 5300.0, 0.8, 0.0),
-        (FilterKind::LowPass, 6800.0, 0.6, 0.0),
-    ],
-    // 1x12 open back combo: boxy, focused.
-    [
-        (FilterKind::HighPass, 95.0, 0.7, 0.0),
-        (FilterKind::Peak, 150.0, 1.0, 1.0),
-        (FilterKind::Peak, 700.0, 1.0, 1.5),
-        (FilterKind::Peak, 2000.0, 1.2, 3.0),
-        (FilterKind::LowPass, 5000.0, 0.8, 0.0),
-        (FilterKind::LowPass, 6500.0, 0.6, 0.0),
-    ],
-    // 4x10 bass cabinet.
-    [
-        (FilterKind::HighPass, 45.0, 0.8, 0.0),
-        (FilterKind::Peak, 80.0, 1.0, 2.5),
-        (FilterKind::Peak, 600.0, 0.9, -2.0),
-        (FilterKind::Peak, 2500.0, 1.2, 2.0),
-        (FilterKind::LowPass, 4500.0, 0.8, 0.0),
-        (FilterKind::LowPass, 6000.0, 0.6, 0.0),
-    ],
-    // 8x10 bass fridge: huge low mids, dark top.
-    [
-        (FilterKind::HighPass, 50.0, 0.9, 0.0),
-        (FilterKind::Peak, 100.0, 1.0, 3.0),
-        (FilterKind::Peak, 400.0, 1.0, 1.5),
-        (FilterKind::Peak, 1000.0, 1.0, -2.0),
-        (FilterKind::LowPass, 3500.0, 0.8, 0.0),
-        (FilterKind::LowPass, 4800.0, 0.6, 0.0),
-    ],
-    // 1x15 bass: round and deep.
-    [
-        (FilterKind::HighPass, 45.0, 0.9, 0.0),
-        (FilterKind::Peak, 90.0, 1.0, 3.5),
-        (FilterKind::Peak, 800.0, 1.0, -1.5),
-        (FilterKind::Peak, 1800.0, 1.0, 1.0),
-        (FilterKind::LowPass, 2900.0, 0.8, 0.0),
-        (FilterKind::LowPass, 4000.0, 0.6, 0.0),
-    ],
-];
-
 pub struct Rig {
     values: [f32; PARAM_COUNT],
     rate: u32,
     amp: Option<Pack>,
     builtin: AmpSim,
+    /// The captures of each built-in amp that has them.
+    factory: Vec<Option<Pack>>,
     slots: [Slot; SLOTS],
     ir: Option<(Vec<f32>, u32)>,
     convolver: Option<Convolver>,
@@ -732,8 +795,10 @@ pub struct Rig {
     side: Vec<f32>,
     tone: [Coefficients; 4],
     tone_filters: [Biquad; 4],
-    cab: [Coefficients; 6],
-    cab_filters: [Biquad; 6],
+    /// The simulated cabinets' impulse responses at the current rate, and the signal lately.
+    cab_irs: Vec<Vec<f32>>,
+    cab_history: Vec<f32>,
+    cab_at: usize,
     dc: (f32, f32),
     gate_env: f32,
     gate_gain: f32,
@@ -748,6 +813,10 @@ impl Default for Rig {
             rate: 48_000,
             amp: None,
             builtin: AmpSim::default(),
+            factory: factory_models()
+                .iter()
+                .map(|models| (!models.is_empty()).then(|| Pack::new(models.clone())))
+                .collect(),
             slots: Default::default(),
             ir: None,
             convolver: None,
@@ -757,8 +826,9 @@ impl Default for Rig {
             side: Vec::new(),
             tone: [Coefficients::IDENTITY; 4],
             tone_filters: [Biquad::default(); 4],
-            cab: [Coefficients::IDENTITY; 6],
-            cab_filters: [Biquad::default(); 6],
+            cab_irs: Vec::new(),
+            cab_history: Vec::new(),
+            cab_at: 0,
             dc: (0.0, 0.0),
             gate_env: 0.0,
             gate_gain: 1.0,
@@ -803,13 +873,6 @@ impl Rig {
             };
             self.builtin.update(index, knobs, rate);
         }
-        let cab = v[8].round().max(0.0) as usize;
-        self.cab = match CAB_FILTERS.get(cab) {
-            Some(filters) => filters.map(|(kind, f, q, g)| {
-                design(kind, f64::from(f).min(rate * 0.45), q, f64::from(g))
-            }),
-            None => [Coefficients::IDENTITY; 6],
-        };
         self.dirty = false;
     }
 
@@ -874,6 +937,13 @@ impl Effect for Rig {
         if let Some(amp) = &mut self.amp {
             amp.prepare(self.rate, max);
         }
+        for pack in self.factory.iter_mut().flatten() {
+            pack.prepare(self.rate, max);
+        }
+        self.cab_irs = (0..DIRECT).map(|c| cab_ir(c, self.rate as f32)).collect();
+        let longest = self.cab_irs.iter().map(Vec::len).max().unwrap_or(1).max(1);
+        self.cab_history = vec![0.0; longest];
+        self.cab_at = 0;
         for slot in &mut self.slots {
             slot.prepare(self.rate, max);
         }
@@ -885,7 +955,6 @@ impl Effect for Rig {
         self.dry = vec![0.0; PARTITION];
         self.dry_at = 0;
         self.tone_filters = [Biquad::default(); 4];
-        self.cab_filters = [Biquad::default(); 6];
         self.update();
     }
 
@@ -900,8 +969,16 @@ impl Effect for Rig {
 
     fn latency(&self) -> u32 {
         let capture = self.slots.iter().filter_map(|s| s.capture.as_ref());
-        (self.amp.as_ref().map_or(0, Pack::latency) + capture.map(Pack::latency).max().unwrap_or(0))
-            as u32
+        let model = self.values[MODEL].round().max(0.0) as usize;
+        let amp = match model.checked_sub(1) {
+            Some(i) => self
+                .factory
+                .get(i)
+                .and_then(Option::as_ref)
+                .map_or(0, Pack::latency),
+            None => self.amp.as_ref().map_or(0, Pack::latency),
+        };
+        (amp + capture.map(Pack::latency).max().unwrap_or(0)) as u32
             + self.convolver.as_ref().map_or(0, Convolver::latency)
     }
 
@@ -910,6 +987,9 @@ impl Effect for Rig {
             amp.reset();
         }
         self.builtin.reset();
+        for pack in self.factory.iter_mut().flatten() {
+            pack.reset();
+        }
         for slot in &mut self.slots {
             slot.reset();
         }
@@ -918,7 +998,7 @@ impl Effect for Rig {
         }
         self.dry.fill(0.0);
         self.tone_filters = [Biquad::default(); 4];
-        self.cab_filters = [Biquad::default(); 6];
+        self.cab_history.fill(0.0);
         self.dc = (0.0, 0.0);
         self.gate_env = 0.0;
         self.gate_gain = 1.0;
@@ -1002,7 +1082,15 @@ impl Effect for Rig {
                 self.slots[index].process_mono(kind, knobs, mono, side, rate, normalize);
             }
         }
-        if self.values[MODEL] >= 0.5 {
+        let model = self.values[MODEL].round().max(0.0) as usize;
+        let factory = model
+            .checked_sub(1)
+            .and_then(|i| self.factory.get_mut(i))
+            .and_then(Option::as_mut);
+        if let Some(pack) = factory {
+            pack.select(gain);
+            pack.process(&mut self.mono[..n], normalize);
+        } else if model >= 1 {
             self.builtin.process(&mut self.mono[..n]);
         } else if let Some(amp) = &mut self.amp {
             amp.select(gain);
@@ -1010,8 +1098,11 @@ impl Effect for Rig {
         }
         let (mut x1, mut y1) = self.dc;
         let cab = cab.round().max(0.0) as usize;
-        let simulated = cab < DIRECT;
-        let captured = self.values[MODEL] < 0.5;
+        let simulated = cab < DIRECT && !self.cab_history.is_empty();
+        let captured = model == 0
+            || model
+                .checked_sub(1)
+                .is_some_and(|i| self.factory.get(i).is_some_and(Option::is_some));
         for s in &mut self.mono[..n] {
             // DC blocker, tone stack, then the cabinet simulation.
             let y = *s - x1 + 0.995 * y1;
@@ -1025,9 +1116,17 @@ impl Effect for Rig {
                 }
             }
             if simulated {
-                for (f, c) in self.cab_filters.iter_mut().zip(&self.cab) {
-                    v = f.process(c, v);
+                // The cabinet's impulse response, sample by sample: short enough to need no
+                // look-ahead.
+                let len = self.cab_history.len();
+                self.cab_history[self.cab_at] = v as f32;
+                let ir = &self.cab_irs[cab];
+                let mut acc = 0.0f32;
+                for (k, h) in ir.iter().enumerate() {
+                    acc += h * self.cab_history[(self.cab_at + len - k) % len];
                 }
+                self.cab_at = (self.cab_at + 1) % len;
+                v = f64::from(acc);
             }
             *s = v as f32;
         }
@@ -1122,6 +1221,26 @@ mod tests {
                     "{pedal} through {cabinet}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn every_built_in_capture_and_cabinet_reads() {
+        for (model, files) in FACTORY.iter().enumerate() {
+            assert_eq!(
+                factory_models()[model].len(),
+                files.len(),
+                "{}",
+                AMPS[model + 1]
+            );
+            for capture in &factory_models()[model] {
+                assert!(nam_rs::Model::from_nam(capture).is_ok());
+                assert!(capture.loudness().is_some());
+            }
+        }
+        for (cab, name) in CABS.iter().enumerate().take(DIRECT) {
+            let ir = cab_ir(cab, 44_100.0);
+            assert!(ir.len() > 50 && ir.iter().all(|h| h.is_finite()), "{name}");
         }
     }
 

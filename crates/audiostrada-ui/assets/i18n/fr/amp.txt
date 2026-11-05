@@ -501,3 +501,26 @@ Masquer (les fichiers restent dans leur dossier)
 
 {path}\nRight-click to rename, recategorize or remove
 {path}\nClic droit pour renommer, changer de catégorie ou retirer
+
+# Built-in amps from captures
+
+Chiming class A breakup, from jangle to the Top Boost's bite.
+Saturation classe A cristalline, du scintillant au mordant du Top Boost.
+
+From British clean to hard rock and lead, eight captures of gain.
+Du clair britannique au hard rock et au solo : huit captures de gain.
+
+A hot-rodded Plexi voice, clean to tight crunch.
+Une voix de Plexi gonflée, du clair au crunch serré.
+
+Lush boutique cleans that bloom into warm drive.
+Des clairs boutique riches qui s'épanouissent en saturation chaude.
+
+Focused, singing Californian lead with a tight low end.
+Un lead californien précis et chantant, aux graves serrés.
+
+Tight high gain, from clean-ish to the classic lead channel.
+Du high gain serré, du presque clair au canal lead classique.
+
+British high gain: from just past breakup to a saturated lead.
+High gain britannique : de la limite de saturation au lead saturé.
