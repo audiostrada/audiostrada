@@ -38,7 +38,7 @@ pub(crate) fn file_name(name: &str, fallback: &str) -> String {
 
 /// Where downloaded captures go: the library folder in the configuration folder.
 fn download_root() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("audiostrada").join("nam"))
+    crate::config_dir().map(|d| d.join("audiostrada").join("nam"))
 }
 
 /// The download folder, added to the library folders if needed.
@@ -61,7 +61,7 @@ pub(crate) fn add_dir(dir: PathBuf) {
 }
 
 fn settings_file() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("audiostrada").join("nam-folders.json"))
+    crate::config_dir().map(|d| d.join("audiostrada").join("nam-folders.json"))
 }
 
 /// The remembered folders, or the usual places for captures.
@@ -73,7 +73,7 @@ pub(crate) fn load_dirs() -> Vec<PathBuf> {
         return saved;
     }
     let mut dirs = Vec::new();
-    if let Some(config) = dirs::config_dir() {
+    if let Some(config) = crate::config_dir() {
         dirs.push(config.join("audiostrada").join("nam"));
     }
     for base in [dirs::document_dir(), dirs::home_dir()]

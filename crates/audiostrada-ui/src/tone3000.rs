@@ -111,6 +111,9 @@ pub(crate) fn agent() -> ureq::Agent {
     let config = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(120)))
         .http_status_as_error(false);
+    // Tests never reach the network: every request goes to a closed local port.
+    #[cfg(test)]
+    let config = config.proxy(ureq::Proxy::new("http://127.0.0.1:1").ok());
     #[cfg(not(target_os = "linux"))]
     let config = config.tls_config(
         ureq::tls::TlsConfig::builder()
@@ -138,7 +141,7 @@ struct Tokens {
 }
 
 fn token_file() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("audiostrada").join("tone3000.json"))
+    crate::config_dir().map(|d| d.join("audiostrada").join("tone3000.json"))
 }
 
 fn now() -> u64 {

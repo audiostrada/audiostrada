@@ -60,7 +60,7 @@ fn own_file() -> Option<PathBuf> {
     if cfg!(test) {
         return None;
     }
-    dirs::config_dir().map(|d| d.join("audiostrada").join("trigger_sounds.json"))
+    crate::config_dir().map(|d| d.join("audiostrada").join("trigger_sounds.json"))
 }
 
 fn read_own() -> Vec<OwnSound> {

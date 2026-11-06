@@ -254,3 +254,47 @@ fn the_inspector_and_the_track_menu_draw_for_every_kind_of_track() {
         .drop_without_applying_deltas();
     }
 }
+
+/// The application swept by a user trying everything, `part` of four bands of the window.
+fn sweep_app(part: usize) {
+    let mut h = Harness::with_song(&format!("sweep-{part}"));
+    h.frame(Vec::new());
+    let band = Rect::from_min_size(Pos2::new(0.0, part as f32 * 250.0), vec2(1600.0, 250.0));
+    for events in crate::test_sweep::script(band, 45.0, true) {
+        h.frame(events);
+    }
+    // Then with every panel shown, in their tabs.
+    for action in [
+        Action::ShowMixer,
+        Action::ShowPianoRoll,
+        Action::ShowRack,
+        Action::ShowBrowser,
+        Action::ShowInspector,
+        Action::ShowMarkers,
+    ] {
+        h.act(action);
+        for events in crate::test_sweep::script(band, 90.0, false) {
+            h.frame(events);
+        }
+    }
+}
+
+#[test]
+fn the_app_answers_a_user_trying_everything_0() {
+    sweep_app(0);
+}
+
+#[test]
+fn the_app_answers_a_user_trying_everything_1() {
+    sweep_app(1);
+}
+
+#[test]
+fn the_app_answers_a_user_trying_everything_2() {
+    sweep_app(2);
+}
+
+#[test]
+fn the_app_answers_a_user_trying_everything_3() {
+    sweep_app(3);
+}

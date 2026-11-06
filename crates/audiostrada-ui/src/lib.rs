@@ -64,6 +64,19 @@ mod widgets;
 
 #[cfg(test)]
 mod app_tests;
+#[cfg(test)]
+mod test_sweep;
+
+/// The system's configuration folder, where AudioStrada keeps its own; tests get a folder of
+/// their own, so that they never touch the user's presets, chains or libraries.
+pub(crate) fn config_dir() -> Option<PathBuf> {
+    if cfg!(test) {
+        return Some(
+            std::env::temp_dir().join(format!("audiostrada-test-config-{}", std::process::id())),
+        );
+    }
+    dirs::config_dir()
+}
 
 use std::cell::RefCell;
 use std::collections::HashMap;

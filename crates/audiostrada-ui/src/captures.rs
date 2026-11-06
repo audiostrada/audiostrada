@@ -106,7 +106,7 @@ pub struct Note {
 }
 
 fn notes_file() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("audiostrada").join("captures.json"))
+    crate::config_dir().map(|d| d.join("audiostrada").join("captures.json"))
 }
 
 fn load_notes() -> BTreeMap<PathBuf, Note> {

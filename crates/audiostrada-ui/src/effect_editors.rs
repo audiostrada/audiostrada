@@ -5907,7 +5907,67 @@ pub(crate) fn draw_for_test(
     id: &str,
     set: &[(&str, f32)],
     frames: usize,
+    before: impl FnMut(usize, &mut EditorState),
+) {
+    drive_for_test(id, set, frames, before, |_| Vec::new());
+}
+
+/// Clicks every `step` pixels over the editor of `id`, and drags up and down from every other
+/// point (knobs, faders, curves), as a user trying everything would.
+#[cfg(test)]
+pub(crate) fn sweep_for_test(id: &str, set: &[(&str, f32)], step: f32) {
+    use eframe::egui::{Event, Modifiers, PointerButton, pos2};
+    let mut script: Vec<Vec<Event>> = Vec::new();
+    let button = |pos, pressed| Event::PointerButton {
+        pos,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    let mut y = step / 2.0;
+    let mut n = 0;
+    while y < 1100.0 {
+        let mut x = step / 2.0;
+        while x < 1300.0 {
+            let at = pos2(x, y);
+            script.push(vec![Event::PointerMoved(at)]);
+            script.push(vec![button(at, true)]);
+            if n % 2 == 1 {
+                for dy in [-20.0, 25.0] {
+                    script.push(vec![Event::PointerMoved(at + vec2(4.0, dy))]);
+                }
+            }
+            script.push(vec![button(at, false)]);
+            n += 1;
+            x += step;
+        }
+        y += step;
+    }
+    script.push(vec![Event::Key {
+        key: egui::Key::Escape,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::NONE,
+    }]);
+    let frames = script.len();
+    drive_for_test(
+        id,
+        set,
+        frames,
+        |_, _| {},
+        |i| std::mem::take(&mut script[i]),
+    );
+}
+
+/// Draws the editor of `id`, with the events `events` gives for each frame.
+#[cfg(test)]
+pub(crate) fn drive_for_test(
+    id: &str,
+    set: &[(&str, f32)],
+    frames: usize,
     mut before: impl FnMut(usize, &mut EditorState),
+    mut events: impl FnMut(usize) -> Vec<egui::Event>,
 ) {
     use audiostrada_core::model::Note;
     use eframe::egui::{Pos2, RawInput};
@@ -5946,6 +6006,8 @@ pub(crate) fn draw_for_test(
         before(frame, &mut state);
         let input = RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 1200.0))),
+            time: Some(frame as f64 * 0.05),
+            events: events(frame),
             ..Default::default()
         };
         ctx.run_ui(input, |ui| {
@@ -5957,6 +6019,7 @@ pub(crate) fn draw_for_test(
                 info,
             };
             show(ui, &mut params, &[0.5; 64], &mut state);
+            values = params.values;
         })
         .drop_without_applying_deltas();
     }
@@ -5981,6 +6044,33 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Every fourth effect from `first`, swept (four tests, so that they run side by side).
+    fn sweep_quarter(first: usize) {
+        for info in audiostrada_dsp::EFFECTS.iter().skip(first).step_by(4) {
+            sweep_for_test(info.id, &[], 40.0);
+        }
+    }
+
+    #[test]
+    fn every_editor_answers_a_user_trying_everything_0() {
+        sweep_quarter(0);
+    }
+
+    #[test]
+    fn every_editor_answers_a_user_trying_everything_1() {
+        sweep_quarter(1);
+    }
+
+    #[test]
+    fn every_editor_answers_a_user_trying_everything_2() {
+        sweep_quarter(2);
+    }
+
+    #[test]
+    fn every_editor_answers_a_user_trying_everything_3() {
+        sweep_quarter(3);
     }
 
     #[test]

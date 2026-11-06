@@ -1307,7 +1307,7 @@ pub struct Request {
 
 /// Where the control channel's token is kept (readable by the user only).
 fn token_file() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("audiostrada").join("control-token"))
+    crate::config_dir().map(|d| d.join("audiostrada").join("control-token"))
 }
 
 fn write_token(token: &str) -> Result<(), String> {

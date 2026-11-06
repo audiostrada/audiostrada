@@ -126,7 +126,7 @@ pub fn guess(tags: &[String]) -> &'static str {
 }
 
 fn file() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("audiostrada").join("plugin_categories.json"))
+    crate::config_dir().map(|d| d.join("audiostrada").join("plugin_categories.json"))
 }
 
 /// Families chosen by the user, by plugin key.

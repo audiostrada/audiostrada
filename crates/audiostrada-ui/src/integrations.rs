@@ -37,11 +37,17 @@ impl Client {
 
     /// Its file of MCP servers; Claude Code keeps its own, changed through its `claude` command.
     pub fn config_file(self) -> Option<PathBuf> {
-        let home = dirs::home_dir();
+        // Tests write the assistants' files in a folder of their own.
+        let home = if cfg!(test) {
+            crate::config_dir()
+        } else {
+            dirs::home_dir()
+        };
         match self {
-            Client::ClaudeDesktop => {
-                dirs::config_dir().map(|d| d.join("Claude").join("claude_desktop_config.json"))
-            }
+            Client::ClaudeDesktop => crate::config_dir()
+                .filter(|_| cfg!(test))
+                .or_else(dirs::config_dir)
+                .map(|d| d.join("Claude").join("claude_desktop_config.json")),
             Client::ClaudeCode => None,
             Client::Cursor => home.map(|h| h.join(".cursor").join("mcp.json")),
             Client::GeminiCli => home.map(|h| h.join(".gemini").join("settings.json")),
@@ -98,6 +104,10 @@ pub fn claude_code_line(port: u16) -> String {
 }
 
 fn claude_command() -> Option<PathBuf> {
+    // Tests never run the user's Claude Code.
+    if cfg!(test) {
+        return None;
+    }
     let names: &[&str] = if cfg!(windows) {
         &["claude.cmd", "claude.exe", "claude"]
     } else {

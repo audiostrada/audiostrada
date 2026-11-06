@@ -55,7 +55,7 @@ struct File {
 }
 
 pub fn root() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("audiostrada").join("chains"))
+    crate::config_dir().map(|d| d.join("audiostrada").join("chains"))
 }
 
 fn path(root: &Path, name: &str) -> PathBuf {

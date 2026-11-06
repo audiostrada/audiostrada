@@ -22,7 +22,7 @@ pub struct Preset {
 
 /// Where user presets live: one folder per effect under the configuration folder.
 pub fn root() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("audiostrada").join("presets"))
+    crate::config_dir().map(|d| d.join("audiostrada").join("presets"))
 }
 
 fn folder(root: &Path, effect: &str) -> PathBuf {
