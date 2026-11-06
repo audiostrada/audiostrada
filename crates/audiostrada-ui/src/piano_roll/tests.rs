@@ -303,3 +303,47 @@ fn a_rubber_band_past_the_edge_scrolls_and_keeps_its_corner() {
     roll.view.clamp(400.0);
     assert_eq!(roll.view.scroll, 0.0, "nothing before the start");
 }
+
+#[test]
+fn every_transform_panel_and_lane_draws_and_applies() {
+    let notes: Vec<Note> = (0..16u64)
+        .map(|i| {
+            let mut n = note(i * 6_000 + 300, 60 + (i % 7) as u8, 0);
+            n.velocity = 40 + (i * 5) as u8;
+            n
+        })
+        .collect();
+    let (mut roll, doc, clip) = roll(notes);
+    let ctx = egui::Context::default();
+    framed(&mut roll, &ctx);
+    roll.select_all();
+    for transform in panel::Transform::all(6_000.0) {
+        let base = notes_of(&doc, clip);
+        roll.pending = Some(Pending {
+            transform,
+            chosen: (0..base.len()).collect(),
+            base,
+        });
+        frame(&mut roll, &ctx, vec![]);
+        frame(&mut roll, &ctx, vec![]);
+        roll.pending = None;
+    }
+    for (lane, _) in Lane::all() {
+        roll.lane = lane;
+        roll.selected = vec![0];
+        frame(&mut roll, &ctx, vec![]);
+        roll.select_all();
+        frame(&mut roll, &ctx, vec![]);
+    }
+    // Each tool over the notes, then over the lane.
+    let area = roll.area;
+    for tool in Tool::ALL {
+        roll.tool = tool;
+        roll.lane = Lane::Velocity;
+        let from = area.left_top() + vec2(area.width() * 0.3, area.height() * 0.3);
+        drag(&mut roll, &ctx, from, from + vec2(120.0, 40.0));
+        let lane = egui::pos2(area.left() + area.width() * 0.4, area.bottom() - 20.0);
+        drag(&mut roll, &ctx, lane, lane + vec2(200.0, -10.0));
+    }
+    assert!(!notes_of(&doc, clip).is_empty());
+}

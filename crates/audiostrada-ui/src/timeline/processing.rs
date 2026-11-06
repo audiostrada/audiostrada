@@ -1091,6 +1091,97 @@ mod tests {
     use crate::document::AppDirs;
     use crate::timeline::Range;
 
+    /// A timeline over two tracks of real audio (drum-like hits), loaded.
+    fn loaded_view(name: &str) -> (TimelineView, Rc<RefCell<Document>>, std::path::PathBuf) {
+        use audiostrada_media::{AudioData, write_wav};
+        let dir = std::env::temp_dir().join(format!(
+            "audiostrada-processing-{name}-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut files = Vec::new();
+        for (i, name) in ["kick.wav", "bass.wav"].iter().enumerate() {
+            let samples: Vec<f32> = (0..96_000)
+                .map(|n| {
+                    let hit = (n + i * 700) % 12_000;
+                    if hit < 2_000 {
+                        (1.0 - hit as f32 / 2_000.0) * ((n as f32) * 0.05).sin()
+                    } else {
+                        0.0
+                    }
+                })
+                .collect();
+            let file = dir.join(name);
+            write_wav(&file, &AudioData::new(vec![samples], 48_000)).unwrap();
+            files.push(file);
+        }
+        let mut doc = Document::new(AppDirs::default());
+        doc.import(&files);
+        crate::control::loaded(&mut doc, false).unwrap();
+        let doc = Rc::new(RefCell::new(doc));
+        let mut view = TimelineView::new(Rc::clone(&doc));
+        view.selection = doc
+            .borrow()
+            .project()
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter().map(|c| c.id))
+            .collect();
+        (view, doc, dir)
+    }
+
+    fn frames(view: &mut TimelineView, n: usize) {
+        let ctx = egui::Context::default();
+        let mut settings = crate::transport::EditSettings::default();
+        for i in 0..n {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1400.0, 900.0),
+                )),
+                time: Some(i as f64 * 0.1),
+                ..Default::default()
+            };
+            ctx.run_ui(input, |ui| view.show(ui, &mut settings))
+                .drop_without_applying_deltas();
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
+
+    #[test]
+    fn every_processing_window_draws_and_finds_something() {
+        let (mut view, doc, dir) = loaded_view("windows");
+        view.open_strip(&mut doc.borrow_mut());
+        for mode in [StripMode::Strip, StripMode::Extract, StripMode::Separate] {
+            view.strip.as_mut().unwrap().mode = mode;
+            frames(&mut view, 3);
+        }
+        assert!(
+            !view.strip.as_ref().unwrap().found.is_empty(),
+            "silences found"
+        );
+        let choices = [Choice::Normalize, Choice::Reverse].into_iter().chain(
+            audiostrada_dsp::EFFECTS
+                .iter()
+                .filter(|e| !e.instrument)
+                .map(|e| Choice::Effect(e.id)),
+        );
+        view.open_process(&mut doc.borrow_mut());
+        for choice in choices {
+            view.process.as_mut().unwrap().choice = choice;
+            frames(&mut view, 1);
+        }
+        view.open_beat(&mut doc.borrow_mut());
+        frames(&mut view, 20);
+        assert!(
+            view.beat.as_ref().is_some_and(|b| !b.hits.is_empty()),
+            "hits found"
+        );
+        view.open_groove(&mut doc.borrow_mut());
+        frames(&mut view, 20);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     #[test]
     fn operations_target_the_selection_or_the_range() {
         let mut p = Project::new("t", 48_000);

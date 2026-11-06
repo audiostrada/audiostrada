@@ -5139,6 +5139,71 @@ mod tests {
     }
 
     #[test]
+    fn every_kind_of_strip_draws_in_every_layout() {
+        use audiostrada_core::console::{Console, ConsoleModel};
+        let mut doc = Document::new(AppDirs::default());
+        doc.history_mut().edit("Setup", |p| {
+            let folder = p.add_track("Folder");
+            let a = p.add_track("A");
+            let b = p.add_track("B");
+            let bus = p.add_track("Bus");
+            let synth = p.add_track("Synth");
+            routing::add_insert(p, Channel::Track(synth), "synth", Default::default());
+            for id in ["eq", "compressor", "channel", "reverb"] {
+                routing::add_insert(p, Channel::Track(a), id, Default::default());
+            }
+            routing::add_insert(p, Channel::Master, "maximizer", Default::default());
+            let _ = routing::set_parent(p, a, Some(folder));
+            let _ = routing::set_parent(p, b, Some(folder));
+            let _ = routing::add_send(p, a, bus);
+            let _ = routing::add_send(p, b, bus);
+            let vca = routing::add_vca(p, "VCA");
+            let _ = routing::set_vca(p, a, Some(vca));
+            let _ = routing::set_vca(p, b, Some(vca));
+            p.console = Console {
+                model: ConsoleModel::Iron,
+                amount: 70.0,
+            };
+            if let Some(t) = p.track_mut(b) {
+                t.console = Some(Console {
+                    model: ConsoleModel::Velvet,
+                    amount: 30.0,
+                });
+                t.mute = true;
+                t.solo = true;
+            }
+        });
+        let ids: Vec<_> = doc.project().tracks.iter().map(|t| t.id).collect();
+        let doc = Rc::new(RefCell::new(doc));
+        let ctx = egui::Context::default();
+        for full in [true, false] {
+            for compact in [false, true] {
+                for height in [120.0, 400.0] {
+                    let mut view = MixerView::new(Rc::clone(&doc));
+                    view.full_strips = full;
+                    view.compact = compact;
+                    view.fader_height = height;
+                    for &t in ids.iter().take(3) {
+                        doc.borrow_mut()
+                            .select_track(t, crate::document::SelectMode::Toggle);
+                    }
+                    frame(&ctx, &mut view, vec![]);
+                    frame(&ctx, &mut view, vec![]);
+                }
+            }
+        }
+        // The console menus, for the project and for a track.
+        let input = RawInput::default();
+        ctx.run_ui(input, |ui| {
+            crate::console_ui::console_menu(ui, &mut doc.borrow_mut());
+            crate::console_ui::track_menu(ui, &mut doc.borrow_mut(), ids[2]);
+            crate::console_ui::power_switch(ui, &mut doc.borrow_mut());
+        })
+        .drop_without_applying_deltas();
+        assert!(crate::console_ui::stage_gains(&mut doc.borrow_mut(), -18.0) <= ids.len());
+    }
+
+    #[test]
     fn a_list_with_midi_learn_stays_open() {
         let mut doc = Document::new(AppDirs::default());
         let ctx = egui::Context::default();
