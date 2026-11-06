@@ -475,7 +475,41 @@ fn automated(project: &Project) -> HashSet<(Channel, AutomationTarget)> {
             out.insert((Channel::Track(track.id), lane.target.clone()));
         }
     }
+    // The members of an automated VCA: their gain follows its curve.
+    for track in &project.tracks {
+        if vca_lane(project, track).is_some() {
+            out.insert((Channel::Track(track.id), AutomationTarget::Gain));
+        }
+    }
     out
+}
+
+/// The gain lane of `track`'s VCA, when it has one that plays.
+fn vca_lane<'a>(
+    project: &'a Project,
+    track: &audiostrada_core::Track,
+) -> Option<&'a audiostrada_core::automation::AutomationLane> {
+    let vca = project.track(track.vca?)?;
+    if vca.automation_mode == AutomationMode::Off {
+        return None;
+    }
+    vca.automation
+        .iter()
+        .find(|l| l.target == AutomationTarget::Gain && l.enabled && !l.points.is_empty())
+}
+
+/// A track's own gain lane, when it plays.
+fn own_gain_lane(
+    track: &audiostrada_core::Track,
+) -> Option<&[audiostrada_core::automation::AutomationPoint]> {
+    if track.automation_mode == AutomationMode::Off {
+        return None;
+    }
+    track
+        .automation
+        .iter()
+        .find(|l| l.target == AutomationTarget::Gain && l.enabled && !l.points.is_empty())
+        .map(|l| &l.points[..])
 }
 
 /// Parameter values of an insert, the channel strip taking its character from the console.
@@ -1696,8 +1730,18 @@ impl ProjectPlayer {
                 .collect();
         for (channel, track_lanes) in channels {
             let mut mute = false;
+            let follows_vca = match channel {
+                Channel::Track(id) => project
+                    .track(id)
+                    .is_some_and(|t| vca_lane(project, t).is_some()),
+                Channel::Master => false,
+            };
             for lane in track_lanes {
                 if !automated.contains(&(channel, lane.target.clone())) {
+                    continue;
+                }
+                // Added to its VCA's curve below.
+                if follows_vca && lane.target == AutomationTarget::Gain {
                     continue;
                 }
                 mute |= lane.target == AutomationTarget::Mute;
@@ -1721,6 +1765,36 @@ impl ProjectPlayer {
             if !mute && let Some(nodes) = self.channel_mut(channel) {
                 nodes.controls.mute_automation.set(0.0);
             }
+        }
+        // The members of an automated VCA: their gain (curve or level) plus the VCA's curve.
+        let step = u64::from(self.project_rate.max(1)) / 50;
+        for track in &project.tracks {
+            let Some(vca) = vca_lane(project, track) else {
+                continue;
+            };
+            let points = audiostrada_core::automation::sum(
+                own_gain_lane(track),
+                track.gain_db,
+                &vca.points,
+                step,
+            );
+            let channel = Channel::Track(track.id);
+            let Some(nodes) = self.channel_mut(channel) else {
+                continue;
+            };
+            let target = nodes.controls.gain_db.clone();
+            let overridden = Arc::clone(
+                self.overrides
+                    .entry((channel, AutomationTarget::Gain))
+                    .or_insert_with(|| Arc::new(AtomicBool::new(false))),
+            );
+            lanes.push(AutomationLane {
+                points: points.into(),
+                target,
+                conversion: Conversion::Db { offset: 0.0 },
+                overridden,
+                ratio,
+            });
         }
         self.overrides
             .retain(|key, flag| automated.contains(key) || flag.load(Ordering::Relaxed));
@@ -2997,6 +3071,32 @@ mod tests {
             lane_mut(p.track_mut(t).unwrap(), &target).add(0, -6.0206, CurveShape::Linear);
         });
         assert!(close(utility, 0.25), "{utility}");
+        // A VCA's curve moves the tracks it controls, added to their own.
+        let vca = level("auto-vca", |p, t| {
+            let v = routing::add_vca(p, "VCA");
+            routing::set_vca(p, t, Some(v)).unwrap();
+            lane_mut(p.track_mut(v).unwrap(), &AutomationTarget::Gain).add(
+                0,
+                -6.0206,
+                CurveShape::Linear,
+            );
+        });
+        assert!(close(vca, 0.25), "{vca}");
+        let both = level("auto-vca-own", |p, t| {
+            let v = routing::add_vca(p, "VCA");
+            routing::set_vca(p, t, Some(v)).unwrap();
+            lane_mut(p.track_mut(v).unwrap(), &AutomationTarget::Gain).add(
+                0,
+                -6.0206,
+                CurveShape::Linear,
+            );
+            lane_mut(p.track_mut(t).unwrap(), &AutomationTarget::Gain).add(
+                0,
+                -6.0206,
+                CurveShape::Linear,
+            );
+        });
+        assert!(close(both, 0.125), "{both}");
 
         // Holding the control overrides the lane.
         let mut f = fixture("auto-override", vec![0.5; 48_000]);

@@ -1041,6 +1041,119 @@ fn upright_name(ui: &Ui, room: Rect, name: &str) {
 }
 
 /// A value in a small well `width` wide.
+impl MixerView {
+    /// The tracks a VCA controls, in its strip: a click selects one, × takes it out.
+    fn vca_members(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        project: &Project,
+        vca: TrackId,
+        width: f32,
+    ) {
+        let members: Vec<&Track> = project
+            .tracks
+            .iter()
+            .filter(|t| t.vca == Some(vca))
+            .map(|t| t.as_ref())
+            .collect();
+        if members.is_empty() {
+            return;
+        }
+        ui.add_space(6.0);
+        let mut removed = None;
+        egui::ScrollArea::vertical()
+            .id_salt(("vca-members", vca.0))
+            .max_height(220.0)
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+                for member in members {
+                    let (row, response) =
+                        ui.allocate_exact_size(vec2(width - 12.0, 18.0), Sense::click());
+                    let p = theme::current(ui);
+                    let selected = doc.is_track_selected(member.id);
+                    if selected || response.hovered() {
+                        ui.painter().rect_filled(
+                            row,
+                            3.0,
+                            if selected { p.pressed } else { p.hover },
+                        );
+                    }
+                    ui.painter().rect_filled(
+                        Rect::from_min_size(
+                            row.min + vec2(2.0, 3.0),
+                            vec2(3.0, row.height() - 6.0),
+                        ),
+                        1.0,
+                        color(member),
+                    );
+                    let close = Rect::from_center_size(
+                        pos2(row.right() - 8.0, row.center().y),
+                        vec2(14.0, 14.0),
+                    );
+                    let font = egui::FontId::proportional(11.0);
+                    let room = (row.width() - 28.0).max(10.0);
+                    let mut text = member.name.clone();
+                    let mut name = ui
+                        .painter()
+                        .layout_no_wrap(text.clone(), font.clone(), p.text);
+                    while name.size().x > room && text.chars().count() > 1 {
+                        text.pop();
+                        name = ui.painter().layout_no_wrap(
+                            format!("{}…", text.trim_end()),
+                            font.clone(),
+                            p.text,
+                        );
+                    }
+                    let clipped = Rect::from_min_max(
+                        row.min + vec2(9.0, 0.0),
+                        pos2(close.left() - 2.0, row.bottom()),
+                    );
+                    ui.painter().with_clip_rect(clipped).galley(
+                        pos2(clipped.left(), row.center().y - name.size().y / 2.0),
+                        name,
+                        p.text,
+                    );
+                    let x = ui.interact(
+                        close,
+                        ui.scope_id().with(("vca-out", vca.0, member.id.0)),
+                        Sense::click(),
+                    );
+                    if response.hovered() || x.hovered() {
+                        ui.painter().text(
+                            close.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "×",
+                            egui::FontId::proportional(13.0),
+                            if x.hovered() { theme::RECORD } else { p.text },
+                        );
+                    }
+                    if x.on_hover_text(tr("Take this track out of the VCA"))
+                        .clicked()
+                    {
+                        removed = Some(member.id);
+                    } else if response.on_hover_text(member.name.clone()).clicked() {
+                        doc.select_track(member.id, crate::document::SelectMode::Only);
+                    }
+                }
+            });
+        if let Some(t) = removed {
+            doc.history_mut().edit(tr("Take out of the VCA"), |p| {
+                let _ = routing::set_vca(p, t, None);
+            });
+        }
+    }
+}
+
+/// What a track's VCA adds to its level now (its automation while it plays).
+fn vca_offset(doc: &Document, track: &Track) -> f32 {
+    let Some(v) = track.vca.and_then(|v| doc.project().track(v)) else {
+        return 0.0;
+    };
+    doc.automation_value(Channel::Track(v.id), &AutomationTarget::Gain)
+        .unwrap_or(v.gain_db)
+}
+
 fn readout(ui: &mut Ui, width: f32, text: &str) {
     let (rect, _) = ui.allocate_exact_size(vec2(width, 18.0), Sense::hover());
     theme::well(ui.painter(), rect, ui.visuals().dark_mode);
@@ -2175,6 +2288,7 @@ impl MixerView {
                             }
                         });
                     }
+                    self.vca_members(ui, doc, project, id, width);
                 } else {
                     if self.full_strips {
                         ui.add_space(3.0);
@@ -2208,7 +2322,8 @@ impl MixerView {
                 self.align_top(ui, top);
                 let shown_gain = doc
                     .automation_value(channel, &AutomationTarget::Gain)
-                    .unwrap_or(track.gain_db);
+                    .unwrap_or(track.gain_db)
+                    + vca_offset(doc, track);
                 let row_top = ui.cursor().top();
                 let strip_right = ui.max_rect().right();
                 ui.horizontal(|ui| {
@@ -2369,7 +2484,8 @@ impl MixerView {
                 tests::seen(format!("room {}", id.0), room);
                 let shown_gain = doc
                     .automation_value(Channel::Track(id), &AutomationTarget::Gain)
-                    .unwrap_or(track.gain_db);
+                    .unwrap_or(track.gain_db)
+                    + vca_offset(doc, track);
                 let row_top = ui.cursor().top();
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 2.0;
@@ -2489,7 +2605,19 @@ impl MixerView {
     ) {
         let id = track.id;
         let channel = Channel::Track(id);
+        // Under a VCA, the fader stands at the level heard and moves with the VCA's.
+        let offset = vca_offset(doc, track);
         let (changed, response) = widgets::fader(ui, shown_gain, height, scale);
+        let changed = changed.map(|db| db - offset);
+        let response = if offset != 0.0 {
+            response.on_hover_text(trf!(
+                "{own} dB of its own, {vca} dB from its VCA",
+                own = format!("{:+.1}", shown_gain - offset),
+                vca = format!("{offset:+.1}")
+            ))
+        } else {
+            response
+        };
         let name = track.name.clone();
         let alone = clutch(ui);
         let also = if alone {

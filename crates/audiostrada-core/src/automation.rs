@@ -139,6 +139,48 @@ pub fn value_at(points: &[AutomationPoint], time: u64) -> Option<f32> {
     })
 }
 
+/// Two curves added: `own` (or `fixed` without one) plus `other`, as linear points. Where
+/// either bends (step or smooth), points every `step` samples follow it.
+pub fn sum(
+    own: Option<&[AutomationPoint]>,
+    fixed: f32,
+    other: &[AutomationPoint],
+    step: u64,
+) -> Vec<AutomationPoint> {
+    let mut times: Vec<u64> = other
+        .iter()
+        .chain(own.unwrap_or(&[]))
+        .map(|p| p.time)
+        .collect();
+    times.sort_unstable();
+    times.dedup();
+    let bends = |points: &[AutomationPoint], t: u64| {
+        let i = points.partition_point(|p| p.time <= t);
+        i > 0 && i < points.len() && points[i - 1].shape != CurveShape::Linear
+    };
+    let mut all = Vec::with_capacity(times.len());
+    for (k, &t) in times.iter().enumerate() {
+        all.push(t);
+        if let Some(&next) = times.get(k + 1)
+            && (bends(other, t) || own.is_some_and(|o| bends(o, t)))
+        {
+            let mut at = t + step.max(1);
+            while at < next {
+                all.push(at);
+                at += step.max(1);
+            }
+        }
+    }
+    all.into_iter()
+        .map(|time| AutomationPoint {
+            time,
+            value: own.and_then(|o| value_at(o, time)).unwrap_or(fixed)
+                + value_at(other, time).unwrap_or(0.0),
+            shape: CurveShape::Linear,
+        })
+        .collect()
+}
+
 impl AutomationLane {
     pub fn new(target: AutomationTarget) -> Self {
         Self {
@@ -247,6 +289,27 @@ pub fn master_lane_mut<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn two_curves_add_up() {
+        let p = |time, value, shape| AutomationPoint { time, value, shape };
+        let vca = [
+            p(0, 0.0, CurveShape::Linear),
+            p(100, -10.0, CurveShape::Linear),
+        ];
+        let own = [
+            p(50, -6.0, CurveShape::Step),
+            p(150, 0.0, CurveShape::Linear),
+        ];
+        let sum = sum(Some(&own), 0.0, &vca, 10);
+        let at = |t| value_at(&sum, t).unwrap();
+        assert_eq!(at(0), -6.0);
+        assert_eq!(at(100), -16.0);
+        assert!((at(75) - (-13.5)).abs() < 1e-4, "{}", at(75));
+        // A fixed level plus the VCA's curve.
+        let fixed = super::sum(None, -3.0, &vca, 10);
+        assert_eq!(value_at(&fixed, 100), Some(-13.0));
+    }
 
     fn lane(points: &[(u64, f32)]) -> AutomationLane {
         let mut l = AutomationLane::new(AutomationTarget::Gain);

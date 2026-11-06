@@ -1292,3 +1292,12 @@ Pin
 
 Keeps this window shown when another track is selected; unpinned, it shows only while its track is selected
 Garde cette fenêtre affichée quand une autre piste est sélectionnée ; non épinglée, elle ne s'affiche que lorsque sa piste est sélectionnée
+
+{own} dB of its own, {vca} dB from its VCA
+{own} dB propres, {vca} dB venant de son VCA
+
+Take this track out of the VCA
+Retirer cette piste du VCA
+
+Take out of the VCA
+Retirer du VCA

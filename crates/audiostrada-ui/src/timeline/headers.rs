@@ -251,13 +251,7 @@ impl TimelineView {
             x += 21.0;
             let group = audiostrada_core::groups::group_of(project, id).map(|g| &project.groups[g]);
             // Up to the automation buttons (and the group tag), cut with "…" beyond.
-            let buttons = if vca {
-                6.0
-            } else if track.show_automation {
-                56.0
-            } else {
-                32.0
-            };
+            let buttons = if track.show_automation { 56.0 } else { 32.0 };
             let max_width =
                 (right - buttons - x - if group.is_some() { 22.0 } else { 0.0 }).max(20.0);
             let mut job = egui::text::LayoutJob::simple_singleline(
@@ -470,9 +464,6 @@ impl TimelineView {
                     hint.to_owned()
                 })
                 .context_menu(|ui| self.header_menu(ui, doc, id));
-            if vca {
-                continue;
-            }
             // Automation: show/hide lanes, add a lane, lane headers.
             let a_rect = Rect::from_min_size(pos2(right - 26.0, row.top() + 4.0), vec2(22.0, 18.0));
             if row.top() + 4.0 > header.top() {
@@ -876,11 +867,16 @@ impl TimelineView {
         project: &Project,
         track: &Track,
     ) {
-        let mut targets = vec![
-            AutomationTarget::Gain,
-            AutomationTarget::Pan,
-            AutomationTarget::Mute,
-        ];
+        // A VCA's level moves its tracks' levels: that is what it automates.
+        let mut targets = if track.kind == TrackKind::Vca {
+            vec![AutomationTarget::Gain]
+        } else {
+            vec![
+                AutomationTarget::Gain,
+                AutomationTarget::Pan,
+                AutomationTarget::Mute,
+            ]
+        };
         targets.extend(track.sends.iter().map(|s| AutomationTarget::Send(s.target)));
         for insert in &track.inserts {
             if let Some(info) = audiostrada_dsp::info(&insert.effect) {
