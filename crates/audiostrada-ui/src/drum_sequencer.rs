@@ -1,6 +1,6 @@
 //! The drum machine's step sequencer: the sixteen pads as rows of sixteenth-note steps over
 //! the track's MIDI clip at the playhead, so that what is drawn here is what the piano roll
-//! shows. Bars play variation A, B or a fill, edited once for all their bars; a step's
+//! shows. Bars play a variation (A, B, C… or a fill), edited once for all their bars; a step's
 //! velocity is dragged on it, its roll, flam and chance are in its menu.
 
 use std::sync::Arc;
@@ -47,6 +47,8 @@ pub struct SequencerState {
     gesture: Option<Gesture>,
     /// The pad and step whose menu is open.
     menu: Option<(usize, usize)>,
+    /// The bars of a new pattern.
+    new_bars: u32,
 }
 
 impl Default for SequencerState {
@@ -57,6 +59,7 @@ impl Default for SequencerState {
             swing: 50.0,
             gesture: None,
             menu: None,
+            new_bars: 4,
         }
     }
 }
@@ -67,11 +70,32 @@ pub(crate) const B: u8 = 1;
 pub(crate) const FILL: u8 = 2;
 /// A bar the sequencer leaves alone.
 pub(crate) const FREE: u8 = 255;
-const VARIATIONS: [(u8, &str, &str); 3] = [
-    (A, "A", "The main pattern"),
-    (B, "B", "A second pattern, every other bar"),
-    (FILL, "Fill", "A fill at the end of every four bars"),
-];
+/// The last variation: after A, B and the fill come C to Z.
+const LAST: u8 = 26;
+
+/// A variation's name: A, B, C… or Fill.
+fn variation_name(v: u8) -> String {
+    match v {
+        A => "A".into(),
+        B => "B".into(),
+        FILL => tr("Fill").into(),
+        FREE => "-".into(),
+        v => char::from(b'C' + v - 3).to_string(),
+    }
+}
+
+/// Variations in the order they are shown: A, B, C… then the fill.
+fn shown_order(mut list: Vec<u8>) -> Vec<u8> {
+    list.retain(|&v| v != FREE);
+    list.sort_by_key(|&v| (v == FILL, v));
+    list.dedup();
+    list
+}
+
+/// The first variation after A, B and the fill that the chain does not use yet.
+fn next_letter(chain: &[u8]) -> Option<u8> {
+    (3..=LAST).find(|v| !chain.contains(v))
+}
 
 /// A flam's grace note sits this far before its step, in steps.
 const FLAM: f64 = 0.15;
@@ -432,6 +456,57 @@ fn build_up(notes: &[Note], grid: &Grid, bar: usize, swing: f32) -> Vec<Note> {
     out
 }
 
+/// The clip at `count` bars: new bars repeat the chain, bars past the end go.
+pub(crate) fn resize(
+    notes: &[Note],
+    grid: &Grid,
+    chain: &[u8],
+    count: usize,
+    swing: f32,
+) -> (Vec<Note>, Vec<u8>) {
+    let count = count.max(1);
+    let old = chain.len().max(1);
+    let grid = Grid {
+        steps: grid.steps.max(count * 16),
+        ..*grid
+    };
+    let mut chain: Vec<u8> = chain.to_vec();
+    let mut notes = notes.to_vec();
+    if count < chain.len() {
+        chain.truncate(count);
+        notes.retain(|n| grid.step_of(n.start, swing).is_some_and(|k| k < count * 16));
+    }
+    for b in chain.len()..count {
+        let from = b % old;
+        chain.push(chain.get(from).copied().unwrap_or(A));
+        notes = copy_bar(&notes, &grid, from, b, swing);
+    }
+    (notes, chain)
+}
+
+/// A new variation `v` on a bar added at the end, copied from `from`'s first bar.
+pub(crate) fn append_variation(
+    notes: &[Note],
+    grid: &Grid,
+    chain: &[u8],
+    v: u8,
+    from: u8,
+    swing: f32,
+) -> (Vec<Note>, Vec<u8>) {
+    let bar = chain.len();
+    let grid = Grid {
+        steps: grid.steps.max((bar + 1) * 16),
+        ..*grid
+    };
+    let mut chain = chain.to_vec();
+    chain.push(v);
+    let notes = match chain.iter().position(|&x| x == from) {
+        Some(source) => copy_bar(notes, &grid, source, bar, swing),
+        None => notes.to_vec(),
+    };
+    (notes, chain)
+}
+
 /// Variation `variation` added to the clip, from A: B every other bar, the fill on every
 /// fourth bar. A one-bar clip grows to two bars for B, to four for the fill. Gives the notes,
 /// the chain and the bars the clip then has.
@@ -595,11 +670,20 @@ fn new_pattern(params: &mut Params, track: TrackId, bars: u32) -> Option<ClipId>
 }
 
 fn variation_color(variation: u8) -> Color32 {
+    const MORE: [Color32; 6] = [
+        Color32::from_rgb(52, 158, 120),
+        Color32::from_rgb(196, 86, 110),
+        Color32::from_rgb(70, 160, 180),
+        Color32::from_rgb(170, 150, 60),
+        Color32::from_rgb(110, 110, 210),
+        Color32::from_rgb(160, 110, 80),
+    ];
     match variation {
         A => Color32::from_rgb(74, 128, 200),
         B => Color32::from_rgb(150, 98, 196),
         FILL => Color32::from_rgb(214, 132, 52),
-        _ => Color32::from_rgb(48, 54, 66),
+        FREE => Color32::from_rgb(48, 54, 66),
+        v => MORE[usize::from(v - 3) % MORE.len()],
     }
 }
 
@@ -626,9 +710,15 @@ pub fn show(
                 ))
                 .clicked()
             {
-                state.clip = new_pattern(params, track, 4);
+                state.clip = new_pattern(params, track, state.new_bars);
                 state.variation = A;
             }
+            ui.add(
+                egui::DragValue::new(&mut state.new_bars)
+                    .range(1..=64)
+                    .suffix(tr(" bars")),
+            )
+            .on_hover_text(tr("Bars of the new pattern"));
         });
         return;
     };
@@ -655,40 +745,58 @@ pub fn show(
         ui.label(RichText::new(tr("Pattern")).strong().color(p.weak));
         ui.label(RichText::new(&clip.name).size(11.5));
         ui.add_space(10.0);
-        for (v, name, hint) in VARIATIONS {
-            let used = chain.contains(&v);
-            let text = if used {
-                tr(name).to_string()
-            } else {
-                format!("+ {}", tr(name))
-            };
-            let text = RichText::new(text).color(if used {
-                Color32::WHITE
-            } else {
-                Color32::from_rgb(150, 160, 175)
-            });
-            let response = ui
-                .selectable_label(state.variation == v && used, text)
-                .on_hover_text(tr(hint));
-            if response.clicked() {
-                if !used {
-                    let (notes, chain, count) = add_variation(&notes, &grid, &chain, v, swing);
-                    let write = Write {
-                        notes,
-                        chain: &chain,
-                        bars: (count * 16 > grid.steps).then_some(count),
-                    };
-                    store(
-                        params,
-                        &clip,
-                        &grid,
-                        write,
-                        &crate::trf!("Add {name}", name = tr(name)),
-                        false,
-                    );
-                }
+        let used = shown_order(chain.clone());
+        for &v in &used {
+            if ui
+                .selectable_label(
+                    state.variation == v,
+                    RichText::new(variation_name(v)).color(Color32::WHITE),
+                )
+                .on_hover_text(tr("Edit this variation"))
+                .clicked()
+            {
                 state.variation = v;
             }
+        }
+        let add = |ui: &mut Ui, text: String, hint: &str| {
+            ui.button(RichText::new(text).color(Color32::from_rgb(150, 160, 175)))
+                .on_hover_text(hint)
+                .clicked()
+        };
+        // B and the fill take their places in the chain; more letters come on a new bar.
+        for (v, hint) in [
+            (B, tr("A second pattern, every other bar")),
+            (FILL, tr("A fill at the end of every four bars")),
+        ] {
+            if !chain.contains(&v) && add(ui, format!("+ {}", variation_name(v)), hint) {
+                let (notes, chain, count) = add_variation(&notes, &grid, &chain, v, swing);
+                let write = Write {
+                    notes,
+                    chain: &chain,
+                    bars: (count * 16 > grid.steps).then_some(count),
+                };
+                let label = crate::trf!("Add {name}", name = variation_name(v));
+                store(params, &clip, &grid, write, &label, false);
+                state.variation = v;
+            }
+        }
+        if chain.contains(&B)
+            && let Some(v) = next_letter(&chain)
+            && add(
+                ui,
+                format!("+ {}", variation_name(v)),
+                tr("A new variation on a bar added at the end, from the one shown"),
+            )
+        {
+            let (notes, chain) = append_variation(&notes, &grid, &chain, v, state.variation, swing);
+            let write = Write {
+                notes,
+                bars: Some(chain.len()),
+                chain: &chain,
+            };
+            let label = crate::trf!("Add {name}", name = variation_name(v));
+            store(params, &clip, &grid, write, &label, false);
+            state.variation = v;
         }
         ui.add_space(14.0);
         ui.label(tr("Swing"));
@@ -770,7 +878,30 @@ pub fn show(
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing.x = 3.0;
         ui.label(RichText::new(tr("Chain")).size(11.0).color(p.weak));
+        let mut count = chain.len();
+        let response = ui
+            .add(
+                egui::DragValue::new(&mut count)
+                    .range(1..=64)
+                    .suffix(tr(" bars")),
+            )
+            .on_hover_text(tr(
+                "The pattern's length: new bars repeat the chain, bars past the end go",
+            ));
+        if count != chain.len() {
+            let (notes, changed) = resize(&notes, &grid, &chain, count, swing);
+            let write = Write {
+                notes,
+                chain: &changed,
+                bars: Some(count),
+            };
+            store(params, &clip, &grid, write, tr("Pattern length"), true);
+        }
+        if response.drag_stopped() || response.lost_focus() {
+            params.doc.history_mut().end_gesture();
+        }
         ui.add_space(4.0);
+        let used = shown_order(chain.clone());
         for (b, &v) in chain.iter().enumerate() {
             let (rect, response) = ui.allocate_exact_size(vec2(38.0, 20.0), Sense::click());
             let painter = ui.painter();
@@ -789,24 +920,55 @@ pub fn show(
                     egui::StrokeKind::Inside,
                 );
             }
-            let name = VARIATIONS.iter().find(|x| x.0 == v).map_or("-", |x| x.1);
             painter.text(
                 rect.center(),
                 Align2::CENTER_CENTER,
-                tr(name),
+                variation_name(v),
                 FontId::proportional(10.5),
                 Color32::WHITE.gamma_multiply(if shown { 1.0 } else { 0.7 }),
             );
             let response = response.on_hover_text(crate::trf!(
-                "Bar {n}: click to change what it plays",
+                "Bar {n}: click to change what it plays, right-click for every choice",
                 n = b + 1
             ));
+            let mut picked = None;
             if response.clicked() {
-                let next = match v {
-                    A => B,
-                    B => FILL,
-                    _ => A,
-                };
+                // The next variation in use, or B when there is only one.
+                let next = used
+                    .iter()
+                    .position(|&x| x == v)
+                    .and_then(|i| used.get(i + 1))
+                    .copied()
+                    .unwrap_or(if used.len() < 2 && v == A {
+                        B
+                    } else {
+                        used.first().copied().unwrap_or(A)
+                    });
+                picked = Some(next);
+            }
+            response.context_menu(|ui| {
+                for &x in &used {
+                    if ui.selectable_label(x == v, variation_name(x)).clicked() {
+                        picked = Some(x);
+                        ui.close();
+                    }
+                }
+                ui.separator();
+                for x in [B, FILL]
+                    .into_iter()
+                    .filter(|x| !chain.contains(x))
+                    .chain(next_letter(&chain))
+                {
+                    if ui
+                        .button(crate::trf!("New: {name}", name = variation_name(x)))
+                        .clicked()
+                    {
+                        picked = Some(x);
+                        ui.close();
+                    }
+                }
+            });
+            if let Some(next) = picked.filter(|&n| n != v) {
                 let mut changed = chain.clone();
                 let mut notes = assign(&notes, &grid, &mut changed, b, next, swing);
                 if next == FILL && !chain.contains(&FILL) {
@@ -1243,6 +1405,34 @@ mod tests {
             "the fill starts from A"
         );
         assert!(read_step(&filled, &g, snare, 52, 50.0).is_none());
+    }
+
+    #[test]
+    fn patterns_take_any_length_and_more_variations() {
+        let g = Grid {
+            origin: 0.0,
+            step: 100.0,
+            steps: 32,
+        };
+        let notes = set_step(&[], &g, 0, 0, true, 50.0);
+        let notes = set_step(&notes, &g, 1, 20, true, 50.0);
+        // Longer: the new bars repeat the chain.
+        let (long, chain) = resize(&notes, &g, &[A, B], 5, 50.0);
+        assert_eq!(chain, [A, B, A, B, A]);
+        let g5 = Grid { steps: 80, ..g };
+        assert!(read_step(&long, &g5, 0, 64, 50.0).is_some());
+        assert!(read_step(&long, &g5, 1, 52, 50.0).is_some());
+        // Shorter: the bars past the end go with their notes.
+        let (short, chain) = resize(&long, &g5, &chain, 1, 50.0);
+        assert_eq!((chain.as_slice(), short.len()), (&[A][..], 1));
+        // C on a new bar, from A.
+        let (more, chain) =
+            append_variation(&notes, &g, &[A, B], next_letter(&[A, B]).unwrap(), A, 50.0);
+        assert_eq!(chain, [A, B, 3]);
+        assert_eq!(variation_name(3), "C");
+        assert!(read_step(&more, &Grid { steps: 48, ..g }, 0, 32, 50.0).is_some());
+        assert_eq!(shown_order(vec![FILL, 3, A, B, FREE]), [A, B, 3, FILL]);
+        assert_eq!(next_letter(&(0..=LAST).collect::<Vec<_>>()), None);
     }
 
     #[test]
