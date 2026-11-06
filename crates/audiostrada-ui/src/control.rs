@@ -159,6 +159,36 @@ pub fn tool_definitions(live: bool) -> Vec<Value> {
         tool("undo", "Undo the last change.", json!({}), &[]),
         tool("redo", "Redo the last undone change.", json!({}), &[]),
         tool(
+            "read_midi_clip",
+            "The notes of a MIDI clip, in beats from the clip's start (the clip's place and length too); on a Strada-Drums track, which key plays which drum. Clip ids are in inspect_project with detail \"full\".",
+            json!({"clip": {"type": "integer"}}),
+            &["clip"],
+        ),
+        tool(
+            "write_midi_clip",
+            "Write the notes of a MIDI clip: `replace` (the default) swaps the notes it shows for these, `add` keeps them. Each note: {beat (from the clip's start), length (beats, default 0.25), key (60 = C4; drums: see read_midi_clip), velocity (1-127, default 100), probability (percent, optional)}, or [beat, length, key, velocity] as read_midi_clip gives. The clip lengthens to its last note. One undo step.",
+            json!({"clip": {"type": "integer"}, "notes": {"type": "array"}, "mode": {"type": "string", "enum": ["replace", "add"]}}),
+            &["clip", "notes"],
+        ),
+        tool(
+            "add_midi_clip",
+            "Add a MIDI clip on a track at `at`, `bars` long (default 4), with notes as in write_midi_clip (optional).",
+            json!({"track": track, "at": time, "bars": {"type": "number"}, "notes": {"type": "array"}}),
+            &["track", "at"],
+        ),
+        tool(
+            "export_midi_file",
+            "Write the notes of a track (or of every track) to a standard MIDI file at `path`.",
+            json!({"path": {"type": "string"}, "track": track}),
+            &["path"],
+        ),
+        tool(
+            "import_midi_file",
+            "Import a standard MIDI file: one instrument track per track of the file, at the playhead.",
+            json!({"path": {"type": "string"}}),
+            &["path"],
+        ),
+        tool(
             "analyze_audio",
             "Listen to a track (alone, after its effects) or the master (the mix), rendered offline: loudness (LUFS, true peak, range), dynamics over time, stereo image, share of energy per frequency band, resonances, rhythm, and notes on problems. Use it before and after changing the mix.",
             json!({"track": track, "start": time, "end": time}),
@@ -762,6 +792,43 @@ pub fn call_tool(
             wait(doc)?;
             Ok(json!({"file": written.display().to_string()}))
         }
+        "read_midi_clip" => {
+            let id = arg("clip")
+                .and_then(Value::as_u64)
+                .ok_or("`clip` is needed")?;
+            crate::midi_tools::read(doc, id)
+        }
+        "write_midi_clip" => {
+            let id = arg("clip")
+                .and_then(Value::as_u64)
+                .ok_or("`clip` is needed")?;
+            crate::midi_tools::write(doc, id, arg("notes"), string("mode") == Some("add"))
+        }
+        "add_midi_clip" => {
+            let Channel::Track(track) = track_ref(doc, arg("track"))? else {
+                return Err("MIDI clips go on a track, not the master".into());
+            };
+            let at = time("at").ok_or("`at` is needed")?;
+            let bars = arg("bars").and_then(Value::as_f64).unwrap_or(4.0);
+            crate::midi_tools::add_clip(doc, track, at, bars, arg("notes"))
+        }
+        "export_midi_file" => {
+            let path = PathBuf::from(string("path").ok_or("`path` is needed")?);
+            let track = match arg("track") {
+                Some(v) => match track_ref(doc, Some(v))? {
+                    Channel::Track(t) => Some(t),
+                    Channel::Master => None,
+                },
+                None => None,
+            };
+            doc.export_midi(&path, track)?;
+            Ok(json!({"file": path.display().to_string()}))
+        }
+        "import_midi_file" => {
+            let path = PathBuf::from(string("path").ok_or("`path` is needed")?);
+            let tracks = doc.import_midi(&path)?;
+            Ok(json!({"tracks_added": tracks}))
+        }
         "analyze_audio" => {
             loaded(doc, live)?;
             let target = match arg("track") {
@@ -932,6 +999,7 @@ const INSTRUCTIONS: &str = "AudioStrada is a digital audio workstation. Inspect 
 inspect_project, add tracks, import audio, add built-in effects (list_effects) and change the \
 mix, edit clips (split, strip_silence, heal, consolidate, process_clips) and export the mix. \
 Hear what you change with analyze_audio (a track or the master) and compare_audio (masking). \
+Read and write the notes of MIDI clips with read_midi_clip and write_midi_clip (drum maps included). \
 Positions are seconds or {\"samples\": n}; tracks are named by id or name, or \"master\".";
 
 /// What answers MCP tool calls: a document here, or a running AudioStrada.

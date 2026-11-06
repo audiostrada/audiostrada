@@ -447,6 +447,11 @@ stereo image, share of energy per frequency band, resonances, tempo, and notes o
 (clipping, a master too loud for streaming, phase). `compare_audio` sets two tracks side by side
 and names the frequency ranges where they compete. The agent can then change an EQ or a level
 and listen again.
+It writes music too: `read_midi_clip` gives the notes of a MIDI clip in beats (with the drum map
+of a Strada-Drums track), `write_midi_clip` replaces or adds notes, `add_midi_clip` makes a new
+clip, and `export_midi_file` / `import_midi_file` go through standard MIDI files. Ask it to vary
+a drum pattern from section to section, write a bass line or a chord progression.
+
 It can also look: `render_spectrum` draws the spectrum of up to three tracks over each other,
 `render_spectrogram` how the frequencies move over time, and `render_waveform` the waveform
 above the short-term loudness. Assistants that read images (Claude among them) see these

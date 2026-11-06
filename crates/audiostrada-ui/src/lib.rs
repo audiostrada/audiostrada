@@ -28,6 +28,7 @@ mod listening;
 mod markers;
 mod mb_editor;
 mod metronome_window;
+mod midi_tools;
 mod mixer;
 mod mod_editor;
 mod nam_library;
