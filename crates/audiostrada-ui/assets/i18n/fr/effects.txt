@@ -5790,3 +5790,78 @@ Cents
 
 Drag sideways for the width, up or down for the delay
 Glisser sur les côtés pour la largeur, vers le haut ou le bas pour le retard
+
+Trap: 808 glide
+Trap : 808 glissé
+
+Trap: 808 distorted
+Trap : 808 saturé
+
+Drill: 808 slide
+Drill : 808 slide
+
+Trap: Bell
+Trap : Cloche
+
+Trap: Arp bells
+Trap : Cloches arpégées
+
+Trap: Dark keys
+Trap : Clavier sombre
+
+Trap: Flute
+Trap : Flûte
+
+Trap: Dark pad
+Trap : Nappe sombre
+
+Trap: Pluck lead
+Trap : Lead pincé
+
+Drill: Choir
+Drill : Chœur
+
+Drill: Strings
+Drill : Cordes
+
+Drill: Glide lead
+Drill : Lead glissé
+
+Rap: Lo-fi keys
+Rap : Clavier lo-fi
+
+Rap: G-funk lead
+Rap : Lead G-funk
+
+Rap: Boom bap bass
+Rap : Basse boom bap
+
+Rap: Soul stab
+Rap : Stab soul
+
+Trap: bounce
+Trap : bounce
+
+Trap: rage
+Trap : rage
+
+Trap: plugg
+Trap : plugg
+
+Drill: New York
+Drill : New York
+
+Jersey club
+Jersey club
+
+Trap: Hard 808
+Trap : 808 lourd
+
+Trap: Memphis
+Trap : Memphis
+
+Drill: Brooklyn
+Drill : Brooklyn
+
+Hip hop: Jersey club
+Hip hop : Jersey club
