@@ -683,6 +683,7 @@ dependencies = [
 name = "audiostrada-ui"
 version = "0.1.0"
 dependencies = [
+ "ab_glyph",
  "audiostrada-core",
  "audiostrada-dsp",
  "audiostrada-engine",
@@ -704,6 +705,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tar",
+ "tiny-skia",
  "tracing",
  "ureq",
  "winit",

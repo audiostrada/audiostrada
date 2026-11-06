@@ -447,6 +447,10 @@ stereo image, share of energy per frequency band, resonances, tempo, and notes o
 (clipping, a master too loud for streaming, phase). `compare_audio` sets two tracks side by side
 and names the frequency ranges where they compete. The agent can then change an EQ or a level
 and listen again.
+It can also look: `render_spectrum` draws the spectrum of up to three tracks over each other,
+`render_spectrogram` how the frequencies move over time, and `render_waveform` the waveform
+above the short-term loudness. Assistants that read images (Claude among them) see these
+pictures as you would.
 
 - `audiostrada mcp` works on a project of its own, without a window (it can create or open one).
   For Claude Code: `claude mcp add audiostrada -- audiostrada mcp`.

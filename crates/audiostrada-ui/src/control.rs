@@ -165,6 +165,24 @@ pub fn tool_definitions(live: bool) -> Vec<Value> {
             &[],
         ),
         tool(
+            "render_spectrum",
+            "A picture of the frequency spectrum (20 Hz to 20 kHz) of up to three tracks or the master, rendered offline, drawn over each other: see which frequencies dominate, where sounds overlap, resonances.",
+            json!({"tracks": {"type": "array", "items": track, "maxItems": 3, "description": "default: the master"}, "start": time, "end": time}),
+            &[],
+        ),
+        tool(
+            "render_spectrogram",
+            "A picture of how the frequencies of a track or the master change over time (lighter is louder).",
+            json!({"track": track, "start": time, "end": time}),
+            &[],
+        ),
+        tool(
+            "render_waveform",
+            "A picture of the waveform of a track or the master (clipping in orange) above its short-term loudness over time.",
+            json!({"track": track, "start": time, "end": time}),
+            &[],
+        ),
+        tool(
             "compare_audio",
             "Compare two tracks (or a track and the master), each rendered offline: differences of loudness, peaks and frequency balance, and the frequency ranges where they compete (masking).",
             json!({"a": track, "b": track, "start": time, "end": time}),
@@ -776,6 +794,97 @@ pub fn call_tool(
             }
             Ok(out)
         }
+        "render_spectrum" => {
+            loaded(doc, live)?;
+            let targets: Vec<Channel> = match arg("tracks").and_then(Value::as_array) {
+                Some(list) if !list.is_empty() => list
+                    .iter()
+                    .take(3)
+                    .map(|v| track_ref(doc, Some(v)))
+                    .collect::<Result<_, _>>()?,
+                _ => vec![Channel::Master],
+            };
+            let mut heard = Vec::new();
+            for t in targets {
+                let h = crate::listening::hear(doc, t, time("start"), time("end"))?;
+                let r = audiostrada_dsp::report::report(&h.left, &h.right, h.rate);
+                heard.push((h, r));
+            }
+            let span = heard[0].0.span();
+            let sounds: Vec<(String, &audiostrada_dsp::report::Report)> =
+                heard.iter().map(|(h, r)| (h.name.clone(), r)).collect();
+            let png = crate::plots::spectrum(&sounds, &span);
+            let text = format!(
+                "Spectrum of {}, {span}, smoothed over a sixth of an octave, in dB under the loudest point; {}",
+                sounds
+                    .iter()
+                    .map(|s| s.0.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                if sounds.len() > 1 {
+                    "blue, orange and green in that order"
+                } else {
+                    "blue"
+                }
+            );
+            Ok(crate::listening::picture(&png, text))
+        }
+        "render_spectrogram" => {
+            loaded(doc, live)?;
+            let target = match arg("track") {
+                Some(v) => track_ref(doc, Some(v))?,
+                None => Channel::Master,
+            };
+            let h = crate::listening::hear(doc, target, time("start"), time("end"))?;
+            let (cols, rows, low, high) = (360, 160, 30.0, 16_000.0);
+            let cells = audiostrada_dsp::report::spectrogram(
+                &h.left, &h.right, h.rate, cols, rows, low, high,
+            );
+            let grid = crate::plots::Cells {
+                values: &cells,
+                columns: cols,
+                rows,
+                low,
+                high,
+            };
+            let png = crate::plots::spectrogram(&h.name, &grid, h.from, h.seconds(), &h.span());
+            Ok(crate::listening::picture(
+                &png,
+                format!(
+                    "Spectrogram of {}, {}: time across, 30 Hz to 16 kHz up in octaves, lighter is louder (72 dB of range)",
+                    h.name,
+                    h.span()
+                ),
+            ))
+        }
+        "render_waveform" => {
+            loaded(doc, live)?;
+            let target = match arg("track") {
+                Some(v) => track_ref(doc, Some(v))?,
+                None => Channel::Master,
+            };
+            let h = crate::listening::hear(doc, target, time("start"), time("end"))?;
+            let env = audiostrada_dsp::report::envelope(&h.left, &h.right, 1092);
+            let lufs = audiostrada_dsp::report::loudness_curve(&h.left, &h.right, h.rate, 364);
+            let reference = (target == Channel::Master).then_some(-14.0);
+            let png = crate::plots::waveform(
+                &h.name,
+                &env,
+                &lufs,
+                h.from,
+                h.seconds(),
+                reference,
+                &h.span(),
+            );
+            Ok(crate::listening::picture(
+                &png,
+                format!(
+                    "Waveform of {} (blue, orange where it reaches full scale) and its short-term loudness (green), {}",
+                    h.name,
+                    h.span()
+                ),
+            ))
+        }
         "compare_audio" => {
             loaded(doc, live)?;
             let (a, b) = (track_ref(doc, arg("a"))?, track_ref(doc, arg("b"))?);
@@ -864,6 +973,13 @@ impl Backend for Headless {
 
 fn result(value: Result<Value, String>) -> Value {
     match value {
+        Ok(v) if v.get("image_png").is_some() => json!({
+            "content": [
+                {"type": "image", "data": v["image_png"], "mimeType": "image/png"},
+                {"type": "text", "text": v["text"].as_str().unwrap_or("")},
+            ],
+            "isError": false,
+        }),
         Ok(v) => {
             let text = serde_json::to_string_pretty(&v).unwrap_or_else(|_| v.to_string());
             json!({"content": [{"type": "text", "text": text}], "isError": false})

@@ -19,6 +19,8 @@ serde_json.workspace = true
 sha2.workspace = true
 getrandom.workspace = true
 image.workspace = true
+tiny-skia.workspace = true
+ab_glyph.workspace = true
 # The version eframe uses, to give plugin windows AudioStrada's window as their parent.
 raw-window-handle.workspace = true
 rfd.workspace = true

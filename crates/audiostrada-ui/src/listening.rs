@@ -16,13 +16,22 @@ fn round(v: f32, digits: i32) -> f64 {
     (f64::from(v) * k).round() / k
 }
 
-/// A rendered stretch of `target` (a track, or the mix for the master).
-pub fn render(
+/// The audio of `target` (a track alone, or the mix for the master) from `start` to `end`:
+/// (left, right, rate, name, start in seconds).
+pub struct Heard {
+    pub left: Vec<f32>,
+    pub right: Vec<f32>,
+    pub rate: u32,
+    pub name: String,
+    pub from: f64,
+}
+
+pub fn hear(
     doc: &mut Document,
     target: Channel,
     start: Option<u64>,
     end: Option<u64>,
-) -> Result<(Report, String), String> {
+) -> Result<Heard, String> {
     let project = doc.project();
     let (track, name) = match target {
         Channel::Master => (None, "master".to_owned()),
@@ -34,13 +43,46 @@ pub fn render(
                 .ok_or("no such track")?,
         ),
     };
+    let rate = project.sample_rate;
     let start = start.unwrap_or(0);
     let end = end.unwrap_or_else(|| project.length()).max(start + 1);
-    let (left, right, rate) = doc.render_to_measure(track, start, end)?;
+    let (left, right, rendered) = doc.render_to_measure(track, start, end)?;
     if left.is_empty() {
         return Err("nothing was rendered".into());
     }
-    Ok((report(&left, &right, rate), name))
+    Ok(Heard {
+        left,
+        right,
+        rate: rendered,
+        name,
+        from: start as f64 / f64::from(rate),
+    })
+}
+
+/// A rendered stretch of `target`, described.
+pub fn render(
+    doc: &mut Document,
+    target: Channel,
+    start: Option<u64>,
+    end: Option<u64>,
+) -> Result<(Report, String), String> {
+    let h = hear(doc, target, start, end)?;
+    Ok((report(&h.left, &h.right, h.rate), h.name))
+}
+
+impl Heard {
+    pub fn seconds(&self) -> f64 {
+        self.left.len() as f64 / f64::from(self.rate.max(1))
+    }
+
+    pub fn span(&self) -> String {
+        format!("{:.1} s to {:.1} s", self.from, self.from + self.seconds())
+    }
+}
+
+/// A picture for an MCP answer, with what it shows in words.
+pub fn picture(png: &[u8], text: String) -> Value {
+    json!({"image_png": crate::plots::base64(png), "text": text})
 }
 
 /// Observations an engineer would make first.

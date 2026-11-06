@@ -57,6 +57,9 @@ pub struct Report {
     pub bpm: Option<f64>,
     /// The averaged spectrum: (Hz, dB), third-octave from 25 Hz to 16 kHz.
     pub third_octaves: Vec<(f32, f32)>,
+    /// The averaged spectrum smoothed over a sixth of an octave, every 24th of an octave from
+    /// 20 Hz: (Hz, dB per octave against the whole).
+    pub curve: Vec<(f32, f32)>,
 }
 
 fn db(power: f64) -> f32 {
@@ -103,7 +106,7 @@ pub fn report(left: &[f32], right: &[f32], rate: u32) -> Report {
         .map(|k| short[k * short.len() / TIMELINE.min(short.len())])
         .collect();
 
-    let (bands, third_octaves, tilt, resonances) = spectrum(left, right, rate);
+    let (bands, third_octaves, tilt, resonances, curve) = spectrum(left, right, rate);
     let mono: Vec<f32> = left.iter().zip(right).map(|(l, r)| (l + r) / 2.0).collect();
     let onsets = crate::analysis::onsets(&[left, right], rate, 0.5).len();
     Report {
@@ -130,6 +133,7 @@ pub fn report(left: &[f32], right: &[f32], rate: u32) -> Report {
         },
         bpm: crate::tempo::detect_bpm(&mono, rate),
         third_octaves,
+        curve,
     }
 }
 
@@ -198,6 +202,7 @@ type Spectrum = (
     Vec<(f32, f32)>,
     Option<f32>,
     Vec<(f32, f32)>,
+    Vec<(f32, f32)>,
 );
 
 fn spectrum(left: &[f32], right: &[f32], rate: u32) -> Spectrum {
@@ -209,7 +214,9 @@ fn spectrum(left: &[f32], right: &[f32], rate: u32) -> Spectrum {
             ((hi / bin).floor() as usize).min(power.len() - 1),
         );
         if a > b {
-            0.0
+            // Narrower than a bin: its share of the nearest one.
+            let nearest = (((lo + hi) / 2.0 / bin).round() as usize).clamp(1, power.len() - 1);
+            power[nearest] * f64::from((hi - lo) / bin)
         } else {
             power[a..=b].iter().sum()
         }
@@ -276,7 +283,94 @@ fn spectrum(left: &[f32], right: &[f32], rate: u32) -> Spectrum {
             break;
         }
     }
-    (bands, thirds, tilt, kept)
+    let curve = (0..)
+        .map(|k| 20.0 * 2f32.powf(k as f32 / 24.0))
+        .take_while(|f| *f < 20_000.0f32.min(rate as f32 / 2.1))
+        .map(|f| (f, level(f, 1.0 / 6.0)))
+        .collect();
+    (bands, thirds, tilt, kept, curve)
+}
+
+/// A spectrogram: `columns` moments by `rows` frequencies spaced evenly in octaves from `low`
+/// to `high` Hz (lowest row first), in dB against the loudest cell.
+pub fn spectrogram(
+    left: &[f32],
+    right: &[f32],
+    rate: u32,
+    columns: usize,
+    rows: usize,
+    low: f32,
+    high: f32,
+) -> Vec<f32> {
+    const SIZE: usize = 4096;
+    let n = left.len().min(right.len());
+    let mut out = vec![-120.0f32; columns * rows];
+    if n < SIZE || columns == 0 || rows == 0 {
+        return out;
+    }
+    let hann: Vec<f32> = (0..SIZE)
+        .map(|i| 0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / SIZE as f32).cos())
+        .collect();
+    let fft = RealFftPlanner::<f32>::new().plan_fft_forward(SIZE);
+    let (mut input, mut output) = (fft.make_input_vec(), fft.make_output_vec());
+    let bin = rate as f32 / SIZE as f32;
+    let span = (high / low).log2();
+    let edges: Vec<usize> = (0..=rows)
+        .map(|r| ((low * 2f32.powf(span * r as f32 / rows as f32)) / bin).round() as usize)
+        .collect();
+    for c in 0..columns {
+        let at = (c * (n - SIZE) / columns.saturating_sub(1).max(1)).min(n - SIZE);
+        for i in 0..SIZE {
+            input[i] = (left[at + i] + right[at + i]) / 2.0 * hann[i];
+        }
+        if fft.process(&mut input, &mut output).is_err() {
+            continue;
+        }
+        for r in 0..rows {
+            let a = edges[r].max(1).min(output.len() - 1);
+            let b = edges[r + 1].max(a + 1).min(output.len());
+            let power = output[a..b]
+                .iter()
+                .map(|c| c.norm_sqr())
+                .fold(0.0f32, f32::max);
+            out[r * columns + c] = 10.0 * power.max(1e-20).log10();
+        }
+    }
+    let top = out.iter().copied().fold(-120.0f32, f32::max);
+    out.iter_mut().for_each(|v| *v -= top);
+    out
+}
+
+/// Lowest and highest sample of each of `columns` slices of the mid signal.
+pub fn envelope(left: &[f32], right: &[f32], columns: usize) -> Vec<(f32, f32)> {
+    let n = left.len().min(right.len());
+    (0..columns)
+        .map(|c| {
+            let a = c * n / columns.max(1);
+            let b = ((c + 1) * n / columns.max(1)).max(a + 1).min(n);
+            (a..b).fold((0.0f32, 0.0f32), |(lo, hi), i| {
+                let m = (left[i] + right[i]) / 2.0;
+                (lo.min(m), hi.max(m))
+            })
+        })
+        .collect()
+}
+
+/// Short-term loudness (LUFS) at the end of each of `columns` slices.
+pub fn loudness_curve(left: &[f32], right: &[f32], rate: u32, columns: usize) -> Vec<f32> {
+    let n = left.len().min(right.len());
+    let mut meter = LevelMeter::new(rate);
+    let mut out = Vec::with_capacity(columns);
+    let mut next = 1;
+    for i in 0..n {
+        meter.push(left[i], right[i]);
+        while next <= columns && i + 1 >= next * n / columns {
+            out.push(meter.short_term());
+            next += 1;
+        }
+    }
+    out.resize(columns, -120.0);
+    out
 }
 
 #[cfg(test)]

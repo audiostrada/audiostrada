@@ -32,6 +32,7 @@ mod nam_library;
 mod palette;
 mod piano_roll;
 mod pitch_editor;
+mod plots;
 mod plugin_categories;
 mod preferences;
 mod presets;
