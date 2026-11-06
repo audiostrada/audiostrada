@@ -341,6 +341,65 @@ pub fn spectrogram(
     out
 }
 
+/// The most likely key of some music: a chromagram of its pitch classes (55 Hz to 5 kHz)
+/// matched against the Krumhansl-Kessler major and minor profiles. (name, how much better it
+/// fits than the next key, 0 to 1).
+pub fn key(left: &[f32], right: &[f32], rate: u32) -> Option<(String, f32)> {
+    const NAMES: [&str; 12] = [
+        "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B",
+    ];
+    const MAJOR: [f32; 12] = [
+        6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88,
+    ];
+    const MINOR: [f32; 12] = [
+        6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17,
+    ];
+    let power = power_spectrum(left, right, rate);
+    let bin = rate as f32 / FFT as f32;
+    let mut chroma = [0.0f32; 12];
+    for (k, p) in power.iter().enumerate().skip(1) {
+        let f = k as f32 * bin;
+        if !(55.0..=5_000.0).contains(&f) {
+            continue;
+        }
+        let pitch = 69.0 + 12.0 * (f / 440.0).log2();
+        let class = (pitch.round() as i32).rem_euclid(12) as usize;
+        // Bins close to a semitone count more than those between two.
+        let near = 1.0 - (pitch - pitch.round()).abs() * 2.0;
+        chroma[class] += (*p as f32).sqrt() * near.max(0.0);
+    }
+    if chroma.iter().all(|c| *c <= 0.0) {
+        return None;
+    }
+    let correlate = |profile: &[f32; 12], tonic: usize| {
+        let (mc, mp) = (
+            chroma.iter().sum::<f32>() / 12.0,
+            profile.iter().sum::<f32>() / 12.0,
+        );
+        let (mut num, mut dc, mut dp) = (0.0, 0.0, 0.0);
+        for i in 0..12 {
+            let (c, p) = (chroma[(i + tonic) % 12] - mc, profile[i] - mp);
+            num += c * p;
+            dc += c * c;
+            dp += p * p;
+        }
+        num / (dc * dp).sqrt().max(1e-12)
+    };
+    let mut scores: Vec<(f32, String)> = (0..12)
+        .flat_map(|t| {
+            [
+                (correlate(&MAJOR, t), format!("{} major", NAMES[t])),
+                (correlate(&MINOR, t), format!("{} minor", NAMES[t])),
+            ]
+        })
+        .collect();
+    scores.sort_by(|a, b| b.0.total_cmp(&a.0));
+    Some((
+        scores[0].1.clone(),
+        (scores[0].0 - scores[1].0).clamp(0.0, 1.0),
+    ))
+}
+
 /// Lowest and highest sample of each of `columns` slices of the mid signal.
 pub fn envelope(left: &[f32], right: &[f32], columns: usize) -> Vec<(f32, f32)> {
     let n = left.len().min(right.len());
@@ -401,6 +460,36 @@ mod tests {
         assert!(r.bands[mids] > -0.5, "{:?}", r.bands);
         assert!(r.bands[0] < -40.0);
         assert!(r.loudness_range.unwrap() < 1.0);
+    }
+
+    #[test]
+    fn a_c_major_chord_is_in_c_major() {
+        let rate = 48_000;
+        let n = 6 * rate as usize;
+        let tone = |f: f32| {
+            (0..n).map(move |i| (std::f32::consts::TAU * f * i as f32 / rate as f32).sin())
+        };
+        // C E G, then F A C and G B D: a I IV V progression.
+        let chords = [
+            [261.63, 329.63, 392.0],
+            [349.23, 440.0, 523.25],
+            [392.0, 493.88, 587.33],
+        ];
+        let mut x = vec![0.0f32; n];
+        for (k, chord) in chords.iter().enumerate() {
+            for f in chord {
+                for (i, v) in tone(*f).enumerate().skip(k * n / 3).take(n / 3) {
+                    x[i] += 0.1 * v;
+                }
+            }
+        }
+        // The tonic chord held longer, as music does.
+        for f in chords[0] {
+            for (i, v) in tone(f).enumerate() {
+                x[i] += 0.05 * v;
+            }
+        }
+        assert_eq!(key(&x, &x, rate).unwrap().0, "C major");
     }
 
     #[test]

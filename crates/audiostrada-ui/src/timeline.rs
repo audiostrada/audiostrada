@@ -210,7 +210,7 @@ pub struct TimelineView {
     /// How waveforms are drawn.
     pub wave_view: WaveView,
     /// Zoom and scroll before a zoom to the selection, to go back to.
-    zoom_back: Option<(f64, f64)>,
+    pub(crate) zoom_back: Option<(f64, f64)>,
     /// Clips swept by the eraser or the mute tool during a drag.
     swept: Vec<ClipId>,
     /// Attacks found in each media file, in its frames.

@@ -176,7 +176,7 @@ impl TimelineView {
     }
 
     /// Zooms on the range or the selected clips; again, back to the view before.
-    pub(super) fn zoom_to_selection(&mut self, doc: &Document) {
+    pub(crate) fn zoom_to_selection(&mut self, doc: &Document) {
         if let Some((zoom, scroll)) = self.zoom_back.take() {
             (self.zoom, self.scroll) = (zoom, scroll);
             return;

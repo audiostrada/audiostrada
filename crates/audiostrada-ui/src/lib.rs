@@ -30,6 +30,7 @@ mod markers;
 mod mb_editor;
 mod metronome_window;
 mod midi_tools;
+mod mix_tools;
 mod mixer;
 mod mod_editor;
 mod nam_library;
@@ -44,6 +45,7 @@ mod reference_window;
 mod rig_editor;
 mod screens;
 mod settings;
+mod song_tools;
 mod synth_editor;
 mod tabs;
 mod tape_deck;
@@ -805,6 +807,51 @@ impl AudioStradaApp {
         Ok(())
     }
 
+    /// The `show` tool: tracks and clips selected, the timeline zoomed on a stretch or on them.
+    fn show_for_agent(&mut self, args: &serde_json::Value) -> Result<serde_json::Value, String> {
+        let doc = self.doc.borrow();
+        let rate = doc.project().sample_rate;
+        let mut tracks = Vec::new();
+        for v in args
+            .get("tracks")
+            .and_then(|v| v.as_array())
+            .into_iter()
+            .flatten()
+        {
+            tracks.push(control::track_id(&doc, Some(v))?);
+        }
+        let clips: Vec<audiostrada_core::ClipId> = args
+            .get("clips")
+            .and_then(|v| v.as_array())
+            .into_iter()
+            .flatten()
+            .filter_map(|v| v.as_u64())
+            .map(audiostrada_core::ClipId)
+            .filter(|id| audiostrada_core::edit::clip(doc.project(), *id).is_some())
+            .collect();
+        let start = control::seconds_to_samples(args.get("start"), rate);
+        let end = control::seconds_to_samples(args.get("end"), rate);
+        drop(doc);
+        let mut doc = self.doc.borrow_mut();
+        if !tracks.is_empty() {
+            doc.set_track_selection(tracks.clone());
+        }
+        let mut views = self.views.borrow_mut();
+        let timeline = &mut views.timeline;
+        timeline.selection = clips;
+        timeline.range = match (start, end) {
+            (Some(a), Some(b)) if b > a => Some(timeline::Range {
+                start: a,
+                end: b,
+                tracks,
+            }),
+            _ => None,
+        };
+        timeline.zoom_back = None;
+        timeline.zoom_to_selection(&doc);
+        Ok(serde_json::json!("shown"))
+    }
+
     /// Closes the control channel: assistants can no longer reach this window.
     pub fn stop_listening(&mut self) {
         self.control = None;
@@ -822,6 +869,7 @@ impl AudioStradaApp {
             self.control_log.truncate(8);
             let answer = match request.tool.as_str() {
                 "list_actions" => Ok(control::actions()),
+                "show" => self.show_for_agent(&request.args),
                 "run_action" => {
                     let name = request
                         .args

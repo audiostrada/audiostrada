@@ -457,6 +457,21 @@ It arranges as you would on the timeline: `move_clips` (in time or to another tr
 shape, mute, name, stretch, pitch) and `set_crossfade`. Each call is one undo step, and the audio
 files themselves are never moved, changed or deleted.
 
+It mixes with the whole console: presets and saved chains (`list_presets`, `load_preset`,
+`save_preset`, `list_chains`, `add_chain`), automation (`read_automation`, `write_automation`:
+volume rides, filter sweeps, sends), sends, folders, VCAs, groups and sidechains (`set_send`,
+`set_routing`, `set_sidechain`), the console colour (`set_console`), mix snapshots, and
+third-party plugins (`list_plugins`, `add_insert` with a plugin's key, `plugin_params`).
+
+It knows the song: `sections` (markers name them), `set_marker`, `set_tempo_map`,
+`analyze_sections`, `detect_key`, `compare_to_reference` (against any recording), and
+`transform_midi` (quantize with swing, transpose, velocities, humanize, lengths). In a running
+AudioStrada it plays with you: `transport` (play, stop, locate, loop a stretch) and `show`
+(selects and zooms on what it talks about).
+
+Assistants that support MCP prompts offer four ready requests: check the mix, master for
+streaming, vary the drums, write a part.
+
 It can also look: `render_spectrum` draws the spectrum of up to three tracks over each other,
 `render_spectrogram` how the frequencies move over time, and `render_waveform` the waveform
 above the short-term loudness. Assistants that read images (Claude among them) see these

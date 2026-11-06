@@ -23,7 +23,7 @@ use crate::trf;
 /// Longest a headless render or import may take.
 const WAIT: Duration = Duration::from_secs(600);
 
-fn tool(name: &str, description: &str, properties: Value, required: &[&str]) -> Value {
+pub(crate) fn tool(name: &str, description: &str, properties: Value, required: &[&str]) -> Value {
     json!({
         "name": name,
         "description": description,
@@ -255,7 +255,15 @@ pub fn tool_definitions(live: bool) -> Vec<Value> {
             &["a", "b"],
         ),
     ];
+    tools.extend(crate::mix_tools::definitions(live));
+    tools.extend(crate::song_tools::definitions());
     if live {
+        tools.push(tool(
+            "show",
+            "Show something in the window: select tracks and clips, and zoom the timeline on a stretch (`start`, `end`) or on the clips.",
+            json!({"tracks": {"type": "array"}, "clips": {"type": "array", "items": {"type": "integer"}}, "start": time, "end": time}),
+            &[],
+        ));
         tools.push(tool(
             "list_actions",
             "Commands of the menus and shortcuts, by name.",
@@ -291,7 +299,7 @@ pub fn tool_definitions(live: bool) -> Vec<Value> {
     tools
 }
 
-fn seconds_to_samples(value: Option<&Value>, rate: u32) -> Option<u64> {
+pub(crate) fn seconds_to_samples(value: Option<&Value>, rate: u32) -> Option<u64> {
     let v = value?;
     if let Some(n) = v.get("samples").and_then(Value::as_u64) {
         return Some(n);
@@ -301,7 +309,7 @@ fn seconds_to_samples(value: Option<&Value>, rate: u32) -> Option<u64> {
         .map(|s| (s * f64::from(rate)).round() as u64)
 }
 
-fn track_ref(doc: &Document, value: Option<&Value>) -> Result<Channel, String> {
+pub(crate) fn track_ref(doc: &Document, value: Option<&Value>) -> Result<Channel, String> {
     let value = value.ok_or("a track is needed")?;
     if value
         .as_str()
@@ -327,7 +335,7 @@ fn track_ref(doc: &Document, value: Option<&Value>) -> Result<Channel, String> {
         .ok_or_else(|| format!("no track {value}"))
 }
 
-fn track_id(doc: &Document, value: Option<&Value>) -> Result<TrackId, String> {
+pub(crate) fn track_id(doc: &Document, value: Option<&Value>) -> Result<TrackId, String> {
     match track_ref(doc, value)? {
         Channel::Track(t) => Ok(t),
         Channel::Master => Err("the master has no clips".into()),
@@ -341,7 +349,7 @@ fn track_clips(doc: &Document, track: TrackId) -> Vec<ClipId> {
         .unwrap_or_default()
 }
 
-fn params_map(value: Option<&Value>) -> std::collections::BTreeMap<String, f32> {
+pub(crate) fn params_map(value: Option<&Value>) -> std::collections::BTreeMap<String, f32> {
     value
         .and_then(Value::as_object)
         .map(|m| {
@@ -450,7 +458,10 @@ pub fn inspect(doc: &Document, full: bool) -> Value {
         "length": secs(project.length()),
         "tracks": tracks,
         "master": {"gain_db": project.master.gain_db, "inserts": inserts(&project.master.inserts)},
-        "markers": project.markers.iter().map(|m| json!({"name": m.name, "at": secs(m.position)})).collect::<Vec<_>>(),
+        "markers": project.markers.iter().map(|m| json!({"id": m.id.0, "name": m.name, "at": secs(m.position)})).collect::<Vec<_>>(),
+        "groups": project.groups.iter().enumerate().map(|(i, g)| json!({"index": i, "name": g.name})).collect::<Vec<_>>(),
+        "console": {"model": format!("{:?}", project.console.model).to_lowercase(), "amount": project.console.amount, "off": project.console_off},
+        "loop": project.loop_range.filter(|_| !project.loop_off).map(|(a, b)| json!([secs(a), secs(b)])),
         "can_undo": doc.history().undo_label(),
     })
 }
@@ -476,7 +487,7 @@ fn effects() -> Value {
 }
 
 /// Lets the media load before an analysis: live, its messages stay for the window to show.
-fn loaded(doc: &mut Document, live: bool) -> Result<(), String> {
+pub(crate) fn loaded(doc: &mut Document, live: bool) -> Result<(), String> {
     if live {
         wait_idle(doc).or(Ok(()))
     } else {
@@ -510,6 +521,12 @@ pub fn call_tool(
     let string = |k: &str| args.get(k).and_then(Value::as_str);
     let time = |k: &str| seconds_to_samples(args.get(k), rate);
     let wait = |doc: &mut Document| if live { Ok(()) } else { settle(doc) };
+    if let Some(answer) = crate::mix_tools::call(doc, name, args) {
+        return answer;
+    }
+    if let Some(answer) = crate::song_tools::call(doc, live, name, args) {
+        return answer;
+    }
     match name {
         "inspect_project" => Ok(inspect(doc, string("detail") == Some("full"))),
         "list_effects" => Ok(effects()),
@@ -609,8 +626,12 @@ pub fn call_tool(
         "add_insert" => {
             let channel = track_ref(doc, arg("track"))?;
             let effect = string("effect").ok_or("`effect` is needed")?;
-            if audiostrada_dsp::info(effect).is_none() {
-                return Err(format!("no built-in effect {effect} (see list_effects)"));
+            let plugin = audiostrada_plugins::parse_key(effect).is_some()
+                && doc.player().plugins().plugins().any(|p| p.key() == effect);
+            if audiostrada_dsp::info(effect).is_none() && !plugin {
+                return Err(format!(
+                    "no built-in effect or installed plugin {effect} (see list_effects, list_plugins)"
+                ));
             }
             let params = params_map(arg("params"));
             let mut added = None;
@@ -1081,6 +1102,49 @@ Read and write the notes of MIDI clips with read_midi_clip and write_midi_clip (
 Arrange with move_clips, trim_clip, duplicate_clips, delete_clips, set_clip and set_crossfade. \
 Positions are seconds or {\"samples\": n}; tracks are named by id or name, or \"master\".";
 
+/// Ready-made requests the assistant offers: (name, description, arguments, text).
+type Prompt = (
+    &'static str,
+    &'static str,
+    &'static [(&'static str, &'static str)],
+    &'static str,
+);
+const PROMPTS: [Prompt; 4] = [
+    (
+        "mix_check",
+        "Check the mix of the open project and list what to fix",
+        &[],
+        "Check the mix of my open AudioStrada project. Call inspect_project with detail full, then analyze_audio on the master and sections or analyze_sections if there are markers. Compare the tracks that share the low end and the mids with compare_audio, and look at render_spectrum of the main ones. Then tell me, most important first, what you hear: balance, masking, resonances, loudness, dynamics, stereo, problems. Propose a fix for each, but change nothing before I agree.",
+    ),
+    (
+        "master_for_streaming",
+        "Bring the master to streaming loudness without clipping",
+        &[(
+            "target_lufs",
+            "integrated loudness to reach, -14 by default",
+        )],
+        "Prepare the master of my open AudioStrada project for streaming at {target_lufs} LUFS integrated (-14 if no value), with true peaks under -1 dBTP. Analyze the master first, then set its chain (a limiter or the maximizer last, with list_effects and list_presets to choose) and its levels, and analyze again until the figures are right. Keep the dynamics as musical as possible, and tell me what you changed, step by step.",
+    ),
+    (
+        "vary_drums",
+        "Vary the drum patterns from section to section",
+        &[(
+            "style",
+            "the feel to keep or reach, for example trap, rock, house",
+        )],
+        "Vary the drums of my open AudioStrada project from section to section, in a {style} style. Find the drum track and its MIDI clips with inspect_project (detail full) and read_midi_clip, and the sections with the sections tool. Keep the groove and the sounds, but give each section its own pattern: sparser intro, hi-hat variations in the verses, fills on the toms before a change, a fuller last chorus. Write them with write_midi_clip, one clip at a time, and tell me what you did where.",
+    ),
+    (
+        "write_part",
+        "Write a new instrument part that fits the song",
+        &[
+            ("instrument", "what to write: bass line, chords, lead, pad…"),
+            ("style", "the style"),
+        ],
+        "Write a {instrument} part in a {style} style for my open AudioStrada project. Find the key with detect_key, the tempo and sections with inspect_project and sections, and listen to what is there. Add an instrument track with a fitting preset (list_presets on the synth), then write the part with add_midi_clip, section by section. Check the balance with analyze_audio and compare_audio, then tell me what you wrote.",
+    ),
+];
+
 /// What answers MCP tool calls: a document here, or a running AudioStrada.
 pub trait Backend {
     fn tools(&self) -> Vec<Value>;
@@ -1149,13 +1213,45 @@ pub fn handle(backend: &mut dyn Backend, message: &Value) -> Option<Value> {
                 .unwrap_or(VERSIONS[0]);
             Ok(json!({
                 "protocolVersion": version,
-                "capabilities": {"tools": {}},
+                "capabilities": {"tools": {}, "prompts": {}},
                 "serverInfo": {"name": "audiostrada", "version": env!("CARGO_PKG_VERSION")},
                 "instructions": INSTRUCTIONS,
             }))
         }
         "ping" => Ok(json!({})),
         "tools/list" => Ok(json!({"tools": backend.tools()})),
+        "prompts/list" => Ok(
+            json!({"prompts": PROMPTS.iter().map(|(name, description, arguments, _)| {
+            json!({"name": name, "description": description, "arguments": arguments.iter().map(|(a, d)| json!({"name": a, "description": d, "required": false})).collect::<Vec<_>>()})
+        }).collect::<Vec<_>>()}),
+        ),
+        "prompts/get" => {
+            let wanted = params.get("name").and_then(Value::as_str).unwrap_or("");
+            match PROMPTS.iter().find(|p| p.0 == wanted) {
+                Some((_, description, arguments, text)) => {
+                    let mut text = (*text).to_owned();
+                    for (a, _) in *arguments {
+                        let given = params
+                            .get("arguments")
+                            .and_then(|v| v.get(*a))
+                            .and_then(Value::as_str)
+                            .unwrap_or("");
+                        text = text.replace(
+                            &format!("{{{a}}}"),
+                            if given.is_empty() {
+                                "(your choice)"
+                            } else {
+                                given
+                            },
+                        );
+                    }
+                    Ok(
+                        json!({"description": description, "messages": [{"role": "user", "content": {"type": "text", "text": text}}]}),
+                    )
+                }
+                None => Err((-32602, format!("no prompt {wanted}"))),
+            }
+        }
         "tools/call" => {
             let name = params.get("name").and_then(Value::as_str).unwrap_or("");
             let args = params.get("arguments").cloned().unwrap_or(json!({}));
@@ -1797,5 +1893,40 @@ mod tests {
         );
         assert!(call(&mut b, "analyze_audio", json!({"track": "nope"})).is_err());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod prompt_tests {
+    use super::*;
+
+    #[test]
+    fn prompts_are_listed_and_filled() {
+        let mut b = Headless::new();
+        let list = handle(
+            &mut b,
+            &json!({"jsonrpc": "2.0", "id": 1, "method": "prompts/list"}),
+        )
+        .unwrap();
+        assert_eq!(
+            list["result"]["prompts"].as_array().unwrap().len(),
+            PROMPTS.len()
+        );
+        let got = handle(
+            &mut b,
+            &json!({"jsonrpc": "2.0", "id": 2, "method": "prompts/get", "params": {"name": "vary_drums", "arguments": {"style": "drill"}}}),
+        )
+        .unwrap();
+        let text = got["result"]["messages"][0]["content"]["text"]
+            .as_str()
+            .unwrap();
+        assert!(text.contains("in a drill style"));
+        let names: Vec<String> = b
+            .tools()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap().to_owned())
+            .collect();
+        let unique: std::collections::HashSet<_> = names.iter().collect();
+        assert_eq!(unique.len(), names.len(), "a tool is defined twice");
     }
 }

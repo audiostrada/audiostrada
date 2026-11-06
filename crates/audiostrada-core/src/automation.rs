@@ -232,6 +232,18 @@ pub fn lane_mut<'a>(track: &'a mut Track, target: &AutomationTarget) -> &'a mut 
     track.automation.last_mut().expect("just pushed")
 }
 
+/// The master's lane of `target`, created if missing.
+pub fn master_lane_mut<'a>(
+    master: &'a mut crate::model::Master,
+    target: &AutomationTarget,
+) -> &'a mut AutomationLane {
+    if let Some(i) = master.automation.iter().position(|l| &l.target == target) {
+        return &mut master.automation[i];
+    }
+    master.automation.push(AutomationLane::new(target.clone()));
+    master.automation.last_mut().expect("just pushed")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

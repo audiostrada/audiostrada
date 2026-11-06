@@ -17,7 +17,9 @@ pub fn ids(args: &Value) -> Result<Vec<ClipId>, String> {
         (Some(list), _) => list.iter().filter_map(Value::as_u64).collect(),
         (None, Some(one)) => vec![one],
         _ => {
-            return Err("`clips` (ids, from inspect_project with detail \"full\") is needed".into());
+            return Err(
+                "`clips` (ids, from inspect_project with detail \"full\") is needed".into(),
+            );
         }
     };
     if list.is_empty() {
