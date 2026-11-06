@@ -1,0 +1,54 @@
+/* The cheat sheet: one landscape page of keys and gestures, in four columns. */
+@page { size: A4 landscape; margin: 0 0 9mm; @bottom-center { content: "audiostrada.com   ·   " counter(page) " / " counter(pages); font: 600 7pt "Archivo"; color: #5b6575; } }
+
+html { font-family: "Inter", sans-serif; font-size: 7.3pt; line-height: 1.32; color: #1d232c; }
+body { margin: 0; }
+
+header {
+  position: relative;
+  height: 25mm;
+  background: linear-gradient(180deg, #1a212b, #11151b);
+  color: #e9edf2;
+  overflow: hidden;
+}
+header .waves { position: absolute; left: 0; right: 0; top: 0; height: 25mm; }
+header .waves svg { width: 297mm; height: 25mm; }
+header .brand { position: absolute; left: 12mm; top: 7.5mm; display: flex; align-items: center; }
+header .brand svg { width: 10mm; height: 10mm; }
+header .brand span { font: 700 13pt "Archivo"; font-stretch: 118%; margin-left: 2.5mm; }
+header h1 { position: absolute; left: 62mm; top: 6.8mm; margin: 0; font: 800 18pt "Archivo"; font-stretch: 122%; color: #fff; }
+header .meta { position: absolute; right: 12mm; top: 10.5mm; font: 600 7.5pt "Archivo"; color: #98a2b3; letter-spacing: 0.04em; }
+
+main { columns: 4; column-gap: 6mm; padding: 5mm 10mm 0; }
+h2 {
+  font: 700 9pt "Archivo";
+  font-stretch: 112%;
+  color: #2f7fe0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 1.4mm;
+  padding-top: 1mm;
+  border-top: 1pt solid #141920;
+  break-after: avoid;
+}
+h2:not(:first-child) { margin-top: 2.6mm; }
+table { width: 100%; border-collapse: collapse; break-inside: auto; }
+thead { display: none; }
+tr { break-inside: avoid; }
+td { padding: 0.55mm 0; border-bottom: 0.4pt solid #e4e8ee; vertical-align: top; }
+td:first-child { width: 46%; padding-right: 1.5mm; }
+p { margin: 0 0 1.4mm; color: #3a4350; }
+kbd {
+  font: 600 6.3pt "Inter";
+  display: inline-block;
+  padding: 0 1.1mm;
+  border: 0.5pt solid #c3cbd6;
+  border-bottom-width: 1.2pt;
+  border-radius: 1mm;
+  background: #fff;
+  color: #141920;
+  white-space: nowrap;
+}
+.plus { color: #8a94a3; font-size: 6pt; margin: 0 0.3mm; }
+strong { font-weight: 600; }
+code { font-size: 6.8pt; }

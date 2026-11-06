@@ -1,0 +1,155 @@
+/* The manual in print: console slate, signal blue and meter amber on paper. */
+:root {
+  --slate: #141920;
+  --panel: #1c222b;
+  --ink: #1d232c;
+  --dim: #5b6575;
+  --rule: #dfe4ea;
+  --wash: #f3f6f9;
+  --signal: #2f7fe0;
+  --signal-light: #5aa2ff;
+  --amber: #f0a020;
+}
+
+@page {
+  size: A4;
+  margin: 22mm 20mm 24mm 22mm;
+  @top-left {
+    content: string(chapter);
+    font: 600 7.5pt "Archivo";
+    font-stretch: 112%;
+    color: var(--dim);
+    letter-spacing: 0.04em;
+  }
+  @top-right {
+    content: "AudioStrada";
+    font: 600 7.5pt "Archivo";
+    font-stretch: 112%;
+    color: var(--signal);
+  }
+  @bottom-right {
+    content: counter(page);
+    font: 600 8.5pt "Archivo";
+    color: var(--ink);
+  }
+}
+@page cover {
+  margin: 0;
+  background: var(--slate);
+  @top-left { content: none; }
+  @top-right { content: none; }
+  @bottom-right { content: none; }
+}
+@page toc {
+  @top-left { content: none; }
+}
+@page opener {
+  @top-left { content: none; }
+  @top-right { content: none; }
+}
+
+html { font-family: "Inter", sans-serif; font-size: 9.4pt; line-height: 1.52; color: var(--ink); }
+body { margin: 0; }
+
+/* Cover */
+.cover {
+  page: cover;
+  position: relative;
+  height: 297mm;
+  width: 210mm;
+  color: #e9edf2;
+  background: linear-gradient(180deg, #1a212b 0%, #11151b 100%);
+  overflow: hidden;
+}
+.cover .waves { position: absolute; left: 0; right: 0; top: 118mm; height: 90mm; }
+.cover .waves svg { width: 210mm; height: 90mm; }
+.cover .brand { position: absolute; top: 24mm; left: 22mm; display: flex; align-items: center; }
+.cover .brand svg { width: 14mm; height: 14mm; }
+.cover .brand span { font: 700 17pt "Archivo"; font-stretch: 118%; margin-left: 3mm; letter-spacing: 0.01em; }
+.cover .title { position: absolute; top: 62mm; left: 22mm; right: 22mm; }
+.cover-title {
+  font: 800 40pt/1.02 "Archivo";
+  font-stretch: 125%;
+  margin: 0 0 5mm;
+  color: #fff;
+  string-set: none;
+}
+.cover .title p { font: 400 13pt/1.4 "Archivo"; font-stretch: 100%; color: #98a2b3; margin: 0; max-width: 130mm; }
+.cover .meta { position: absolute; bottom: 20mm; left: 22mm; font: 600 9pt "Archivo"; font-stretch: 110%; color: #98a2b3; letter-spacing: 0.04em; }
+.cover .meta::before { content: ""; display: block; width: 18mm; height: 1.2mm; background: var(--amber); margin-bottom: 5mm; border-radius: 1mm; }
+
+/* Contents */
+.toc { page: toc; break-before: page; }
+.toc-title { font: 800 24pt "Archivo"; font-stretch: 120%; margin: 0 0 8mm; }
+.toc ol { list-style: none; padding: 0; margin: 0; columns: 1; }
+.toc li a { color: inherit; text-decoration: none; }
+.toc li a::after { content: leader(".") target-counter(attr(href), page); color: var(--dim); }
+.toc li.chap { font: 700 10.5pt "Archivo"; font-stretch: 110%; margin-top: 3.2mm; }
+.toc li.chap .num { display: inline-block; width: 8mm; color: var(--signal); }
+.toc li.sub { font-size: 8.6pt; margin-left: 8mm; color: #374151; line-height: 1.55; }
+
+/* Chapters */
+.chapter { break-before: page; }
+.opener { page: opener; margin: 6mm 0 2mm; }
+.opener .num { font: 700 9pt "Archivo"; font-stretch: 115%; color: var(--signal); letter-spacing: 0.12em; text-transform: uppercase; }
+.opener svg { width: 100%; height: 13mm; display: block; margin: 2mm 0 0; }
+h1 {
+  string-set: chapter content();
+  font: 800 26pt/1.08 "Archivo";
+  font-stretch: 118%;
+  margin: 2mm 0 7mm;
+  color: var(--slate);
+}
+h2 {
+  font: 700 14pt/1.2 "Archivo";
+  font-stretch: 112%;
+  color: var(--slate);
+  margin: 9mm 0 3mm;
+  padding-top: 2.5mm;
+  border-top: 0.6pt solid var(--rule);
+  break-after: avoid;
+}
+h3 { font: 700 11pt "Archivo"; font-stretch: 108%; margin: 6mm 0 2mm; color: var(--slate); break-after: avoid; }
+h4 { font: 700 8pt "Archivo"; font-stretch: 112%; margin: 4mm 0 1.5mm; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; break-after: avoid; }
+p { margin: 0 0 2.6mm; orphans: 3; widows: 3; }
+ul, ol { margin: 0 0 3mm; padding-left: 5mm; }
+li { margin: 0 0 1mm; }
+li::marker { color: var(--signal); }
+strong { font-weight: 600; color: #0f141a; }
+a { color: var(--signal); text-decoration: none; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: 8pt; background: var(--wash); border: 0.5pt solid var(--rule); border-radius: 1mm; padding: 0 0.8mm; }
+pre { background: var(--slate); color: #e9edf2; border-radius: 2mm; padding: 3mm 4mm; font-size: 8pt; white-space: pre-wrap; }
+pre code { background: none; border: 0; color: inherit; padding: 0; }
+kbd {
+  font: 600 7.6pt "Inter";
+  display: inline-block;
+  padding: 0.1mm 1.4mm;
+  border: 0.6pt solid #c3cbd6;
+  border-bottom-width: 1.4pt;
+  border-radius: 1.2mm;
+  background: #fff;
+  color: var(--slate);
+  white-space: nowrap;
+}
+.plus { color: var(--dim); font-size: 7pt; margin: 0 0.4mm; }
+
+table { width: 100%; border-collapse: collapse; margin: 1mm 0 4mm; font-size: 8.6pt; break-inside: auto; }
+th { text-align: left; font: 700 7.6pt "Archivo"; font-stretch: 110%; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); border-bottom: 1pt solid var(--slate); padding: 1.4mm 2mm; }
+td { border-bottom: 0.5pt solid var(--rule); padding: 1.4mm 2mm; vertical-align: top; }
+tr { break-inside: avoid; }
+table.ref td:first-child { font-weight: 600; width: 34%; }
+table.ref td:last-child { color: var(--dim); white-space: nowrap; }
+
+aside { margin: 3mm 0 4mm; padding: 2.6mm 4mm 0.8mm; border-radius: 2mm; background: var(--wash); border-left: 1.2mm solid var(--signal-light); break-inside: avoid; }
+aside.tip { border-left-color: var(--signal); }
+aside.warning { border-left-color: var(--amber); background: #fff8ea; }
+
+figure { margin: 3mm 0 5mm; break-inside: avoid; }
+figure { text-align: center; }
+figure img { max-width: 100%; max-height: 92mm; border-radius: 2mm; border: 0.5pt solid #2b333f; }
+figcaption { text-align: left; }
+figcaption { font-size: 8pt; color: var(--dim); margin-top: 1.5mm; }
+
+.params, .presets { break-inside: auto; }
+.presets p { font-size: 8.6pt; color: #374151; }
+.presets strong { color: var(--signal); }

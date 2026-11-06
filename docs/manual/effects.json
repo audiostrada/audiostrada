@@ -1,0 +1,9193 @@
+[
+ {
+  "category": "Instrument",
+  "description": "Polyphonic synthesizer: two oscillators with unison, sub, noise, analog drift, glide, MPE.",
+  "id": "synth",
+  "instrument": true,
+  "name": "Strada-Synth",
+  "params": [
+   {
+    "choices": [
+     "Saw",
+     "Square",
+     "Sine",
+     "Triangle",
+     "Wavetable"
+    ],
+    "default": 0,
+    "id": "wave",
+    "max": 4,
+    "min": 0,
+    "name": "Osc 1 wave",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "attack",
+    "max": 2000,
+    "min": 0.5,
+    "name": "Attack",
+    "unit": "ms"
+   },
+   {
+    "default": 300,
+    "id": "decay",
+    "max": 4000,
+    "min": 1,
+    "name": "Decay",
+    "unit": "ms"
+   },
+   {
+    "default": 70,
+    "id": "sustain",
+    "max": 100,
+    "min": 0,
+    "name": "Sustain",
+    "unit": "%"
+   },
+   {
+    "default": 400,
+    "id": "release",
+    "max": 8000,
+    "min": 1,
+    "name": "Release",
+    "unit": "ms"
+   },
+   {
+    "default": 2500,
+    "id": "cutoff",
+    "max": 18000,
+    "min": 40,
+    "name": "Cutoff",
+    "unit": "Hz"
+   },
+   {
+    "default": 20,
+    "id": "resonance",
+    "max": 95,
+    "min": 0,
+    "name": "Resonance",
+    "unit": "%"
+   },
+   {
+    "default": 40,
+    "id": "env_amount",
+    "max": 100,
+    "min": 0,
+    "name": "Filter envelope",
+    "unit": "%"
+   },
+   {
+    "default": 8,
+    "id": "detune",
+    "max": 50,
+    "min": 0,
+    "name": "Osc 1 detune",
+    "unit": "cents"
+   },
+   {
+    "default": 70,
+    "id": "velocity",
+    "max": 100,
+    "min": 0,
+    "name": "Velocity sensitivity",
+    "unit": "%"
+   },
+   {
+    "default": -12,
+    "id": "volume",
+    "max": 6,
+    "min": -48,
+    "name": "Volume",
+    "unit": "dB"
+   },
+   {
+    "default": 2,
+    "id": "bend_range",
+    "max": 24,
+    "min": 1,
+    "name": "Pitch bend range",
+    "unit": "st"
+   },
+   {
+    "default": 0,
+    "id": "mpe",
+    "max": 1,
+    "min": 0,
+    "name": "MPE (channel 1 global, 48 st per note)",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "osc1_octave",
+    "max": 3,
+    "min": -3,
+    "name": "Osc 1 octave",
+    "unit": "oct"
+   },
+   {
+    "default": 0,
+    "id": "osc1_semi",
+    "max": 12,
+    "min": -12,
+    "name": "Osc 1 semitones",
+    "unit": "semi"
+   },
+   {
+    "default": 0,
+    "id": "osc1_fine",
+    "max": 50,
+    "min": -50,
+    "name": "Osc 1 fine",
+    "unit": "cents"
+   },
+   {
+    "default": 100,
+    "id": "osc1_level",
+    "max": 100,
+    "min": 0,
+    "name": "Osc 1 level",
+    "unit": "%"
+   },
+   {
+    "default": 2,
+    "id": "osc1_voices",
+    "max": 16,
+    "min": 1,
+    "name": "Osc 1 unison",
+    "unit": "voices"
+   },
+   {
+    "choices": [
+     "Saw",
+     "Square",
+     "Sine",
+     "Triangle",
+     "Wavetable"
+    ],
+    "default": 0,
+    "id": "osc2_wave",
+    "max": 4,
+    "min": 0,
+    "name": "Osc 2 wave",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "osc2_octave",
+    "max": 3,
+    "min": -3,
+    "name": "Osc 2 octave",
+    "unit": "oct"
+   },
+   {
+    "default": 0,
+    "id": "osc2_semi",
+    "max": 12,
+    "min": -12,
+    "name": "Osc 2 semitones",
+    "unit": "semi"
+   },
+   {
+    "default": 0,
+    "id": "osc2_fine",
+    "max": 50,
+    "min": -50,
+    "name": "Osc 2 fine",
+    "unit": "cents"
+   },
+   {
+    "default": 0,
+    "id": "osc2_level",
+    "max": 100,
+    "min": 0,
+    "name": "Osc 2 level",
+    "unit": "%"
+   },
+   {
+    "default": 1,
+    "id": "osc2_voices",
+    "max": 16,
+    "min": 1,
+    "name": "Osc 2 unison",
+    "unit": "voices"
+   },
+   {
+    "default": 8,
+    "id": "osc2_detune",
+    "max": 50,
+    "min": 0,
+    "name": "Osc 2 detune",
+    "unit": "cents"
+   },
+   {
+    "default": 0,
+    "id": "sub_level",
+    "max": 100,
+    "min": 0,
+    "name": "Sub level",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "-1 octave",
+     "-2 octaves"
+    ],
+    "default": 0,
+    "id": "sub_octave",
+    "max": 1,
+    "min": 0,
+    "name": "Sub octave",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "noise",
+    "max": 100,
+    "min": 0,
+    "name": "Noise",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "spread",
+    "max": 100,
+    "min": 0,
+    "name": "Stereo spread",
+    "unit": "%"
+   },
+   {
+    "default": 10,
+    "id": "drift",
+    "max": 100,
+    "min": 0,
+    "name": "Analog drift",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "glide",
+    "max": 2000,
+    "min": 0,
+    "name": "Glide",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Poly",
+     "Mono",
+     "Legato"
+    ],
+    "default": 0,
+    "id": "mode",
+    "max": 2,
+    "min": 0,
+    "name": "Voice mode",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Low-pass 12 dB",
+     "Low-pass 24 dB",
+     "Ladder 24 dB",
+     "High-pass",
+     "Band-pass",
+     "Notch"
+    ],
+    "default": 0,
+    "id": "filter_type",
+    "max": 5,
+    "min": 0,
+    "name": "Filter type",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "drive",
+    "max": 100,
+    "min": 0,
+    "name": "Filter drive",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "key_track",
+    "max": 100,
+    "min": 0,
+    "name": "Key tracking",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Sine",
+     "Triangle",
+     "Saw up",
+     "Saw down",
+     "Square",
+     "Random"
+    ],
+    "default": 0,
+    "id": "lfo1_shape",
+    "max": 5,
+    "min": 0,
+    "name": "LFO 1 shape",
+    "unit": ""
+   },
+   {
+    "default": 4,
+    "id": "lfo1_rate",
+    "max": 20,
+    "min": 0.05000000074505806,
+    "name": "LFO 1 rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "lfo1_sync",
+    "max": 1,
+    "min": 0,
+    "name": "LFO 1 sync",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 5,
+    "id": "lfo1_note",
+    "max": 14,
+    "min": 0,
+    "name": "LFO 1 note",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "lfo1_retrig",
+    "max": 1,
+    "min": 0,
+    "name": "LFO 1 retrigger",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Sine",
+     "Triangle",
+     "Saw up",
+     "Saw down",
+     "Square",
+     "Random"
+    ],
+    "default": 0,
+    "id": "lfo2_shape",
+    "max": 5,
+    "min": 0,
+    "name": "LFO 2 shape",
+    "unit": ""
+   },
+   {
+    "default": 4,
+    "id": "lfo2_rate",
+    "max": 20,
+    "min": 0.05000000074505806,
+    "name": "LFO 2 rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "lfo2_sync",
+    "max": 1,
+    "min": 0,
+    "name": "LFO 2 sync",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 5,
+    "id": "lfo2_note",
+    "max": 14,
+    "min": 0,
+    "name": "LFO 2 note",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "lfo2_retrig",
+    "max": 1,
+    "min": 0,
+    "name": "LFO 2 retrigger",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "env2_attack",
+    "max": 4000,
+    "min": 0.5,
+    "name": "Envelope 2 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 400,
+    "id": "env2_decay",
+    "max": 8000,
+    "min": 1,
+    "name": "Envelope 2 decay",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "env2_sustain",
+    "max": 100,
+    "min": 0,
+    "name": "Envelope 2 sustain",
+    "unit": "%"
+   },
+   {
+    "default": 400,
+    "id": "env2_release",
+    "max": 8000,
+    "min": 1,
+    "name": "Envelope 2 release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "macro1",
+    "max": 100,
+    "min": 0,
+    "name": "Macro 1",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "macro2",
+    "max": 100,
+    "min": 0,
+    "name": "Macro 2",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "macro3",
+    "max": 100,
+    "min": 0,
+    "name": "Macro 3",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "macro4",
+    "max": 100,
+    "min": 0,
+    "name": "Macro 4",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "None",
+     "LFO 1",
+     "LFO 2",
+     "Envelope 2",
+     "Velocity",
+     "Mod wheel",
+     "Pressure",
+     "Macro 1",
+     "Macro 2",
+     "Macro 3",
+     "Macro 4"
+    ],
+    "default": 0,
+    "id": "mod1_source",
+    "max": 10,
+    "min": 0,
+    "name": "Modulation 1 source",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "None",
+     "Pitch",
+     "Osc 1 pitch",
+     "Osc 2 pitch",
+     "Osc 1 level",
+     "Osc 2 level",
+     "Sub level",
+     "Noise",
+     "Cutoff",
+     "Resonance",
+     "Filter drive",
+     "Volume",
+     "Osc 1 position",
+     "Osc 2 position",
+     "FM"
+    ],
+    "default": 0,
+    "id": "mod1_target",
+    "max": 14,
+    "min": 0,
+    "name": "Modulation 1 target",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "mod1_amount",
+    "max": 100,
+    "min": -100,
+    "name": "Modulation 1 amount",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "None",
+     "LFO 1",
+     "LFO 2",
+     "Envelope 2",
+     "Velocity",
+     "Mod wheel",
+     "Pressure",
+     "Macro 1",
+     "Macro 2",
+     "Macro 3",
+     "Macro 4"
+    ],
+    "default": 0,
+    "id": "mod2_source",
+    "max": 10,
+    "min": 0,
+    "name": "Modulation 2 source",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "None",
+     "Pitch",
+     "Osc 1 pitch",
+     "Osc 2 pitch",
+     "Osc 1 level",
+     "Osc 2 level",
+     "Sub level",
+     "Noise",
+     "Cutoff",
+     "Resonance",
+     "Filter drive",
+     "Volume",
+     "Osc 1 position",
+     "Osc 2 position",
+     "FM"
+    ],
+    "default": 0,
+    "id": "mod2_target",
+    "max": 14,
+    "min": 0,
+    "name": "Modulation 2 target",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "mod2_amount",
+    "max": 100,
+    "min": -100,
+    "name": "Modulation 2 amount",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "None",
+     "LFO 1",
+     "LFO 2",
+     "Envelope 2",
+     "Velocity",
+     "Mod wheel",
+     "Pressure",
+     "Macro 1",
+     "Macro 2",
+     "Macro 3",
+     "Macro 4"
+    ],
+    "default": 0,
+    "id": "mod3_source",
+    "max": 10,
+    "min": 0,
+    "name": "Modulation 3 source",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "None",
+     "Pitch",
+     "Osc 1 pitch",
+     "Osc 2 pitch",
+     "Osc 1 level",
+     "Osc 2 level",
+     "Sub level",
+     "Noise",
+     "Cutoff",
+     "Resonance",
+     "Filter drive",
+     "Volume",
+     "Osc 1 position",
+     "Osc 2 position",
+     "FM"
+    ],
+    "default": 0,
+    "id": "mod3_target",
+    "max": 14,
+    "min": 0,
+    "name": "Modulation 3 target",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "mod3_amount",
+    "max": 100,
+    "min": -100,
+    "name": "Modulation 3 amount",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "None",
+     "LFO 1",
+     "LFO 2",
+     "Envelope 2",
+     "Velocity",
+     "Mod wheel",
+     "Pressure",
+     "Macro 1",
+     "Macro 2",
+     "Macro 3",
+     "Macro 4"
+    ],
+    "default": 0,
+    "id": "mod4_source",
+    "max": 10,
+    "min": 0,
+    "name": "Modulation 4 source",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "None",
+     "Pitch",
+     "Osc 1 pitch",
+     "Osc 2 pitch",
+     "Osc 1 level",
+     "Osc 2 level",
+     "Sub level",
+     "Noise",
+     "Cutoff",
+     "Resonance",
+     "Filter drive",
+     "Volume",
+     "Osc 1 position",
+     "Osc 2 position",
+     "FM"
+    ],
+    "default": 0,
+    "id": "mod4_target",
+    "max": 14,
+    "min": 0,
+    "name": "Modulation 4 target",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "mod4_amount",
+    "max": 100,
+    "min": -100,
+    "name": "Modulation 4 amount",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "None",
+     "LFO 1",
+     "LFO 2",
+     "Envelope 2",
+     "Velocity",
+     "Mod wheel",
+     "Pressure",
+     "Macro 1",
+     "Macro 2",
+     "Macro 3",
+     "Macro 4"
+    ],
+    "default": 0,
+    "id": "mod5_source",
+    "max": 10,
+    "min": 0,
+    "name": "Modulation 5 source",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "None",
+     "Pitch",
+     "Osc 1 pitch",
+     "Osc 2 pitch",
+     "Osc 1 level",
+     "Osc 2 level",
+     "Sub level",
+     "Noise",
+     "Cutoff",
+     "Resonance",
+     "Filter drive",
+     "Volume",
+     "Osc 1 position",
+     "Osc 2 position",
+     "FM"
+    ],
+    "default": 0,
+    "id": "mod5_target",
+    "max": 14,
+    "min": 0,
+    "name": "Modulation 5 target",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "mod5_amount",
+    "max": 100,
+    "min": -100,
+    "name": "Modulation 5 amount",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "None",
+     "LFO 1",
+     "LFO 2",
+     "Envelope 2",
+     "Velocity",
+     "Mod wheel",
+     "Pressure",
+     "Macro 1",
+     "Macro 2",
+     "Macro 3",
+     "Macro 4"
+    ],
+    "default": 0,
+    "id": "mod6_source",
+    "max": 10,
+    "min": 0,
+    "name": "Modulation 6 source",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "None",
+     "Pitch",
+     "Osc 1 pitch",
+     "Osc 2 pitch",
+     "Osc 1 level",
+     "Osc 2 level",
+     "Sub level",
+     "Noise",
+     "Cutoff",
+     "Resonance",
+     "Filter drive",
+     "Volume",
+     "Osc 1 position",
+     "Osc 2 position",
+     "FM"
+    ],
+    "default": 0,
+    "id": "mod6_target",
+    "max": 14,
+    "min": 0,
+    "name": "Modulation 6 target",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "mod6_amount",
+    "max": 100,
+    "min": -100,
+    "name": "Modulation 6 amount",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "None",
+     "LFO 1",
+     "LFO 2",
+     "Envelope 2",
+     "Velocity",
+     "Mod wheel",
+     "Pressure",
+     "Macro 1",
+     "Macro 2",
+     "Macro 3",
+     "Macro 4"
+    ],
+    "default": 0,
+    "id": "mod7_source",
+    "max": 10,
+    "min": 0,
+    "name": "Modulation 7 source",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "None",
+     "Pitch",
+     "Osc 1 pitch",
+     "Osc 2 pitch",
+     "Osc 1 level",
+     "Osc 2 level",
+     "Sub level",
+     "Noise",
+     "Cutoff",
+     "Resonance",
+     "Filter drive",
+     "Volume",
+     "Osc 1 position",
+     "Osc 2 position",
+     "FM"
+    ],
+    "default": 0,
+    "id": "mod7_target",
+    "max": 14,
+    "min": 0,
+    "name": "Modulation 7 target",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "mod7_amount",
+    "max": 100,
+    "min": -100,
+    "name": "Modulation 7 amount",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "None",
+     "LFO 1",
+     "LFO 2",
+     "Envelope 2",
+     "Velocity",
+     "Mod wheel",
+     "Pressure",
+     "Macro 1",
+     "Macro 2",
+     "Macro 3",
+     "Macro 4"
+    ],
+    "default": 0,
+    "id": "mod8_source",
+    "max": 10,
+    "min": 0,
+    "name": "Modulation 8 source",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "None",
+     "Pitch",
+     "Osc 1 pitch",
+     "Osc 2 pitch",
+     "Osc 1 level",
+     "Osc 2 level",
+     "Sub level",
+     "Noise",
+     "Cutoff",
+     "Resonance",
+     "Filter drive",
+     "Volume",
+     "Osc 1 position",
+     "Osc 2 position",
+     "FM"
+    ],
+    "default": 0,
+    "id": "mod8_target",
+    "max": 14,
+    "min": 0,
+    "name": "Modulation 8 target",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "mod8_amount",
+    "max": 100,
+    "min": -100,
+    "name": "Modulation 8 amount",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Basic shapes",
+     "Harmonics",
+     "Pulse width",
+     "Vocal",
+     "Metallic",
+     "Sync",
+     "Fold",
+     "Organ",
+     "Loaded file"
+    ],
+    "default": 0,
+    "id": "osc1_table",
+    "max": 8,
+    "min": 0,
+    "name": "Osc 1 wavetable",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "osc1_position",
+    "max": 100,
+    "min": 0,
+    "name": "Osc 1 position",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Basic shapes",
+     "Harmonics",
+     "Pulse width",
+     "Vocal",
+     "Metallic",
+     "Sync",
+     "Fold",
+     "Organ",
+     "Loaded file"
+    ],
+    "default": 0,
+    "id": "osc2_table",
+    "max": 8,
+    "min": 0,
+    "name": "Osc 2 wavetable",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "osc2_position",
+    "max": 100,
+    "min": 0,
+    "name": "Osc 2 position",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "fm",
+    "max": 100,
+    "min": 0,
+    "name": "FM",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "sync",
+    "max": 1,
+    "min": 0,
+    "name": "Sync",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "ring",
+    "max": 100,
+    "min": 0,
+    "name": "Ring",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "fx_chorus",
+    "max": 100,
+    "min": 0,
+    "name": "Chorus",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "fx_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Delay",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 6,
+    "id": "fx_delay_note",
+    "max": 14,
+    "min": 0,
+    "name": "Delay time",
+    "unit": ""
+   },
+   {
+    "default": 35,
+    "id": "fx_delay_feedback",
+    "max": 90,
+    "min": 0,
+    "name": "Delay feedback",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "fx_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Reverb",
+    "unit": "%"
+   },
+   {
+    "default": 2.5,
+    "id": "fx_reverb_decay",
+    "max": 10,
+    "min": 0.30000001192092896,
+    "name": "Reverb decay",
+    "unit": "s"
+   },
+   {
+    "default": 0,
+    "id": "arp",
+    "max": 1,
+    "min": 0,
+    "name": "Arpeggiator",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Up",
+     "Down",
+     "Up and down",
+     "Random",
+     "As played"
+    ],
+    "default": 0,
+    "id": "arp_mode",
+    "max": 4,
+    "min": 0,
+    "name": "Arpeggio",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 2,
+    "id": "arp_note",
+    "max": 14,
+    "min": 0,
+    "name": "Arpeggio rate",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "arp_octaves",
+    "max": 4,
+    "min": 1,
+    "name": "Arpeggio octaves",
+    "unit": "octaves"
+   },
+   {
+    "default": 60,
+    "id": "arp_gate",
+    "max": 100,
+    "min": 10,
+    "name": "Arpeggio gate",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "arp_hold",
+    "max": 1,
+    "min": 0,
+    "name": "Hold",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Instrument",
+  "description": "Drum machine: sixteen pads in 808, 909 or acoustic character, or your own samples.",
+  "id": "drums",
+  "instrument": true,
+  "name": "Strada-Drums",
+  "params": [
+   {
+    "default": 80,
+    "id": "kick_level",
+    "max": 100,
+    "min": 0,
+    "name": "Kick level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "kick_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Kick tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "kick_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Kick decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "kick_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Kick tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "rim_level",
+    "max": 100,
+    "min": 0,
+    "name": "Rim shot level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "rim_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Rim shot tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "rim_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Rim shot decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "rim_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Rim shot tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "snare_level",
+    "max": 100,
+    "min": 0,
+    "name": "Snare level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "snare_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Snare tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "snare_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Snare decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "snare_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Snare tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "clap_level",
+    "max": 100,
+    "min": 0,
+    "name": "Clap level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "clap_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Clap tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "clap_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Clap decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "clap_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Clap tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "closed_level",
+    "max": 100,
+    "min": 0,
+    "name": "Closed hat level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "closed_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Closed hat tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "closed_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Closed hat decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "closed_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Closed hat tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "open_level",
+    "max": 100,
+    "min": 0,
+    "name": "Open hat level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "open_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Open hat tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "open_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Open hat decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "open_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Open hat tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "low_tom_level",
+    "max": 100,
+    "min": 0,
+    "name": "Low tom level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "low_tom_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Low tom tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "low_tom_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Low tom decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "low_tom_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Low tom tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "mid_tom_level",
+    "max": 100,
+    "min": 0,
+    "name": "Mid tom level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "mid_tom_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Mid tom tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "mid_tom_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Mid tom decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "mid_tom_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Mid tom tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "high_tom_level",
+    "max": 100,
+    "min": 0,
+    "name": "High tom level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "high_tom_tune",
+    "max": 12,
+    "min": -12,
+    "name": "High tom tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "high_tom_decay",
+    "max": 400,
+    "min": 10,
+    "name": "High tom decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "high_tom_tone",
+    "max": 100,
+    "min": 0,
+    "name": "High tom tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "cymbal_level",
+    "max": 100,
+    "min": 0,
+    "name": "Crash level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "cymbal_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Crash tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "cymbal_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Crash decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "cymbal_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Crash tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "cowbell_level",
+    "max": 100,
+    "min": 0,
+    "name": "Cowbell level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "cowbell_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Cowbell tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "cowbell_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Cowbell decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "cowbell_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Cowbell tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "clave_level",
+    "max": 100,
+    "min": 0,
+    "name": "Clave level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "clave_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Clave tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "clave_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Clave decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "clave_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Clave tone",
+    "unit": "%"
+   },
+   {
+    "default": 60,
+    "id": "accent",
+    "max": 100,
+    "min": 0,
+    "name": "Accent",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "drive",
+    "max": 100,
+    "min": 0,
+    "name": "Drive",
+    "unit": "%"
+   },
+   {
+    "default": -6,
+    "id": "volume",
+    "max": 6,
+    "min": -48,
+    "name": "Volume",
+    "unit": "dB"
+   },
+   {
+    "default": 80,
+    "id": "kick2_level",
+    "max": 100,
+    "min": 0,
+    "name": "Kick 2 level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "kick2_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Kick 2 tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "kick2_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Kick 2 decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "kick2_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Kick 2 tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "snare2_level",
+    "max": 100,
+    "min": 0,
+    "name": "Snare 2 level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "snare2_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Snare 2 tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "snare2_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Snare 2 decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "snare2_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Snare 2 tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "ride_level",
+    "max": 100,
+    "min": 0,
+    "name": "Ride level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "ride_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Ride tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "ride_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Ride decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "ride_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Ride tone",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "tambourine_level",
+    "max": 100,
+    "min": 0,
+    "name": "Tambourine level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "tambourine_tune",
+    "max": 12,
+    "min": -12,
+    "name": "Tambourine tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "tambourine_decay",
+    "max": 400,
+    "min": 10,
+    "name": "Tambourine decay",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "tambourine_tone",
+    "max": 100,
+    "min": 0,
+    "name": "Tambourine tone",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "kick_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Kick pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "rim_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Rim shot pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "snare_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Snare pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "clap_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Clap pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "closed_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Closed hat pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "open_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Open hat pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "low_tom_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Low tom pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "mid_tom_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Mid tom pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "high_tom_pan",
+    "max": 100,
+    "min": -100,
+    "name": "High tom pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "cymbal_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Crash pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "cowbell_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Cowbell pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "clave_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Clave pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "kick2_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Kick 2 pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "snare2_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Snare 2 pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "ride_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Ride pan",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "tambourine_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Tambourine pan",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "kick_model",
+    "max": 2,
+    "min": 0,
+    "name": "Kick character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "rim_model",
+    "max": 2,
+    "min": 0,
+    "name": "Rim shot character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "snare_model",
+    "max": 2,
+    "min": 0,
+    "name": "Snare character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "clap_model",
+    "max": 2,
+    "min": 0,
+    "name": "Clap character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "closed_model",
+    "max": 2,
+    "min": 0,
+    "name": "Closed hat character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "open_model",
+    "max": 2,
+    "min": 0,
+    "name": "Open hat character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "low_tom_model",
+    "max": 2,
+    "min": 0,
+    "name": "Low tom character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "mid_tom_model",
+    "max": 2,
+    "min": 0,
+    "name": "Mid tom character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "high_tom_model",
+    "max": 2,
+    "min": 0,
+    "name": "High tom character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "cymbal_model",
+    "max": 2,
+    "min": 0,
+    "name": "Crash character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "cowbell_model",
+    "max": 2,
+    "min": 0,
+    "name": "Cowbell character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "clave_model",
+    "max": 2,
+    "min": 0,
+    "name": "Clave character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "kick2_model",
+    "max": 2,
+    "min": 0,
+    "name": "Kick 2 character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "snare2_model",
+    "max": 2,
+    "min": 0,
+    "name": "Snare 2 character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "ride_model",
+    "max": 2,
+    "min": 0,
+    "name": "Ride character",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "808",
+     "909",
+     "Acoustic"
+    ],
+    "default": 0,
+    "id": "tambourine_model",
+    "max": 2,
+    "min": 0,
+    "name": "Tambourine character",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "room",
+    "max": 100,
+    "min": 0,
+    "name": "Room",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "crush",
+    "max": 100,
+    "min": 0,
+    "name": "Crush",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "comp",
+    "max": 100,
+    "min": 0,
+    "name": "Compression",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "low",
+    "max": 12,
+    "min": -12,
+    "name": "Bass",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "high",
+    "max": 12,
+    "min": -12,
+    "name": "Treble",
+    "unit": "dB"
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 6,
+    "id": "delay_note",
+    "max": 14,
+    "min": 0,
+    "name": "Delay time",
+    "unit": ""
+   },
+   {
+    "default": 35,
+    "id": "delay_feedback",
+    "max": 90,
+    "min": 0,
+    "name": "Delay feedback",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "delay",
+    "max": 100,
+    "min": 0,
+    "name": "Delay",
+    "unit": "%"
+   },
+   {
+    "default": 35,
+    "id": "room_size",
+    "max": 100,
+    "min": 0,
+    "name": "Room size",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "kick_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Kick attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "kick_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Kick pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "kick_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Kick pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "kick_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Kick low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "kick_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Kick high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "kick_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Kick delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "kick_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Kick reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "rim_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Rim shot attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "rim_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Rim shot pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "rim_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Rim shot pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "rim_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Rim shot low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "rim_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Rim shot high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "rim_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Rim shot delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "rim_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Rim shot reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "snare_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Snare attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "snare_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Snare pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "snare_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Snare pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "snare_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Snare low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "snare_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Snare high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "snare_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Snare delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "snare_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Snare reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "clap_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Clap attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "clap_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Clap pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "clap_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Clap pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "clap_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Clap low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "clap_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Clap high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "clap_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Clap delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "clap_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Clap reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "closed_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Closed hat attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "closed_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Closed hat pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "closed_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Closed hat pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "closed_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Closed hat low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "closed_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Closed hat high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "closed_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Closed hat delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "closed_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Closed hat reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "open_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Open hat attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "open_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Open hat pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "open_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Open hat pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "open_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Open hat low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "open_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Open hat high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "open_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Open hat delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "open_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Open hat reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "low_tom_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Low tom attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "low_tom_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Low tom pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "low_tom_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Low tom pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "low_tom_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Low tom low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "low_tom_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Low tom high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "low_tom_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Low tom delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "low_tom_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Low tom reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "mid_tom_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Mid tom attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "mid_tom_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Mid tom pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "mid_tom_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Mid tom pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "mid_tom_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Mid tom low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "mid_tom_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Mid tom high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "mid_tom_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Mid tom delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "mid_tom_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Mid tom reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "high_tom_attack",
+    "max": 100,
+    "min": 0,
+    "name": "High tom attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "high_tom_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "High tom pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "high_tom_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "High tom pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "high_tom_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "High tom low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "high_tom_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "High tom high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "high_tom_delay",
+    "max": 100,
+    "min": 0,
+    "name": "High tom delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "high_tom_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "High tom reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "cymbal_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Crash attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "cymbal_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Crash pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "cymbal_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Crash pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "cymbal_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Crash low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "cymbal_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Crash high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "cymbal_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Crash delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "cymbal_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Crash reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "cowbell_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Cowbell attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "cowbell_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Cowbell pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "cowbell_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Cowbell pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "cowbell_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Cowbell low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "cowbell_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Cowbell high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "cowbell_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Cowbell delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "cowbell_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Cowbell reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "clave_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Clave attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "clave_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Clave pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "clave_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Clave pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "clave_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Clave low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "clave_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Clave high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "clave_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Clave delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "clave_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Clave reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "kick2_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Kick 2 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "kick2_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Kick 2 pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "kick2_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Kick 2 pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "kick2_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Kick 2 low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "kick2_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Kick 2 high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "kick2_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Kick 2 delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "kick2_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Kick 2 reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "snare2_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Snare 2 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "snare2_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Snare 2 pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "snare2_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Snare 2 pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "snare2_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Snare 2 low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "snare2_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Snare 2 high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "snare2_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Snare 2 delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "snare2_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Snare 2 reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "ride_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Ride attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "ride_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Ride pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "ride_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Ride pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "ride_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Ride low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "ride_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Ride high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "ride_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Ride delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "ride_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Ride reverb send",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "tambourine_attack",
+    "max": 100,
+    "min": 0,
+    "name": "Tambourine attack",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "tambourine_pitch",
+    "max": 24,
+    "min": -24,
+    "name": "Tambourine pitch envelope",
+    "unit": "st"
+   },
+   {
+    "default": 80,
+    "id": "tambourine_pitch_decay",
+    "max": 1000,
+    "min": 5,
+    "name": "Tambourine pitch decay",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "tambourine_low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Tambourine low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "tambourine_high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "Tambourine high cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "tambourine_delay",
+    "max": 100,
+    "min": 0,
+    "name": "Tambourine delay send",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "tambourine_reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Tambourine reverb send",
+    "unit": "%"
+   }
+  ]
+ },
+ {
+  "category": "Channel",
+  "description": "Filters, gate, compressor, four-band EQ and drive, as on a console channel.",
+  "id": "channel",
+  "instrument": false,
+  "name": "Strada-Channel",
+  "params": [
+   {
+    "default": 0,
+    "id": "filters",
+    "max": 1,
+    "min": 0,
+    "name": "Filters",
+    "unit": ""
+   },
+   {
+    "default": 80,
+    "id": "hpf",
+    "max": 1000,
+    "min": 20,
+    "name": "High pass",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "lpf",
+    "max": 20000,
+    "min": 1000,
+    "name": "Low pass",
+    "unit": "Hz"
+   },
+   {
+    "choices": [
+     "12 dB/oct",
+     "24 dB/oct"
+    ],
+    "default": 0,
+    "id": "slope",
+    "max": 1,
+    "min": 0,
+    "name": "Slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "gate",
+    "max": 1,
+    "min": 0,
+    "name": "Gate",
+    "unit": ""
+   },
+   {
+    "default": -50,
+    "id": "gate_threshold",
+    "max": 0,
+    "min": -80,
+    "name": "Gate threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -40,
+    "id": "gate_range",
+    "max": 0,
+    "min": -80,
+    "name": "Gate range",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "gate_attack",
+    "max": 50,
+    "min": 0.05000000074505806,
+    "name": "Gate attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "gate_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Gate release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "comp",
+    "max": 1,
+    "min": 0,
+    "name": "Compressor",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Clean",
+     "Bus",
+     "Opto",
+     "FET"
+    ],
+    "default": 0,
+    "id": "comp_type",
+    "max": 3,
+    "min": 0,
+    "name": "Character",
+    "unit": ""
+   },
+   {
+    "default": -18,
+    "id": "comp_threshold",
+    "max": 0,
+    "min": -60,
+    "name": "Threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 3,
+    "id": "comp_ratio",
+    "max": 20,
+    "min": 1,
+    "name": "Ratio",
+    "unit": ":1"
+   },
+   {
+    "default": 10,
+    "id": "comp_attack",
+    "max": 100,
+    "min": 0.05000000074505806,
+    "name": "Attack",
+    "unit": "ms"
+   },
+   {
+    "default": 150,
+    "id": "comp_release",
+    "max": 1200,
+    "min": 10,
+    "name": "Release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "comp_makeup",
+    "max": 24,
+    "min": 0,
+    "name": "Makeup",
+    "unit": "dB"
+   },
+   {
+    "default": 100,
+    "id": "comp_mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "eq",
+    "max": 1,
+    "min": 0,
+    "name": "EQ",
+    "unit": ""
+   },
+   {
+    "default": 100,
+    "id": "low_freq",
+    "max": 400,
+    "min": 30,
+    "name": "Low",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "low_gain",
+    "max": 15,
+    "min": -15,
+    "name": "Low gain",
+    "unit": "dB"
+   },
+   {
+    "default": 400,
+    "id": "lmf_freq",
+    "max": 2000,
+    "min": 150,
+    "name": "Low mid",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "lmf_gain",
+    "max": 15,
+    "min": -15,
+    "name": "Low mid gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0.8999999761581421,
+    "id": "lmf_q",
+    "max": 4,
+    "min": 0.30000001192092896,
+    "name": "Low mid Q",
+    "unit": ""
+   },
+   {
+    "default": 2500,
+    "id": "hmf_freq",
+    "max": 8000,
+    "min": 600,
+    "name": "High mid",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "hmf_gain",
+    "max": 15,
+    "min": -15,
+    "name": "High mid gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0.8999999761581421,
+    "id": "hmf_q",
+    "max": 4,
+    "min": 0.30000001192092896,
+    "name": "High mid Q",
+    "unit": ""
+   },
+   {
+    "default": 8000,
+    "id": "high_freq",
+    "max": 16000,
+    "min": 2000,
+    "name": "High",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "high_gain",
+    "max": 15,
+    "min": -15,
+    "name": "High gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "order",
+    "max": 119,
+    "min": 0,
+    "name": "Module order",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "drive",
+    "max": 1,
+    "min": 0,
+    "name": "Drive",
+    "unit": ""
+   },
+   {
+    "default": 30,
+    "id": "drive_amount",
+    "max": 100,
+    "min": 0,
+    "name": "Drive amount",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "output",
+    "max": 18,
+    "min": -18,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "choices": [
+     "Soft",
+     "British Warm",
+     "British Bright",
+     "American Punch",
+     "Nashville"
+    ],
+    "default": 0,
+    "id": "character",
+    "max": 4,
+    "min": 0,
+    "name": "Character",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "low_bell",
+    "max": 1,
+    "min": 0,
+    "name": "Low bell",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "high_bell",
+    "max": 1,
+    "min": 0,
+    "name": "High bell",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "EQ & Filter",
+  "description": "Equalizer with up to 16 bands: bells, shelves, steep cuts, notches, dynamic bands, band solo and an analyzer.",
+  "id": "eq",
+  "instrument": false,
+  "name": "Strada-EQ",
+  "params": [
+   {
+    "default": 0,
+    "id": "b1_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 1 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b1_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 1 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b1_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 1 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b1_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 1 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b1_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 1 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b1_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 1 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b1_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 1 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b1_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 1 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b1_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 1 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b1_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 1 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b2_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 2 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b2_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 2 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b2_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 2 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b2_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 2 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b2_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 2 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b2_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 2 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b2_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 2 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b2_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 2 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b2_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 2 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b2_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 2 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b3_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 3 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b3_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 3 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b3_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 3 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b3_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 3 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b3_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 3 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b3_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 3 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b3_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 3 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b3_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 3 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b3_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 3 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b3_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 3 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b4_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 4 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b4_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 4 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b4_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 4 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b4_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 4 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b4_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 4 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b4_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 4 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b4_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 4 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b4_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 4 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b4_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 4 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b4_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 4 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b5_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 5 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b5_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 5 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b5_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 5 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b5_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 5 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b5_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 5 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b5_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 5 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b5_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 5 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b5_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 5 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b5_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 5 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b5_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 5 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b6_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 6 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b6_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 6 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b6_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 6 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b6_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 6 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b6_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 6 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b6_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 6 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b6_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 6 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b6_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 6 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b6_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 6 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b6_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 6 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b7_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 7 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b7_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 7 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b7_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 7 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b7_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 7 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b7_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 7 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b7_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 7 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b7_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 7 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b7_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 7 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b7_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 7 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b7_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 7 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b8_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 8 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b8_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 8 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b8_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 8 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b8_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 8 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b8_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 8 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b8_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 8 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b8_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 8 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b8_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 8 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b8_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 8 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b8_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 8 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b9_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 9 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b9_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 9 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b9_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 9 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b9_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 9 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b9_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 9 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b9_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 9 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b9_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 9 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b9_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 9 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b9_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 9 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b9_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 9 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b10_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 10 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b10_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 10 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b10_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 10 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b10_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 10 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b10_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 10 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b10_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 10 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b10_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 10 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b10_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 10 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b10_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 10 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b10_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 10 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b11_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 11 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b11_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 11 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b11_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 11 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b11_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 11 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b11_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 11 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b11_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 11 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b11_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 11 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b11_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 11 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b11_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 11 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b11_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 11 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b12_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 12 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b12_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 12 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b12_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 12 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b12_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 12 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b12_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 12 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b12_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 12 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b12_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 12 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b12_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 12 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b12_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 12 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b12_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 12 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b13_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 13 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b13_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 13 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b13_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 13 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b13_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 13 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b13_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 13 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b13_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 13 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b13_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 13 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b13_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 13 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b13_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 13 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b13_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 13 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b14_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 14 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b14_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 14 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b14_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 14 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b14_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 14 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b14_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 14 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b14_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 14 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b14_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 14 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b14_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 14 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b14_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 14 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b14_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 14 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b15_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 15 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b15_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 15 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b15_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 15 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b15_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 15 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b15_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 15 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b15_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 15 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b15_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 15 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b15_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 15 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b15_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 15 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b15_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 15 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b16_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 16 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b16_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 16 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "b16_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 16 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "b16_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 16 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "b16_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 16 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b16_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 16 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "b16_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 16 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "b16_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 16 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "b16_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 16 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "b16_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 16 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "output",
+    "max": 30,
+    "min": -30,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "solo",
+    "max": 16,
+    "min": 0,
+    "name": "Solo band",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b1_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 1 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b1_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 1 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b1_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 1 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b2_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 2 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b2_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 2 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b2_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 2 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b3_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 3 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b3_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 3 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b3_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 3 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b4_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 4 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b4_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 4 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b4_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 4 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b5_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 5 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b5_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 5 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b5_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 5 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b6_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 6 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b6_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 6 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b6_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 6 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b7_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 7 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b7_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 7 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b7_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 7 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b8_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 8 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b8_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 8 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b8_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 8 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b9_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 9 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b9_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 9 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b9_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 9 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b10_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 10 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b10_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 10 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b10_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 10 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b11_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 11 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b11_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 11 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b11_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 11 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b12_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 12 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b12_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 12 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b12_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 12 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b13_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 13 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b13_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 13 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b13_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 13 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b14_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 14 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b14_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 14 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b14_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 14 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b15_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 15 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b15_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 15 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b15_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 15 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "b16_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 16 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "b16_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 16 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "b16_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 16 release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "auto_gain",
+    "max": 1,
+    "min": 0,
+    "name": "Auto gain",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "EQ & Filter",
+  "description": "Passive tube program EQ: the low boost and cut trick, silky highs, warmth.",
+  "id": "vintage_eq",
+  "instrument": false,
+  "name": "Strada-Tube EQ",
+  "params": [
+   {
+    "choices": [
+     "20 Hz",
+     "30 Hz",
+     "60 Hz",
+     "100 Hz"
+    ],
+    "default": 2,
+    "id": "low_freq",
+    "max": 3,
+    "min": 0,
+    "name": "Low frequency",
+    "unit": ""
+   },
+   {
+    "default": 3,
+    "id": "low_boost",
+    "max": 10,
+    "min": 0,
+    "name": "Low boost",
+    "unit": ""
+   },
+   {
+    "default": 2,
+    "id": "low_cut",
+    "max": 10,
+    "min": 0,
+    "name": "Low atten",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "3 kHz",
+     "4 kHz",
+     "5 kHz",
+     "8 kHz",
+     "10 kHz",
+     "12 kHz",
+     "16 kHz"
+    ],
+    "default": 4,
+    "id": "high_freq",
+    "max": 6,
+    "min": 0,
+    "name": "High frequency",
+    "unit": ""
+   },
+   {
+    "default": 2,
+    "id": "high_boost",
+    "max": 10,
+    "min": 0,
+    "name": "High boost",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "bandwidth",
+    "max": 10,
+    "min": 0,
+    "name": "Bandwidth",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "5 kHz",
+     "10 kHz",
+     "20 kHz"
+    ],
+    "default": 2,
+    "id": "cut_freq",
+    "max": 2,
+    "min": 0,
+    "name": "Atten select",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "high_cut",
+    "max": 10,
+    "min": 0,
+    "name": "High atten",
+    "unit": ""
+   },
+   {
+    "default": 25,
+    "id": "warmth",
+    "max": 100,
+    "min": 0,
+    "name": "Tube warmth",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "output",
+    "max": 12,
+    "min": -12,
+    "name": "Output",
+    "unit": "dB"
+   }
+  ]
+ },
+ {
+  "category": "EQ & Filter",
+  "description": "Resonant sweeping filter with drive, LFO and envelope: from subtle to wild.",
+  "id": "filter",
+  "instrument": false,
+  "name": "Strada-Filter",
+  "params": [
+   {
+    "choices": [
+     "Low-pass",
+     "High-pass",
+     "Band-pass",
+     "Notch"
+    ],
+    "default": 0,
+    "id": "type",
+    "max": 3,
+    "min": 0,
+    "name": "Type",
+    "unit": ""
+   },
+   {
+    "default": 2000,
+    "id": "cutoff",
+    "max": 20000,
+    "min": 20,
+    "name": "Cutoff",
+    "unit": "Hz"
+   },
+   {
+    "default": 30,
+    "id": "resonance",
+    "max": 100,
+    "min": 0,
+    "name": "Resonance",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "drive",
+    "max": 24,
+    "min": 0,
+    "name": "Drive",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "lfo_rate",
+    "max": 20,
+    "min": 0.019999999552965164,
+    "name": "LFO rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "lfo_depth",
+    "max": 100,
+    "min": 0,
+    "name": "LFO depth",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "sync",
+    "max": 1,
+    "min": 0,
+    "name": "Sync to tempo",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "1/16",
+     "1/8",
+     "1/4",
+     "1/2",
+     "1 bar",
+     "2 bars"
+    ],
+    "default": 2,
+    "id": "note",
+    "max": 5,
+    "min": 0,
+    "name": "LFO note",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "envelope",
+    "max": 100,
+    "min": -100,
+    "name": "Envelope",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "output",
+    "max": 12,
+    "min": -12,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "choices": [
+     "12 dB/oct",
+     "24 dB/oct"
+    ],
+    "default": 0,
+    "id": "slope",
+    "max": 1,
+    "min": 0,
+    "name": "Slope",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Sine",
+     "Triangle",
+     "Saw up",
+     "Saw down",
+     "Square",
+     "Random"
+    ],
+    "default": 0,
+    "id": "lfo_shape",
+    "max": 5,
+    "min": 0,
+    "name": "LFO shape",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "lfo_phase",
+    "max": 180,
+    "min": 0,
+    "name": "LFO stereo phase",
+    "unit": "°"
+   },
+   {
+    "default": 5,
+    "id": "env_attack",
+    "max": 100,
+    "min": 0.5,
+    "name": "Envelope attack",
+    "unit": "ms"
+   },
+   {
+    "default": 150,
+    "id": "env_release",
+    "max": 2000,
+    "min": 10,
+    "name": "Envelope release",
+    "unit": "ms"
+   }
+  ]
+ },
+ {
+  "category": "Dynamics",
+  "description": "Clean, Bus, Opto and FET: transparent control, glue, smooth leveling or punch.",
+  "id": "compressor",
+  "instrument": false,
+  "name": "Strada-Comp",
+  "params": [
+   {
+    "choices": [
+     "Clean",
+     "Bus",
+     "Opto",
+     "FET"
+    ],
+    "default": 0,
+    "id": "type",
+    "max": 3,
+    "min": 0,
+    "name": "Character",
+    "unit": ""
+   },
+   {
+    "default": -18,
+    "id": "threshold",
+    "max": 0,
+    "min": -60,
+    "name": "Threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 4,
+    "id": "ratio",
+    "max": 20,
+    "min": 1,
+    "name": "Ratio",
+    "unit": ":1"
+   },
+   {
+    "default": 10,
+    "id": "attack",
+    "max": 100,
+    "min": 0.05000000074505806,
+    "name": "Attack",
+    "unit": "ms"
+   },
+   {
+    "default": 150,
+    "id": "release",
+    "max": 1200,
+    "min": 10,
+    "name": "Release",
+    "unit": "ms"
+   },
+   {
+    "default": 1,
+    "id": "auto",
+    "max": 1,
+    "min": 0,
+    "name": "Auto release",
+    "unit": ""
+   },
+   {
+    "default": 6,
+    "id": "knee",
+    "max": 24,
+    "min": 0,
+    "name": "Knee",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "makeup",
+    "max": 24,
+    "min": 0,
+    "name": "Makeup",
+    "unit": "dB"
+   },
+   {
+    "default": 30,
+    "id": "color",
+    "max": 100,
+    "min": 0,
+    "name": "Color",
+    "unit": "%"
+   },
+   {
+    "default": 20,
+    "id": "sc_hpf",
+    "max": 500,
+    "min": 20,
+    "name": "Sidechain HPF",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "lookahead",
+    "max": 20,
+    "min": 0,
+    "name": "Lookahead",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "hold",
+    "max": 500,
+    "min": 0,
+    "name": "Hold",
+    "unit": "ms"
+   },
+   {
+    "default": 60,
+    "id": "range",
+    "max": 60,
+    "min": 0,
+    "name": "Range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "auto_gain",
+    "max": 1,
+    "min": 0,
+    "name": "Auto gain",
+    "unit": ""
+   },
+   {
+    "default": 100,
+    "id": "link",
+    "max": 100,
+    "min": 0,
+    "name": "Stereo link",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "listen",
+    "max": 1,
+    "min": 0,
+    "name": "Sidechain listen",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Dynamics",
+  "description": "Gate, expander and ducker with hysteresis, lookahead, hold, range and a filtered sidechain.",
+  "id": "gate",
+  "instrument": false,
+  "name": "Strada-Gate",
+  "params": [
+   {
+    "default": -40,
+    "id": "threshold",
+    "max": 0,
+    "min": -80,
+    "name": "Threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -80,
+    "id": "range",
+    "max": 0,
+    "min": -80,
+    "name": "Range",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "attack",
+    "max": 50,
+    "min": 0.05000000074505806,
+    "name": "Attack",
+    "unit": "ms"
+   },
+   {
+    "default": 50,
+    "id": "hold",
+    "max": 500,
+    "min": 0,
+    "name": "Hold",
+    "unit": "ms"
+   },
+   {
+    "default": 150,
+    "id": "release",
+    "max": 2000,
+    "min": 5,
+    "name": "Release",
+    "unit": "ms"
+   },
+   {
+    "default": 4,
+    "id": "hysteresis",
+    "max": 12,
+    "min": 0,
+    "name": "Hysteresis",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "lookahead",
+    "max": 10,
+    "min": 0,
+    "name": "Lookahead",
+    "unit": "ms"
+   },
+   {
+    "default": 20,
+    "id": "sc_hpf",
+    "max": 2000,
+    "min": 20,
+    "name": "Sidechain HPF",
+    "unit": "Hz"
+   },
+   {
+    "default": 20000,
+    "id": "sc_lpf",
+    "max": 20000,
+    "min": 1000,
+    "name": "Sidechain LPF",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "listen",
+    "max": 1,
+    "min": 0,
+    "name": "Sidechain listen",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Gate",
+     "Expander",
+     "Ducker"
+    ],
+    "default": 0,
+    "id": "mode",
+    "max": 2,
+    "min": 0,
+    "name": "Mode",
+    "unit": ""
+   },
+   {
+    "default": 2,
+    "id": "ratio",
+    "max": 10,
+    "min": 1,
+    "name": "Ratio",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Dynamics",
+  "description": "More or less punch and sustain on drums and plucks, without a threshold.",
+  "id": "transient",
+  "instrument": false,
+  "name": "Strada-Transient",
+  "params": [
+   {
+    "default": 30,
+    "id": "attack",
+    "max": 100,
+    "min": -100,
+    "name": "Attack",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "sustain",
+    "max": 100,
+    "min": -100,
+    "name": "Sustain",
+    "unit": "%"
+   },
+   {
+    "default": 10,
+    "id": "speed",
+    "max": 50,
+    "min": 1,
+    "name": "Speed",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Off",
+     "Clip",
+     "Limit"
+    ],
+    "default": 1,
+    "id": "clip",
+    "max": 2,
+    "min": 0,
+    "name": "Guard",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "output",
+    "max": 12,
+    "min": -12,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "default": 100,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "sensitivity",
+    "max": 100,
+    "min": 0,
+    "name": "Sensitivity",
+    "unit": "%"
+   },
+   {
+    "default": 20,
+    "id": "sc_hpf",
+    "max": 1000,
+    "min": 20,
+    "name": "Sidechain HPF",
+    "unit": "Hz"
+   }
+  ]
+ },
+ {
+  "category": "Dynamics",
+  "description": "Tames harsh S and T sounds on vocals, on the highs only or the whole voice.",
+  "id": "deesser",
+  "instrument": false,
+  "name": "Strada-DeEss",
+  "params": [
+   {
+    "default": 6500,
+    "id": "frequency",
+    "max": 12000,
+    "min": 2000,
+    "name": "Frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": -30,
+    "id": "threshold",
+    "max": 0,
+    "min": -60,
+    "name": "Threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 10,
+    "id": "range",
+    "max": 24,
+    "min": 0,
+    "name": "Range",
+    "unit": "dB"
+   },
+   {
+    "choices": [
+     "Split",
+     "Wide"
+    ],
+    "default": 0,
+    "id": "mode",
+    "max": 1,
+    "min": 0,
+    "name": "Mode",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Off",
+     "Trigger",
+     "Delta"
+    ],
+    "default": 0,
+    "id": "listen",
+    "max": 2,
+    "min": 0,
+    "name": "Listen",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "High pass",
+     "Band pass"
+    ],
+    "default": 0,
+    "id": "detector",
+    "max": 1,
+    "min": 0,
+    "name": "Detector",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "relative",
+    "max": 1,
+    "min": 0,
+    "name": "Relative",
+    "unit": ""
+   },
+   {
+    "default": 0.5,
+    "id": "attack",
+    "max": 10,
+    "min": 0.10000000149011612,
+    "name": "Attack",
+    "unit": "ms"
+   },
+   {
+    "default": 60,
+    "id": "release",
+    "max": 500,
+    "min": 10,
+    "name": "Release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "lookahead",
+    "max": 15,
+    "min": 0,
+    "name": "Lookahead",
+    "unit": "ms"
+   }
+  ]
+ },
+ {
+  "category": "Dynamics",
+  "description": "Brickwall peak limiter with input gain and ceiling.",
+  "id": "limiter",
+  "instrument": false,
+  "name": "Strada-Limit",
+  "params": [
+   {
+    "default": 0,
+    "id": "input",
+    "max": 24,
+    "min": 0,
+    "name": "Input gain",
+    "unit": "dB"
+   },
+   {
+    "default": -0.30000001192092896,
+    "id": "ceiling",
+    "max": 0,
+    "min": -12,
+    "name": "Ceiling",
+    "unit": "dB"
+   },
+   {
+    "default": 60,
+    "id": "release",
+    "max": 1000,
+    "min": 1,
+    "name": "Release",
+    "unit": "ms"
+   },
+   {
+    "default": 2,
+    "id": "lookahead",
+    "max": 5,
+    "min": 0.10000000149011612,
+    "name": "Lookahead",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "auto",
+    "max": 1,
+    "min": 0,
+    "name": "Auto release",
+    "unit": ""
+   },
+   {
+    "default": 100,
+    "id": "link",
+    "max": 100,
+    "min": 0,
+    "name": "Stereo link",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "true_peak",
+    "max": 1,
+    "min": 0,
+    "name": "True peak",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "unity",
+    "max": 1,
+    "min": 0,
+    "name": "Unity gain",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "audition",
+    "max": 1,
+    "min": 0,
+    "name": "Audition",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Dynamics",
+  "description": "Mastering limiter: louder without clipping, true-peak ceiling, look-ahead.",
+  "id": "maximizer",
+  "instrument": false,
+  "name": "Strada-Max",
+  "params": [
+   {
+    "default": 4,
+    "id": "gain",
+    "max": 24,
+    "min": 0,
+    "name": "Gain",
+    "unit": "dB"
+   },
+   {
+    "default": -1,
+    "id": "ceiling",
+    "max": 0,
+    "min": -12,
+    "name": "Ceiling",
+    "unit": "dB"
+   },
+   {
+    "default": 120,
+    "id": "release",
+    "max": 1000,
+    "min": 1,
+    "name": "Release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Transparent",
+     "Punchy",
+     "Loud"
+    ],
+    "default": 0,
+    "id": "style",
+    "max": 2,
+    "min": 0,
+    "name": "Style",
+    "unit": ""
+   },
+   {
+    "default": 100,
+    "id": "link",
+    "max": 100,
+    "min": 0,
+    "name": "Stereo link",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "unity",
+    "max": 1,
+    "min": 0,
+    "name": "Unity gain",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "audition",
+    "max": 1,
+    "min": 0,
+    "name": "Audition",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Dynamics",
+  "description": "Multiband compressor: up to four bands, each compressed from above and lifted from below, for mastering, buses and the OTT sound.",
+  "id": "mb_comp",
+  "instrument": false,
+  "name": "Strada-MB-Comp",
+  "params": [
+   {
+    "choices": [
+     "2 bands",
+     "3 bands",
+     "4 bands"
+    ],
+    "default": 1,
+    "id": "count",
+    "max": 2,
+    "min": 0,
+    "name": "Bands",
+    "unit": ""
+   },
+   {
+    "default": 150,
+    "id": "x1",
+    "max": 16000,
+    "min": 20,
+    "name": "Crossover 1",
+    "unit": "Hz"
+   },
+   {
+    "default": 2500,
+    "id": "x2",
+    "max": 16000,
+    "min": 20,
+    "name": "Crossover 2",
+    "unit": "Hz"
+   },
+   {
+    "default": 8000,
+    "id": "x3",
+    "max": 16000,
+    "min": 20,
+    "name": "Crossover 3",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "output",
+    "max": 24,
+    "min": -24,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "default": 100,
+    "id": "time",
+    "max": 400,
+    "min": 25,
+    "name": "Time",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "solo",
+    "max": 4,
+    "min": 0,
+    "name": "Solo",
+    "unit": ""
+   },
+   {
+    "default": -18,
+    "id": "b1_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 1 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 2,
+    "id": "b1_ratio",
+    "max": 20,
+    "min": 1,
+    "name": "Band 1 ratio",
+    "unit": ":1"
+   },
+   {
+    "default": -40,
+    "id": "b1_below",
+    "max": 0,
+    "min": -80,
+    "name": "Band 1 lift threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b1_up",
+    "max": 10,
+    "min": 1,
+    "name": "Band 1 lift ratio",
+    "unit": ":1"
+   },
+   {
+    "default": 20,
+    "id": "b1_attack",
+    "max": 300,
+    "min": 0.10000000149011612,
+    "name": "Band 1 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 200,
+    "id": "b1_release",
+    "max": 3000,
+    "min": 5,
+    "name": "Band 1 release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "b1_gain",
+    "max": 24,
+    "min": -24,
+    "name": "Band 1 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b1_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 1 bypass",
+    "unit": ""
+   },
+   {
+    "default": -18,
+    "id": "b2_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 2 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 2,
+    "id": "b2_ratio",
+    "max": 20,
+    "min": 1,
+    "name": "Band 2 ratio",
+    "unit": ":1"
+   },
+   {
+    "default": -40,
+    "id": "b2_below",
+    "max": 0,
+    "min": -80,
+    "name": "Band 2 lift threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b2_up",
+    "max": 10,
+    "min": 1,
+    "name": "Band 2 lift ratio",
+    "unit": ":1"
+   },
+   {
+    "default": 10,
+    "id": "b2_attack",
+    "max": 300,
+    "min": 0.10000000149011612,
+    "name": "Band 2 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 150,
+    "id": "b2_release",
+    "max": 3000,
+    "min": 5,
+    "name": "Band 2 release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "b2_gain",
+    "max": 24,
+    "min": -24,
+    "name": "Band 2 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b2_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 2 bypass",
+    "unit": ""
+   },
+   {
+    "default": -18,
+    "id": "b3_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 3 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 2,
+    "id": "b3_ratio",
+    "max": 20,
+    "min": 1,
+    "name": "Band 3 ratio",
+    "unit": ":1"
+   },
+   {
+    "default": -40,
+    "id": "b3_below",
+    "max": 0,
+    "min": -80,
+    "name": "Band 3 lift threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b3_up",
+    "max": 10,
+    "min": 1,
+    "name": "Band 3 lift ratio",
+    "unit": ":1"
+   },
+   {
+    "default": 5,
+    "id": "b3_attack",
+    "max": 300,
+    "min": 0.10000000149011612,
+    "name": "Band 3 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 100,
+    "id": "b3_release",
+    "max": 3000,
+    "min": 5,
+    "name": "Band 3 release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "b3_gain",
+    "max": 24,
+    "min": -24,
+    "name": "Band 3 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b3_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 3 bypass",
+    "unit": ""
+   },
+   {
+    "default": -18,
+    "id": "b4_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 4 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 2,
+    "id": "b4_ratio",
+    "max": 20,
+    "min": 1,
+    "name": "Band 4 ratio",
+    "unit": ":1"
+   },
+   {
+    "default": -40,
+    "id": "b4_below",
+    "max": 0,
+    "min": -80,
+    "name": "Band 4 lift threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "b4_up",
+    "max": 10,
+    "min": 1,
+    "name": "Band 4 lift ratio",
+    "unit": ":1"
+   },
+   {
+    "default": 3,
+    "id": "b4_attack",
+    "max": 300,
+    "min": 0.10000000149011612,
+    "name": "Band 4 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 80,
+    "id": "b4_release",
+    "max": 3000,
+    "min": 5,
+    "name": "Band 4 release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "b4_gain",
+    "max": 24,
+    "min": -24,
+    "name": "Band 4 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "b4_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 4 bypass",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Space",
+  "description": "Room, hall, space, plate, spring and shimmer, with freeze and ducking.",
+  "id": "reverb",
+  "instrument": false,
+  "name": "Strada-Verb",
+  "params": [
+   {
+    "choices": [
+     "Room",
+     "Hall",
+     "Space",
+     "Plate",
+     "Spring",
+     "Shimmer"
+    ],
+    "default": 1,
+    "id": "type",
+    "max": 5,
+    "min": 0,
+    "name": "Space",
+    "unit": ""
+   },
+   {
+    "default": 2,
+    "id": "decay",
+    "max": 20,
+    "min": 0.20000000298023224,
+    "name": "Decay",
+    "unit": "s"
+   },
+   {
+    "default": 20,
+    "id": "predelay",
+    "max": 200,
+    "min": 0,
+    "name": "Pre-delay",
+    "unit": "ms"
+   },
+   {
+    "default": 100,
+    "id": "low_cut",
+    "max": 1000,
+    "min": 20,
+    "name": "Low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 9000,
+    "id": "high_cut",
+    "max": 20000,
+    "min": 1000,
+    "name": "High cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "width",
+    "max": 150,
+    "min": 0,
+    "name": "Width",
+    "unit": "%"
+   },
+   {
+    "default": 25,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "duck",
+    "max": 100,
+    "min": 0,
+    "name": "Ducking",
+    "unit": "%"
+   },
+   {
+    "default": 60,
+    "id": "size",
+    "max": 100,
+    "min": 0,
+    "name": "Size",
+    "unit": "%"
+   },
+   {
+    "default": 40,
+    "id": "early",
+    "max": 100,
+    "min": 0,
+    "name": "Early / late",
+    "unit": "%"
+   },
+   {
+    "default": 45,
+    "id": "treble",
+    "max": 100,
+    "min": 10,
+    "name": "Treble decay",
+    "unit": "%"
+   },
+   {
+    "default": 120,
+    "id": "bass",
+    "max": 200,
+    "min": 50,
+    "name": "Bass decay",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "diffusion",
+    "max": 100,
+    "min": 0,
+    "name": "Diffusion",
+    "unit": "%"
+   },
+   {
+    "default": 40,
+    "id": "modulation",
+    "max": 100,
+    "min": 0,
+    "name": "Modulation",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "freeze",
+    "max": 1,
+    "min": 0,
+    "name": "Freeze",
+    "unit": ""
+   },
+   {
+    "default": 50,
+    "id": "shimmer",
+    "max": 100,
+    "min": 0,
+    "name": "Shimmer",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "predelay_sync",
+    "max": 1,
+    "min": 0,
+    "name": "Pre-delay sync",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 2,
+    "id": "predelay_note",
+    "max": 14,
+    "min": 0,
+    "name": "Pre-delay note",
+    "unit": ""
+   },
+   {
+    "default": 0.3700000047683716,
+    "id": "mod_rate",
+    "max": 5,
+    "min": 0.10000000149011612,
+    "name": "Modulation rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 250,
+    "id": "crossover",
+    "max": 1000,
+    "min": 80,
+    "name": "Bass crossover",
+    "unit": "Hz"
+   },
+   {
+    "default": 300,
+    "id": "duck_release",
+    "max": 2000,
+    "min": 50,
+    "name": "Ducking release",
+    "unit": "ms"
+   }
+  ]
+ },
+ {
+  "category": "Space",
+  "description": "Digital, tape or analog echoes, ping-pong and tempo sync.",
+  "id": "delay",
+  "instrument": false,
+  "name": "Strada-Delay",
+  "params": [
+   {
+    "default": 375,
+    "id": "time",
+    "max": 4000,
+    "min": 1,
+    "name": "Time",
+    "unit": "ms"
+   },
+   {
+    "default": 35,
+    "id": "feedback",
+    "max": 95,
+    "min": 0,
+    "name": "Feedback",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "pingpong",
+    "max": 1,
+    "min": 0,
+    "name": "Ping-pong",
+    "unit": ""
+   },
+   {
+    "default": 100,
+    "id": "low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 8000,
+    "id": "high_cut",
+    "max": 20000,
+    "min": 1000,
+    "name": "High cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 30,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "sync",
+    "max": 1,
+    "min": 0,
+    "name": "Sync to tempo",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 6,
+    "id": "note",
+    "max": 14,
+    "min": 0,
+    "name": "Note",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Digital",
+     "Tape",
+     "Analog"
+    ],
+    "default": 0,
+    "id": "model",
+    "max": 2,
+    "min": 0,
+    "name": "Model",
+    "unit": ""
+   },
+   {
+    "default": 25,
+    "id": "wow",
+    "max": 100,
+    "min": 0,
+    "name": "Wow & flutter",
+    "unit": "%"
+   },
+   {
+    "default": 30,
+    "id": "drive",
+    "max": 100,
+    "min": 0,
+    "name": "Drive",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "offset",
+    "max": 50,
+    "min": -50,
+    "name": "Right offset",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "duck",
+    "max": 100,
+    "min": 0,
+    "name": "Ducking",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "freeze",
+    "max": 1,
+    "min": 0,
+    "name": "Freeze",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Stereo",
+  "description": "Width per band, mono lows and a goniometer: wide mixes that stay solid.",
+  "id": "imager",
+  "instrument": false,
+  "name": "Strada-Wide",
+  "params": [
+   {
+    "default": 100,
+    "id": "low_width",
+    "max": 200,
+    "min": 0,
+    "name": "Low width",
+    "unit": "%"
+   },
+   {
+    "default": 110,
+    "id": "mid_width",
+    "max": 200,
+    "min": 0,
+    "name": "Mid width",
+    "unit": "%"
+   },
+   {
+    "default": 130,
+    "id": "high_width",
+    "max": 200,
+    "min": 0,
+    "name": "High width",
+    "unit": "%"
+   },
+   {
+    "default": 250,
+    "id": "low_split",
+    "max": 1000,
+    "min": 60,
+    "name": "Low split",
+    "unit": "Hz"
+   },
+   {
+    "default": 4000,
+    "id": "high_split",
+    "max": 12000,
+    "min": 1000,
+    "name": "High split",
+    "unit": "Hz"
+   },
+   {
+    "default": 120,
+    "id": "mono_bass",
+    "max": 500,
+    "min": 20,
+    "name": "Mono below",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "output",
+    "max": 12,
+    "min": -12,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "stereoize",
+    "max": 100,
+    "min": 0,
+    "name": "Stereoize",
+    "unit": "%"
+   },
+   {
+    "default": 12,
+    "id": "stereoize_time",
+    "max": 30,
+    "min": 1,
+    "name": "Stereoize time",
+    "unit": "ms"
+   }
+  ]
+ },
+ {
+  "category": "Utility",
+  "description": "Gain, balance, width, mono, polarity, time alignment and phase rotation.",
+  "id": "utility",
+  "instrument": false,
+  "name": "Strada-Utility",
+  "params": [
+   {
+    "default": 0,
+    "id": "gain",
+    "max": 24,
+    "min": -48,
+    "name": "Gain",
+    "unit": "dB"
+   },
+   {
+    "default": 100,
+    "id": "width",
+    "max": 200,
+    "min": 0,
+    "name": "Width",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "mono",
+    "max": 1,
+    "min": 0,
+    "name": "Mono",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "invert_left",
+    "max": 1,
+    "min": 0,
+    "name": "Invert left",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "invert_right",
+    "max": 1,
+    "min": 0,
+    "name": "Invert right",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "swap",
+    "max": 1,
+    "min": 0,
+    "name": "Swap channels",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "balance",
+    "max": 100,
+    "min": -100,
+    "name": "Balance",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "delay_left",
+    "max": 20,
+    "min": 0,
+    "name": "Delay left",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "delay_right",
+    "max": 20,
+    "min": 0,
+    "name": "Delay right",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "rotation",
+    "max": 180,
+    "min": 0,
+    "name": "Phase rotation",
+    "unit": "°"
+   },
+   {
+    "default": 100,
+    "id": "rotation_freq",
+    "max": 2000,
+    "min": 20,
+    "name": "Rotation at",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "dc",
+    "max": 1,
+    "min": 0,
+    "name": "DC filter",
+    "unit": ""
+   },
+   {
+    "default": 20,
+    "id": "bass_mono",
+    "max": 500,
+    "min": 20,
+    "name": "Mono below",
+    "unit": "Hz"
+   }
+  ]
+ },
+ {
+  "category": "Utility",
+  "description": "Spectrum analyzer.",
+  "id": "analyzer",
+  "instrument": false,
+  "name": "Strada-Scope",
+  "params": [
+   {
+    "default": 20,
+    "id": "decay",
+    "max": 60,
+    "min": 1,
+    "name": "Fall speed",
+    "unit": "dB/s"
+   },
+   {
+    "choices": [
+     "Curve",
+     "Bars",
+     "Spectrogram"
+    ],
+    "default": 0,
+    "id": "view",
+    "max": 2,
+    "min": 0,
+    "name": "View",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Side"
+    ],
+    "default": 0,
+    "id": "source",
+    "max": 3,
+    "min": 0,
+    "name": "Source",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "60 dB",
+     "90 dB",
+     "120 dB"
+    ],
+    "default": 1,
+    "id": "range",
+    "max": 2,
+    "min": 0,
+    "name": "Range",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "tilt",
+    "max": 6,
+    "min": 0,
+    "name": "Tilt",
+    "unit": "dB/oct"
+   },
+   {
+    "default": 1,
+    "id": "hold",
+    "max": 1,
+    "min": 0,
+    "name": "Peak hold",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Amp & Cab",
+  "description": "Pick an amp, add pedals, choose a cabinet: a whole guitar or bass rig.",
+  "id": "amp_rig",
+  "instrument": false,
+  "name": "Strada-Amp",
+  "params": [
+   {
+    "default": 0,
+    "id": "input",
+    "max": 24,
+    "min": -24,
+    "name": "Input",
+    "unit": "dB"
+   },
+   {
+    "default": -100,
+    "id": "gate",
+    "max": -20,
+    "min": -100,
+    "name": "Gate (-100 = off)",
+    "unit": "dB"
+   },
+   {
+    "default": 5,
+    "id": "gain",
+    "max": 10,
+    "min": 0,
+    "name": "Gain",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "bass",
+    "max": 10,
+    "min": 0,
+    "name": "Bass",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "mid",
+    "max": 10,
+    "min": 0,
+    "name": "Middle",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "treble",
+    "max": 10,
+    "min": 0,
+    "name": "Treble",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "presence",
+    "max": 10,
+    "min": 0,
+    "name": "Presence",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "master",
+    "max": 12,
+    "min": -24,
+    "name": "Master",
+    "unit": "dB"
+   },
+   {
+    "choices": [
+     "4x12 V30",
+     "4x12 Greenback",
+     "2x12 Blue (open)",
+     "2x12 US (open)",
+     "4x10 US (open)",
+     "1x12 US (open)",
+     "4x10 bass",
+     "8x10 bass",
+     "1x15 bass",
+     "Direct",
+     "Impulse response"
+    ],
+    "default": 0,
+    "id": "cab",
+    "max": 10,
+    "min": 0,
+    "name": "Cabinet",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "normalize",
+    "max": 1,
+    "min": 0,
+    "name": "Normalize loudness",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Empty",
+     "Clean Boost",
+     "Green Drive",
+     "Orange Dist",
+     "Vintage Fuzz",
+     "Compressor",
+     "Chorus",
+     "Phaser",
+     "Flanger",
+     "Tremolo",
+     "Tape Delay",
+     "Reverb",
+     "Capture",
+     "Gold Drive",
+     "Blue Drive",
+     "Black Dist",
+     "Big Fuzz",
+     "Metal Dist",
+     "Treble Boost",
+     "Wah",
+     "Analog Delay",
+     "Yellow Drive"
+    ],
+    "default": 0,
+    "id": "p1_type",
+    "max": 21,
+    "min": 0,
+    "name": "Pedal 1",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "p1_on",
+    "max": 1,
+    "min": 0,
+    "name": "Pedal 1 on",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p1_k1",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 1 knob 1",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p1_k2",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 1 knob 2",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p1_k3",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 1 knob 3",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Empty",
+     "Clean Boost",
+     "Green Drive",
+     "Orange Dist",
+     "Vintage Fuzz",
+     "Compressor",
+     "Chorus",
+     "Phaser",
+     "Flanger",
+     "Tremolo",
+     "Tape Delay",
+     "Reverb",
+     "Capture",
+     "Gold Drive",
+     "Blue Drive",
+     "Black Dist",
+     "Big Fuzz",
+     "Metal Dist",
+     "Treble Boost",
+     "Wah",
+     "Analog Delay",
+     "Yellow Drive"
+    ],
+    "default": 0,
+    "id": "p2_type",
+    "max": 21,
+    "min": 0,
+    "name": "Pedal 2",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "p2_on",
+    "max": 1,
+    "min": 0,
+    "name": "Pedal 2 on",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p2_k1",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 2 knob 1",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p2_k2",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 2 knob 2",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p2_k3",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 2 knob 3",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Empty",
+     "Clean Boost",
+     "Green Drive",
+     "Orange Dist",
+     "Vintage Fuzz",
+     "Compressor",
+     "Chorus",
+     "Phaser",
+     "Flanger",
+     "Tremolo",
+     "Tape Delay",
+     "Reverb",
+     "Capture",
+     "Gold Drive",
+     "Blue Drive",
+     "Black Dist",
+     "Big Fuzz",
+     "Metal Dist",
+     "Treble Boost",
+     "Wah",
+     "Analog Delay",
+     "Yellow Drive"
+    ],
+    "default": 0,
+    "id": "p3_type",
+    "max": 21,
+    "min": 0,
+    "name": "Pedal 3",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "p3_on",
+    "max": 1,
+    "min": 0,
+    "name": "Pedal 3 on",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p3_k1",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 3 knob 1",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p3_k2",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 3 knob 2",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p3_k3",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 3 knob 3",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Empty",
+     "Clean Boost",
+     "Green Drive",
+     "Orange Dist",
+     "Vintage Fuzz",
+     "Compressor",
+     "Chorus",
+     "Phaser",
+     "Flanger",
+     "Tremolo",
+     "Tape Delay",
+     "Reverb",
+     "Capture",
+     "Gold Drive",
+     "Blue Drive",
+     "Black Dist",
+     "Big Fuzz",
+     "Metal Dist",
+     "Treble Boost",
+     "Wah",
+     "Analog Delay",
+     "Yellow Drive"
+    ],
+    "default": 0,
+    "id": "p4_type",
+    "max": 21,
+    "min": 0,
+    "name": "Pedal 4",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "p4_on",
+    "max": 1,
+    "min": 0,
+    "name": "Pedal 4 on",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p4_k1",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 4 knob 1",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p4_k2",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 4 knob 2",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p4_k3",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 4 knob 3",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Capture",
+     "US Twin",
+     "US Super 4x10",
+     "US Deluxe",
+     "Tweed Deluxe 57",
+     "Tweed Bass 59",
+     "Voxy 15 Top Boost",
+     "Brit 45 Bluesbreaker",
+     "Brit Plexi 100",
+     "Brit 900",
+     "Brit Hot Mod",
+     "Boutique 59",
+     "Cali Mark IV",
+     "Panama 52",
+     "Brit Lead 100",
+     "Bass Classic",
+     "Bass Flip 15"
+    ],
+    "default": 2,
+    "id": "model",
+    "max": 16,
+    "min": 0,
+    "name": "Amp model",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Empty",
+     "Clean Boost",
+     "Green Drive",
+     "Orange Dist",
+     "Vintage Fuzz",
+     "Compressor",
+     "Chorus",
+     "Phaser",
+     "Flanger",
+     "Tremolo",
+     "Tape Delay",
+     "Reverb",
+     "Capture",
+     "Gold Drive",
+     "Blue Drive",
+     "Black Dist",
+     "Big Fuzz",
+     "Metal Dist",
+     "Treble Boost",
+     "Wah",
+     "Analog Delay",
+     "Yellow Drive"
+    ],
+    "default": 0,
+    "id": "p5_type",
+    "max": 21,
+    "min": 0,
+    "name": "Pedal 5",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "p5_on",
+    "max": 1,
+    "min": 0,
+    "name": "Pedal 5 on",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p5_k1",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 5 knob 1",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p5_k2",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 5 knob 2",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p5_k3",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 5 knob 3",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Empty",
+     "Clean Boost",
+     "Green Drive",
+     "Orange Dist",
+     "Vintage Fuzz",
+     "Compressor",
+     "Chorus",
+     "Phaser",
+     "Flanger",
+     "Tremolo",
+     "Tape Delay",
+     "Reverb",
+     "Capture",
+     "Gold Drive",
+     "Blue Drive",
+     "Black Dist",
+     "Big Fuzz",
+     "Metal Dist",
+     "Treble Boost",
+     "Wah",
+     "Analog Delay",
+     "Yellow Drive"
+    ],
+    "default": 0,
+    "id": "p6_type",
+    "max": 21,
+    "min": 0,
+    "name": "Pedal 6",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "p6_on",
+    "max": 1,
+    "min": 0,
+    "name": "Pedal 6 on",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p6_k1",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 6 knob 1",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p6_k2",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 6 knob 2",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p6_k3",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 6 knob 3",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Empty",
+     "Clean Boost",
+     "Green Drive",
+     "Orange Dist",
+     "Vintage Fuzz",
+     "Compressor",
+     "Chorus",
+     "Phaser",
+     "Flanger",
+     "Tremolo",
+     "Tape Delay",
+     "Reverb",
+     "Capture",
+     "Gold Drive",
+     "Blue Drive",
+     "Black Dist",
+     "Big Fuzz",
+     "Metal Dist",
+     "Treble Boost",
+     "Wah",
+     "Analog Delay",
+     "Yellow Drive"
+    ],
+    "default": 0,
+    "id": "p7_type",
+    "max": 21,
+    "min": 0,
+    "name": "Pedal 7",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "p7_on",
+    "max": 1,
+    "min": 0,
+    "name": "Pedal 7 on",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p7_k1",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 7 knob 1",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p7_k2",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 7 knob 2",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p7_k3",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 7 knob 3",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Empty",
+     "Clean Boost",
+     "Green Drive",
+     "Orange Dist",
+     "Vintage Fuzz",
+     "Compressor",
+     "Chorus",
+     "Phaser",
+     "Flanger",
+     "Tremolo",
+     "Tape Delay",
+     "Reverb",
+     "Capture",
+     "Gold Drive",
+     "Blue Drive",
+     "Black Dist",
+     "Big Fuzz",
+     "Metal Dist",
+     "Treble Boost",
+     "Wah",
+     "Analog Delay",
+     "Yellow Drive"
+    ],
+    "default": 0,
+    "id": "p8_type",
+    "max": 21,
+    "min": 0,
+    "name": "Pedal 8",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "p8_on",
+    "max": 1,
+    "min": 0,
+    "name": "Pedal 8 on",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p8_k1",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 8 knob 1",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p8_k2",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 8 knob 2",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "p8_k3",
+    "max": 10,
+    "min": 0,
+    "name": "Pedal 8 knob 3",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Utility",
+  "description": "Chromatic tuner for guitar, bass and voice.",
+  "id": "tuner",
+  "instrument": false,
+  "name": "Strada-Tuner",
+  "params": [
+   {
+    "default": 440,
+    "id": "reference",
+    "max": 466,
+    "min": 415,
+    "name": "Reference A4",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "mute",
+    "max": 1,
+    "min": 0,
+    "name": "Mute while tuning",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Needle",
+     "Strobe"
+    ],
+    "default": 0,
+    "id": "view",
+    "max": 1,
+    "min": 0,
+    "name": "View",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Utility",
+  "description": "Automatic pitch correction for voice, from natural to the robot effect.",
+  "id": "pitch_correct",
+  "instrument": false,
+  "name": "Strada-Correct",
+  "params": [
+   {
+    "choices": [
+     "C",
+     "C#",
+     "D",
+     "D#",
+     "E",
+     "F",
+     "F#",
+     "G",
+     "G#",
+     "A",
+     "A#",
+     "B"
+    ],
+    "default": 0,
+    "id": "key",
+    "max": 11,
+    "min": 0,
+    "name": "Key",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Chromatic",
+     "Major",
+     "Minor",
+     "Harmonic minor",
+     "Dorian",
+     "Pentatonic major",
+     "Pentatonic minor",
+     "Blues",
+     "Custom"
+    ],
+    "default": 0,
+    "id": "scale",
+    "max": 8,
+    "min": 0,
+    "name": "Scale",
+    "unit": ""
+   },
+   {
+    "default": 25,
+    "id": "speed",
+    "max": 400,
+    "min": 0,
+    "name": "Retune speed",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "humanize",
+    "max": 100,
+    "min": 0,
+    "name": "Humanize",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "amount",
+    "max": 100,
+    "min": 0,
+    "name": "Amount",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "transpose",
+    "max": 12,
+    "min": -12,
+    "name": "Transpose",
+    "unit": "st"
+   },
+   {
+    "default": 4095,
+    "id": "notes",
+    "max": 4095,
+    "min": 0,
+    "name": "Custom notes",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "tolerance",
+    "max": 50,
+    "min": 0,
+    "name": "Tolerance",
+    "unit": "cents"
+   }
+  ]
+ },
+ {
+  "category": "Color",
+  "description": "Overdrive, distortion, fuzz, tube, tape, transformer and rectifier, oversampled.",
+  "id": "drive",
+  "instrument": false,
+  "name": "Strada-Drive",
+  "params": [
+   {
+    "choices": [
+     "Overdrive",
+     "Distortion",
+     "Fuzz",
+     "Tube",
+     "Tape",
+     "Transformer",
+     "Rectifier"
+    ],
+    "default": 0,
+    "id": "mode",
+    "max": 6,
+    "min": 0,
+    "name": "Type",
+    "unit": ""
+   },
+   {
+    "default": 18,
+    "id": "drive",
+    "max": 48,
+    "min": 0,
+    "name": "Drive",
+    "unit": "dB"
+   },
+   {
+    "default": 3500,
+    "id": "tone",
+    "max": 12000,
+    "min": 500,
+    "name": "Tone",
+    "unit": "Hz"
+   },
+   {
+    "default": -12,
+    "id": "level",
+    "max": 12,
+    "min": -36,
+    "name": "Level",
+    "unit": "dB"
+   },
+   {
+    "default": 100,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 20,
+    "id": "low_cut",
+    "max": 600,
+    "min": 20,
+    "name": "Low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "bias",
+    "max": 100,
+    "min": 0,
+    "name": "Bias",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "bass",
+    "max": 12,
+    "min": -12,
+    "name": "Bass",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "mid",
+    "max": 12,
+    "min": -12,
+    "name": "Middle",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "auto_gain",
+    "max": 1,
+    "min": 0,
+    "name": "Auto gain",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Color",
+  "description": "Tape machine: four machines, three tapes, warm saturation, head bump, wow and flutter, hiss.",
+  "id": "tape",
+  "instrument": false,
+  "name": "Strada-Tape",
+  "params": [
+   {
+    "default": 0,
+    "id": "drive",
+    "max": 24,
+    "min": -12,
+    "name": "Input",
+    "unit": "dB"
+   },
+   {
+    "choices": [
+     "7.5 ips",
+     "15 ips",
+     "30 ips"
+    ],
+    "default": 1,
+    "id": "speed",
+    "max": 2,
+    "min": 0,
+    "name": "Speed",
+    "unit": ""
+   },
+   {
+    "default": 1.5,
+    "id": "bump",
+    "max": 6,
+    "min": 0,
+    "name": "Head bump",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "wow",
+    "max": 100,
+    "min": 0,
+    "name": "Wow & flutter",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "hiss",
+    "max": 100,
+    "min": 0,
+    "name": "Hiss",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "bias",
+    "max": 100,
+    "min": -100,
+    "name": "Bias",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "output",
+    "max": 12,
+    "min": -18,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "default": 100,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Studio A80",
+     "Mastering 102",
+     "Vintage J37",
+     "Cassette"
+    ],
+    "default": 0,
+    "id": "machine",
+    "max": 3,
+    "min": 0,
+    "name": "Machine",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "GP9",
+     "456",
+     "250"
+    ],
+    "default": 1,
+    "id": "tape",
+    "max": 2,
+    "min": 0,
+    "name": "Tape",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Modulation",
+  "description": "Short modulated delays for width and shimmer; turns into a flanger with feedback.",
+  "id": "chorus",
+  "instrument": false,
+  "name": "Strada-Chorus",
+  "params": [
+   {
+    "default": 0.800000011920929,
+    "id": "rate",
+    "max": 8,
+    "min": 0.05000000074505806,
+    "name": "Rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 40,
+    "id": "depth",
+    "max": 100,
+    "min": 0,
+    "name": "Depth",
+    "unit": "%"
+   },
+   {
+    "default": 12,
+    "id": "delay",
+    "max": 30,
+    "min": 1,
+    "name": "Delay",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "feedback",
+    "max": 90,
+    "min": 0,
+    "name": "Feedback",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "sync",
+    "max": 1,
+    "min": 0,
+    "name": "Sync to tempo",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 11,
+    "id": "note",
+    "max": 14,
+    "min": 0,
+    "name": "Note",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "1 voice",
+     "2 voices",
+     "Ensemble"
+    ],
+    "default": 0,
+    "id": "voices",
+    "max": 2,
+    "min": 0,
+    "name": "Voices",
+    "unit": ""
+   },
+   {
+    "default": 90,
+    "id": "stereo",
+    "max": 180,
+    "min": 0,
+    "name": "Stereo",
+    "unit": "°"
+   },
+   {
+    "default": 20000,
+    "id": "tone",
+    "max": 20000,
+    "min": 1000,
+    "name": "Tone",
+    "unit": "Hz"
+   }
+  ]
+ },
+ {
+  "category": "Modulation",
+  "description": "Classic jet flanger with positive or negative feedback and stereo sweep.",
+  "id": "flanger",
+  "instrument": false,
+  "name": "Strada-Flanger",
+  "params": [
+   {
+    "default": 0.25,
+    "id": "rate",
+    "max": 5,
+    "min": 0.019999999552965164,
+    "name": "Rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 70,
+    "id": "depth",
+    "max": 100,
+    "min": 0,
+    "name": "Depth",
+    "unit": "%"
+   },
+   {
+    "default": 1,
+    "id": "delay",
+    "max": 8,
+    "min": 0.10000000149011612,
+    "name": "Manual",
+    "unit": "ms"
+   },
+   {
+    "default": 60,
+    "id": "feedback",
+    "max": 95,
+    "min": -95,
+    "name": "Feedback",
+    "unit": "%"
+   },
+   {
+    "default": 90,
+    "id": "stereo",
+    "max": 180,
+    "min": 0,
+    "name": "Stereo",
+    "unit": "°"
+   },
+   {
+    "default": 50,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "output",
+    "max": 6,
+    "min": -12,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "sync",
+    "max": 1,
+    "min": 0,
+    "name": "Sync to tempo",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 12,
+    "id": "note",
+    "max": 14,
+    "min": 0,
+    "name": "Note",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "through_zero",
+    "max": 1,
+    "min": 0,
+    "name": "Through zero",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Modulation",
+  "description": "Swirling 4 to 12 stage phaser with feedback and stereo spread.",
+  "id": "phaser",
+  "instrument": false,
+  "name": "Strada-Phaser",
+  "params": [
+   {
+    "default": 0.4000000059604645,
+    "id": "rate",
+    "max": 8,
+    "min": 0.019999999552965164,
+    "name": "Rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 80,
+    "id": "depth",
+    "max": 100,
+    "min": 0,
+    "name": "Depth",
+    "unit": "%"
+   },
+   {
+    "default": 250,
+    "id": "low",
+    "max": 2000,
+    "min": 50,
+    "name": "Low",
+    "unit": "Hz"
+   },
+   {
+    "default": 3500,
+    "id": "high",
+    "max": 12000,
+    "min": 500,
+    "name": "High",
+    "unit": "Hz"
+   },
+   {
+    "default": 40,
+    "id": "feedback",
+    "max": 90,
+    "min": -90,
+    "name": "Feedback",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "4 stages",
+     "6 stages",
+     "8 stages",
+     "12 stages"
+    ],
+    "default": 1,
+    "id": "stages",
+    "max": 3,
+    "min": 0,
+    "name": "Stages",
+    "unit": ""
+   },
+   {
+    "default": 90,
+    "id": "stereo",
+    "max": 180,
+    "min": 0,
+    "name": "Stereo",
+    "unit": "°"
+   },
+   {
+    "default": 50,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "sync",
+    "max": 1,
+    "min": 0,
+    "name": "Sync to tempo",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 12,
+    "id": "note",
+    "max": 14,
+    "min": 0,
+    "name": "Note",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Modulation",
+  "description": "Tremolo, auto-pan, rhythmic cutter, vibrato and ring modulation, synced to the tempo: from vintage amp wobble to wild stutters.",
+  "id": "modulator",
+  "instrument": false,
+  "name": "Strada-Mod",
+  "params": [
+   {
+    "choices": [
+     "Tremolo",
+     "Auto-pan",
+     "Cutter",
+     "Vibrato",
+     "Ring mod"
+    ],
+    "default": 0,
+    "id": "mode",
+    "max": 4,
+    "min": 0,
+    "name": "Mode",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "sync",
+    "max": 1,
+    "min": 0,
+    "name": "Sync to tempo",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16T",
+     "1/16",
+     "1/16D",
+     "1/8T",
+     "1/8",
+     "1/8D",
+     "1/4T",
+     "1/4",
+     "1/4D",
+     "1/2",
+     "1 bar",
+     "2 bars",
+     "4 bars"
+    ],
+    "default": 5,
+    "id": "note",
+    "max": 13,
+    "min": 0,
+    "name": "Note",
+    "unit": ""
+   },
+   {
+    "default": 4,
+    "id": "rate",
+    "max": 40,
+    "min": 0.05000000074505806,
+    "name": "Rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 60,
+    "id": "depth",
+    "max": 100,
+    "min": 0,
+    "name": "Depth",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Sine",
+     "Triangle",
+     "Saw up",
+     "Saw down",
+     "Square",
+     "Random"
+    ],
+    "default": 0,
+    "id": "shape",
+    "max": 5,
+    "min": 0,
+    "name": "Shape",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "phase",
+    "max": 180,
+    "min": 0,
+    "name": "Stereo phase",
+    "unit": "°"
+   },
+   {
+    "default": 15,
+    "id": "smooth",
+    "max": 100,
+    "min": 0,
+    "name": "Smooth",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "4",
+     "8",
+     "16"
+    ],
+    "default": 2,
+    "id": "steps",
+    "max": 2,
+    "min": 0,
+    "name": "Steps",
+    "unit": ""
+   },
+   {
+    "default": 60,
+    "id": "gate",
+    "max": 100,
+    "min": 5,
+    "name": "Gate length",
+    "unit": "%"
+   },
+   {
+    "default": 220,
+    "id": "freq",
+    "max": 4000,
+    "min": 20,
+    "name": "Frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "output",
+    "max": 12,
+    "min": -12,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "s1",
+    "max": 1,
+    "min": 0,
+    "name": "Step 1",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "s2",
+    "max": 1,
+    "min": 0,
+    "name": "Step 2",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "s3",
+    "max": 1,
+    "min": 0,
+    "name": "Step 3",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "s4",
+    "max": 1,
+    "min": 0,
+    "name": "Step 4",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "s5",
+    "max": 1,
+    "min": 0,
+    "name": "Step 5",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "s6",
+    "max": 1,
+    "min": 0,
+    "name": "Step 6",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "s7",
+    "max": 1,
+    "min": 0,
+    "name": "Step 7",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "s8",
+    "max": 1,
+    "min": 0,
+    "name": "Step 8",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "s9",
+    "max": 1,
+    "min": 0,
+    "name": "Step 9",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "s10",
+    "max": 1,
+    "min": 0,
+    "name": "Step 10",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "s11",
+    "max": 1,
+    "min": 0,
+    "name": "Step 11",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "s12",
+    "max": 1,
+    "min": 0,
+    "name": "Step 12",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "s13",
+    "max": 1,
+    "min": 0,
+    "name": "Step 13",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "s14",
+    "max": 1,
+    "min": 0,
+    "name": "Step 14",
+    "unit": ""
+   },
+   {
+    "default": 1,
+    "id": "s15",
+    "max": 1,
+    "min": 0,
+    "name": "Step 15",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "s16",
+    "max": 1,
+    "min": 0,
+    "name": "Step 16",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Modulation",
+  "description": "Pitch shifter with two voices, delay and feedback: harmonies, octaves, spiralling arpeggios.",
+  "id": "pitch",
+  "instrument": false,
+  "name": "Strada-Pitch",
+  "params": [
+   {
+    "default": 12,
+    "id": "a_semis",
+    "max": 24,
+    "min": -24,
+    "name": "Voice A semitones",
+    "unit": "st"
+   },
+   {
+    "default": 0,
+    "id": "a_cents",
+    "max": 50,
+    "min": -50,
+    "name": "Voice A cents",
+    "unit": "ct"
+   },
+   {
+    "default": 100,
+    "id": "a_level",
+    "max": 100,
+    "min": 0,
+    "name": "Voice A level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "a_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Voice A pan",
+    "unit": "%"
+   },
+   {
+    "default": -12,
+    "id": "b_semis",
+    "max": 24,
+    "min": -24,
+    "name": "Voice B semitones",
+    "unit": "st"
+   },
+   {
+    "default": 0,
+    "id": "b_cents",
+    "max": 50,
+    "min": -50,
+    "name": "Voice B cents",
+    "unit": "ct"
+   },
+   {
+    "default": 0,
+    "id": "b_level",
+    "max": 100,
+    "min": 0,
+    "name": "Voice B level",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "b_pan",
+    "max": 100,
+    "min": -100,
+    "name": "Voice B pan",
+    "unit": "%"
+   },
+   {
+    "default": 40,
+    "id": "window",
+    "max": 100,
+    "min": 10,
+    "name": "Window",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "delay",
+    "max": 1000,
+    "min": 0,
+    "name": "Delay",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "feedback",
+    "max": 95,
+    "min": 0,
+    "name": "Feedback",
+    "unit": "%"
+   },
+   {
+    "default": 20000,
+    "id": "tone",
+    "max": 20000,
+    "min": 1000,
+    "name": "Tone",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "output",
+    "max": 12,
+    "min": -12,
+    "name": "Output",
+    "unit": "dB"
+   }
+  ]
+ },
+ {
+  "category": "Stereo",
+  "description": "Double tracking: detuned, delayed and drifting copies spread across the sides, for wide vocals and guitars.",
+  "id": "doubler",
+  "instrument": false,
+  "name": "Strada-Doubler",
+  "params": [
+   {
+    "choices": [
+     "2",
+     "4"
+    ],
+    "default": 0,
+    "id": "voices",
+    "max": 1,
+    "min": 0,
+    "name": "Voices",
+    "unit": ""
+   },
+   {
+    "default": 8,
+    "id": "detune",
+    "max": 50,
+    "min": 0,
+    "name": "Detune",
+    "unit": "ct"
+   },
+   {
+    "default": 10,
+    "id": "delay",
+    "max": 60,
+    "min": 0,
+    "name": "Delay",
+    "unit": "ms"
+   },
+   {
+    "default": 80,
+    "id": "width",
+    "max": 100,
+    "min": 0,
+    "name": "Width",
+    "unit": "%"
+   },
+   {
+    "default": 30,
+    "id": "drift",
+    "max": 100,
+    "min": 0,
+    "name": "Drift",
+    "unit": "%"
+   },
+   {
+    "default": 150,
+    "id": "low_cut",
+    "max": 1000,
+    "min": 20,
+    "name": "Low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 50,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Doubles",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "output",
+    "max": 12,
+    "min": -12,
+    "name": "Output",
+    "unit": "dB"
+   }
+  ]
+ },
+ {
+  "category": "Dynamics",
+  "description": "Reinforces or replaces a kick or a snare with sampled drums, hit for hit.",
+  "id": "trigger",
+  "instrument": false,
+  "name": "Strada-Trigger",
+  "params": [
+   {
+    "choices": [
+     "Kick",
+     "Snare"
+    ],
+    "default": 0,
+    "id": "kind",
+    "max": 1,
+    "min": 0,
+    "name": "Drum",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Studio",
+     "Garage",
+     "Deep",
+     "Boom",
+     "Vintage",
+     "Rock",
+     "Your sound"
+    ],
+    "default": 0,
+    "id": "kick",
+    "max": 6,
+    "min": 0,
+    "name": "Kick sound",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Crisp",
+     "Studio",
+     "Rimshot",
+     "Vintage",
+     "Ringing",
+     "Rock",
+     "Session",
+     "Your sound"
+    ],
+    "default": 1,
+    "id": "snare",
+    "max": 7,
+    "min": 0,
+    "name": "Snare sound",
+    "unit": ""
+   },
+   {
+    "default": 50,
+    "id": "amount",
+    "max": 100,
+    "min": 0,
+    "name": "Amount",
+    "unit": "%"
+   },
+   {
+    "default": -30,
+    "id": "threshold",
+    "max": 0,
+    "min": -60,
+    "name": "Threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 60,
+    "id": "tolerance",
+    "max": 100,
+    "min": 0,
+    "name": "Tolerance",
+    "unit": "%"
+   },
+   {
+    "default": 75,
+    "id": "dynamics",
+    "max": 100,
+    "min": 0,
+    "name": "Dynamics",
+    "unit": "%"
+   },
+   {
+    "default": 20,
+    "id": "room",
+    "max": 100,
+    "min": 0,
+    "name": "Room",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "tune",
+    "max": 12,
+    "min": -12,
+    "name": "Tune",
+    "unit": "st"
+   },
+   {
+    "default": 100,
+    "id": "decay",
+    "max": 100,
+    "min": 10,
+    "name": "Decay",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "level",
+    "max": 12,
+    "min": -24,
+    "name": "Level",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "comp",
+    "max": 100,
+    "min": 0,
+    "name": "Compression",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "low",
+    "max": 12,
+    "min": -12,
+    "name": "Bass",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "mid",
+    "max": 12,
+    "min": -12,
+    "name": "Mid",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "high",
+    "max": 12,
+    "min": -12,
+    "name": "Treble",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "drive",
+    "max": 100,
+    "min": 0,
+    "name": "Drive",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "match",
+    "max": 1,
+    "min": 0,
+    "name": "Match the track",
+    "unit": ""
+   }
+  ]
+ }
+]

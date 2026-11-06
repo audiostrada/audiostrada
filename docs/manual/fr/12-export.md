@@ -1,0 +1,41 @@
+# Export
+
+![La fenêtre d'export](img/export.webp)
+
+## Exporter le mix
+
+Fichier › Exporter ([[Ctrl+Shift+E]]) ouvre la fenêtre d'export :
+
+| Réglage | Choix |
+|---|---|
+| **Format** | WAV 16 bits, 24 bits ou 32 bits flottant ; FLAC 16 ou 24 bits ; MP3 ; Opus |
+| **Fréquence d'échantillonnage** | celle du projet, ou une autre |
+| **Dither** | triangulaire (TPDF), pour descendre à 16 bits |
+| **Normaliser** | sur une crête ou une sonie (LUFS) |
+| **Étendue** | tout le projet ou la zone de boucle |
+| **Traîne** | des secondes ajoutées après la fin, pour les réverbérations et les delays |
+| **Stems** | un fichier par piste, en solo, en plus ou à la place du mix |
+
+Les exports vont plus vite que le temps réel, en arrière-plan. Le métronome et les effets d'écoute
+ne sont jamais exportés.
+
+## File de rendu
+
+*Mettre en file…* garde un export, avec le projet tel qu'il est à ce moment, pour le rendre plus
+tard avec d'autres. La **File de rendu** les liste ; rendez-les tous d'un coup, quand vous
+quittez l'ordinateur.
+
+## Une seule piste
+
+Le menu de l'en-tête de piste exporte une piste seule, après ses effets.
+
+## Geler et bounce
+
+- **Geler** rend une piste avec ses effets et joue le résultat à la place, pour économiser du
+  calcul. Dégelez-la pour changer ses effets.
+- **Bounce** rend une piste sur une nouvelle piste.
+
+## Depuis un terminal
+
+`audiostrada render chanson.strada --output mix.wav` mixe un projet (ou des fichiers audio) en un
+fichier WAV sans ouvrir la fenêtre.
