@@ -65,7 +65,7 @@ symphonia = { version = "0.6.1", default-features = false, features = ["aac", "a
 serde = { version = "1.0.229", features = ["derive", "rc"] }
 serde_json = "1.0.154"
 sha2 = "0.11.1"
-getrandom = "0.3.4"
+getrandom = "0.4.3"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 tiny-skia = { version = "0.12.0", default-features = false, features = ["std", "simd"] }
 ab_glyph = "0.2.32"
