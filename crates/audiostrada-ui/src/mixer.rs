@@ -5139,6 +5139,37 @@ mod tests {
     }
 
     #[test]
+    fn the_mixer_answers_a_user_trying_everything() {
+        let mut doc = Document::new(AppDirs::default());
+        doc.history_mut().edit("Setup", |p| {
+            let folder = p.add_track("Folder");
+            let a = p.add_track("A");
+            let bus = p.add_track("Bus");
+            let synth = p.add_track("Synth");
+            routing::add_insert(p, Channel::Track(synth), "synth", Default::default());
+            for id in ["eq", "compressor", "reverb"] {
+                routing::add_insert(p, Channel::Track(a), id, Default::default());
+            }
+            routing::add_insert(p, Channel::Master, "maximizer", Default::default());
+            let _ = routing::set_parent(p, a, Some(folder));
+            let _ = routing::add_send(p, a, bus);
+            let vca = routing::add_vca(p, "VCA");
+            let _ = routing::set_vca(p, a, Some(vca));
+        });
+        let doc = Rc::new(RefCell::new(doc));
+        for full in [true, false] {
+            let ctx = egui::Context::default();
+            let mut view = MixerView::new(Rc::clone(&doc));
+            view.full_strips = full;
+            view.fader_height = 300.0;
+            let area = Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 900.0));
+            for events in crate::test_sweep::script(area, 32.0, true) {
+                frame(&ctx, &mut view, events);
+            }
+        }
+    }
+
+    #[test]
     fn every_kind_of_strip_draws_in_every_layout() {
         use audiostrada_core::console::{Console, ConsoleModel};
         let mut doc = Document::new(AppDirs::default());

@@ -1841,6 +1841,26 @@ fn effects(ui: &mut Ui, params: &mut Params) {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn every_tab_answers_a_user_trying_everything() {
+        for tab in [Tab::Pad, Tab::Pattern, Tab::Effects] {
+            let script = crate::test_sweep::script(
+                egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1300.0, 1100.0)),
+                36.0,
+                true,
+            );
+            let frames = script.len();
+            let mut script = script.into_iter();
+            crate::effect_editors::drive_for_test(
+                "drums",
+                &[],
+                frames,
+                |_, state| state.drums.tab = tab,
+                |_| script.next().unwrap_or_default(),
+            );
+        }
+    }
+
+    #[test]
     fn every_pad_and_tab_draws() {
         for tab in [Tab::Pad, Tab::Pattern, Tab::Effects] {
             crate::effect_editors::draw_for_test("drums", &[], VOICES.len(), |frame, state| {

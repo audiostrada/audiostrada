@@ -1149,6 +1149,36 @@ mod tests {
     }
 
     #[test]
+    fn the_timeline_answers_a_user_trying_everything() {
+        let (mut view, doc, dir) = loaded_view("sweep");
+        doc.borrow_mut().history_mut().edit("MIDI", |p| {
+            let t = p.add_track("Keys");
+            p.add_midi_clip(t, 0, 48_000, Vec::new());
+        });
+        view.track_height = 110.0;
+        let ctx = egui::Context::default();
+        let mut settings = crate::transport::EditSettings::default();
+        let area = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 600.0));
+        for (i, events) in crate::test_sweep::script(area, 28.0, true)
+            .into_iter()
+            .enumerate()
+        {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1400.0, 900.0),
+                )),
+                time: Some(i as f64 * 0.05),
+                events,
+                ..Default::default()
+            };
+            ctx.run_ui(input, |ui| view.show(ui, &mut settings))
+                .drop_without_applying_deltas();
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn every_processing_window_draws_and_finds_something() {
         let (mut view, doc, dir) = loaded_view("windows");
         view.open_strip(&mut doc.borrow_mut());

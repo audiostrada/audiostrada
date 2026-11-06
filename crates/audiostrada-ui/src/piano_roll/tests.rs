@@ -347,3 +347,20 @@ fn every_transform_panel_and_lane_draws_and_applies() {
     }
     assert!(!notes_of(&doc, clip).is_empty());
 }
+
+#[test]
+fn the_piano_roll_answers_a_user_trying_everything() {
+    let notes: Vec<Note> = (0..24u64)
+        .map(|i| note(i * 4_000, 55 + (i % 12) as u8, 0))
+        .collect();
+    let (mut roll, _doc, _clip) = roll(notes);
+    let ctx = egui::Context::default();
+    framed(&mut roll, &ctx);
+    let area = Rect::from_min_size(egui::Pos2::ZERO, vec2(1400.0, 900.0));
+    for (lane, _) in Lane::all().into_iter().step_by(3) {
+        roll.lane = lane;
+        for events in crate::test_sweep::script(area, 40.0, true) {
+            frame(&mut roll, &ctx, events);
+        }
+    }
+}
