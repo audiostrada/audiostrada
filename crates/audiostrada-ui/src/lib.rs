@@ -62,6 +62,9 @@ mod updates;
 mod versions_window;
 mod widgets;
 
+#[cfg(test)]
+mod app_tests;
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

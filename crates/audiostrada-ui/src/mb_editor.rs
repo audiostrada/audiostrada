@@ -484,3 +484,23 @@ fn tabs(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut MbState, c
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn every_band_count_band_and_solo_draws() {
+        for count in 0..3 {
+            for band in 0..4 {
+                crate::effect_editors::draw_for_test(
+                    "mb_comp",
+                    &[("count", count as f32)],
+                    2,
+                    |frame, state| {
+                        state.mb.band = band;
+                        state.mb.solo = (frame == 1).then_some(band);
+                    },
+                );
+            }
+        }
+    }
+}

@@ -54,6 +54,11 @@ pub fn start<T: Send + 'static>(
     }
     let (tx, rx) = channel();
     ctx.data_mut(|d| d.insert_temp::<Slot<T>>(key, Arc::new(Mutex::new(rx))));
+    // Tests have no screen: every dialog is cancelled.
+    if cfg!(test) {
+        let _ = tx.send(None);
+        return;
+    }
     // macOS shows its panels from the main thread only, and keeps the window alive meanwhile.
     if cfg!(target_os = "macos") {
         let _ = tx.send(dialog());

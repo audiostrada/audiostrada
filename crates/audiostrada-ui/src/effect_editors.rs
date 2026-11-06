@@ -120,7 +120,7 @@ pub struct EditorState {
     pub mb: crate::mb_editor::MbState,
     /// The tape machine's needles and reels.
     pub tape: crate::tape_editor::TapeState,
-    rig: crate::rig_editor::RigState,
+    pub rig: crate::rig_editor::RigState,
     limiter: LimiterState,
     spectrum: SpectrumState,
     /// Center of the Pitch Correct view, in semitones (0 before any pitch).
@@ -5899,6 +5899,69 @@ pub fn levels_bar(
         .request_repaint_after(std::time::Duration::from_millis(50));
 }
 
+/// Draws the editor of effect `id` for `frames` frames, headless, on a track with a MIDI clip
+/// (the instruments have something to show); `set` overrides parameters, `before` changes the
+/// editor's state before each frame.
+#[cfg(test)]
+pub(crate) fn draw_for_test(
+    id: &str,
+    set: &[(&str, f32)],
+    frames: usize,
+    mut before: impl FnMut(usize, &mut EditorState),
+) {
+    use audiostrada_core::model::Note;
+    use eframe::egui::{Pos2, RawInput};
+    let info = audiostrada_dsp::info(id).expect("an effect");
+    let mut doc = Document::new(crate::document::AppDirs::default());
+    let mut insert = None;
+    doc.history_mut().edit("Setup", |p| {
+        let t = p.add_track("A");
+        insert = routing::add_insert(p, Channel::Track(t), id, Default::default());
+        let notes = (0..16u64)
+            .map(|i| Note {
+                start: i * 6_000,
+                length: 3_000,
+                key: [36, 38, 42, 46][i as usize % 4],
+                velocity: 100,
+                channel: 9,
+                probability: 100,
+                muted: false,
+            })
+            .collect();
+        p.add_midi_clip(t, 0, 96_000, notes);
+    });
+    let channel = Channel::Track(doc.project().tracks[0].id);
+    let mut values: Vec<f32> = info.params.iter().map(|p| p.default).collect();
+    for (name, value) in set {
+        let i = info
+            .params
+            .iter()
+            .position(|p| p.id == *name)
+            .expect("a parameter");
+        values[i] = *value;
+    }
+    let ctx = egui::Context::default();
+    let mut state = EditorState::default();
+    for frame in 0..frames {
+        before(frame, &mut state);
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 1200.0))),
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| {
+            let mut params = Params {
+                values: values.clone(),
+                doc: &mut doc,
+                channel,
+                insert: insert.unwrap(),
+                info,
+            };
+            show(ui, &mut params, &[0.5; 64], &mut state);
+        })
+        .drop_without_applying_deltas();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -5918,6 +5981,35 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn the_large_editors_draw() {
+        draw_for_test(
+            "amp_rig",
+            &[("p1_type", 2.0), ("p2_type", 10.0), ("p3_type", 19.0)],
+            3,
+            |_, _| {},
+        );
+        draw_for_test("mb_comp", &[("count", 2.0)], 3, |_, _| {});
+        draw_for_test("drums", &[], 3, |_, _| {});
+        // Every type of band, dynamic or not.
+        let mut set = Vec::new();
+        let names: Vec<String> = (1..=10)
+            .flat_map(|b| ["used", "type", "dyn"].map(|k| format!("b{b}_{k}")))
+            .collect();
+        let info = audiostrada_dsp::info("eq").unwrap();
+        for (i, name) in names.iter().enumerate() {
+            if info.params.iter().any(|p| p.id == name) {
+                let value = match i % 3 {
+                    0 => 1.0,
+                    1 => (i / 3) as f32,
+                    _ => (i % 2) as f32,
+                };
+                set.push((name.as_str(), value));
+            }
+        }
+        draw_for_test("eq", &set, 3, |_, _| {});
     }
 
     #[test]

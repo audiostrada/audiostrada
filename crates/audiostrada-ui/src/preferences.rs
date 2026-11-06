@@ -645,3 +645,99 @@ fn theme_card(
     painter.rect_stroke(rect, radius, outline, StrokeKind::Outside);
     response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eframe::egui::{Pos2, RawInput, Rect, vec2};
+
+    #[test]
+    fn every_tab_draws_on_every_system() {
+        let mut host = AudioHost::new(Box::new(|_| {
+            Box::new(
+                |_: &mut audiostrada_io::AudioBuffers<'_>, _: &audiostrada_io::CallbackTime| {},
+            )
+        }));
+        host.start(
+            Some(audiostrada_io::BackendKind::Dummy),
+            audiostrada_io::StreamConfig::default(),
+        );
+        let ctx = egui::Context::default();
+        let mut prefs = UiPrefs::default();
+        let mut audio = AudioSettingsPanel::default();
+        let database = Database::default();
+        for tab in [
+            Tab::General,
+            Tab::Audio,
+            Tab::Keyboard,
+            Tab::Plugins,
+            Tab::Midi,
+        ] {
+            for mac in [false, true] {
+                let mut window = PreferencesWindow::default();
+                window.open();
+                window.tab = tab;
+                window.set_midi_open(vec!["Keyboard".into()]);
+                for _ in 0..2 {
+                    let input = RawInput {
+                        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1200.0, 900.0))),
+                        ..Default::default()
+                    };
+                    ctx.run_ui(input, |ui| {
+                        let outcome = window.show(
+                            ui.ctx(),
+                            &mut prefs,
+                            &mut audio,
+                            &host,
+                            mac,
+                            (&database, true),
+                        );
+                        assert!(!outcome.midi_changed);
+                    })
+                    .drop_without_applying_deltas();
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_shortcut_is_recorded_from_the_next_key() {
+        let ctx = egui::Context::default();
+        let mut prefs = UiPrefs::default();
+        let host = AudioHost::new(Box::new(|_| unreachable!("no stream in this test")));
+        let mut audio = AudioSettingsPanel::default();
+        let mut window = PreferencesWindow::default();
+        window.open_keyboard();
+        window.recording = Some(Action::ToggleMetronome);
+        assert!(window.capturing_keys());
+        let key = egui::Event::Key {
+            key: egui::Key::J,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::COMMAND,
+        };
+        let input = RawInput {
+            events: vec![key],
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| {
+            window.show(
+                ui.ctx(),
+                &mut prefs,
+                &mut audio,
+                &host,
+                false,
+                (&Database::default(), false),
+            );
+        })
+        .drop_without_applying_deltas();
+        assert!(!window.capturing_keys());
+        assert_eq!(
+            prefs
+                .keymap
+                .action_for(egui::Key::J, egui::Modifiers::COMMAND),
+            Some(Action::ToggleMetronome)
+        );
+    }
+}

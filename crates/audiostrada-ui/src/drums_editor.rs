@@ -1840,6 +1840,16 @@ fn effects(ui: &mut Ui, params: &mut Params) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn every_pad_and_tab_draws() {
+        for tab in [Tab::Pad, Tab::Pattern, Tab::Effects] {
+            crate::effect_editors::draw_for_test("drums", &[], VOICES.len(), |frame, state| {
+                state.drums.tab = tab;
+                state.drums.selected = frame;
+            });
+        }
+    }
+
     use super::*;
 
     #[test]

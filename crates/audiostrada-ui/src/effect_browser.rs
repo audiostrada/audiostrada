@@ -550,6 +550,63 @@ fn family_key(name: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
+    use crate::document::AppDirs;
+
+    /// Draws the browser, in its embedded window, for a few frames.
+    fn draw(browser: &Shared, doc: &Document) -> Option<(Target, String, String)> {
+        let ctx = egui::Context::default();
+        let mut chosen = None;
+        for _ in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 800.0),
+                )),
+                ..Default::default()
+            };
+            ctx.run_ui(input, |ui| {
+                chosen = chosen.take().or(show(browser, ui.ctx(), doc))
+            })
+            .drop_without_applying_deltas();
+        }
+        chosen
+    }
+
+    #[test]
+    fn every_family_vendor_and_search_draws() {
+        let mut doc = Document::new(AppDirs::default());
+        let mut track = None;
+        doc.history_mut()
+            .edit("Setup", |p| track = Some(p.add_track("A")));
+        let track = Channel::Track(track.unwrap());
+        let browser: Shared = Rc::default();
+        for target in [(track, false), (track, true), (Channel::Master, false)] {
+            browser.borrow_mut().open(target);
+            assert!(draw(&browser, &doc).is_none());
+            let families: Vec<String> = browser
+                .borrow()
+                .all
+                .iter()
+                .map(|e| e.family.to_owned())
+                .collect();
+            for family in families
+                .into_iter()
+                .chain([CHAINS.to_owned(), INSTRUMENT.to_owned()])
+            {
+                browser.borrow_mut().family = Some(family);
+                draw(&browser, &doc);
+            }
+            let mut b = browser.borrow_mut();
+            b.family = None;
+            b.filter = "verb".into();
+            b.vendor = Some(AUDIOSTRADA.to_owned());
+            drop(b);
+            draw(&browser, &doc);
+        }
+        browser.borrow_mut().open_instruments((track, false));
+        draw(&browser, &doc);
+    }
+
     use super::*;
 
     fn entry(family: &'static str, plugin: bool) -> Entry {
