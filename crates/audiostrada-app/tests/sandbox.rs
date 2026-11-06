@@ -15,9 +15,13 @@ fn exe() -> &'static Path {
     Path::new(env!("CARGO_BIN_EXE_audiostrada"))
 }
 
-/// A folder holding the test plugin built with the tests, as `test-gain.clap`.
+/// A folder of its own holding the test plugin built with the tests, as `test-gain.clap`:
+/// Windows locks a loaded library, so tests running together cannot share one copy.
 fn test_plugin_dir() -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("audiostrada-test-clap-{}", std::process::id()));
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir =
+        std::env::temp_dir().join(format!("audiostrada-test-clap-{}-{n}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("a temporary folder");
     let library =
         audiostrada_test_plugin::built_library().expect("the test plugin is built with the tests");
