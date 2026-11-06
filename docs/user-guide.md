@@ -452,6 +452,11 @@ of a Strada-Drums track), `write_midi_clip` replaces or adds notes, `add_midi_cl
 clip, and `export_midi_file` / `import_midi_file` go through standard MIDI files. Ask it to vary
 a drum pattern from section to section, write a bass line or a chord progression.
 
+It arranges as you would on the timeline: `move_clips` (in time or to another track),
+`trim_clip`, `duplicate_clips`, `delete_clips` (with ripple), `set_clip` (gain, fades and their
+shape, mute, name, stretch, pitch) and `set_crossfade`. Each call is one undo step, and the audio
+files themselves are never moved, changed or deleted.
+
 It can also look: `render_spectrum` draws the spectrum of up to three tracks over each other,
 `render_spectrogram` how the frequencies move over time, and `render_waveform` the waveform
 above the short-term loudness. Assistants that read images (Claude among them) see these

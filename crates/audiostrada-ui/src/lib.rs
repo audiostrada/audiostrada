@@ -7,6 +7,7 @@ mod browser;
 mod captures;
 mod chains;
 mod channel_editor;
+mod clip_tools;
 mod console_ui;
 pub mod control;
 mod dialogs;

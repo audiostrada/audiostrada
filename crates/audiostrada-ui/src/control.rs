@@ -159,6 +159,42 @@ pub fn tool_definitions(live: bool) -> Vec<Value> {
         tool("undo", "Undo the last change.", json!({}), &[]),
         tool("redo", "Redo the last undone change.", json!({}), &[]),
         tool(
+            "move_clips",
+            "Move clips (audio or MIDI) by `by` seconds (negative goes earlier), or so the earliest starts at `to`, and/or onto another `track`. As on the timeline, a clip moved over another covers it (the part underneath goes; undo brings it back) and clips that come to overlap crossfade.",
+            json!({"clips": {"type": "array", "items": {"type": "integer"}}, "by": {"description": "signed seconds, or {\"samples\": n}"}, "to": time, "track": track}),
+            &["clips"],
+        ),
+        tool(
+            "trim_clip",
+            "Trim a clip: `start` moves its start (its end stays), `end` moves its end, within the material it has.",
+            json!({"clip": {"type": "integer"}, "start": time, "end": time}),
+            &["clip"],
+        ),
+        tool(
+            "duplicate_clips",
+            "Duplicate clips right after themselves, or starting at `at`.",
+            json!({"clips": {"type": "array", "items": {"type": "integer"}}, "at": time}),
+            &["clips"],
+        ),
+        tool(
+            "delete_clips",
+            "Delete clips; `ripple` pulls the later clips of their tracks back by the gap.",
+            json!({"clips": {"type": "array", "items": {"type": "integer"}}, "ripple": {"type": "boolean"}}),
+            &["clips"],
+        ),
+        tool(
+            "set_clip",
+            "Change clips: gain_db, fade_in and fade_out (seconds), fade_shape (equal_power, linear, fast, slow, s_curve), muted, name, stretch_to (new length in seconds, audio stretched without changing its pitch), pitch (semitones, audio).",
+            json!({"clips": {"type": "array", "items": {"type": "integer"}}, "gain_db": {"type": "number"}, "fade_in": {"type": "number"}, "fade_out": {"type": "number"}, "fade_shape": {"type": "string", "enum": ["equal_power", "linear", "fast", "slow", "s_curve"]}, "muted": {"type": "boolean"}, "name": {"type": "string"}, "stretch_to": {"type": "number"}, "pitch": {"type": "number"}}),
+            &["clips"],
+        ),
+        tool(
+            "set_crossfade",
+            "Set the crossfade between two neighbouring clips of a track (`left` then `right`) to `length` seconds; 0 removes it.",
+            json!({"left": {"type": "integer"}, "right": {"type": "integer"}, "length": {"type": "number"}}),
+            &["left", "right", "length"],
+        ),
+        tool(
             "read_midi_clip",
             "The notes of a MIDI clip, in beats from the clip's start (the clip's place and length too); on a Strada-Drums track, which key plays which drum. Clip ids are in inspect_project with detail \"full\".",
             json!({"clip": {"type": "integer"}}),
@@ -395,6 +431,9 @@ pub fn inspect(doc: &Document, full: bool) -> Value {
                         "start": secs(c.start),
                         "length": secs(c.length),
                         "gain_db": c.gain_db,
+                        "fade_in": secs(c.fade_in),
+                        "fade_out": secs(c.fade_out),
+                        "muted": c.muted,
                         "midi": c.notes.is_some(),
                     }))
                     .collect::<Vec<_>>());
@@ -792,6 +831,45 @@ pub fn call_tool(
             wait(doc)?;
             Ok(json!({"file": written.display().to_string()}))
         }
+        "move_clips" => {
+            let ids = crate::clip_tools::ids(args)?;
+            let target = match arg("track") {
+                Some(v) => match track_ref(doc, Some(v))? {
+                    Channel::Track(t) => Some(t),
+                    Channel::Master => return Err("clips go on tracks, not the master".into()),
+                },
+                None => None,
+            };
+            let by = crate::clip_tools::signed(arg("by"), rate);
+            crate::clip_tools::move_clips(doc, &ids, by, time("to"), target)
+        }
+        "trim_clip" => {
+            let ids = crate::clip_tools::ids(args)?;
+            crate::clip_tools::trim(doc, ids[0], time("start"), time("end"))
+        }
+        "duplicate_clips" => {
+            let ids = crate::clip_tools::ids(args)?;
+            crate::clip_tools::duplicate(doc, &ids, time("at"))
+        }
+        "delete_clips" => {
+            let ids = crate::clip_tools::ids(args)?;
+            let ripple = arg("ripple").and_then(Value::as_bool).unwrap_or(false);
+            crate::clip_tools::delete(doc, &ids, ripple)
+        }
+        "set_clip" => {
+            let ids = crate::clip_tools::ids(args)?;
+            crate::clip_tools::set(doc, &ids, args)
+        }
+        "set_crossfade" => {
+            let id = |k: &str| {
+                arg(k)
+                    .and_then(Value::as_u64)
+                    .map(ClipId)
+                    .ok_or(format!("`{k}` is needed"))
+            };
+            let length = time("length").ok_or("`length` is needed")?;
+            crate::clip_tools::crossfade(doc, id("left")?, id("right")?, length)
+        }
         "read_midi_clip" => {
             let id = arg("clip")
                 .and_then(Value::as_u64)
@@ -1000,6 +1078,7 @@ inspect_project, add tracks, import audio, add built-in effects (list_effects) a
 mix, edit clips (split, strip_silence, heal, consolidate, process_clips) and export the mix. \
 Hear what you change with analyze_audio (a track or the master) and compare_audio (masking). \
 Read and write the notes of MIDI clips with read_midi_clip and write_midi_clip (drum maps included). \
+Arrange with move_clips, trim_clip, duplicate_clips, delete_clips, set_clip and set_crossfade. \
 Positions are seconds or {\"samples\": n}; tracks are named by id or name, or \"master\".";
 
 /// What answers MCP tool calls: a document here, or a running AudioStrada.
