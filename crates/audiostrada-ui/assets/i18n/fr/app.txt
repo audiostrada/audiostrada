@@ -1116,3 +1116,9 @@ Panique
 
 {action}: stops every note still sounding and silences the effects' tails
 {action} : coupe toutes les notes qui sonnent encore et fait taire la queue des effets
+
+Licensed for life
+Licence à vie
+
+Every update included, for life.
+Toutes les mises à jour incluses, à vie.

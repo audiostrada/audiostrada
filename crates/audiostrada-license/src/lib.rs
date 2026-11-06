@@ -59,6 +59,11 @@ impl License {
     pub fn covers(&self, release_date: &str) -> bool {
         release_date <= self.updates_until.as_str()
     }
+
+    /// A license given for life: its updates never end.
+    pub fn is_lifetime(&self) -> bool {
+        self.updates_until.as_str() >= "9999"
+    }
 }
 
 #[derive(Debug)]

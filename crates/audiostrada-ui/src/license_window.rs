@@ -127,6 +127,10 @@ fn summary(ui: &mut egui::Ui, status: &Status) {
             tr("Built from source"),
             tr("Nothing to unlock: every feature works, with no time limit.").to_owned(),
         ),
+        Status::Licensed(license) if license.is_lifetime() => (
+            tr("Licensed for life"),
+            holder(license) + "\n" + tr("Every update included, for life."),
+        ),
         Status::Licensed(license) => (
             tr("Licensed"),
             holder(license)
