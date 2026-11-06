@@ -5984,6 +5984,25 @@ mod tests {
     }
 
     #[test]
+    fn every_choice_of_every_editor_draws() {
+        for info in audiostrada_dsp::EFFECTS {
+            for param in info.params.iter().filter(|p| !p.choices.is_empty()) {
+                for value in 0..param.choices.len() {
+                    draw_for_test(info.id, &[(param.id, value as f32)], 1, |_, _| {});
+                }
+            }
+            // Switches on, together.
+            let on: Vec<(&str, f32)> = info
+                .params
+                .iter()
+                .filter(|p| p.choices.is_empty() && p.min == 0.0 && p.max == 1.0)
+                .map(|p| (p.id, 1.0))
+                .collect();
+            draw_for_test(info.id, &on, 2, |_, _| {});
+        }
+    }
+
+    #[test]
     fn the_large_editors_draw() {
         draw_for_test(
             "amp_rig",

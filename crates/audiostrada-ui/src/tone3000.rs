@@ -724,6 +724,21 @@ pub fn image(url: String, size: u32) -> Pending<([usize; 2], Vec<u8>)> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn urls_are_escaped_and_read_back() {
+        let text = "Marshall JCM800 / 2203 & co=1 été";
+        assert_eq!(unpercent(&percent(text)), text);
+        assert!(!percent(text).contains(' '));
+        assert_eq!(unpercent("a+b%20c%zz"), "a b c%zz");
+        let q = "code=abc%2F1&state=x+y&empty=";
+        assert_eq!(query(q, "code").as_deref(), Some("abc/1"));
+        assert_eq!(query(q, "state").as_deref(), Some("x y"));
+        assert_eq!(query(q, "empty").as_deref(), Some(""));
+        assert_eq!(query(q, "none"), None);
+        assert!(!base64url(&[0xfb, 0xff, 0x00]).contains(['+', '/', '=']));
+        assert_eq!(random(16).map(|r| r.len()), Ok(16));
+    }
+
     use super::*;
 
     #[test]

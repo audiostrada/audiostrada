@@ -1612,6 +1612,81 @@ mod tests {
         }
 
         #[test]
+        fn every_header_control_answers_a_click() {
+            let (mut h, doc, _) = harness();
+            h.view.track_height = 90.0;
+            h.frame(vec![]);
+            let lanes = h.view.lanes_rect;
+            let rows = h.view.tops.len().min(2);
+            for row in 0..rows {
+                let top = lanes.top() + h.view.tops[row];
+                for dy in [12.0, 34.0, 58.0] {
+                    let mut x = lanes.left() - HEADER_WIDTH + 6.0;
+                    while x < lanes.left() - 4.0 {
+                        h.click(pos2(x, top + dy), Modifiers::NONE);
+                        h.frame(vec![Event::Key {
+                            key: Key::Escape,
+                            physical_key: None,
+                            pressed: true,
+                            repeat: false,
+                            modifiers: Modifiers::NONE,
+                        }]);
+                        x += 14.0;
+                    }
+                }
+            }
+            // The track's height, dragged by its lower edge.
+            let edge = pos2(
+                lanes.left() - HEADER_WIDTH + 40.0,
+                lanes.top() + h.view.tops[0] + h.view.track_height - 1.0,
+            );
+            h.drag(edge, edge + vec2(0.0, 60.0));
+            assert!(!doc.borrow().project().tracks.is_empty());
+        }
+
+        #[test]
+        fn fades_crossfades_and_volume_follow_the_handles() {
+            let (mut h, doc, tracks) = harness();
+            h.view.track_height = 90.0;
+            h.frame(vec![]);
+            let (start, length) = {
+                let d = doc.borrow();
+                let c = &d.project().track(tracks[1]).unwrap().clips[0];
+                (c.start, c.length)
+            };
+            // A copy overlapping the end makes a crossfade.
+            doc.borrow_mut().history_mut().edit("Copy", |p| {
+                let c = p.track(tracks[1]).unwrap().clips[0].clone();
+                p.add_clip(tracks[1], c.source, start + length * 3 / 4);
+            });
+            h.frame(vec![]);
+            let lanes = h.view.lanes_rect;
+            let x = |s: u64, h: &Harness| {
+                lanes.left() + ((s as f64 - h.view.scroll) / h.view.zoom) as f32
+            };
+            let top = lanes.top() + h.view.tops[1];
+            for (from, by) in [
+                (pos2(x(start, &h) + 2.0, top + 3.0), vec2(40.0, 0.0)),
+                (
+                    pos2(x(start + length, &h) - 2.0, top + 3.0),
+                    vec2(-40.0, 0.0),
+                ),
+                (pos2(x(start + length / 2, &h), top + 3.0), vec2(0.0, 30.0)),
+                (
+                    pos2(x(start + length * 7 / 8, &h), top + 3.0),
+                    vec2(20.0, 0.0),
+                ),
+                (
+                    pos2(x(start + length * 7 / 8, &h), top + 40.0),
+                    vec2(-15.0, 0.0),
+                ),
+            ] {
+                h.drag(from, from + by);
+            }
+            assert!(doc.borrow().history().undo_label().is_some());
+        }
+
+        #[test]
         fn double_click_on_a_name_renames_the_track() {
             let (mut h, doc, tracks) = harness();
             // Past the track's icon.
