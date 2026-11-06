@@ -15,12 +15,27 @@ fn exe() -> &'static Path {
     Path::new(env!("CARGO_BIN_EXE_audiostrada"))
 }
 
+/// A folder holding the test plugin built with the tests, as `test-gain.clap`.
+fn test_plugin_dir() -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("audiostrada-test-clap-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("a temporary folder");
+    let library =
+        audiostrada_test_plugin::built_library().expect("the test plugin is built with the tests");
+    std::fs::copy(library, dir.join("test-gain.clap")).expect("the plugin copied");
+    dir
+}
+
 fn plugins(var: &str, instrument: bool) -> Vec<audiostrada_plugins::PluginDescriptor> {
-    let Some(dir) = std::env::var_os(var) else {
-        eprintln!("{var} not set, skipping");
-        return Vec::new();
+    // Without plugins of their own, effects are tested with the plugin built with the tests.
+    let dir = match std::env::var_os(var) {
+        Some(dir) => PathBuf::from(dir),
+        None if !instrument => test_plugin_dir(),
+        None => {
+            eprintln!("{var} not set, skipping");
+            return Vec::new();
+        }
     };
-    let dirs = [PathBuf::from(dir)];
+    let dirs = [dir];
     let mut found = Vec::new();
     for format in [Format::Clap, Format::Vst3, Format::Lv2] {
         for file in scan::find_files(format, &dirs) {
@@ -141,4 +156,30 @@ fn sandboxed_editor_opens() {
         drop(processor);
         assert!(instance.try_deactivate());
     }
+}
+
+#[test]
+fn the_scan_finds_the_plugin_out_of_process() {
+    let dir = test_plugin_dir();
+    let file = dir.join("test-gain.clap");
+    let found =
+        scan::scan_out_of_process(exe(), Format::Clap, &file, Duration::from_secs(30)).unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].id, "com.audiostrada.test-gain");
+    let cache = dir.join("plugins.json");
+    let database =
+        scan::scan_in_background(cache.clone(), vec![dir.clone()], exe().to_path_buf(), true)
+            .join()
+            .unwrap();
+    assert!(
+        database
+            .plugins()
+            .any(|p| p.id == "com.audiostrada.test-gain")
+    );
+    // Saved, and read back.
+    assert!(
+        scan::Database::load(&cache)
+            .plugins()
+            .any(|p| p.id == "com.audiostrada.test-gain")
+    );
 }

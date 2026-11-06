@@ -539,6 +539,7 @@ dependencies = [
  "audiostrada-media",
  "audiostrada-plugins",
  "audiostrada-rt",
+ "audiostrada-test-plugin",
  "audiostrada-ui",
  "dirs",
  "getrandom 0.4.3",
@@ -584,6 +585,7 @@ dependencies = [
  "audiostrada-midi",
  "audiostrada-plugins",
  "audiostrada-rt",
+ "audiostrada-test-plugin",
  "criterion",
  "crossbeam-queue",
  "serde_json",
@@ -649,6 +651,7 @@ version = "0.1.0"
 dependencies = [
  "audiostrada-midi",
  "audiostrada-rt",
+ "audiostrada-test-plugin",
  "clack-extensions",
  "clack-host",
  "libc",
@@ -677,6 +680,13 @@ dependencies = [
  "rtrb",
  "tracing",
  "windows",
+]
+
+[[package]]
+name = "audiostrada-test-plugin"
+version = "0.1.0"
+dependencies = [
+ "clap-sys",
 ]
 
 [[package]]

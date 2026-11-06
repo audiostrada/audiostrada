@@ -90,5 +90,8 @@ assets = [
 pipewire = "*"
 lilv-libs = "*"
 
+[dev-dependencies]
+audiostrada-test-plugin = { path = "../audiostrada-test-plugin" }
+
 [lints]
 workspace = true

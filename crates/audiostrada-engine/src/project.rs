@@ -2595,6 +2595,55 @@ mod tests {
     }
 
     #[test]
+    fn a_plugin_insert_plays_on_every_system() {
+        let library = audiostrada_test_plugin::built_library()
+            .expect("the test plugin is built with the tests");
+        let dir =
+            std::env::temp_dir().join(format!("audiostrada-engine-clap-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::copy(library, dir.join("test-gain.clap")).unwrap();
+        let mut database = Database::default();
+        database.refresh(std::slice::from_ref(&dir), audiostrada_plugins::scan_file);
+        // The system's folders are scanned too: the test plugin by its id.
+        let plugin = database
+            .plugins()
+            .find(|p| p.id == "com.audiostrada.test-gain")
+            .cloned()
+            .expect("the test plugin");
+        let mut f = fixture("test-plugin", vec![0.5; 48_000]);
+        let t = f.history.project().tracks[0].id;
+        f.history.edit("Insert", |p| {
+            routing::add_insert(p, Channel::Track(t), &plugin.key(), Default::default());
+        });
+        f.media.retain(&media_paths(f.history.project(), None));
+        assert!(f.media.wait(Duration::from_secs(10)));
+        f.player.set_plugins(database);
+        let mut processor = f.player.processor(48_000, 64);
+        f.player.sync(f.history.project(), None, &f.media);
+        f.player.engine_mut().play();
+        let out = render(&mut processor, 40);
+        f.player.update();
+        assert!(
+            close(out[out.len() - 1], 0.5),
+            "0 dB: {}",
+            out[out.len() - 1]
+        );
+        let id = f.history.project().tracks[0].inserts[0].id;
+        assert!(f.player.plugin(Channel::Track(t), id).is_some());
+        assert_eq!(f.player.plugin_states().len(), 1);
+        f.history.edit("Remove", |p| {
+            routing::remove_insert(p, Channel::Track(t), id)
+        });
+        f.player.sync(f.history.project(), None, &f.media);
+        render(&mut processor, 2);
+        f.player.update();
+        drop(processor);
+        f.player.update();
+        std::fs::remove_dir_all(&f.dir).unwrap();
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn the_console_colors_and_compares() {
         let sine: Vec<f32> = (0..48_000).map(|i| 0.7 * (i as f32 * 0.05).sin()).collect();
         let mut f = fixture("console", sine);
