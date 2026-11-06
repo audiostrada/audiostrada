@@ -366,6 +366,8 @@ pub enum Icon {
     Snap,
     /// A stopwatch: the low latency mode.
     Latency,
+    /// A robot's head: the AI assistants.
+    Robot,
 }
 
 /// Draws `icon` centered in `rect`.
@@ -485,6 +487,31 @@ pub fn paint_icon(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
                 [center, pos2(center.x + r * 0.45, center.y - r * 0.55)],
                 stroke,
             );
+        }
+        Icon::Robot => {
+            let head = Rect::from_center_size(pos2(c.x, c.y + s * 0.18), vec2(s * 1.5, s * 1.1));
+            painter.rect_stroke(head, s * 0.25, stroke, StrokeKind::Middle);
+            for dx in [-0.33, 0.33] {
+                painter.circle_filled(pos2(c.x + dx * s, c.y + s * 0.1), s * 0.14, color);
+            }
+            painter.line_segment(
+                [
+                    pos2(c.x - s * 0.25, c.y + s * 0.45),
+                    pos2(c.x + s * 0.25, c.y + s * 0.45),
+                ],
+                stroke,
+            );
+            painter.line_segment([pos2(c.x, head.top()), pos2(c.x, c.y - s * 0.7)], stroke);
+            painter.circle_filled(pos2(c.x, c.y - s * 0.78), s * 0.13, color);
+            for side in [-1.0, 1.0] {
+                painter.line_segment(
+                    [
+                        pos2(c.x + side * s * 0.75, c.y + s * 0.1),
+                        pos2(c.x + side * s * 0.92, c.y + s * 0.1),
+                    ],
+                    stroke,
+                );
+            }
         }
         Icon::Snap => {
             let r = s * 0.5;

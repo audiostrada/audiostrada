@@ -1203,3 +1203,9 @@ il y a {n} min
 
 {n} s ago
 il y a {n} s
+
+AI assistants: on (port {port}). Click to set them up
+Assistants IA : activés (port {port}). Cliquez pour les régler
+
+AI assistants: off. Click to connect Claude or another assistant
+Assistants IA : désactivés. Cliquez pour connecter Claude ou un autre assistant

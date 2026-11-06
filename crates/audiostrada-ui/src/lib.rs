@@ -2296,6 +2296,34 @@ impl AudioStradaApp {
                     ui.allocate_exact_size(egui::vec2(18.0, 16.5), egui::Sense::hover());
                 paint_logo(ui.painter(), mark);
                 response.on_hover_text(version);
+                ui.add_space(6.0);
+                // The AI assistants: lit while they may drive AudioStrada.
+                let listening = self.control.as_ref().map(|c| c.port);
+                let (rect, robot) =
+                    ui.allocate_exact_size(egui::vec2(26.0, 22.0), egui::Sense::click());
+                let p = theme::current(ui);
+                if robot.hovered() {
+                    ui.painter().rect_filled(rect, 5.0, p.hover);
+                }
+                let ink = if listening.is_some() {
+                    theme::PLAY
+                } else if robot.hovered() {
+                    p.text
+                } else {
+                    p.text.gamma_multiply(0.7)
+                };
+                theme::paint_icon(ui.painter(), rect.shrink(3.0), theme::Icon::Robot, ink);
+                let hint = match listening {
+                    Some(port) => trf!(
+                        "AI assistants: on (port {port}). Click to set them up",
+                        port = port
+                    ),
+                    None => tr("AI assistants: off. Click to connect Claude or another assistant")
+                        .to_owned(),
+                };
+                if robot.on_hover_text(hint).clicked() {
+                    self.assistants_window.open();
+                }
                 if let Some(release) = self.updates.found.clone() {
                     let covered = match self.license.license() {
                         Some(license) if license.covers(&release.date) => {
