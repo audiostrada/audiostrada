@@ -2,8 +2,6 @@
 //! noise, then the filter, the voice and the output, the envelope, and a keyboard played with
 //! the mouse or the computer keyboard.
 
-use std::collections::BTreeSet;
-
 use audiostrada_core::routing::Channel;
 use eframe::egui::{
     self, Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Shape, Stroke, Ui, pos2, vec2,
@@ -28,8 +26,9 @@ pub struct SynthState {
     low: i32,
     /// The key held with the mouse.
     mouse: Option<u8>,
-    /// Keys held on the computer keyboard.
-    computer: BTreeSet<u8>,
+    /// Keys held on the computer keyboard, each with the note it started: let go, it ends
+    /// that note even if the octave changed meanwhile.
+    computer: Vec<(egui::Key, u8)>,
     /// The computer keyboard plays notes.
     typing: bool,
     /// Where the notes went, to release them there.
@@ -76,7 +75,7 @@ impl Default for SynthState {
         Self {
             low: 48,
             mouse: None,
-            computer: BTreeSet::new(),
+            computer: Vec::new(),
             typing: false,
             track: None,
             dragging: None,
@@ -93,12 +92,11 @@ impl SynthState {
         let Some(track) = self.track else {
             return;
         };
-        for key in self
-            .mouse
-            .take()
-            .into_iter()
-            .chain(std::mem::take(&mut self.computer))
-        {
+        for key in self.mouse.take().into_iter().chain(
+            std::mem::take(&mut self.computer)
+                .into_iter()
+                .map(|(_, k)| k),
+        ) {
             doc.player().play_key(track, [0x80, key, 0]);
         }
     }
@@ -3383,8 +3381,8 @@ fn keyboard(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
         ctx.data_mut(|d| d.remove::<bool>(claim_id(viewport)));
     }
     if !focused {
-        for key in std::mem::take(&mut state.computer) {
-            play(key, None);
+        for (_, note) in std::mem::take(&mut state.computer) {
+            play(note, None);
         }
     }
     let typed: Vec<(egui::Key, bool)> = ctx
@@ -3399,10 +3397,13 @@ fn keyboard(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
                 if note > 127 {
                     continue;
                 }
-                if pressed && state.computer.insert(note) {
+                let held = state.computer.iter().position(|(k, _)| *k == key);
+                if pressed && held.is_none() {
+                    state.computer.push((key, note));
                     play(note, Some(100));
-                } else if !pressed && state.computer.remove(&note) {
-                    play(note, None);
+                } else if !pressed && let Some(i) = held {
+                    let (_, started) = state.computer.remove(i);
+                    play(started, None);
                 }
             }
             Some(ComputerKey::OctaveDown) if pressed => state.low = (state.low - 12).max(0),
@@ -3470,7 +3471,8 @@ fn keyboard(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
         }
     }
     let held = |key: i32| {
-        u8::try_from(key).is_ok_and(|k| state.mouse == Some(k) || state.computer.contains(&k))
+        u8::try_from(key)
+            .is_ok_and(|k| state.mouse == Some(k) || state.computer.iter().any(|(_, n)| *n == k))
     };
     for (i, key) in whites.iter().enumerate() {
         let r = white_rect(i).shrink2(vec2(0.5, 0.0));

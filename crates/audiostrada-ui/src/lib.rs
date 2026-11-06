@@ -891,6 +891,10 @@ impl AudioStradaApp {
                 }
                 doc.player_mut().locate(0);
             }
+            Action::Panic => {
+                self.doc.borrow_mut().player_mut().panic();
+                self.views.borrow_mut().piano.release_preview();
+            }
             Action::GoToStart => self.doc.borrow_mut().player_mut().locate(0),
             Action::GoToEnd => {
                 let mut doc = self.doc.borrow_mut();
@@ -2069,6 +2073,7 @@ impl AudioStradaApp {
                 for action in [
                     Action::PlayPause,
                     Action::Stop,
+                    Action::Panic,
                     Action::Record,
                     Action::GoToStart,
                     Action::GoToEnd,
@@ -2672,6 +2677,8 @@ impl eframe::App for AudioStradaApp {
         if ctx.input(|i| i.pointer.any_pressed()) {
             self.views.borrow_mut().piano.focused = false;
         }
+        let frame = ctx.cumulative_frame_nr();
+        self.views.borrow_mut().piano.release_if_hidden(frame);
         let mut actions = self.pressed_actions(&ctx);
         let menu_frame = egui::Frame::side_top_panel(&ctx.global_style())
             .inner_margin(egui::Margin::symmetric(10, 6));

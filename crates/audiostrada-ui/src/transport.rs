@@ -289,6 +289,19 @@ pub fn show(
                         ));
                         actions.extend(icon(ui, Icon::Stop, false, p.accent, Action::Stop));
                         actions.extend(icon(ui, Icon::Record, recording, theme::RECORD, Action::Record));
+                        // Panic: every instrument lets go of every note.
+                        let panic = egui::Button::new(RichText::new(tr("Panic")).size(11.0).strong());
+                        if ui
+                            .add_sized([52.0, 26.0], panic)
+                            .on_hover_text(trf!(
+                                "{action}: stops every note still sounding and silences the \
+                                 effects' tails",
+                                action = hint(Action::Panic)
+                            ))
+                            .clicked()
+                        {
+                            actions.push(Action::Panic);
+                        }
             });
         });
         ui.add_space(6.0);

@@ -335,6 +335,8 @@ pub struct PianoRoll {
     pending: Option<Pending>,
     /// The note sounding for the user, and on which track.
     sounding: Option<(audiostrada_core::TrackId, u8)>,
+    /// The frame the piano roll was last drawn in.
+    drawn: u64,
     /// A note just added with a click, sounding until the given time.
     added: Option<(u8, f64)>,
     /// Note under the pointer at the last frame.
@@ -397,6 +399,7 @@ impl PianoRoll {
             ghosts: true,
             pending: None,
             sounding: None,
+            drawn: 0,
             added: None,
             hovered: None,
             fit: false,
@@ -720,7 +723,24 @@ impl PianoRoll {
         });
     }
 
+    /// Lets go of the note sounding for the user.
+    pub fn release_preview(&mut self) {
+        if let Some((t, k)) = self.sounding.take() {
+            self.doc.borrow().player().play_key(t, [0x80, k, 0]);
+        }
+        self.added = None;
+    }
+
+    /// Lets go of the sounding note when the piano roll was not drawn at the last frame
+    /// (its tab hidden, its window closed), so that no note keeps sounding.
+    pub fn release_if_hidden(&mut self, frame: u64) {
+        if self.sounding.is_some() && self.drawn + 1 < frame {
+            self.release_preview();
+        }
+    }
+
     pub fn show(&mut self, ui: &mut Ui, _settings: &EditSettings, clip: Option<ClipId>) {
+        self.drawn = ui.ctx().cumulative_frame_nr();
         if clip != self.clip && self.drag.is_none() {
             self.clip = clip;
             self.selected.clear();

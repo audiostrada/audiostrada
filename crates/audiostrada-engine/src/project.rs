@@ -1860,6 +1860,16 @@ impl ProjectPlayer {
 
     /// Plays a note message on a track's instrument, armed or not (the editor's keyboard, the
     /// pads).
+    /// Panic: every instrument lets go of every note, and the effects fall silent.
+    pub fn panic(&mut self) {
+        for nodes in self.tracks.values() {
+            if let Some(midi) = nodes.channel.midi.as_ref() {
+                midi.panic();
+            }
+        }
+        self.engine.flush();
+    }
+
     pub fn play_key(&self, track: TrackId, data: [u8; 3]) -> bool {
         let Some(nodes) = self.tracks.get(&track) else {
             return false;

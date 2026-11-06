@@ -1,6 +1,7 @@
 //! MIDI playback for an instrument insert: notes of the track's MIDI clips, plus live input when
 //! the track is armed and notes played on the editor's keyboard, turned into events for each
-//! block. Notes are released on stops and jumps.
+//! block. The clips' notes are released on stops and jumps (a loop's end); notes played live
+//! keep sounding until they are let go.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -43,6 +44,14 @@ pub struct MidiControls {
 }
 
 impl MidiControls {
+    /// Panic: every note off and every sound off, on every channel.
+    pub fn panic(&self) {
+        for channel in 0..16u8 {
+            self.keys.push([0xB0 | channel, 123, 0], 0);
+            self.keys.push([0xB0 | channel, 120, 0], 0);
+        }
+    }
+
     /// Sends the clips if they changed.
     pub fn set(&mut self, sequence: Sequence) {
         while self.garbage.try_recv().is_some() {}
@@ -62,8 +71,10 @@ pub struct MidiPlayer {
     live: LiveReader,
     armed: Arc<AtomicBool>,
     keys: LiveReader,
-    /// Sounding notes per channel.
+    /// Sounding notes of the clips per channel.
     active: [u128; 16],
+    /// Notes held live (MIDI input, the editors' keyboards) per channel.
+    held: [u128; 16],
     expected: Option<u64>,
     was_playing: bool,
     events: Vec<MidiEvent>,
@@ -97,6 +108,7 @@ impl MidiPlayer {
                 armed: Arc::clone(&armed),
                 keys: keys.reader(),
                 active: [0; 16],
+                held: [0; 16],
                 expected: None,
                 was_playing: false,
                 events: Vec::with_capacity(MAX_EVENTS),
@@ -236,7 +248,7 @@ impl MidiPlayer {
             self.expected = None;
         }
         self.was_playing = transport.playing;
-        let mut incoming = [MidiEvent::default(); 64];
+        let mut incoming = [MidiEvent::default(); 256];
         let mut n = 0;
         let mut take = |data| {
             if n < incoming.len() {
@@ -251,10 +263,17 @@ impl MidiPlayer {
         }
         self.keys.drain(|data, _| take(data));
         for event in &incoming[..n] {
+            let channel = usize::from(event.channel());
             if let Some((key, _)) = event.as_note_on() {
-                self.active[usize::from(event.channel())] |= 1 << key;
+                self.held[channel] |= 1 << key;
             } else if let Some(key) = event.as_note_off() {
-                self.active[usize::from(event.channel())] &= !(1 << key);
+                self.held[channel] &= !(1 << key);
+            } else if event
+                .as_control()
+                .is_some_and(|(cc, _)| cc == 120 || cc == 123)
+            {
+                self.held[channel] = 0;
+                self.active[channel] = 0;
             }
             self.push(*event);
         }
@@ -341,6 +360,21 @@ mod tests {
         live.push([0x90, 72, 80], 0);
         let events = player.collect(&transport(64, false), 64).to_vec();
         assert_eq!(events, vec![MidiEvent::note_on(0, 0, 72, 80)]);
+    }
+
+    #[test]
+    fn a_loop_end_releases_the_clips_notes_not_the_ones_played() {
+        let live = audiostrada_midi::live::LiveMidi::default();
+        let (mut player, controls) = MidiPlayer::new(live.reader());
+        controls.keys.push([0x90, 48, 100], 0);
+        player.collect(&transport(900, true), 100);
+        // The loop wraps back to 0: nothing to release, the held note keeps sounding.
+        let events = player.collect(&transport(0, true), 64).to_vec();
+        assert!(events.is_empty(), "{events:?}");
+        controls.panic();
+        let events = player.collect(&transport(64, true), 64).to_vec();
+        assert_eq!(events.len(), 32);
+        assert!(events.iter().all(|e| e.as_control().is_some()));
     }
 
     #[test]

@@ -1107,3 +1107,12 @@ Master : crête {left} / {right} dBFS, sonie court terme (3 s) en LUFS. Cliquez 
 
 No dropout
 Aucun décrochage
+
+Panic: every note off
+Panique : toutes les notes coupées
+
+Panic
+Panique
+
+{action}: stops every note still sounding and silences the effects' tails
+{action} : coupe toutes les notes qui sonnent encore et fait taire la queue des effets

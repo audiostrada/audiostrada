@@ -79,6 +79,7 @@ actions! {
     GridCoarser => ("Edit", "Coarser grid"),
     PlayPause => ("Transport", "Play / pause"),
     Stop => ("Transport", "Stop"),
+    Panic => ("Transport", "Panic: every note off"),
     Record => ("Transport", "Record"),
     GoToStart => ("Transport", "Go to start"),
     GoToEnd => ("Transport", "Go to end"),
