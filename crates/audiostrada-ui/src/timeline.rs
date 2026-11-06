@@ -1494,6 +1494,40 @@ mod tests {
         }
 
         #[test]
+        fn a_click_on_a_clip_selects_it_without_moving_the_playhead() {
+            let (mut h, doc, tracks) = harness();
+            let (start, length) = {
+                let d = doc.borrow();
+                let c = &d.project().track(tracks[1]).unwrap().clips[0];
+                (c.start, c.length)
+            };
+            doc.borrow_mut().history_mut().edit("MIDI", |p| {
+                p.add_midi_clip(tracks[0], start, length, vec![]);
+            });
+            h.frame(vec![]);
+            let lanes = h.view.lanes_rect;
+            let x = |s: u64, h: &Harness| {
+                lanes.left() + ((s as f64 - h.view.scroll) / h.view.zoom) as f32
+            };
+            let lower = |row: usize, h: &Harness| {
+                lanes.top() + h.view.tops[row] + h.view.track_height * 0.75
+            };
+            let middle = start + length / 2;
+            for row in [0, 1] {
+                doc.borrow_mut().player_mut().locate(0);
+                h.click(pos2(x(middle, &h), lower(row, &h)), Modifiers::NONE);
+                assert_eq!(h.view.selection.len(), 1, "row {row}");
+                assert_eq!(doc.borrow().player().position(), 0, "row {row}");
+            }
+            // An empty place still moves it.
+            h.click(
+                pos2(x(start + 3 * length, &h), lower(1, &h)),
+                Modifiers::NONE,
+            );
+            assert!(doc.borrow().player().position() > start + length);
+        }
+
+        #[test]
         fn double_click_on_a_name_renames_the_track() {
             let (mut h, doc, tracks) = harness();
             // Past the track's icon.

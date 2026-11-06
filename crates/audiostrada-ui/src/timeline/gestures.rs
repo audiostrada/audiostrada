@@ -1085,8 +1085,11 @@ impl TimelineView {
                     }
                 }
             }
-            let target = magnet.snap(scale.sample(pos.x));
-            doc.player_mut().locate(target);
+            // A click on a clip selects it; only an empty place moves the playhead.
+            if hovered.is_none() {
+                let target = magnet.snap(scale.sample(pos.x));
+                doc.player_mut().locate(target);
+            }
         }
         if ruler_response.clicked()
             && let Some(pos) = ruler_response.interact_pointer_pos()
