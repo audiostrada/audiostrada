@@ -441,6 +441,13 @@ any MCP client) or a script can build and mix a project: import audio, add track
 effects, set levels, cut, strip silence, run Beat Detective, export and save. The agent first
 calls `inspect_project`, which describes the tracks, clips, inserts and sends.
 
+The agent also hears what it does. `analyze_audio` renders a track (alone, after its effects) or
+the master and describes it: loudness (LUFS, true peak, loudness range), dynamics over time,
+stereo image, share of energy per frequency band, resonances, tempo, and notes on problems
+(clipping, a master too loud for streaming, phase). `compare_audio` sets two tracks side by side
+and names the frequency ranges where they compete. The agent can then change an EQ or a level
+and listen again.
+
 - `audiostrada mcp` works on a project of its own, without a window (it can create or open one).
   For Claude Code: `claude mcp add audiostrada -- audiostrada mcp`.
 - `audiostrada --control 9000 song.strada` opens AudioStrada as usual and listens on that local port;

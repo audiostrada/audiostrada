@@ -158,6 +158,18 @@ pub fn tool_definitions(live: bool) -> Vec<Value> {
         ),
         tool("undo", "Undo the last change.", json!({}), &[]),
         tool("redo", "Redo the last undone change.", json!({}), &[]),
+        tool(
+            "analyze_audio",
+            "Listen to a track (alone, after its effects) or the master (the mix), rendered offline: loudness (LUFS, true peak, range), dynamics over time, stereo image, share of energy per frequency band, resonances, rhythm, and notes on problems. Use it before and after changing the mix.",
+            json!({"track": track, "start": time, "end": time}),
+            &[],
+        ),
+        tool(
+            "compare_audio",
+            "Compare two tracks (or a track and the master), each rendered offline: differences of loudness, peaks and frequency balance, and the frequency ranges where they compete (masking).",
+            json!({"a": track, "b": track, "start": time, "end": time}),
+            &["a", "b"],
+        ),
     ];
     if live {
         tools.push(tool(
@@ -732,6 +744,46 @@ pub fn call_tool(
             wait(doc)?;
             Ok(json!({"file": written.display().to_string()}))
         }
+        "analyze_audio" => {
+            loaded(doc, live)?;
+            let target = match arg("track") {
+                Some(v) => track_ref(doc, Some(v))?,
+                None => Channel::Master,
+            };
+            let start = time("start");
+            let (report, name) = crate::listening::render(doc, target, start, time("end"))?;
+            let from = start.unwrap_or(0) as f64 / f64::from(rate);
+            let mut out =
+                crate::listening::describe(&report, &name, target == Channel::Master, from);
+            let soloed: Vec<String> = doc
+                .project()
+                .tracks
+                .iter()
+                .filter(|t| t.solo)
+                .map(|t| t.name.clone())
+                .collect();
+            if target == Channel::Master
+                && !soloed.is_empty()
+                && let Some(notes) = out["notes"].as_array_mut()
+            {
+                notes.insert(
+                    0,
+                    json!(format!(
+                        "only the soloed tracks are heard: {}",
+                        soloed.join(", ")
+                    )),
+                );
+            }
+            Ok(out)
+        }
+        "compare_audio" => {
+            loaded(doc, live)?;
+            let (a, b) = (track_ref(doc, arg("a"))?, track_ref(doc, arg("b"))?);
+            let (start, end) = (time("start"), time("end"));
+            let (ra, na) = crate::listening::render(doc, a, start, end)?;
+            let (rb, nb) = crate::listening::render(doc, b, start, end)?;
+            Ok(crate::listening::compare(&ra, &rb, [&na, &nb]))
+        }
         "undo" => Ok(json!({"undone": doc.history_mut().undo()})),
         "redo" => Ok(json!({"redone": doc.history_mut().redo()})),
         "new_project" if !live => {
@@ -770,6 +822,7 @@ pub fn call_tool(
 const INSTRUCTIONS: &str = "AudioStrada is a digital audio workstation. Inspect the project with \
 inspect_project, add tracks, import audio, add built-in effects (list_effects) and change the \
 mix, edit clips (split, strip_silence, heal, consolidate, process_clips) and export the mix. \
+Hear what you change with analyze_audio (a track or the master) and compare_audio (masking). \
 Positions are seconds or {\"samples\": n}; tracks are named by id or name, or \"master\".";
 
 /// What answers MCP tool calls: a document here, or a running AudioStrada.
@@ -1358,6 +1411,55 @@ mod tests {
             )
             .is_err()
         );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn agents_hear_a_track_and_the_mix() {
+        use audiostrada_media::{AudioData, write_wav};
+        let dir = std::env::temp_dir().join(format!("audiostrada-hear-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let tone = |freq: f32, gain: f32| -> Vec<f32> {
+            (0..4 * 48_000)
+                .map(|i| gain * (i as f32 * freq * std::f32::consts::TAU / 48_000.0).sin())
+                .collect()
+        };
+        write_wav(
+            &dir.join("low.wav"),
+            &AudioData::new(vec![tone(80.0, 0.5)], 48_000),
+        )
+        .unwrap();
+        write_wav(
+            &dir.join("high.wav"),
+            &AudioData::new(vec![tone(3_000.0, 0.1)], 48_000),
+        )
+        .unwrap();
+        let mut b = Headless::new();
+        call(
+            &mut b,
+            "import_audio",
+            json!({"paths": [dir.join("low.wav"), dir.join("high.wav")]}),
+        )
+        .unwrap();
+        let low = call(&mut b, "analyze_audio", json!({"track": "low"})).unwrap();
+        assert!(
+            low["spectrum"]["bands_db_of_total"]["bass 60-250 Hz"]
+                .as_f64()
+                .unwrap()
+                > -1.0,
+            "{low}"
+        );
+        assert!(low["loudness"]["integrated_lufs"].as_f64().is_some());
+        let mix = call(&mut b, "analyze_audio", json!({})).unwrap();
+        assert_eq!(mix["target"], "master");
+        assert!(mix["seconds"].as_f64().unwrap() > 3.9);
+        let both = call(&mut b, "compare_audio", json!({"a": "low", "b": "high"})).unwrap();
+        assert!(
+            both["b_minus_a"]["integrated_lu"].as_f64().is_some(),
+            "{both}"
+        );
+        assert!(call(&mut b, "analyze_audio", json!({"track": "nope"})).is_err());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

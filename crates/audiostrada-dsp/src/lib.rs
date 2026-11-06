@@ -35,6 +35,7 @@ pub mod phaser;
 pub mod pitch;
 pub mod pitch_correct;
 mod plate;
+pub mod report;
 pub mod resample;
 pub mod reverb;
 pub mod rig;

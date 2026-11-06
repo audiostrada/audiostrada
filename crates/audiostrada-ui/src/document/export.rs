@@ -387,6 +387,43 @@ impl Document {
     }
 
     /// Starts exporting to `target` (the mix file; stems go next to it).
+    /// Renders `track` alone (after its inserts, before its fader) or the whole mix, from
+    /// `start` to `end`, here and now, to be measured: (left, right, rate).
+    pub fn render_to_measure(
+        &mut self,
+        track: Option<TrackId>,
+        start: u64,
+        end: u64,
+    ) -> Result<(Vec<f32>, Vec<f32>, u32), String> {
+        let project = match track {
+            Some(t) => isolate(self.project(), t).ok_or("no such track")?,
+            None => self.project().clone(),
+        };
+        if end <= start {
+            return Err("the range is empty".into());
+        }
+        let mut render = OfflineRender::new(
+            &project,
+            self.paths.as_ref(),
+            &self.media,
+            self.player.plugins().clone(),
+            start,
+            end,
+            0.0,
+        )
+        .measured_only();
+        while !render.render(1 << 16) {}
+        let rendered = render.finish();
+        let audio = &rendered.audio;
+        let left = audio.channel(0).to_vec();
+        let right = if audio.channels() > 1 {
+            audio.channel(1).to_vec()
+        } else {
+            left.clone()
+        };
+        Ok((left, right, audio.sample_rate()))
+    }
+
     pub fn start_export(&mut self, settings: ExportSettings, target: &Path) -> Result<(), String> {
         if self.exporting.is_some() {
             return Err(tr("an export is already running").into());

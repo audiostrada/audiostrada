@@ -33,6 +33,8 @@ pub struct RenderWorker {
     loudness: LoudnessAnalyzer,
     peak: f32,
     rate: u32,
+    /// Off for a render only measured, never heard nor written.
+    evaluated: bool,
 }
 
 /// The rendered audio and its measurements.
@@ -88,8 +90,16 @@ impl OfflineRender {
                 loudness: LoudnessAnalyzer::new(rate),
                 peak: 0.0,
                 rate,
+                evaluated: true,
             },
         }
+    }
+
+    /// A render to measure only: its audio is never heard nor written, so the evaluation's
+    /// dropouts would only falsify the figures.
+    pub fn measured_only(mut self) -> Self {
+        self.worker.evaluated = false;
+        self
     }
 
     /// Renders up to `frames` more frames; true once everything is rendered.
@@ -119,7 +129,10 @@ impl RenderWorker {
             let n = ((target - self.rendered) as usize).min(BLOCK);
             let mut buffers = self.storage.buffers(n);
             self.processor.render(&mut buffers);
-            if let Some(t) = evaluation::export_clock(self.rendered as f64 / f64::from(self.rate)) {
+            if self.evaluated
+                && let Some(t) =
+                    evaluation::export_clock(self.rendered as f64 / f64::from(self.rate))
+            {
                 evaluation::apply(&mut buffers, n, t, self.rate);
             }
             let (l, r) = (&self.storage.output(0)[..n], &self.storage.output(1)[..n]);

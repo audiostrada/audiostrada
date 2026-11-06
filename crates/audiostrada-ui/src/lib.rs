@@ -22,6 +22,7 @@ mod inspector;
 mod keymap;
 mod layout;
 mod license_window;
+mod listening;
 mod markers;
 mod mb_editor;
 mod metronome_window;
