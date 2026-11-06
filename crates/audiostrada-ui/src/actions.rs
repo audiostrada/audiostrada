@@ -88,6 +88,7 @@ actions! {
     KeyboardShortcuts => ("Help", "Keyboard shortcuts…"),
     About => ("Help", "About AudioStrada"),
     License => ("Help", "License…"),
+    Assistants => ("Help", "AI assistants…"),
     ToggleMetronome => ("Transport", "Toggle metronome"),
     MetronomeSettings => ("Transport", "Metronome settings…"),
     ListenToReference => ("Transport", "Listen to the reference / the mix"),

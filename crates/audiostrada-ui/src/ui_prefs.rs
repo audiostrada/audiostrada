@@ -185,6 +185,10 @@ pub struct UiPrefs {
     pub counter: crate::transport::Counter,
     /// How the timeline draws waveforms.
     pub waveforms: crate::timeline::WaveView,
+    /// AI assistants may drive AudioStrada through the control channel (MCP).
+    pub assistants: bool,
+    /// Local port of the control channel.
+    pub assistants_port: u16,
 }
 
 impl Default for UiPrefs {
@@ -218,6 +222,8 @@ impl Default for UiPrefs {
             timeline_tool: crate::timeline::Tool::Smart,
             counter: crate::transport::Counter::default(),
             waveforms: crate::timeline::WaveView::default(),
+            assistants: false,
+            assistants_port: crate::integrations::DEFAULT_PORT,
         }
     }
 }

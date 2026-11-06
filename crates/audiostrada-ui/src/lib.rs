@@ -2,6 +2,7 @@
 
 mod actions;
 mod add_tracks;
+mod assistants_window;
 mod browser;
 mod captures;
 mod chains;
@@ -19,6 +20,7 @@ mod gear;
 mod host;
 pub mod i18n;
 mod inspector;
+mod integrations;
 mod keymap;
 mod layout;
 mod license_window;
@@ -307,7 +309,10 @@ pub struct AudioStradaApp {
     license_window: license_window::LicenseWindow,
     updates: updates::Updates,
     /// Tool calls from `audiostrada mcp --connect`, when started with `--control`.
-    control: Option<std::sync::mpsc::Receiver<control::Request>>,
+    control: Option<control::Server>,
+    /// The last tools assistants called: (tool, when).
+    control_log: std::collections::VecDeque<(String, std::time::SystemTime)>,
+    assistants_window: assistants_window::AssistantsWindow,
 }
 
 impl std::fmt::Debug for AudioStradaApp {
@@ -341,6 +346,14 @@ impl AudioStradaApp {
         let mut hooks = hooks;
         let plugin_scan = audiostrada_plugins::enabled()
             .then(|| (hooks.plugin_scan)(prefs.plugin_dirs.clone(), false));
+        // AI assistants switched on in a previous session listen again.
+        let control = if prefs.assistants {
+            control::listen(prefs.assistants_port)
+                .inspect_err(|e| tracing::warn!("AI assistants: {e}"))
+                .ok()
+        } else {
+            None
+        };
         Self {
             plugin_scan,
             host,
@@ -414,7 +427,9 @@ impl AudioStradaApp {
             },
             license_window: license_window::LicenseWindow::default(),
             updates: updates::Updates::default(),
-            control: None,
+            control,
+            control_log: Default::default(),
+            assistants_window: Default::default(),
         }
     }
 
@@ -780,17 +795,29 @@ impl AudioStradaApp {
 
     /// Opens the control channel on `127.0.0.1:port` for `audiostrada mcp --connect`.
     pub fn listen(&mut self, port: u16) -> Result<(), String> {
+        if self.control.as_ref().is_some_and(|c| c.port == port) {
+            return Ok(());
+        }
+        self.control = None;
         self.control = Some(control::listen(port)?);
         Ok(())
     }
 
+    /// Closes the control channel: assistants can no longer reach this window.
+    pub fn stop_listening(&mut self) {
+        self.control = None;
+    }
+
     /// Answers the tool calls of the control channel, here on the UI thread.
     fn answer_control(&mut self, ctx: &egui::Context) {
-        let Some(receiver) = &self.control else {
+        let Some(server) = &self.control else {
             return;
         };
-        let requests: Vec<control::Request> = receiver.try_iter().collect();
+        let requests: Vec<control::Request> = server.requests.try_iter().collect();
         for request in requests {
+            self.control_log
+                .push_front((request.tool.clone(), std::time::SystemTime::now()));
+            self.control_log.truncate(8);
             let answer = match request.tool.as_str() {
                 "list_actions" => Ok(control::actions()),
                 "run_action" => {
@@ -950,6 +977,7 @@ impl AudioStradaApp {
             Action::KeyboardShortcuts => self.preferences.open_keyboard(),
             Action::About => self.about = true,
             Action::License => self.license_window.open(),
+            Action::Assistants => self.assistants_window.open(),
             Action::LoopFollowsSelection => {
                 let mut doc = self.doc.borrow_mut();
                 let fixed = !doc.project().loop_fixed;
@@ -2190,6 +2218,7 @@ impl AudioStradaApp {
                 item(ui, &mut chosen, Action::KeyboardShortcuts, None, true);
                 item(ui, &mut chosen, Action::CommandPalette, None, true);
                 ui.separator();
+                item(ui, &mut chosen, Action::Assistants, None, true);
                 item(ui, &mut chosen, Action::License, None, true);
                 item(ui, &mut chosen, Action::About, None, true);
             });
@@ -2795,6 +2824,28 @@ impl eframe::App for AudioStradaApp {
         self.dialogs(&ctx);
         self.file_dialogs(&ctx);
         self.license_window.show(&ctx, &mut self.license);
+        let listening = self.control.as_ref().map(|c| c.port);
+        if let Some(change) = self.assistants_window.show(
+            &ctx,
+            listening,
+            self.prefs.assistants_port,
+            &self.control_log,
+        ) {
+            match change {
+                assistants_window::Change::Start(port) => match self.listen(port) {
+                    Ok(()) => {
+                        self.prefs.assistants = true;
+                        self.prefs.assistants_port = port;
+                    }
+                    Err(e) => self.error = Some(e),
+                },
+                assistants_window::Change::Stop => {
+                    self.stop_listening();
+                    self.prefs.assistants = false;
+                }
+            }
+            (self.hooks.ui_changed)(&self.prefs);
+        }
         self.ask_for_updates(&ctx);
         self.updates.poll();
         if self.updates.start(&mut self.prefs) {

@@ -1080,10 +1080,32 @@ fn write_token(token: &str) -> Result<(), String> {
     out.write_all(token.as_bytes()).map_err(|e| e.to_string())
 }
 
+/// The control channel while it listens; dropping it closes the port.
+#[derive(Debug)]
+pub struct Server {
+    pub requests: std::sync::mpsc::Receiver<Request>,
+    pub port: u16,
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Server {
+    pub fn stop(&self) {
+        self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        // Wakes the listener up, which then sees it should stop.
+        let _ = std::net::TcpStream::connect(("127.0.0.1", self.port));
+    }
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
 /// Listens on `127.0.0.1:port` for tool calls: one JSON object per line,
 /// `{"token": ..., "tool": ..., "arguments": {...}}`, answered with `{"ok": ...}` or
 /// `{"error": ...}`. The token is written to a file only this user can read.
-pub fn listen(port: u16) -> Result<std::sync::mpsc::Receiver<Request>, String> {
+pub fn listen(port: u16) -> Result<Server, String> {
     let mut bytes = [0u8; 16];
     getrandom::fill(&mut bytes).map_err(|e| e.to_string())?;
     let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
@@ -1091,10 +1113,15 @@ pub fn listen(port: u16) -> Result<std::sync::mpsc::Receiver<Request>, String> {
     let listener = std::net::TcpListener::bind(("127.0.0.1", port))
         .map_err(|e| format!("cannot listen on port {port}: {e}"))?;
     let (sender, receiver) = std::sync::mpsc::channel();
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stopped = stop.clone();
     std::thread::Builder::new()
         .name("control".into())
         .spawn(move || {
             for stream in listener.incoming().flatten() {
+                if stopped.load(std::sync::atomic::Ordering::Relaxed) {
+                    break;
+                }
                 let sender = sender.clone();
                 let token = token.clone();
                 let _ = std::thread::Builder::new()
@@ -1104,7 +1131,11 @@ pub fn listen(port: u16) -> Result<std::sync::mpsc::Receiver<Request>, String> {
         })
         .map_err(|e| e.to_string())?;
     tracing::info!(port, "control channel listening on 127.0.0.1");
-    Ok(receiver)
+    Ok(Server {
+        requests: receiver,
+        port,
+        stop,
+    })
 }
 
 fn answer_client(
@@ -1151,11 +1182,47 @@ fn answer_client(
     }
 }
 
-/// A running AudioStrada, reached through its control channel.
+/// A running AudioStrada, reached through its control channel when a tool is called: the
+/// assistant can start before AudioStrada, and keeps working when it is restarted.
 struct Remote {
+    port: u16,
+    link: Option<Link>,
+}
+
+struct Link {
     reader: std::io::BufReader<std::net::TcpStream>,
     writer: std::net::TcpStream,
     token: String,
+}
+
+const NOT_RUNNING: &str = "AudioStrada is not open, or AI assistants are off in it (Help, AI assistants): open AudioStrada and switch them on, then try again";
+
+impl Remote {
+    fn connect(&self) -> Result<Link, String> {
+        let token = token_file()
+            .and_then(|f| std::fs::read_to_string(f).ok())
+            .ok_or(NOT_RUNNING)?;
+        let writer = std::net::TcpStream::connect(("127.0.0.1", self.port))
+            .map_err(|_| NOT_RUNNING.to_owned())?;
+        let reader = std::io::BufReader::new(writer.try_clone().map_err(|e| e.to_string())?);
+        Ok(Link {
+            reader,
+            writer,
+            token: token.trim().to_owned(),
+        })
+    }
+
+    fn exchange(link: &mut Link, request: &Value) -> Result<String, String> {
+        writeln!(link.writer, "{request}").map_err(|e| e.to_string())?;
+        let mut line = String::new();
+        link.reader
+            .read_line(&mut line)
+            .map_err(|e| e.to_string())?;
+        if line.is_empty() {
+            return Err("closed".into());
+        }
+        Ok(line)
+    }
 }
 
 impl Backend for Remote {
@@ -1164,14 +1231,29 @@ impl Backend for Remote {
     }
 
     fn call(&mut self, name: &str, args: &Value) -> Result<Value, String> {
-        let request = json!({"token": self.token, "tool": name, "arguments": args});
-        writeln!(self.writer, "{request}").map_err(|e| e.to_string())?;
-        let mut line = String::new();
-        self.reader
-            .read_line(&mut line)
-            .map_err(|e| e.to_string())?;
+        let mut request = json!({"tool": name, "arguments": args});
+        // A link that broke (AudioStrada restarted) is made again once.
+        let mut line = None;
+        for _ in 0..2 {
+            if self.link.is_none() {
+                self.link = Some(self.connect()?);
+            }
+            let link = self.link.as_mut().expect("linked");
+            request["token"] = json!(link.token);
+            match Self::exchange(link, &request) {
+                Ok(l) => {
+                    line = Some(l);
+                    break;
+                }
+                Err(_) => self.link = None,
+            }
+        }
+        let line = line.ok_or(NOT_RUNNING)?;
         let reply: Value =
             serde_json::from_str(&line).map_err(|e| format!("AudioStrada closed: {e}"))?;
+        if reply.get("error").and_then(Value::as_str) == Some("wrong token") {
+            self.link = None;
+        }
         match (reply.get("ok"), reply.get("error")) {
             (Some(v), _) => Ok(v.clone()),
             (_, Some(e)) => Err(e.as_str().unwrap_or("error").to_owned()),
@@ -1180,19 +1262,10 @@ impl Backend for Remote {
     }
 }
 
-/// MCP on stdio, driving the AudioStrada started with `--control <port>`.
+/// MCP on stdio, driving the AudioStrada that listens on `port` (AI assistants switched on,
+/// or started with `--control <port>`), reached at the first tool call.
 pub fn serve_remote(port: u16) -> Result<(), String> {
-    let token = token_file()
-        .and_then(|f| std::fs::read_to_string(f).ok())
-        .ok_or("no control token: start AudioStrada with --control <PORT> first")?;
-    let writer = std::net::TcpStream::connect(("127.0.0.1", port))
-        .map_err(|e| format!("cannot reach AudioStrada on port {port}: {e}"))?;
-    let reader = std::io::BufReader::new(writer.try_clone().map_err(|e| e.to_string())?);
-    let mut remote = Remote {
-        reader,
-        writer,
-        token: token.trim().to_owned(),
-    };
+    let mut remote = Remote { port, link: None };
     let stdin = std::io::stdin();
     serve(&mut remote, stdin.lock(), std::io::stdout()).map_err(|e| e.to_string())
 }

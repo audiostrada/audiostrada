@@ -1122,3 +1122,84 @@ Licence à vie
 
 Every update included, for life.
 Toutes les mises à jour incluses, à vie.
+
+AI assistants…
+Assistants IA…
+
+AI assistants
+Assistants IA
+
+Added
+Ajouté
+
+Added for another port: update it
+Ajouté pour un autre port : à mettre à jour
+
+Added to {name}: restart it to load AudioStrada.
+Ajouté à {name} : redémarrez-le pour qu'il charge AudioStrada.
+
+Allow AI assistants to drive AudioStrada
+Autoriser les assistants IA à piloter AudioStrada
+
+An AI assistant can hear, look at and change the open project: it measures the mix, finds what masks what, sets equalizers and levels. Every change it makes can be undone.
+Un assistant IA peut écouter, regarder et modifier le projet ouvert : il mesure le mix, trouve ce qui en masque quoi, règle les égaliseurs et les niveaux. Chacune de ses modifications s'annule.
+
+Another assistant that speaks MCP:
+Un autre assistant compatible MCP :
+
+AudioStrada answers only programs of this computer and this user. What the assistant reads (names, measurements, pictures) goes to its provider, like anything you ask it.
+AudioStrada ne répond qu'aux programmes de cet ordinateur et de cet utilisateur. Ce que l'assistant lit (noms, mesures, images) part chez son fournisseur, comme tout ce que vous lui demandez.
+
+Change it only if another program uses this port, then update the assistants below
+À changer seulement si un autre programme utilise ce port, puis mettez à jour les assistants ci-dessous
+
+ChatGPT only reaches MCP servers on the internet for now, not programs of this computer.
+Pour l'instant, ChatGPT n'accède qu'aux serveurs MCP sur internet, pas aux programmes de cet ordinateur.
+
+Claude Code, in a terminal:
+Claude Code, dans un terminal :
+
+Connect an assistant
+Connecter un assistant
+
+Copied: paste it into the assistant's MCP settings.
+Copié : collez-le dans les réglages MCP de l'assistant.
+
+Copy its configuration
+Copier sa configuration
+
+Its settings cannot be read
+Ses réglages sont illisibles
+
+Lately
+Dernièrement
+
+No assistant has called AudioStrada since it started.
+Aucun assistant n'a appelé AudioStrada depuis son démarrage.
+
+Not added
+Non ajouté
+
+Not found on this computer
+Absent de cet ordinateur
+
+Off: assistants cannot reach AudioStrada
+Désactivé : les assistants ne peuvent pas joindre AudioStrada
+
+On: listening on this computer, port {port}
+Activé : à l'écoute sur cet ordinateur, port {port}
+
+Port
+Port
+
+Removed from {name}.
+Retiré de {name}.
+
+{n} h ago
+il y a {n} h
+
+{n} min ago
+il y a {n} min
+
+{n} s ago
+il y a {n} s

@@ -452,6 +452,12 @@ It can also look: `render_spectrum` draws the spectrum of up to three tracks ove
 above the short-term loudness. Assistants that read images (Claude among them) see these
 pictures as you would.
 
+**Help › AI assistants** does the setup. Switch on *Allow AI assistants to drive AudioStrada*, then
+add AudioStrada to Claude Desktop, Claude Code, Cursor or Gemini CLI with one click (restart the
+assistant afterwards); for another assistant, copy its configuration. The window lists the last
+tools assistants called. The setting stays on from one session to the next. An assistant started
+before AudioStrada, or across a restart of AudioStrada, reconnects at its next request.
+
 - `audiostrada mcp` works on a project of its own, without a window (it can create or open one).
   For Claude Code: `claude mcp add audiostrada -- audiostrada mcp`.
 - `audiostrada --control 9000 song.strada` opens AudioStrada as usual and listens on that local port;
