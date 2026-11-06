@@ -74,3 +74,58 @@ fn is_date(text: &str) -> bool {
             .enumerate()
             .all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("audiostrada-license-{name}-{}", std::process::id()))
+    }
+
+    #[test]
+    fn dates_are_checked() {
+        assert!(is_date("2027-11-01"));
+        for bad in ["2027-1-01", "27-11-01", "2027/11/01", "2027-11-0x", ""] {
+            assert!(!is_date(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn issuing_and_checking_refuse_what_is_wrong() {
+        let secret = temp("secret");
+        assert!(
+            issue(&secret, "A", "a@b.c", "2027-11-01", false).is_err(),
+            "no file"
+        );
+        std::fs::write(&secret, "not hex").unwrap();
+        assert!(
+            issue(&secret, "A", "a@b.c", "2027-11-01", false).is_err(),
+            "no key"
+        );
+        std::fs::write(&secret, to_hex(&[3; 32])).unwrap();
+        assert!(
+            issue(&secret, "A", "a@b.c", "soon", false).is_err(),
+            "no date"
+        );
+        assert!(issue(&secret, "A", "a@b.c", "2027-11-01", true).is_ok());
+        assert!(keygen().is_ok());
+        // A license signed with that key checks out against its public key only.
+        let license = License {
+            id: "lic_1".into(),
+            name: "A".into(),
+            email: "a@b.c".into(),
+            updates_until: "2027-11-01".into(),
+            issued: "2026-11-01".into(),
+            plan: Plan::Commercial,
+        };
+        let file = temp("license");
+        std::fs::write(&file, sign(&license, &[3; 32])).unwrap();
+        assert!(check(&file, &to_hex(&public_key(&[3; 32]))).is_ok());
+        assert!(check(&file, &to_hex(&public_key(&[4; 32]))).is_err());
+        assert!(check(&file, "zz").is_err());
+        assert!(check(&temp("missing"), &to_hex(&public_key(&[3; 32]))).is_err());
+        let _ = std::fs::remove_file(secret);
+        let _ = std::fs::remove_file(file);
+    }
+}

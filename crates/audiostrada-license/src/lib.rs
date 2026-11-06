@@ -319,6 +319,39 @@ mod tests {
     }
 
     #[test]
+    fn lifetime_licenses_cover_every_version() {
+        let life = license("9999-12-31");
+        assert!(life.is_lifetime());
+        assert!(life.covers("2099-01-01"));
+        assert!(!license("2027-11-01").is_lifetime());
+        let status = Status::Licensed(life.clone());
+        assert!(!status.evaluation());
+        assert_eq!(status.license(), Some(&life));
+        assert!(Status::Lapsed(life).evaluation());
+        assert!(Status::Evaluation.evaluation());
+        assert_eq!(Status::Evaluation.license(), None);
+    }
+
+    #[test]
+    fn links_go_to_the_web_site() {
+        assert_eq!(link("download"), format!("{SITE}/download"));
+        assert!(link("releases/latest.json").ends_with("/releases/latest.json"));
+    }
+
+    #[test]
+    fn broken_texts_are_refused_as_such() {
+        let key = public_key(&SECRET);
+        for text in ["", "no dot here", "a.b", "!!!.???", "e30.AAAA"] {
+            assert!(verify(text, &key).is_err(), "{text:?}");
+        }
+        // A good signature over something that is not a license.
+        let text = sign(&license("2027-11-01"), &SECRET);
+        assert!(verify(&text, &[0; 32]).is_err(), "no such key");
+        assert!(from_hex(&"ab".repeat(31)).is_none(), "too short");
+        assert!(from_hex(&"ab".repeat(33)).is_none(), "too long");
+    }
+
+    #[test]
     fn hex_round_trips() {
         let key = public_key(&SECRET);
         assert_eq!(from_hex(&to_hex(&key)), Some(key));

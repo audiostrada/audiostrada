@@ -1527,6 +1527,90 @@ mod tests {
             assert!(doc.borrow().player().position() > start + length);
         }
 
+        /// A right click at `pos`, then a few frames with the menu it opened.
+        fn right_click(h: &mut Harness, pos: Pos2) {
+            h.frame(vec![Event::PointerMoved(pos)]);
+            for pressed in [true, false] {
+                h.frame(vec![Event::PointerButton {
+                    pos,
+                    button: PointerButton::Secondary,
+                    pressed,
+                    modifiers: Modifiers::NONE,
+                }]);
+            }
+            h.frame(vec![]);
+            h.frame(vec![]);
+            // Away and a click elsewhere closes it.
+            h.frame(vec![Event::Key {
+                key: Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Modifiers::NONE,
+            }]);
+        }
+
+        #[test]
+        fn every_context_menu_opens() {
+            let (mut h, doc, tracks) = harness();
+            let (start, length) = {
+                let d = doc.borrow();
+                let c = &d.project().track(tracks[1]).unwrap().clips[0];
+                (c.start, c.length)
+            };
+            doc.borrow_mut().history_mut().edit("MIDI", |p| {
+                p.add_midi_clip(tracks[0], start, length, vec![]);
+            });
+            h.frame(vec![]);
+            let lanes = h.view.lanes_rect;
+            let x = |s: u64, h: &Harness| {
+                lanes.left() + ((s as f64 - h.view.scroll) / h.view.zoom) as f32
+            };
+            let y = |row: usize, at: f32, h: &Harness| {
+                lanes.top() + h.view.tops[row] + h.view.track_height * at
+            };
+            let middle = start + length / 2;
+            for row in [0, 1] {
+                // A clip, its top edge, an empty place, the header.
+                for at in [0.75, 0.3, 0.05] {
+                    {
+                        let at = pos2(x(middle, &h), y(row, at, &h));
+                        right_click(&mut h, at);
+                    }
+                }
+                {
+                    let at = pos2(x(start + 3 * length, &h), y(row, 0.5, &h));
+                    right_click(&mut h, at);
+                }
+                {
+                    let at = pos2(lanes.left() - HEADER_WIDTH + 60.0, y(row, 0.3, &h));
+                    right_click(&mut h, at);
+                }
+            }
+            // The ruler, above the lanes.
+            {
+                let at = pos2(x(middle, &h), lanes.top() - 10.0);
+                right_click(&mut h, at);
+            }
+            // With a range and a selection, the menus offer more.
+            h.view.selection = doc
+                .borrow()
+                .project()
+                .tracks
+                .iter()
+                .flat_map(|t| t.clips.iter().map(|c| c.id))
+                .collect();
+            h.view.run(Action::RangeFromClips, &EditSettings::default());
+            {
+                let at = pos2(x(middle, &h), y(1, 0.75, &h));
+                right_click(&mut h, at);
+            }
+            {
+                let at = pos2(x(middle, &h), lanes.top() - 10.0);
+                right_click(&mut h, at);
+            }
+        }
+
         #[test]
         fn double_click_on_a_name_renames_the_track() {
             let (mut h, doc, tracks) = harness();
