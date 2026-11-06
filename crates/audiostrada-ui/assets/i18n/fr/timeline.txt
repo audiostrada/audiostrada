@@ -817,3 +817,6 @@ Déplacer le fondu enchaîné
 
 Drag to resize the lane, double-click for its usual height
 Glisser pour redimensionner la ligne, double-clic pour sa hauteur habituelle
+
+Snap
+Aimant

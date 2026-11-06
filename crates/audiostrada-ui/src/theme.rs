@@ -545,6 +545,49 @@ pub fn icon_button(ui: &mut Ui, icon: Icon, on: bool, tint: Color32, hint: &str)
     response.on_hover_text(hint)
 }
 
+/// An icon and its name as one toggle, lit in `tint` when on: for a mode to find at a glance.
+pub fn labeled_toggle(
+    ui: &mut Ui,
+    icon: Icon,
+    text: &str,
+    on: bool,
+    tint: Color32,
+    hint: &str,
+) -> Response {
+    let p = current(ui);
+    let font = strong(12.0);
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.to_owned(), font, Color32::PLACEHOLDER);
+    let size = vec2(28.0 + galley.size().x + 10.0, 24.0);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    let fill = if on {
+        tint.gamma_multiply(0.28)
+    } else if response.hovered() {
+        p.hover
+    } else {
+        p.surface
+    };
+    ui.painter().rect_filled(rect, 5.0, fill);
+    let border = if on { tint } else { p.border };
+    ui.painter()
+        .rect_stroke(rect, 5.0, Stroke::new(1.0, border), StrokeKind::Inside);
+    let color = if on { tint } else { p.text.gamma_multiply(0.8) };
+    let icon_rect = Rect::from_center_size(rect.left_center() + vec2(15.0, 0.0), vec2(14.0, 14.0));
+    paint_icon(ui.painter(), icon_rect, icon, color);
+    let ink = if on {
+        p.text
+    } else {
+        p.text.gamma_multiply(0.8)
+    };
+    ui.painter().galley(
+        egui::pos2(rect.left() + 28.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        ink,
+    );
+    response.on_hover_text(hint)
+}
+
 /// A small rounded toggle with a letter, as in track headers and channel strips.
 /// The button of a window's main action, filled with the accent.
 pub fn primary_button(ui: &mut Ui, text: &str) -> Response {

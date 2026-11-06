@@ -1286,3 +1286,9 @@ Clic droit pour choisir les paramètres affichés ici
 
 Click to edit; drag the module to move it
 Clic pour éditer ; glisser le module pour le déplacer
+
+Pin
+Épingler
+
+Keeps this window shown when another track is selected; unpinned, it shows only while its track is selected
+Garde cette fenêtre affichée quand une autre piste est sélectionnée ; non épinglée, elle ne s'affiche que lorsque sa piste est sélectionnée

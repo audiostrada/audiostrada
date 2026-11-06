@@ -465,7 +465,20 @@ impl PianoRoll {
             );
         }
         separator(ui);
-        // Grid and snap.
+        // Snap, then the grid.
+        let p = theme::current(ui);
+        if theme::labeled_toggle(
+            ui,
+            theme::Icon::Snap,
+            tr("Snap"),
+            self.snap,
+            p.accent,
+            tr("Notes snap to the grid; hold Ctrl to place freely"),
+        )
+        .clicked()
+        {
+            self.snap = !self.snap;
+        }
         let grid = self.grid;
         chip(
             ui,

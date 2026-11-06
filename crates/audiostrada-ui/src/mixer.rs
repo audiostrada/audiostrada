@@ -51,6 +51,13 @@ pub struct MixerView {
     bottom_last: f32,
     /// Plugins whose own window opens (or comes to the front) once they are loaded.
     open_gui: Vec<(Channel, InsertId)>,
+    /// Editors kept visible whatever track is selected.
+    pinned: std::collections::HashSet<InsertId>,
+    /// Plugins' own windows closed while their track is not selected, to reopen on its return.
+    asleep_guis: Vec<(Channel, InsertId)>,
+    /// The selection the windows last followed, and a track to select for a window opened.
+    followed: Vec<TrackId>,
+    reveal: Option<TrackId>,
     /// Where this view's windows were, kept in the context's data (see [`WindowPlaces`]).
     places: egui::Id,
     /// The project went to the background: its windows reopen where they were last.
@@ -604,6 +611,52 @@ struct WindowPlaces {
     opened: HashMap<egui::ViewportId, Option<egui::Pos2>>,
 }
 
+/// A pin keeping a track's window shown when another track is selected.
+fn pin_button(ui: &mut Ui, pinned: &mut std::collections::HashSet<InsertId>, id: InsertId) {
+    let on = pinned.contains(&id);
+    let p = theme::current(ui);
+    let text = RichText::new(tr("Pin")).size(11.0);
+    let response = ui
+        .add(egui::Button::new(if on { text.color(p.accent) } else { text }).selected(on))
+        .on_hover_text(tr(
+            "Keeps this window shown when another track is selected; unpinned, it shows only \
+             while its track is selected",
+        ));
+    if response.clicked() {
+        if on {
+            pinned.remove(&id);
+        } else {
+            pinned.insert(id);
+        }
+    }
+}
+
+/// The track whose selection a channel's windows follow: none for the master and the busses
+/// (tracks others play into, by their output or a send).
+fn follows_selection(project: &Project, channel: Channel) -> Option<TrackId> {
+    let Channel::Track(t) = channel else {
+        return None;
+    };
+    let bus = routing::has_children(project, t)
+        || project
+            .tracks
+            .iter()
+            .any(|x| x.sends.iter().any(|s| s.target == t));
+    (!bus).then_some(t)
+}
+
+/// A window gone: it opens again where it was last, fitted anew.
+fn forget_window(ctx: &egui::Context, places: egui::Id, id: egui::ViewportId) {
+    ctx.data_mut(|d| {
+        d.remove::<u64>(egui::Id::unique(("fit-opened", id)));
+        d.remove::<egui::Vec2>(egui::Id::unique(("fit-size", id)));
+        d.remove::<(f32, f32, bool)>(egui::Id::unique(("fit-room", id)));
+        d.get_temp_mut_or_default::<WindowPlaces>(places)
+            .opened
+            .remove(&id);
+    });
+}
+
 fn editor_window(
     ctx: &egui::Context,
     places: egui::Id,
@@ -700,12 +753,7 @@ fn editor_window(
         !ui.ctx().input(|i| i.viewport().close_requested())
     });
     if !open {
-        ctx.data_mut(|d| {
-            d.remove::<u64>(egui::Id::unique(("fit-opened", id)));
-            d.get_temp_mut_or_default::<WindowPlaces>(places)
-                .opened
-                .remove(&id)
-        });
+        forget_window(ctx, places, id);
     }
     // The window goes at the next frame of the one that opened it: right away. Its close
     // button is only read when that one draws: often enough.
@@ -1687,6 +1735,10 @@ impl MixerView {
             expanded: None,
             bottom_last: 0.0,
             open_gui: Vec::new(),
+            pinned: Default::default(),
+            asleep_guis: Vec::new(),
+            followed: Vec::new(),
+            reveal: None,
             places: egui::Id::unique((
                 "mixer-windows",
                 NEXT_VIEW.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
@@ -4406,10 +4458,62 @@ impl MixerView {
 
     /// Opens an insert's window in AudioStrada, or brings it to the front.
     fn show_editor(&mut self, channel: Channel, id: InsertId) {
+        if let Channel::Track(t) = channel {
+            self.reveal = Some(t);
+        }
         if self.editors.contains(&(channel, id)) {
             self.raise = Some(id);
         } else {
             self.editors.push((channel, id));
+        }
+    }
+
+    /// Whether a channel's windows are shown: always for the master and the busses, for a track
+    /// while it is selected or when pinned.
+    fn awake(&self, doc: &Document, project: &Project, channel: Channel, id: InsertId) -> bool {
+        match follows_selection(project, channel) {
+            Some(t) => self.pinned.contains(&id) || doc.is_track_selected(t),
+            None => true,
+        }
+    }
+
+    /// Selects the track of a window just opened; when the selection changes, the plugins' own
+    /// windows of the tracks left close, those of the tracks selected open again.
+    fn follow_selection(&mut self, doc: &mut Document, project: &Project) {
+        if let Some(t) = self.reveal.take()
+            && follows_selection(project, Channel::Track(t)).is_some()
+            && !doc.is_track_selected(t)
+        {
+            doc.select_track(t, crate::document::SelectMode::Only);
+        }
+        let selection = doc.selected_tracks().to_vec();
+        if selection == self.followed {
+            return;
+        }
+        self.followed = selection;
+        for track in &project.tracks {
+            let channel = Channel::Track(track.id);
+            for insert in routing::flatten(&track.inserts) {
+                if audiostrada_dsp::info(&insert.effect).is_some()
+                    || self.awake(doc, project, channel, insert.id)
+                {
+                    continue;
+                }
+                if let Some(plugin) = doc.player_mut().plugin(channel, insert.id)
+                    && plugin.gui_open()
+                {
+                    plugin.close_gui();
+                    self.asleep_guis.push((channel, insert.id));
+                }
+            }
+        }
+        let asleep = std::mem::take(&mut self.asleep_guis);
+        for (channel, id) in asleep {
+            if self.awake(doc, project, channel, id) {
+                self.open_gui.push((channel, id));
+            } else {
+                self.asleep_guis.push((channel, id));
+            }
         }
     }
 
@@ -4420,6 +4524,9 @@ impl MixerView {
             let Some(insert) = routing::find_insert(project, channel, id) else {
                 continue;
             };
+            if let Channel::Track(t) = channel {
+                self.reveal = Some(t);
+            }
             if doc.player().plugin_error(id).is_some() {
                 self.show_editor(channel, id);
                 continue;
@@ -4454,12 +4561,22 @@ impl MixerView {
             });
         }
         self.plugin_windows(doc, project);
+        self.follow_selection(doc, project);
         let mut closed = Vec::new();
         for (channel, id) in self.editors.clone() {
             let Some(insert) = routing::find_insert(project, channel, id) else {
                 closed.push((channel, id));
                 continue;
             };
+            // Another track's windows wait until it is selected again.
+            if !self.awake(doc, project, channel, id) {
+                forget_window(
+                    ctx,
+                    self.places,
+                    egui::ViewportId::from_hash_of(("insert-editor", id.0)),
+                );
+                continue;
+            }
             let owner = owner_name(project, channel);
             let Some(info) = audiostrada_dsp::info(&insert.effect) else {
                 if !self.plugin_editor(ctx, doc, channel, insert, owner) {
@@ -4498,6 +4615,7 @@ impl MixerView {
             };
             // The rig picks its own files.
             let rig = info.id == "amp_rig";
+            let contextual = follows_selection(project, channel).is_some();
             let raise = self.raise == Some(id);
             let places = self.places;
             let open = editor_window(
@@ -4509,11 +4627,17 @@ impl MixerView {
                 raise,
                 |ui| {
                     let state = self.editor_states.entry(id).or_default();
+                    let pinned = &mut self.pinned;
                     let meter = effect_editors::is_meter(info.id);
                     let toggled = effect_editors::header(ui, info, insert.bypass, |ui| {
-                        if !meter {
-                            effect_editors::preset_bar(ui, doc, channel, insert, state);
-                        }
+                        ui.horizontal(|ui| {
+                            if !meter {
+                                effect_editors::preset_bar(ui, doc, channel, insert, state);
+                            }
+                            if contextual {
+                                pin_button(ui, pinned, id);
+                            }
+                        });
                     });
                     if let Some(bypass) = toggled {
                         doc.history_mut().edit(tr("Bypass insert"), |p| {

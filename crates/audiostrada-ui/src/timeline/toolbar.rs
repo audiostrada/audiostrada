@@ -264,6 +264,20 @@ impl TimelineView {
                 // The edit mode, the grid and snap.
                 edit_mode(ui, &mut settings.mode);
                 ui.add_space(4.0);
+                let snap = hint(Action::ToggleSnap.label(), Some(Action::ToggleSnap), None);
+                if theme::labeled_toggle(
+                    ui,
+                    theme::Icon::Snap,
+                    tr("Snap"),
+                    settings.snap,
+                    p.accent,
+                    &snap,
+                )
+                .clicked()
+                {
+                    settings.snap = !settings.snap;
+                }
+                snap_targets(ui, settings);
                 egui::ComboBox::from_id_salt("timeline-grid")
                     .width(58.0)
                     .selected_text(settings.grid.name())
@@ -274,13 +288,6 @@ impl TimelineView {
                     })
                     .response
                     .on_hover_text(hint(tr("Grid value"), Some(Action::GridFiner), None));
-                let snap = hint(Action::ToggleSnap.label(), Some(Action::ToggleSnap), None);
-                if theme::icon_button(ui, theme::Icon::Snap, settings.snap, p.accent, &snap)
-                    .clicked()
-                {
-                    settings.snap = !settings.snap;
-                }
-                snap_targets(ui, settings);
                 if show_commands {
                     separator(ui);
                     for &(command, glyph) in COMMANDS {

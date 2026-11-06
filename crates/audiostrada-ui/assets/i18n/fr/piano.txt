@@ -345,3 +345,6 @@ Ce que la piste édite : vélocité, probabilité de jeu, un contrôleur, ou la 
 
 Without a scale: major chords. Choose a scale for chords that fit.
 Sans gamme : accords majeurs. Choisir une gamme pour des accords qui s'accordent.
+
+Notes snap to the grid; hold Ctrl to place freely
+Les notes s'aimantent à la grille ; maintenir Ctrl pour les placer librement
