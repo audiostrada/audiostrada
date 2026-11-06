@@ -311,6 +311,36 @@ impl Clip {
     pub fn is_midi(&self) -> bool {
         self.notes.is_some()
     }
+
+    /// Whether the content of a MIDI clip would begin before the project's start (the clip moved
+    /// further left than it was trimmed), which positions counted from it cannot express.
+    pub fn needs_rebase(&self) -> bool {
+        self.is_midi() && self.offset > self.start
+    }
+
+    /// Moves the notes and controls of such a clip so its content begins at 0: what plays stays
+    /// the same, and what is dropped could never be shown again.
+    pub fn rebase(&mut self) {
+        if !self.needs_rebase() {
+            return;
+        }
+        let shift = self.offset - self.start;
+        if let Some(notes) = &mut self.notes {
+            let notes = Arc::make_mut(notes);
+            notes.retain(|n| n.start >= shift);
+            for n in notes.iter_mut() {
+                n.start -= shift;
+            }
+        }
+        if let Some(controls) = &mut self.controls {
+            let controls = Arc::make_mut(controls);
+            controls.retain(|p| p.time >= shift);
+            for p in controls.iter_mut() {
+                p.time -= shift;
+            }
+        }
+        self.offset = self.start;
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -777,6 +807,29 @@ impl Project {
             highest = highest.max(m.id.0);
         }
         highest
+    }
+
+    /// Rebases the MIDI clips whose content would begin before the project's start.
+    pub fn rebase_midi(&mut self) {
+        for track in &mut self.tracks {
+            let clips = || {
+                track
+                    .clips
+                    .iter()
+                    .chain(track.alternates.iter().flat_map(|p| p.clips.iter()))
+            };
+            if !clips().any(Clip::needs_rebase) {
+                continue;
+            }
+            let t = Arc::make_mut(track);
+            for clip in t
+                .clips
+                .iter_mut()
+                .chain(t.alternates.iter_mut().flat_map(|p| p.clips.iter_mut()))
+            {
+                clip.rebase();
+            }
+        }
     }
 
     /// Brings values from a damaged or hand-edited file back into range, so that editing and

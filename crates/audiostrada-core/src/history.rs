@@ -60,6 +60,7 @@ impl History {
     fn apply(&mut self, label: &str, key: Option<&str>, f: impl FnOnce(&mut Project)) -> bool {
         let before = self.current.clone();
         f(&mut self.current);
+        self.current.rebase_midi();
         if self.current == before {
             return false;
         }
@@ -162,6 +163,57 @@ impl History {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_midi_clip_moved_left_of_its_trim_plays_its_notes_where_it_shows_them() {
+        use crate::model::{ControlPoint, Note};
+        use std::sync::Arc;
+        let mut p = Project::new("Test", 48_000);
+        let t = p.add_track("Keys");
+        let bar = 96_000;
+        let notes = vec![
+            Note {
+                start: bar,
+                length: 100,
+                key: 60,
+                velocity: 100,
+                ..Default::default()
+            },
+            Note {
+                start: 2 * bar,
+                length: 100,
+                key: 62,
+                velocity: 100,
+                ..Default::default()
+            },
+        ];
+        let controls = vec![ControlPoint {
+            time: 2 * bar + 10,
+            controller: 1,
+            value: 0.5,
+            channel: 0,
+        }];
+        let mut h = History::new(p);
+        h.edit("Add", |p| {
+            p.add_midi_clip(t, 0, 4 * bar, notes);
+            p.track_mut(t).unwrap().clips[0].controls = Some(Arc::new(controls));
+        });
+        // Trimmed by two bars, then moved back to the project's start.
+        h.edit("Trim and move", |p| {
+            let c = &mut p.track_mut(t).unwrap().clips[0];
+            c.offset = 2 * bar;
+            c.length = 2 * bar;
+            c.start = 0;
+        });
+        let c = &h.project().track(t).unwrap().clips[0];
+        assert_eq!((c.start, c.offset), (0, 0));
+        let notes = c.notes.as_ref().unwrap();
+        assert_eq!(
+            notes.iter().map(|n| (n.start, n.key)).collect::<Vec<_>>(),
+            vec![(0, 62)]
+        );
+        assert_eq!(c.controls.as_ref().unwrap()[0].time, 10);
+    }
+
     use super::*;
 
     #[test]

@@ -166,6 +166,7 @@ pub fn from_json(bytes: &[u8]) -> Result<Project, ProjectError> {
         return Err(ProjectError::Format("invalid object ids".into()));
     }
     project.repair();
+    project.rebase_midi();
     Ok(project)
 }
 
