@@ -1785,8 +1785,8 @@ fn band_panel(
                 }
             });
         }
-        // The output at the right end.
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+        // The output last, at the right end of the row.
+        {
             eq_section(ui, tr("Output"), p.weak, |ui| {
                 ui.horizontal(|ui| {
                     wide_knob(ui, params, "output", tr("Gain"), 44.0, accent);
@@ -1810,7 +1810,7 @@ fn band_panel(
                     response
                 });
             });
-        });
+        }
     });
 }
 
@@ -1853,6 +1853,9 @@ pub(crate) fn section_frame(
             let extra = ((memo.start - used) / memo.last.len() as f32).max(0.0);
             let tallest = memo.last.iter().map(|v| v.y).fold(0.0f32, f32::max);
             egui::vec2(natural.x + extra, tallest)
+        } else if in_row {
+            // The first frame of a row: each at its own size until they are measured.
+            egui::Vec2::ZERO
         } else {
             egui::vec2(available, natural.y)
         };
@@ -2160,7 +2163,7 @@ fn pitch_correct(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut E
             ui.add_space(4.0);
             scale_keyboard(ui, params, key, scale, notes);
         });
-        knob_sections(
+        knob_section_items(
             ui,
             params,
             &[

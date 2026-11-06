@@ -613,11 +613,12 @@ fn editor_window(
     raise: bool,
     add: impl FnOnce(&mut Ui),
 ) -> bool {
-    fn contents(ui: &mut Ui, add: impl FnOnce(&mut Ui)) -> egui::Vec2 {
-        egui::ScrollArea::vertical()
+    /// The content's size, and the room it had.
+    fn contents(ui: &mut Ui, add: impl FnOnce(&mut Ui)) -> (egui::Vec2, egui::Vec2) {
+        let output = egui::ScrollArea::vertical()
             .auto_shrink([false, false])
-            .show(ui, add)
-            .content_size
+            .show(ui, add);
+        (output.content_size, output.inner_rect.size())
     }
     let id = egui::ViewportId::from_hash_of(key);
     if raise {
@@ -649,11 +650,12 @@ fn editor_window(
         });
         // The window follows its content, as it changes: no empty space below or at the right,
         // nothing cut when controls appear.
-        if let Some(content) = content {
-            let ctx = ui.ctx().clone();
-            let margins = egui::Frame::central_panel(&ctx.global_style())
-                .total_margin()
-                .sum();
+        let ctx = ui.ctx().clone();
+        // The first frames lay the content out: the window follows it from the third one.
+        let opened = egui::Id::unique(("fit-opened", id));
+        let frame = ctx.cumulative_frame_nr();
+        let first = ctx.data_mut(|d| *d.get_temp_mut_or_insert_with(opened, || frame));
+        if let Some((content, room)) = content.filter(|_| frame >= first + 2) {
             let (inner, monitor) = ctx.input(|i| {
                 let v = i.viewport();
                 (
@@ -662,9 +664,24 @@ fn editor_window(
                     v.monitor_size.unwrap_or(egui::vec2(f32::MAX, f32::MAX)),
                 )
             });
+            // As much more or less as the content needs than the room it had: content that
+            // fills the room stays as it is.
+            let mut wanted = inner + (content - room);
+            // Content that grows with the room (a row a few pixels too wide) would widen the
+            // window for ever: once seen, the width stays.
+            let seen = egui::Id::unique(("fit-room", id));
+            let (last_room, last_content, mut tracking) = ctx
+                .data(|d| d.get_temp::<(f32, f32, bool)>(seen))
+                .unwrap_or((room.x, content.x, false));
+            tracking |= room.x > last_room + 0.5
+                && ((content.x - last_content) - (room.x - last_room)).abs() < 1.0;
+            ctx.data_mut(|d| d.insert_temp(seen, (room.x, content.x, tracking)));
+            if tracking && wanted.x > inner.x {
+                wanted.x = inner.x;
+            }
             let wanted = egui::vec2(
-                (content.x + margins.x).ceil().min(monitor.x - 40.0),
-                (content.y + margins.y).ceil().min(monitor.y - 60.0),
+                wanted.x.round().min(monitor.x - 40.0),
+                wanted.y.round().min(monitor.y - 60.0),
             );
             if (wanted - inner).abs().max_elem() > 1.0 {
                 let key = egui::Id::unique(("fit-size", id));
@@ -684,6 +701,7 @@ fn editor_window(
     });
     if !open {
         ctx.data_mut(|d| {
+            d.remove::<u64>(egui::Id::unique(("fit-opened", id)));
             d.get_temp_mut_or_default::<WindowPlaces>(places)
                 .opened
                 .remove(&id)

@@ -1500,7 +1500,8 @@ fn editor(ui: &mut Ui, params: &mut Params, pad: usize, meters: &[f32]) {
     let file = pad_file(params, pad);
     let side = 260.0;
     ui.horizontal_top(|ui| {
-        let wide = ui.available_width() - side - 12.0;
+        // The left column takes what the right one, the gap and the two spacings leave.
+        let wide = ui.available_width() - side - 12.0 - 2.0 * ui.spacing().item_spacing.x;
         ui.vertical(|ui| {
             ui.set_width(wide);
             ui.horizontal(|ui| {
