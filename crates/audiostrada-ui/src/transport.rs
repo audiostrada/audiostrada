@@ -690,14 +690,45 @@ fn tempo_well(ui: &mut Ui, doc: &mut Document, tempo: &TempoMap) {
     let mut bpm = tempo.bpm_at_beat(0.0);
     let signature = tempo.signature_at_beat(0.0);
     let (mut numerator, mut denominator) = (signature.numerator, signature.denominator);
-    let (rect, _) = ui.allocate_exact_size(vec2(178.0, HEIGHT), Sense::hover());
-    theme::well(ui.painter(), rect, dark);
+    let (whole, _) = ui.allocate_exact_size(vec2(226.0, HEIGHT), Sense::hover());
+    theme::well(ui.painter(), whole, dark);
+    let rect = Rect::from_min_max(whole.min, pos2(whole.right() - 48.0, whole.bottom()));
     let divider = rect.left() + 74.0;
-    ui.painter().vline(
-        divider,
-        rect.top() + 7.0..=rect.bottom() - 7.0,
-        egui::Stroke::new(1.0, p.border),
+    for x in [divider, rect.right()] {
+        ui.painter().vline(
+            x,
+            rect.top() + 7.0..=rect.bottom() - 7.0,
+            egui::Stroke::new(1.0, p.border),
+        );
+    }
+    // Tap tempo: the beat of the last taps, started over after a pause.
+    let tap_cell = Rect::from_center_size(
+        pos2((rect.right() + whole.right()) / 2.0, whole.center().y),
+        vec2(38.0, HEIGHT - 16.0),
     );
+    let tap = ui
+        .put(
+            tap_cell,
+            egui::Button::new(RichText::new(tr("TAP")).size(10.0))
+                .wrap_mode(egui::TextWrapMode::Extend),
+        )
+        .on_hover_text(tr("Tap tempo: click on the beat, at least twice"));
+    let id = egui::Id::unique("tap-tempo");
+    let mut tapped = None;
+    // On the press, not the release: the tap is the beat.
+    if tap.hovered() && ui.input(|i| i.pointer.primary_pressed()) {
+        let now = ui.input(|i| i.time);
+        let mut taps: Vec<f64> = ui.data(|d| d.get_temp(id)).unwrap_or_default();
+        if taps.last().is_some_and(|&last| now - last > 2.0) {
+            taps.clear();
+        }
+        taps.push(now);
+        if taps.len() > 8 {
+            taps.remove(0);
+        }
+        tapped = tap_bpm(&taps);
+        ui.data_mut(|d| d.insert_temp(id, taps));
+    }
     let caption = |x: f32, text: &str| {
         ui.painter().text(
             pos2(x, rect.bottom() - 7.0),
@@ -748,7 +779,10 @@ fn tempo_well(ui: &mut Ui, doc: &mut Document, tempo: &TempoMap) {
         });
     });
     let sig_changed = sig.as_ref().is_some_and(|r| r.changed());
-    if response.changed() || sig_changed || den_changed {
+    if let Some(t) = tapped {
+        bpm = t;
+    }
+    if response.changed() || sig_changed || den_changed || tapped.is_some() {
         doc.history_mut().edit_merged(tr("Tempo"), "tempo", |p| {
             let tempo = TempoMap::constant(bpm, numerator, denominator);
             audiostrada_core::edit::set_tempo(p, tempo);
@@ -760,9 +794,26 @@ fn tempo_well(ui: &mut Ui, doc: &mut Document, tempo: &TempoMap) {
     }
 }
 
+/// The tempo of taps at `times` (seconds): the mean interval, to a tenth of a BPM.
+fn tap_bpm(times: &[f64]) -> Option<f64> {
+    let (first, last) = (times.first()?, times.last()?);
+    if times.len() < 2 || last <= first {
+        return None;
+    }
+    let interval = (last - first) / (times.len() - 1) as f64;
+    Some((60.0 / interval * 10.0).round().clamp(200.0, 4000.0) / 10.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn taps_give_the_tempo() {
+        assert_eq!(tap_bpm(&[1.0]), None);
+        assert_eq!(tap_bpm(&[0.0, 0.5, 1.0, 1.5]), Some(120.0));
+        assert_eq!(tap_bpm(&[0.0, 0.62, 1.2, 1.8]), Some(100.0));
+    }
 
     #[test]
     fn grid_steps() {

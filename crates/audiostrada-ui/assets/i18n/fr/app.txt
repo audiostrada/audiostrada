@@ -1209,3 +1209,9 @@ Assistants IA : activés (port {port}). Cliquez pour les régler
 
 AI assistants: off. Click to connect Claude or another assistant
 Assistants IA : désactivés. Cliquez pour connecter Claude ou un autre assistant
+
+TAP
+TAP
+
+Tap tempo: click on the beat, at least twice
+Tap tempo : cliquez en rythme, au moins deux fois
