@@ -1,0 +1,17 @@
+# Sections of the release notes GitHub writes from the merged pull requests.
+changelog:
+  exclude:
+    labels: ["type: chore", "dependencies", "duplicate", "invalid", "wontfix"]
+  categories:
+    - title: Breaking changes
+      labels: ["breaking"]
+    - title: New features
+      labels: ["type: feature"]
+    - title: Improvements
+      labels: ["type: enhancement", "type: performance"]
+    - title: Fixes
+      labels: ["type: bug", "type: crash", "type: regression", "type: plugin compatibility"]
+    - title: Manual and translations
+      labels: ["type: docs", "type: translation"]
+    - title: Other changes
+      labels: ["*"]

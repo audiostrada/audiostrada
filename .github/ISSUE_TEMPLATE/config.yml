@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or help
+    url: https://github.com/audiostrada/audiostrada/discussions/categories/q-a
+    about: How to do something, which setting to use, whether AudioStrada fits your setup.
+  - name: User manual
+    url: https://audiostrada.com/manual/
+    about: Every feature, chapter by chapter, with the shortcuts and a cheat sheet.
+  - name: Licence, subscription or payment
+    url: https://audiostrada.com/subscription
+    about: Find your licence, change or cancel your subscription. For anything else, write to contact@audiostrada.com.
+  - name: Security vulnerability
+    url: https://github.com/audiostrada/audiostrada/security/advisories/new
+    about: Report it privately, never in a public issue.

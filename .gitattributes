@@ -1,0 +1,17 @@
+# Sources, translations and data stay LF on every system: Windows checkouts would otherwise turn
+# them CRLF, which the translation catalog and the embedded texts would carry.
+* text=auto eol=lf
+*.png binary
+*.webp binary
+*.jpg binary
+*.ico binary
+*.icns binary
+*.wav binary
+*.flac binary
+*.mp3 binary
+*.woff2 binary
+*.ttf binary
+*.pdf binary
+*.nam binary
+*.bin binary
+*.f32 binary

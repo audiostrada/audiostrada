@@ -1,0 +1,103 @@
+name: Bug report
+description: Something does not work as it should, crashes or sounds wrong.
+labels: ["type: bug", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time. One problem per report helps: it can be fixed and closed on its own.
+        Questions are welcome in [Discussions](https://github.com/audiostrada/audiostrada/discussions).
+  - type: input
+    id: version
+    attributes:
+      label: AudioStrada version
+      description: Help › About AudioStrada.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: System
+      options: [Linux, Windows, macOS]
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System version
+      placeholder: "Ubuntu 26.04, Windows 11 24H2, macOS 16.1 on Apple silicon…"
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Audio backend
+      description: Preferences › Audio.
+      options: [PipeWire, JACK, ALSA, WASAPI shared, WASAPI exclusive, ASIO, CoreAudio, "Not sure"]
+  - type: input
+    id: interface
+    attributes:
+      label: Audio interface, sample rate and buffer size
+      placeholder: "Focusrite Scarlett 2i2, 48 kHz, 128 samples"
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it happen?
+      options:
+        - Recording
+        - Timeline and editing
+        - MIDI and piano roll
+        - Mixer, sends, groups, automation
+        - A built-in effect
+        - Strada-Synth or Strada-Drums
+        - A third-party plugin
+        - Export
+        - AI assistants (MCP)
+        - Interface, windows, shortcuts
+        - Install, start or update
+        - Licence
+        - Somewhere else
+    validations:
+      required: true
+  - type: checkboxes
+    id: severity
+    attributes:
+      label: How bad is it?
+      options:
+        - label: AudioStrada crashes or freezes
+        - label: Work was lost
+        - label: It worked in an earlier version
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: From a new project if you can.
+      placeholder: |
+        1. Add an audio track
+        2. Record a few seconds
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: Screenshots or a short screen recording help a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log
+      description: Start AudioStrada from a terminal with `AUDIOSTRADA_LOG=debug audiostrada`, reproduce the problem, and paste the end of the output. On Linux, the output of `audiostrada diagnose` helps for sound problems.
+      render: shell
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: A small project that shows the problem (File › Archive project…) can be attached here.

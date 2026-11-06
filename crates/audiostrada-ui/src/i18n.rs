@@ -166,7 +166,7 @@ mod tests {
                 if path.extension().is_none_or(|e| e != "rs") || path.ends_with("i18n.rs") {
                     continue;
                 }
-                let source = std::fs::read_to_string(&path).unwrap();
+                let source = std::fs::read_to_string(&path).unwrap().replace("\r\n", "\n");
                 for start in ["tr(", "trf!("] {
                     for (at, _) in source.match_indices(start) {
                         // The text may be on the next line, as rustfmt puts long ones.

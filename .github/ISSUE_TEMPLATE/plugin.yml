@@ -1,0 +1,47 @@
+name: Plugin compatibility
+description: A third-party CLAP, VST3, LV2 or AU plugin does not load, shows no window, sounds wrong or crashes.
+labels: ["type: plugin compatibility", "area: plugin hosting", "status: triage"]
+body:
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin, vendor and version
+      placeholder: "Vital 1.5.5 by Matt Tytel"
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: Format
+      options: [CLAP, VST3, LV2, AU]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: AudioStrada version and system
+      placeholder: "0.1.0 on Fedora 44 (Wayland)"
+    validations:
+      required: true
+  - type: checkboxes
+    id: what
+    attributes:
+      label: What happens
+      options:
+        - label: It is not found by the scan
+        - label: It does not load (red insert)
+        - label: Its window does not open or stays empty
+        - label: The sound is wrong, or there is no sound
+        - label: Its parameters or presets are not saved with the project
+        - label: It crashes (AudioStrada keeps playing, the insert turns red)
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: What you did, and the log of `AUDIOSTRADA_LOG=debug audiostrada` while loading the plugin.
+      render: shell
+  - type: input
+    id: elsewhere
+    attributes:
+      label: Does it work in another host?
+      placeholder: "Yes in Reaper 7.4, same computer"

@@ -1,0 +1,43 @@
+name: Feature request
+description: An idea for something new, or for something that exists to work better.
+labels: ["type: feature", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas still taking shape are welcome in [Discussions › Ideas](https://github.com/audiostrada/audiostrada/discussions/categories/ideas), where others can join in.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The music task, not the solution yet. "I record a band and need to…"
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you see it working. If another program does it well, say which and how.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Part of AudioStrada
+      options:
+        - Recording
+        - Timeline and editing
+        - MIDI and piano roll
+        - Mixer, sends, groups, automation
+        - Built-in effects
+        - Strada-Synth or Strada-Drums
+        - Plugin hosting
+        - Export
+        - AI assistants (MCP)
+        - Interface, windows, shortcuts
+        - Something else
+  - type: textarea
+    id: today
+    attributes:
+      label: How you do it today
+      description: The workaround, if there is one.

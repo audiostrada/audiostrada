@@ -1,0 +1,20 @@
+name: Labeler
+
+# Labels pull requests by the files they change. It reads only labeler.yml from the base
+# branch and never runs the pull request's code, which pull_request_target allows safely.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/labeler@v7
+        with:
+          sync-labels: false

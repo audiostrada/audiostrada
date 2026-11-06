@@ -1,0 +1,46 @@
+# Area labels for pull requests, from the files they change (.github/workflows/labeler.yml).
+"area: audio engine":
+  - changed-files:
+      - any-glob-to-any-file: ["crates/audiostrada-engine/**", "crates/audiostrada-io/**", "crates/audiostrada-rt/**"]
+"area: effects":
+  - changed-files:
+      - any-glob-to-any-file: ["crates/audiostrada-dsp/**", "crates/audiostrada-ui/src/effect_editors.rs", "crates/audiostrada-ui/src/*_editor.rs", "crates/audiostrada-ui/src/presets.rs"]
+"area: instruments":
+  - changed-files:
+      - any-glob-to-any-file: ["crates/audiostrada-dsp/src/synth.rs", "crates/audiostrada-dsp/src/drums.rs", "crates/audiostrada-ui/src/synth_editor.rs", "crates/audiostrada-ui/src/drums_editor.rs", "crates/audiostrada-ui/src/drum_sequencer.rs"]
+"area: timeline":
+  - changed-files:
+      - any-glob-to-any-file: ["crates/audiostrada-ui/src/timeline.rs", "crates/audiostrada-ui/src/timeline/**", "crates/audiostrada-core/src/edit.rs"]
+"area: midi":
+  - changed-files:
+      - any-glob-to-any-file: ["crates/audiostrada-midi/**", "crates/audiostrada-ui/src/piano_roll/**"]
+"area: mixer":
+  - changed-files:
+      - any-glob-to-any-file: ["crates/audiostrada-ui/src/mixer.rs", "crates/audiostrada-ui/src/mixer/**", "crates/audiostrada-ui/src/console_ui.rs", "crates/audiostrada-core/src/routing.rs", "crates/audiostrada-core/src/automation.rs", "crates/audiostrada-core/src/groups.rs"]
+"area: plugin hosting":
+  - changed-files:
+      - any-glob-to-any-file: ["crates/audiostrada-plugins/**"]
+"area: export":
+  - changed-files:
+      - any-glob-to-any-file: ["crates/audiostrada-ui/src/export_window.rs", "crates/audiostrada-media/src/encode.rs"]
+"area: ai assistants":
+  - changed-files:
+      - any-glob-to-any-file: ["crates/audiostrada-ui/src/control.rs", "crates/audiostrada-ui/src/*_tools.rs", "crates/audiostrada-ui/src/listening.rs", "crates/audiostrada-ui/src/plots.rs", "crates/audiostrada-ui/src/integrations.rs", "crates/audiostrada-ui/src/assistants_window.rs"]
+"area: interface":
+  - changed-files:
+      - any-glob-to-any-file: ["crates/audiostrada-ui/src/theme.rs", "crates/audiostrada-ui/src/layout.rs", "crates/audiostrada-ui/src/keymap.rs", "crates/audiostrada-ui/src/preferences.rs", "crates/audiostrada-ui/assets/icons/**"]
+"area: packaging":
+  - changed-files:
+      - any-glob-to-any-file: ["packaging/**", ".github/workflows/release.yml", "crates/audiostrada-ui/src/updates.rs"]
+"area: license":
+  - changed-files:
+      - any-glob-to-any-file: ["crates/audiostrada-license/**", "crates/audiostrada-ui/src/license_window.rs"]
+"type: docs":
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**", "*.md"]
+"type: translation":
+  - changed-files:
+      - any-glob-to-any-file: ["crates/audiostrada-ui/assets/i18n/**"]
+"type: chore":
+  - changed-files:
+      - any-glob-to-any-file: [".github/**", "deny.toml", "rust-toolchain.toml"]
