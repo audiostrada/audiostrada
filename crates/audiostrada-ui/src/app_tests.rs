@@ -345,3 +345,161 @@ fn the_inspector_and_the_audio_settings_answer_a_user_trying_everything() {
         .drop_without_applying_deltas();
     }
 }
+
+#[test]
+fn an_assistant_drives_the_running_application() {
+    let mut h = Harness::with_song("live");
+    for _ in 0..20 {
+        h.frame(Vec::new());
+    }
+    let (server, requests) = crate::control::Server::for_test();
+    h.app.control = Some(server);
+    let ctx = {
+        let doc = h.app.doc.borrow();
+        let project = doc.project();
+        crate::control::tests::Guess {
+            track: project.tracks[0].name.clone(),
+            clips: project
+                .tracks
+                .iter()
+                .flat_map(|t| t.clips.iter().map(|c| c.id.0))
+                .collect(),
+            file: h.dir.join("tone.wav").to_string_lossy().into_owned(),
+        }
+    };
+    let mut asked = vec![
+        ("list_actions".to_owned(), serde_json::json!({})),
+        (
+            "run_action".to_owned(),
+            serde_json::json!({"name": "Toggle metronome"}),
+        ),
+        (
+            "run_action".to_owned(),
+            serde_json::json!({"name": "no such action"}),
+        ),
+        (
+            "show".to_owned(),
+            serde_json::json!({"track": ctx.track, "start": 0.0, "end": 1.0}),
+        ),
+        ("show".to_owned(), serde_json::json!({"clips": ctx.clips})),
+    ];
+    for definition in crate::control::tool_definitions(true) {
+        let name = definition["name"].as_str().unwrap_or_default().to_owned();
+        let mut args = serde_json::Map::new();
+        if let Some(props) = definition["inputSchema"]["properties"].as_object() {
+            for (key, schema) in props {
+                args.insert(key.clone(), crate::control::tests::guess(key, schema, &ctx));
+            }
+        }
+        for key in ["path", "file", "output"] {
+            if args.contains_key(key) && (name.starts_with("export") || name.starts_with("save")) {
+                args.insert(
+                    key.into(),
+                    serde_json::json!(h.dir.join(format!("{name}.out")).to_string_lossy()),
+                );
+            }
+        }
+        asked.push((name.clone(), serde_json::json!({})));
+        asked.push((name, serde_json::Value::Object(args)));
+    }
+    let mut answered = 0;
+    for (tool, args) in asked {
+        let (reply, answer) = std::sync::mpsc::channel();
+        requests
+            .send(crate::control::Request { tool, args, reply })
+            .expect("the application listens");
+        h.frame(Vec::new());
+        if answer.try_recv().is_ok() {
+            answered += 1;
+        }
+    }
+    assert!(answered > 100, "{answered} answers");
+    assert!(!h.app.control_log.is_empty());
+}
+
+#[test]
+fn every_menu_item_is_clicked() {
+    use eframe::egui::{PointerButton, pos2};
+    let mut h = Harness::with_song("menus");
+    h.frame(Vec::new());
+    let click = |h: &mut Harness, at: Pos2| {
+        h.frame(vec![Event::PointerMoved(at)]);
+        for pressed in [true, false] {
+            h.frame(vec![Event::PointerButton {
+                pos: at,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            }]);
+        }
+        h.frame(Vec::new());
+    };
+    let escape = Event::Key {
+        key: egui::Key::Escape,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    // The menu titles sit at the left of the top bar.
+    let mut x = 12.0;
+    while x < 330.0 {
+        let mut y = 34.0;
+        while y < 760.0 {
+            click(&mut h, pos2(x, 10.0));
+            click(&mut h, pos2(x + 40.0, y));
+            h.frame(vec![escape.clone()]);
+            h.frame(vec![escape.clone()]);
+            y += 21.0;
+        }
+        x += 38.0;
+    }
+}
+
+impl Harness {
+    /// Clicks over the middle of the window, where dialogs and modals stand.
+    fn answer_dialogs(&mut self) {
+        let area = Rect::from_min_size(Pos2::new(450.0, 300.0), vec2(700.0, 400.0));
+        for events in crate::test_sweep::script(area, 30.0, false) {
+            self.frame(events);
+        }
+    }
+}
+
+#[test]
+fn projects_save_open_in_tabs_and_close() {
+    let mut h = Harness::with_song("projects");
+    for _ in 0..10 {
+        h.frame(Vec::new());
+    }
+    let file = h.dir.join("Song").join("Song.strada");
+    h.app
+        .doc
+        .borrow_mut()
+        .save_as(audiostrada_core::ProjectPaths::new(&file))
+        .expect("saved");
+    h.act(Action::Save);
+    assert!(file.exists());
+    // Opened again, in a tab of its own, then in place.
+    let path = file.clone();
+    h.frame_with(Vec::new(), |app, ctx| app.open(ctx, path, true));
+    h.act(Action::NextTab);
+    h.act(Action::PreviousTab);
+    let path = file.clone();
+    h.frame_with(Vec::new(), |app, ctx| app.open(ctx, path, false));
+    // A file that is not there.
+    let missing = h.dir.join("missing.strada");
+    h.frame_with(Vec::new(), |app, ctx| app.open(ctx, missing, false));
+    h.answer_dialogs();
+    // Unsaved changes ask before a new project, closing a tab and quitting.
+    for pending in [Pending::New, Pending::CloseTab, Pending::Quit] {
+        h.app.doc.borrow_mut().history_mut().edit("Change", |p| {
+            p.add_track("More");
+        });
+        h.frame_with(Vec::new(), |app, ctx| app.request(ctx, pending));
+        h.frame(Vec::new());
+        h.answer_dialogs();
+    }
+    h.act(Action::CloseTab);
+    h.answer_dialogs();
+}

@@ -1332,6 +1332,18 @@ pub struct Server {
 }
 
 impl Server {
+    /// A server without a socket, and the sender its requests come from (tests).
+    #[cfg(test)]
+    pub(crate) fn for_test() -> (Self, std::sync::mpsc::Sender<Request>) {
+        let (send, requests) = std::sync::mpsc::channel();
+        let server = Self {
+            requests,
+            port: 0,
+            stop: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
+        };
+        (server, send)
+    }
+
     pub fn stop(&self) {
         self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
         // Wakes the listener up, which then sees it should stop.
@@ -1524,7 +1536,7 @@ pub fn actions() -> Value {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn call(backend: &mut Headless, name: &str, args: Value) -> Result<Value, String> {
@@ -1532,7 +1544,7 @@ mod tests {
     }
 
     /// A value for argument `key` of a tool, from its name and its schema.
-    fn guess(key: &str, schema: &Value, ctx: &Guess) -> Value {
+    pub(crate) fn guess(key: &str, schema: &Value, ctx: &Guess) -> Value {
         let kind = schema
             .get("type")
             .and_then(Value::as_str)
@@ -1571,10 +1583,10 @@ mod tests {
         }
     }
 
-    struct Guess {
-        track: String,
-        clips: Vec<u64>,
-        file: String,
+    pub(crate) struct Guess {
+        pub track: String,
+        pub clips: Vec<u64>,
+        pub file: String,
     }
 
     #[test]
