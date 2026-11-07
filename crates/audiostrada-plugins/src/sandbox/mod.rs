@@ -55,6 +55,29 @@ enum Request {
     Deactivate,
 }
 
+impl Request {
+    /// For the log, without the payload (a state can weigh megabytes).
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Load(_) => "Load",
+            Self::Params => "Params",
+            Self::ParamValue(_) => "ParamValue",
+            Self::ValueText(..) => "ValueText",
+            Self::SetParam(..) => "SetParam",
+            Self::Latency => "Latency",
+            Self::SaveState => "SaveState",
+            Self::LoadState(_) => "LoadState",
+            Self::Poll => "Poll",
+            Self::HasGui => "HasGui",
+            Self::OpenGui(..) => "OpenGui",
+            Self::CloseGui => "CloseGui",
+            Self::RaiseGui => "RaiseGui",
+            Self::Activate { .. } => "Activate",
+            Self::Deactivate => "Deactivate",
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 enum Response {
     Done,
@@ -290,6 +313,7 @@ impl SandboxInstance {
         }
         self.next += 1;
         let id = self.next;
+        let name = request.name();
         let line = serde_json::to_string(&(id, &request)).map_err(|e| e.to_string())?;
         let written = self
             .stdin
@@ -304,7 +328,10 @@ impl SandboxInstance {
                 Ok((answer, response)) if answer == id => return Ok(response),
                 Ok(_) => continue,
                 Err(mpsc::RecvTimeoutError::Timeout) => {
-                    self.crash("not responding");
+                    self.crash(&format!(
+                        "not responding ({name} unanswered after {}s)",
+                        timeout.as_secs()
+                    ));
                     return Err("the plugin stopped responding".into());
                 }
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
@@ -948,10 +975,17 @@ mod messages {
 
     #[cfg(windows)]
     fn dispatch() {
+    /// Handles the windows' messages for a while, then hands back to the requests: a plugin
+    /// that posts itself a message for each one it handles (or never validates its painting)
+    /// keeps the queue full forever, and emptying it would never answer AudioStrada again.
         let mut msg = MSG::default();
         // SAFETY: standard message pumping on this thread's queue.
+        const BUDGET: Duration = Duration::from_millis(50);
+        let start = std::time::Instant::now();
         unsafe {
-            while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+            while start.elapsed() < BUDGET
+                && PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool()
+            {
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
