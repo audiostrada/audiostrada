@@ -717,6 +717,7 @@ dependencies = [
  "flate2",
  "getrandom 0.4.3",
  "image",
+ "libc",
  "raw-window-handle",
  "rfd",
  "serde",
@@ -726,6 +727,7 @@ dependencies = [
  "tiny-skia 0.12.0",
  "tracing",
  "ureq",
+ "windows",
  "winit",
  "x11rb",
 ]

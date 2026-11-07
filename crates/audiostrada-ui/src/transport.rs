@@ -242,6 +242,7 @@ pub fn step_length(project: &Project, position: u64, beats: Option<f64>) -> u64 
 pub struct Audio<'a> {
     pub status: Option<&'a StreamStatus>,
     pub open_settings: bool,
+    pub recording_mode: bool,
 }
 
 pub fn show(
@@ -383,7 +384,36 @@ pub fn show(
         ui.add_space(14.0 * k);
         counter_well(ui, doc, counter, (position, playing, recording), k);
         ui.add_space(2.0 * k);
-        tempo_well(ui, doc, &tempo, k);
+        let well = tempo_well(ui, doc, &tempo, k);
+        // Its tap button is put inside it, which leaves the cursor behind.
+        ui.add_space((well.right() + 10.0 * k - ui.cursor().left()).max(0.0));
+        // With its name when there is room beside the meters, else as an icon, else in the
+        // View menu only.
+        let room = ui.available_width() - 410.0 * k;
+        let toggle = if room > 170.0 {
+            Some(theme::labeled_toggle(
+                ui,
+                Icon::Microphone,
+                tr("Recording mode"),
+                audio.recording_mode,
+                theme::RECORD,
+                &hint(Action::RecordingMode),
+            ))
+        } else if room > 36.0 * k {
+            Some(theme::icon_button(
+                ui,
+                Icon::Microphone,
+                audio.recording_mode,
+                theme::RECORD,
+                &hint(Action::RecordingMode),
+                k,
+            ))
+        } else {
+            None
+        };
+        if toggle.is_some_and(|t| t.clicked()) {
+            actions.push(Action::RecordingMode);
+        }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.add_space(4.0 * k);
             master_well(ui, doc, k);
@@ -689,7 +719,8 @@ fn load_well(ui: &mut Ui, status: &StreamStatus, k: f32) -> bool {
 }
 
 /// Tempo and time signature, each over its caption.
-fn tempo_well(ui: &mut Ui, doc: &mut Document, tempo: &TempoMap, k: f32) {
+/// Returns where it was drawn.
+fn tempo_well(ui: &mut Ui, doc: &mut Document, tempo: &TempoMap, k: f32) -> Rect {
     let dark = ui.visuals().dark_mode;
     let p = theme::palette(dark);
     let mut bpm = tempo.bpm_at_beat(0.0);
@@ -800,6 +831,7 @@ fn tempo_well(ui: &mut Ui, doc: &mut Document, tempo: &TempoMap, k: f32) {
     if let Some(sig) = &sig {
         end_gesture(doc.history_mut(), sig);
     }
+    whole
 }
 
 /// Text and controls `k` times larger in `ui` (the large transport's fields).

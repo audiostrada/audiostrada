@@ -479,6 +479,30 @@ fn general(ui: &mut egui::Ui, prefs: &mut UiPrefs) -> bool {
             ui.weak(tr("Recorded clips are moved earlier by this amount. Measure it with `audiostrada latency`."));
         });
         ui.end_row();
+        ui.label(tr("Recording mode"));
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                ui.label(tr("Audio buffer"));
+                egui::ComboBox::from_id_salt("recording-buffer")
+                    .selected_text(trf!("{frames} samples", frames = prefs.recording_buffer))
+                    .show_ui(ui, |ui| {
+                        for frames in [32, 64, 128, 256] {
+                            changed |= ui
+                                .selectable_value(&mut prefs.recording_buffer, frames, trf!("{frames} samples", frames = frames))
+                                .changed();
+                        }
+                    });
+            });
+            ui.horizontal(|ui| {
+                ui.label(tr("Bypass the effects of the master and folders adding more than"));
+                changed |= ui
+                    .add(egui::DragValue::new(&mut prefs.recording_bypass_ms).range(0.0..=50.0).speed(0.1).suffix(" ms"))
+                    .changed();
+            });
+            changed |= ui.checkbox(&mut prefs.recording_offer, tr("Offer it when a track is armed")).changed();
+            ui.weak(tr("A layout for recording musicians: the armed inputs, the timeline and the takes. Leaving it puts everything back."));
+        });
+        ui.end_row();
         ui.label(tr("Input monitoring"));
         ui.vertical(|ui| {
             changed |= ui.radio_value(&mut prefs.auto_monitoring, false, tr("Armed tracks always hear their input")).changed();

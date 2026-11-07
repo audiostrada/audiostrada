@@ -189,6 +189,15 @@ pub struct UiPrefs {
     pub transport_large: bool,
     /// How the timeline draws waveforms.
     pub waveforms: crate::timeline::WaveView,
+    /// The recording mode's panel layout, as `layout`.
+    pub recording_layout: Option<String>,
+    /// Audio buffer of the recording mode, in frames.
+    pub recording_buffer: u32,
+    /// In the recording mode, effects on the way of what is played that add more than this
+    /// (in ms) are bypassed.
+    pub recording_bypass_ms: f32,
+    /// Arming a track offers the recording mode.
+    pub recording_offer: bool,
     /// AI assistants may drive AudioStrada through the control channel (MCP).
     pub assistants: bool,
     /// Local port of the control channel.
@@ -228,6 +237,10 @@ impl Default for UiPrefs {
             transport_bottom: false,
             transport_large: false,
             waveforms: crate::timeline::WaveView::default(),
+            recording_layout: None,
+            recording_buffer: 64,
+            recording_bypass_ms: 2.0,
+            recording_offer: true,
             assistants: false,
             assistants_port: crate::integrations::DEFAULT_PORT,
         }

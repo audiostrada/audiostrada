@@ -1429,7 +1429,7 @@ fn snapshot_name(count: usize) -> String {
 }
 
 /// Name of an input, or of a pair from `input` in stereo.
-fn input_label(input: u16, stereo: bool) -> String {
+pub(crate) fn input_label(input: u16, stereo: bool) -> String {
     if stereo {
         trf!("In {first}-{second}", first = input + 1, second = input + 2)
     } else {

@@ -1221,3 +1221,87 @@ TAP
 
 Tap tempo: click on the beat, at least twice
 Tap tempo : cliquez en rythme, au moins deux fois
+
+Recording mode
+Mode prise
+
+Armed inputs
+Entrées armées
+
+Takes
+Prises
+
+A track is armed. Switch to the recording mode? It shows the inputs, the timeline and the takes, with a small audio buffer.
+Une piste est armée. Passer en mode prise ? Il montre les entrées, la timeline et les prises, avec un petit tampon audio.
+
+Not now
+Pas maintenant
+
+A layout for recording musicians: the armed inputs, the timeline and the takes. Leaving it puts everything back.
+Une disposition pour enregistrer des musiciens : les entrées armées, la timeline et les prises. En sortir remet tout comme avant.
+
+Audio buffer
+Tampon audio
+
+Bypass the effects of the master and folders adding more than
+Contourner les effets du master et des dossiers ajoutant plus de
+
+Offer it when a track is armed
+Le proposer quand une piste est armée
+
+{frames} samples
+{frames} échantillons
+
++{ms} ms
++{ms} ms
+
+Arm a track
+Armer une piste
+
+Armed tracks · {count}
+Pistes armées · {count}
+
+Audio dropouts since the recording mode started
+Coupures audio depuis l'entrée en mode prise
+
+Choose take
+Choisir la prise
+
+Clipped
+Saturé
+
+From the input to the headphones: the audio interface, then the slowest effects heard live. Measure the interface in Preferences, Audio, for an exact figure
+De l'entrée au casque : l'interface audio, puis les effets les plus lents écoutés en direct. Mesurez l'interface dans Préférences, Audio, pour un chiffre exact
+
+Heard through
+Écoutée à travers
+
+Monitoring {ms} ms
+Écoute {ms} ms
+
+No track is armed. Arm one to hear its input and record it.
+Aucune piste n'est armée. Armez-en une pour écouter son entrée et l'enregistrer.
+
+Play this take instead
+Jouer cette prise à la place
+
+Recording time left on the disk, at the armed inputs
+Temps d'enregistrement restant sur le disque, avec les entrées armées
+
+The takes of the armed tracks appear here.
+Les prises des pistes armées apparaissent ici.
+
+What the track's effects add to what is heard
+Ce que les effets de la piste ajoutent à l'écoute
+
+no effect
+aucun effet
+
+{count} dropout(s)
+{count} coupure(s)
+
+{h} h {m} min free
+{h} h {m} min libres
+
+{m} min free
+{m} min libres

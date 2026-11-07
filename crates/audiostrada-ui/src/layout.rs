@@ -17,10 +17,13 @@ pub enum Pane {
     Markers,
     PianoRoll,
     Rack,
+    /// The armed tracks' inputs, for the recording mode.
+    Inputs,
+    Takes,
 }
 
 impl Pane {
-    pub const ALL: [Pane; 7] = [
+    pub const ALL: [Pane; 9] = [
         Pane::Timeline,
         Pane::Mixer,
         Pane::PianoRoll,
@@ -28,6 +31,8 @@ impl Pane {
         Pane::Browser,
         Pane::Inspector,
         Pane::Markers,
+        Pane::Inputs,
+        Pane::Takes,
     ];
 
     /// The name shown on its tab and window, in the interface's language.
@@ -40,6 +45,8 @@ impl Pane {
             Pane::Markers => tr("Markers"),
             Pane::PianoRoll => tr("Piano roll"),
             Pane::Rack => tr("Rack"),
+            Pane::Inputs => tr("Armed inputs"),
+            Pane::Takes => tr("Takes"),
         }
     }
 
@@ -52,6 +59,8 @@ impl Pane {
             Action::ShowMarkers => Pane::Markers,
             Action::ShowPianoRoll => Pane::PianoRoll,
             Action::ShowRack => Pane::Rack,
+            Action::ShowInputs => Pane::Inputs,
+            Action::ShowTakes => Pane::Takes,
             _ => return None,
         })
     }
@@ -66,21 +75,59 @@ pub fn default_tree() -> Tree<Pane> {
     let markers = tiles.insert_pane(Pane::Markers);
     let piano = tiles.insert_pane(Pane::PianoRoll);
     let rack = tiles.insert_pane(Pane::Rack);
+    let inputs = tiles.insert_pane(Pane::Inputs);
+    let takes = tiles.insert_pane(Pane::Takes);
     let bottom = tiles.insert_tab_tile(vec![mixer, piano, rack]);
     let center = tiles.insert_vertical_tile(vec![timeline, bottom]);
-    let right = tiles.insert_tab_tile(vec![inspector, markers]);
-    let root = tiles.insert_horizontal_tile(vec![browser, center, right]);
+    let left = tiles.insert_tab_tile(vec![browser, inputs]);
+    let right = tiles.insert_tab_tile(vec![inspector, markers, takes]);
+    let root = tiles.insert_horizontal_tile(vec![left, center, right]);
     // Side panels are one View menu click away.
-    for id in [browser, inspector, markers] {
+    for id in [browser, inspector, markers, inputs, takes] {
         tiles.set_visible(id, false);
     }
     set_shares(&mut tiles, center, &[(timeline, 1.15), (bottom, 1.0)]);
     set_shares(
         &mut tiles,
         root,
-        &[(browser, 1.0), (center, 4.5), (right, 1.2)],
+        &[(left, 1.0), (center, 4.5), (right, 1.2)],
     );
     Tree::new(egui::Id::unique("audiostrada-layout"), root, tiles)
+}
+
+/// The recording mode's layout: the armed inputs, the timeline and the takes.
+pub fn recording_tree() -> Tree<Pane> {
+    let mut tree = default_tree();
+    for pane in Pane::ALL {
+        set_visible(&mut tree, pane, false);
+    }
+    for pane in [Pane::Inputs, Pane::Timeline, Pane::Takes] {
+        set_visible(&mut tree, pane, true);
+        activate(&mut tree, pane);
+    }
+    let root = tree.root();
+    let sides: Vec<TileId> = root
+        .and_then(|r| match tree.tiles.get(r) {
+            Some(Tile::Container(c)) => Some(c.children().copied().collect()),
+            _ => None,
+        })
+        .unwrap_or_default();
+    if let (Some(root), [left, center, right]) = (root, sides.as_slice()) {
+        set_shares(
+            &mut tree.tiles,
+            root,
+            &[(*left, 1.7), (*center, 4.5), (*right, 1.5)],
+        );
+    }
+    tree
+}
+
+/// Restores the recording mode's saved layout, falling back to its default one.
+pub fn load_recording(saved: Option<&str>) -> Tree<Pane> {
+    saved
+        .and_then(|v| serde_json::from_str::<Tree<Pane>>(v).ok())
+        .filter(|tree| Pane::ALL.iter().all(|p| tree.tiles.find_pane(p).is_some()))
+        .unwrap_or_else(recording_tree)
 }
 
 fn set_shares(tiles: &mut egui_tiles::Tiles<Pane>, container: TileId, shares: &[(TileId, f32)]) {
@@ -106,6 +153,20 @@ pub fn load(saved: Option<&str>) -> Tree<Pane> {
         let rack = tree.tiles.insert_pane(Pane::Rack);
         if let Some(egui_tiles::Tile::Container(container)) = tree.tiles.get_mut(parent) {
             container.add_child(rack);
+        }
+    }
+    // Saved before the recording mode's panels: they join the side panels, hidden.
+    if let Some(tree) = &mut tree
+        && let Some(root) = tree.root()
+    {
+        for pane in [Pane::Inputs, Pane::Takes] {
+            if tree.tiles.find_pane(&pane).is_none() {
+                let id = tree.tiles.insert_pane(pane);
+                tree.tiles.set_visible(id, false);
+                if let Some(egui_tiles::Tile::Container(container)) = tree.tiles.get_mut(root) {
+                    container.add_child(id);
+                }
+            }
         }
     }
     match tree {

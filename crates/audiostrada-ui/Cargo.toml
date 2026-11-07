@@ -49,6 +49,12 @@ winit = { version = "0.30.13", default-features = false, features = ["x11"] }
 # The screens (RandR), to put each window in full screen on its own.
 x11rb = { workspace = true, features = ["randr"] }
 
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = ["Win32_Storage_FileSystem"] }
+
 [target.'cfg(not(target_os = "linux"))'.dependencies]
 ureq = { workspace = true, features = ["native-tls"] }
 
