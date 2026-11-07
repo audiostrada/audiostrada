@@ -668,10 +668,66 @@ pub struct Project {
     /// Every console color switched off (the settings are kept).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub console_off: bool,
+    /// Headphone mixes for the musicians, each on its own pair of outputs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cues: Vec<CueMix>,
     /// Data of optional modules, by module name, kept as is by builds without them.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub extensions: BTreeMap<String, serde_json::Value>,
     next_id: u64,
+}
+
+/// A headphone mix: its own level for each track, or the main mix as it is, on a pair of
+/// outputs of the audio interface. It never changes the main mix nor the export.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CueMix {
+    pub name: String,
+    /// First channel of its pair of hardware outputs.
+    pub output: u16,
+    /// Plays the main mix instead of its own.
+    pub follow_main: bool,
+    /// Level of each track in dB; a track left out is at 0 dB.
+    pub levels: BTreeMap<TrackId, f32>,
+    /// The musician's own track, raised by `more_me_db` above its level.
+    pub more_me: Option<TrackId>,
+    pub more_me_db: f32,
+    /// Level of the click; `None` leaves it out.
+    pub click_db: Option<f32>,
+    /// Level of the talkback.
+    pub talkback_db: f32,
+    pub gain_db: f32,
+}
+
+impl Default for CueMix {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            output: 2,
+            follow_main: false,
+            levels: BTreeMap::new(),
+            more_me: None,
+            more_me_db: 0.0,
+            click_db: Some(0.0),
+            talkback_db: 0.0,
+            gain_db: 0.0,
+        }
+    }
+}
+
+impl CueMix {
+    /// The level of `track` in this mix, its "more me" included, in dB.
+    pub fn level_db(&self, track: TrackId) -> f32 {
+        if self.follow_main {
+            return MIN_GAIN_DB;
+        }
+        let level = self.levels.get(&track).copied().unwrap_or(0.0);
+        if self.more_me == Some(track) {
+            level + self.more_me_db
+        } else {
+            level
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -838,6 +894,7 @@ impl Project {
             console: Default::default(),
             console_noise: false,
             console_off: false,
+            cues: Vec::new(),
             extensions: BTreeMap::new(),
             reference: None,
             next_id: 1,

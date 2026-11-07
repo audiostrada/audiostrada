@@ -437,6 +437,24 @@ pub fn takes_pane(
                 track_takes(ui, doc, &track);
                 ui.add_space(8.0);
             }
+            ui.label(RichText::new(tr("Headphones")).strong());
+            for cue in &doc.project().cues {
+                ui.horizontal(|ui| {
+                    ui.label(&cue.name);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let text = if cue.follow_main {
+                            tr("main mix").to_owned()
+                        } else {
+                            crate::cue_window::pair_label(cue.output)
+                        };
+                        ui.label(RichText::new(text).small().weak());
+                    });
+                });
+            }
+            if ui.button(tr("Headphone mixes…")).clicked() {
+                crate::cue_window::open(ui.ctx());
+            }
+            ui.add_space(8.0);
             for extension in extensions.iter_mut() {
                 for (i, title) in extension.recording_tabs().into_iter().enumerate() {
                     egui::CollapsingHeader::new(title)

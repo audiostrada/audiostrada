@@ -283,6 +283,18 @@ struct MidiOutNodes {
     out: LiveMidi,
 }
 
+/// A headphone mix: a send from each track (before its fader), from the click and from the
+/// main mix, summed on its pair of outputs.
+#[derive(Debug)]
+struct CueNodes {
+    out: NodeId,
+    gain: SharedParam,
+    output: u16,
+    sends: HashMap<TrackId, (NodeId, SharedParam)>,
+    click: (NodeId, SharedParam),
+    main: (NodeId, SharedParam),
+}
+
 #[derive(Debug)]
 struct TrackNodes {
     channel: ChannelNodes,
@@ -331,6 +343,9 @@ pub struct ProjectPlayer {
     auto_monitoring: bool,
     /// Nodes recording tracks after their effects.
     prints: Vec<NodeId>,
+    cues: Vec<CueNodes>,
+    click_node: NodeId,
+    control_room: crate::nodes::ControlRoomControls,
     recording: bool,
     preview: crate::nodes::PreviewControls,
     plugins: Plugins,
@@ -655,7 +670,10 @@ impl ProjectPlayer {
         connect_stereo(&mut engine, meter, reference);
         let monitor = ChannelNodes::new(&mut engine, &solo, &console_off, "Monitor", true);
         connect_stereo(&mut engine, reference, monitor.input);
-        connect_stereo(&mut engine, monitor.strip, out);
+        let (room, control_room) = crate::nodes::ControlRoom::new();
+        let room = engine.add_node("Control room", room, 2, 2);
+        connect_stereo(&mut engine, monitor.strip, room);
+        connect_stereo(&mut engine, room, out);
         let (preview, preview_controls) = crate::nodes::Preview::new();
         let preview = engine.add_node("Preview", preview, 0, 2);
         connect_stereo(&mut engine, preview, out);
@@ -665,6 +683,9 @@ impl ProjectPlayer {
         Self {
             auto_monitoring: false,
             prints: Vec::new(),
+            cues: Vec::new(),
+            click_node: click,
+            control_room,
             recording: false,
             preview: preview_controls,
             reference: reference_controls,
@@ -1525,6 +1546,7 @@ impl ProjectPlayer {
         for node in removed_nodes {
             self.remove_node(node);
         }
+        topology |= self.sync_cues(project);
         for track in &project.tracks {
             let Some(nodes) = self.tracks.get(&track.id) else {
                 continue;
@@ -1536,6 +1558,11 @@ impl ProjectPlayer {
                 .chain([nodes.player])
                 .chain(nodes.sends.iter().map(|s| s.node))
                 .chain(nodes.midi_out.iter().map(|m| m.node))
+                .chain(
+                    self.cues
+                        .iter()
+                        .filter_map(|c| c.sends.get(&track.id).map(|s| s.0)),
+                )
                 .collect();
             for id in ids {
                 topology |= self.engine.set_live(id, live);
@@ -1573,9 +1600,119 @@ impl ProjectPlayer {
         }
     }
 
+    /// Brings the headphone mixes in line with the project; true if nodes changed.
+    fn sync_cues(&mut self, project: &Project) -> bool {
+        let mut changed = false;
+        while self.cues.len() > project.cues.len() {
+            if let Some(cue) = self.cues.pop() {
+                let nodes = [cue.out, cue.click.0, cue.main.0]
+                    .into_iter()
+                    .chain(cue.sends.values().map(|s| s.0));
+                for node in nodes.collect::<Vec<_>>() {
+                    self.remove_node(node);
+                }
+                changed = true;
+            }
+        }
+        let send = |engine: &mut Engine, name: &str| {
+            let (node, gain) = Gain::new(0.0, None);
+            (engine.add_node(name, node, 2, 2), gain)
+        };
+        while self.cues.len() < project.cues.len() {
+            let (out, gain) = Gain::new(1.0, None);
+            let out = self.engine.add_node("Headphones", out, 2, 2);
+            // Each headphone mix goes out as it comes: what is played is never delayed there.
+            self.engine.set_unaligned(out);
+            let click = send(&mut self.engine, "Headphones click");
+            let main = send(&mut self.engine, "Headphones main");
+            self.cues.push(CueNodes {
+                out,
+                gain,
+                output: 2,
+                sends: HashMap::new(),
+                click,
+                main,
+            });
+            changed = true;
+        }
+        let audio: Vec<TrackId> = project
+            .tracks
+            .iter()
+            .filter(|t| t.kind == TrackKind::Audio)
+            .map(|t| t.id)
+            .collect();
+        for (cue, nodes) in project.cues.iter().zip(&mut self.cues) {
+            if nodes.output != cue.output {
+                nodes.output = cue.output;
+                changed = true;
+            }
+            nodes.gain.set(db_to_gain(cue.gain_db));
+            nodes.click.1.set(cue.click_db.map_or(0.0, db_to_gain));
+            nodes.main.1.set(if cue.follow_main { 1.0 } else { 0.0 });
+            let gone: Vec<TrackId> = nodes
+                .sends
+                .keys()
+                .filter(|id| !audio.contains(id))
+                .copied()
+                .collect();
+            for id in gone {
+                if let Some((node, _)) = nodes.sends.remove(&id) {
+                    let _ = self.engine.remove_node(node);
+                    self.edges.retain(|(a, b)| a.node != node && b.node != node);
+                    changed = true;
+                }
+            }
+            for &id in &audio {
+                let (_, gain) = nodes.sends.entry(id).or_insert_with(|| {
+                    changed = true;
+                    send(&mut self.engine, "Headphones send")
+                });
+                let db = cue.level_db(id);
+                let off = db <= audiostrada_core::model::MIN_GAIN_DB;
+                gain.set(if off { 0.0 } else { db_to_gain(db) });
+            }
+        }
+        changed
+    }
+
+    /// The control room's Dim (-20 dB) and Mono, on the main output only.
+    pub fn set_control_room(&mut self, dim: bool, mono: bool) {
+        self.control_room.dim.store(dim, Ordering::Relaxed);
+        self.control_room.mono.store(mono, Ordering::Relaxed);
+    }
+
+    pub fn control_room(&self) -> (bool, bool) {
+        (
+            self.control_room.dim.load(Ordering::Relaxed),
+            self.control_room.mono.load(Ordering::Relaxed),
+        )
+    }
+
     /// Routing edges the project asks for.
     fn desired_edges(&self, project: &Project) -> HashSet<(Port, Port)> {
         let mut edges = HashSet::new();
+        let hardware = self.engine.graph().hardware_output();
+        for cue in &self.cues {
+            let first = usize::from(cue.output).min(HARDWARE_CHANNELS - 2);
+            for ch in 0..2 {
+                edges.insert((Port::new(cue.out, ch), Port::new(hardware, first + ch)));
+                for (from, to) in [
+                    (self.click_node, cue.click.0),
+                    (cue.click.0, cue.out),
+                    (self.monitor.strip, cue.main.0),
+                    (cue.main.0, cue.out),
+                ] {
+                    edges.insert((Port::new(from, ch), Port::new(to, ch)));
+                }
+                for (track, (node, _)) in &cue.sends {
+                    if let Some(nodes) = self.tracks.get(track) {
+                        let source = nodes.channel.pre_fader();
+                        edges.insert((Port::new(source, ch), Port::new(*node, ch)));
+                        edges.insert((Port::new(*node, ch), Port::new(cue.out, ch)));
+                    }
+                }
+            }
+        }
         let mut stereo = |from: NodeId, to: NodeId| {
             for ch in 0..2 {
                 edges.insert((Port::new(from, ch), Port::new(to, ch)));
@@ -2704,6 +2841,141 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// Two tracks playing a constant (0.5 and 0.25) with faders at -12 dB, and `cues`; returns
+    /// the last value of the main left output and of outputs 2 and 4, playing.
+    fn cue_levels(
+        name: &str,
+        cues: impl FnOnce(TrackId, TrackId) -> Vec<audiostrada_core::CueMix>,
+        click: bool,
+    ) -> [f32; 3] {
+        let mut f = fixture(name, vec![0.5; 48_000]);
+        let a = f.history.project().tracks[0].id;
+        let quiet = f.dir.join("quiet.wav");
+        write_wav(&quiet, &AudioData::new(vec![vec![0.25; 48_000]], 48_000)).unwrap();
+        f.history.edit("Setup", |p| {
+            let s = p.add_source(Source {
+                path: quiet.clone(),
+                channels: 1,
+                sample_rate: 48_000,
+                frames: 48_000,
+            });
+            let b = p.add_track("b");
+            p.add_clip(b, s, 0);
+            for t in p.tracks.iter_mut() {
+                Arc::make_mut(t).gain_db = -12.0;
+            }
+            p.cues = cues(a, b);
+            p.metronome.enabled = click;
+        });
+        f.media.retain(&media_paths(f.history.project(), None));
+        assert!(f.media.wait(Duration::from_secs(10)));
+        let mut processor = f.player.processor(48_000, 64);
+        f.player.sync(f.history.project(), None, &f.media);
+        f.player.engine_mut().play();
+        let mut storage = ChannelBuffers::new(0, 6, 64);
+        let mut peak = [0.0f32; 3];
+        for _ in 0..40 {
+            processor.render(&mut storage.buffers(64));
+            for (p, ch) in peak.iter_mut().zip([0, 2, 4]) {
+                *p = storage.output(ch).iter().fold(*p, |m, s| m.max(s.abs()));
+            }
+        }
+        std::fs::remove_dir_all(&f.dir).unwrap();
+        peak
+    }
+
+    #[test]
+    fn headphone_mixes_have_their_own_levels_and_never_touch_the_main_mix() {
+        use audiostrada_core::CueMix;
+        use audiostrada_core::model::MIN_GAIN_DB;
+        let cue = |levels: &[(TrackId, f32)], output| CueMix {
+            output,
+            levels: levels.iter().copied().collect(),
+            click_db: None,
+            ..CueMix::default()
+        };
+        let [main_alone, ..] = cue_levels("cue-none", |_, _| Vec::new(), false);
+        let [main, both, only_a] = cue_levels(
+            "cue-sum",
+            |_, b| vec![cue(&[], 2), cue(&[(b, MIN_GAIN_DB)], 4)],
+            false,
+        );
+        assert_eq!(
+            main, main_alone,
+            "the main mix is the same with headphone mixes"
+        );
+        assert!(
+            (both - 0.75).abs() < 0.01,
+            "both tracks before their faders: {both}"
+        );
+        assert!((only_a - 0.5).abs() < 0.01, "{only_a}");
+        let [_, raised, _] = cue_levels(
+            "cue-more-me",
+            |_, b| {
+                vec![CueMix {
+                    more_me: Some(b),
+                    more_me_db: 6.0206,
+                    ..cue(&[], 2)
+                }]
+            },
+            false,
+        );
+        assert!(
+            (raised - 1.0).abs() < 0.01,
+            "only its track is raised: {raised}"
+        );
+        let [_, click, none] = cue_levels(
+            "cue-click",
+            |a, b| {
+                let off = [(a, MIN_GAIN_DB), (b, MIN_GAIN_DB)];
+                vec![
+                    CueMix {
+                        click_db: Some(0.0),
+                        ..cue(&off, 2)
+                    },
+                    cue(&off, 4),
+                ]
+            },
+            true,
+        );
+        assert!(click > 0.05, "the click in the mix that has it: {click}");
+        assert_eq!(none, 0.0, "and not in the other");
+    }
+
+    #[test]
+    fn dim_and_mono_change_the_main_output_only() {
+        let mut f = fixture("control-room", vec![0.5; 48_000]);
+        f.media.retain(&media_paths(f.history.project(), None));
+        assert!(f.media.wait(Duration::from_secs(10)));
+        let t = f.history.project().tracks[0].id;
+        f.history
+            .edit("Pan", |p| p.track_mut(t).unwrap().pan = -1.0);
+        let mut processor = f.player.processor(48_000, 64);
+        f.player.sync(f.history.project(), None, &f.media);
+        f.player.engine_mut().play();
+        let mut storage = ChannelBuffers::new(0, 2, 64);
+        let mut level = |player: &mut ProjectPlayer, dim, mono| {
+            player.set_control_room(dim, mono);
+            for _ in 0..10 {
+                processor.render(&mut storage.buffers(64));
+            }
+            (storage.output(0)[63], storage.output(1)[63])
+        };
+        let (left, right) = level(&mut f.player, false, false);
+        assert!(
+            left > 0.1 && right.abs() < 1e-4,
+            "panned left: {left} {right}"
+        );
+        let (dim, _) = level(&mut f.player, true, false);
+        assert!((dim / left - 0.1).abs() < 0.01, "-20 dB: {}", dim / left);
+        let (l, r) = level(&mut f.player, false, true);
+        assert!(
+            (l - r).abs() < 1e-6 && (l - left / 2.0).abs() < 1e-4,
+            "mono: {l} {r}"
+        );
+        std::fs::remove_dir_all(&f.dir).unwrap();
+    }
+
     #[test]
     fn a_slow_effect_on_a_played_track_does_not_delay_the_input_heard() {
         let mut f = fixture("live-input", vec![0.0; 4800]);
@@ -2712,6 +2984,10 @@ mod tests {
             routing::add_insert(p, Channel::Track(bed), "limiter", Default::default()).unwrap();
             let vox = p.add_track("Vox");
             p.track_mut(vox).unwrap().armed = true;
+            p.cues = vec![audiostrada_core::CueMix {
+                click_db: None,
+                ..Default::default()
+            }];
         });
         f.media.retain(&media_paths(f.history.project(), None));
         assert!(f.media.wait(Duration::from_secs(10)));
@@ -2719,23 +2995,26 @@ mod tests {
         f.player.sync(f.history.project(), None, &f.media);
         let latency = f.player.engine().shared().latency();
         assert!(latency > 64, "the limiter delays playback: {latency}");
-        let mut storage = ChannelBuffers::new(2, 2, 64);
+        let mut storage = ChannelBuffers::new(2, 4, 64);
         for _ in 0..10 {
             processor.render(&mut storage.buffers(64));
             f.player.update();
         }
         storage.input_mut(0)[0] = 0.8;
-        let mut out = Vec::new();
+        let (mut out, mut cue) = (Vec::new(), Vec::new());
         for _ in 0..40 {
             processor.render(&mut storage.buffers(64));
             storage.input_mut(0)[0] = 0.0;
             out.extend_from_slice(storage.output(0));
+            cue.extend_from_slice(storage.output(2));
         }
         assert_eq!(
             peaks(&out),
             [0],
             "heard at once, not after {latency} samples"
         );
+        assert_eq!(peaks(&cue), [0], "in the headphones too");
+        std::fs::remove_dir_all(&f.dir).unwrap();
     }
 
     #[test]

@@ -10,6 +10,7 @@ mod channel_editor;
 mod clip_tools;
 mod console_ui;
 pub mod control;
+mod cue_window;
 mod dialogs;
 pub mod document;
 mod drum_sequencer;
@@ -1158,6 +1159,7 @@ impl AudioStradaApp {
                     .set_metronome(|m| m.enabled = !m.enabled);
             }
             Action::MetronomeSettings => crate::metronome_window::open(ctx),
+            Action::HeadphoneMixes => cue_window::open(ctx),
             Action::ListenToReference => reference_window::toggle(ctx, &mut self.doc.borrow_mut()),
             Action::LowLatency => {
                 let mut doc = self.doc.borrow_mut();
@@ -2434,6 +2436,7 @@ impl AudioStradaApp {
                     Action::RecordingMode,
                     self.recording_mode.is_some(),
                 );
+                item(ui, &mut chosen, Action::HeadphoneMixes, None, true);
                 check(
                     ui,
                     &mut chosen,
@@ -2997,7 +3000,9 @@ impl eframe::App for AudioStradaApp {
             }
         }
         let inputs = self.host.stream().map_or(0, |s| s.info().inputs as usize);
+        let outputs = self.host.stream().map_or(0, |s| s.info().outputs as usize);
         self.doc.borrow_mut().set_stream_inputs(inputs);
+        self.doc.borrow_mut().set_stream_outputs(outputs);
         self.run_requests(ctx);
         self.reveal_clip(ctx);
         self.follow_selection();
@@ -3096,6 +3101,7 @@ impl eframe::App for AudioStradaApp {
                 scale,
             ));
             crate::metronome_window::show(ui.ctx(), &mut doc);
+            cue_window::show(ui.ctx(), &mut doc);
             versions_window::show(ui.ctx(), &mut doc);
             reference_window::show(ui.ctx(), &mut doc);
         });

@@ -1383,3 +1383,63 @@ sature {count}×
 
 {section} · Take {n}
 {section} · Prise {n}
+
+Headphone mixes
+Mixages casque
+
+Add a headphone mix
+Ajouter un mixage casque
+
+Both speakers play the sum of left and right
+Les deux enceintes jouent la somme de la gauche et de la droite
+
+Control room
+Régie
+
+Copy the main mix
+Copier le mixage principal
+
+Dim
+Dim
+
+Each mix needs a free pair of outputs on the audio interface; the first pair is the main output
+Chaque mixage demande une paire de sorties libre sur l'interface audio ; la première paire est la sortie principale
+
+Every track at its level in the main mix
+Chaque piste à son niveau dans le mixage principal
+
+Headphone mix
+Mixage casque
+
+Headphones {n}
+Casque {n}
+
+Lowers the main output by 20 dB; the headphones stay as they are
+Baisse la sortie principale de 20 dB ; les casques restent tels quels
+
+More me
+Plus de moi
+
+No headphone mix: the musicians hear the main mix. Add one for each pair of outputs that feeds headphones.
+Aucun mixage casque : les musiciens entendent le mixage principal. Ajoutez-en un pour chaque paire de sorties qui alimente des casques.
+
+Out {first}-{second}
+Sortie {first}-{second}
+
+Plays the main mix
+Joue le mixage principal
+
+Remove a headphone mix
+Supprimer un mixage casque
+
+Remove this mix
+Supprimer ce mixage
+
+Headphone mixes…
+Mixages casque…
+
+Headphones
+Casques
+
+main mix
+mixage principal

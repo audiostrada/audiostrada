@@ -19,8 +19,8 @@ pub mod tempo;
 pub use file::{ProjectError, ProjectPaths};
 pub use history::History;
 pub use model::{
-    Branch, ClickSound, Clip, ClipId, ControlPoint, FadeShape, Frozen, Insert, InsertId, Marker,
-    MarkerId, Master, MetronomeSettings, MidiMapping, Monitoring, Note, Playlist, Project,
+    Branch, ClickSound, Clip, ClipId, ControlPoint, CueMix, FadeShape, Frozen, Insert, InsertId,
+    Marker, MarkerId, Master, MetronomeSettings, MidiMapping, Monitoring, Note, Playlist, Project,
     RecordSource, ReferenceTrack, Source, SourceId, TakeInfo, Track, TrackId, TrackKind, TrackSend,
     parse_variant, variant_path,
 };
