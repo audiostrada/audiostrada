@@ -5139,6 +5139,107 @@ mod tests {
     }
 
     #[test]
+    fn a_plugin_window_answers_a_user_trying_everything() {
+        let library = audiostrada_test_plugin::built_library()
+            .expect("the test plugin is built with the tests");
+        let dir = std::env::temp_dir().join(format!("audiostrada-ui-clap-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::copy(library, dir.join("test-gain.clap")).unwrap();
+        let mut database = audiostrada_plugins::scan::Database::default();
+        database.refresh(std::slice::from_ref(&dir), audiostrada_plugins::scan_file);
+        let plugin = database
+            .plugins()
+            .find(|p| p.id == "com.audiostrada.test-gain")
+            .cloned()
+            .expect("the test plugin");
+        let mut doc = Document::new(AppDirs::default());
+        doc.set_plugins(database);
+        let mut target = None;
+        doc.history_mut().edit("Insert", |p| {
+            let t = p.add_track("A");
+            let id = routing::add_insert(p, Channel::Track(t), &plugin.key(), Default::default());
+            target = Some((t, id.unwrap()));
+        });
+        let (track, id) = target.unwrap();
+        doc.select_track(track, crate::document::SelectMode::Only);
+        let doc = Rc::new(RefCell::new(doc));
+        let ctx = egui::Context::default();
+        let mut view = MixerView::new(Rc::clone(&doc));
+        for _ in 0..3 {
+            doc.borrow_mut().update();
+            frame(&ctx, &mut view, vec![]);
+        }
+        view.show_editor(Channel::Track(track), id);
+        let area = Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 900.0));
+        for events in crate::test_sweep::script(area, 30.0, false) {
+            doc.borrow_mut().update();
+            frame(&ctx, &mut view, events);
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_console_menus_answer_a_user_trying_everything() {
+        use audiostrada_core::snapshot::MixSnapshot;
+        let mut doc = Document::new(AppDirs::default());
+        let mut ids = Vec::new();
+        doc.history_mut().edit("Setup", |p| {
+            let folder = p.add_track("Folder");
+            let a = p.add_track("A");
+            let b = p.add_track("B");
+            let bus = p.add_track("Bus");
+            let _ = routing::set_parent(p, a, Some(folder));
+            let _ = routing::set_parent(p, b, Some(folder));
+            routing::add_insert(p, Channel::Track(a), "eq", Default::default());
+            routing::add_insert(p, Channel::Track(a), "compressor", Default::default());
+            let snapshot = MixSnapshot::capture(p, "Mix A");
+            p.snapshots.push(snapshot);
+            ids = vec![folder, a, b, bus];
+        });
+        for &t in &ids[1..3] {
+            doc.select_track(t, crate::document::SelectMode::Toggle);
+        }
+        let ctx = egui::Context::default();
+        let mut view = MixerView::new(Rc::new(RefCell::new(Document::new(AppDirs::default()))));
+        let area = Rect::from_min_size(Pos2::ZERO, vec2(800.0, 700.0));
+        let mut draw = |ctx: &egui::Context, f: &mut dyn FnMut(&mut egui::Ui, &mut Document)| {
+            for events in crate::test_sweep::script(area, 24.0, false) {
+                let input = RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(900.0, 800.0))),
+                    events,
+                    ..Default::default()
+                };
+                ctx.run_ui(input, |ui| f(ui, &mut doc))
+                    .drop_without_applying_deltas();
+            }
+        };
+        draw(&ctx, &mut |ui, doc| super::groups_menu(ui, doc));
+        draw(&ctx, &mut |ui, doc| super::snapshots_menu(ui, doc));
+        draw(&ctx, &mut |ui, doc| super::group_submenu(ui, doc, ids[1]));
+        draw(&ctx, &mut |ui, doc| {
+            let project = doc.project().clone();
+            view.add_send_menu(ui, doc, &project, ids[1]);
+        });
+        draw(&ctx, &mut |ui, doc| {
+            super::toggle_folder_group(doc, ids[0]);
+            ui.label("folder group");
+        });
+        // The chain dialog, opened as its button does.
+        ctx.data_mut(|d| {
+            d.insert_temp(
+                super::chain_dialog_id(),
+                super::ChainDialog {
+                    viewport: egui::ViewportId::ROOT,
+                    name: "My chain".into(),
+                    inserts: Vec::new(),
+                    focused: false,
+                },
+            )
+        });
+        draw(&ctx, &mut |ui, doc| super::save_chain_dialog(ui.ctx(), doc));
+    }
+
+    #[test]
     fn the_rack_answers_a_user_trying_everything() {
         let mut doc = Document::new(AppDirs::default());
         let mut track = None;

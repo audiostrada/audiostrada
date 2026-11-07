@@ -35,6 +35,9 @@ audiostrada-plugins.workspace = true
 audiostrada-rt.workspace = true
 tracing.workspace = true
 
+[dev-dependencies]
+audiostrada-test-plugin = { path = "../audiostrada-test-plugin" }
+
 [lints]
 workspace = true
 

@@ -703,6 +703,7 @@ dependencies = [
  "audiostrada-midi",
  "audiostrada-plugins",
  "audiostrada-rt",
+ "audiostrada-test-plugin",
  "dirs",
  "eframe",
  "egui_tiles",
