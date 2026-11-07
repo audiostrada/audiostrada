@@ -37,6 +37,9 @@ const NAME_ROOM: f32 = 110.0;
 const FULL_STRIPS_HEIGHT: f32 = 560.0;
 /// Height of the channel strip section of tall strips.
 const STRIP_SECTION: f32 = 56.0;
+/// What showing the send lists adds besides their own height (title, frame, the master's
+/// monitoring list), until measured.
+const SENDS_EXTRA: f32 = 40.0;
 const FADER_MIN_DB: f32 = -60.0;
 const FADER_MAX_DB: f32 = audiostrada_core::model::MAX_TRACK_GAIN_DB;
 
@@ -89,6 +92,10 @@ pub struct MixerView {
     editor_states: HashMap<InsertId, effect_editors::EditorState>,
     /// Sections shown, from the panel height.
     sizes: StripSizes,
+    /// Height of the strips without their lists, measured with and without the send lists
+    /// (full strips): their difference is what showing the send lists costs.
+    fixed_with_sends: Option<f32>,
+    fixed_without_sends: Option<f32>,
     /// Tallest parts above and below the faders at the last frame, so every fader lines up.
     top_height: f32,
     /// Height of the tracks' fader row, which the master's matches.
@@ -775,18 +782,22 @@ struct StripSizes {
 
 impl StripSizes {
     /// Splits the strip height: the fader gets its share first, the insert and send lists
-    /// what is left (`fixed` is the height of everything else).
-    fn new(available: f32, fixed: f32) -> Self {
+    /// what is left. `fixed` is the height of everything else without the send lists, and
+    /// `sends_extra` what showing them adds besides their own height: the same room gives
+    /// the same choice whichever was shown before, or the lists would come and go at each
+    /// frame.
+    fn new(available: f32, fixed: f32, sends_extra: f32) -> Self {
         // The channel strip section is taken from the fader, not from the lists.
         let fader = ((available * 0.4).clamp(120.0, 320.0) - STRIP_SECTION).max(120.0);
         let lists = available - fixed - fader;
+        let with_sends = lists - sends_extra;
         let fx = (available * 0.22).clamp(46.0, 150.0);
         let sends = (available * 0.11).clamp(34.0, 90.0);
-        let (fx, sends) = if lists >= fx + sends {
+        let (fx, sends) = if with_sends >= fx + sends {
             (fx, Some(sends))
-        } else if lists >= 46.0 + 34.0 {
-            let fx = (lists * 0.62).max(46.0);
-            (fx, Some((lists - fx).max(34.0)))
+        } else if with_sends >= 46.0 + 34.0 {
+            let fx = (with_sends * 0.62).max(46.0);
+            (fx, Some((with_sends - fx).max(34.0)))
         } else {
             // The controls and one insert at least: the list scrolls.
             (lists.max(44.0), None)
@@ -1872,7 +1883,9 @@ impl MixerView {
             param_filter: String::new(),
             fader_height: 160.0,
             editor_states: HashMap::new(),
-            sizes: StripSizes::new(600.0, 230.0),
+            sizes: StripSizes::new(600.0, 230.0, SENDS_EXTRA),
+            fixed_with_sends: None,
+            fixed_without_sends: None,
             top_height: 0.0,
             row_height: 0.0,
             top_last: 0.0,
@@ -1910,6 +1923,8 @@ impl MixerView {
         let master_width = STRIP_WIDTH + 40.0;
         // Strips fill the panel: the fader takes what the other sections leave.
         let available = ui.available_height() - 30.0;
+        // Last frame's strips, which `top_height` and `bottom_height` measured.
+        let measured_full = self.full_strips;
         self.full_strips = self.detached || available >= FULL_STRIPS_HEIGHT;
         if self.full_strips && !self.compact {
             // The strips show the lists opened in windows from the buttons.
@@ -1921,9 +1936,24 @@ impl MixerView {
         } else {
             230.0
         };
+        // Measured with or without the send lists, as last frame showed them; their cost is
+        // the difference, once both were seen.
+        let with_sends = self.sizes.sends.is_some();
+        if self.top_height > 0.0 && measured_full {
+            if with_sends {
+                self.fixed_with_sends = Some(fixed);
+            } else {
+                self.fixed_without_sends = Some(fixed);
+            }
+        }
+        let sends_extra = match (self.fixed_with_sends, self.fixed_without_sends) {
+            (Some(with), Some(without)) => (with - without).max(0.0),
+            _ => SENDS_EXTRA,
+        };
+        let fixed = if with_sends { fixed - sends_extra } else { fixed };
         // Whole pixels, changed by a pixel at least: measuring last frame's layout must not make
         // this one drift or swing (the name plates would shake).
-        let mut sizes = StripSizes::new(available, fixed).rounded();
+        let mut sizes = StripSizes::new(available, fixed, sends_extra).rounded();
         if !self.full_strips {
             sizes.fx = 0.0;
             sizes.sends = None;
@@ -3914,12 +3944,11 @@ impl MixerView {
                 });
             });
             // As tall as the tracks' fader row.
-            let short = self.row_height - (ui.cursor().top() - row_top);
+            // The allocation adds the item spacing: a gap smaller than it gets no spacer.
+            let short =
+                self.row_height - (ui.cursor().top() - row_top) - ui.spacing().item_spacing.y;
             if short > 0.5 {
-                ui.allocate_exact_size(
-                    vec2(1.0, short - ui.spacing().item_spacing.y),
-                    Sense::hover(),
-                );
+                ui.allocate_exact_size(vec2(1.0, short), Sense::hover());
             }
             let bottom = ui.cursor().top();
             readout(
@@ -5076,11 +5105,11 @@ mod tests {
 
     #[test]
     fn strips_give_the_fader_its_share_first() {
-        let tall = super::StripSizes::new(1000.0, 230.0);
+        let tall = super::StripSizes::new(1000.0, 230.0, super::SENDS_EXTRA);
         assert_eq!((tall.fx, tall.sends, tall.input), (150.0, Some(90.0), true));
-        let short = super::StripSizes::new(300.0, 230.0);
+        let short = super::StripSizes::new(300.0, 230.0, super::SENDS_EXTRA);
         assert_eq!((short.fx, short.sends, short.input), (44.0, None, false));
-        assert!(tall.close_to(&super::StripSizes::new(1000.4, 230.0)));
+        assert!(tall.close_to(&super::StripSizes::new(1000.4, 230.0, super::SENDS_EXTRA)));
         assert!(!tall.close_to(&short));
     }
 
@@ -5119,6 +5148,58 @@ mod tests {
             view.windows(ui.ctx());
         })
         .drop_without_applying_deltas();
+    }
+
+    /// A frame of the mixer alone in a panel `height` tall, as when its panel is resized.
+    fn panel_frame(ctx: &egui::Context, view: &mut MixerView, height: f32) {
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, height))),
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| view.show(ui))
+            .drop_without_applying_deltas();
+    }
+
+    #[test]
+    fn resizing_the_panel_neither_panics_nor_leaves_the_strips_shaking() {
+        let mut doc = Document::new(AppDirs::default());
+        let mut ids = Vec::new();
+        doc.history_mut().edit("Setup", |p| {
+            let folder = p.add_track("Folder");
+            let a = p.add_track("A");
+            let b = p.add_track("B");
+            let _ = routing::set_parent(p, a, Some(folder));
+            routing::add_insert(p, Channel::Track(a), "eq", Default::default());
+            ids = vec![folder, a, b];
+        });
+        let doc = Rc::new(RefCell::new(doc));
+        let ctx = egui::Context::default();
+        let mut view = MixerView::new(Rc::clone(&doc));
+        // Dragged down to nothing and back up, a pixel at a time, then held at heights where
+        // the sections fight for room.
+        let sweep = (100..=1000).rev().chain(100..=1000).step_by(1);
+        for height in sweep {
+            doc.borrow_mut().update();
+            panel_frame(&ctx, &mut view, height as f32);
+        }
+        for height in (100..=1000).step_by(3) {
+            let height = height as f32;
+            let mut seen = Vec::new();
+            for _ in 0..12 {
+                doc.borrow_mut().update();
+                panel_frame(&ctx, &mut view, height);
+                seen.push(
+                    ids.iter()
+                        .map(|id| rect(&format!("plate {}", id.0)))
+                        .collect::<Vec<_>>(),
+                );
+            }
+            let settled = &seen[6..];
+            assert!(
+                settled.windows(2).all(|w| w[0] == w[1]),
+                "the strips keep moving in a panel {height} px tall: {settled:?}"
+            );
+        }
     }
 
     fn drag(ctx: &egui::Context, view: &mut MixerView, from: Pos2, to: Pos2, alt: bool) {
