@@ -3249,6 +3249,41 @@ mod tests {
         assert!(player.midi_outputs().is_empty());
     }
 
+    /// Choosing another audio device replaces the processor (here after playing on the first
+    /// one, at the same rate or another): the clips play on the new one.
+    #[test]
+    fn clips_play_after_the_device_changes() {
+        for (rate, frames) in [(48_000, 256), (44_100, 256), (96_000, 128)] {
+            let mut f = fixture(&format!("device-{rate}"), vec![0.25; 48_000]);
+            f.media.retain(&media_paths(f.history.project(), None));
+            assert!(f.media.wait(Duration::from_secs(10)));
+            let mut first = f.player.processor(48_000, 480);
+            f.player.sync(f.history.project(), None, &f.media);
+            f.player.engine_mut().play();
+            let out = render(&mut first, 50);
+            assert!(out.iter().any(|&s| s != 0.0), "plays on the first device");
+            f.player.engine_mut().stop();
+            render(&mut first, 2);
+            drop(first);
+
+            // As Document::processor, then its syncs at each frame.
+            f.media.set_rate(rate);
+            let mut second = f.player.processor(rate, frames);
+            f.player.sync(f.history.project(), None, &f.media);
+            assert!(f.media.wait(Duration::from_secs(10)));
+            f.media.poll();
+            f.player.sync(f.history.project(), None, &f.media);
+            f.player.engine_mut().locate(0);
+            f.player.engine_mut().play();
+            let out = render(&mut second, 100);
+            assert!(
+                out.iter().any(|&s| s != 0.0),
+                "silent after moving to a {rate} Hz device"
+            );
+            std::fs::remove_dir_all(&f.dir).unwrap();
+        }
+    }
+
     #[test]
     fn timeline_scales_to_the_engine_rate() {
         let mut f = fixture("scale", vec![0.25; 4800]);

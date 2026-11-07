@@ -622,6 +622,14 @@ impl Driver {
             "getChannels",
             self.call(|v, t| unsafe { (v.get_channels)(t, &mut hw_in, &mut hw_out) }),
         )?;
+        // A driver whose device is absent or disabled (Realtek ASIO without its jacks) loads
+        // fine but has nothing to stream.
+        if hw_in <= 0 && hw_out <= 0 {
+            return Err(backend_error(format!(
+                "{} has no input or output channel",
+                self.info.device
+            )));
+        }
         if let Some(rate) = config.sample_rate {
             let rate = f64::from(rate);
             self.check(
@@ -638,6 +646,24 @@ impl Driver {
             "getSampleRate",
             self.call(|v, t| unsafe { (v.get_sample_rate)(t, &mut rate) }),
         )?;
+        // Some drivers have no rate until one is set: a common one, else no stream. A stream
+        // at 0 Hz would have the media resampled to nothing.
+        for candidate in [48_000.0, 44_100.0] {
+            if rate > 0.0 {
+                break;
+            }
+            if self.call(|v, t| unsafe { (v.can_sample_rate)(t, candidate) }) == ASE_OK
+                && self.call(|v, t| unsafe { (v.set_sample_rate)(t, candidate) }) == ASE_OK
+            {
+                let _ = self.call(|v, t| unsafe { (v.get_sample_rate)(t, &mut rate) });
+            }
+        }
+        if rate <= 0.0 {
+            return Err(backend_error(format!(
+                "{} reports no sample rate",
+                self.info.device
+            )));
+        }
         let (mut min, mut max, mut preferred, mut granularity) = (0, 0, 0, 0);
         self.check(
             "getBufferSize",

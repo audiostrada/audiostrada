@@ -1843,6 +1843,13 @@ impl Document {
 
     /// Creates the engine processor for a stream with the given format.
     pub fn processor(&mut self, sample_rate: u32, max_frames: usize) -> EngineProcessor {
+        // A device that reports no rate keeps the current one: at 0 Hz the media would be
+        // resampled to nothing and stay silent on the next device.
+        let sample_rate = if sample_rate == 0 {
+            self.player.engine().sample_rate()
+        } else {
+            sample_rate
+        };
         self.media.set_rate(sample_rate);
         let processor = self.player.processor(sample_rate, max_frames);
         self.synced = None;
@@ -2138,6 +2145,36 @@ mod tests {
                 .iter()
                 .all(|l| l.points.is_empty())
         );
+    }
+
+    /// A device that reports no rate (an ASIO driver before one is set) on the way to another:
+    /// the media are not resampled to nothing, and play on the next device.
+    #[test]
+    fn a_device_without_rate_leaves_the_media_playable() {
+        let dir = temp("no-rate");
+        let take = dir.join("take.wav");
+        write_wav(&take, &AudioData::new(vec![vec![0.25; 9600]], 48_000)).unwrap();
+        let mut doc = Document::new(AppDirs::default());
+        doc.import(std::slice::from_ref(&take));
+        assert!(doc.wait_loaded(Duration::from_secs(10)));
+        drop(doc.processor(48_000, 256));
+        drop(doc.processor(0, 256));
+        assert_eq!(doc.player().engine().sample_rate(), 48_000);
+        // Time for a resampling to fail, as the user picks the next device.
+        assert!(doc.wait_loaded(Duration::from_secs(10)));
+        let mut processor = doc.processor(44_100, 256);
+        assert!(doc.wait_loaded(Duration::from_secs(10)));
+        doc.update();
+        assert!(doc.missing().is_empty(), "{:?}", doc.missing());
+        doc.player_mut().engine_mut().play();
+        let mut storage = audiostrada_io::ChannelBuffers::new(0, 2, 256);
+        let mut peak = 0.0f32;
+        for _ in 0..40 {
+            processor.render(&mut storage.buffers(256));
+            peak = storage.output(0).iter().fold(peak, |p, s| p.max(s.abs()));
+        }
+        assert!(peak > 0.1, "silent on the next device");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

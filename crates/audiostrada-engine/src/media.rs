@@ -189,7 +189,8 @@ impl MediaPool {
 
     /// Switches the engine rate; ready media is resampled in the background.
     pub fn set_rate(&mut self, rate: u32) {
-        if rate == self.rate {
+        // No rate (a device that reports none): resampling to it would fail every file.
+        if rate == self.rate || rate == 0 {
             return;
         }
         self.rate = rate;
@@ -325,6 +326,22 @@ mod tests {
         assert!(pool.audio(&file).is_none());
         assert!(pool.wait(Duration::from_secs(10)));
         assert_eq!(pool.audio(&file).unwrap().sample_rate(), 96_000);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A device without rate leaves the media as they are: resampled to 0 Hz they would fail.
+    #[test]
+    fn no_rate_keeps_the_media() {
+        let dir = temp("no-rate");
+        let file = dir.join("tone.wav");
+        write_wav(&file, &AudioData::new(vec![vec![0.5; 4800]], 48_000)).unwrap();
+        let mut pool = MediaPool::new(48_000, None);
+        pool.request(&file);
+        assert!(pool.wait(Duration::from_secs(10)));
+        pool.set_rate(0);
+        assert!(pool.wait(Duration::from_secs(10)));
+        assert!(pool.failures().is_empty());
+        assert_eq!(pool.audio(&file).unwrap().sample_rate(), 48_000);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
