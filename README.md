@@ -1,29 +1,46 @@
-# AudioStrada
+<p align="center">
+  <img src="packaging/icons/audiostrada.svg" width="96" height="96" alt="AudioStrada logo">
+</p>
 
-From the first take to the final mix. Faster.
+<h1 align="center">AudioStrada</h1>
+
+<p align="center"><strong>From the first take to the final mix. Faster.</strong></p>
+
+<p align="center">
+  <a href="https://github.com/audiostrada/audiostrada/actions/workflows/ci.yml"><img src="https://github.com/audiostrada/audiostrada/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="License: GPL-3.0-or-later"></a>
+  <img src="https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-555" alt="Platforms: Linux, Windows, macOS">
+  <a href="rust-toolchain.toml"><img src="https://img.shields.io/badge/rust-1.99-orange?logo=rust" alt="Rust 1.99"></a>
+</p>
+
+<p align="center">
+  <a href="https://audiostrada.com">Website</a> ·
+  <a href="https://audiostrada.com/download">Download</a> ·
+  <a href="https://audiostrada.com/manual/">Manual</a> ·
+  <a href="https://github.com/audiostrada/audiostrada/discussions">Discussions</a>
+</p>
+
+![AudioStrada: timeline, mixer and console](docs/images/session.webp)
 
 AudioStrada is a complete audio workstation for Linux, Windows and macOS. It opens instantly,
 runs at low latency and records in 32-bit float up to 192 kHz, with a mixing console, pro
 effects, a guitar amp and your plugins built in. It is free software, under the GNU GPL.
-
-[Website](https://audiostrada.com) · [Download](https://audiostrada.com/download) ·
-[User guide](docs/user-guide.md)
 
 AudioStrada is in active development: features land quickly, and some rough edges remain.
 
 ## Features
 
 - **Recording**: punch-in, loop recording with every pass on its own take lane, comping,
-  playlists, count-in and metronome, input latency compensation.
+  playlists, count-in and metronome, input latency compensation, low-latency monitoring.
 - **Editing**: Smart Tool, fades and crossfades, clip gain, Slip, Shuffle and Grid modes, time
   ranges, markers, time-stretch and transpose, clips matched to the project tempo.
 - **Mixing**: a console with effects and sends on every strip, any track as a bus, folders,
-  groups, VCAs, snapshots, sidechain, monitor effects and a loudness meter. Automation lanes
-  with curves and Read, Touch, Latch, Write and Trim modes. Track freeze.
+  groups, VCAs, snapshots, sidechain, console colors, monitor effects and a loudness meter.
+  Automation with curves and Read, Touch, Latch, Write and Trim modes. Track freeze.
 - **Effects**, each with its own editor, factory presets, A/B and loudness matching: EQ and
-  Vintage EQ, Compressor (Clean, Bus, Opto, FET), Gate, Limiter, Maximizer, Transient Shaper,
-  De-esser, Reverb, Delay, Chorus, Flanger, Phaser, Drive, Tape, Filter, Stereo Imager,
-  Utility, Analyzer and Tuner.
+  Vintage EQ, Compressor (Clean, Bus, Opto, FET), Channel Strip, Gate, Limiter, Maximizer,
+  Transient Shaper, De-esser, Pitch Correct, Reverb, Delay, Chorus, Flanger, Phaser, Drive, Tape,
+  Filter, Stereo Imager, Utility, Analyzer and Tuner.
 - **Guitar**: an amp with 16 built-in models, 21 pedals and cabinet impulse responses, which
   also runs Neural Amp Modeler captures from your library or TONE3000.
 - **MIDI**: an MPE synth, a drum machine, plugin instruments, a piano roll with controller
@@ -35,28 +52,30 @@ AudioStrada is in active development: features land quickly, and some rough edge
 - **Workflow**: autosave, crash recovery and project versions, a dockable workspace with
   detachable panels, themes, a command palette, and editable shortcuts with AudioStrada,
   Pro Tools, Logic and Reaper presets.
+- **AI assistants**: Claude, Cursor or Gemini can drive AudioStrada through the Model Context
+  Protocol, from the robot button.
 
-## Official builds
+| | | |
+|:-:|:-:|:-:|
+| ![Mixer](docs/images/mixer-window.webp) | ![Channel strip](docs/images/channel-strip.webp) | ![Piano roll](docs/images/piano.webp) |
+| Mixer | Effect editors | Piano roll |
 
-Signed installers for Linux, Windows and macOS are on [audiostrada.com](https://audiostrada.com).
-They are free to try: without a license, the sound drops out briefly every 10 minutes after the
-first 20. A yearly subscription removes the dropouts, brings every update of the year and funds
-the development; every version released during the subscription stays yours.
+## Get AudioStrada
 
-Building from source gives the same software with no limit at all.
+**Official builds.** Signed installers for Linux (`.deb`, `.rpm`, AppImage), Windows and macOS
+are on [audiostrada.com](https://audiostrada.com/download). They are free to try: without a
+license, the sound drops out briefly every 10 minutes after the first 20. A yearly subscription
+removes the dropouts, brings every update of the year and funds the development; every version
+released during the subscription stays yours.
 
-## Building from source
-
-Install [rustup](https://rustup.rs); the toolchain version is pinned in `rust-toolchain.toml`.
-On Linux, install the audio development files (Debian and Ubuntu package names):
+**From source.** The same software with no limit at all. On Debian or Ubuntu:
 
 ```sh
-sudo apt install libpipewire-0.3-dev libspa-0.2-dev libclang-dev libasound2-dev libjack-jackd2-dev
+sudo apt install build-essential libpipewire-0.3-dev libspa-0.2-dev libclang-dev libasound2-dev libjack-jackd2-dev
 cargo run --release -p audiostrada-app
 ```
 
-Windows and macOS: see [docs/building.md](docs/building.md) (in French). Packages and
-installers: [docs/distribution.md](docs/distribution.md).
+Other Linux distributions, Windows, macOS and packages: see [docs/building.md](docs/building.md).
 
 ## Audio backends
 
@@ -75,7 +94,8 @@ A project is a folder holding `Name.strada`, the imported media (`Audio Files/`)
 unsaved work. Supported audio formats: WAV, AIFF, FLAC, MP3, Ogg Vorbis, CAF and ALAC, resampled
 to the session rate when loaded.
 
-## Command line
+<details>
+<summary><strong>Command line</strong></summary>
 
 | Command | Purpose |
 |---|---|
@@ -94,7 +114,10 @@ to the session rate when loaded.
 `audiostrada help` lists every option. Log verbosity is set with `AUDIOSTRADA_LOG`, for example
 `AUDIOSTRADA_LOG=debug,audiostrada::rt=trace`.
 
-## Development
+</details>
+
+<details>
+<summary><strong>Development</strong></summary>
 
 AudioStrada is written in Rust.
 
@@ -119,7 +142,13 @@ Code running on the audio thread must not allocate, lock or make system calls:
 - talk to other threads through `audiostrada_rt::channel` only;
 - log from the audio thread with `audiostrada_rt::RtLogger`, never with `tracing` directly.
 
-Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+</details>
+
+## Contributing
+
+Bug reports and ideas are welcome in [Issues](https://github.com/audiostrada/audiostrada/issues)
+and [Discussions](https://github.com/audiostrada/audiostrada/discussions). Before sending code,
+read [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: see [SECURITY.md](SECURITY.md).
 
 ## License
 
