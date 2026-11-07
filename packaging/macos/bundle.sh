@@ -12,6 +12,7 @@ for target in aarch64-apple-darwin x86_64-apple-darwin; do
     rustup target add "$target"
     cargo build -p audiostrada-app --profile dist --locked --target "$target" \
         ${AUDIOSTRADA_FEATURES:+--features "$AUDIOSTRADA_FEATURES"}
+    cargo build -p audiostrada-mp3 --profile dist --locked --target "$target"
 done
 out=target/macos
 app=$out/AudioStrada.app
@@ -19,10 +20,14 @@ rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 lipo -create -output "$app/Contents/MacOS/audiostrada" \
     target/aarch64-apple-darwin/dist/audiostrada target/x86_64-apple-darwin/dist/audiostrada
+lipo -create -output "$app/Contents/MacOS/audiostrada-mp3" \
+    target/aarch64-apple-darwin/dist/audiostrada-mp3 target/x86_64-apple-darwin/dist/audiostrada-mp3
 cp packaging/icons/audiostrada.icns "$app/Contents/Resources/"
 sed -e "s/@VERSION@/$version/g" -e "s/@BUNDLE_ID@/$bundle_id/g" \
     packaging/macos/Info.plist > "$app/Contents/Info.plist"
 if [ -n "${AUDIOSTRADA_SIGN_IDENTITY:-}" ]; then
+    codesign --force --options runtime --timestamp --sign "$AUDIOSTRADA_SIGN_IDENTITY" \
+        "$app/Contents/MacOS/audiostrada-mp3"
     codesign --force --options runtime --timestamp \
         --entitlements packaging/macos/entitlements.plist \
         --sign "$AUDIOSTRADA_SIGN_IDENTITY" "$app"

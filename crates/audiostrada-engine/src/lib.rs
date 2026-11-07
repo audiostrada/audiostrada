@@ -15,6 +15,7 @@ mod processor;
 pub mod project;
 pub mod record;
 mod schedule;
+pub mod tap;
 mod transport;
 
 pub use audiostrada_core::tempo;

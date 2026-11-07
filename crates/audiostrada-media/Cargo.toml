@@ -10,7 +10,6 @@ publish = false
 
 [dependencies]
 rubato.workspace = true
-shine-rs.workspace = true
 opus-rs.workspace = true
 ogg.workspace = true
 serde.workspace = true

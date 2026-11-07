@@ -35,6 +35,9 @@ cargo run --release -p audiostrada-app
 The binary is `target/release/audiostrada`. Run `audiostrada diagnose` once: it checks real-time
 priority, PipeWire buffers, the CPU governor and kernel preemption, and tells how to fix them.
 
+MP3 export runs the `audiostrada-mp3` helper, looked for next to the binary and then on the
+`PATH`: build it with `cargo build --release -p audiostrada-mp3`. This holds on every platform.
+
 ### Packages
 
 | Package | Command | Tool |
@@ -42,6 +45,9 @@ priority, PipeWire buffers, the CPU governor and kernel preemption, and tells ho
 | `.deb` | `cargo deb -p audiostrada-app` | `cargo install cargo-deb` |
 | `.rpm` | `cargo generate-rpm -p crates/audiostrada-app --profile dist` | `cargo install cargo-generate-rpm` |
 | `.AppImage` | `sh packaging/linux/build-appimage.sh` | [appimagetool](https://github.com/AppImage/appimagetool/releases) on the `PATH` |
+
+The `.deb` and `.rpm` also package the MP3 helper: build it first with
+`cargo build -p audiostrada-mp3 --profile dist`.
 
 Packages link the system's PipeWire, ALSA and JACK, whose daemons must match; they are not
 bundled, not even in the AppImage.
@@ -79,6 +85,7 @@ The binary is `target\release\audiostrada.exe`.
 
 ```powershell
 cargo build -p audiostrada-app --profile dist --locked
+cargo build -p audiostrada-mp3 --profile dist --locked
 $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"').Matches[0].Groups[1].Value
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DVersion=$version" packaging\windows\audiostrada.iss
 ```

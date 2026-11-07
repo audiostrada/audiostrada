@@ -32,6 +32,7 @@ Name: "association"; Description: "Open .strada projects with AudioStrada"; Grou
 
 [Files]
 Source: "..\..\target\dist\audiostrada.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\target\dist\audiostrada-mp3.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\icons\audiostrada.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 

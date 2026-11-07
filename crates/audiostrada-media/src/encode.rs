@@ -1,7 +1,8 @@
 //! Writing finished mixes: WAV (16/24-bit PCM, 32-bit float), FLAC (16/24-bit), MP3 (320 kbps,
-//! shine) and Opus (192 kbps in Ogg), with TPDF dither when reducing to integers.
+//! by the separate `audiostrada-mp3` process) and Opus (192 kbps in Ogg), with TPDF dither when
+//! reducing to integers.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use flacenc::component::BitRepr;
 use flacenc::error::Verify;
@@ -192,13 +193,68 @@ fn mp3(data: &AudioData, dither: bool) -> Result<Vec<u8>, MediaError> {
             pcm.push(d.quantize(c[i], 16, dither) as i16);
         }
     }
-    let config = shine_rs::Mp3EncoderConfig::new()
-        .sample_rate(data.sample_rate())
-        .bitrate(320)
-        .channels(2)
-        .stereo_mode(shine_rs::StereoMode::Stereo);
-    shine_rs::encode_pcm_to_mp3(config, &pcm)
-        .map_err(|e| MediaError::Unsupported(format!("MP3 encoding failed: {e}")))
+    let mut bytes = Vec::with_capacity(pcm.len() * 2);
+    for s in pcm {
+        bytes.extend_from_slice(&s.to_le_bytes());
+    }
+    run_mp3_encoder(data.sample_rate(), bytes)
+}
+
+static MP3_ENCODER: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// Overrides where the `audiostrada-mp3` helper is looked for.
+pub fn set_mp3_encoder(path: PathBuf) {
+    let _ = MP3_ENCODER.set(path);
+}
+
+/// `audiostrada-mp3` next to the running program, else on the PATH.
+fn mp3_encoder() -> PathBuf {
+    if let Some(path) = MP3_ENCODER.get() {
+        return path.clone();
+    }
+    let name = format!("audiostrada-mp3{}", std::env::consts::EXE_SUFFIX);
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join(&name)))
+        .filter(|path| path.is_file())
+        .unwrap_or_else(|| PathBuf::from(name))
+}
+
+/// MP3 encoding runs in a separate process: the LGPL encoder is not linked into AudioStrada.
+fn run_mp3_encoder(rate: u32, pcm: Vec<u8>) -> Result<Vec<u8>, MediaError> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let failed = |e: String| MediaError::Unsupported(format!("MP3 encoding failed: {e}"));
+    let program = mp3_encoder();
+    let mut command = Command::new(&program);
+    command
+        .arg(rate.to_string())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000);
+    }
+    let mut child = command
+        .spawn()
+        .map_err(|e| failed(format!("{}: {e}", program.display())))?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| failed("no input".into()))?;
+    let writer = std::thread::spawn(move || stdin.write_all(&pcm));
+    let output = child.wait_with_output()?;
+    writer
+        .join()
+        .map_err(|_| failed("writer panicked".into()))??;
+    if !output.status.success() {
+        return Err(failed(
+            String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        ));
+    }
+    Ok(output.stdout)
 }
 
 /// Opus in an Ogg stream (RFC 7845): header and tags pages, then 20 ms packets.
@@ -335,17 +391,6 @@ mod tests {
     fn lossy_formats_decode_back() {
         let dir = std::env::temp_dir().join(format!("audiostrada-lossy-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let mp3 = dir.join("tone.mp3");
-        encode(&mp3, &tone(44_100, 2.0), FileFormat::Mp3, true).unwrap();
-        let back = crate::load(&mp3).unwrap();
-        assert_eq!(back.channels(), 2);
-        assert!(
-            (back.frames() as f32 / 44_100.0 - 2.0).abs() < 0.1,
-            "{}",
-            back.frames()
-        );
-        assert!((crossings(back.channel(0), 44_100) - 440.0).abs() < 5.0);
-
         let bytes = opus(&tone(44_100, 1.0)).unwrap();
         let mut reader = ogg::PacketReader::new(std::io::Cursor::new(bytes));
         let head = reader.read_packet().unwrap().unwrap();

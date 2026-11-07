@@ -631,7 +631,6 @@ dependencies = [
  "opus-rs",
  "rubato",
  "serde",
- "shine-rs",
  "symphonia",
  "thiserror 2.0.21",
  "tracing",
@@ -643,6 +642,14 @@ version = "0.1.0"
 dependencies = [
  "midir",
  "midly",
+]
+
+[[package]]
+name = "audiostrada-mp3"
+version = "0.1.0"
+dependencies = [
+ "audiostrada-media",
+ "shine-rs",
 ]
 
 [[package]]

@@ -1,0 +1,18 @@
+[package]
+name = "audiostrada-mp3"
+description = "MP3 encoder helper of AudioStrada, run as a separate process."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+shine-rs.workspace = true
+
+[dev-dependencies]
+audiostrada-media.workspace = true
+
+[lints]
+workspace = true

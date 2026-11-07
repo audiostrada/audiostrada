@@ -17,6 +17,7 @@ use crate::graph::{Graph, GraphError, NodeId, NodeKind, Port};
 use crate::pool::WorkerPool;
 use crate::record::{self, Capture, Recorder, TakeTarget};
 use crate::schedule::{Schedule, compile};
+use crate::tap::{InputTap, TapWriter};
 use crate::tempo::TempoMap;
 use crate::transport::{EngineShared, Transport};
 use crate::{Processor, TransportInfo};
@@ -33,6 +34,7 @@ enum Command {
     Loop(Option<(u64, u64)>),
     Tempo(Arc<TempoMap>),
     Capture(Option<Box<Capture>>),
+    Tap(Option<Box<TapWriter>>),
     Automation(Box<AutomationSet>),
 }
 
@@ -40,6 +42,7 @@ enum Garbage {
     Schedule(Box<Schedule>),
     Tempo(Arc<TempoMap>),
     Capture(Box<Capture>),
+    Tap(Box<TapWriter>),
     Automation(Box<AutomationSet>),
     /// Final schedule of a dropped processor, with the processors to give back to the graph.
     Returned(Box<Schedule>),
@@ -254,6 +257,25 @@ impl Engine {
         self.send(Command::Automation(Box::new(set)));
     }
 
+    /// Copies the hardware inputs `channels` for another thread to read, replacing the
+    /// previous tap; `seconds` is how long the reader may wait between reads.
+    pub fn open_input_tap(
+        &mut self,
+        channels: Vec<usize>,
+        seconds: f32,
+    ) -> Result<InputTap, String> {
+        if self.commands.is_none() {
+            return Err("no audio stream is running".into());
+        }
+        let (writer, tap) = crate::tap::open(channels, self.sample_rate, seconds);
+        self.send(Command::Tap(Some(writer)));
+        Ok(tap)
+    }
+
+    pub fn close_input_tap(&mut self) {
+        self.send(Command::Tap(None));
+    }
+
     /// Stops capturing; the recorder finishes once the capture comes back as garbage.
     pub fn stop_recording(&mut self) {
         self.send(Command::Capture(None));
@@ -295,6 +317,7 @@ impl Engine {
                 Garbage::Schedule(schedule) => drop(schedule),
                 Garbage::Tempo(tempo) => drop(tempo),
                 Garbage::Capture(capture) => drop(capture),
+                Garbage::Tap(tap) => drop(tap),
                 Garbage::Automation(set) => drop(set),
                 Garbage::Returned(schedule) => returned.push(schedule),
             }
@@ -355,6 +378,7 @@ impl Engine {
             shared: Arc::clone(&self.shared),
             sample_rate,
             capture: None,
+            tap: None,
             automation: None,
         }
     }
@@ -370,6 +394,7 @@ pub struct EngineProcessor {
     shared: Arc<EngineShared>,
     sample_rate: u32,
     capture: Option<Box<Capture>>,
+    tap: Option<Box<TapWriter>>,
     automation: Option<Box<AutomationSet>>,
 }
 
@@ -427,6 +452,11 @@ impl EngineProcessor {
                         self.discard(Garbage::Capture(old));
                     }
                 }
+                Command::Tap(tap) => {
+                    if let Some(old) = std::mem::replace(&mut self.tap, tap) {
+                        self.discard(Garbage::Tap(old));
+                    }
+                }
             }
         }
     }
@@ -438,12 +468,13 @@ impl EngineProcessor {
         let Some(schedule) = self.schedule.as_deref_mut() else {
             return;
         };
-        let (pool, tempo, sample_rate, playing, capture, automation) = (
+        let (pool, tempo, sample_rate, playing, capture, tap, automation) = (
             &mut self.pool,
             &self.tempo,
             self.sample_rate,
             self.transport.playing,
             &mut self.capture,
+            &mut self.tap,
             self.automation.as_deref(),
         );
         self.transport
@@ -453,6 +484,10 @@ impl EngineProcessor {
                 }
                 if playing && let Some(capture) = capture.as_deref_mut() {
                     capture.write(buffers, segment.offset, segment.frames, segment.position);
+                }
+                if let Some(tap) = tap.as_deref_mut() {
+                    let (offset, frames) = (segment.offset, segment.frames);
+                    tap.write(buffers, offset, frames, segment.position, playing);
                 }
                 let beat = tempo.sample_to_beat(segment.position, sample_rate);
                 let bbt = tempo.beat_to_bbt(beat);

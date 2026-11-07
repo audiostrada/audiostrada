@@ -30,6 +30,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo install cargo-deb --version 3.8.0 --locked
       - run: cargo install cargo-generate-rpm --version 0.21.1 --locked
+      - run: cargo build -p audiostrada-mp3 --profile dist --locked
       - run: cargo deb -p audiostrada-app --locked --features "$AUDIOSTRADA_FEATURES"
       - run: cargo generate-rpm -p crates/audiostrada-app --profile dist
       - name: AppImage
@@ -58,6 +59,7 @@ jobs:
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - run: cargo build -p audiostrada-app --profile dist --locked --features $env:AUDIOSTRADA_FEATURES
+      - run: cargo build -p audiostrada-mp3 --profile dist --locked
       - name: Sign the program
         if: env.AZURE_CLIENT_ID != ''
         uses: azure/artifact-signing-action@v2
@@ -68,7 +70,8 @@ jobs:
           endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
           signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
           certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
-          files: ${{ github.workspace }}\target\dist\audiostrada.exe
+          files-folder: ${{ github.workspace }}\target\dist
+          files-folder-filter: exe
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256

@@ -399,6 +399,26 @@ mod tests {
     }
 
     #[test]
+    fn module_data_survives_a_build_without_the_module() {
+        let dir = temp_dir("extensions");
+        let paths = ProjectPaths::in_new_folder(&dir, "Song");
+        let mut p = sample_project();
+        let data = serde_json::json!({"lyrics": [{"line": "Hello", "at": 3840}], "v": 2});
+        p.extensions.insert("studio".into(), data.clone());
+        save(&p, &paths).unwrap();
+        let mut back = load(&paths.file).unwrap();
+        back.name = "Edited".into();
+        save(&back, &paths).unwrap();
+        assert_eq!(load(&paths.file).unwrap().extensions["studio"], data);
+        assert!(
+            !String::from_utf8(to_json(&sample_project()).unwrap())
+                .unwrap()
+                .contains("extensions")
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn media_is_copied_into_the_project() {
         let dir = temp_dir("import");
         fs::create_dir_all(&dir).unwrap();

@@ -182,6 +182,40 @@ fn the_transport_moves_to_the_bottom_and_grows() {
 }
 
 #[test]
+fn a_module_draws_every_frame_and_keeps_its_data_in_the_project() {
+    use std::cell::Cell;
+    use std::rc::Rc;
+    struct Module(Rc<Cell<u32>>, Option<audiostrada_engine::tap::InputTap>);
+    impl extension::Extension for Module {
+        fn name(&self) -> &'static str {
+            "test"
+        }
+        fn tick(&mut self, _ctx: &egui::Context, doc: &mut document::Document) {
+            self.0.set(self.0.get() + 1);
+            if self.0.get() == 2 {
+                doc.set_extension_data("test", "Module edit", serde_json::json!({"n": 2}));
+                self.1 = doc.open_armed_input_tap(1.0).ok();
+            }
+        }
+        fn menu_title(&self) -> Option<String> {
+            Some("Module".into())
+        }
+    }
+    let ticks = Rc::new(Cell::new(0));
+    let mut h = Harness::with_song("module");
+    h.app
+        .add_extension(Box::new(Module(Rc::clone(&ticks), None)));
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    assert_eq!(ticks.get(), 3);
+    let data = h.app.doc.borrow().extension_data("test").cloned();
+    assert_eq!(data, Some(serde_json::json!({"n": 2})));
+    h.act(Action::Undo);
+    assert!(h.app.doc.borrow().extension_data("test").is_none());
+}
+
+#[test]
 fn every_command_runs_without_a_panic() {
     let mut h = Harness::with_song("commands");
     h.frame(Vec::new());

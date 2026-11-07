@@ -7,11 +7,12 @@ set -eu
 cd "$(dirname "$0")/../.."
 version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
 cargo build -p audiostrada-app --profile dist --locked ${AUDIOSTRADA_FEATURES:+--features "$AUDIOSTRADA_FEATURES"}
+cargo build -p audiostrada-mp3 --profile dist --locked
 app=target/appimage/AudioStrada.AppDir
 rm -rf "$app"
 mkdir -p "$app/usr/bin" "$app/usr/share/applications" "$app/usr/share/mime/packages" \
     "$app/usr/share/metainfo"
-cp target/dist/audiostrada "$app/usr/bin/"
+cp target/dist/audiostrada target/dist/audiostrada-mp3 "$app/usr/bin/"
 cp packaging/linux/audiostrada.desktop "$app/usr/share/applications/"
 cp packaging/linux/audiostrada.desktop "$app/"
 cp packaging/linux/audiostrada.xml "$app/usr/share/mime/packages/"

@@ -17,6 +17,7 @@ mod drums_editor;
 mod effect_browser;
 mod effect_editors;
 mod export_window;
+pub mod extension;
 mod gear;
 mod host;
 pub mod i18n;
@@ -333,6 +334,7 @@ pub struct AudioStradaApp {
     /// The last tools assistants called: (tool, when).
     control_log: std::collections::VecDeque<(String, std::time::SystemTime)>,
     assistants_window: assistants_window::AssistantsWindow,
+    extensions: Vec<Box<dyn extension::Extension>>,
 }
 
 impl std::fmt::Debug for AudioStradaApp {
@@ -450,6 +452,7 @@ impl AudioStradaApp {
             control,
             control_log: Default::default(),
             assistants_window: Default::default(),
+            extensions: Vec::new(),
         }
     }
 
@@ -814,6 +817,11 @@ impl AudioStradaApp {
     }
 
     /// Opens the control channel on `127.0.0.1:port` for `audiostrada mcp --connect`.
+    /// Adds a module, before `run`.
+    pub fn add_extension(&mut self, extension: Box<dyn extension::Extension>) {
+        self.extensions.push(extension);
+    }
+
     pub fn listen(&mut self, port: u16) -> Result<(), String> {
         if self.control.as_ref().is_some_and(|c| c.port == port) {
             return Ok(());
@@ -2308,6 +2316,12 @@ impl AudioStradaApp {
                 ui.separator();
                 item(ui, &mut chosen, Action::CommandPalette, None, true);
             });
+            for extension in &mut self.extensions {
+                if let Some(title) = extension.menu_title() {
+                    let doc = &self.doc;
+                    ui.menu_button(title, |ui| extension.menu(ui, &mut doc.borrow_mut()));
+                }
+            }
             ui.menu_button(tr("Help"), |ui| {
                 item(ui, &mut chosen, Action::KeyboardShortcuts, None, true);
                 item(ui, &mut chosen, Action::CommandPalette, None, true);
@@ -2951,6 +2965,9 @@ impl eframe::App for AudioStradaApp {
             self.views.borrow_mut().mixer.windows(&ctx);
         }
         self.detached_windows(&ctx);
+        for extension in &mut self.extensions {
+            extension.tick(&ctx, &mut self.doc.borrow_mut());
+        }
 
         if let Some(action) = self.palette.show(&ctx, &self.prefs.keymap, self.mac) {
             actions.push(action);

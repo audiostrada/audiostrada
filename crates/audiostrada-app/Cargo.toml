@@ -51,7 +51,7 @@ license-file = ["../../LICENSE", "0"]
 extended-description = """\
 Digital audio workstation: multitrack recording and editing, mixing console, automation, \
 CLAP, VST3 and LV2 plugins in sandboxed processes, MIDI instruments, built-in effects with a \
-Neural Amp Modeler amp, time stretching, WAV and FLAC export. Plays through PipeWire with no \
+Neural Amp Modeler amp, time stretching, WAV, FLAC, MP3 and Opus export. Plays through PipeWire with no \
 configuration, and also supports JACK and ALSA."""
 section = "sound"
 priority = "optional"
@@ -60,6 +60,7 @@ recommends = "pipewire, liblilv-0-0"
 profile = "dist"
 assets = [
     ["target/release/audiostrada", "usr/bin/", "755"],
+    ["target/release/audiostrada-mp3", "usr/bin/", "755"],
     ["../../packaging/linux/audiostrada.desktop", "usr/share/applications/", "644"],
     ["../../packaging/linux/audiostrada.xml", "usr/share/mime/packages/", "644"],
     ["../../packaging/linux/com.audiostrada.AudioStrada.metainfo.xml", "usr/share/metainfo/", "644"],
@@ -78,6 +79,7 @@ name = "audiostrada"
 summary = "Digital audio workstation"
 assets = [
     { source = "target/release/audiostrada", dest = "/usr/bin/audiostrada", mode = "755" },
+    { source = "target/release/audiostrada-mp3", dest = "/usr/bin/audiostrada-mp3", mode = "755" },
     { source = "../../packaging/linux/audiostrada.desktop", dest = "/usr/share/applications/audiostrada.desktop", mode = "644" },
     { source = "../../packaging/linux/audiostrada.xml", dest = "/usr/share/mime/packages/audiostrada.xml", mode = "644" },
     { source = "../../packaging/linux/com.audiostrada.AudioStrada.metainfo.xml", dest = "/usr/share/metainfo/com.audiostrada.AudioStrada.metainfo.xml", mode = "644" },

@@ -620,6 +620,9 @@ pub struct Project {
     /// Every console color switched off (the settings are kept).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub console_off: bool,
+    /// Data of optional modules, by module name, kept as is by builds without them.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extensions: BTreeMap<String, serde_json::Value>,
     next_id: u64,
 }
 
@@ -784,6 +787,7 @@ impl Project {
             console: Default::default(),
             console_noise: false,
             console_off: false,
+            extensions: BTreeMap::new(),
             reference: None,
             next_id: 1,
         }
