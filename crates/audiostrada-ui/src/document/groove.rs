@@ -437,7 +437,7 @@ impl Document {
 /// A new file for a preview, in the temporary folder.
 fn preview_file(name: &str) -> Result<PathBuf, String> {
     static COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let dir = std::env::temp_dir().join(format!("audiostrada-groove-{}", std::process::id()));
+    let dir = audiostrada_core::scratch::dir("groove");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let n = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let safe: String = name
@@ -494,7 +494,7 @@ mod tests {
 
     #[test]
     fn a_late_and_early_bass_lands_on_the_kick() {
-        let dir = std::env::temp_dir().join(format!("audiostrada-groove-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("groove");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let rate = 48_000usize;

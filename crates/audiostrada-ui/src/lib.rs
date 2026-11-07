@@ -73,9 +73,7 @@ mod test_sweep;
 /// their own, so that they never touch the user's presets, chains or libraries.
 pub(crate) fn config_dir() -> Option<PathBuf> {
     if cfg!(test) {
-        return Some(
-            std::env::temp_dir().join(format!("audiostrada-test-config-{}", std::process::id())),
-        );
+        return Some(audiostrada_core::scratch::dir("test-config"));
     }
     dirs::config_dir()
 }

@@ -155,10 +155,7 @@ fn stress(workers: usize) {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(150);
-    let dir = std::env::temp_dir().join(format!(
-        "audiostrada-stress-{}-{workers}",
-        std::process::id()
-    ));
+    let dir = audiostrada_core::scratch::dir(&format!("stress-{workers}"));
     std::fs::create_dir_all(&dir).unwrap();
     let mut rng = Rng(0x9e37_79b9_7f4a_7c15 ^ workers as u64);
     let sources = sources(&dir);
@@ -265,7 +262,7 @@ fn project_plays_without_allocating() {
 /// Each effect alone: playing and jumping (which resets it) must not allocate.
 #[test]
 fn effects_play_and_reset_without_allocating() {
-    let dir = std::env::temp_dir().join(format!("audiostrada-reset-{}", std::process::id()));
+    let dir = audiostrada_core::scratch::dir("reset");
     std::fs::create_dir_all(&dir).unwrap();
     let sources = sources(&dir);
     let mut failed = Vec::new();
@@ -311,7 +308,7 @@ fn effects_play_and_reset_without_allocating() {
 /// allocate.
 #[test]
 fn amp_rig_plays_switches_and_resets_without_allocating() {
-    let dir = std::env::temp_dir().join(format!("audiostrada-rig-{}", std::process::id()));
+    let dir = audiostrada_core::scratch::dir("rig");
     let pack = dir.join("Amp");
     std::fs::create_dir_all(&pack).unwrap();
     write_models(&pack);
@@ -406,7 +403,7 @@ fn write_models(dir: &std::path::Path) {
 /// The single-capture NAM effect must not allocate either (its metadata is read once).
 #[test]
 fn nam_plays_without_allocating() {
-    let dir = std::env::temp_dir().join(format!("audiostrada-nam-{}", std::process::id()));
+    let dir = audiostrada_core::scratch::dir("nam");
     std::fs::create_dir_all(&dir).unwrap();
     write_models(&dir);
     let sources = sources(&dir);

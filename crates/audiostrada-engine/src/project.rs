@@ -2474,8 +2474,7 @@ mod tests {
     }
 
     fn fixture(name: &str, samples: Vec<f32>) -> Fixture {
-        let dir =
-            std::env::temp_dir().join(format!("audiostrada-project-{}-{name}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir(&format!("project-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("a.wav");
@@ -2690,8 +2689,7 @@ mod tests {
 
     #[test]
     fn sidechain_ducks_a_track_from_another() {
-        let dir =
-            std::env::temp_dir().join(format!("audiostrada-sidechain-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("sidechain");
         std::fs::create_dir_all(&dir).unwrap();
         let level = |kick: f32| {
             let bass = dir.join("bass.wav");
@@ -2997,8 +2995,7 @@ mod tests {
     fn a_plugin_insert_plays_on_every_system() {
         let library = audiostrada_test_plugin::built_library()
             .expect("the test plugin is built with the tests");
-        let dir =
-            std::env::temp_dir().join(format!("audiostrada-engine-clap-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("engine-clap");
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::copy(library, dir.join("test-gain.clap")).unwrap();
         let mut database = Database::default();

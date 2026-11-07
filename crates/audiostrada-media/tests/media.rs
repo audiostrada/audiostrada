@@ -11,7 +11,7 @@ fn sine(frequency: f32, rate: u32, frames: usize) -> Vec<f32> {
 }
 
 fn temp(name: &str) -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("audiostrada-media-{}-{name}", std::process::id()))
+    audiostrada_core::scratch::dir(&format!("media-{name}"))
 }
 
 #[test]

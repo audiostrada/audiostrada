@@ -12,6 +12,7 @@ publish = false
 shine-rs.workspace = true
 
 [dev-dependencies]
+audiostrada-core.workspace = true
 audiostrada-media.workspace = true
 
 [lints]

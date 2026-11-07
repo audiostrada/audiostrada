@@ -297,8 +297,7 @@ mod tests {
     use crate::model::Source;
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("audiostrada-core-{}-{name}", std::process::id()));
+        let dir = crate::scratch::dir(&format!("core-{name}"));
         let _ = fs::remove_dir_all(&dir);
         dir
     }

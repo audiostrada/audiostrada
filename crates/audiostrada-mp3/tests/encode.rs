@@ -8,7 +8,7 @@ fn audiostrada_exports_mp3_through_the_helper() {
         .map(|i| 0.5 * (std::f32::consts::TAU * 440.0 * i as f32 / rate as f32).sin())
         .collect();
     let data = AudioData::new(vec![tone.clone(), tone], rate as u32);
-    let dir = std::env::temp_dir().join(format!("audiostrada-mp3-{}", std::process::id()));
+    let dir = audiostrada_core::scratch::dir("mp3");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("tone.mp3");
     audiostrada_media::encode(&path, &data, FileFormat::Mp3, true).unwrap();

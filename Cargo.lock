@@ -626,6 +626,7 @@ dependencies = [
 name = "audiostrada-media"
 version = "0.1.0"
 dependencies = [
+ "audiostrada-core",
  "flacenc",
  "ogg",
  "opus-rs",
@@ -648,6 +649,7 @@ dependencies = [
 name = "audiostrada-mp3"
 version = "0.1.0"
 dependencies = [
+ "audiostrada-core",
  "audiostrada-media",
  "shine-rs",
 ]
@@ -656,6 +658,7 @@ dependencies = [
 name = "audiostrada-plugins"
 version = "0.1.0"
 dependencies = [
+ "audiostrada-core",
  "audiostrada-midi",
  "audiostrada-rt",
  "audiostrada-test-plugin",

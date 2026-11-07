@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn chains_save_list_and_remove() {
-        let dir = std::env::temp_dir().join(format!("audiostrada-chains-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("chains");
         let _ = std::fs::remove_dir_all(&dir);
         let mut amp = insert("amp_rig", &[("gain", 6.0)]);
         amp.files

@@ -368,8 +368,7 @@ mod tests {
     #[test]
     fn file_round_trip_and_corruption() {
         let peaks = Peaks::compute(&ramp_data());
-        let path =
-            std::env::temp_dir().join(format!("audiostrada-peaks-{}.peaks", std::process::id()));
+        let path = audiostrada_core::scratch::dir("peaks.peaks");
         peaks.write(&path).unwrap();
         assert_eq!(Peaks::read(&path).unwrap(), peaks);
         let bytes = fs::read(&path).unwrap();
@@ -385,8 +384,7 @@ mod tests {
         let peaks = Peaks::compute(&AudioData::new(vec![Vec::new(), Vec::new()], 44_100));
         assert_eq!((peaks.channels(), peaks.frames()), (2, 0));
         assert_eq!(peaks.sample_rate(), 44_100);
-        let path =
-            std::env::temp_dir().join(format!("audiostrada-empty-{}.peaks", std::process::id()));
+        let path = audiostrada_core::scratch::dir("empty.peaks");
         peaks.write(&path).unwrap();
         assert_eq!(Peaks::read(&path).unwrap(), peaks);
         let mut out = [Peak::EMPTY; 3];
@@ -412,8 +410,7 @@ mod tests {
 
     #[test]
     fn bad_headers_are_rejected() {
-        let path =
-            std::env::temp_dir().join(format!("audiostrada-bad-{}.peaks", std::process::id()));
+        let path = audiostrada_core::scratch::dir("bad.peaks");
         let mut bytes = MAGIC.to_vec();
         bytes.extend_from_slice(&1u32.to_le_bytes());
         fs::write(&path, &bytes).unwrap();

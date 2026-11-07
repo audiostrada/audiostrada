@@ -18,5 +18,8 @@ flacenc.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
+[dev-dependencies]
+audiostrada-core.workspace = true
+
 [lints]
 workspace = true

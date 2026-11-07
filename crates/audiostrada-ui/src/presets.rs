@@ -3196,7 +3196,7 @@ mod tests {
 
     #[test]
     fn user_presets_round_trip() {
-        let root = std::env::temp_dir().join(format!("audiostrada-presets-{}", std::process::id()));
+        let root = audiostrada_core::scratch::dir("presets");
         let _ = std::fs::remove_dir_all(&root);
         assert!(list(Some(&root), "eq").iter().all(|p| p.factory));
         let mine = Preset {

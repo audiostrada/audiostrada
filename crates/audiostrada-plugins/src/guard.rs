@@ -109,7 +109,7 @@ mod tests {
 
     #[test]
     fn a_load_that_never_ended_is_refused_next_time() {
-        let dir = std::env::temp_dir().join(format!("audiostrada-guard-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("guard");
         let _ = std::fs::remove_dir_all(&dir);
         let descriptor = PluginDescriptor {
             format: Format::Clap,

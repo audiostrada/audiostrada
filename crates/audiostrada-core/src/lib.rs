@@ -11,6 +11,7 @@ pub mod history;
 pub mod legacy;
 pub mod model;
 pub mod routing;
+pub mod scratch;
 pub mod section;
 pub mod snapshot;
 pub mod tempo;

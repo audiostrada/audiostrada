@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn renders_the_project_with_tail_and_measures_it() {
-        let dir = std::env::temp_dir().join(format!("audiostrada-export-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("export");
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("a.wav");
         write_wav(&file, &AudioData::new(vec![vec![0.5; 48_000]], 48_000)).unwrap();

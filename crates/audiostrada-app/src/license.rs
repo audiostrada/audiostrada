@@ -80,7 +80,7 @@ mod tests {
     use super::*;
 
     fn temp(name: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("audiostrada-license-{name}-{}", std::process::id()))
+        audiostrada_core::scratch::dir(&format!("license-{name}"))
     }
 
     #[test]

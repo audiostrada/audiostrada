@@ -374,8 +374,7 @@ mod tests {
         looping: Option<(u64, u64)>,
         punch: Option<(u64, u64)>,
     ) -> (RecordResult, PathBuf) {
-        let dir =
-            std::env::temp_dir().join(format!("audiostrada-record-{}-{name}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir(&format!("record-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         let mut engine = Engine::new(EngineConfig { workers: Some(0) });
         let mut processor = engine.processor(48_000, 64);
@@ -417,8 +416,7 @@ mod tests {
 
     #[test]
     fn live_waveform_follows_the_input() {
-        let dir =
-            std::env::temp_dir().join(format!("audiostrada-record-{}-live", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("record-live");
         let _ = std::fs::remove_dir_all(&dir);
         let mut engine = Engine::new(EngineConfig { workers: Some(0) });
         let mut processor = engine.processor(48_000, 64);

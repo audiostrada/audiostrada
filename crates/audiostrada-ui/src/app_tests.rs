@@ -27,8 +27,7 @@ impl Drop for Harness {
 impl Harness {
     /// The application on an empty project, its files in a folder of its own.
     pub fn new(name: &str) -> Self {
-        let dir =
-            std::env::temp_dir().join(format!("audiostrada-app-{name}-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir(&format!("app-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let dirs = AppDirs {

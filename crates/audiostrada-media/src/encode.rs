@@ -389,7 +389,7 @@ mod tests {
 
     #[test]
     fn lossy_formats_decode_back() {
-        let dir = std::env::temp_dir().join(format!("audiostrada-lossy-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("lossy");
         std::fs::create_dir_all(&dir).unwrap();
         let bytes = opus(&tone(44_100, 1.0)).unwrap();
         let mut reader = ogg::PacketReader::new(std::io::Cursor::new(bytes));

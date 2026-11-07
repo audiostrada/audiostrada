@@ -472,7 +472,7 @@ mod tests {
 
     #[test]
     fn foreign_binaries_are_explained() {
-        let dir = std::env::temp_dir().join(format!("audiostrada-binary-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("binary");
         std::fs::create_dir_all(&dir).unwrap();
         let windows = dir.join("w.vst3");
         std::fs::write(&windows, b"MZ\x90\x00rest").unwrap();

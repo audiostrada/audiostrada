@@ -5276,7 +5276,7 @@ mod tests {
     fn a_plugin_window_answers_a_user_trying_everything() {
         let library = audiostrada_test_plugin::built_library()
             .expect("the test plugin is built with the tests");
-        let dir = std::env::temp_dir().join(format!("audiostrada-ui-clap-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("ui-clap");
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::copy(library, dir.join("test-gain.clap")).unwrap();
         let mut database = audiostrada_plugins::scan::Database::default();

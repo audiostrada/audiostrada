@@ -1094,10 +1094,7 @@ mod tests {
     /// A timeline over two tracks of real audio (drum-like hits), loaded.
     fn loaded_view(name: &str) -> (TimelineView, Rc<RefCell<Document>>, std::path::PathBuf) {
         use audiostrada_media::{AudioData, write_wav};
-        let dir = std::env::temp_dir().join(format!(
-            "audiostrada-processing-{name}-{}",
-            std::process::id()
-        ));
+        let dir = audiostrada_core::scratch::dir(&format!("processing-{name}"));
         std::fs::create_dir_all(&dir).unwrap();
         let mut files = Vec::new();
         for (i, name) in ["kick.wav", "bass.wav"].iter().enumerate() {

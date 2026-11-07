@@ -24,7 +24,7 @@ fn text(output: &Output) -> String {
 }
 
 fn folder(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("audiostrada-cli-{name}-{}", std::process::id()));
+    let dir = audiostrada_core::scratch::dir(&format!("cli-{name}"));
     std::fs::create_dir_all(&dir).expect("a temporary folder");
     dir
 }

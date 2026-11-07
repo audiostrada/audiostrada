@@ -67,7 +67,7 @@ fn mix_session(
     workers: usize,
 ) -> (audiostrada_engine::project::ProjectPlayer, EngineProcessor) {
     use audiostrada_core::routing::{self, Channel};
-    let dir = std::env::temp_dir().join(format!("audiostrada-bench-{}", std::process::id()));
+    let dir = audiostrada_core::scratch::dir("bench");
     std::fs::create_dir_all(&dir).expect("temp dir");
     let file = dir.join("loop.wav");
     let samples: Vec<f32> = (0..RATE as usize * 10)

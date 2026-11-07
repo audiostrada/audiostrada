@@ -20,8 +20,7 @@ fn exe() -> &'static Path {
 fn test_plugin_dir() -> PathBuf {
     static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let dir =
-        std::env::temp_dir().join(format!("audiostrada-test-clap-{}-{n}", std::process::id()));
+    let dir = audiostrada_core::scratch::dir(&format!("test-clap-{n}"));
     std::fs::create_dir_all(&dir).expect("a temporary folder");
     let library =
         audiostrada_test_plugin::built_library().expect("the test plugin is built with the tests");

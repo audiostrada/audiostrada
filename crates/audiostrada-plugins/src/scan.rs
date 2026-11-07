@@ -433,7 +433,7 @@ mod tests {
 
     #[test]
     fn database_tracks_files_and_failures() {
-        let dir = std::env::temp_dir().join(format!("audiostrada-scan-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("scan");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("vendor")).unwrap();
         std::fs::write(dir.join("vendor/good.clap"), b"").unwrap();

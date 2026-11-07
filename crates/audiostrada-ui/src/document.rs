@@ -1996,7 +1996,7 @@ mod tests {
     #[test]
     fn a_file_imported_again_finishes_loading() {
         use audiostrada_media::{AudioData, write_wav};
-        let dir = std::env::temp_dir().join(format!("audiostrada-reimport-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("reimport");
         std::fs::create_dir_all(&dir).unwrap();
         let wav = dir.join("a.wav");
         write_wav(&wav, &AudioData::new(vec![vec![0.5; 48_000]], 48_000)).unwrap();
@@ -2031,8 +2031,7 @@ mod tests {
     use audiostrada_media::{AudioData, write_wav};
 
     fn temp(name: &str) -> PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("audiostrada-doc-{}-{name}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir(&format!("doc-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir

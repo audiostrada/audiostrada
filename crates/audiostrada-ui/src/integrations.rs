@@ -297,7 +297,7 @@ mod tests {
 
     #[test]
     fn adding_keeps_what_the_file_had() {
-        let dir = std::env::temp_dir().join(format!("audiostrada-mcp-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("mcp");
         let _ = std::fs::remove_dir_all(&dir);
         let file = dir.join("claude_desktop_config.json");
         assert_eq!(file_state(&file, 47_700), State::NotAdded);

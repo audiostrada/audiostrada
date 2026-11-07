@@ -300,8 +300,7 @@ mod tests {
     use audiostrada_media::write_wav;
 
     fn temp(name: &str) -> PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("audiostrada-pool-{}-{name}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir(&format!("pool-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir

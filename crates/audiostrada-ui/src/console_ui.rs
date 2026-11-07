@@ -472,7 +472,7 @@ mod tests {
 
     #[test]
     fn gain_staging_brings_tracks_to_the_working_level() {
-        let dir = std::env::temp_dir().join(format!("audiostrada-staging-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("staging");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let take = dir.join("quiet.wav");

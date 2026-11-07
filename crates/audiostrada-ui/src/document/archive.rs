@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn a_project_collects_and_archives_what_it_uses() {
-        let dir = std::env::temp_dir().join(format!("audiostrada-archive-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("archive");
         let _ = std::fs::remove_dir_all(&dir);
         let outside = dir.join("elsewhere");
         std::fs::create_dir_all(outside.join("pack")).unwrap();
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn versions_are_restored_in_one_step() {
-        let dir = std::env::temp_dir().join(format!("audiostrada-versions-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("versions");
         let _ = std::fs::remove_dir_all(&dir);
         let mut doc = Document::new(AppDirs::default());
         doc.save_as(ProjectPaths::in_new_folder(&dir, "Song"))

@@ -1607,8 +1607,7 @@ pub(crate) mod tests {
     #[test]
     fn every_tool_answers_any_arguments_without_a_panic() {
         use audiostrada_media::{AudioData, write_wav};
-        let dir =
-            std::env::temp_dir().join(format!("audiostrada-every-tool-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("every-tool");
         std::fs::create_dir_all(&dir).unwrap();
         let wav = dir.join("drums.wav");
         let hits: Vec<f32> = (0..96_000)
@@ -1940,7 +1939,7 @@ pub(crate) mod tests {
 
     #[test]
     fn projects_are_created_saved_and_opened() {
-        let dir = std::env::temp_dir().join(format!("audiostrada-control-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("control");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let mut b = Headless::new();
@@ -1985,7 +1984,7 @@ pub(crate) mod tests {
     #[test]
     fn agents_hear_a_track_and_the_mix() {
         use audiostrada_media::{AudioData, write_wav};
-        let dir = std::env::temp_dir().join(format!("audiostrada-hear-{}", std::process::id()));
+        let dir = audiostrada_core::scratch::dir("hear");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let tone = |freq: f32, gain: f32| -> Vec<f32> {
