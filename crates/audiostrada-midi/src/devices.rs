@@ -69,9 +69,15 @@ impl MidiInputs {
                     live.push(data, position());
                 }
             };
-            match input.connect(&port, "AudioStrada input", callback, ()) {
-                Ok(connection) => connections.push((name, connection)),
-                Err(e) => errors.push(format!("{name}: {e}")),
+            // midir panics when the system has no MIDI resources left (ALSA queues): an
+            // error for this input rather than a crash.
+            let connected = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                input.connect(&port, "AudioStrada input", callback, ())
+            }));
+            match connected {
+                Ok(Ok(connection)) => connections.push((name, connection)),
+                Ok(Err(e)) => errors.push(format!("{name}: {e}")),
+                Err(_) => errors.push(format!("{name}: the MIDI system has no room left")),
             }
         }
         (Self { connections }, errors)
@@ -170,7 +176,11 @@ fn connect(port: &str) -> Option<midir::MidiOutputConnection> {
         .ports()
         .into_iter()
         .find(|p| output.port_name(p).ok().as_deref() == Some(port))?;
-    output.connect(&found, "AudioStrada output").ok()
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        output.connect(&found, "AudioStrada output")
+    }))
+    .ok()?
+    .ok()
 }
 
 impl Drop for MidiOutputs {
