@@ -91,6 +91,8 @@ impl Default for Counter {
 
 /// Height of everything on the transport bar.
 const HEIGHT: f32 = 40.0;
+/// Size of the large transport, relative to the normal one.
+pub const LARGE: f32 = 1.4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum EditMode {
@@ -249,6 +251,7 @@ pub fn show(
     mac: bool,
     (recording, audio): (bool, &mut Audio<'_>),
     counter: &mut Counter,
+    k: f32,
 ) -> Vec<Action> {
     let mut actions = Vec::new();
     let looping = doc.project().looping().is_some();
@@ -261,12 +264,12 @@ pub fn show(
     };
     let dark = ui.visuals().dark_mode;
     let p = theme::palette(dark);
-    ui.add_space(5.0);
+    ui.add_space(5.0 * k);
     ui.horizontal(|ui| {
-        ui.set_height(HEIGHT);
-        ui.spacing_mut().item_spacing.x = 4.0;
+        ui.set_height(HEIGHT * k);
+        ui.spacing_mut().item_spacing.x = 4.0 * k;
         let icon = |ui: &mut Ui, icon: Icon, on: bool, tint: Color32, action: Action| {
-            theme::icon_button(ui, icon, on, tint, &hint(action))
+            theme::icon_button(ui, icon, on, tint, &hint(action), k)
                 .clicked()
                 .then_some(action)
         };
@@ -274,11 +277,11 @@ pub fn show(
         let group = egui::Frame::new()
             .fill(p.base)
             .stroke(egui::Stroke::new(1.0, p.border))
-            .corner_radius(7.0)
-            .inner_margin(egui::Margin::symmetric(5, 6));
+            .corner_radius(7.0 * k)
+            .inner_margin(egui::Margin::symmetric((5.0 * k) as i8, (6.0 * k) as i8));
         group.show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 3.0;
+                ui.spacing_mut().item_spacing.x = 3.0 * k;
                         actions.extend(icon(ui, Icon::ToStart, false, p.accent, Action::GoToStart));
                         actions.extend(icon(
                             ui,
@@ -290,9 +293,9 @@ pub fn show(
                         actions.extend(icon(ui, Icon::Stop, false, p.accent, Action::Stop));
                         actions.extend(icon(ui, Icon::Record, recording, theme::RECORD, Action::Record));
                         // Panic: every instrument lets go of every note.
-                        let panic = egui::Button::new(RichText::new(tr("Panic")).size(11.0).strong());
+                        let panic = egui::Button::new(RichText::new(tr("Panic")).size(11.0 * k).strong());
                         if ui
-                            .add_sized([52.0, 26.0], panic)
+                            .add_sized([52.0 * k, 26.0 * k], panic)
                             .on_hover_text(trf!(
                                 "{action}: stops every note still sounding and silences the \
                                  effects' tails",
@@ -304,10 +307,10 @@ pub fn show(
                         }
             });
         });
-        ui.add_space(6.0);
+        ui.add_space(6.0 * k);
         group.show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 3.0;
+                ui.spacing_mut().item_spacing.x = 3.0 * k;
                         actions.extend(icon(ui, Icon::Loop, looping, p.accent, Action::ToggleLoop));
                         let punch = doc.project().punch_range.is_some();
                         actions.extend(icon(ui, Icon::Punch, punch, theme::RECORD, Action::TogglePunch));
@@ -321,6 +324,7 @@ pub fn show(
                                 "{action}. Right-click for the metronome settings",
                                 action = hint(Action::ToggleMetronome)
                             ),
+                            k,
                         );
                         if response.clicked() {
                             actions.push(Action::ToggleMetronome);
@@ -330,7 +334,7 @@ pub fn show(
                         }
                         // Reference track: lit while it is heard instead of the mix.
                         let listening = doc.player().reference_listening();
-                        let text = RichText::new(tr("REF")).size(11.0).strong();
+                        let text = RichText::new(tr("REF")).size(11.0 * k).strong();
                         let button = if listening {
                             egui::Button::new(text.color(Color32::WHITE)).fill(p.accent.gamma_multiply(0.85))
                         } else {
@@ -345,7 +349,7 @@ pub fn show(
                             tr("Choose a reference track to compare the mix with")
                         };
                         let response = ui
-                            .add_sized([38.0, 26.0], button)
+                            .add_sized([38.0 * k, 26.0 * k], button)
                             .on_hover_text(reference_hint);
                         if response.clicked() {
                             actions.push(Action::ListenToReference);
@@ -370,27 +374,25 @@ pub fn show(
                                 action = hint(Action::LowLatency)
                             )
                         };
-                        if theme::icon_button(ui, Icon::Latency, low, theme::MONITOR, &low_hint).clicked() {
+                        if theme::icon_button(ui, Icon::Latency, low, theme::MONITOR, &low_hint, k).clicked() {
                             actions.push(Action::LowLatency);
                         }
             });
         });
-        ui.add_space(10.0);
-
-        ui.add_space(4.0);
-        counter_well(ui, doc, counter, position, playing, recording);
-        ui.add_space(2.0);
-        tempo_well(ui, doc, &tempo);
+        ui.add_space(14.0 * k);
+        counter_well(ui, doc, counter, (position, playing, recording), k);
+        ui.add_space(2.0 * k);
+        tempo_well(ui, doc, &tempo, k);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.add_space(4.0);
-            master_well(ui, doc);
-            ui.add_space(4.0);
+            ui.add_space(4.0 * k);
+            master_well(ui, doc, k);
+            ui.add_space(4.0 * k);
             if let Some(status) = audio.status {
-                audio.open_settings |= load_well(ui, status);
+                audio.open_settings |= load_well(ui, status, k);
             }
         });
     });
-    ui.add_space(5.0);
+    ui.add_space(5.0 * k);
     actions
 }
 
@@ -400,13 +402,12 @@ fn counter_well(
     ui: &mut Ui,
     doc: &Document,
     counter: &mut Counter,
-    position: u64,
-    playing: bool,
-    recording: bool,
+    (position, playing, recording): (u64, bool, bool),
+    k: f32,
 ) {
     let dark = ui.visuals().dark_mode;
     let p = theme::palette(dark);
-    let (rect, response) = ui.allocate_exact_size(vec2(196.0, HEIGHT), Sense::click());
+    let (rect, response) = ui.allocate_exact_size(vec2(196.0, HEIGHT) * k, Sense::click());
     theme::well(ui.painter(), rect, dark);
     let color = if recording {
         theme::RECORD
@@ -417,23 +418,23 @@ fn counter_well(
     };
     let project = doc.project();
     let main_y = if counter.second.is_some() {
-        rect.top() + 15.0
+        rect.top() + 15.0 * k
     } else {
         rect.center().y
     };
     ui.painter().text(
-        pos2(rect.right() - 10.0, main_y),
+        pos2(rect.right() - 10.0 * k, main_y),
         Align2::RIGHT_CENTER,
         counter.main.format(project, position),
-        FontId::monospace(19.0),
+        FontId::monospace(19.0 * k),
         color,
     );
     if let Some(second) = counter.second {
         ui.painter().text(
-            pos2(rect.right() - 10.0, rect.bottom() - 9.0),
+            pos2(rect.right() - 10.0 * k, rect.bottom() - 9.0 * k),
             Align2::RIGHT_CENTER,
             second.format(project, position),
-            FontId::monospace(10.5),
+            FontId::monospace(10.5 * k),
             p.weak,
         );
     }
@@ -475,28 +476,28 @@ fn counter_well(
 
 /// The master's level: both channels' peaks with their holds, the clip light (a click clears
 /// it) and the short-term loudness.
-fn master_well(ui: &mut Ui, doc: &mut Document) {
+fn master_well(ui: &mut Ui, doc: &mut Document, k: f32) {
     doc.update_levels();
     let dark = ui.visuals().dark_mode;
     let p = theme::palette(dark);
     let mut level = doc.master_level();
-    let (rect, response) = ui.allocate_exact_size(vec2(264.0, HEIGHT), Sense::click());
+    let (rect, response) = ui.allocate_exact_size(vec2(264.0, HEIGHT) * k, Sense::click());
     theme::well(ui.painter(), rect, dark);
     let painter = ui.painter_at(rect);
-    let small = FontId::proportional(8.5);
+    let small = FontId::proportional(8.5 * k);
     let bars = Rect::from_min_max(
-        pos2(rect.left() + 20.0, rect.top() + 7.0),
-        pos2(rect.right() - 92.0, rect.top() + 23.0),
+        pos2(rect.left() + 20.0 * k, rect.top() + 7.0 * k),
+        pos2(rect.right() - 92.0 * k, rect.top() + 23.0 * k),
     );
     let x_of = |db: f32| bars.left() + bars.width() * fraction(db);
     for (ch, name) in ["L", "R"].into_iter().enumerate() {
         let bar = Rect::from_min_size(
-            pos2(bars.left(), bars.top() + ch as f32 * 9.0),
-            vec2(bars.width(), 7.0),
+            pos2(bars.left(), bars.top() + ch as f32 * 9.0 * k),
+            vec2(bars.width(), 7.0 * k),
         );
         painter.rect_filled(bar, 1.0, Color32::from_black_alpha(90));
         painter.text(
-            pos2(rect.left() + 10.0, bar.center().y),
+            pos2(rect.left() + 10.0 * k, bar.center().y),
             Align2::CENTER_CENTER,
             name,
             small.clone(),
@@ -510,13 +511,13 @@ fn master_well(ui: &mut Ui, doc: &mut Document) {
             let x = x_of(level.hold[ch]);
             painter.line_segment(
                 [pos2(x, bar.top()), pos2(x, bar.bottom())],
-                egui::Stroke::new(1.5, Color32::from_gray(230)),
+                egui::Stroke::new(1.5 * k, Color32::from_gray(230)),
             );
         }
     }
     for db in [-48.0f32, -24.0, -12.0, -6.0, -3.0, 0.0] {
         painter.text(
-            pos2(x_of(db), bars.bottom() + 8.0),
+            pos2(x_of(db), bars.bottom() + 8.0 * k),
             Align2::CENTER_CENTER,
             format!("{}", db.abs()),
             small.clone(),
@@ -524,7 +525,10 @@ fn master_well(ui: &mut Ui, doc: &mut Document) {
         );
     }
     // The clip light, lit until clicked.
-    let clip = Rect::from_center_size(pos2(bars.right() + 10.0, bars.center().y), vec2(8.0, 13.0));
+    let clip = Rect::from_center_size(
+        pos2(bars.right() + 10.0 * k, bars.center().y),
+        vec2(8.0, 13.0) * k,
+    );
     painter.rect_filled(
         clip,
         2.0,
@@ -541,14 +545,14 @@ fn master_well(ui: &mut Ui, doc: &mut Document) {
     };
     let loud = loudness.is_some_and(|v| v > -9.0);
     painter.text(
-        pos2(rect.right() - 10.0, rect.top() + 15.0),
+        pos2(rect.right() - 10.0 * k, rect.top() + 15.0 * k),
         Align2::RIGHT_CENTER,
         shown,
-        FontId::monospace(16.0),
+        FontId::monospace(16.0 * k),
         if loud { theme::RECORD } else { p.text },
     );
     painter.text(
-        pos2(rect.right() - 10.0, rect.bottom() - 9.0),
+        pos2(rect.right() - 10.0 * k, rect.bottom() - 9.0 * k),
         Align2::RIGHT_CENTER,
         tr("LUFS short-term"),
         small,
@@ -597,10 +601,10 @@ fn gradient(painter: &egui::Painter, bar: Rect) {
 
 /// The audio processing load, its recent peak and the dropouts; a click opens the audio
 /// settings.
-fn load_well(ui: &mut Ui, status: &StreamStatus) -> bool {
+fn load_well(ui: &mut Ui, status: &StreamStatus, k: f32) -> bool {
     let dark = ui.visuals().dark_mode;
     let p = theme::palette(dark);
-    let (rect, response) = ui.allocate_exact_size(vec2(118.0, HEIGHT), Sense::click());
+    let (rect, response) = ui.allocate_exact_size(vec2(118.0, HEIGHT) * k, Sense::click());
     // The peak holds for two seconds, then follows.
     let id = ui.scope_id().with("dsp-peak");
     let now = ui.input(|i| i.time);
@@ -617,7 +621,7 @@ fn load_well(ui: &mut Ui, status: &StreamStatus) -> bool {
     let xruns = status.xruns();
     theme::well(ui.painter(), rect, dark);
     let painter = ui.painter_at(rect);
-    let small = FontId::proportional(8.5);
+    let small = FontId::proportional(8.5 * k);
     let color = |v: f32| {
         if v > 0.9 {
             theme::RECORD
@@ -628,22 +632,22 @@ fn load_well(ui: &mut Ui, status: &StreamStatus) -> bool {
         }
     };
     painter.text(
-        pos2(rect.left() + 10.0, rect.top() + 12.0),
+        pos2(rect.left() + 10.0 * k, rect.top() + 12.0 * k),
         Align2::LEFT_CENTER,
         tr("DSP"),
         small.clone(),
         p.weak,
     );
     painter.text(
-        pos2(rect.right() - 10.0, rect.top() + 12.0),
+        pos2(rect.right() - 10.0 * k, rect.top() + 12.0 * k),
         Align2::RIGHT_CENTER,
         format!("{:.0} %", load * 100.0),
-        FontId::monospace(13.0),
+        FontId::monospace(13.0 * k),
         color(load),
     );
     let bar = Rect::from_min_max(
-        pos2(rect.left() + 10.0, rect.top() + 21.0),
-        pos2(rect.right() - 10.0, rect.top() + 26.0),
+        pos2(rect.left() + 10.0 * k, rect.top() + 21.0 * k),
+        pos2(rect.right() - 10.0 * k, rect.top() + 26.0 * k),
     );
     painter.rect_filled(bar, 1.0, Color32::from_black_alpha(90));
     let x_of = |v: f32| bar.left() + bar.width() * v.clamp(0.0, 1.0);
@@ -655,7 +659,7 @@ fn load_well(ui: &mut Ui, status: &StreamStatus) -> bool {
     let x = x_of(peak);
     painter.line_segment(
         [pos2(x, bar.top()), pos2(x, bar.bottom())],
-        egui::Stroke::new(1.5, color(peak)),
+        egui::Stroke::new(1.5 * k, color(peak)),
     );
     let (text, tint) = if xruns == 0 {
         (tr("No dropout").to_owned(), p.weak)
@@ -666,7 +670,7 @@ fn load_well(ui: &mut Ui, status: &StreamStatus) -> bool {
         )
     };
     painter.text(
-        pos2(rect.left() + 10.0, rect.bottom() - 7.0),
+        pos2(rect.left() + 10.0 * k, rect.bottom() - 7.0 * k),
         Align2::LEFT_CENTER,
         text,
         small,
@@ -684,32 +688,32 @@ fn load_well(ui: &mut Ui, status: &StreamStatus) -> bool {
 }
 
 /// Tempo and time signature, each over its caption.
-fn tempo_well(ui: &mut Ui, doc: &mut Document, tempo: &TempoMap) {
+fn tempo_well(ui: &mut Ui, doc: &mut Document, tempo: &TempoMap, k: f32) {
     let dark = ui.visuals().dark_mode;
     let p = theme::palette(dark);
     let mut bpm = tempo.bpm_at_beat(0.0);
     let signature = tempo.signature_at_beat(0.0);
     let (mut numerator, mut denominator) = (signature.numerator, signature.denominator);
-    let (whole, _) = ui.allocate_exact_size(vec2(226.0, HEIGHT), Sense::hover());
+    let (whole, _) = ui.allocate_exact_size(vec2(226.0, HEIGHT) * k, Sense::hover());
     theme::well(ui.painter(), whole, dark);
-    let rect = Rect::from_min_max(whole.min, pos2(whole.right() - 48.0, whole.bottom()));
-    let divider = rect.left() + 74.0;
+    let rect = Rect::from_min_max(whole.min, pos2(whole.right() - 48.0 * k, whole.bottom()));
+    let divider = rect.left() + 74.0 * k;
     for x in [divider, rect.right()] {
         ui.painter().vline(
             x,
-            rect.top() + 7.0..=rect.bottom() - 7.0,
+            rect.top() + 7.0 * k..=rect.bottom() - 7.0 * k,
             egui::Stroke::new(1.0, p.border),
         );
     }
     // Tap tempo: the beat of the last taps, started over after a pause.
     let tap_cell = Rect::from_center_size(
         pos2((rect.right() + whole.right()) / 2.0, whole.center().y),
-        vec2(38.0, HEIGHT - 16.0),
+        vec2(38.0, HEIGHT - 16.0) * k,
     );
     let tap = ui
         .put(
             tap_cell,
-            egui::Button::new(RichText::new(tr("TAP")).size(10.0))
+            egui::Button::new(RichText::new(tr("TAP")).size(10.0 * k))
                 .wrap_mode(egui::TextWrapMode::Extend),
         )
         .on_hover_text(tr("Tap tempo: click on the beat, at least twice"));
@@ -731,18 +735,21 @@ fn tempo_well(ui: &mut Ui, doc: &mut Document, tempo: &TempoMap) {
     }
     let caption = |x: f32, text: &str| {
         ui.painter().text(
-            pos2(x, rect.bottom() - 7.0),
+            pos2(x, rect.bottom() - 7.0 * k),
             Align2::CENTER_CENTER,
             text.to_uppercase(),
-            FontId::proportional(8.5),
+            FontId::proportional(8.5 * k),
             p.weak,
         );
     };
     caption((rect.left() + divider) / 2.0, tr("BPM"));
     caption((divider + rect.right()) / 2.0, tr("Signature"));
-    let top = rect.top() + 4.0;
-    let row = 20.0;
-    let tempo_cell = Rect::from_min_size(pos2(rect.left() + 8.0, top), vec2(58.0, row));
+    let top = rect.top() + 4.0 * k;
+    let row = 20.0 * k;
+    let tempo_cell = Rect::from_min_size(pos2(rect.left() + 8.0 * k, top), vec2(58.0 * k, row));
+    if k != 1.0 {
+        scale_widgets(ui, k);
+    }
     let response = ui
         .put(
             tempo_cell,
@@ -755,19 +762,19 @@ fn tempo_well(ui: &mut Ui, doc: &mut Document, tempo: &TempoMap) {
     let mut sig = None;
     let mut den_changed = false;
     let cell = Rect::from_min_size(
-        pos2(divider + 10.0, top),
-        vec2(rect.right() - divider - 18.0, row),
+        pos2(divider + 10.0 * k, top),
+        vec2(rect.right() - divider - 18.0 * k, row),
     );
     ui.scope_builder(egui::UiBuilder::new().max_rect(cell), |ui| {
         ui.horizontal_centered(|ui| {
-            ui.spacing_mut().item_spacing.x = 3.0;
+            ui.spacing_mut().item_spacing.x = 3.0 * k;
             sig = Some(
                 ui.add(egui::DragValue::new(&mut numerator).range(1..=32))
                     .on_hover_text(tr("Beats per bar")),
             );
             ui.label(RichText::new("/").color(p.weak));
             egui::ComboBox::from_id_salt("signature-denominator")
-                .width(34.0)
+                .width(34.0 * k)
                 .selected_text(denominator.to_string())
                 .show_ui(ui, |ui| {
                     for d in [2, 4, 8, 16] {
@@ -792,6 +799,16 @@ fn tempo_well(ui: &mut Ui, doc: &mut Document, tempo: &TempoMap) {
     if let Some(sig) = &sig {
         end_gesture(doc.history_mut(), sig);
     }
+}
+
+/// Text and controls `k` times larger in `ui` (the large transport's fields).
+fn scale_widgets(ui: &mut Ui, k: f32) {
+    let style = ui.style_mut();
+    for font in style.text_styles.values_mut() {
+        font.size *= k;
+    }
+    style.spacing.interact_size *= k;
+    style.spacing.button_padding *= k;
 }
 
 /// The tempo of taps at `times` (seconds): the mean interval, to a tenth of a BPM.

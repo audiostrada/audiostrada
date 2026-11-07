@@ -132,6 +132,8 @@ actions! {
     ToggleFullscreen => ("View", "Full screen"),
     DetachMixer => ("View", "Mixer in its own window"),
     CompactMixer => ("View", "Compact mixer"),
+    TransportAtBottom => ("View", "Transport at the bottom"),
+    LargeTransport => ("View", "Large transport"),
     DetachPianoRoll => ("View", "Piano roll in its own window"),
     CommandPalette => ("View", "Command palette…"),
     Preferences => ("View", "Preferences…"),

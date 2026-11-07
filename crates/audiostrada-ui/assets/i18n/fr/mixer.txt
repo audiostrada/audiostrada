@@ -1113,6 +1113,12 @@ Tranches étroites : un clic en ouvre une en pleine largeur ({keys})
 Compact mixer
 Mixer compact
 
+Transport at the bottom
+Transport en bas
+
+Large transport
+Grand transport
+
 Effects rack of the selected track
 Rack d'effets de la piste sélectionnée
 

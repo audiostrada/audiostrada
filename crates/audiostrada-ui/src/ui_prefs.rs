@@ -183,6 +183,10 @@ pub struct UiPrefs {
     pub timeline_tool: crate::timeline::Tool,
     /// How the transport's counter shows the position.
     pub counter: crate::transport::Counter,
+    /// The transport sits under the workspace instead of above it.
+    pub transport_bottom: bool,
+    /// The transport drawn larger, to read it from afar.
+    pub transport_large: bool,
     /// How the timeline draws waveforms.
     pub waveforms: crate::timeline::WaveView,
     /// AI assistants may drive AudioStrada through the control channel (MCP).
@@ -221,6 +225,8 @@ impl Default for UiPrefs {
             mixer_compact: false,
             timeline_tool: crate::timeline::Tool::Smart,
             counter: crate::transport::Counter::default(),
+            transport_bottom: false,
+            transport_large: false,
             waveforms: crate::timeline::WaveView::default(),
             assistants: false,
             assistants_port: crate::integrations::DEFAULT_PORT,

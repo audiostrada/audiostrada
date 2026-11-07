@@ -535,9 +535,16 @@ pub fn paint_icon(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
     }
 }
 
-/// A square icon button; `on` shows it lit in `tint`.
-pub fn icon_button(ui: &mut Ui, icon: Icon, on: bool, tint: Color32, hint: &str) -> Response {
-    let size = vec2(30.0, 26.0);
+/// A square icon button, `k` times its normal size; `on` shows it lit in `tint`.
+pub fn icon_button(
+    ui: &mut Ui,
+    icon: Icon,
+    on: bool,
+    tint: Color32,
+    hint: &str,
+    k: f32,
+) -> Response {
+    let size = vec2(30.0, 26.0) * k;
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     let p = current(ui);
     let fill = if on {
@@ -568,7 +575,7 @@ pub fn icon_button(ui: &mut Ui, icon: Icon, on: bool, tint: Color32, hint: &str)
     } else {
         p.text.gamma_multiply(0.85)
     };
-    paint_icon(ui.painter(), rect.shrink(6.0), icon, color);
+    paint_icon(ui.painter(), rect.shrink(6.0 * k), icon, color);
     response.on_hover_text(hint)
 }
 

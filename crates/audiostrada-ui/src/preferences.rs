@@ -463,6 +463,14 @@ fn general(ui: &mut egui::Ui, prefs: &mut UiPrefs) -> bool {
             ui.data_mut(|d| d.insert_temp(id, (scale, prefs.scale)));
         });
         ui.end_row();
+        ui.label(tr("Transport"));
+        ui.horizontal(|ui| {
+            changed |= ui.radio_value(&mut prefs.transport_bottom, false, tr("At the top")).changed();
+            changed |= ui.radio_value(&mut prefs.transport_bottom, true, tr("At the bottom")).changed();
+            ui.add_space(12.0);
+            changed |= ui.checkbox(&mut prefs.transport_large, tr("Large")).changed();
+        });
+        ui.end_row();
         ui.label(tr("Recording latency offset"));
         ui.vertical(|ui| {
             changed |= ui

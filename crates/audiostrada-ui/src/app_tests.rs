@@ -167,6 +167,21 @@ fn the_app_starts_and_draws_a_song() {
 }
 
 #[test]
+fn the_transport_moves_to_the_bottom_and_grows() {
+    let mut h = Harness::with_song("transport");
+    h.frame(Vec::new());
+    h.act(Action::TransportAtBottom);
+    h.act(Action::LargeTransport);
+    assert!(h.app.prefs.transport_bottom && h.app.prefs.transport_large);
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    h.act(Action::TransportAtBottom);
+    h.act(Action::LargeTransport);
+    assert!(!h.app.prefs.transport_bottom && !h.app.prefs.transport_large);
+}
+
+#[test]
 fn every_command_runs_without_a_panic() {
     let mut h = Harness::with_song("commands");
     h.frame(Vec::new());

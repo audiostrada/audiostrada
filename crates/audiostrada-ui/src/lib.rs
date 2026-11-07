@@ -1226,6 +1226,14 @@ impl AudioStradaApp {
                 }
             }
             Action::RevealRack => self.reveal(ctx, Pane::Rack),
+            Action::TransportAtBottom => {
+                self.prefs.transport_bottom = !self.prefs.transport_bottom;
+                self.ui_changed();
+            }
+            Action::LargeTransport => {
+                self.prefs.transport_large = !self.prefs.transport_large;
+                self.ui_changed();
+            }
             Action::CompactMixer => {
                 let compact = {
                     let mut views = self.views.borrow_mut();
@@ -2250,6 +2258,18 @@ impl AudioStradaApp {
                 check(
                     ui,
                     &mut chosen,
+                    Action::TransportAtBottom,
+                    self.prefs.transport_bottom,
+                );
+                check(
+                    ui,
+                    &mut chosen,
+                    Action::LargeTransport,
+                    self.prefs.transport_large,
+                );
+                check(
+                    ui,
+                    &mut chosen,
                     Action::ToggleFullscreen,
                     fullscreen(ui.ctx()),
                 );
@@ -2815,7 +2835,17 @@ impl eframe::App for AudioStradaApp {
             status: self.host.stream().map(|s| s.status()),
             open_settings: false,
         };
-        egui::Panel::top("transport").show(ui, |ui| {
+        let transport_panel = if self.prefs.transport_bottom {
+            egui::Panel::bottom("transport")
+        } else {
+            egui::Panel::top("transport")
+        };
+        let scale = if self.prefs.transport_large {
+            transport::LARGE
+        } else {
+            1.0
+        };
+        transport_panel.show(ui, |ui| {
             let mut doc = self.doc.borrow_mut();
             let recording = doc.recording().is_some();
             actions.extend(transport::show(
@@ -2825,6 +2855,7 @@ impl eframe::App for AudioStradaApp {
                 self.mac,
                 (recording, &mut audio),
                 &mut counter,
+                scale,
             ));
             crate::metronome_window::show(ui.ctx(), &mut doc);
             versions_window::show(ui.ctx(), &mut doc);

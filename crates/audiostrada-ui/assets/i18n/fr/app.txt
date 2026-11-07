@@ -651,6 +651,15 @@ Couleur d'accent personnalisée
 Interface scale
 Échelle de l'interface
 
+At the top
+En haut
+
+At the bottom
+En bas
+
+Large
+Grand
+
 Apply
 Appliquer
 
