@@ -1950,7 +1950,11 @@ impl MixerView {
             (Some(with), Some(without)) => (with - without).max(0.0),
             _ => SENDS_EXTRA,
         };
-        let fixed = if with_sends { fixed - sends_extra } else { fixed };
+        let fixed = if with_sends {
+            fixed - sends_extra
+        } else {
+            fixed
+        };
         // Whole pixels, changed by a pixel at least: measuring last frame's layout must not make
         // this one drift or swing (the name plates would shake).
         let mut sizes = StripSizes::new(available, fixed, sends_extra).rounded();
