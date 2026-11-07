@@ -1,4 +1,112 @@
-# Notes for coding agents
+# AudioStrada: notes for coding agents
+
+AudioStrada is a digital audio workstation for Linux, Windows and macOS, written in Rust, under
+the GPL 3.0 or later. Read `README.md` for what it does, `docs/building.md` for system packages,
+and `CONTRIBUTING.md` for the contribution rules. This file adds what an agent needs to work on
+the code without breaking it.
+
+## Workspace
+
+| Crate | Role |
+|---|---|
+| `audiostrada-core` | Project model (`model.rs`), edits (`edit.rs`), routing, undo history, file format and migrations (`file.rs`, `legacy.rs`), temporary folders (`scratch.rs`) |
+| `audiostrada-engine` | Real-time graph (`graph.rs`), compiled schedule with delay compensation (`schedule.rs`), transport, recording (`record.rs`), input taps (`tap.rs`), the project player (`project.rs`), nodes (`nodes/`) |
+| `audiostrada-io` | Audio backends: PipeWire, JACK, ALSA, WASAPI, ASIO, CoreAudio, and a `dummy` one for tests |
+| `audiostrada-dsp` | Built-in effects and instruments; `EFFECTS` and `EffectInfo` in `lib.rs` describe them |
+| `audiostrada-media` | Decoding, encoding, resampling, peak files |
+| `audiostrada-mp3` | MP3 encoder helper binary; the LGPL encoder (`shine-rs`) is linked here only |
+| `audiostrada-midi` | MIDI devices, clips, files |
+| `audiostrada-plugins` | CLAP, VST3 and LV2 hosting, each plugin in a sandboxed process |
+| `audiostrada-ui` | egui interface: `lib.rs` (the application), `document.rs` (the open project), `actions.rs`, `keymap.rs`, `layout.rs`, `timeline/`, `mixer.rs`, editors |
+| `audiostrada-license` | Licenses of the official builds |
+| `audiostrada-rt` | Real-time safety tooling: channels, logger, allocation checks |
+| `audiostrada-app` | The `audiostrada` binary and its command line |
+| `audiostrada-test-plugin` | A minimal CLAP plugin built for the tests |
+
+The toolchain is pinned in `rust-toolchain.toml`. Edition 2024, `rustfmt` at 100 columns.
+
+## Build, check, test
+
+- `cargo fmt --all`, then `cargo clippy --workspace --all-targets` with no warning (CI runs it
+  with `-D warnings`).
+- The test suite is heavy: the interface tests run the whole application headless, one per
+  thread. On a machine someone is using, keep it in the background and throttled:
+  `nice -n 19 cargo test -j 4 --workspace -- --test-threads=4`. Test the crates you touched
+  first (`-p audiostrada-engine`, a test name filter), the workspace once before committing.
+  Do the same for release builds (`nice -n 19 cargo build -j 4 --release`).
+- CI builds and tests on Linux, Windows and macOS. Code under `cfg(windows)` or
+  `cfg(target_os = "macos")` is only checked there: read the APIs you call from the crate
+  sources in `~/.cargo/registry` rather than from memory.
+- `cargo deny check` runs in CI (`deny.toml`): new dependencies need a GPL-compatible license.
+  Never link LGPL code statically into the main binary; the MP3 encoder runs as the separate
+  `audiostrada-mp3` process for this reason, and ships next to `audiostrada` in every package.
+
+## Rules of the code
+
+**Audio thread.** `Processor::process` and everything it calls must not allocate, lock, log
+with `tracing` or make system calls. Exchange data through `audiostrada_rt::channel` (lock-free
+rings), hand objects back for freeing through the engine's garbage queue, log with
+`audiostrada_rt::RtLogger`. Debug builds report allocations inside `rt_section`.
+
+**Project model and files.** New fields of `Project`, `Track` and the like take
+`#[serde(default)]` (often with `skip_serializing_if`) so that older files still load. A change
+that old files cannot express bumps `file::VERSION` and adds a step to `file::migrate`. Data of
+optional modules goes in `Project.extensions`, which every build keeps as it is.
+
+**Edits and undo.** Project changes go through `doc.history_mut().edit(label, |p| ...)` (one
+undo step, label translated with `tr`), `edit_merged` for a continuous gesture, or
+`modify_unrecorded` for settings that are not undo steps. Put the logic in
+`audiostrada-core/src/edit.rs` (or `routing.rs`) and test it there.
+
+**Engine latency.** Effects declare their latency (`Effect::latency`, and
+`audiostrada_dsp::declared_latency` when it depends on parameters); the scheduler aligns every
+path with delay lines. What is played live (armed tracks, tracks always hearing their input) is
+never delayed by other tracks: their players are delayed instead. Input monitors are
+`set_unaligned`, live tracks `set_live`.
+
+**Commands.** Every user command is an `Action` in `actions.rs` (category and English name),
+run in `AudioStradaApp::run`, listed in the menus and the command palette, and swept by
+`every_command_runs_without_a_panic`. A new default shortcut goes in a preset table of
+`keymap.rs` and bumps its `VERSION` (and `upgrade` if old keymaps should receive it). A new
+panel is a `Pane` in `layout.rs`, added to old saved layouts in `layout::load`.
+
+**Interface texts.** Every visible string is an English key passed to `tr("...")` or
+`trf!("... {name}", name = value)`, with its French translation in
+`crates/audiostrada-ui/assets/i18n/fr/*.txt`: the English line, the French line, a blank line.
+`every_text_has_its_french` lists what is missing. Write plain, sentence-case texts that name
+things the way users do, without jargon; French uses the same terms as the existing
+translations (Piste, Prise, Écoute, Mode prise…).
+
+**Effects.** A built-in effect has its `INFO` (parameters with stable ids, ranges, defaults) in
+`EFFECTS`, a factory in `create`, an editor in the interface, factory presets, and a section in
+the manual (`<!-- effect:id -->` in `docs/manual/{en,fr}`, after
+`node docs/manual/build.mjs --effects`). Parameter ids are stored in projects: never rename one.
+
+**Comments.** Few and short, in English: one or two lines saying why, not what. Documentation
+comments on public items and modules, in the same plain style. No emojis, no em dashes.
+
+## Tests
+
+- Unit tests sit next to the code (`#[cfg(test)] mod tests`). Engine tests render through
+  `EngineProcessor::render` with `ChannelBuffers`; see `project.rs` (`fixture`, `render`).
+- `crates/audiostrada-ui/src/app_tests.rs` drives the whole application headless on the dummy
+  backend (`Harness::new`, `with_song`, `frame`, `act`); `test_sweep.rs` scripts a user trying
+  every control. Add to them when you add a command, a panel or a window.
+- Tests never touch the user's files: `config_dir()` points to a temporary folder under
+  `cfg(test)`, file dialogs are cancelled, the network is not reached. Temporary files go in
+  `audiostrada_core::scratch::dir(name)`, under one folder per process that the next run sweeps;
+  never write directly into the system's temporary folder.
+- Test names are sentences saying what must hold
+  (`takes_land_where_the_delayed_playback_was_heard`).
+
+## Looking at the interface
+
+- `AUDIOSTRADA_SCREENSHOT=out.ppm audiostrada project.strada` saves the main window after a few
+  frames and quits. Combine with `XDG_CONFIG_HOME=<folder>` to start from a configuration of
+  your own instead of the user's.
+- `audiostrada --control PORT` lets `audiostrada mcp --connect PORT` drive a running window
+  through the Model Context Protocol (`crates/audiostrada-ui/src/control.rs` lists the tools).
+- `audiostrada help` lists the command line (render, compare, latency, devices, plugin scan).
 
 ## Windowing: floating windows
 
@@ -100,3 +208,12 @@ that gap needs testing under X11 and Wayland.
 AudioStrada's windows and the plugin windows float (`NSFloatingWindowLevel`) while
 AudioStrada or one of its plugin hosts is the active application, and drop to the normal level
 otherwise (`keep_windows_above`, `HostWindow`).
+
+## Commits and documentation
+
+- Commit messages: one short line saying what changed for the user, often prefixed by the area
+  (`Mixer: ...`, `Tests: ...`, `CI: ...`). No issue or person mentions.
+- One commit per coherent change, with its tests; never commit files you did not create on
+  purpose (scratch notes, local experiments).
+- User-visible changes update the manual in both languages (`docs/manual/en`, `docs/manual/fr`)
+  and, when it lists the feature, `README.md`.
