@@ -149,7 +149,7 @@ pub struct Keymap {
 }
 
 /// Bumped when default bindings are added, so saved keymaps get them.
-const VERSION: u32 = 15;
+const VERSION: u32 = 16;
 
 impl Default for Keymap {
     fn default() -> Self {
@@ -276,6 +276,8 @@ const PANELS: &[Binding] = &[
     (k(PLAIN, true, false, Key::Tab), Action::PreviousTransient),
     // Recording mode (added in version 15).
     (k(PLAIN, false, true, Key::Num7), Action::RecordingMode),
+    // Talkback (added in version 16).
+    (k(PLAIN, false, false, Key::T), Action::Talkback),
 ];
 
 const AUDIOSTRADA: &[Binding] = &[

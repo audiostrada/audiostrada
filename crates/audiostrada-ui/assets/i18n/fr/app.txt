@@ -1443,3 +1443,30 @@ Casques
 
 main mix
 mixage principal
+
+Talkback
+Talkback
+
+Talk while the key is held
+Parler tant que la touche est enfoncée
+
+Talkback microphone
+Micro de talkback
+
+The key switches it on and off
+La touche l'allume et l'éteint
+
+lowers the headphones by
+baisse les casques de
+
+Choose the talkback microphone in Preferences, Recording mode
+Choisissez le micro de talkback dans Préférences, Mode prise
+
+Hold to talk
+Maintenir pour parler
+
+Talkback: the microphone is heard in the headphones, lowered meanwhile; never recorded
+Talkback : le micro est entendu dans les casques, baissés pendant ce temps ; jamais enregistré
+
+Talking…
+Vous parlez…

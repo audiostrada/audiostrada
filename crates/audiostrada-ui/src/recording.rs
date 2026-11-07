@@ -56,6 +56,16 @@ fn ms(doc: &Document, samples: u32) -> f32 {
     samples as f32 * 1000.0 / doc.player().engine().sample_rate().max(1) as f32
 }
 
+/// The talkback button of the takes panel, and what the application tells it.
+#[derive(Debug, Default)]
+pub struct TalkbackButton {
+    /// Held down with the pointer.
+    pub pressed: bool,
+    pub on: bool,
+    /// A talkback microphone is chosen.
+    pub ready: bool,
+}
+
 /// The session's health, shown in the transport during the recording mode.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Health {
@@ -408,6 +418,7 @@ pub fn takes_pane(
     ui: &mut Ui,
     doc: &mut Document,
     extensions: &mut [Box<dyn crate::extension::Extension>],
+    talkback: &mut TalkbackButton,
 ) {
     egui::ScrollArea::vertical()
         .auto_shrink([false; 2])
@@ -454,6 +465,24 @@ pub fn takes_pane(
             if ui.button(tr("Headphone mixes…")).clicked() {
                 crate::cue_window::open(ui.ctx());
             }
+            let text = if talkback.on {
+                RichText::new(tr("Talking…")).color(theme::RECORD).strong()
+            } else {
+                RichText::new(tr("Hold to talk"))
+            };
+            let button = ui
+                .add_enabled(
+                    talkback.ready,
+                    egui::Button::new(text).min_size(vec2(ui.available_width(), 30.0)),
+                )
+                .on_hover_text(tr(
+                    "Talkback: the microphone is heard in the headphones, lowered meanwhile; \
+                     never recorded",
+                ))
+                .on_disabled_hover_text(tr(
+                    "Choose the talkback microphone in Preferences, Recording mode",
+                ));
+            talkback.pressed = button.is_pointer_button_down_on();
             ui.add_space(8.0);
             for extension in extensions.iter_mut() {
                 for (i, title) in extension.recording_tabs().into_iter().enumerate() {

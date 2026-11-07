@@ -268,6 +268,25 @@ fn the_headphone_window_draws_its_mixes() {
 }
 
 #[test]
+fn the_talkback_key_holds_or_latches() {
+    let mut h = Harness::new("talkback");
+    h.frame(Vec::new());
+    h.act(Action::Talkback);
+    assert!(!h.app.doc.borrow().player().talkback_on(), "no microphone chosen");
+    h.app.prefs.talkback_input = Some(0);
+    h.act(Action::Talkback);
+    assert!(
+        !h.app.doc.borrow().player().talkback_on(),
+        "held: off once the key is up"
+    );
+    h.app.prefs.talkback_latch = true;
+    h.act(Action::Talkback);
+    assert!(h.app.doc.borrow().player().talkback_on(), "latched");
+    h.act(Action::Talkback);
+    assert!(!h.app.doc.borrow().player().talkback_on());
+}
+
+#[test]
 fn a_module_draws_every_frame_and_keeps_its_data_in_the_project() {
     use std::cell::Cell;
     use std::rc::Rc;

@@ -198,6 +198,12 @@ pub struct UiPrefs {
     pub recording_bypass_ms: f32,
     /// Arming a track offers the recording mode.
     pub recording_offer: bool,
+    /// Hardware input of the talkback microphone, from 0.
+    pub talkback_input: Option<u16>,
+    /// What the rest of the headphone mixes is lowered by while talking.
+    pub talkback_duck_db: f32,
+    /// The talkback key switches it on and off, instead of talking while it is held.
+    pub talkback_latch: bool,
     /// AI assistants may drive AudioStrada through the control channel (MCP).
     pub assistants: bool,
     /// Local port of the control channel.
@@ -241,6 +247,9 @@ impl Default for UiPrefs {
             recording_buffer: 64,
             recording_bypass_ms: 2.0,
             recording_offer: true,
+            talkback_input: None,
+            talkback_duck_db: -15.0,
+            talkback_latch: false,
             assistants: false,
             assistants_port: crate::integrations::DEFAULT_PORT,
         }

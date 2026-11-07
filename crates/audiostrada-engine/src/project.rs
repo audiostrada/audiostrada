@@ -293,6 +293,21 @@ struct CueNodes {
     sends: HashMap<TrackId, (NodeId, SharedParam)>,
     click: (NodeId, SharedParam),
     main: (NodeId, SharedParam),
+    /// Straight to the outputs, not ducked with the rest.
+    talkback: (NodeId, SharedParam),
+    /// The mix's volume, linear, before ducking.
+    level: f32,
+}
+
+/// The talkback: a hardware input sent to the headphone mixes while pressed.
+#[derive(Debug)]
+struct Talkback {
+    node: NodeId,
+    gain: SharedParam,
+    input: Option<usize>,
+    on: bool,
+    /// What the rest of each mix is lowered by while it is pressed, linear.
+    duck: f32,
 }
 
 #[derive(Debug)]
@@ -344,6 +359,7 @@ pub struct ProjectPlayer {
     /// Nodes recording tracks after their effects.
     prints: Vec<NodeId>,
     cues: Vec<CueNodes>,
+    talkback: Talkback,
     click_node: NodeId,
     control_room: crate::nodes::ControlRoomControls,
     recording: bool,
@@ -680,10 +696,20 @@ impl ProjectPlayer {
         let (click, metronome) = crate::nodes::Metronome::new();
         let click = engine.add_node("Metronome", click, 0, 2);
         connect_stereo(&mut engine, click, out);
+        let (talkback, talkback_gain) = Gain::new(0.0, None);
+        let talkback = engine.add_node("Talkback", talkback, 2, 2);
+        engine.set_unaligned(talkback);
         Self {
             auto_monitoring: false,
             prints: Vec::new(),
             cues: Vec::new(),
+            talkback: Talkback {
+                node: talkback,
+                gain: talkback_gain,
+                input: None,
+                on: false,
+                duck: 1.0,
+            },
             click_node: click,
             control_room,
             recording: false,
@@ -1605,7 +1631,7 @@ impl ProjectPlayer {
         let mut changed = false;
         while self.cues.len() > project.cues.len() {
             if let Some(cue) = self.cues.pop() {
-                let nodes = [cue.out, cue.click.0, cue.main.0]
+                let nodes = [cue.out, cue.click.0, cue.main.0, cue.talkback.0]
                     .into_iter()
                     .chain(cue.sends.values().map(|s| s.0));
                 for node in nodes.collect::<Vec<_>>() {
@@ -1625,6 +1651,8 @@ impl ProjectPlayer {
             self.engine.set_unaligned(out);
             let click = send(&mut self.engine, "Headphones click");
             let main = send(&mut self.engine, "Headphones main");
+            let talkback = send(&mut self.engine, "Headphones talkback");
+            self.engine.set_unaligned(talkback.0);
             self.cues.push(CueNodes {
                 out,
                 gain,
@@ -1632,6 +1660,8 @@ impl ProjectPlayer {
                 sends: HashMap::new(),
                 click,
                 main,
+                talkback,
+                level: 1.0,
             });
             changed = true;
         }
@@ -1646,7 +1676,14 @@ impl ProjectPlayer {
                 nodes.output = cue.output;
                 changed = true;
             }
-            nodes.gain.set(db_to_gain(cue.gain_db));
+            nodes.level = db_to_gain(cue.gain_db);
+            let duck = if self.talkback.on {
+                self.talkback.duck
+            } else {
+                1.0
+            };
+            nodes.gain.set(nodes.level * duck);
+            nodes.talkback.1.set(db_to_gain(cue.talkback_db));
             nodes.click.1.set(cue.click_db.map_or(0.0, db_to_gain));
             nodes.main.1.set(if cue.follow_main { 1.0 } else { 0.0 });
             let gone: Vec<TrackId> = nodes
@@ -1675,6 +1712,45 @@ impl ProjectPlayer {
         changed
     }
 
+    /// The talkback: hardware `input` heard in the headphone mixes while `on`, the rest of
+    /// each mix lowered by `duck_db`. Never in the main mix, so never recorded nor exported.
+    pub fn set_talkback(&mut self, input: Option<usize>, on: bool, duck_db: f32) {
+        let input = input.map(|i| i.min(HARDWARE_CHANNELS - 1));
+        if input != self.talkback.input {
+            let hardware = self.engine.graph().hardware_input();
+            for ch in 0..2 {
+                if let Some(old) = self.talkback.input {
+                    self.engine
+                        .disconnect(Port::new(hardware, old), Port::new(self.talkback.node, ch));
+                }
+                if let Some(new) = input {
+                    let _ = self
+                        .engine
+                        .connect(Port::new(hardware, new), Port::new(self.talkback.node, ch));
+                }
+            }
+            self.talkback.input = input;
+            self.engine.commit();
+        }
+        self.talkback.on = on && input.is_some();
+        self.talkback.duck = db_to_gain(duck_db.min(0.0));
+        self.talkback
+            .gain
+            .set(if self.talkback.on { 1.0 } else { 0.0 });
+        let duck = if self.talkback.on {
+            self.talkback.duck
+        } else {
+            1.0
+        };
+        for cue in &self.cues {
+            cue.gain.set(cue.level * duck);
+        }
+    }
+
+    pub fn talkback_on(&self) -> bool {
+        self.talkback.on
+    }
+
     /// The control room's Dim (-20 dB) and Mono, on the main output only.
     pub fn set_control_room(&mut self, dim: bool, mono: bool) {
         self.control_room.dim.store(dim, Ordering::Relaxed);
@@ -1696,11 +1772,16 @@ impl ProjectPlayer {
             let first = usize::from(cue.output).min(HARDWARE_CHANNELS - 2);
             for ch in 0..2 {
                 edges.insert((Port::new(cue.out, ch), Port::new(hardware, first + ch)));
+                edges.insert((
+                    Port::new(cue.talkback.0, ch),
+                    Port::new(hardware, first + ch),
+                ));
                 for (from, to) in [
                     (self.click_node, cue.click.0),
                     (cue.click.0, cue.out),
                     (self.monitor.strip, cue.main.0),
                     (cue.main.0, cue.out),
+                    (self.talkback.node, cue.talkback.0),
                 ] {
                     edges.insert((Port::new(from, ch), Port::new(to, ch)));
                 }
@@ -2940,6 +3021,42 @@ mod tests {
         );
         assert!(click > 0.05, "the click in the mix that has it: {click}");
         assert_eq!(none, 0.0, "and not in the other");
+    }
+
+    #[test]
+    fn the_talkback_reaches_the_headphones_only_and_ducks_them() {
+        let mut f = fixture("talkback", vec![0.5; 48_000]);
+        f.history.edit("Cue", |p| {
+            p.cues = vec![audiostrada_core::CueMix {
+                click_db: None,
+                ..Default::default()
+            }];
+        });
+        f.media.retain(&media_paths(f.history.project(), None));
+        assert!(f.media.wait(Duration::from_secs(10)));
+        let mut processor = f.player.processor(48_000, 64);
+        f.player.sync(f.history.project(), None, &f.media);
+        f.player.engine_mut().play();
+        let mut storage = ChannelBuffers::new(2, 4, 64);
+        storage.input_mut(1).fill(0.3);
+        let mut level = |player: &mut ProjectPlayer, on| {
+            player.set_talkback(Some(1), on, -20.0);
+            for _ in 0..10 {
+                processor.render(&mut storage.buffers(64));
+            }
+            (storage.output(0)[63], storage.output(2)[63])
+        };
+        let (main, cue) = level(&mut f.player, false);
+        assert!((cue - 0.5).abs() < 0.01, "the track alone: {cue}");
+        let (main_on, cue_on) = level(&mut f.player, true);
+        assert!(
+            (cue_on - (0.05 + 0.3)).abs() < 0.01,
+            "ducked, with the talkback: {cue_on}"
+        );
+        assert_eq!(main_on, main, "never in the main mix");
+        let (_, after) = level(&mut f.player, false);
+        assert!((after - 0.5).abs() < 0.01, "{after}");
+        std::fs::remove_dir_all(&f.dir).unwrap();
     }
 
     #[test]

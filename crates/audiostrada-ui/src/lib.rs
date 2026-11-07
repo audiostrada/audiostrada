@@ -231,6 +231,7 @@ struct Views {
     extensions: Vec<Box<dyn extension::Extension>>,
     /// The session's health, in the recording mode.
     health: Option<recording::Health>,
+    talkback: recording::TalkbackButton,
 }
 
 impl Views {
@@ -266,9 +267,12 @@ impl PaneContent for Views {
             Pane::Inputs => {
                 recording::inputs_pane(ui, &mut self.doc.borrow_mut(), self.health.as_ref())
             }
-            Pane::Takes => {
-                recording::takes_pane(ui, &mut self.doc.borrow_mut(), &mut self.extensions)
-            }
+            Pane::Takes => recording::takes_pane(
+                ui,
+                &mut self.doc.borrow_mut(),
+                &mut self.extensions,
+                &mut self.talkback,
+            ),
         }
     }
 }
@@ -349,6 +353,9 @@ pub struct AudioStradaApp {
     armed_before: bool,
     /// The offer of the recording mode, shown or declined for this session.
     recording_offer: RecordingOffer,
+    /// Talkback switched on by its key (latch mode), or held by it.
+    talkback_latched: bool,
+    talkback_held: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -419,6 +426,7 @@ impl AudioStradaApp {
                 edit: EditSettings::default(),
                 extensions: Vec::new(),
                 health: None,
+                talkback: Default::default(),
             })),
             inbox: Rc::default(),
             doc,
@@ -478,6 +486,8 @@ impl AudioStradaApp {
             recording_mode: None,
             armed_before: false,
             recording_offer: RecordingOffer::Waiting,
+            talkback_latched: false,
+            talkback_held: false,
         }
     }
 
@@ -893,6 +903,32 @@ impl AudioStradaApp {
         self.ui_changed();
     }
 
+    /// The talkback is on while its key or its button is held, or latched by its key.
+    fn apply_talkback(&mut self, ctx: &egui::Context) {
+        if self.talkback_held {
+            let keys: Vec<egui::Key> = self
+                .prefs
+                .keymap
+                .shortcuts_for(Action::Talkback)
+                .filter_map(|s| s.key())
+                .collect();
+            self.talkback_held = ctx.input(|i| keys.iter().any(|k| i.key_down(*k)));
+        }
+        let mut views = self.views.borrow_mut();
+        let input = self.prefs.talkback_input;
+        let on = self.talkback_latched || self.talkback_held || views.talkback.pressed;
+        views.talkback.on = on && input.is_some();
+        views.talkback.ready = input.is_some();
+        // Held again by the panel while drawn.
+        views.talkback.pressed = false;
+        drop(views);
+        self.doc.borrow_mut().player_mut().set_talkback(
+            input.map(usize::from),
+            on,
+            self.prefs.talkback_duck_db,
+        );
+    }
+
     /// The session's health, measured once a second in the recording mode.
     fn recording_health(&mut self) -> Option<recording::Health> {
         let saved = self.recording_mode.as_mut()?;
@@ -1160,6 +1196,13 @@ impl AudioStradaApp {
             }
             Action::MetronomeSettings => crate::metronome_window::open(ctx),
             Action::HeadphoneMixes => cue_window::open(ctx),
+            Action::Talkback => {
+                if self.prefs.talkback_latch {
+                    self.talkback_latched = !self.talkback_latched;
+                } else {
+                    self.talkback_held = true;
+                }
+            }
             Action::ListenToReference => reference_window::toggle(ctx, &mut self.doc.borrow_mut()),
             Action::LowLatency => {
                 let mut doc = self.doc.borrow_mut();
@@ -3073,6 +3116,7 @@ impl eframe::App for AudioStradaApp {
         let mut counter = self.prefs.counter;
         let health = self.recording_health();
         self.views.borrow_mut().health = health;
+        self.apply_talkback(&ctx);
         let mut audio = transport::Audio {
             status: self.host.stream().map(|s| s.status()),
             open_settings: false,
