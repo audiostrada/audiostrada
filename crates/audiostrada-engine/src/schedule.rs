@@ -196,19 +196,7 @@ pub(crate) fn compile(
         })
         .collect();
 
-    // Plugin delay compensation: arrival time of each node's input, then of its output.
-    let mut input_time = vec![0u32; order.len()];
-    let mut output_time = vec![0u32; order.len()];
-    for (i, id) in order.iter().enumerate() {
-        input_time[i] = graph
-            .edges()
-            .iter()
-            .filter(|e| e.to.node == *id)
-            .map(|e| output_time[index[&e.from.node]])
-            .max()
-            .unwrap_or(0);
-        output_time[i] = input_time[i] + graph.nodes[id].latency;
-    }
+    let (input_time, output_time, start) = timing(graph, &order, &index);
 
     let mut nodes = Vec::with_capacity(order.len());
     let mut deps = Vec::with_capacity(order.len());
@@ -221,7 +209,13 @@ pub(crate) fn compile(
                 sources: graph_sources(graph.edges(), *id, channel)
                     .map(|(src, src_channel)| {
                         let s = index[&src];
-                        let delay = (input_time[i] - output_time[s]) as usize;
+                        let from = &graph.nodes[&src];
+                        // Live paths and input monitors are mixed as they come.
+                        let delay = if from.unaligned || (from.live && !spec.live) {
+                            0
+                        } else {
+                            input_time[i].saturating_sub(output_time[s] - start[s]) as usize
+                        };
                         Source {
                             buffer: out_ptrs[s][src_channel].cast_const(),
                             delay: (delay > 0).then(|| DelayLine::new(delay)),
@@ -284,6 +278,78 @@ pub(crate) fn compile(
         max_frames,
         _pool: pool,
     }
+}
+
+/// Plugin delay compensation: when each node's input and output arrive, in samples after the
+/// transport, and how late each source starts. A live path (a track played live) is never
+/// delayed where it joins the mix: its players start late instead, to stay aligned.
+fn timing(
+    graph: &Graph,
+    order: &[NodeId],
+    index: &HashMap<NodeId, usize>,
+) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
+    let aligned = |e: &&crate::Edge| !graph.nodes[&e.from.node].unaligned;
+    let pass = |start: &[u32]| {
+        let mut input = vec![0u32; order.len()];
+        let mut output = vec![0u32; order.len()];
+        for (i, id) in order.iter().enumerate() {
+            input[i] = graph
+                .edges()
+                .iter()
+                .filter(|e| e.to.node == *id)
+                .filter(aligned)
+                .map(|e| output[index[&e.from.node]])
+                .max()
+                .unwrap_or(start[i]);
+            output[i] = input[i] + graph.nodes[id].latency;
+        }
+        (input, output)
+    };
+    let mut start = vec![0u32; order.len()];
+    let (input, output) = pass(&start);
+    if !graph.nodes.values().any(|n| n.live) {
+        return (input, output, start);
+    }
+    // Live nodes joined by their edges form a path; its sources start as late as its exits
+    // would have been delayed.
+    let mut group: Vec<usize> = (0..order.len()).collect();
+    fn root(group: &mut [usize], mut i: usize) -> usize {
+        while group[i] != i {
+            group[i] = group[group[i]];
+            i = group[i];
+        }
+        i
+    }
+    let live = |id: &NodeId| graph.nodes[id].live;
+    for e in graph.edges().iter().filter(aligned) {
+        if live(&e.from.node) && live(&e.to.node) {
+            let (a, b) = (index[&e.from.node], index[&e.to.node]);
+            let (a, b) = (root(&mut group, a), root(&mut group, b));
+            group[a] = b;
+        }
+    }
+    let mut late = vec![0u32; order.len()];
+    for e in graph.edges().iter().filter(aligned) {
+        if live(&e.from.node) && !live(&e.to.node) {
+            let (s, d) = (index[&e.from.node], index[&e.to.node]);
+            let r = root(&mut group, s);
+            late[r] = late[r].max(input[d].saturating_sub(output[s]));
+        }
+    }
+    let has_input = |id: &NodeId| {
+        graph
+            .edges()
+            .iter()
+            .filter(aligned)
+            .any(|e| e.to.node == *id)
+    };
+    for (i, id) in order.iter().enumerate() {
+        if live(id) && !has_input(id) {
+            start[i] = late[root(&mut group, i)];
+        }
+    }
+    let (input, output) = pass(&start);
+    (input, output, start)
 }
 
 fn graph_sources(

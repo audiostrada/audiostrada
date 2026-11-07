@@ -594,10 +594,12 @@ fn own_gain_lane(
 }
 
 /// Parameter values of an insert, the channel strip taking its character from the console.
+/// `fast`: without lookahead, as short as the effect allows (what is played, heard live).
 fn insert_values(
     insert: &InsertModel,
     info: &audiostrada_dsp::EffectInfo,
     character: usize,
+    fast: bool,
 ) -> Vec<f32> {
     let mut values = param_values(insert, info);
     if insert.effect == routing::STRIP
@@ -605,7 +607,25 @@ fn insert_values(
     {
         values[i] = character as f32;
     }
+    if fast {
+        for (value, p) in values.iter_mut().zip(info.params) {
+            if matches!(p.id, "lookahead" | "window") {
+                *value = p.min;
+            }
+        }
+    }
     values
+}
+
+/// What the low latency mode does to a channel's effects.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LowLatency {
+    /// Not in the way of what is played.
+    Keep,
+    /// Bypassed when slower than the limit (on the way of what is played).
+    Bypass,
+    /// Kept without lookahead (the effects of what is played).
+    Fast,
 }
 
 /// Parameter values of an insert in its effect's order.
@@ -740,9 +760,10 @@ impl ProjectPlayer {
         removed: &mut Vec<NodeId>,
         automated: &dyn Fn(InsertId, &str) -> bool,
         live: Option<&LiveMidi>,
-        low_latency: bool,
+        low_latency: LowLatency,
         character: usize,
     ) -> bool {
+        let fast = low_latency == LowLatency::Fast && plugins.low_latency.is_some();
         let mut changed = false;
         changed |= Self::sync_parallels(engine, nodes, inserts, removed);
         let mut old = std::mem::take(&mut nodes.inserts);
@@ -792,7 +813,7 @@ impl ProjectPlayer {
                         && audiostrada_dsp::info(&insert.effect).is_none_or(|info| {
                             audiostrada_dsp::declared_latency(
                                 info.id,
-                                &insert_values(insert, info, character),
+                                &insert_values(insert, info, character, fast),
                                 engine.sample_rate(),
                             )
                             .is_none_or(|l| l == n.latency)
@@ -837,7 +858,7 @@ impl ProjectPlayer {
                     }
                     effect.prepare(engine.sample_rate(), 1024);
                     // Its delay depends on its settings: apply them first.
-                    for (i, v) in insert_values(insert, info, character)
+                    for (i, v) in insert_values(insert, info, character, fast)
                         .into_iter()
                         .enumerate()
                     {
@@ -846,7 +867,7 @@ impl ProjectPlayer {
                     let latency = effect.latency();
                     let (node, controls) = Insert::new(
                         effect,
-                        &insert_values(insert, info, character),
+                        &insert_values(insert, info, character, fast),
                         info.meters.len(),
                     );
                     // Effects with a sidechain get two key inputs.
@@ -900,7 +921,7 @@ impl ProjectPlayer {
             };
             changed |= new;
             // Low latency mode: effects slower than its limit are bypassed.
-            let forced = low_latency
+            let forced = low_latency == LowLatency::Bypass
                 && plugins
                     .low_latency
                     .is_some_and(|limit| slot.latency > limit);
@@ -921,7 +942,7 @@ impl ProjectPlayer {
                         .keyed
                         .store(insert.sidechain.is_some(), Ordering::Relaxed);
                     if let Some(info) = builtin {
-                        let values = insert_values(insert, info, character);
+                        let values = insert_values(insert, info, character, fast);
                         for ((param, value), p) in
                             controls.params.iter().zip(values).zip(info.params)
                         {
@@ -1136,6 +1157,17 @@ impl ProjectPlayer {
         let driven =
             |key: (Channel, AutomationTarget)| automated.contains(&key) || held.contains(&key);
         let hardware = self.engine.graph().hardware_input();
+        // Folders the live tracks play through, on their way to the master.
+        let mut live_path = HashSet::new();
+        for track in project.tracks.iter().filter(|t| is_live(t)) {
+            let mut at = track.as_ref();
+            while at.master_send
+                && let Some(parent) = at.parent.and_then(|p| project.track(p))
+                && live_path.insert(parent.id)
+            {
+                at = parent;
+            }
+        }
         for track in project.tracks.iter().filter(|t| t.kind == TrackKind::Audio) {
             if !self.tracks.contains_key(&track.id) {
                 let channel = ChannelNodes::new(
@@ -1152,6 +1184,7 @@ impl ProjectPlayer {
                 let (monitor, monitor_gain, input_meter) = Monitor::new();
                 let monitor = monitor.with_window(Arc::clone(&record_window));
                 let monitor = self.engine.add_node(&track.name, monitor, 2, 2);
+                self.engine.set_unaligned(monitor);
                 connect_stereo(&mut self.engine, player, channel.input);
                 connect_stereo(&mut self.engine, monitor, channel.input);
                 for ch in 0..2 {
@@ -1265,8 +1298,15 @@ impl ProjectPlayer {
                     ))
                 },
                 Some(&self.live),
-                // What is played keeps its effects (an amp, for instance).
-                !(track.armed || track.monitor == Monitoring::Input),
+                // What is played keeps its effects (an amp, for instance), and the tracks it
+                // does not go through do not delay it.
+                if is_live(track) {
+                    LowLatency::Fast
+                } else if live_path.contains(&track.id) {
+                    LowLatency::Bypass
+                } else {
+                    LowLatency::Keep
+                },
                 console_index(console),
             );
             // External instrument: the track's MIDI goes to an output port.
@@ -1450,7 +1490,7 @@ impl ProjectPlayer {
                 ))
             },
             None,
-            true,
+            LowLatency::Bypass,
             0,
         );
         topology |= Self::sync_inserts(
@@ -1469,7 +1509,7 @@ impl ProjectPlayer {
                 ))
             },
             None,
-            true,
+            LowLatency::Bypass,
             console_index(project.console),
         );
         self.master.console.set(
@@ -1480,6 +1520,22 @@ impl ProjectPlayer {
         );
         for node in removed_nodes {
             self.remove_node(node);
+        }
+        for track in &project.tracks {
+            let Some(nodes) = self.tracks.get(&track.id) else {
+                continue;
+            };
+            let live = is_live(track);
+            let ids: Vec<NodeId> = nodes
+                .channel
+                .nodes()
+                .chain([nodes.player])
+                .chain(nodes.sends.iter().map(|s| s.node))
+                .chain(nodes.midi_out.iter().map(|m| m.node))
+                .collect();
+            for id in ids {
+                topology |= self.engine.set_live(id, live);
+            }
         }
         topology |= self.sync_edges(project);
         self.sync_automation(project, &automated);
@@ -1679,12 +1735,21 @@ impl ProjectPlayer {
         self.tracks.get(&id).map(|t| &t.input_meter)
     }
 
-    /// Low latency mode: effects adding more than 1 ms are bypassed, so that what is played
-    /// is heard at once (their latency no longer delays the rest).
+    /// Low latency mode: effects adding more than 1 ms on the way of what is played (its
+    /// folders and the master) are bypassed, so that it is heard at once. The other tracks'
+    /// effects never delay it.
     pub fn set_low_latency(&mut self, on: bool) {
-        let limit = self.engine.sample_rate() / 1000;
-        self.plugins.low_latency = on.then_some(limit);
-        self.plugins.resync = true;
+        self.set_low_latency_limit(on.then_some(1.0));
+    }
+
+    /// Low latency mode bypassing the effects slower than `ms`.
+    pub fn set_low_latency_limit(&mut self, ms: Option<f32>) {
+        let rate = self.engine.sample_rate() as f32;
+        let limit = ms.map(|ms| (ms.max(0.0) * rate / 1000.0) as u32);
+        if limit != self.plugins.low_latency {
+            self.plugins.low_latency = limit;
+            self.plugins.resync = true;
+        }
     }
 
     pub fn low_latency(&self) -> bool {
@@ -2326,6 +2391,11 @@ impl ProjectPlayer {
 
 /// The inserts as the engine runs them: all bypassed when their channel's effects are off,
 /// except an instrument leading a track.
+/// What is played on the track is heard live: armed, or always hearing its input.
+fn is_live(track: &audiostrada_core::Track) -> bool {
+    track.kind == TrackKind::Audio && (track.armed || track.monitor == Monitoring::Input)
+}
+
 fn effective<'a>(
     inserts: &'a [InsertModel],
     off: bool,
@@ -2429,6 +2499,113 @@ mod tests {
             media: MediaPool::new(48_000, None),
             player: ProjectPlayer::new(EngineConfig { workers: Some(0) }),
         }
+    }
+
+    /// Index of the loudest sample of each stretch over 0.1, in the left output.
+    fn peaks(out: &[f32]) -> Vec<usize> {
+        let mut found = Vec::new();
+        let mut i = 0;
+        while i < out.len() {
+            if out[i].abs() > 0.1 {
+                let end = (i + 64).min(out.len());
+                let top = (i..end)
+                    .max_by(|&a, &b| out[a].abs().total_cmp(&out[b].abs()))
+                    .unwrap_or(i);
+                found.push(top);
+                i = end;
+            } else {
+                i += 1;
+            }
+        }
+        found
+    }
+
+    /// Two tracks playing the same click, the first through a limiter; `live` arms the second.
+    /// Returns the clicks of each track heard alone, over `blocks` blocks from the start.
+    fn clicks(
+        name: &str,
+        live: bool,
+        looping: Option<(u64, u64)>,
+        blocks: usize,
+    ) -> [Vec<usize>; 2] {
+        let mut samples = vec![0.0; 4800];
+        samples[150] = 0.8;
+        let mut f = fixture(name, samples);
+        let a = f.history.project().tracks[0].id;
+        f.history.edit("Setup", |p| {
+            routing::add_insert(p, Channel::Track(a), "limiter", Default::default()).unwrap();
+            let source = *p.sources.keys().next().unwrap();
+            let b = p.add_track("b");
+            p.add_clip(b, source, 0);
+            p.track_mut(b).unwrap().armed = live;
+            p.loop_range = looping;
+        });
+        f.media.retain(&media_paths(f.history.project(), None));
+        assert!(f.media.wait(Duration::from_secs(10)));
+        let mut processor = f.player.processor(48_000, 64);
+        let mut heard = [Vec::new(), Vec::new()];
+        for (solo, out) in heard.iter_mut().enumerate() {
+            f.history.edit("Mute", |p| {
+                for (i, t) in p.tracks.iter_mut().enumerate() {
+                    Arc::make_mut(t).mute = i != solo;
+                }
+            });
+            f.player.sync(f.history.project(), None, &f.media);
+            f.player.engine_mut().stop();
+            f.player.locate(0);
+            f.player.engine_mut().flush();
+            render(&mut processor, 20);
+            f.player.engine_mut().play();
+            *out = peaks(&render(&mut processor, blocks));
+        }
+        std::fs::remove_dir_all(&f.dir).unwrap();
+        heard
+    }
+
+    #[test]
+    fn live_tracks_play_back_aligned_with_the_rest() {
+        for live in [false, true] {
+            let [a, b] = clicks(&format!("aligned-{live}"), live, None, 40);
+            assert_eq!(a.len(), 1, "{a:?}");
+            assert_eq!(a, b, "armed: {live}");
+        }
+        let [a, b] = clicks("aligned-loop", true, Some((0, 1000)), 60);
+        assert_eq!(a.len(), 4, "a click each pass: {a:?}");
+        assert_eq!(a, b, "looping");
+    }
+
+    #[test]
+    fn a_slow_effect_on_a_played_track_does_not_delay_the_input_heard() {
+        let mut f = fixture("live-input", vec![0.0; 4800]);
+        let bed = f.history.project().tracks[0].id;
+        f.history.edit("Setup", |p| {
+            routing::add_insert(p, Channel::Track(bed), "limiter", Default::default()).unwrap();
+            let vox = p.add_track("Vox");
+            p.track_mut(vox).unwrap().armed = true;
+        });
+        f.media.retain(&media_paths(f.history.project(), None));
+        assert!(f.media.wait(Duration::from_secs(10)));
+        let mut processor = f.player.processor(48_000, 64);
+        f.player.sync(f.history.project(), None, &f.media);
+        let latency = f.player.engine().shared().latency();
+        assert!(latency > 64, "the limiter delays playback: {latency}");
+        let mut storage = ChannelBuffers::new(2, 2, 64);
+        for _ in 0..10 {
+            processor.render(&mut storage.buffers(64));
+            f.player.update();
+        }
+        storage.input_mut(0)[0] = 0.8;
+        let mut out = Vec::new();
+        for _ in 0..40 {
+            processor.render(&mut storage.buffers(64));
+            storage.input_mut(0)[0] = 0.0;
+            out.extend_from_slice(storage.output(0));
+        }
+        assert_eq!(
+            peaks(&out),
+            [0],
+            "heard at once, not after {latency} samples"
+        );
     }
 
     #[test]
@@ -2748,42 +2925,53 @@ mod tests {
     }
 
     #[test]
-    fn low_latency_bypasses_slow_effects_except_on_played_tracks() {
+    fn low_latency_bypasses_slow_effects_on_the_way_of_what_is_played() {
         let mut history = History::new(Project::new("Test", 48_000));
         let mut player = ProjectPlayer::new(EngineConfig { workers: Some(0) });
         let media = MediaPool::new(48_000, None);
         let _processor = player.processor(48_000, 64);
         let mut inserts = Vec::new();
+        let mut vox = TrackId(0);
         history.edit("Tracks", |p| {
-            let vox = p.add_track("Vox");
+            let bus = p.add_track("Vocals");
+            vox = p.add_track("Vox");
+            routing::set_parent(p, vox, Some(bus)).unwrap();
             p.track_mut(vox).unwrap().armed = true;
             let bed = p.add_track("Bed");
-            for t in [vox, bed] {
-                inserts.push(
-                    routing::add_insert(p, Channel::Track(t), "limiter", Default::default())
-                        .unwrap(),
-                );
+            for channel in [
+                Channel::Track(vox),
+                Channel::Track(bus),
+                Channel::Track(bed),
+                Channel::Master,
+            ] {
+                inserts
+                    .push(routing::add_insert(p, channel, "limiter", Default::default()).unwrap());
             }
         });
         player.sync(history.project(), None, &media);
         assert!(player.engine().shared().latency() > 0);
+        let slow = player.insert_latency(Channel::Track(vox), inserts[0]);
         player.set_low_latency(true);
         assert!(player.take_resync());
         player.sync(history.project(), None, &media);
-        assert_eq!(player.low_latency_bypassed(), [inserts[1]]);
+        let fast = player.insert_latency(Channel::Track(vox), inserts[0]);
         assert!(
-            player.engine().shared().latency() > 0,
-            "the armed track keeps its limiter"
+            fast < slow,
+            "the played track's limiter looks ahead less: {fast} < {slow}"
         );
-        let vox = history.project().tracks[0].id;
+        let mut bypassed = player.low_latency_bypassed().to_vec();
+        bypassed.sort();
+        assert_eq!(
+            bypassed,
+            [inserts[1], inserts[3]],
+            "its folder and the master; the played track and the others keep theirs"
+        );
         history.edit("Disarm", |p| p.track_mut(vox).unwrap().armed = false);
         player.sync(history.project(), None, &media);
-        assert_eq!(player.low_latency_bypassed().len(), 2);
-        assert_eq!(player.engine().shared().latency(), 0);
+        assert_eq!(player.low_latency_bypassed(), [inserts[3]]);
         player.set_low_latency(false);
         player.sync(history.project(), None, &media);
         assert!(player.low_latency_bypassed().is_empty());
-        assert!(player.engine().shared().latency() > 0);
     }
 
     /// Renders a constant 0.5 clip through `edit` and returns the last left sample.

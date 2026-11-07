@@ -854,6 +854,9 @@ impl Document {
             notes: 0,
             last: None,
         });
+        // What was played answered what was heard: the playback, delayed by the effects.
+        let heard = self.player.engine().shared().latency();
+        let offset = offset + self.player.to_project(u64::from(heard)) as i64;
         self.player.set_recording_click(true);
         self.player.engine_mut().play();
         self.recording = Some(Recording {
@@ -2108,6 +2111,49 @@ mod tests {
         assert_eq!(clip.length, 20 * 64 - 100);
         assert_eq!(doc.history().undo_label(), Some("Record"));
         assert!(dir.join("Vox-01.wav").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn takes_land_where_the_delayed_playback_was_heard() {
+        let dir = temp("record-heard");
+        let dirs = AppDirs {
+            recordings: Some(dir.clone()),
+            ..AppDirs::default()
+        };
+        let mut doc = Document::new(dirs);
+        doc.history_mut().edit("Track", |p| {
+            let t = p.add_track("Vox");
+            p.track_mut(t).unwrap().armed = true;
+            audiostrada_core::routing::add_insert(
+                p,
+                Channel::Master,
+                "limiter",
+                Default::default(),
+            )
+            .unwrap();
+        });
+        let mut processor = doc.processor(48_000, 64);
+        doc.update();
+        let heard = u64::from(doc.player().engine().shared().latency());
+        assert!(heard > 0);
+        doc.player_mut().locate(2000);
+        let mut storage = audiostrada_io::ChannelBuffers::new(2, 2, 64);
+        processor.render(&mut storage.buffers(64));
+        doc.start_recording(2, 10).unwrap();
+        for _ in 0..20 {
+            processor.render(&mut storage.buffers(64));
+            doc.update();
+        }
+        doc.stop_recording();
+        processor.render(&mut storage.buffers(64));
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while doc.recording.is_some() && std::time::Instant::now() < deadline {
+            doc.update();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let clip = &doc.project().tracks[0].clips[0];
+        assert_eq!(clip.start, 2000 - 10 - heard);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

@@ -1017,8 +1017,8 @@ impl AudioStradaApp {
                 doc.player_mut().set_low_latency(on);
                 doc.notify(if on {
                     tr(
-                        "Low latency mode: effects adding more than 1 ms are bypassed, except on \
-                        the tracks being played",
+                        "Low latency mode: effects adding more than 1 ms on the master and on \
+                        the folders of the tracks being played are bypassed",
                     )
                     .into()
                 } else {

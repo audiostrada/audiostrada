@@ -339,7 +339,7 @@ impl Effect for Limiter {
     }
 
     fn latency(&self) -> u32 {
-        self.core.latency()
+        latency_of(&self.values, self.rate)
     }
 
     fn meters(&self, out: &mut [f32]) {

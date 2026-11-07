@@ -148,6 +148,17 @@ impl Engine {
         self.graph.set_latency(id, samples)
     }
 
+    /// Marks a node as carrying what is played live: no slower path delays it, and the
+    /// players feeding it read ahead instead. Returns true if it changed.
+    pub fn set_live(&mut self, id: NodeId, live: bool) -> bool {
+        self.graph.set_live(id, live)
+    }
+
+    /// The node's output is mixed as it comes, never delayed nor waited for (input monitors).
+    pub fn set_unaligned(&mut self, id: NodeId) {
+        self.graph.set_unaligned(id);
+    }
+
     /// Prepares new processors for the current format.
     fn prepare_pending(&mut self) {
         let (rate, frames) = (self.sample_rate, self.max_frames);

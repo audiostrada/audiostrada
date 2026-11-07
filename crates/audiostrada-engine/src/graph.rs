@@ -58,6 +58,10 @@ pub(crate) struct NodeSpec {
     pub inputs: usize,
     pub outputs: usize,
     pub latency: u32,
+    /// Carries what is played live: it never waits for slower paths.
+    pub live: bool,
+    /// Its output is never aligned with the other paths (an input monitor).
+    pub unaligned: bool,
     /// Present while the processor lives on this side (not yet sent to the audio thread).
     pub processor: Option<Box<dyn Processor>>,
 }
@@ -127,6 +131,8 @@ impl Graph {
                 inputs,
                 outputs,
                 latency: 0,
+                live: false,
+                unaligned: false,
                 processor,
             },
         );
@@ -205,6 +211,19 @@ impl Graph {
         let node = self.nodes.get_mut(&id).ok_or(GraphError::UnknownNode(id))?;
         node.latency = latency;
         Ok(())
+    }
+
+    /// Returns true if it changed.
+    pub(crate) fn set_live(&mut self, id: NodeId, live: bool) -> bool {
+        self.nodes
+            .get_mut(&id)
+            .is_some_and(|n| std::mem::replace(&mut n.live, live) != live)
+    }
+
+    pub(crate) fn set_unaligned(&mut self, id: NodeId) {
+        if let Some(node) = self.nodes.get_mut(&id) {
+            node.unaligned = true;
+        }
     }
 
     pub fn edges(&self) -> &[Edge] {

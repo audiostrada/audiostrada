@@ -362,15 +362,16 @@ pub fn show(
                         let low_hint = if low {
                             trf!(
                                 "{action}: on, {count} effect(s) bypassed. Effects adding more \
-                                 than 1 ms are bypassed, except on the tracks being played, so \
-                                 that what you play is heard at once",
+                                 than 1 ms on the master and on the folders of the tracks being \
+                                 played are bypassed, so that what you play is heard at once",
                                 action = hint(Action::LowLatency),
                                 count = bypassed
                             )
                         } else {
                             trf!(
-                                "{action}: bypasses the effects adding more than 1 ms (except on \
-                                 the tracks being played), so that what you play is heard at once",
+                                "{action}: bypasses the effects adding more than 1 ms on the \
+                                 master and on the folders of the tracks being played, so that \
+                                 what you play is heard at once",
                                 action = hint(Action::LowLatency)
                             )
                         };
