@@ -637,6 +637,8 @@ mod imp {
         /// input to a busy plugin host.
         follow: Option<HWND>,
         stand: Stand,
+        /// When the window was last put topmost and did not stay so (see [`Self::follow`]).
+        refused: Option<std::time::Instant>,
         hidden: bool,
     }
 
@@ -697,6 +699,7 @@ mod imp {
                     follow,
                     // As created: not topmost, above AudioStrada's window.
                     stand: Stand::Away,
+                    refused: None,
                     hidden: false,
                 };
                 window.follow();
@@ -747,15 +750,25 @@ mod imp {
                 } else {
                     Stand::Away
                 };
-                if wanted == self.stand {
+                let topmost =
+                    |w: HWND| GetWindowLongPtrW(w, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0;
+                // Checked on the window itself: it can lose the topmost style (a plugin's
+                // doing) and would then go under the panels. Some plugins' windows refuse it
+                // altogether (Analog Lab V, once its editor was opened before): tried again
+                // now and then only; clicking the plugin's slot still brings it to the front.
+                let lost = wanted == Stand::Top
+                    && !topmost(self.hwnd)
+                    && self
+                        .refused
+                        .is_none_or(|t| t.elapsed() >= std::time::Duration::from_millis(500));
+                if wanted == self.stand && !lost {
                     return;
                 }
                 let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
-                let topmost =
-                    |w: HWND| GetWindowLongPtrW(w, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0;
                 match wanted {
                     Stand::Top => {
                         let _ = SetWindowPos(self.hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, flags);
+                        self.refused = (!topmost(self.hwnd)).then(std::time::Instant::now);
                     }
                     // Already under the windows in front, above AudioStrada's: left there.
                     Stand::Away if self.stand != Stand::Top => {}
