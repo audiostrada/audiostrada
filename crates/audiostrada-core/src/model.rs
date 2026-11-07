@@ -190,6 +190,25 @@ pub struct Clip {
     /// the fill, 255 for a bar left alone.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub variations: Vec<u8>,
+    /// What is known of a recorded take.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub take: Option<Box<TakeInfo>>,
+}
+
+/// A recorded take: its number on its track, the section it was played in, how it was rated
+/// and what went wrong while recording it.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TakeInfo {
+    pub number: u32,
+    /// The marker where it starts, such as "Chorus".
+    pub section: Option<String>,
+    /// Stars, 0 (not rated) to 3.
+    pub rating: u8,
+    /// Samples at full scale or over.
+    pub clipped: u64,
+    /// Where the audio dropped out, in project samples from the start of its file.
+    pub dropouts: Vec<u64>,
 }
 
 fn unit() -> f64 {
@@ -673,6 +692,8 @@ pub struct MetronomeSettings {
     pub groups: String,
     /// Click only while recording (and during the count-in).
     pub recording_only: bool,
+    /// Bars played before the count-in, to hear the song before recording.
+    pub pre_roll: u32,
 }
 
 impl Default for MetronomeSettings {
@@ -687,6 +708,7 @@ impl Default for MetronomeSettings {
             compound: true,
             groups: String::new(),
             recording_only: false,
+            pre_roll: 0,
         }
     }
 }
@@ -1170,6 +1192,7 @@ impl Project {
             controls: None,
             notes: None,
             variations: Vec::new(),
+            take: None,
         });
         Some(id)
     }
@@ -1203,6 +1226,7 @@ impl Project {
             controls: None,
             notes: Some(Arc::new(notes)),
             variations: Vec::new(),
+            take: None,
         });
         track.clips.sort_by_key(|c| (c.start, c.id));
         Some(id)

@@ -1428,6 +1428,7 @@ impl ProjectPlayer {
                         controls: None,
                         notes: None,
                         variations: Vec::new(),
+                        take: None,
                     })
                     .into_iter()
                     .collect(),

@@ -1438,6 +1438,62 @@ pub fn snap(position: u64, beats: Option<f64>, tempo: &TempoMap, rate: u32) -> u
     tempo.beat_to_sample(snapped.max(0.0), rate)
 }
 
+/// Records a take (see [`record_take`]), numbered after the takes of its track and
+/// named after the marker it starts at or after. `dropouts` are from the start of its file.
+pub fn place_recorded_take(
+    project: &mut Project,
+    track: TrackId,
+    mut clip: Clip,
+    clipped: u64,
+    dropouts: Vec<u64>,
+) -> ClipId {
+    let number = project.track(track).map_or(0, |t| {
+        t.clips
+            .iter()
+            .chain(t.alternates.iter().flat_map(|a| &a.clips))
+            .chain(t.takes.iter().flat_map(|l| &l.clips))
+            .filter_map(|c| c.take.as_ref().map(|i| i.number))
+            .max()
+            .unwrap_or(0)
+    }) + 1;
+    let section = project
+        .markers
+        .iter()
+        .filter(|m| m.position <= clip.start && !m.name.is_empty())
+        .max_by_key(|m| m.position)
+        .map(|m| m.name.clone());
+    clip.take = Some(Box::new(crate::model::TakeInfo {
+        number,
+        section,
+        rating: 0,
+        clipped,
+        dropouts,
+    }));
+    record_take(project, track, clip)
+}
+
+/// Rates a recorded take, in the current playlist or an alternate one; 0 clears it.
+pub fn set_take_rating(project: &mut Project, clip: ClipId, rating: u8) {
+    for track in project.tracks.iter_mut() {
+        let has = |c: &Clip| c.id == clip && c.take.is_some();
+        let found =
+            track.clips.iter().any(has) || track.alternates.iter().any(|a| a.clips.iter().any(has));
+        if !found {
+            continue;
+        }
+        let t = std::sync::Arc::make_mut(track);
+        let clips = t
+            .clips
+            .iter_mut()
+            .chain(t.alternates.iter_mut().flat_map(|a| a.clips.iter_mut()));
+        for c in clips.filter(|c| c.id == clip) {
+            if let Some(take) = &mut c.take {
+                take.rating = rating.min(3);
+            }
+        }
+    }
+}
+
 /// The track receiving the processed takes of `track`, made under it the first time: same
 /// color, folder and channels, no effects, linked to it for editing. With `muted`, it is
 /// silent (the track plays its raw take through its effects).
@@ -1485,6 +1541,63 @@ mod tests {
 
     use super::*;
     use crate::model::Source;
+
+    #[test]
+    fn recorded_takes_are_numbered_and_named_after_their_section() {
+        let mut p = Project::new("Test", 48_000);
+        let source = p.add_source(Source {
+            path: PathBuf::from("a.wav"),
+            channels: 1,
+            sample_rate: 48_000,
+            frames: 1000,
+        });
+        let t = p.add_track("Vox");
+        let marker = add_marker(&mut p, 500);
+        p.markers.iter_mut().for_each(|m| {
+            if m.id == marker {
+                m.name = "Chorus".into();
+            }
+        });
+        let take = |p: &mut Project, start| {
+            p.add_clip(t, source, start);
+            p.track_mut(t).unwrap().clips.pop().unwrap()
+        };
+        let a = take(&mut p, 0);
+        let first = place_recorded_take(&mut p, t, a, 0, Vec::new());
+        let b = take(&mut p, 600);
+        let second = place_recorded_take(&mut p, t, b, 12, vec![40]);
+        let info = |id| clip(&p, id).and_then(|c| c.take.clone()).unwrap();
+        assert_eq!((info(first).number, info(first).section), (1, None));
+        let take = info(second);
+        assert_eq!(take.number, 2);
+        assert_eq!(take.section.as_deref(), Some("Chorus"));
+        assert_eq!((take.clipped, take.dropouts), (12, vec![40]));
+    }
+
+    #[test]
+    fn takes_are_rated_wherever_they_are() {
+        let mut p = Project::new("Test", 48_000);
+        let source = p.add_source(Source {
+            path: PathBuf::from("a.wav"),
+            channels: 1,
+            sample_rate: 48_000,
+            frames: 1000,
+        });
+        let t = p.add_track("Vox");
+        let first = p.add_clip(t, source, 0).unwrap();
+        let track = p.track_mut(t).unwrap();
+        track.clips[0].take = Some(Box::default());
+        new_playlist(&mut p, t);
+        set_take_rating(&mut p, first, 5);
+        let saved = crate::file::to_json(&p).unwrap();
+        let back = crate::file::from_json(&saved).unwrap();
+        let take = back.track(t).unwrap().alternates[0].clips[0].take.clone();
+        assert_eq!(
+            take.map(|t| t.rating),
+            Some(3),
+            "at most 3 stars, kept in the file"
+        );
+    }
 
     #[test]
     fn processed_takes_go_on_a_twin_made_once() {

@@ -64,6 +64,10 @@ struct Recording {
     recorder: Option<Recorder>,
     /// Tracks recorded after their effects, for their printed twins.
     prints: Vec<Recorder>,
+    /// Where the audio dropped out, in project samples.
+    dropouts: Vec<u64>,
+    /// Audio dropouts counted at the last check.
+    xruns: Option<u64>,
     midi: Option<MidiTake>,
     /// Project position where the visible take starts.
     start: u64,
@@ -191,6 +195,7 @@ fn midi_clip(
         controls: (!controls.is_empty()).then(|| std::sync::Arc::new(controls)),
         notes: Some(std::sync::Arc::new(notes)),
         variations: Vec::new(),
+        take: None,
     }
 }
 
@@ -368,12 +373,9 @@ impl Document {
 
     pub fn open(path: &Path, dirs: AppDirs) -> Result<Self, ProjectError> {
         let project = file::load(path)?;
-        Ok(Self::with(
-            project,
-            Some(ProjectPaths::new(path)),
-            dirs,
-            false,
-        ))
+        let mut doc = Self::with(project, Some(ProjectPaths::new(path)), dirs, false);
+        doc.recover_takes();
+        Ok(doc)
     }
 
     /// Opens the autosave of a project in place of the saved file, keeping the file location.
@@ -829,13 +831,16 @@ impl Document {
         let tracks = armed.iter().chain(&midi_tracks).map(|t| t.id).collect();
         let position = self.player.position();
         let start = punch.map_or(position, |(a, _)| position.max(a));
-        let count_in = project.metronome.count_in;
-        if count_in > 0 && !self.player.engine().playing() {
-            // Start earlier and only record from where the playhead was.
+        let (count_in, pre_roll) = (project.metronome.count_in, project.metronome.pre_roll);
+        if count_in + pre_roll > 0 && !self.player.engine().playing() {
+            // Start earlier and only record from where the playhead was; a pre-roll counts
+            // from where recording starts.
             let tempo = &project.tempo;
             let rate = project.sample_rate;
-            let beat = tempo.sample_to_beat(position, rate);
-            let bars = f64::from(count_in) * tempo.signature_at_beat(beat).beats_per_bar();
+            let base = if pre_roll > 0 { start } else { position };
+            let beat = tempo.sample_to_beat(base, rate);
+            let bars =
+                f64::from(count_in + pre_roll) * tempo.signature_at_beat(beat).beats_per_bar();
             let from = tempo.beat_to_sample((beat - bars).max(0.0), rate);
             punch = Some(punch.map_or((start, u64::MAX), |(_, b)| (start, b)));
             self.player.locate(from);
@@ -890,6 +895,8 @@ impl Document {
         self.recording = Some(Recording {
             recorder,
             prints,
+            dropouts: Vec::new(),
+            xruns: None,
             midi,
             start,
             tracks,
@@ -1167,53 +1174,20 @@ impl Document {
                 ));
             }
         }
-        let rate = self.player.engine().sample_rate();
-        let takes: Vec<(TrackId, Source, Clip, bool)> = results
+        let takes: Vec<(TrackId, Source, Clip, bool, u64)> = results
             .iter()
             .flat_map(|(result, printed)| result.takes.iter().map(move |take| (take, *printed)))
             .map(|(take, printed)| {
-                let stored = self
-                    .paths
-                    .as_ref()
-                    .map_or_else(|| take.path.clone(), |p| p.relativize(&take.path));
-                let name = take
-                    .path
-                    .file_stem()
-                    .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
-                let source = Source {
-                    path: stored,
-                    channels: take.channels,
-                    sample_rate: rate,
-                    frames: take.frames,
-                };
-                let start = self.player.to_project(take.start) as i64 - offset;
-                let trim = (-start).max(0) as u64;
-                let clip = Clip {
-                    id: ClipId(0),
-                    source: SourceId(0),
-                    name,
-                    start: start.max(0) as u64,
-                    offset: trim,
-                    length: self.player.to_project(take.frames).saturating_sub(trim),
-                    gain_db: 0.0,
-                    fade_in: 0,
-                    fade_out: 0,
-                    fade_shape: Default::default(),
-                    fade_out_shape: None,
-                    muted: false,
-                    stretch: 1.0,
-                    pitch: 0.0,
-                    controls: None,
-                    notes: None,
-                    variations: Vec::new(),
-                };
-                (take.track, source, clip, printed)
+                let (source, clip) =
+                    self.take_clip(take, self.player.engine().sample_rate(), offset);
+                (take.track, source, clip, printed, take.clipped)
             })
             .collect();
         if takes.is_empty() {
             return;
         }
         let count = takes.len();
+        let dropouts = recording.dropouts;
         let twins: HashMap<TrackId, String> = takes
             .iter()
             .filter(|t| t.3)
@@ -1221,7 +1195,7 @@ impl Document {
             .map(|t| (t.id, trf!("{name} (printed)", name = t.name)))
             .collect();
         self.history.edit(tr("Record"), |p| {
-            for (track, source, mut clip, printed) in takes {
+            for (track, source, mut clip, printed, clipped) in takes {
                 if clip.length == 0 {
                     continue;
                 }
@@ -1236,11 +1210,110 @@ impl Document {
                     }
                     None => track,
                 };
-                edit::record_take(p, target, clip);
+                let (start, end) = (clip.start, clip.start + clip.length);
+                let lost = dropouts
+                    .iter()
+                    .filter(|&&d| d >= start && d < end)
+                    .map(|d| d - start + clip.offset)
+                    .collect();
+                edit::place_recorded_take(p, target, clip, clipped, lost);
             }
         });
         self.messages
             .push(trf!("Recorded {count} take(s)", count = count));
+    }
+
+    /// The source and clip of a recorded file; `offset` moves it earlier (project samples).
+    fn take_clip(
+        &self,
+        take: &audiostrada_engine::record::Take,
+        rate: u32,
+        offset: i64,
+    ) -> (Source, Clip) {
+        let stored = self
+            .paths
+            .as_ref()
+            .map_or_else(|| take.path.clone(), |p| p.relativize(&take.path));
+        let name = take
+            .path
+            .file_stem()
+            .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
+        let source = Source {
+            path: stored,
+            channels: take.channels,
+            sample_rate: rate,
+            frames: take.frames,
+        };
+        let project_rate = self.project().sample_rate;
+        let to_project = |samples: u64| {
+            (u128::from(samples) * u128::from(project_rate) / u128::from(rate.max(1))) as u64
+        };
+        let start = to_project(take.start) as i64 - offset;
+        let trim = (-start).max(0) as u64;
+        let clip = Clip {
+            id: ClipId(0),
+            source: SourceId(0),
+            name,
+            start: start.max(0) as u64,
+            offset: trim,
+            length: to_project(take.frames).saturating_sub(trim),
+            gain_db: 0.0,
+            fade_in: 0,
+            fade_out: 0,
+            fade_shape: Default::default(),
+            fade_out_shape: None,
+            muted: false,
+            stretch: 1.0,
+            pitch: 0.0,
+            controls: None,
+            notes: None,
+            variations: Vec::new(),
+            take: None,
+        };
+        (source, clip)
+    }
+
+    /// Notes the audio dropouts counted so far: those during a recording mark its takes.
+    pub fn note_dropouts(&mut self, count: u64) {
+        let position = self.player.position();
+        let Some(recording) = self.recording.as_mut().filter(|r| !r.stopping) else {
+            return;
+        };
+        if recording.xruns.is_some_and(|before| count > before) {
+            recording.dropouts.push(position);
+        }
+        recording.xruns = Some(count);
+    }
+
+    /// Puts back the takes of a recording cut short (AudioStrada stopped while recording),
+    /// as one undo step.
+    fn recover_takes(&mut self) {
+        let Some(dir) = self.paths.as_ref().map(ProjectPaths::audio_dir) else {
+            return;
+        };
+        let recovered = audiostrada_engine::record::recover(&dir);
+        if recovered.is_empty() {
+            return;
+        }
+        let count = recovered.len();
+        let takes: Vec<(TrackId, Source, Clip)> = recovered
+            .iter()
+            .filter(|(take, _)| self.project().track(take.track).is_some())
+            .map(|(take, rate)| {
+                let (source, clip) = self.take_clip(take, *rate, 0);
+                (take.track, source, clip)
+            })
+            .collect();
+        self.history.edit(tr("Recover takes"), |p| {
+            for (track, source, mut clip) in takes {
+                clip.source = p.add_source(source);
+                edit::place_recorded_take(p, track, clip, 0, Vec::new());
+            }
+        });
+        self.messages.push(trf!(
+            "{count} take(s) of a recording cut short were put back on their tracks.",
+            count = count
+        ));
     }
 
     pub fn automation_mode(&self, channel: Channel) -> AutomationMode {
@@ -2259,6 +2332,82 @@ mod tests {
         assert_eq!(twin.clips.len(), 1);
         assert_eq!(vox.clips[0].start, twin.clips[0].start);
         assert_eq!(doc.history().undo_label(), Some("Record"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_pre_roll_starts_before_the_punch_in_and_dropouts_mark_the_take() {
+        let dir = temp("record-pre-roll");
+        let dirs = AppDirs {
+            recordings: Some(dir.clone()),
+            ..AppDirs::default()
+        };
+        let mut doc = Document::new(dirs);
+        doc.history_mut().edit("Track", |p| {
+            let t = p.add_track("Vox");
+            p.track_mut(t).unwrap().armed = true;
+            p.punch_range = Some((200_000, 400_000));
+            p.metronome.pre_roll = 1;
+        });
+        let mut processor = doc.processor(48_000, 64);
+        doc.update();
+        doc.start_recording(2, 0).unwrap();
+        let mut storage = audiostrada_io::ChannelBuffers::new(2, 2, 64);
+        storage.input_mut(0).fill(0.25);
+        processor.render(&mut storage.buffers(64));
+        let bar = 96_000;
+        assert_eq!(
+            doc.player().position(),
+            200_000 - bar + 64,
+            "a bar at 120 BPM in 4/4"
+        );
+        doc.note_dropouts(4);
+        for block in 0..1700 {
+            processor.render(&mut storage.buffers(64));
+            if block == 1650 {
+                doc.update();
+                doc.note_dropouts(5);
+            }
+        }
+        doc.stop_recording();
+        processor.render(&mut storage.buffers(64));
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while doc.recording.is_some() && std::time::Instant::now() < deadline {
+            doc.update();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let clip = &doc.project().tracks[0].clips[0];
+        assert_eq!(clip.start, 200_000);
+        let take = clip.take.as_ref().unwrap();
+        assert_eq!(take.number, 1);
+        assert_eq!(take.dropouts.len(), 1);
+        assert!(take.dropouts[0] > 0 && take.dropouts[0] < clip.length);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn takes_cut_short_are_put_back_when_the_project_opens() {
+        let dir = temp("recover-takes");
+        let paths = ProjectPaths::in_new_folder(&dir, "Song");
+        let mut project = Project::new("Song", 48_000);
+        let vox = project.add_track("Vox");
+        std::fs::create_dir_all(paths.audio_dir()).unwrap();
+        audiostrada_core::file::save(&project, &paths).unwrap();
+        let wav = paths.audio_dir().join("Vox-01.wav");
+        let mut writer = audiostrada_media::WavWriter::create(&wav, 1, 48_000).unwrap();
+        for _ in 0..4800 {
+            writer.write_frame(&[0.1]).unwrap();
+        }
+        drop(writer);
+        std::fs::write(
+            paths.audio_dir().join("Vox-01.wav.take"),
+            format!("{} 9600 48000 1", vox.0),
+        )
+        .unwrap();
+        let doc = Document::open(&paths.file, AppDirs::default()).unwrap();
+        let clip = &doc.project().track(vox).unwrap().clips[0];
+        assert_eq!((clip.start, clip.length), (9600, 4800));
+        assert_eq!(doc.history().undo_label(), Some("Recover takes"));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

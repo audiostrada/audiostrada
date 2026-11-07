@@ -14,7 +14,7 @@ pub use decode::load;
 pub use encode::{Dither, FileFormat, encode, set_mp3_encoder};
 pub use peaks::{Peak, Peaks};
 pub use resample::resample;
-pub use wav::{WavWriter, write_wav};
+pub use wav::{WavWriter, repair_wav, write_wav};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MediaError {

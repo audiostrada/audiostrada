@@ -136,6 +136,22 @@ pub fn show(ctx: &egui::Context, doc: &mut Document) {
                     ui.selectable_value(&mut click.count_in, bars, text);
                 }
             });
+            ui.horizontal(|ui| {
+                ui.label(tr("Pre-roll before the count-in"));
+                for (bars, text) in [
+                    (0, tr("Off")),
+                    (1, tr("1 bar")),
+                    (2, tr("2 bars")),
+                    (4, tr("4 bars")),
+                ] {
+                    ui.selectable_value(&mut click.pre_roll, bars, text);
+                }
+            })
+            .response
+            .on_hover_text(tr(
+                "Bars of the song played before recording starts, counted from the punch-in when \
+                 there is one",
+            ));
             ui.add_space(4.0);
             ui.weak(trf!(
                 "Time signature at the playhead: {beats}/{unit} (change it in the transport bar).",

@@ -143,6 +143,65 @@ pub struct Take {
     pub start: u64,
     pub frames: u64,
     pub channels: u16,
+    /// Samples at full scale or over.
+    pub clipped: u64,
+}
+
+/// A file being written, beside a note saying where it goes, removed once it is finished.
+struct OpenFile {
+    writer: WavWriter,
+    path: PathBuf,
+    start: u64,
+    clipped: u64,
+}
+
+fn note_path(path: &Path) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(".take");
+    PathBuf::from(name)
+}
+
+/// The takes of `dir` whose recording was cut short (AudioStrada stopped while recording):
+/// their files are repaired and their notes removed. Starts are in engine samples at the rate
+/// given with each.
+pub fn recover(dir: &Path) -> Vec<(Take, u32)> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut takes = Vec::new();
+    for note in entries.flatten().map(|e| e.path()) {
+        if note.extension().is_none_or(|e| e != "take") {
+            continue;
+        }
+        let path = note.with_extension("");
+        let fields: Vec<u64> = std::fs::read_to_string(&note)
+            .unwrap_or_default()
+            .split_whitespace()
+            .filter_map(|f| f.parse().ok())
+            .collect();
+        let _ = std::fs::remove_file(&note);
+        let [track, start, rate, channels] = fields[..] else {
+            continue;
+        };
+        match audiostrada_media::repair_wav(&path) {
+            Ok(frames) if frames > 0 => takes.push((
+                Take {
+                    track: TrackId(track),
+                    path,
+                    start,
+                    frames,
+                    channels: channels as u16,
+                    clipped: 0,
+                },
+                rate as u32,
+            )),
+            Ok(_) => {
+                let _ = std::fs::remove_file(&path);
+            }
+            Err(e) => tracing::warn!("{}: {e}", path.display()),
+        }
+    }
+    takes
 }
 
 #[derive(Debug, Default)]
@@ -262,7 +321,7 @@ struct Writer {
     dir: PathBuf,
     sample_rate: u32,
     width: usize,
-    files: Vec<Option<(WavWriter, PathBuf, u64)>>,
+    files: Vec<Option<OpenFile>>,
     result: RecordResult,
 }
 
@@ -297,13 +356,15 @@ impl Writer {
                         }
                     }
                     for (file, route) in self.files.iter_mut().zip(&self.routes) {
-                        let Some((writer, path, _)) = file else {
+                        let Some(open) = file else {
                             continue;
                         };
                         out.clear();
                         out.extend(route.iter().map(|&i| frame[i]));
-                        if let Err(e) = writer.write_frame(&out) {
-                            self.result.errors.push(format!("{}: {e}", path.display()));
+                        open.clipped += out.iter().filter(|s| s.abs() >= 1.0).count() as u64;
+                        if let Err(e) = open.writer.write_frame(&out) {
+                            let path = open.path.display();
+                            self.result.errors.push(format!("{path}: {e}"));
                             *file = None;
                         }
                     }
@@ -341,8 +402,16 @@ impl Writer {
             .iter()
             .map(|t| {
                 let path = unique_path(&self.dir, &t.name);
-                match WavWriter::create(&path, t.inputs.len().max(1) as u16, self.sample_rate) {
-                    Ok(writer) => Some((writer, path, start)),
+                let channels = t.inputs.len().max(1) as u16;
+                let note = format!("{} {start} {} {channels}", t.track.0, self.sample_rate);
+                let _ = std::fs::write(note_path(&path), note);
+                match WavWriter::create(&path, channels, self.sample_rate) {
+                    Ok(writer) => Some(OpenFile {
+                        writer,
+                        path,
+                        start,
+                        clipped: 0,
+                    }),
                     Err(e) => {
                         self.result.errors.push(format!("{}: {e}", path.display()));
                         None
@@ -357,9 +426,16 @@ impl Writer {
             .into_iter()
             .zip(&self.targets)
         {
-            let Some((writer, path, start)) = file else {
+            let Some(OpenFile {
+                writer,
+                path,
+                start,
+                clipped,
+            }) = file
+            else {
                 continue;
             };
+            let _ = std::fs::remove_file(note_path(&path));
             let channels = writer.channels();
             match writer.finish() {
                 Ok(0) => {
@@ -371,6 +447,7 @@ impl Writer {
                     start,
                     frames,
                     channels,
+                    clipped,
                 }),
                 Err(e) => self.result.errors.push(format!("{}: {e}", path.display())),
             }
@@ -489,6 +566,59 @@ mod tests {
         processor.render(&mut storage.buffers(64));
         engine.collect_garbage();
         recorder.finish();
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn clipping_is_counted_and_a_take_cut_short_is_recovered() {
+        let dir = audiostrada_core::scratch::dir("record-clip");
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::new(EngineConfig { workers: Some(0) });
+        let mut processor = engine.processor(48_000, 64);
+        let targets = vec![TakeTarget {
+            track: TrackId(7),
+            name: "Gtr".into(),
+            inputs: vec![0],
+        }];
+        let recorder = engine.start_recording(targets, dir.clone(), None).unwrap();
+        engine.play();
+        let mut storage = ChannelBuffers::new(1, 2, 64);
+        for block in 0..10 {
+            storage.input_mut(0).fill(0.5);
+            if block == 3 {
+                storage.input_mut(0)[..5].fill(-1.2);
+            }
+            processor.render(&mut storage.buffers(64));
+        }
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let note = dir.join("Gtr-01.wav.take");
+        while !note.exists() && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let noted = std::fs::read_to_string(&note).unwrap();
+        engine.stop_recording();
+        processor.render(&mut storage.buffers(64));
+        engine.collect_garbage();
+        let result = recorder.finish();
+        assert_eq!(result.takes[0].clipped, 5);
+        assert!(!note.exists(), "a finished take leaves no note");
+
+        // As if AudioStrada stopped while writing: the note is there, the sizes are not.
+        let cut = dir.join("Cut-01.wav");
+        let mut writer = WavWriter::create(&cut, 1, 48_000).unwrap();
+        for i in 0..300 {
+            writer.write_frame(&[i as f32 / 1000.0]).unwrap();
+        }
+        drop(writer);
+        std::fs::write(note_path(&cut), noted.replace("7 ", "9 ")).unwrap();
+        let recovered = recover(&dir);
+        assert_eq!(recovered.len(), 1);
+        let (take, rate) = &recovered[0];
+        assert_eq!((take.track, take.frames, *rate), (TrackId(9), 300, 48_000));
+        let data = audiostrada_media::load(&cut).unwrap();
+        assert_eq!(data.frames(), 300);
+        assert_eq!(data.channel(0)[299], 0.299);
+        assert!(recover(&dir).is_empty(), "once");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

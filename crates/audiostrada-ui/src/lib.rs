@@ -2967,6 +2967,9 @@ impl eframe::App for AudioStradaApp {
             self.restore_tabs();
         }
         self.watch_devices();
+        if let Some(status) = self.host.status() {
+            self.doc.borrow_mut().note_dropouts(status.xruns());
+        }
         #[cfg(any(target_os = "macos", windows))]
         keep_windows_above(frame, &self.detached);
         if self.plugin_scan.as_ref().is_some_and(|h| h.is_finished())

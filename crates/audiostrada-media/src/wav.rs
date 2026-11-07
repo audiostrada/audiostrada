@@ -22,6 +22,32 @@ pub fn write_wav(path: &Path, data: &AudioData) -> std::io::Result<()> {
     writer.finish().map(|_| ())
 }
 
+/// Sets the sizes of a WAV file from [`WavWriter`] that was not finished (AudioStrada stopped
+/// while recording); returns its frames.
+pub fn repair_wav(path: &Path) -> std::io::Result<u64> {
+    use std::io::Read;
+    let mut file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)?;
+    let mut header = [0u8; 44];
+    file.read_exact(&mut header)?;
+    if &header[..4] != b"RIFF" || &header[8..16] != b"WAVEfmt " || &header[36..40] != b"data" {
+        return Err(std::io::Error::other("not a WAV file from a recording"));
+    }
+    let block = u64::from(u16::from_le_bytes([header[32], header[33]]).max(1));
+    let len = file.metadata()?.len();
+    let frames = (len - 44) / block;
+    let data_len = (frames * block).min(u64::from(u32::MAX - HEADER_LEN)) as u32;
+    file.seek(SeekFrom::Start(4))?;
+    file.write_all(&(HEADER_LEN + data_len).to_le_bytes())?;
+    file.seek(SeekFrom::Start(40))?;
+    file.write_all(&data_len.to_le_bytes())?;
+    file.set_len(44 + u64::from(data_len))?;
+    file.sync_all()?;
+    Ok(frames)
+}
+
 /// Streams interleaved frames to a WAV file; sizes are written by [`finish`](Self::finish).
 #[derive(Debug)]
 pub struct WavWriter {

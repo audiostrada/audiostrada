@@ -175,6 +175,8 @@ pub fn inputs_pane(ui: &mut Ui, doc: &mut Document, health: Option<&Health>) {
                 ui.horizontal_wrapped(|ui| show_health(ui, health));
                 ui.add_space(6.0);
             }
+            run_up(ui, doc);
+            ui.add_space(6.0);
             ui.label(
                 RichText::new(trf!("Armed tracks · {count}", count = live.len()))
                     .strong()
@@ -214,6 +216,36 @@ pub fn inputs_pane(ui: &mut Ui, doc: &mut Document, health: Option<&Health>) {
                 });
             }
         });
+}
+
+/// The bars heard before recording: pre-roll, then count-in.
+fn run_up(ui: &mut Ui, doc: &mut Document) {
+    let mut click = doc.project().metronome.clone();
+    let before = click.clone();
+    let bars = |n: u32| match n {
+        0 => tr("Off").to_owned(),
+        1 => tr("1 bar").to_owned(),
+        n => trf!("{n} bars", n = n),
+    };
+    ui.horizontal_wrapped(|ui| {
+        for (label, value, id) in [
+            (tr("Pre-roll"), &mut click.pre_roll, "pre-roll"),
+            (tr("Count-in"), &mut click.count_in, "count-in"),
+        ] {
+            ui.label(RichText::new(label).small().weak());
+            egui::ComboBox::from_id_salt(id)
+                .width(70.0)
+                .selected_text(bars(*value))
+                .show_ui(ui, |ui| {
+                    for n in [0, 1, 2, 4] {
+                        ui.selectable_value(value, n, bars(n));
+                    }
+                });
+        }
+    });
+    if click != before {
+        doc.set_metronome(|m| *m = click);
+    }
 }
 
 fn set_armed(doc: &mut Document, id: TrackId, armed: bool) {
@@ -380,11 +412,21 @@ pub fn takes_pane(
     egui::ScrollArea::vertical()
         .auto_shrink([false; 2])
         .show(ui, |ui| {
-            let tracks: Vec<Track> = doc
+            let armed: Vec<TrackId> = doc
                 .project()
                 .tracks
                 .iter()
                 .filter(|t| t.armed && t.kind == TrackKind::Audio)
+                .map(|t| t.id)
+                .collect();
+            // The armed tracks, each followed by its printed twin.
+            let tracks: Vec<Track> = doc
+                .project()
+                .tracks
+                .iter()
+                .filter(|t| {
+                    armed.contains(&t.id) || t.printed_from.is_some_and(|f| armed.contains(&f))
+                })
                 .map(|t| (**t).clone())
                 .collect();
             if tracks.is_empty() {
@@ -392,25 +434,7 @@ pub fn takes_pane(
             }
             for track in tracks {
                 ui.label(RichText::new(&track.name).strong());
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("●").color(theme::RECORD));
-                    ui.label(&track.playlist);
-                });
-                let mut chosen = None;
-                for (i, take) in track.alternates.iter().enumerate().rev() {
-                    if ui
-                        .selectable_label(false, &take.name)
-                        .on_hover_text(tr("Play this take instead"))
-                        .clicked()
-                    {
-                        chosen = Some(i);
-                    }
-                }
-                if let Some(i) = chosen {
-                    doc.history_mut().edit(tr("Choose take"), |p| {
-                        audiostrada_core::edit::select_playlist(p, track.id, i)
-                    });
-                }
+                track_takes(ui, doc, &track);
                 ui.add_space(8.0);
             }
             for extension in extensions.iter_mut() {
@@ -422,6 +446,102 @@ pub fn takes_pane(
                 }
             }
         });
+}
+
+/// A track's takes, the newest first: in its current playlist or in its alternates.
+fn track_takes(ui: &mut Ui, doc: &mut Document, track: &Track) {
+    let mut takes: Vec<(Option<usize>, &audiostrada_core::Clip)> = track
+        .clips
+        .iter()
+        .map(|c| (None, c))
+        .chain(
+            track
+                .alternates
+                .iter()
+                .enumerate()
+                .flat_map(|(i, a)| a.clips.iter().map(move |c| (Some(i), c))),
+        )
+        .filter(|(_, c)| c.take.is_some())
+        .collect();
+    // A take left in place appears in every playlist: once is enough.
+    takes.sort_by_key(|(at, c)| (c.id, at.is_some()));
+    takes.dedup_by_key(|(_, c)| c.id);
+    takes.sort_by_key(|(_, c)| std::cmp::Reverse(c.take.as_ref().map_or(0, |t| t.number)));
+    if takes.is_empty() {
+        ui.label(RichText::new(tr("No take yet")).small().weak());
+    }
+    for (playlist, clip) in takes {
+        let Some(take) = clip.take.as_deref() else {
+            continue;
+        };
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            let (dot, hint) = match playlist {
+                None => ("●", tr("Plays now")),
+                Some(_) => ("○", tr("In another playlist")),
+            };
+            ui.label(RichText::new(dot).small().color(theme::RECORD))
+                .on_hover_text(hint);
+            let name = match &take.section {
+                Some(section) => trf!("{section} · Take {n}", section = section, n = take.number),
+                None => trf!("Take {n}", n = take.number),
+            };
+            if ui
+                .add(egui::Label::new(name).sense(Sense::click()))
+                .on_hover_text(tr(
+                    "Go to this take, and play it if it is in another playlist",
+                ))
+                .clicked()
+            {
+                if let Some(i) = playlist {
+                    let id = track.id;
+                    doc.history_mut().edit(tr("Choose take"), |p| {
+                        audiostrada_core::edit::select_playlist(p, id, i)
+                    });
+                }
+                doc.player_mut().locate(clip.start);
+            }
+            for star in 1..=3u8 {
+                let lit = take.rating >= star;
+                let text = RichText::new(if lit { "★" } else { "☆" }).color(if lit {
+                    WARN
+                } else {
+                    ui.visuals().weak_text_color()
+                });
+                if ui
+                    .add(egui::Label::new(text).sense(Sense::click()))
+                    .on_hover_text(tr("Rate this take"))
+                    .clicked()
+                {
+                    let rating = if take.rating == star { 0 } else { star };
+                    let id = clip.id;
+                    doc.history_mut().edit(tr("Rate take"), |p| {
+                        audiostrada_core::edit::set_take_rating(p, id, rating)
+                    });
+                }
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if !take.dropouts.is_empty() {
+                    ui.label(
+                        RichText::new(trf!("{count} dropout(s)", count = take.dropouts.len()))
+                            .small()
+                            .color(ERROR),
+                    )
+                    .on_hover_text(tr(
+                        "The audio dropped out while it was recorded: marked in red on the clip",
+                    ));
+                }
+                if take.clipped > 0 {
+                    ui.label(
+                        RichText::new(trf!("clipped {count}×", count = take.clipped))
+                            .small()
+                            .color(WARN),
+                    )
+                    .on_hover_text(tr("Samples at full scale: the input was too loud"));
+                }
+            });
+        });
+    }
 }
 
 /// Bytes free on the disk holding `path`.

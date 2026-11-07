@@ -282,9 +282,23 @@ impl TimelineView {
             self.groove_preview(painter, wave_rect, track.id, clip);
         }
 
+        let px = |samples: u64| (samples as f64 / self.zoom) as f32;
+        // Where the audio dropped out while it was recorded.
+        if let Some(take) = &clip.take {
+            for &at in &take.dropouts {
+                if at >= clip.offset && at < clip.offset + clip.length {
+                    let x = rect.left() + px(at - clip.offset);
+                    painter.vline(
+                        x,
+                        wave_rect.y_range(),
+                        Stroke::new(2.0, Color32::from_rgb(255, 64, 64)),
+                    );
+                }
+            }
+        }
+
         // Fades.
         let fade_color = visuals.strong_text_color().gamma_multiply(0.7);
-        let px = |samples: u64| (samples as f64 / self.zoom) as f32;
         let fade = |x0: f32, width: f32, rising: bool, shape: audiostrada_core::FadeShape| {
             let steps = (width / 3.0).clamp(2.0, 48.0) as usize;
             let points: Vec<Pos2> = (0..=steps)
@@ -350,6 +364,12 @@ impl TimelineView {
         }
         if clip.gain_db != 0.0 {
             label.push_str(&format!("  {:+.1} dB", clip.gain_db));
+        }
+        if let Some(take) = &clip.take
+            && take.rating > 0
+        {
+            label.push_str("  ");
+            label.push_str(&"★".repeat(usize::from(take.rating)));
         }
         painter
             .with_clip_rect(rect.intersect(painter.clip_rect()))

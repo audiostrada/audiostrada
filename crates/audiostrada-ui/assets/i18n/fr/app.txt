@@ -1332,3 +1332,54 @@ Son entrée ne passe pas par ses effets (écoute coupée) : la prise traitée se
 
 What to record
 Ce qu'il faut enregistrer
+
+Recover takes
+Récupérer les prises
+
+{count} take(s) of a recording cut short were put back on their tracks.
+{count} prise(s) d'un enregistrement interrompu ont été remises sur leurs pistes.
+
+Bars of the song played before recording starts, counted from the punch-in when there is one
+Mesures du morceau jouées avant le début de l'enregistrement, comptées depuis le punch-in s'il y en a un
+
+Pre-roll before the count-in
+Pré-roll avant le décompte
+
+Count-in
+Décompte
+
+Go to this take, and play it if it is in another playlist
+Aller à cette prise, et la faire jouer si elle est dans une autre playlist
+
+In another playlist
+Dans une autre playlist
+
+No take yet
+Pas encore de prise
+
+Plays now
+Jouée en ce moment
+
+Pre-roll
+Pré-roll
+
+Rate take
+Noter la prise
+
+Rate this take
+Noter cette prise
+
+Samples at full scale: the input was too loud
+Échantillons à pleine échelle : l'entrée était trop forte
+
+Take {n}
+Prise {n}
+
+The audio dropped out while it was recorded: marked in red on the clip
+L'audio a décroché pendant l'enregistrement : c'est marqué en rouge sur le clip
+
+clipped {count}×
+sature {count}×
+
+{section} · Take {n}
+{section} · Prise {n}
