@@ -12,6 +12,7 @@ use audiostrada_io::{
     AudioBackend, AudioBuffers, AudioStream, CallbackTime, auto_backend, backend, open_stream,
 };
 use audiostrada_media::{AudioData, write_wav};
+use audiostrada_plugins::scan::Database;
 use audiostrada_ui::document::{AppDirs, Document};
 
 use crate::cli::AudioArgs;
@@ -165,14 +166,34 @@ pub fn is_project(path: &Path) -> bool {
     audiostrada_core::file::is_project(path)
 }
 
-/// Opens a project file, or a new project with every audio file imported as a track.
-pub fn load_document(files: &[impl AsRef<Path>], dirs: AppDirs) -> Result<Document> {
+/// The user's settings for third-party plugins (sandbox, on or off, crash guard) put in
+/// place, and the plugins found by the last scan: to give a project before it is opened, so
+/// that its plugins load at once instead of being reported as not installed.
+pub fn plugin_database(ui: &audiostrada_ui::UiPrefs, disabled: bool) -> Database {
+    ui.apply_sandbox();
+    if let Some(dir) = dirs::data_dir() {
+        audiostrada_plugins::guard::set_dir(dir.join("audiostrada"));
+    }
+    audiostrada_plugins::set_enabled(!disabled && !ui.disable_plugins);
+    crate::plugins::database_path()
+        .map(|cache| Database::load(&cache))
+        .unwrap_or_default()
+}
+
+/// Opens a project file, or a new project with every audio file imported as a track, with
+/// these plugins installed (see [`plugin_database`]).
+pub fn load_document(
+    files: &[impl AsRef<Path>],
+    dirs: AppDirs,
+    plugins: Database,
+) -> Result<Document> {
     let files: Vec<PathBuf> = files.iter().map(|f| f.as_ref().to_path_buf()).collect();
     let mut doc = match files.iter().find(|f| is_project(f)) {
         Some(project) => Document::open(project, dirs)
             .with_context(|| format!("cannot open {}", project.display()))?,
         None => Document::new(dirs),
     };
+    doc.set_plugins(plugins);
     let audio: Vec<PathBuf> = files.into_iter().filter(|f| !is_project(f)).collect();
     doc.import(&audio);
     if !doc.wait_loaded(LOAD_TIMEOUT) {
@@ -194,7 +215,8 @@ fn format_time(samples: u64, rate: u32) -> String {
 
 pub fn play(args: &AudioArgs) -> Result<()> {
     let backend = open_backend(args)?;
-    let mut doc = load_document(&args.files, AppDirs::default())?;
+    let plugins = plugin_database(&crate::prefs::Prefs::load().ui, false);
+    let mut doc = load_document(&args.files, AppDirs::default(), plugins)?;
     let stream = backend.open(&args.config, &mut |info| {
         Box::new(doc.processor(info.sample_rate, info.buffer_size as usize))
     })?;
@@ -241,7 +263,8 @@ pub fn play(args: &AudioArgs) -> Result<()> {
 pub fn render(args: &AudioArgs) -> Result<()> {
     let output = args.output.as_deref().context("missing --output")?;
     let rate = args.config.sample_rate.unwrap_or(RENDER_RATE);
-    let mut doc = load_document(&args.files, AppDirs::default())?;
+    let plugins = plugin_database(&crate::prefs::Prefs::load().ui, false);
+    let mut doc = load_document(&args.files, AppDirs::default(), plugins)?;
     let mut processor = doc.processor(rate, RENDER_BLOCK);
     if !doc.wait_loaded(LOAD_TIMEOUT) {
         anyhow::bail!("timed out preparing media");
@@ -463,7 +486,7 @@ mod tests {
         let missing = PathBuf::from("/nonexistent/audiostrada/a.wav");
         assert!(compare(&dummy(vec![missing.clone(), missing.clone()])).is_err());
         let project = PathBuf::from("/nonexistent/audiostrada/Song.strada");
-        assert!(load_document(&[project], AppDirs::default()).is_err());
+        assert!(load_document(&[project], AppDirs::default(), Database::default()).is_err());
     }
 
     #[test]

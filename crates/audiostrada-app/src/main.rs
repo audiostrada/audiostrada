@@ -108,19 +108,15 @@ fn run_ui(run: &cli::RunArgs) -> anyhow::Result<()> {
     let dirs = app_dirs();
     let project_file = files.iter().find(|f| audio::is_project(f));
     let recovery = audiostrada_ui::RecoveryOffer::find(project_file.map(|p| p.as_path()), &dirs);
-    let mut doc = if recovery.is_some() {
-        Document::new(dirs.clone())
+    // Before the project, so that its plugins load with it.
+    let database = audio::plugin_database(&prefs.borrow().ui, run.disable_plugins);
+    let doc = if recovery.is_some() {
+        let mut doc = Document::new(dirs.clone());
+        doc.set_plugins(database);
+        doc
     } else {
-        audio::load_document(files, dirs.clone())?
+        audio::load_document(files, dirs.clone(), database)?
     };
-    prefs.borrow().ui.apply_sandbox();
-    if let Some(dir) = dirs::data_dir() {
-        audiostrada_plugins::guard::set_dir(dir.join("audiostrada"));
-    }
-    audiostrada_plugins::set_enabled(!run.disable_plugins && !prefs.borrow().ui.disable_plugins);
-    if let Some(cache) = plugins::database_path() {
-        doc.set_plugins(audiostrada_plugins::scan::Database::load(&cache));
-    }
     let doc = Rc::new(RefCell::new(doc));
     let mut host = audiostrada_ui::AudioHost::new({
         let doc = Rc::clone(&doc);
