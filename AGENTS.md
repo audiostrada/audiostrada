@@ -28,6 +28,12 @@ Test any windowing change with two screens and the mixer detached and maximized 
 second one. Open the browser and a third-party plugin from the mixer, move them over it,
 click the mixer, then open them again.
 
+When driving the real windows from a script (`SetCursorPos`, `mouse_event`), move the mouse
+a few pixels before clicking: egui-winit drops a click whose window has had no cursor
+position since the pointer left it, so a teleported cursor clicks into nothing and looks like
+a frozen window. `GetGUIThreadInfo` (capture, active, focus windows of AudioStrada's UI
+thread) and `WindowFromPoint` tell where input really goes.
+
 ### Never break the other systems
 
 Windowing code differs on each system and each part sits behind `cfg`. A change for one
@@ -65,6 +71,12 @@ the macOS behavior were tuned by hand; keep them unless they are tested on those
   These windows use the tool window style, to stay out of the taskbar and Alt+Tab. Windows
   refuses the foreground to a background process, so AudioStrada calls `allow_foreground`
   before `OpenGui` and `RaiseGui`, and `raise` puts the window topmost by itself.
+  `follow` checks the window's real topmost style rather than trusting what it last set:
+  a plugin can take the style off. Some plugin processes refuse z-order changes on our frame
+  window altogether once their editor was opened before (Analog Lab V: topmost, `HWND_TOP`,
+  even from AudioStrada in front, all ignored; FabFilter's are fine). `follow` then retries
+  twice a second at most, and clicking the plugin's slot still brings the window to the front
+  (activation is not refused).
 - **Plugin windows in AudioStrada's process** (sandbox off) are owned by the main window.
 - **Test:** `floating_windows_are_owned_by_the_panel_under_them` in `window.rs` checks the
   ownership rules on real Win32 windows.
