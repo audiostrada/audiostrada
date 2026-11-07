@@ -2692,6 +2692,60 @@ fn card(ui: &mut Ui, pack: &Pack, width: f32) -> CardAction {
 
 #[cfg(test)]
 mod tests {
+    /// A few captures in the tests' library: amps, a pedal, a full rig, and an amp in a
+    /// folder of its own with captures at several gains.
+    fn fake_library() {
+        let root = crate::nam_library::library_root().expect("a library folder");
+        let capture = |dir: &std::path::Path, file: &str, kind: &str, model: &str, gain: f32| {
+            std::fs::create_dir_all(dir).expect("a folder");
+            let text = format!(
+                r#"{{"version": "0.5.4", "metadata": {{"name": "{file}", "modeled_by": "Test",
+                "gear_make": "Brand", "gear_model": "{model}", "gear_type": "{kind}", "gain": {gain}}},
+                "architecture": "WaveNet", "config": {{}}, "weights": []}}"#
+            );
+            std::fs::write(dir.join(format!("{file}.nam")), text).expect("a capture");
+        };
+        capture(&root, "clean", "amp", "Twin", 0.2);
+        capture(&root, "fuzz", "pedal", "Big Muff", 0.7);
+        capture(&root, "rig", "amp-cab", "Plexi rig", 0.5);
+        for (i, gain) in [0.2, 0.5, 0.9].into_iter().enumerate() {
+            capture(
+                &root.join("JCM800"),
+                &format!("gain {i}"),
+                "amp",
+                "JCM800",
+                gain,
+            );
+        }
+        crate::captures::invalidate();
+    }
+
+    #[test]
+    fn the_library_answers_a_user_trying_everything() {
+        fake_library();
+        for picker in [None, Some(Picker::Amp), Some(Picker::Pedal(0))] {
+            let script = crate::test_sweep::script(
+                egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1300.0, 1100.0)),
+                40.0,
+                true,
+            );
+            let frames = script.len();
+            let mut script = script.into_iter();
+            crate::effect_editors::drive_for_test(
+                "amp_rig",
+                &[("model", 0.0)],
+                frames,
+                |frame, state| {
+                    if frame == 0 {
+                        state.rig.tab = Tab::Library;
+                        state.rig.picker = picker;
+                    }
+                },
+                |_| script.next().unwrap_or_default(),
+            );
+        }
+    }
+
     #[test]
     fn the_rig_answers_a_user_trying_everything() {
         let pickers = [

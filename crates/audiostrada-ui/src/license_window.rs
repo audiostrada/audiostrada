@@ -188,3 +188,49 @@ fn error_text(error: &audiostrada_license::LicenseError) -> String {
         LicenseError::Io(e) => trf!("Cannot save the license: {error}", error = e),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use audiostrada_license::Plan;
+
+    fn license(until: &str, plan: Plan) -> License {
+        License {
+            id: "lic_1".into(),
+            name: "Ada".into(),
+            email: "ada@example.org".into(),
+            updates_until: until.into(),
+            issued: "2026-11-01".into(),
+            plan,
+        }
+    }
+
+    #[test]
+    fn every_status_draws_and_a_wrong_text_is_refused() {
+        let ctx = egui::Context::default();
+        let statuses = [
+            Status::Unofficial,
+            Status::Evaluation,
+            Status::Licensed(license("2027-11-01", Plan::Personal)),
+            Status::Licensed(license("9999-12-31", Plan::Commercial)),
+            Status::Lapsed(license("2025-01-01", Plan::Personal)),
+        ];
+        for mut status in statuses {
+            let mut window = LicenseWindow::default();
+            window.open();
+            for _ in 0..2 {
+                ctx.run_ui(egui::RawInput::default(), |ui| {
+                    window.show(ui.ctx(), &mut status)
+                })
+                .drop_without_applying_deltas();
+            }
+            window.offer("not a license".into(), &mut status);
+            assert!(window.error.is_some());
+            ctx.run_ui(egui::RawInput::default(), |ui| {
+                window.show(ui.ctx(), &mut status)
+            })
+            .drop_without_applying_deltas();
+        }
+        assert_ne!(plan_name(Plan::Personal), plan_name(Plan::Commercial));
+    }
+}

@@ -76,9 +76,11 @@ pub(crate) fn load_dirs() -> Vec<PathBuf> {
     if let Some(config) = crate::config_dir() {
         dirs.push(config.join("audiostrada").join("nam"));
     }
+    // Tests keep to their own folder: the user's captures stay out of reach.
     for base in [dirs::document_dir(), dirs::home_dir()]
         .into_iter()
         .flatten()
+        .filter(|_| !cfg!(test))
     {
         for name in ["NAM", "Neural Amp Modeler", "TONE3000"] {
             let dir = base.join(name);

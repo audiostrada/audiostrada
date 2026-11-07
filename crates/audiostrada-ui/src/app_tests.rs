@@ -298,3 +298,50 @@ fn the_app_answers_a_user_trying_everything_2() {
 fn the_app_answers_a_user_trying_everything_3() {
     sweep_app(3);
 }
+
+#[test]
+fn the_inspector_and_the_audio_settings_answer_a_user_trying_everything() {
+    let h = Harness::with_song("inspector-sweep");
+    let doc = Rc::clone(&h.app.doc);
+    let tracks: Vec<_> = doc.borrow().project().tracks.iter().map(|t| t.id).collect();
+    let ctx = egui::Context::default();
+    let area = Rect::from_min_size(Pos2::ZERO, vec2(500.0, 900.0));
+    for &track in tracks.iter().take(3) {
+        doc.borrow_mut()
+            .select_track(track, crate::document::SelectMode::Only);
+        let selection: Vec<_> = doc
+            .borrow()
+            .project()
+            .track(track)
+            .map(|t| t.clips.iter().map(|c| c.id).collect())
+            .unwrap_or_default();
+        for events in crate::test_sweep::script(area, 30.0, true) {
+            let input = RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(500.0, 900.0))),
+                events,
+                ..Default::default()
+            };
+            ctx.run_ui(input, |ui| {
+                crate::inspector::show(ui, &mut doc.borrow_mut(), &selection)
+            })
+            .drop_without_applying_deltas();
+        }
+    }
+    let mut panel = crate::settings::AudioSettingsPanel::default();
+    let ctx = egui::Context::default();
+    for events in crate::test_sweep::script(
+        Rect::from_min_size(Pos2::ZERO, vec2(700.0, 700.0)),
+        25.0,
+        false,
+    ) {
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(700.0, 700.0))),
+            events,
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| {
+            let _ = panel.show(ui, &h.app.host);
+        })
+        .drop_without_applying_deltas();
+    }
+}
