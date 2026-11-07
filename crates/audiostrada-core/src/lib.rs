@@ -21,6 +21,6 @@ pub use history::History;
 pub use model::{
     Branch, ClickSound, Clip, ClipId, ControlPoint, FadeShape, Frozen, Insert, InsertId, Marker,
     MarkerId, Master, MetronomeSettings, MidiMapping, Monitoring, Note, Playlist, Project,
-    ReferenceTrack, Source, SourceId, Track, TrackId, TrackKind, TrackSend, parse_variant,
-    variant_path,
+    RecordSource, ReferenceTrack, Source, SourceId, Track, TrackId, TrackKind, TrackSend,
+    parse_variant, variant_path,
 };

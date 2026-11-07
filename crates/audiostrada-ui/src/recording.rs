@@ -5,7 +5,7 @@
 use std::path::Path;
 
 use audiostrada_core::routing::Channel;
-use audiostrada_core::{Monitoring, Track, TrackId, TrackKind};
+use audiostrada_core::{Monitoring, RecordSource, Track, TrackId, TrackKind};
 use eframe::egui::{self, Color32, RichText, Sense, Ui, vec2};
 
 use crate::document::Document;
@@ -277,6 +277,7 @@ fn input_card(ui: &mut Ui, doc: &mut Document, track: &Track) {
                 });
             });
             chain(ui, doc, track);
+            record_source(ui, doc, track);
         });
     let rect = card.response.rect;
     ui.painter().vline(
@@ -284,6 +285,58 @@ fn input_card(ui: &mut Ui, doc: &mut Document, track: &Track) {
         rect.y_range().shrink(5.0),
         egui::Stroke::new(3.0, color),
     );
+}
+
+/// What the track records: its input, what its effects make of it, or both.
+fn record_source(ui: &mut Ui, doc: &mut Document, track: &Track) {
+    let choices = [
+        (
+            RecordSource::Raw,
+            tr("Raw"),
+            tr("The input as it comes: its effects can still change afterwards"),
+        ),
+        (
+            RecordSource::Processed,
+            tr("Processed"),
+            tr("What its effects make of the input, on a track under it"),
+        ),
+        (
+            RecordSource::Both,
+            tr("Both"),
+            tr(
+                "The input on the track, and what its effects make of it on a silent track under it",
+            ),
+        ),
+    ];
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(tr("Record")).small().weak());
+        for (source, name, hint) in choices {
+            let on = track.record_source == source;
+            if ui
+                .selectable_label(on, RichText::new(name).small())
+                .on_hover_text(hint)
+                .clicked()
+                && !on
+            {
+                let id = track.id;
+                doc.history_mut().edit(tr("What to record"), |p| {
+                    if let Some(t) = p.track_mut(id) {
+                        t.record_source = source;
+                    }
+                });
+            }
+        }
+    });
+    if track.record_source.processed() && track.monitor == Monitoring::Off {
+        ui.label(
+            RichText::new(tr(
+                "Its input does not go through its effects (monitoring off): the processed take \
+                 would be silent.",
+            ))
+            .small()
+            .color(WARN),
+        );
+    }
 }
 
 /// The track's effects as chips, and what they add.

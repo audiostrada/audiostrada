@@ -88,6 +88,45 @@ impl Capture {
     }
 }
 
+/// Records what reaches it in the graph, such as a track after its effects. `delay` is what
+/// the effects add: the take is placed that much earlier, in line with the input.
+pub struct CaptureNode {
+    capture: Box<Capture>,
+    delay: u64,
+}
+
+impl std::fmt::Debug for CaptureNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CaptureNode")
+            .field("delay", &self.delay)
+            .finish_non_exhaustive()
+    }
+}
+
+impl crate::Processor for CaptureNode {
+    fn process(&mut self, ctx: &mut crate::ProcessContext<'_>) {
+        if !ctx.transport.playing || ctx.transport.position < self.delay {
+            return;
+        }
+        let frames = ctx.buffers.frames();
+        let position = ctx.transport.position - self.delay;
+        self.capture.write(&ctx.buffers, 0, frames, position);
+    }
+}
+
+/// Both sides of a recording of a node's inputs (`channels` of them), in project-independent
+/// engine samples, `delay` samples late.
+pub(crate) fn start_node(
+    target: TakeTarget,
+    dir: PathBuf,
+    sample_rate: u32,
+    punch: Option<(u64, u64)>,
+    delay: u64,
+) -> std::io::Result<(CaptureNode, Recorder)> {
+    let (capture, recorder) = start(vec![target], dir, sample_rate, punch)?;
+    Ok((CaptureNode { capture, delay }, recorder))
+}
+
 /// A track to record and the hardware inputs feeding it (one or two).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TakeTarget {

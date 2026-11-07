@@ -1305,3 +1305,30 @@ aucun effet
 
 {m} min free
 {m} min libres
+
+{name} (printed)
+{name} (imprimé)
+
+Raw
+Brut
+
+Processed
+Traité
+
+Both
+Les deux
+
+The input as it comes: its effects can still change afterwards
+L'entrée telle quelle : ses effets peuvent encore changer après coup
+
+What its effects make of the input, on a track under it
+Ce que ses effets font de l'entrée, sur une piste en dessous
+
+The input on the track, and what its effects make of it on a silent track under it
+L'entrée sur la piste, et ce que ses effets en font sur une piste muette en dessous
+
+Its input does not go through its effects (monitoring off): the processed take would be silent.
+Son entrée ne passe pas par ses effets (écoute coupée) : la prise traitée serait silencieuse.
+
+What to record
+Ce qu'il faut enregistrer

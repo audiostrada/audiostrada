@@ -1438,12 +1438,71 @@ pub fn snap(position: u64, beats: Option<f64>, tempo: &TempoMap, rate: u32) -> u
     tempo.beat_to_sample(snapped.max(0.0), rate)
 }
 
+/// The track receiving the processed takes of `track`, made under it the first time: same
+/// color, folder and channels, no effects, linked to it for editing. With `muted`, it is
+/// silent (the track plays its raw take through its effects).
+pub fn printed_twin(project: &mut Project, track: TrackId, name: &str, muted: bool) -> TrackId {
+    if let Some(twin) = project
+        .tracks
+        .iter()
+        .find(|t| t.printed_from == Some(track))
+    {
+        return twin.id;
+    }
+    let Some(source) = project.track(track).cloned() else {
+        return track;
+    };
+    let twin = project.add_track(name);
+    if let Some(t) = project.track_mut(twin) {
+        t.color = source.color;
+        t.stereo = source.stereo;
+        t.master_send = source.master_send;
+        t.mute = muted;
+        t.printed_from = Some(track);
+    }
+    crate::routing::move_tracks(project, &[twin], track, true);
+    if crate::groups::group_of(project, track).is_none() {
+        let mut group = crate::groups::TrackGroup::new(&source.name, source.color);
+        for link in [
+            crate::groups::Link::Gain,
+            crate::groups::Link::Mute,
+            crate::groups::Link::Solo,
+            crate::groups::Link::Arm,
+            crate::groups::Link::Fx,
+            crate::groups::Link::Automation,
+        ] {
+            *group.link_mut(link) = false;
+        }
+        group.tracks = vec![track, twin];
+        project.groups.push(group);
+    }
+    twin
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
 
     use super::*;
     use crate::model::Source;
+
+    #[test]
+    fn processed_takes_go_on_a_twin_made_once() {
+        let mut p = Project::new("Test", 48_000);
+        let vox = p.add_track("Vox");
+        let after = p.add_track("Bass");
+        p.track_mut(vox).unwrap().stereo = true;
+        let twin = printed_twin(&mut p, vox, "Vox (printed)", true);
+        assert_eq!(printed_twin(&mut p, vox, "other", true), twin);
+        let order: Vec<TrackId> = p.tracks.iter().map(|t| t.id).collect();
+        assert_eq!(order, [vox, twin, after], "right under its track");
+        let t = p.track(twin).unwrap();
+        assert!(t.mute && t.stereo && t.inserts.is_empty());
+        assert_eq!(t.color, p.track(vox).unwrap().color);
+        let group = &p.groups[0];
+        assert_eq!(group.tracks, [vox, twin]);
+        assert!(group.edit && !group.gain && !group.mute && !group.arm);
+    }
 
     fn project() -> (Project, TrackId, Vec<ClipId>) {
         let mut p = Project::new("t", 48_000);

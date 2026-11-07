@@ -91,6 +91,30 @@ impl Monitoring {
     }
 }
 
+/// What a track records: its input as it comes, as its effects make it heard, or both. What
+/// the effects make goes on the track's printed twin.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RecordSource {
+    #[default]
+    Raw,
+    Processed,
+    Both,
+}
+
+impl RecordSource {
+    pub fn is_raw(&self) -> bool {
+        *self == RecordSource::Raw
+    }
+
+    pub fn raw(self) -> bool {
+        self != RecordSource::Processed
+    }
+
+    pub fn processed(self) -> bool {
+        self != RecordSource::Raw
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Marker {
     pub id: MarkerId,
@@ -428,6 +452,11 @@ pub struct Track {
     /// Height in the timeline, relative to the others' (1 for the same).
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub height: f32,
+    #[serde(default, skip_serializing_if = "RecordSource::is_raw")]
+    pub record_source: RecordSource,
+    /// The track whose processed takes this one receives.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub printed_from: Option<TrackId>,
 }
 
 pub(crate) fn one() -> f32 {
@@ -1033,6 +1062,8 @@ impl Project {
             console: None,
             icon: None,
             height: 1.0,
+            record_source: RecordSource::Raw,
+            printed_from: None,
         }));
         id
     }

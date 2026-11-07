@@ -329,6 +329,8 @@ pub struct ProjectPlayer {
     monitor: ChannelNodes,
     /// Armed tracks hear their input only while stopped or recording (Pro Tools style).
     auto_monitoring: bool,
+    /// Nodes recording tracks after their effects.
+    prints: Vec<NodeId>,
     recording: bool,
     preview: crate::nodes::PreviewControls,
     plugins: Plugins,
@@ -662,6 +664,7 @@ impl ProjectPlayer {
         connect_stereo(&mut engine, click, out);
         Self {
             auto_monitoring: false,
+            prints: Vec::new(),
             recording: false,
             preview: preview_controls,
             reference: reference_controls,
@@ -1675,7 +1678,51 @@ impl ProjectPlayer {
         Ok(recorder)
     }
 
+    /// Records a track as its effects make it heard (before its fader) into `dir`: the take of
+    /// its printed twin. `punch` is in project samples.
+    pub fn start_print(
+        &mut self,
+        track: TrackId,
+        name: String,
+        stereo: bool,
+        dir: PathBuf,
+        punch: Option<(u64, u64)>,
+    ) -> Result<Recorder, String> {
+        let nodes = self.tracks.get(&track).ok_or("unknown track")?;
+        let strip = nodes.channel.strip;
+        let delay: u32 = nodes.channel.inserts.iter().map(|i| i.declared).sum();
+        let sources: Vec<(Port, usize)> = self
+            .engine
+            .graph()
+            .edges()
+            .iter()
+            .filter(|e| e.to.node == strip && e.to.channel < 2)
+            .map(|e| (e.from, e.to.channel))
+            .collect();
+        let punch = punch.map(|(a, b)| (self.to_engine(a), self.to_engine(b)));
+        let target = TakeTarget {
+            track,
+            name,
+            inputs: if stereo { vec![0, 1] } else { vec![0] },
+        };
+        let rate = self.engine.sample_rate();
+        let (node, recorder) =
+            crate::record::start_node(target, dir, rate, punch, u64::from(delay))
+                .map_err(|e| format!("cannot start recording: {e}"))?;
+        let id = self.engine.add_node("Print", node, 2, 0);
+        for (from, channel) in sources {
+            let _ = self.engine.connect(from, Port::new(id, channel));
+        }
+        self.prints.push(id);
+        self.engine.commit();
+        Ok(recorder)
+    }
+
     pub fn stop_recording(&mut self) {
+        for id in std::mem::take(&mut self.prints) {
+            self.remove_node(id);
+        }
+        self.engine.commit();
         self.engine.stop_recording();
         self.recording = false;
         self.set_record_window(&[], None);
@@ -2571,6 +2618,89 @@ mod tests {
         let [a, b] = clicks("aligned-loop", true, Some((0, 1000)), 60);
         assert_eq!(a.len(), 4, "a click each pass: {a:?}");
         assert_eq!(a, b, "looping");
+    }
+
+    #[test]
+    fn a_track_is_recorded_as_its_effects_make_it_in_line_with_its_input() {
+        let mut history = History::new(Project::new("Test", 48_000));
+        let mut player = ProjectPlayer::new(EngineConfig { workers: Some(0) });
+        let media = MediaPool::new(48_000, None);
+        let mut processor = player.processor(48_000, 64);
+        let mut vox = TrackId(0);
+        history.edit("Setup", |p| {
+            vox = p.add_track("Vox");
+            p.track_mut(vox).unwrap().armed = true;
+            let gain = routing::add_insert(p, Channel::Track(vox), "utility", Default::default());
+            routing::set_insert_param(p, Channel::Track(vox), gain.unwrap(), "gain", 6.0206);
+            let comp =
+                routing::add_insert(p, Channel::Track(vox), "compressor", Default::default())
+                    .unwrap();
+            for (param, value) in [
+                ("ratio", 1.0),
+                ("threshold", 0.0),
+                ("color", 0.0),
+                ("lookahead", 5.0),
+            ] {
+                routing::set_insert_param(p, Channel::Track(vox), comp, param, value);
+            }
+        });
+        player.sync(history.project(), None, &media);
+        player.update();
+        let dir = audiostrada_core::scratch::dir("print");
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut storage = ChannelBuffers::new(2, 2, 64);
+        let mut n = 0u32;
+        let mut block = |processor: &mut EngineProcessor, storage: &mut ChannelBuffers| {
+            for i in 0..64 {
+                storage.input_mut(0)[i] = ((n + i as u32) % 997) as f32 / 2000.0;
+            }
+            n += 64;
+            processor.render(&mut storage.buffers(64));
+        };
+        for _ in 0..20 {
+            block(&mut processor, &mut storage);
+            player.update();
+        }
+        player.locate(6400);
+        let punch = Some((6400, u64::MAX));
+        let target = TakeTarget {
+            track: vox,
+            name: "Vox".into(),
+            inputs: vec![0],
+        };
+        let raw = player
+            .start_recording(vec![target], dir.clone(), punch)
+            .unwrap();
+        let print = player
+            .start_print(vox, "Vox (printed)".into(), false, dir.clone(), punch)
+            .unwrap();
+        player.engine_mut().play();
+        for _ in 0..60 {
+            block(&mut processor, &mut storage);
+            player.update();
+        }
+        player.stop_recording();
+        block(&mut processor, &mut storage);
+        player.update();
+        let (raw, print) = (raw.finish(), print.finish());
+        let (raw, print) = (&raw.takes[0], &print.takes[0]);
+        assert_eq!(raw.start, print.start, "both start where the recording did");
+        assert!(
+            raw.frames - print.frames <= 240,
+            "{} {}",
+            raw.frames,
+            print.frames
+        );
+        let a = audiostrada_media::load(&raw.path).unwrap();
+        let b = audiostrada_media::load(&print.path).unwrap();
+        let worst = (0..b.frames())
+            .map(|i| (b.channel(0)[i] - 2.0 * a.channel(0)[i]).abs())
+            .fold(0.0f32, f32::max);
+        assert!(
+            worst < 1e-3,
+            "the print is the input through the chain, in line: {worst}"
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

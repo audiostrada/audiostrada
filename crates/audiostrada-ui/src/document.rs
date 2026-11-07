@@ -11,8 +11,8 @@ use audiostrada_core::autosave::{self, Autosaver};
 use audiostrada_core::file::{self, ProjectError};
 use audiostrada_core::routing::Channel;
 use audiostrada_core::{
-    Clip, ClipId, History, Note, Project, ProjectPaths, Source, SourceId, TrackId, TrackKind,
-    base64, edit,
+    Clip, ClipId, History, Note, Project, ProjectPaths, RecordSource, Source, SourceId, TrackId,
+    TrackKind, base64, edit,
 };
 use audiostrada_engine::EngineConfig;
 use audiostrada_engine::EngineProcessor;
@@ -62,6 +62,8 @@ pub struct AppDirs {
 #[derive(Debug)]
 struct Recording {
     recorder: Option<Recorder>,
+    /// Tracks recorded after their effects, for their printed twins.
+    prints: Vec<Recorder>,
     midi: Option<MidiTake>,
     /// Project position where the visible take starts.
     start: u64,
@@ -791,6 +793,7 @@ impl Document {
             );
         }
         let mut targets = Vec::new();
+        let mut printed = Vec::new();
         for track in &armed {
             let first = usize::from(track.input);
             let channels: Vec<usize> = if track.stereo {
@@ -806,11 +809,16 @@ impl Document {
                     inputs = inputs
                 ));
             }
-            targets.push(TakeTarget {
-                track: track.id,
-                name: track.name.clone(),
-                inputs: channels,
-            });
+            if track.record_source.processed() {
+                printed.push((track.id, track.name.clone(), track.stereo));
+            }
+            if track.record_source.raw() {
+                targets.push(TakeTarget {
+                    track: track.id,
+                    name: track.name.clone(),
+                    inputs: channels,
+                });
+            }
         }
         let dir = match (&self.paths, &self.dirs.recordings) {
             (Some(paths), _) => paths.audio_dir(),
@@ -835,7 +843,7 @@ impl Document {
         let recorder = if targets.is_empty() {
             None
         } else {
-            Some(self.player.start_recording(targets, dir, punch)?)
+            Some(self.player.start_recording(targets, dir.clone(), punch)?)
         };
         // Where the armed tracks record, what they had is not heard: only the new playing. A
         // loop recorded over is quiet from its start on every pass.
@@ -843,8 +851,28 @@ impl Document {
             let from = project.looping().map_or(start, |(a, _)| start.min(a));
             (from, u64::MAX)
         });
-        let audio: Vec<TrackId> = armed.iter().map(|t| t.id).collect();
+        let mut audio: Vec<TrackId> = armed.iter().map(|t| t.id).collect();
+        audio.extend(
+            project
+                .tracks
+                .iter()
+                .filter(|t| t.printed_from.is_some_and(|f| printed.iter().any(|p| p.0 == f)))
+                .map(|t| t.id),
+        );
         self.player.set_record_window(&audio, Some(window));
+        // Its effects ring before the start: it starts where the input does.
+        let from = Some(punch.unwrap_or((start, u64::MAX)));
+        let mut prints = Vec::new();
+        for (track, name, stereo) in printed {
+            let name = trf!("{name} (printed)", name = name);
+            match self
+                .player
+                .start_print(track, name, stereo, dir.clone(), from)
+            {
+                Ok(recorder) => prints.push(recorder),
+                Err(e) => self.messages.push(e),
+            }
+        }
         let midi = (!midi_tracks.is_empty()).then(|| MidiTake {
             reader: self.player.live_midi().reader(),
             events: Vec::new(),
@@ -861,6 +889,7 @@ impl Document {
         self.player.engine_mut().play();
         self.recording = Some(Recording {
             recorder,
+            prints,
             midi,
             start,
             tracks,
@@ -878,7 +907,7 @@ impl Document {
         {
             recording.stopping = true;
             self.player.set_recording_click(false);
-            if recording.recorder.is_some() {
+            if recording.recorder.is_some() || !recording.prints.is_empty() {
                 self.player.stop_recording();
             }
             if let Some(take) = recording.midi.take() {
@@ -1069,15 +1098,18 @@ impl Document {
     /// Waveforms of the takes being recorded: track, start and length of a peak (project
     /// samples), and the peaks.
     pub fn live_recording(&self, mut each: impl FnMut(TrackId, u64, f64, &[f32])) {
-        let Some(recorder) = self.recording.as_ref().and_then(|r| r.recorder.as_ref()) else {
+        let Some(recording) = self.recording.as_ref() else {
             return;
         };
         let rate = self.player.engine().sample_rate().max(1);
         let block = f64::from(audiostrada_engine::record::LIVE_BLOCK)
             * f64::from(self.project().sample_rate)
             / f64::from(rate);
-        recorder
-            .live(|track, start, peaks| each(track, self.player.to_project(start), block, peaks));
+        for recorder in recording.recorder.iter().chain(&recording.prints) {
+            recorder.live(|track, start, peaks| {
+                each(track, self.player.to_project(start), block, peaks)
+            });
+        }
     }
 
     /// Start position and tracks of the recording in progress.
@@ -1107,6 +1139,7 @@ impl Document {
                 .recorder
                 .as_ref()
                 .is_none_or(Recorder::is_finished)
+            || !recording.prints.iter().all(Recorder::is_finished)
         {
             return;
         }
@@ -1114,30 +1147,31 @@ impl Document {
             return;
         };
         let offset = recording.offset;
-        let Some(recorder) = recording.recorder else {
-            return;
-        };
-        let result = recorder.finish();
-        self.messages.extend(
-            result
-                .errors
-                .iter()
-                .map(|e| trf!("Recording error: {error}", error = e)),
-        );
-        if result.dropped > 0 {
-            self.messages.push(trf!(
-                "{count} frames were lost while recording: the disk did not keep up.",
-                count = result.dropped
-            ));
-        }
-        if result.takes.is_empty() {
-            return;
+        let results: Vec<_> = recording
+            .recorder
+            .map(|r| (r.finish(), false))
+            .into_iter()
+            .chain(recording.prints.into_iter().map(|r| (r.finish(), true)))
+            .collect();
+        for (result, _) in &results {
+            self.messages.extend(
+                result
+                    .errors
+                    .iter()
+                    .map(|e| trf!("Recording error: {error}", error = e)),
+            );
+            if result.dropped > 0 {
+                self.messages.push(trf!(
+                    "{count} frames were lost while recording: the disk did not keep up.",
+                    count = result.dropped
+                ));
+            }
         }
         let rate = self.player.engine().sample_rate();
-        let takes: Vec<(TrackId, Source, Clip)> = result
-            .takes
+        let takes: Vec<(TrackId, Source, Clip, bool)> = results
             .iter()
-            .map(|take| {
+            .flat_map(|(result, printed)| result.takes.iter().map(move |take| (take, *printed)))
+            .map(|(take, printed)| {
                 let stored = self
                     .paths
                     .as_ref()
@@ -1173,16 +1207,36 @@ impl Document {
                     notes: None,
                     variations: Vec::new(),
                 };
-                (take.track, source, clip)
+                (take.track, source, clip, printed)
             })
             .collect();
+        if takes.is_empty() {
+            return;
+        }
         let count = takes.len();
+        let twins: HashMap<TrackId, String> = takes
+            .iter()
+            .filter(|t| t.3)
+            .filter_map(|t| self.project().track(t.0))
+            .map(|t| (t.id, trf!("{name} (printed)", name = t.name)))
+            .collect();
         self.history.edit(tr("Record"), |p| {
-            for (track, source, mut clip) in takes {
-                if clip.length > 0 {
-                    clip.source = p.add_source(source);
-                    edit::record_take(p, track, clip);
+            for (track, source, mut clip, printed) in takes {
+                if clip.length == 0 {
+                    continue;
                 }
+                clip.source = p.add_source(source);
+                let target = match twins.get(&track).filter(|_| printed) {
+                    Some(name) => {
+                        // Heard through the effects already: silent beside its raw take.
+                        let both = p
+                            .track(track)
+                            .is_some_and(|t| t.record_source == RecordSource::Both);
+                        edit::printed_twin(p, track, name, both)
+                    }
+                    None => track,
+                };
+                edit::record_take(p, target, clip);
             }
         });
         self.messages
@@ -2153,6 +2207,58 @@ mod tests {
         }
         let clip = &doc.project().tracks[0].clips[0];
         assert_eq!(clip.start, 2000 - 10 - heard);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn both_puts_the_processed_take_on_a_silent_twin() {
+        let dir = temp("record-both");
+        let dirs = AppDirs {
+            recordings: Some(dir.clone()),
+            ..AppDirs::default()
+        };
+        let mut doc = Document::new(dirs);
+        doc.history_mut().edit("Track", |p| {
+            let t = p.add_track("Vox");
+            let track = p.track_mut(t).unwrap();
+            track.armed = true;
+            track.record_source = RecordSource::Both;
+            audiostrada_core::routing::add_insert(
+                p,
+                Channel::Track(t),
+                "utility",
+                Default::default(),
+            )
+            .unwrap();
+        });
+        let mut processor = doc.processor(48_000, 64);
+        doc.update();
+        doc.player_mut().locate(2000);
+        let mut storage = audiostrada_io::ChannelBuffers::new(2, 2, 64);
+        storage.input_mut(0).fill(0.25);
+        processor.render(&mut storage.buffers(64));
+        doc.start_recording(2, 0).unwrap();
+        for _ in 0..20 {
+            processor.render(&mut storage.buffers(64));
+            doc.update();
+        }
+        doc.stop_recording();
+        processor.render(&mut storage.buffers(64));
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while doc.recording.is_some() && std::time::Instant::now() < deadline {
+            doc.update();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let project = doc.project();
+        assert_eq!(project.tracks.len(), 2);
+        let (vox, twin) = (&project.tracks[0], &project.tracks[1]);
+        assert_eq!(twin.name, "Vox (printed)");
+        assert_eq!(twin.printed_from, Some(vox.id));
+        assert!(twin.mute && twin.inserts.is_empty());
+        assert_eq!(vox.clips.len(), 1);
+        assert_eq!(twin.clips.len(), 1);
+        assert_eq!(vox.clips[0].start, twin.clips[0].start);
+        assert_eq!(doc.history().undo_label(), Some("Record"));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
