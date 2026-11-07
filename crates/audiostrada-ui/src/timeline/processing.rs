@@ -1154,6 +1154,12 @@ mod tests {
         doc.borrow_mut().history_mut().edit("MIDI", |p| {
             let t = p.add_track("Keys");
             p.add_midi_clip(t, 0, 48_000, Vec::new());
+            // Fades on the first clip, and a copy overlapping it into a crossfade.
+            let first = p.tracks[0].clips[0].clone();
+            edit::set_fades(p, first.id, 6_000, 9_000);
+            if let Some(copy) = p.add_clip(p.tracks[0].id, first.source, first.length / 2) {
+                edit::resolve_overlaps(p, p.tracks[0].id, &[copy]);
+            }
         });
         view.track_height = 110.0;
         let ctx = egui::Context::default();

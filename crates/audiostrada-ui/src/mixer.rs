@@ -5139,6 +5139,35 @@ mod tests {
     }
 
     #[test]
+    fn the_rack_answers_a_user_trying_everything() {
+        let mut doc = Document::new(AppDirs::default());
+        let mut track = None;
+        doc.history_mut().edit("Setup", |p| {
+            let t = p.add_track("Guitar");
+            for id in [
+                "eq",
+                "compressor",
+                "drive",
+                "amp_rig",
+                "delay",
+                "reverb",
+                "tape",
+            ] {
+                routing::add_insert(p, Channel::Track(t), id, Default::default());
+            }
+            track = Some(t);
+        });
+        doc.select_track(track.unwrap(), crate::document::SelectMode::Only);
+        let doc = Rc::new(RefCell::new(doc));
+        let ctx = egui::Context::default();
+        let mut view = MixerView::new(Rc::clone(&doc));
+        let area = Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 400.0));
+        for events in crate::test_sweep::script(area, 18.0, true) {
+            rack_frame(&ctx, &mut view, events);
+        }
+    }
+
+    #[test]
     fn the_mixer_answers_a_user_trying_everything() {
         let mut doc = Document::new(AppDirs::default());
         doc.history_mut().edit("Setup", |p| {
