@@ -1813,7 +1813,8 @@ impl Document {
         self.update_reference();
         self.poll_recording();
         let media_changed = self.media.poll();
-        if media_changed {
+        // A file already loaded (imported again) brings no change: its import goes on anyway.
+        if media_changed || !self.imports.is_empty() {
             self.finish_imports();
         }
         let state = (self.history.revision(), self.media.generation());
@@ -1974,6 +1975,40 @@ impl Document {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_file_imported_again_finishes_loading() {
+        use audiostrada_media::{AudioData, write_wav};
+        let dir = std::env::temp_dir().join(format!("audiostrada-reimport-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let wav = dir.join("a.wav");
+        write_wav(&wav, &AudioData::new(vec![vec![0.5; 48_000]], 48_000)).unwrap();
+        let mut doc = Document::new(AppDirs::default());
+        doc.import(std::slice::from_ref(&wav));
+        assert!(doc.wait_loaded(std::time::Duration::from_secs(10)));
+        let track = doc.project().tracks[0].id;
+        doc.import_at(std::slice::from_ref(&wav), Some(track), 12_000);
+        assert!(
+            doc.wait_loaded(std::time::Duration::from_secs(10)),
+            "on a track"
+        );
+        doc.import(std::slice::from_ref(&wav));
+        assert!(doc.wait_loaded(std::time::Duration::from_secs(10)), "again");
+        // A stereo file too.
+        let stereo = dir.join("b.wav");
+        write_wav(
+            &stereo,
+            &AudioData::new(vec![vec![0.5; 48_000], vec![-0.5; 48_000]], 48_000),
+        )
+        .unwrap();
+        doc.import(std::slice::from_ref(&stereo));
+        assert!(
+            doc.wait_loaded(std::time::Duration::from_secs(10)),
+            "stereo"
+        );
+        assert!(doc.project().tracks.iter().any(|t| t.stereo));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     use super::*;
     use audiostrada_media::{AudioData, write_wav};
 

@@ -21,7 +21,7 @@ use crate::i18n::tr;
 use crate::trf;
 
 /// Longest a headless render or import may take.
-const WAIT: Duration = Duration::from_secs(600);
+const WAIT: Duration = Duration::from_secs(if cfg!(test) { 20 } else { 600 });
 
 pub(crate) fn tool(name: &str, description: &str, properties: Value, required: &[&str]) -> Value {
     json!({
@@ -1529,6 +1529,115 @@ mod tests {
 
     fn call(backend: &mut Headless, name: &str, args: Value) -> Result<Value, String> {
         backend.call(name, &args)
+    }
+
+    /// A value for argument `key` of a tool, from its name and its schema.
+    fn guess(key: &str, schema: &Value, ctx: &Guess) -> Value {
+        let kind = schema
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or("string");
+        if let Some(first) = schema.get("enum").and_then(|e| e.get(0)) {
+            return first.clone();
+        }
+        let one = match key {
+            k if k.contains("clip") || k == "left" || k == "right" => json!(ctx.clips[0]),
+            k if k.contains("track")
+                || k == "to"
+                || k == "target"
+                || k == "from"
+                || k == "reference" =>
+            {
+                json!(ctx.track)
+            }
+            k if k.contains("path") || k.contains("file") || k == "output" => json!(ctx.file),
+            "start" | "at" | "position" => json!(0.25),
+            "end" => json!(1.5),
+            "effect" | "insert" => json!("eq"),
+            "name" | "label" | "title" => json!("Test"),
+            _ => match kind {
+                "number" => json!(1.0),
+                "integer" => json!(1),
+                "boolean" => json!(true),
+                "array" => json!([]),
+                "object" => json!({}),
+                _ => json!("A"),
+            },
+        };
+        if kind == "array" && !one.is_array() {
+            json!([one])
+        } else {
+            one
+        }
+    }
+
+    struct Guess {
+        track: String,
+        clips: Vec<u64>,
+        file: String,
+    }
+
+    #[test]
+    fn every_tool_answers_any_arguments_without_a_panic() {
+        use audiostrada_media::{AudioData, write_wav};
+        let dir =
+            std::env::temp_dir().join(format!("audiostrada-every-tool-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let wav = dir.join("drums.wav");
+        let hits: Vec<f32> = (0..96_000)
+            .map(|n| {
+                if n % 12_000 < 800 {
+                    ((n as f32) * 0.07).sin() * 0.8
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        write_wav(&wav, &AudioData::new(vec![hits], 48_000)).unwrap();
+        let mut doc = Document::new(crate::document::AppDirs::default());
+        doc.import(std::slice::from_ref(&wav));
+        settle(&mut doc).unwrap();
+        doc.history_mut().edit("MIDI", |p| {
+            let t = p.add_track("Keys");
+            p.add_midi_clip(t, 0, 96_000, Vec::new());
+            audiostrada_core::edit::add_marker(p, 48_000);
+        });
+        let track = doc.project().tracks[0].name.clone();
+        let clips: Vec<u64> = doc
+            .project()
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter().map(|c| c.id.0))
+            .collect();
+        let ctx = Guess {
+            track,
+            clips,
+            file: wav.to_string_lossy().into_owned(),
+        };
+        for definition in tool_definitions(false) {
+            let name = definition["name"].as_str().unwrap().to_owned();
+            let _ = call_tool(&mut doc, false, &name, &json!({}));
+            let mut args = serde_json::Map::new();
+            if let Some(props) = definition["inputSchema"]["properties"].as_object() {
+                for (key, schema) in props {
+                    args.insert(key.clone(), guess(key, schema, &ctx));
+                }
+            }
+            // Files written go to the test's folder.
+            for key in ["path", "file", "output"] {
+                if args.contains_key(key)
+                    && (name.starts_with("export") || name.starts_with("save"))
+                {
+                    args.insert(
+                        key.into(),
+                        json!(dir.join(format!("{name}.out")).to_string_lossy()),
+                    );
+                }
+            }
+            let _ = call_tool(&mut doc, false, &name, &Value::Object(args));
+        }
+        while doc.history_mut().undo().is_some() {}
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
