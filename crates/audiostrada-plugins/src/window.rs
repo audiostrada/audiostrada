@@ -309,20 +309,27 @@ mod imp {
 
     use std::sync::Mutex;
 
-    use windows::Win32::Foundation::{CloseHandle, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM};
+    use windows::Win32::Foundation::{
+        CloseHandle, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
+    };
+    use windows::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITOR_DEFAULTTONULL, MONITORINFO,
+        MonitorFromPoint, MonitorFromWindow,
+    };
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::System::Threading::{
         GetCurrentProcessId, GetCurrentThreadId, OpenProcess, PROCESS_NAME_WIN32,
         PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        AdjustWindowRect, CreateWindowExW, DefWindowProcW, DestroyWindow, EnumThreadWindows,
-        GWL_EXSTYLE, GetClassNameW, GetForegroundWindow, GetWindowLongPtrW,
+        AdjustWindowRectEx, AllowSetForegroundWindow, CreateWindowExW, DefWindowProcW,
+        DestroyWindow, EnumThreadWindows, GWL_EXSTYLE, GWLP_HWNDPARENT, GetClassNameW,
+        GetForegroundWindow, GetWindowLongPtrW, GetWindowRect, GetWindowTextW,
         GetWindowThreadProcessId, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, IsWindow,
         IsWindowVisible, RegisterClassW, SW_HIDE, SW_SHOW, SW_SHOWNOACTIVATE, SWP_NOACTIVATE,
-        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetForegroundWindow, SetWindowPos, ShowWindow,
-        WINDOW_EX_STYLE, WM_CLOSE, WNDCLASSW, WS_CAPTION, WS_EX_TOPMOST, WS_MINIMIZEBOX,
-        WS_OVERLAPPED, WS_SYSMENU,
+        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetForegroundWindow, SetWindowLongPtrW, SetWindowPos,
+        ShowWindow, WINDOW_EX_STYLE, WINDOW_STYLE, WM_CLOSE, WNDCLASSW, WS_CAPTION,
+        WS_EX_APPWINDOW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_OVERLAPPED, WS_SYSMENU,
     };
     use windows::core::{BOOL, PCWSTR, PWSTR, w};
 
@@ -335,6 +342,20 @@ mod imp {
         // SAFETY: plain Win32 call; an invalid window gives 0.
         unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
         pid
+    }
+
+    fn class_of(window: HWND) -> String {
+        let mut class = [0u16; 64];
+        // SAFETY: plain Win32 call; an invalid window gives an empty name.
+        let length = unsafe { GetClassNameW(window, &mut class) }.max(0) as usize;
+        String::from_utf16_lossy(&class[..length])
+    }
+
+    /// Lets the process `pid` (a plugin host) bring its window to the front: Windows refuses
+    /// it to a process in the background unless the one in front allows it.
+    pub fn allow_foreground(pid: u32) {
+        // SAFETY: plain Win32 call.
+        let _ = unsafe { AllowSetForegroundWindow(pid) };
     }
 
     fn hwnd(handle: u64) -> HWND {
@@ -387,48 +408,192 @@ mod imp {
         last.1
     }
 
-    /// Keeps this process's other windows (winit's: detached panels, editors) above its main
-    /// window while AudioStrada is in front, and just behind the application in front
-    /// otherwise, as [`HostWindow`] does for plugin windows. True while they float.
-    pub fn keep_windows_above(main: u64) -> bool {
+    /// This thread's winit windows besides `main`, with their titles.
+    fn winit_windows(main: HWND) -> Vec<(HWND, String)> {
         unsafe extern "system" fn collect(window: HWND, list: LPARAM) -> BOOL {
             // SAFETY: `list` is the vector handed to EnumThreadWindows below, alive meanwhile.
             unsafe { (*(list.0 as *mut Vec<HWND>)).push(window) };
             true.into()
         }
         let mut windows: Vec<HWND> = Vec::new();
-        // SAFETY: plain Win32 calls; only this process's windows are changed.
+        // SAFETY: plain Win32 calls on this thread's windows.
         unsafe {
             let _ = EnumThreadWindows(
                 GetCurrentThreadId(),
                 Some(collect),
                 LPARAM(&mut windows as *mut Vec<HWND> as isize),
             );
-            let front = GetForegroundWindow();
-            let active = ours(front);
-            let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
-            let mut floating = false;
-            for window in windows {
-                let mut class = [0u16; 32];
-                let length = GetClassNameW(window, &mut class).max(0) as usize;
-                if window == hwnd(main)
-                    || !IsWindowVisible(window).as_bool()
-                    || String::from_utf16_lossy(&class[..length]) != "Window Class"
-                {
-                    continue;
-                }
-                let topmost =
-                    GetWindowLongPtrW(window, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0;
-                if active && !topmost {
-                    let _ = SetWindowPos(window, Some(HWND_TOPMOST), 0, 0, 0, 0, flags);
-                } else if !active && topmost {
-                    let _ = SetWindowPos(window, Some(HWND_NOTOPMOST), 0, 0, 0, 0, flags);
-                    let _ = SetWindowPos(window, Some(front), 0, 0, 0, 0, flags);
-                }
-                floating |= active;
-            }
-            floating
+            windows
+                .into_iter()
+                .filter(|&window| {
+                    let mut class = [0u16; 32];
+                    let length = GetClassNameW(window, &mut class).max(0) as usize;
+                    window != main && String::from_utf16_lossy(&class[..length]) == "Window Class"
+                })
+                .map(|window| {
+                    let mut title = [0u16; 512];
+                    let length = GetWindowTextW(window, &mut title).max(0) as usize;
+                    (window, String::from_utf16_lossy(&title[..length]))
+                })
+                .collect()
         }
+    }
+
+    fn owner_of(window: HWND) -> isize {
+        // SAFETY: plain Win32 call; GWLP_HWNDPARENT of a top-level window is its owner.
+        unsafe { GetWindowLongPtrW(window, GWLP_HWNDPARENT) }
+    }
+
+    fn set_owner(window: HWND, owner: HWND) {
+        if owner_of(window) != owner.0 as isize {
+            // SAFETY: plain Win32 call on one of this thread's windows.
+            unsafe { SetWindowLongPtrW(window, GWLP_HWNDPARENT, owner.0 as isize) };
+        }
+    }
+
+    fn rect_of(window: HWND) -> RECT {
+        let mut rect = RECT::default();
+        // SAFETY: plain Win32 call; a failure leaves an empty rectangle.
+        let _ = unsafe { GetWindowRect(window, &mut rect) };
+        rect
+    }
+
+    fn overlap(a: &RECT, b: &RECT) -> i64 {
+        let width = i64::from(a.right.min(b.right) - a.left.max(b.left)).max(0);
+        let height = i64::from(a.bottom.min(b.bottom) - a.top.max(b.top)).max(0);
+        width * height
+    }
+
+    /// Makes this thread's other winit windows owned, as Reaper's floating windows are: the
+    /// detached panels titled `panels` by the main window, the others (effect editors, the
+    /// browser) by the panel they overlap most, else by the main window, so that a panel
+    /// clicked never covers them, on whatever screen. Windows then keeps each above its owner
+    /// and never behind, hides them with the main window when it is minimized, leaves them
+    /// out of the taskbar and of Alt+Tab, and they still go to any screen. Cheap: call it at
+    /// each frame, windows opened or moved since are owned on the next one. An owner closing
+    /// takes its windows with it: see [`release_windows`].
+    pub fn own_windows(main: u64, panels: &[String]) {
+        let main = hwnd(main);
+        let windows = winit_windows(main);
+        let panels: Vec<(HWND, RECT)> = windows
+            .iter()
+            .filter(|(_, title)| panels.contains(title))
+            .map(|&(window, _)| (window, rect_of(window)))
+            .collect();
+        for &(window, _) in &windows {
+            let owner = if panels.iter().any(|&(p, _)| p == window) {
+                main
+            } else {
+                let rect = rect_of(window);
+                panels
+                    .iter()
+                    .map(|(p, r)| (*p, overlap(&rect, r)))
+                    .filter(|&(_, area)| area > 0)
+                    .max_by_key(|&(_, area)| area)
+                    .map_or(main, |(p, _)| p)
+            };
+            set_owner(window, owner);
+            // SAFETY: plain Win32 calls; only this thread's windows are changed.
+            unsafe {
+                // winit marks all its windows as application windows, which puts even owned
+                // ones in Alt+Tab, and marks them again whenever their state changes (maximized,
+                // resizable…): taken off at each frame.
+                let extended = GetWindowLongPtrW(window, GWL_EXSTYLE);
+                if extended & WS_EX_APPWINDOW.0 as isize != 0 {
+                    SetWindowLongPtrW(
+                        window,
+                        GWL_EXSTYLE,
+                        extended & !(WS_EX_APPWINDOW.0 as isize),
+                    );
+                }
+                // What earlier versions left: topmost windows float over other applications.
+                if extended & WS_EX_TOPMOST.0 as isize != 0 {
+                    let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
+                    let _ = SetWindowPos(window, Some(HWND_NOTOPMOST), 0, 0, 0, 0, flags);
+                }
+            }
+        }
+    }
+
+    /// Hands the windows owned by the one titled `title` to the main window, before that one
+    /// closes: Windows destroys owned windows with their owner, behind winit's back, and such
+    /// a window would never show again.
+    pub fn release_windows(main: u64, title: &str) {
+        let main = hwnd(main);
+        let windows = winit_windows(main);
+        let Some(&(owner, _)) = windows.iter().find(|(_, t)| t == title) else {
+            return;
+        };
+        for &(window, _) in &windows {
+            if owner_of(window) == owner.0 as isize {
+                set_owner(window, main);
+            }
+        }
+    }
+
+    /// Where the plugin windows of this process were last left, by title: they open there
+    /// again.
+    static PLACES: Mutex<Vec<(String, i32, i32)>> = Mutex::new(Vec::new());
+
+    /// Where a window of this outer size opens: where the last one so named was left if that
+    /// is still on a screen, else centered on AudioStrada's window in front (the detached
+    /// mixer it was opened from, say), else on its main one: on that window's screen.
+    fn place(title: &str, width: i32, height: i32) -> (i32, i32) {
+        let places = PLACES.lock().unwrap_or_else(|e| e.into_inner());
+        // SAFETY: plain Win32 calls; a closed or missing window gives the defaults.
+        unsafe {
+            if let Some(&(_, x, y)) = places.iter().find(|(t, ..)| t == title) {
+                let corner = POINT {
+                    x: x + 40,
+                    y: y + 10,
+                };
+                if !MonitorFromPoint(corner, MONITOR_DEFAULTTONULL).is_invalid() {
+                    return (x, y);
+                }
+            }
+            let main = hwnd(super::parent());
+            let front = GetForegroundWindow();
+            let parent = if super::parent() != 0
+                && !front.is_invalid()
+                && process_of(front) == process_of(main)
+                && IsWindowVisible(front).as_bool()
+            {
+                front
+            } else {
+                main
+            };
+            let mut main = RECT::default();
+            if super::parent() == 0 || GetWindowRect(parent, &mut main).is_err() {
+                return (100, 100);
+            }
+            let x = (main.left + main.right - width) / 2;
+            let y = (main.top + main.bottom - height) / 2;
+            // Kept on that screen: the title bar never out of reach.
+            let mut info = MONITORINFO {
+                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+                ..Default::default()
+            };
+            let monitor = MonitorFromWindow(parent, MONITOR_DEFAULTTONEAREST);
+            if !GetMonitorInfoW(monitor, &mut info).as_bool() {
+                return (x, y);
+            }
+            let work = info.rcWork;
+            (
+                x.min(work.right - width).max(work.left),
+                y.min(work.bottom - height).max(work.top),
+            )
+        }
+    }
+
+    fn remember_place(title: &str, window: HWND) {
+        let mut rect = RECT::default();
+        // SAFETY: plain Win32 call on our window.
+        if unsafe { GetWindowRect(window, &mut rect) }.is_err() {
+            return;
+        }
+        let mut places = PLACES.lock().unwrap_or_else(|e| e.into_inner());
+        places.retain(|(t, ..)| t != title);
+        places.push((title.to_owned(), rect.left, rect.top));
     }
 
     unsafe extern "system" fn procedure(
@@ -448,12 +613,30 @@ mod imp {
         unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
     }
 
+    /// Where a followed window stands, last set by [`HostWindow::follow`].
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Stand {
+        /// Topmost: AudioStrada's main window or a plugin window is in front.
+        Top,
+        /// Just behind one of AudioStrada's other windows (a panel, a dialog), in front.
+        Behind(HWND),
+        /// Left where it was when another application came in front: above AudioStrada's
+        /// window, under that application.
+        Away,
+    }
+
+    /// Without a minimize box: an owned window minimizes to a stub over the taskbar, and a
+    /// followed one would be lost (it has no taskbar button).
+    const STYLE: WINDOW_STYLE = WINDOW_STYLE(WS_OVERLAPPED.0 | WS_CAPTION.0 | WS_SYSMENU.0);
+
     pub struct HostWindow {
         hwnd: HWND,
+        title: String,
         /// AudioStrada's window in another process, which this one keeps above like an owned
-        /// window would: topmost while AudioStrada is in front, hidden while it is minimized.
+        /// window would (see [`Self::follow`]); owning across processes would tie AudioStrada's
+        /// input to a busy plugin host.
         follow: Option<HWND>,
-        topmost: bool,
+        stand: Stand,
         hidden: bool,
     }
 
@@ -474,24 +657,32 @@ mod imp {
                     };
                     RegisterClassW(&class);
                 });
-                let style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+                // Out of the taskbar and of Alt+Tab: an owned window is by itself, a followed
+                // one has no owner and needs the tool window style.
+                let extended = if follow.is_some() {
+                    WS_EX_TOOLWINDOW
+                } else {
+                    WINDOW_EX_STYLE::default()
+                };
                 let mut rect = RECT {
                     left: 0,
                     top: 0,
                     right: width as i32,
                     bottom: height as i32,
                 };
-                let _ = AdjustWindowRect(&mut rect, style, false);
-                let title: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+                let _ = AdjustWindowRectEx(&mut rect, STYLE, false, extended);
+                let (outer_width, outer_height) = (rect.right - rect.left, rect.bottom - rect.top);
+                let (x, y) = place(title, outer_width, outer_height);
+                let wide: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
                 let hwnd = CreateWindowExW(
-                    WINDOW_EX_STYLE::default(),
+                    extended,
                     CLASS,
-                    PCWSTR(title.as_ptr()),
-                    style,
-                    100,
-                    100,
-                    rect.right - rect.left,
-                    rect.bottom - rect.top,
+                    PCWSTR(wide.as_ptr()),
+                    STYLE,
+                    x,
+                    y,
+                    outer_width,
+                    outer_height,
                     // Owned by AudioStrada's window, so it stays above it.
                     (super::owner() != 0).then(|| hwnd(super::owner())),
                     None,
@@ -502,8 +693,10 @@ mod imp {
                 let _ = ShowWindow(hwnd, SW_SHOW);
                 let mut window = Self {
                     hwnd,
+                    title: title.to_owned(),
                     follow,
-                    topmost: false,
+                    // As created: not topmost, above AudioStrada's window.
+                    stand: Stand::Away,
                     hidden: false,
                 };
                 window.follow();
@@ -511,7 +704,12 @@ mod imp {
             }
         }
 
-        /// Keeps the window above AudioStrada's, in another process, without ever waiting for it.
+        /// Keeps the window above AudioStrada's, in another process, as if owned by it, without
+        /// ever waiting for it: hidden while it is minimized; topmost while AudioStrada's
+        /// windows (main, panels, editors, browser) or a plugin window are in front, so that a
+        /// panel clicked never covers it, on whatever screen; just behind one of AudioStrada's
+        /// dialogs in front (a file chooser, a message), which it must not cover; left above
+        /// AudioStrada's window, under the application in front, when another one is.
         fn follow(&mut self) {
             let Some(audiostrada) = self.follow else {
                 return;
@@ -534,19 +732,44 @@ mod imp {
                     self.hidden = minimized;
                 }
                 let front = GetForegroundWindow();
-                let in_front = process_of(front) == process_of(audiostrada) || ours(front);
-                if in_front == self.topmost {
+                // Between two windows (Alt+Tab, the desktop): nothing to follow yet.
+                if front.is_invalid() {
+                    return;
+                }
+                let main_process = process_of(audiostrada) == process_of(front);
+                let wanted = if front == audiostrada
+                    || (!main_process && ours(front))
+                    || (main_process && class_of(front) == "Window Class")
+                {
+                    Stand::Top
+                } else if main_process {
+                    Stand::Behind(front)
+                } else {
+                    Stand::Away
+                };
+                if wanted == self.stand {
                     return;
                 }
                 let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
-                if in_front {
-                    let _ = SetWindowPos(self.hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, flags);
-                } else {
-                    // Behind the application now in front, not above it.
-                    let _ = SetWindowPos(self.hwnd, Some(HWND_NOTOPMOST), 0, 0, 0, 0, flags);
-                    let _ = SetWindowPos(self.hwnd, Some(front), 0, 0, 0, 0, flags);
+                let topmost =
+                    |w: HWND| GetWindowLongPtrW(w, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0;
+                match wanted {
+                    Stand::Top => {
+                        let _ = SetWindowPos(self.hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, flags);
+                    }
+                    // Already under the windows in front, above AudioStrada's: left there.
+                    Stand::Away if self.stand != Stand::Top => {}
+                    Stand::Away | Stand::Behind(_) => {
+                        // Out of the topmost band lands on top of the others: then just
+                        // behind the window in front, unless it is topmost itself (a shell
+                        // window), as following one would make this one topmost again.
+                        let _ = SetWindowPos(self.hwnd, Some(HWND_NOTOPMOST), 0, 0, 0, 0, flags);
+                        if !topmost(front) {
+                            let _ = SetWindowPos(self.hwnd, Some(front), 0, 0, 0, 0, flags);
+                        }
+                    }
                 }
-                self.topmost = in_front;
+                self.stand = wanted;
             }
         }
 
@@ -555,7 +778,6 @@ mod imp {
         }
 
         pub fn resize(&mut self, width: u32, height: u32) {
-            let style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
             let mut rect = RECT {
                 left: 0,
                 top: 0,
@@ -564,7 +786,8 @@ mod imp {
             };
             // SAFETY: plain Win32 calls on our window.
             unsafe {
-                let _ = AdjustWindowRect(&mut rect, style, false);
+                let extended = WINDOW_EX_STYLE(GetWindowLongPtrW(self.hwnd, GWL_EXSTYLE) as u32);
+                let _ = AdjustWindowRectEx(&mut rect, STYLE, false, extended);
                 let _ = SetWindowPos(
                     self.hwnd,
                     None,
@@ -577,10 +800,17 @@ mod imp {
             }
         }
 
+        /// Brings the window to the front: asked from AudioStrada, which is then in front. A
+        /// followed window goes topmost itself, as the focus may still be refused to it.
         pub fn raise(&mut self) {
             // SAFETY: plain Win32 calls on our window.
             unsafe {
                 let _ = ShowWindow(self.hwnd, SW_SHOW);
+                if self.follow.is_some() {
+                    let flags = SWP_NOMOVE | SWP_NOSIZE;
+                    let _ = SetWindowPos(self.hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, flags);
+                    self.stand = Stand::Top;
+                }
                 let _ = SetForegroundWindow(self.hwnd);
             }
         }
@@ -599,6 +829,7 @@ mod imp {
 
     impl Drop for HostWindow {
         fn drop(&mut self) {
+            remember_place(&self.title, self.hwnd);
             // SAFETY: our window, destroyed once.
             unsafe {
                 let _ = DestroyWindow(self.hwnd);
@@ -732,10 +963,20 @@ mod imp {
 }
 
 pub use imp::HostWindow;
-#[cfg(any(target_os = "macos", windows))]
+
+/// Lets a plugin host bring its window to the front (Windows; nothing elsewhere).
+pub fn allow_foreground(pid: u32) {
+    #[cfg(windows)]
+    imp::allow_foreground(pid);
+    #[cfg(not(windows))]
+    let _ = pid;
+}
+#[cfg(target_os = "macos")]
 pub use imp::keep_windows_above;
 #[cfg(all(unix, not(target_os = "macos")))]
 pub use imp::raise_parent;
+#[cfg(windows)]
+pub use imp::{own_windows, release_windows};
 
 impl std::fmt::Debug for HostWindow {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -822,5 +1063,125 @@ mod tests {
             plugin_got_it |= matches!(event, Event::KeyPress(_));
         }
         assert!(!plugin_got_it, "the plugin does not");
+    }
+}
+
+#[cfg(all(test, windows))]
+#[allow(clippy::unwrap_used)]
+mod windows_tests {
+    use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DefWindowProcW, DestroyWindow, GWL_EXSTYLE, GWLP_HWNDPARENT,
+        GetWindowLongPtrW, IsWindow, RegisterClassW, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOSIZE,
+        SWP_NOZORDER, SetWindowPos, ShowWindow, WNDCLASSW, WS_EX_APPWINDOW, WS_OVERLAPPEDWINDOW,
+    };
+    use windows::core::{PCWSTR, w};
+
+    use super::*;
+
+    unsafe extern "system" fn procedure(h: HWND, m: u32, w: WPARAM, l: LPARAM) -> LRESULT {
+        // SAFETY: default handling, with what Windows handed us.
+        unsafe { DefWindowProcW(h, m, w, l) }
+    }
+
+    /// A window of winit's class, as AudioStrada's are, shown without the focus.
+    fn window(title: &str, x: i32) -> HWND {
+        static REGISTER: std::sync::Once = std::sync::Once::new();
+        // SAFETY: plain Win32 calls with valid arguments, on this test's thread.
+        unsafe {
+            let instance = GetModuleHandleW(None).unwrap().into();
+            REGISTER.call_once(|| {
+                RegisterClassW(&WNDCLASSW {
+                    lpfnWndProc: Some(procedure),
+                    hInstance: instance,
+                    lpszClassName: w!("Window Class"),
+                    ..Default::default()
+                });
+            });
+            let title: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+            let hwnd = CreateWindowExW(
+                WS_EX_APPWINDOW,
+                w!("Window Class"),
+                PCWSTR(title.as_ptr()),
+                WS_OVERLAPPEDWINDOW,
+                x,
+                0,
+                400,
+                300,
+                None,
+                None,
+                Some(instance),
+                None,
+            )
+            .unwrap();
+            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            hwnd
+        }
+    }
+
+    fn owner(window: HWND) -> isize {
+        // SAFETY: plain Win32 call.
+        unsafe { GetWindowLongPtrW(window, GWLP_HWNDPARENT) }
+    }
+
+    fn move_to(window: HWND, x: i32) {
+        // SAFETY: plain Win32 call on a window of this test.
+        unsafe {
+            let flags = SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE;
+            SetWindowPos(window, None, x, 0, 0, 0, flags).unwrap();
+        }
+    }
+
+    /// The effect browser follows the panel it is put on, so that clicking that panel never
+    /// covers it; it outlives the panel closing.
+    #[test]
+    fn floating_windows_are_owned_by_the_panel_under_them() {
+        let main = window("Main — test", 0);
+        let mixer = window("Mixer — test", 2000);
+        let browser = window("Browser — test", 100);
+        let (main_id, panels) = (main.0 as u64, vec!["Mixer — test".to_owned()]);
+
+        imp::own_windows(main_id, &panels);
+        assert_eq!(owner(mixer), main.0 as isize, "panels: by the main window");
+        assert_eq!(
+            owner(browser),
+            main.0 as isize,
+            "over the main window: by it"
+        );
+        // SAFETY: plain Win32 call.
+        let extended = unsafe { GetWindowLongPtrW(browser, GWL_EXSTYLE) };
+        assert_eq!(extended & WS_EX_APPWINDOW.0 as isize, 0, "out of Alt+Tab");
+
+        move_to(browser, 2100);
+        imp::own_windows(main_id, &panels);
+        assert_eq!(
+            owner(browser),
+            mixer.0 as isize,
+            "over the mixer: by the mixer"
+        );
+
+        move_to(browser, 100);
+        imp::own_windows(main_id, &panels);
+        assert_eq!(owner(browser), main.0 as isize, "back over the main window");
+
+        move_to(browser, 2100);
+        imp::own_windows(main_id, &panels);
+        imp::release_windows(main_id, "Mixer — test");
+        assert_eq!(
+            owner(browser),
+            main.0 as isize,
+            "released before the mixer closes"
+        );
+        // SAFETY: windows of this test, destroyed once.
+        unsafe {
+            DestroyWindow(mixer).unwrap();
+            assert!(
+                IsWindow(Some(browser)).as_bool(),
+                "the browser outlives the mixer"
+            );
+            let _ = DestroyWindow(browser);
+            let _ = DestroyWindow(main);
+        }
     }
 }

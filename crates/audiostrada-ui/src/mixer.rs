@@ -685,12 +685,12 @@ fn editor_window(
     let builder = egui::ViewportBuilder::default()
         .with_title(format!("{title} — AudioStrada"))
         .with_inner_size(size)
-        .with_min_inner_size([280.0, 180.0])
-        .with_window_level(crate::floating_level(ctx, crate::Floating::Editor(id)));
+        .with_min_inner_size([280.0, 180.0]);
     let builder = match position {
         Some(p) => builder.with_position(p),
         None => builder,
     };
+    let builder = crate::floating_builder(ctx, id, crate::Floating::Editor(id), builder);
     let mut add = Some(add);
     let open = ctx.show_viewport_immediate(id, builder, |ui, _| {
         // Before the widgets, so that Space plays instead of pressing a focused button.

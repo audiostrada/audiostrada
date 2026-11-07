@@ -34,6 +34,8 @@ pub struct EffectBrowser {
     result: Option<(Target, String, String)>,
     /// The window was hidden when it closed, and must be shown again if it opens again.
     hidden: bool,
+    /// Opened again while open: it comes to the front, wherever it was.
+    raise: bool,
 }
 
 /// The browser, shared with its own window.
@@ -61,12 +63,19 @@ pub fn show(
     if std::mem::take(&mut b.hidden) {
         ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Visible(true));
     }
+    if std::mem::take(&mut b.raise) {
+        ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Focus);
+    }
     drop(b);
-    let builder = egui::ViewportBuilder::default()
-        .with_title(format!("{} — AudioStrada", tr("Add an effect")))
-        .with_inner_size([860.0, 600.0])
-        .with_min_inner_size([520.0, 320.0])
-        .with_window_level(crate::floating_level(ctx, crate::Floating::Browser));
+    let builder = crate::floating_builder(
+        ctx,
+        id,
+        crate::Floating::Browser,
+        egui::ViewportBuilder::default()
+            .with_title(format!("{} — AudioStrada", tr("Add an effect")))
+            .with_inner_size([860.0, 600.0])
+            .with_min_inner_size([520.0, 320.0]),
+    );
     let parent = ctx.viewport_id();
     let shared = crate::MainThread(Rc::clone(browser));
     ctx.show_viewport_deferred(id, builder, move |ui, _| {
@@ -105,6 +114,7 @@ const INSTRUMENT: &str = "Instrument";
 
 impl EffectBrowser {
     pub fn open(&mut self, target: Target) {
+        self.raise = true;
         self.target = Some(target);
         self.filter.clear();
         self.focus_search = true;

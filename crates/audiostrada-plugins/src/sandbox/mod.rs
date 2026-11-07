@@ -546,6 +546,7 @@ impl PluginInstance for SandboxInstance {
     }
 
     fn open_gui(&mut self, title: &str) -> Result<(), String> {
+        crate::window::allow_foreground(self.pid());
         let request = Request::OpenGui(
             title.to_owned(),
             crate::window::parent(),
@@ -574,6 +575,7 @@ impl PluginInstance for SandboxInstance {
 
     fn raise_gui(&mut self) {
         if self.gui_open {
+            crate::window::allow_foreground(self.pid());
             let _ = self.call(Request::RaiseGui, CALL_TIMEOUT);
         }
     }
@@ -973,15 +975,15 @@ mod messages {
         }
     }
 
-    #[cfg(windows)]
-    fn dispatch() {
     /// Handles the windows' messages for a while, then hands back to the requests: a plugin
     /// that posts itself a message for each one it handles (or never validates its painting)
     /// keeps the queue full forever, and emptying it would never answer AudioStrada again.
-        let mut msg = MSG::default();
-        // SAFETY: standard message pumping on this thread's queue.
+    #[cfg(windows)]
+    fn dispatch() {
         const BUDGET: Duration = Duration::from_millis(50);
         let start = std::time::Instant::now();
+        let mut msg = MSG::default();
+        // SAFETY: standard message pumping on this thread's queue.
         unsafe {
             while start.elapsed() < BUDGET
                 && PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool()

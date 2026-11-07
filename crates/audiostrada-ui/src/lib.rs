@@ -1595,6 +1595,14 @@ impl AudioStradaApp {
             }
             self.windows_changed = true;
         }
+        // A panel's window closes at the end of the first frame it is not shown in: the
+        // windows it owns go to the main window before.
+        let shown = egui::Id::unique("detached-panels-shown");
+        let before: Vec<Pane> = ctx.data_mut(|d| d.get_temp(shown)).unwrap_or_default();
+        for pane in before.into_iter().filter(|p| !self.detached.contains(p)) {
+            release_panel_windows(&pane_window_title(pane));
+        }
+        ctx.data_mut(|d| d.insert_temp(shown, self.detached.clone()));
         for pane in self.detached.clone() {
             let opened = *self.pane_opened.entry(pane).or_insert_with(|| {
                 self.prefs
@@ -1613,11 +1621,15 @@ impl AudioStradaApp {
                         maximized: false,
                     })
             });
-            let builder = opened.apply(
-                egui::ViewportBuilder::default()
-                    .with_title(format!("{} — AudioStrada", pane.title()))
-                    .with_min_inner_size([240.0, 160.0])
-                    .with_window_level(floating_level(ctx, Floating::Panel)),
+            let builder = floating_builder(
+                ctx,
+                pane_window(pane),
+                Floating::Panel,
+                opened.apply(
+                    egui::ViewportBuilder::default()
+                        .with_title(pane_window_title(pane))
+                        .with_min_inner_size([240.0, 160.0]),
+                ),
             );
             let shared = MainThread((Rc::clone(&self.views), Rc::clone(&self.inbox)));
             ctx.show_viewport_deferred(pane_window(pane), builder, move |ui, _class| {
@@ -1809,6 +1821,11 @@ pub(crate) fn window_shortcuts(ctx: &egui::Context) {
 /// The window of a panel detached from the main one.
 fn pane_window(pane: Pane) -> egui::ViewportId {
     egui::ViewportId::from_hash_of(("audiostrada-pane", pane))
+}
+
+/// The title of a detached panel's window, which also finds it among the system's windows.
+fn pane_window_title(pane: Pane) -> String {
+    format!("{} — AudioStrada", pane.title())
 }
 
 /// Whether the main window is in full screen, whichever window asks.
@@ -2615,23 +2632,70 @@ fn set_plugin_window_parent(frame: &eframe::Frame) {
     audiostrada_plugins::window::set_parent(parent);
 }
 
-/// On macOS and Windows the detached panels and editors float above the main window while
-/// AudioStrada is in use, so that they stay in front when it takes the focus.
+/// On macOS the detached panels and editors float above the main window while AudioStrada is
+/// in use, so that they stay in front when it takes the focus. On Windows they are owned by
+/// it, as Reaper's floating windows are: above it, never behind, out of the taskbar and of
+/// Alt+Tab, minimized with it.
 #[cfg(any(target_os = "macos", windows))]
 #[cfg_attr(target_os = "macos", allow(unused_variables))]
-fn keep_windows_above(ctx: &egui::Context, frame: &eframe::Frame) {
+fn keep_windows_above(frame: &eframe::Frame, detached: &[Pane]) {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     let handle = frame.window_handle().map(|h| h.as_raw());
     #[cfg(target_os = "macos")]
     if let Ok(RawWindowHandle::AppKit(h)) = handle {
         audiostrada_plugins::window::keep_windows_above(h.ns_view.as_ptr());
     }
-    // Seen again soon: another application coming in front sends us nothing.
     #[cfg(windows)]
-    if let Ok(RawWindowHandle::Win32(h)) = handle
-        && audiostrada_plugins::window::keep_windows_above(h.hwnd.get() as u64)
-    {
-        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+    if let Ok(RawWindowHandle::Win32(h)) = handle {
+        let panels: Vec<String> = detached.iter().map(|&p| pane_window_title(p)).collect();
+        audiostrada_plugins::window::own_windows(h.hwnd.get() as u64, &panels);
+    }
+}
+
+/// Windows: a detached panel's window is about to close; the windows it owns go to the main
+/// window first, or Windows would destroy them with it.
+fn release_panel_windows(title: &str) {
+    #[cfg(windows)]
+    audiostrada_plugins::window::release_windows(audiostrada_plugins::window::parent(), title);
+    #[cfg(not(windows))]
+    let _ = title;
+}
+
+/// A window besides the main one: its level (see [`floating_level`]) and, on Windows, no
+/// taskbar button nor minimize box, as it is owned (see [`keep_windows_above`]). Where no
+/// place is known yet, centered on the window it was opened from, so that it opens on its
+/// screen.
+pub(crate) fn floating_builder(
+    ctx: &egui::Context,
+    id: egui::ViewportId,
+    kind: Floating,
+    builder: egui::ViewportBuilder,
+) -> egui::ViewportBuilder {
+    let builder = builder.with_window_level(floating_level(ctx, kind));
+    if !cfg!(windows) {
+        return builder;
+    }
+    let builder = builder.with_taskbar(false).with_minimize_button(false);
+    let opener = match kind {
+        Floating::Panel => egui::ViewportId::ROOT,
+        Floating::Browser | Floating::Editor(_) => ctx.viewport_id(),
+    };
+    if builder.position.is_some() {
+        return builder;
+    }
+    // Chosen once: a position that changes between frames moves the window.
+    let key = egui::Id::unique(("floating-place", id));
+    let place = ctx.data_mut(|d| d.get_temp::<egui::Pos2>(key)).or_else(|| {
+        let around = ctx
+            .input_for(opener, |i| i.viewport().outer_rect)
+            .or_else(|| ctx.input_for(egui::ViewportId::ROOT, |i| i.viewport().outer_rect))?;
+        let place = (around.center() - builder.inner_size? / 2.0).max(around.min);
+        ctx.data_mut(|d| d.insert_temp(key, place));
+        Some(place)
+    });
+    match place {
+        Some(place) => builder.with_position(place),
+        None => builder,
     }
 }
 
@@ -2736,7 +2800,7 @@ impl eframe::App for AudioStradaApp {
         }
         self.watch_devices();
         #[cfg(any(target_os = "macos", windows))]
-        keep_windows_above(ctx, frame);
+        keep_windows_above(frame, &self.detached);
         if self.plugin_scan.as_ref().is_some_and(|h| h.is_finished())
             && let Some(Ok(database)) = self.plugin_scan.take().map(|h| h.join())
         {
