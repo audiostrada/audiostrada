@@ -45,7 +45,7 @@ AudioStrada is in active development: features land quickly, and some rough edge
   also runs Neural Amp Modeler captures from your library or TONE3000.
 - **MIDI**: an MPE synth, a drum machine, plugin instruments, a piano roll with controller
   lanes, MIDI devices, overdub, MIDI learn, `.mid` import and export.
-- **Plugins**: CLAP, VST3 and LV2 with their own windows, each plugin in its own process so a
+- **Plugins**: CLAP, VST3, VST2 and LV2 with their own windows, each plugin in its own process so a
   crashing plugin cannot take the session with it.
 - **Export**: WAV, FLAC, MP3 and Opus, dither, peak or LUFS normalization, stems and a render
   queue.

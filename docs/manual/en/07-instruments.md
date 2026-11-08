@@ -1,8 +1,11 @@
 # Instruments
 
-AudioStrada comes with two instruments: **Strada-Synth** and **Strada-Drums**. Any CLAP, VST3 or
-LV2 instrument can replace them: right-click the instrument's insert › *Change instrument…*, or
-*+ insert* › *Instrument*. An instrument always goes first on its track.
+AudioStrada comes with two instruments: **Strada-Synth** and **Strada-Drums**, and plays any
+CLAP, VST3, VST2 or LV2 instrument. A new instrument track opens the browser on the instruments to
+choose its own. Instruments go first on their track; several can lead it, layered: they play the
+same notes, their sounds add up, and the effects after them process the mix. Right-click an
+instrument's insert › *Add an instrument…* to layer another, *Change instrument…* to replace the
+first one. Drum tracks start with Strada-Drums and take layers the same way.
 
 ## Strada-Synth
 

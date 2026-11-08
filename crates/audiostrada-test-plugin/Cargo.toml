@@ -1,6 +1,6 @@
 [package]
 name = "audiostrada-test-plugin"
-description = "A minimal CLAP plugin (a stereo gain with one parameter and its state) for the plugin host's tests on every system."
+description = "A minimal CLAP and VST2 plugin (a stereo gain with one parameter and its state) for the plugin host's tests on every system."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

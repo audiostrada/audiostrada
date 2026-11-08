@@ -41,7 +41,7 @@ your tracks as stems from the other DAW, then drop them on the timeline.
 
 **Where are my recordings?** In the `Audio` folder of the project.
 
-**Can I use my plugins?** Yes: CLAP, VST3 and LV2 (and AU on macOS), each in its own process.
+**Can I use my plugins?** Yes: CLAP, VST3, VST2 and LV2 (and AU on macOS), each in its own process.
 
 **Does AudioStrada need the internet?** No. It goes online only to check for new versions when
 you allowed it, and for TONE3000 when you browse it.

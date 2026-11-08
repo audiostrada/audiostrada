@@ -89,7 +89,7 @@ pub fn definitions(live: bool) -> Vec<Value> {
         ),
         tool(
             "list_plugins",
-            "Third-party plugins installed (CLAP, VST3, LV2, AU): their key for add_insert, name, vendor, instrument or effect.",
+            "Third-party plugins installed (CLAP, VST3, VST2, LV2, AU): their key for add_insert, name, vendor, instrument or effect.",
             json!({"filter": {"type": "string"}}),
             &[],
         ),

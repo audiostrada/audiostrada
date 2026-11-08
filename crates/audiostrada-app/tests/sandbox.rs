@@ -187,3 +187,71 @@ fn the_scan_finds_the_plugin_out_of_process() {
             .any(|p| p.id == "com.audiostrada.test-gain")
     );
 }
+
+/// The test plugin's VST2 side, in a folder of its own as a VST2 library of this system.
+fn test_vst2_dir() -> (PathBuf, PathBuf) {
+    let dir = test_plugin_dir();
+    let name = if cfg!(windows) {
+        "test-gain.dll"
+    } else if cfg!(target_os = "macos") {
+        "test-gain.vst"
+    } else {
+        "test-gain.so"
+    };
+    let file = dir.join(name);
+    std::fs::copy(dir.join("test-gain.clap"), &file).expect("the plugin copied");
+    (dir, file)
+}
+
+#[test]
+fn a_sandboxed_vst2_plugin_sounds_and_saves_as_in_process() {
+    let (dir, file) = test_vst2_dir();
+    // Found out of process, by the scan of the folders too.
+    let found =
+        scan::scan_out_of_process(exe(), Format::Vst2, &file, Duration::from_secs(30)).unwrap();
+    assert_eq!(found.len(), 1);
+    let descriptor = &found[0];
+    assert_eq!(descriptor.key(), "vst2:41735467");
+    let database = scan::scan_in_background(
+        dir.join("plugins.json"),
+        vec![dir.clone()],
+        exe().to_path_buf(),
+        true,
+    )
+    .join()
+    .unwrap();
+    assert!(database.find("vst2:41735467").is_some());
+    let render = |instance: &mut dyn PluginInstance| {
+        let mut processor = instance.activate(48_000, 256).unwrap();
+        let mut out = Vec::new();
+        for block in 0..10 {
+            let (mut l, mut r) = (vec![0.5f32; 256], vec![0.5f32; 256]);
+            let changes: &[(u32, f64)] = if block == 4 { &[(0, 0.5)] } else { &[] };
+            processor.process(&mut l, &mut r, changes, &[], &mut |_, _| {});
+            out.extend(l);
+        }
+        drop(processor);
+        while !instance.try_deactivate() {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        out
+    };
+    let mut local = audiostrada_plugins::instantiate_in_process(descriptor).unwrap();
+    let expected = render(local.as_mut());
+    let mut sandboxed = SandboxInstance::new(exe(), descriptor).unwrap();
+    assert_eq!(sandboxed.params().len(), 1);
+    let got = render(&mut sandboxed);
+    assert_eq!(expected.len(), got.len());
+    assert!(
+        expected.iter().zip(&got).all(|(a, b)| (a - b).abs() < 1e-6),
+        "the same sound"
+    );
+    assert!(
+        (got[0] - 0.5).abs() < 1e-5 && got[9 * 256] < 0.04,
+        "the gain set"
+    );
+    let state = sandboxed.save_state().expect("state");
+    let mut other = SandboxInstance::new(exe(), descriptor).unwrap();
+    assert!(other.load_state(&state));
+    assert_eq!(other.param_value(0), Some(0.5));
+}

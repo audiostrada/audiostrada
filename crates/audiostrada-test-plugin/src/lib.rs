@@ -1,6 +1,10 @@
 //! A minimal CLAP plugin for the plugin host's tests: a stereo gain whose one parameter, in dB,
 //! moves by events in the audio thread or from the host, and is saved in its state.
 
+mod vst2;
+
+pub use vst2::{VST2_ID, VST2_UNITY};
+
 use std::ffi::{CStr, c_char, c_void};
 use std::sync::atomic::{AtomicU64, Ordering};
 

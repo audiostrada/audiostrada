@@ -289,7 +289,7 @@ fn plugins_tab(
     if ui
         .checkbox(
             &mut prefs.disable_plugins,
-            tr("Disable third-party plugins (CLAP, VST3, LV2, AU)"),
+            tr("Disable third-party plugins (CLAP, VST3, VST2, LV2, AU)"),
         )
         .on_hover_text(tr(
             "They are neither scanned nor loaded; their inserts keep their settings. Applies at \

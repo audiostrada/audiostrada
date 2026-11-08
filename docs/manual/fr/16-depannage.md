@@ -41,7 +41,7 @@ MIDI : exportez vos pistes en stems depuis l'autre logiciel, puis déposez-les s
 
 **Où sont mes enregistrements ?** Dans le dossier `Audio` du projet.
 
-**Puis-je utiliser mes plugins ?** Oui : CLAP, VST3 et LV2 (et AU sous macOS), chacun dans son
+**Puis-je utiliser mes plugins ?** Oui : CLAP, VST3, VST2 et LV2 (et AU sous macOS), chacun dans son
 propre processus.
 
 **AudioStrada a-t-il besoin d'internet ?** Non. Il ne se connecte que pour vérifier les nouvelles

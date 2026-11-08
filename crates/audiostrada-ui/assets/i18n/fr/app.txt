@@ -597,8 +597,8 @@ Rechercher de nouveaux plugins
 Rescan everything
 Tout réanalyser
 
-Disable third-party plugins (CLAP, VST3, LV2, AU)
-Désactiver les plugins tiers (CLAP, VST3, LV2, AU)
+Disable third-party plugins (CLAP, VST3, VST2, LV2, AU)
+Désactiver les plugins tiers (CLAP, VST3, VST2, LV2, AU)
 
 They are neither scanned nor loaded; their inserts keep their settings. Applies at the next start. For one session: audiostrada --disable-third-party-plugins
 Ils ne sont ni analysés ni chargés ; leurs inserts gardent leurs réglages. S'applique au prochain démarrage. Pour une seule session : audiostrada --disable-third-party-plugins

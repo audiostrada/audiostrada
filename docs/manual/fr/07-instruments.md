@@ -1,8 +1,12 @@
 # Instruments
 
-AudioStrada fournit deux instruments : **Strada-Synth** et **Strada-Drums**. Tout instrument
-CLAP, VST3 ou LV2 peut les remplacer : clic droit sur l'insert de l'instrument › *Changer
-d'instrument…*, ou *+ insert* › *Instrument*. Un instrument est toujours en tête de sa piste.
+AudioStrada fournit deux instruments, **Strada-Synth** et **Strada-Drums**, et joue tout
+instrument CLAP, VST3, VST2 ou LV2. Une nouvelle piste instrument ouvre le navigateur sur les
+instruments pour choisir le sien. Les instruments sont en tête de leur piste ; plusieurs peuvent
+la mener, superposés : ils jouent les mêmes notes, leurs sons s'additionnent, et les effets qui
+suivent traitent le mélange. Clic droit sur l'insert d'un instrument › *Ajouter un instrument…*
+pour en superposer un autre, *Changer d'instrument…* pour remplacer le premier. Les pistes boîte
+à rythmes commencent avec Strada-Drums et se superposent de la même façon.
 
 ## Strada-Synth
 

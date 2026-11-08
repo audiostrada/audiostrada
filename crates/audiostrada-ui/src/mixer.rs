@@ -3126,7 +3126,7 @@ impl MixerView {
                         .button(tr("Change instrument…"))
                         .on_hover_text(tr(
                             "The built-in synth or an installed instrument plugin (CLAP, VST3, \
-                             LV2) in its place",
+                             VST2, LV2) in its place",
                         ))
                         .clicked()
                     {

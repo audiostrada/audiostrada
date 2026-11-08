@@ -58,6 +58,29 @@ pub fn default_dirs(format: Format) -> Vec<PathBuf> {
                 out.push(PathBuf::from("/usr/local/lib/vst3"));
             }
         }
+        Format::Vst2 => {
+            out.extend(env_dirs("VST_PATH"));
+            if cfg!(target_os = "windows") {
+                out.extend(vst2_registry_dir());
+                for var in ["PROGRAMFILES", "COMMONPROGRAMFILES"] {
+                    if let Some(base) = std::env::var_os(var).map(PathBuf::from) {
+                        out.push(base.join("VSTPlugins"));
+                        out.push(base.join("Steinberg").join("VSTPlugins"));
+                        out.push(base.join("VST2"));
+                        out.push(base.join("Steinberg").join("VST2"));
+                    }
+                }
+            } else if cfg!(target_os = "macos") {
+                out.push(PathBuf::from("/Library/Audio/Plug-Ins/VST"));
+                out.extend(home.map(|h| h.join("Library/Audio/Plug-Ins/VST")));
+            } else {
+                out.extend(home.as_ref().map(|h| h.join(".vst")));
+                out.extend(home.map(|h| h.join(".lxvst")));
+                out.push(PathBuf::from("/usr/lib/vst"));
+                out.push(PathBuf::from("/usr/local/lib/vst"));
+                out.push(PathBuf::from("/usr/lib/lxvst"));
+            }
+        }
         Format::Lv2 => {
             out.extend(env_dirs("LV2_PATH"));
             if cfg!(target_os = "macos") {
@@ -76,8 +99,47 @@ pub fn default_dirs(format: Format) -> Vec<PathBuf> {
             }
         }
     }
-    out.dedup();
+    // Folders named twice (the registry naming a standard one) are scanned once.
+    let mut seen = Vec::new();
+    out.retain(|d| {
+        let key = d.to_string_lossy().to_lowercase();
+        let new = !seen.contains(&key);
+        seen.push(key);
+        new
+    });
     out
+}
+
+/// The VST2 folder installers write in the registry (`HKLM\SOFTWARE\VST`, `VSTPluginsPath`).
+#[cfg(windows)]
+fn vst2_registry_dir() -> Option<PathBuf> {
+    use windows::Win32::System::Registry::{HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ, RegGetValueW};
+    use windows::core::w;
+    let mut buffer = [0u16; 1024];
+    let mut size = (buffer.len() * 2) as u32;
+    // SAFETY: the buffer and its size in bytes live through the call.
+    let result = unsafe {
+        RegGetValueW(
+            HKEY_LOCAL_MACHINE,
+            w!("SOFTWARE\\VST"),
+            w!("VSTPluginsPath"),
+            RRF_RT_REG_SZ,
+            None,
+            Some(buffer.as_mut_ptr() as *mut std::ffi::c_void),
+            Some(&mut size),
+        )
+    };
+    if result.is_err() {
+        return None;
+    }
+    let len = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
+    let dir = String::from_utf16_lossy(&buffer[..len]);
+    (!dir.trim().is_empty()).then(|| PathBuf::from(dir.trim()))
+}
+
+#[cfg(not(windows))]
+fn vst2_registry_dir() -> Option<PathBuf> {
+    None
 }
 
 fn dirs_home() -> Option<PathBuf> {
@@ -88,6 +150,10 @@ fn extension(format: Format) -> &'static str {
     match format {
         Format::Clap => "clap",
         Format::Vst3 => "vst3",
+        // A plain library, or a bundle on macOS.
+        Format::Vst2 if cfg!(windows) => "dll",
+        Format::Vst2 if cfg!(target_os = "macos") => "vst",
+        Format::Vst2 => "so",
         Format::Lv2 => "lv2",
         Format::Au => "component",
     }
@@ -108,8 +174,11 @@ pub fn find_files(format: Format, dirs: &[PathBuf]) -> Vec<PathBuf> {
                 .extension()
                 .is_some_and(|e| e.eq_ignore_ascii_case(ext))
             {
-                out.push(path);
-            } else if path.is_dir() && depth < 6 {
+                // VST2 folders hold helper libraries too; Windows tells them apart unloaded.
+                if format != Format::Vst2 || crate::vst2::may_be_plugin(&path) {
+                    out.push(path);
+                }
+            } else if path.is_dir() && depth < 6 && !(format == Format::Vst2 && is_bundle(&path)) {
                 stack.push((path, depth + 1));
             }
         }
@@ -117,6 +186,15 @@ pub fn find_files(format: Format, dirs: &[PathBuf]) -> Vec<PathBuf> {
     out.sort();
     out.dedup();
     out
+}
+
+/// A plugin bundle of another format: its libraries are not VST2 plugins.
+fn is_bundle(path: &Path) -> bool {
+    path.extension().is_some_and(|e| {
+        ["vst3", "clap", "lv2", "component", "app"]
+            .iter()
+            .any(|b| e.eq_ignore_ascii_case(b))
+    })
 }
 
 fn modified(path: &Path) -> u64 {

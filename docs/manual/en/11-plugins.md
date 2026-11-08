@@ -4,8 +4,11 @@
 
 ## Finding plugins
 
-AudioStrada finds **CLAP**, **VST3** and **LV2** plugins (and AU on macOS) in the standard folders
-and in the folders added in **Preferences › Plugins**. *Scan for new plugins* looks for new
+AudioStrada finds **CLAP**, **VST3**, **VST2** and **LV2** plugins (and AU on macOS) in the
+standard folders and in the folders added in **Preferences › Plugins**. VST2 folders are those of
+the `VST_PATH` variable and, on Windows, the one installers write in the registry, `VSTPlugins`
+and `VST2` in Program Files; Waves' WaveShell files list each of their plugins. 32-bit plugins
+do not run. *Scan for new plugins* looks for new
 ones; *Rescan everything* forgets the cached list and scans every plugin again. Windows plugins
 do not run on Linux.
 
@@ -16,7 +19,7 @@ From a terminal, `audiostrada plugins` lists the installed plugins, `--rescan` s
 Click *+ insert* or an empty slot. The browser lists the built-in effects by family (Dynamics,
 EQ & Filter, Space, Modulation, Color, Stereo, Utility, Amp & Cab, Instrument), then the
 installed plugins in the same families, from what each declares (CLAP features, VST3
-subcategories, LV2 class). Those that declare nothing precise go to **Other**, and **Plugins**
+subcategories, VST2 category, LV2 class). Those that declare nothing precise go to **Other**, and **Plugins**
 lists them all.
 
 - Right-click a plugin's card › *Family* to file it elsewhere (*Automatic* goes back to what it

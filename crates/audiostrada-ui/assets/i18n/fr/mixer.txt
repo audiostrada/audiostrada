@@ -594,8 +594,8 @@ Sortie MIDI
 Change instrument…
 Changer d'instrument…
 
-The built-in synth or an installed instrument plugin (CLAP, VST3, LV2) in its place
-Le synthé intégré ou un plugin instrument installé (CLAP, VST3, LV2) à sa place
+The built-in synth or an installed instrument plugin (CLAP, VST3, VST2, LV2) in its place
+Le synthé intégré ou un plugin instrument installé (CLAP, VST3, VST2, LV2) à sa place
 
 Add a send
 Ajouter un envoi

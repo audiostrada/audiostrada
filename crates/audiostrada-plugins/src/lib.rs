@@ -1,4 +1,5 @@
-//! AudioStrada plugin hosting: discovery, a plugin database, and hosts for the plugin formats.
+//! AudioStrada plugin hosting: discovery, a plugin database, and hosts for the plugin formats
+//! (CLAP, VST3, VST2, LV2, AU).
 //!
 //! A plugin instance is split in two: a main-thread side ([`PluginInstance`], GUI, parameters,
 //! state) that stays on the UI thread, and an audio side ([`PluginProcessor`]) that the engine
@@ -11,6 +12,7 @@ pub mod guard;
 pub mod lv2;
 pub mod sandbox;
 pub mod scan;
+pub mod vst2;
 pub mod vst3;
 pub mod window;
 
@@ -27,15 +29,23 @@ pub enum Format {
     Vst3,
     Lv2,
     Au,
+    Vst2,
 }
 
 impl Format {
-    pub const ALL: [Format; 4] = [Format::Clap, Format::Vst3, Format::Lv2, Format::Au];
+    pub const ALL: [Format; 5] = [
+        Format::Clap,
+        Format::Vst3,
+        Format::Vst2,
+        Format::Lv2,
+        Format::Au,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
             Format::Clap => "CLAP",
             Format::Vst3 => "VST3",
+            Format::Vst2 => "VST2",
             Format::Lv2 => "LV2",
             Format::Au => "AU",
         }
@@ -46,6 +56,7 @@ impl Format {
         match self {
             Format::Clap => "clap",
             Format::Vst3 => "vst3",
+            Format::Vst2 => "vst2",
             Format::Lv2 => "lv2",
             Format::Au => "au",
         }
@@ -311,6 +322,9 @@ pub fn instantiate_in_process(
         Format::Vst3 => {
             vst3::Vst3Instance::new(descriptor).map(|i| Box::new(i) as Box<dyn PluginInstance>)
         }
+        Format::Vst2 => {
+            vst2::Vst2Instance::new(descriptor).map(|i| Box::new(i) as Box<dyn PluginInstance>)
+        }
         Format::Lv2 => {
             lv2::Lv2Instance::new(descriptor).map(|i| Box::new(i) as Box<dyn PluginInstance>)
         }
@@ -329,6 +343,7 @@ pub fn scan_file(format: Format, path: &std::path::Path) -> Result<Vec<PluginDes
     match format {
         Format::Clap => clap::scan(path),
         Format::Vst3 => vst3::scan(path),
+        Format::Vst2 => vst2::scan(path),
         Format::Lv2 => lv2::scan(path),
         #[cfg(target_os = "macos")]
         Format::Au => au::scan(path),
