@@ -1149,34 +1149,35 @@ impl AudioStradaApp {
             Action::AddInstrumentTrack | Action::AddDrumTrack => {
                 let mut doc = self.doc.borrow_mut();
                 let n = doc.project().tracks.len() + 1;
-                let (effect, label, name) = if action == Action::AddDrumTrack {
-                    (
-                        "drums",
-                        tr("Add drum machine track"),
-                        trf!("Drums {n}", n = n),
-                    )
+                // The drum machine comes in at once; an instrument track opens the browser on
+                // the instruments, to pick one (the built-in synth or a plugin).
+                let drums = action == Action::AddDrumTrack;
+                let (label, name) = if drums {
+                    (tr("Add drum machine track"), trf!("Drums {n}", n = n))
                 } else {
-                    (
-                        "synth",
-                        tr("Add instrument track"),
-                        trf!("Instrument {n}", n = n),
-                    )
+                    (tr("Add instrument track"), trf!("Instrument {n}", n = n))
                 };
                 let mut created = None;
                 let at = add_tracks::below_selection(&doc);
                 doc.history_mut().edit(label, |p| {
                     let t = p.add_track(&name);
-                    audiostrada_core::routing::add_insert(
-                        p,
-                        audiostrada_core::routing::Channel::Track(t),
-                        effect,
-                        Default::default(),
-                    );
+                    if drums {
+                        audiostrada_core::routing::add_insert(
+                            p,
+                            audiostrada_core::routing::Channel::Track(t),
+                            "drums",
+                            Default::default(),
+                        );
+                    }
                     add_tracks::place(p, &[t], at);
                     created = Some(t);
                 });
                 if let Some(t) = created {
                     doc.select_track(t, document::SelectMode::Only);
+                    if !drums {
+                        drop(doc);
+                        self.views.borrow_mut().mixer.choose_instrument(t, false);
+                    }
                 }
             }
             Action::NewMidiClip => {

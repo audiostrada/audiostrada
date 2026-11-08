@@ -4,7 +4,7 @@
 //! keep sounding until they are let go.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 
 use audiostrada_core::{ControlPoint, Note};
 use audiostrada_midi::MidiEvent;
@@ -64,7 +64,79 @@ impl MidiControls {
     }
 }
 
+/// The notes a track's lead instrument played in the last block, for the instruments layered
+/// on it (processed after it in the same block). Wait-free: events packed in atomics.
+#[derive(Debug)]
+pub struct MidiShare {
+    /// Raised at each block published.
+    block: AtomicU64,
+    count: AtomicU32,
+    events: Box<[AtomicU64]>,
+}
+
+impl MidiShare {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {
+            block: AtomicU64::new(0),
+            count: AtomicU32::new(0),
+            events: (0..MAX_EVENTS).map(|_| AtomicU64::new(0)).collect(),
+        })
+    }
+
+    fn publish(&self, events: &[MidiEvent]) {
+        let n = events.len().min(self.events.len());
+        for (slot, e) in self.events.iter().zip(&events[..n]) {
+            let packed = (u64::from(e.time) << 32)
+                | (u64::from(e.data[0]) << 16)
+                | (u64::from(e.data[1]) << 8)
+                | u64::from(e.data[2]);
+            slot.store(packed, Ordering::Relaxed);
+        }
+        self.count.store(n as u32, Ordering::Relaxed);
+        self.block.fetch_add(1, Ordering::Release);
+    }
+}
+
+/// An instrument layered on a track's lead: it plays the notes the lead played this block.
+#[derive(Debug)]
+pub struct MidiLayer {
+    share: Arc<MidiShare>,
+    seen: u64,
+    events: Vec<MidiEvent>,
+}
+
+impl MidiLayer {
+    pub fn new(share: Arc<MidiShare>) -> Self {
+        let seen = share.block.load(Ordering::Acquire);
+        Self {
+            share,
+            seen,
+            events: Vec::with_capacity(MAX_EVENTS),
+        }
+    }
+
+    /// The lead's notes of this block; none when it published nothing since the last call.
+    pub fn collect(&mut self) -> &[MidiEvent] {
+        self.events.clear();
+        let block = self.share.block.load(Ordering::Acquire);
+        if block != self.seen {
+            self.seen = block;
+            let n = (self.share.count.load(Ordering::Relaxed) as usize).min(MAX_EVENTS);
+            for slot in &self.share.events[..n] {
+                let v = slot.load(Ordering::Relaxed);
+                self.events.push(MidiEvent {
+                    time: (v >> 32) as u32,
+                    data: [(v >> 16) as u8, (v >> 8) as u8, v as u8],
+                });
+            }
+        }
+        &self.events
+    }
+}
+
 pub struct MidiPlayer {
+    /// Where the notes of each block go for the instruments layered on this one.
+    share: Option<Arc<MidiShare>>,
     sequence: Box<Sequence>,
     sequences: Receiver<Box<Sequence>>,
     garbage: Sender<Box<Sequence>>,
@@ -98,6 +170,7 @@ impl MidiPlayer {
         let keys = LiveMidi::default();
         (
             Self {
+                share: None,
                 sequence: Box::new(Sequence {
                     clips: Vec::new(),
                     ratio: 1.0,
@@ -122,6 +195,12 @@ impl MidiPlayer {
                 sent: None,
             },
         )
+    }
+
+    /// Shares each block's notes with the instruments layered on this one.
+    pub fn with_share(mut self, share: Arc<MidiShare>) -> Self {
+        self.share = Some(share);
+        self
     }
 
     fn push(&mut self, event: MidiEvent) {
@@ -278,6 +357,9 @@ impl MidiPlayer {
             self.push(*event);
         }
         self.events.sort_by_key(|e| e.time);
+        if let Some(share) = &self.share {
+            share.publish(&self.events);
+        }
         &self.events
     }
 }

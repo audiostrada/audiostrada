@@ -21,7 +21,9 @@ use crate::window::{HostWindow, NativeHandle};
 use crate::{Format, MidiEvent, ParamDesc, PluginDescriptor, PluginProcessor, PluginRequest};
 
 const AUDIO_EFFECT_CLASS: &str = "Audio Module Class";
-const MAX_QUEUES: usize = 128;
+/// Parameters changed in a block: the engine sends up to 256, MIDI controllers mapped to
+/// parameters come on top. A change without a queue would be lost.
+const MAX_QUEUES: usize = 512;
 const MAX_POINTS: usize = 16;
 const MAX_EVENTS: usize = 512;
 /// Controller numbers mapped per MIDI channel: 0-127, aftertouch, pitch bend.
@@ -1501,6 +1503,13 @@ impl crate::PluginInstance for Vst3Instance {
     fn poll(&mut self) -> Vec<PluginRequest> {
         let mut requests = Vec::new();
         if let Ok(mut edits) = self.handler.edits.lock() {
+            if !edits.is_empty() {
+                tracing::debug!(
+                    plugin = %self.descriptor.name,
+                    edits = edits.len(),
+                    "VST3 plugin: values set in its window, for its processor"
+                );
+            }
             for (id, v) in edits.drain(..) {
                 self.heard.insert(id, v);
                 requests.push(PluginRequest::ParamChanged(id, v));
@@ -1512,10 +1521,18 @@ impl crate::PluginInstance for Vst3Instance {
             .lock()
             .map(|mut r| std::mem::take(&mut *r))
             .unwrap_or(0);
-        if flags & RestartFlags_::kLatencyChanged != 0 {
-            requests.push(PluginRequest::LatencyChanged);
-        }
-        if flags & RestartFlags_::kReloadComponent != 0 {
+        // A new latency or new buses take effect once deactivated and activated again (as the
+        // SDK asks of hosts); FabFilter's plugins change their latency with a preset, and apply
+        // what a preset holds besides its parameters (an arpeggiator) only then.
+        let restart = RestartFlags_::kLatencyChanged
+            | RestartFlags_::kIoChanged
+            | RestartFlags_::kReloadComponent;
+        if flags & restart != 0 {
+            tracing::debug!(
+                plugin = %self.descriptor.name,
+                flags,
+                "VST3 plugin: to deactivate and activate again"
+            );
             requests.push(PluginRequest::Restart);
         }
         if flags & RestartFlags_::kParamValuesChanged != 0 {

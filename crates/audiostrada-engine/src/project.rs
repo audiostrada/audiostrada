@@ -29,8 +29,8 @@ use crate::media::MediaPool;
 use crate::meter::MeterReadout;
 use crate::nodes::{
     Clip, ClipPlayer, ConsoleControls, Gain, InputStage, Insert, InsertControls, LevelControls,
-    MidiClip, MidiControls, MidiPlayer, Monitor, PlayerControls, PluginControls, PluginNode,
-    Sequence, SoloBus, Strip, StripControls,
+    MidiClip, MidiControls, MidiLayer, MidiPlayer, MidiShare, Monitor, PlayerControls,
+    PluginControls, PluginNode, Sequence, SoloBus, Strip, StripControls,
 };
 use crate::record::{Recorder, TakeTarget};
 use crate::{Engine, EngineConfig, EngineProcessor, HARDWARE_CHANNELS, NodeId, Port, SharedParam};
@@ -44,7 +44,33 @@ struct PluginSlot {
     controls: PluginControls,
     /// Parameter values last exchanged with the plugin.
     known: HashMap<u32, f64>,
+    /// Values its window set, for its audio side, waiting for room in the queue: a preset
+    /// chosen in a VST3 window comes as an edit of each of its parameters, thousands at once.
+    unsent: Vec<(u32, f64)>,
     latency: u32,
+}
+
+impl PluginSlot {
+    /// Keeps a value for the plugin's audio side: the last one of each parameter.
+    fn hold(&mut self, id: u32, value: f64) {
+        match self.unsent.iter_mut().find(|(i, _)| *i == id) {
+            Some(held) => held.1 = value,
+            None => self.unsent.push((id, value)),
+        }
+    }
+
+    /// Sends the values held, in order, as many as the queue takes; the others wait.
+    fn flush(&mut self) {
+        let mut sent = 0;
+        for &(id, value) in &self.unsent {
+            if self.controls.to_plugin.try_send((id, value)).is_err() {
+                break;
+            }
+            self.known.insert(id, value);
+            sent += 1;
+        }
+        self.unsent.drain(..sent);
+    }
 }
 
 #[derive(Debug)]
@@ -61,6 +87,8 @@ struct InsertNodes {
     kind: InsertKind,
     /// First insert of a track: it receives the track's MIDI.
     first: bool,
+    /// An instrument after the first, layered on it: it plays the same notes.
+    layer: bool,
     /// Files the effect was built with.
     files: std::collections::BTreeMap<String, PathBuf>,
     /// Latency of the effect, and the one told to the graph (none while bypassed).
@@ -81,6 +109,10 @@ struct Plugins {
     keys: Vec<(u32, u16)>,
     /// Instances waiting for their audio side to be dropped before deactivation.
     retired: Vec<Box<dyn PluginInstance>>,
+    /// Instances deactivated and activated again in place at their request (a CLAP restart,
+    /// a VST3 latency or bus change, which a preset can bring): their window stays open and
+    /// their state as it is. They wait for their audio side to be dropped first.
+    restarting: Vec<Restarting>,
     feedback: Vec<(Channel, InsertId, u32, f64)>,
     resync: bool,
     /// Rendering faster or slower than real time (export).
@@ -93,6 +125,27 @@ struct Plugins {
     low_latency: Option<u32>,
     /// Inserts the low latency mode bypasses.
     forced: Vec<InsertId>,
+}
+
+/// A plugin instance between its deactivation and its activation again (see
+/// `Plugins::restarting`).
+struct Restarting {
+    id: InsertId,
+    instance: Box<dyn PluginInstance>,
+    /// The values known to be the plugin's: not sent to it again.
+    known: HashMap<u32, f64>,
+    /// Values for its audio side not sent yet: they go to the new one.
+    unsent: Vec<(u32, f64)>,
+    /// Still waiting at the last sync (its insert is still there).
+    seen: bool,
+}
+
+impl std::fmt::Debug for Restarting {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Restarting")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Plugins {
@@ -113,42 +166,65 @@ impl Plugins {
         engine: &mut Engine,
         insert: &InsertModel,
         midi: Option<MidiPlayer>,
+        layer: Option<MidiLayer>,
     ) -> Result<InsertNodes, String> {
         let descriptor = self
             .database
             .find(&insert.effect)
             .cloned()
             .ok_or_else(|| format!("plugin {} is not installed", insert.effect))?;
+        // The same plugin restarting in place (already deactivated, see `restarting`).
+        let restarted = self
+            .restarting
+            .iter()
+            .position(|r| r.id == insert.id && r.instance.descriptor().id == descriptor.id)
+            .map(|i| self.restarting.swap_remove(i));
         // Until activated: a plugin that crashes AudioStrada meanwhile is refused next time.
-        let _loading = audiostrada_plugins::guard::loading(&descriptor);
-        let mut instance = audiostrada_plugins::instantiate(&descriptor)?;
-        let state = self
-            .pending_state
-            .remove(&insert.id)
-            .or_else(|| insert.state.as_deref().and_then(base64::decode));
-        if let Some(state) = state {
-            instance.load_state(&state);
-        }
+        let _loading = restarted
+            .is_none()
+            .then(|| audiostrada_plugins::guard::loading(&descriptor));
+        let (mut instance, known, unsent) = match restarted {
+            Some(r) => (r.instance, r.known, r.unsent),
+            None => {
+                let mut instance = audiostrada_plugins::instantiate(&descriptor)?;
+                let state = self
+                    .pending_state
+                    .remove(&insert.id)
+                    .or_else(|| insert.state.as_deref().and_then(base64::decode));
+                if let Some(state) = state {
+                    instance.load_state(&state);
+                }
+                (instance, HashMap::new(), Vec::new())
+            }
+        };
         let (rate, max) = self.format;
         let mut processor = instance.activate(rate, max)?;
         processor.set_offline(self.offline);
         let latency = instance.latency();
         let (node, controls) = PluginNode::new(processor);
         let first = midi.is_some();
-        let node = engine.add_node(&descriptor.name, node.with_midi(midi), 2, 2);
+        let layered = layer.is_some();
+        let node = engine.add_node(
+            &descriptor.name,
+            node.with_midi(midi).with_layer(layer),
+            2,
+            2,
+        );
         let _ = engine.set_latency(node, latency);
         Ok(InsertNodes {
             id: insert.id,
             effect: insert.effect.clone(),
             node,
             first,
+            layer: layered,
             files: insert.files.clone(),
             latency,
             declared: latency,
             kind: InsertKind::Plugin(PluginSlot {
                 instance,
                 controls,
-                known: HashMap::new(),
+                known,
+                unsent,
                 automation: HashMap::new(),
                 latency,
             }),
@@ -186,6 +262,8 @@ struct ChannelNodes {
     controls: StripControls,
     /// MIDI of the first insert (tracks only).
     midi: Option<MidiControls>,
+    /// The notes it plays, block by block, for the instruments layered on it.
+    midi_share: Option<Arc<MidiShare>>,
 }
 
 #[derive(Debug)]
@@ -389,6 +467,7 @@ impl ChannelNodes {
             steps: Vec::new(),
             strip,
             midi: None,
+            midi_share: None,
             controls,
         }
     }
@@ -588,6 +667,7 @@ impl ProjectPlayer {
                 paths: None,
                 files: HashMap::new(),
                 retired: Vec::new(),
+                restarting: Vec::new(),
                 feedback: Vec::new(),
                 resync: false,
                 low_latency: None,
@@ -666,20 +746,45 @@ impl ProjectPlayer {
         let mut old = std::mem::take(&mut nodes.inserts);
         if inserts.is_empty() {
             nodes.midi = None;
+            nodes.midi_share = None;
         }
         // Branch inserts after the channel's own: only the channel's first leads it.
         let lead = inserts.first().map(|i| i.id);
+        // Instruments right after a leading instrument are layered on it: same notes, their
+        // sounds added together, the effects after them processing the mix.
+        let instrument = |effect: &str| {
+            audiostrada_dsp::info(effect).map_or_else(
+                || plugins.database.find(effect).is_some_and(|d| d.instrument),
+                |i| i.instrument,
+            )
+        };
+        let layers: Vec<InsertId> = if live.is_some()
+            && inserts
+                .first()
+                .is_some_and(|i| i.effect != routing::PARALLEL && instrument(&i.effect))
+        {
+            inserts
+                .iter()
+                .skip(1)
+                .take_while(|i| i.effect != routing::PARALLEL && instrument(&i.effect))
+                .map(|i| i.id)
+                .collect()
+        } else {
+            Vec::new()
+        };
         for insert in routing::flatten(inserts)
             .into_iter()
             .filter(|i| i.effect != routing::PARALLEL)
         {
             let first = Some(insert.id) == lead && live.is_some();
+            let layer = layers.contains(&insert.id);
             let existing = old
                 .iter()
                 .position(|n| {
                     n.id == insert.id
                         && n.effect == insert.effect
                         && n.first == first
+                        && n.layer == layer
                         && n.files == insert.files
                         // Settings that change its delay make it again, compensated anew.
                         && audiostrada_dsp::info(&insert.effect).is_none_or(|info| {
@@ -698,9 +803,16 @@ impl ProjectPlayer {
                 && let Some(live) = live
             {
                 let (player, controls) = MidiPlayer::new(live.reader());
-                midi = Some(player);
+                let share = MidiShare::new();
+                midi = Some(player.with_share(Arc::clone(&share)));
                 nodes.midi = Some(controls);
+                nodes.midi_share = Some(share);
             }
+            let mut layer_midi = if existing.is_none() && layer {
+                nodes.midi_share.clone().map(MidiLayer::new)
+            } else {
+                None
+            };
             let builtin = audiostrada_dsp::info(&insert.effect);
             let new = existing.is_none();
             let mut slot = match (existing, builtin) {
@@ -741,7 +853,12 @@ impl ProjectPlayer {
                     } else {
                         2
                     };
-                    let node = engine.add_node(info.name, node.with_midi(midi.take()), inputs, 2);
+                    let node = engine.add_node(
+                        info.name,
+                        node.with_midi(midi.take()).with_layer(layer_midi.take()),
+                        inputs,
+                        2,
+                    );
                     let _ = engine.set_latency(node, latency);
                     InsertNodes {
                         id: insert.id,
@@ -749,6 +866,7 @@ impl ProjectPlayer {
                         node,
                         kind: InsertKind::Builtin(controls),
                         first,
+                        layer,
                         files: insert.files.clone(),
                         latency,
                         declared: latency,
@@ -758,7 +876,17 @@ impl ProjectPlayer {
                     if plugins.failed.contains_key(&insert.id) {
                         continue;
                     }
-                    match plugins.create(engine, insert, midi.take()) {
+                    // Restarting in place: once its audio side is dropped (the graph without
+                    // it committed, then collected), it is deactivated and activated again.
+                    if let Some(r) = plugins.restarting.iter_mut().find(|r| r.id == insert.id) {
+                        r.seen = true;
+                        if !r.instance.try_deactivate() {
+                            plugins.resync = true;
+                            changed = true;
+                            continue;
+                        }
+                    }
+                    match plugins.create(engine, insert, midi.take(), layer_midi.take()) {
                         Ok(slot) => slot,
                         Err(e) => {
                             tracing::warn!("cannot load {}: {e}", insert.effect);
@@ -1368,6 +1496,15 @@ impl ProjectPlayer {
         if topology {
             self.engine.commit();
         }
+        // A plugin restarting in place whose insert went away (or failed) goes with it.
+        for mut r in std::mem::take(&mut self.plugins.restarting) {
+            if std::mem::take(&mut r.seen) {
+                self.plugins.restarting.push(r);
+            } else {
+                r.instance.close_gui();
+                self.plugins.retired.push(r.instance);
+            }
+        }
     }
 
     /// Routing edges the project asks for.
@@ -1558,23 +1695,30 @@ impl ProjectPlayer {
                 let InsertKind::Plugin(plugin) = &mut slot.kind else {
                     continue;
                 };
+                let mut heard = 0;
                 while let Some((id, value)) = plugin.controls.from_plugin.try_recv() {
+                    heard += 1;
                     plugin.known.insert(id, value);
                     plugin.instance.set_param(id, value);
                     self.plugins.feedback.push((channel, slot.id, id, value));
                 }
+                if heard > 0 {
+                    tracing::debug!(heard, "plugin: values changed by the plugin itself");
+                }
+                // Values are held here and sent once the restarts are done: those coming with a
+                // restart go to the audio side made after it, not into the queue of the one
+                // going away.
                 for request in plugin.instance.poll() {
                     match request {
                         audiostrada_plugins::PluginRequest::Restart => {
+                            tracing::debug!("plugin: deactivated and activated again in place");
                             restarts.push((channel, slot.id))
                         }
                         audiostrada_plugins::PluginRequest::Crashed => {
                             crashes.push((channel, slot.id))
                         }
                         audiostrada_plugins::PluginRequest::ParamChanged(id, value) => {
-                            if plugin.controls.to_plugin.try_send((id, value)).is_ok() {
-                                plugin.known.insert(id, value);
-                            }
+                            plugin.hold(id, value);
                             self.plugins.feedback.push((channel, slot.id, id, value));
                         }
                         audiostrada_plugins::PluginRequest::Key(sym, mods) => {
@@ -1600,7 +1744,17 @@ impl ProjectPlayer {
             }
         }
         for (channel, id) in restarts {
-            self.restart_plugin(channel, id);
+            self.reactivate_plugin(channel, id);
+        }
+        for nodes in std::iter::once(&mut self.master)
+            .chain(std::iter::once(&mut self.monitor))
+            .chain(self.tracks.values_mut().map(|t| &mut t.channel))
+        {
+            for slot in &mut nodes.inserts {
+                if let InsertKind::Plugin(plugin) = &mut slot.kind {
+                    plugin.flush();
+                }
+            }
         }
         for (channel, id) in crashes {
             self.restart_plugin(channel, id);
@@ -1630,6 +1784,35 @@ impl ProjectPlayer {
             Channel::Master => Some(&mut self.master),
             Channel::Track(id) => self.tracks.get_mut(&id).map(|t| &mut t.channel),
         }
+    }
+
+    /// Deactivates a plugin and activates the same instance again at the next syncs, once its
+    /// audio side is dropped: its window stays open, its state as it is. What a plugin asks
+    /// for to apply a preset (CLAP restart, VST3 latency or bus change).
+    fn reactivate_plugin(&mut self, channel: Channel, id: InsertId) {
+        let Some(nodes) = self.holder_mut(channel, id) else {
+            return;
+        };
+        let Some(index) = nodes
+            .inserts
+            .iter()
+            .position(|n| n.id == id && matches!(n.kind, InsertKind::Plugin(_)))
+        else {
+            return;
+        };
+        let slot = nodes.inserts.remove(index);
+        let InsertKind::Plugin(plugin) = slot.kind else {
+            return;
+        };
+        self.plugins.restarting.push(Restarting {
+            id,
+            instance: plugin.instance,
+            known: plugin.known,
+            unsent: plugin.unsent,
+            seen: true,
+        });
+        self.remove_node(slot.node);
+        self.plugins.resync = true;
     }
 
     /// Recreates a plugin instance with its current state at the next sync.
@@ -3205,6 +3388,50 @@ mod tests {
             out[5000..].iter().any(|s| s.abs() > 0.01),
             "the synth plays the note"
         );
+    }
+
+    #[test]
+    fn instruments_after_the_first_are_layered_on_it() {
+        // A synth, then the same synth again, then the same once more but bypassed: the
+        // second plays the same note over the first; the third stays out.
+        let level = |synths: usize, bypass_last: bool| {
+            let mut history = History::new(Project::new("Test", 48_000));
+            let mut player = ProjectPlayer::new(EngineConfig { workers: Some(0) });
+            let media = MediaPool::new(48_000, None);
+            let mut processor = player.processor(48_000, 64);
+            history.edit("Synths", |p| {
+                let t = p.add_track("Keys");
+                for k in 0..synths {
+                    let id = routing::add_insert(p, Channel::Track(t), "synth", Default::default());
+                    if bypass_last && k + 1 == synths {
+                        routing::set_bypass(p, Channel::Track(t), id.unwrap(), true);
+                    }
+                }
+                let note = audiostrada_core::Note {
+                    start: 0,
+                    length: 48_000,
+                    key: 60,
+                    velocity: 110,
+                    channel: 0,
+                    ..Default::default()
+                };
+                p.add_midi_clip(t, 0, 48_000, vec![note]);
+            });
+            player.sync(history.project(), None, &media);
+            player.engine_mut().play();
+            let out = render(&mut processor, 300);
+            (out[4800..].iter().map(|s| s * s).sum::<f32>() / (out.len() - 4800) as f32).sqrt()
+        };
+        let one = level(1, false);
+        let two = level(2, false);
+        assert!(one > 0.01, "the lead plays: {one}");
+        assert!(
+            two > one * 1.3,
+            "the second adds to the first: {one} then {two}"
+        );
+        // A bypassed layer leaves the lead alone.
+        let bypassed = level(2, true);
+        assert!((bypassed / one - 1.0).abs() < 0.05, "{one} {bypassed}");
     }
 
     #[test]

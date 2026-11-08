@@ -7,8 +7,8 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use audiostrada_plugins::PluginProcessor;
 use audiostrada_rt::{Receiver, Sender, channel};
 
-use crate::nodes::MidiPlayer;
 use crate::nodes::levels::{LevelControls, Levels};
+use crate::nodes::{MidiLayer, MidiPlayer};
 use crate::param::SharedParam;
 use crate::{ProcessContext, Processor};
 
@@ -54,6 +54,9 @@ pub struct PluginNode {
     automation: Arc<[AutomationSlot]>,
     sent: [u32; AUTOMATION_SLOTS],
     midi: Option<MidiPlayer>,
+    /// Layered on the track's lead instrument (see `Insert::with_layer`).
+    layer: Option<MidiLayer>,
+    under: [Vec<f32>; 2],
     levels: Levels,
 }
 
@@ -86,6 +89,8 @@ impl PluginNode {
                 automation: Arc::clone(&automation),
                 sent: [f32::NAN.to_bits(); AUTOMATION_SLOTS],
                 midi: None,
+                layer: None,
+                under: [Vec::new(), Vec::new()],
                 levels,
             },
             PluginControls {
@@ -103,6 +108,13 @@ impl PluginNode {
     /// Gives the plugin the track's MIDI (instrument slot).
     pub fn with_midi(mut self, midi: Option<MidiPlayer>) -> Self {
         self.midi = midi;
+        self
+    }
+
+    /// Layers the plugin on the track's lead instrument: it plays the lead's notes, over the
+    /// sound it is given.
+    pub fn with_layer(mut self, layer: Option<MidiLayer>) -> Self {
+        self.layer = layer;
         self
     }
 }
@@ -127,8 +139,9 @@ fn transport(t: &crate::TransportInfo) -> audiostrada_plugins::Transport {
 }
 
 impl Processor for PluginNode {
-    fn prepare(&mut self, sample_rate: u32, _max_frames: usize) {
+    fn prepare(&mut self, sample_rate: u32, max_frames: usize) {
         self.levels.prepare(sample_rate);
+        self.under = [vec![0.0; max_frames], vec![0.0; max_frames]];
     }
 
     fn process(&mut self, ctx: &mut ProcessContext<'_>) {
@@ -159,14 +172,29 @@ impl Processor for PluginNode {
         }
         let (left, right) = b.output_pair(0, 1);
         if self.bypass.load(Ordering::Relaxed) {
+            // A lead bypassed still hands its notes to the instruments layered on it.
+            if let Some(midi) = &mut self.midi {
+                midi.collect(ctx.transport, left.len());
+            }
+            if let Some(layer) = &mut self.layer {
+                layer.collect();
+            }
             self.levels.bypassed(left, right);
             return;
         }
         self.levels.input(left, right);
         let n = left.len();
-        let events: &[audiostrada_midi::MidiEvent] = match &mut self.midi {
-            Some(midi) => midi.collect(ctx.transport, n),
-            None => &[],
+        let layered = self.layer.is_some() && self.under[0].len() >= n;
+        if layered {
+            self.under[0][..n].copy_from_slice(left);
+            self.under[1][..n].copy_from_slice(right);
+            left.fill(0.0);
+            right.fill(0.0);
+        }
+        let events: &[audiostrada_midi::MidiEvent] = match (&mut self.midi, &mut self.layer) {
+            (Some(midi), _) => midi.collect(ctx.transport, n),
+            (None, Some(layer)) => layer.collect(),
+            (None, None) => &[],
         };
         self.processor.set_transport(&transport(ctx.transport));
         let outgoing = &mut self.outgoing;
@@ -174,6 +202,14 @@ impl Processor for PluginNode {
             .process(left, right, &self.changes, events, &mut |id, value| {
                 let _ = outgoing.try_send((id, value));
             });
+        if layered {
+            for (s, u) in left.iter_mut().zip(&self.under[0]) {
+                *s += u;
+            }
+            for (s, u) in right.iter_mut().zip(&self.under[1]) {
+                *s += u;
+            }
+        }
         // A plugin's broken values must not stick in the effects after it.
         if left.iter().chain(right.iter()).any(|s| !s.is_finite()) {
             left.fill(0.0);

@@ -213,12 +213,14 @@ impl MainThreadHandler<'_> for MainThread {}
 
 impl HostLatencyImpl for MainThread {
     fn changed(&self) {
+        tracing::debug!("CLAP plugin: latency changed");
         self.push(PluginRequest::LatencyChanged);
     }
 }
 
 impl HostParamsImplMainThread for MainThread {
-    fn rescan(&self, _flags: ParamRescanFlags) {
+    fn rescan(&self, flags: ParamRescanFlags) {
+        tracing::debug!(?flags, "CLAP plugin: parameters to rescan");
         self.push(PluginRequest::RescanParams);
     }
 
@@ -234,7 +236,8 @@ impl HostAudioPortsImpl for MainThread {
         false
     }
 
-    fn rescan(&self, _flags: AudioPortRescanFlags) {
+    fn rescan(&self, flags: AudioPortRescanFlags) {
+        tracing::debug!(?flags, "CLAP plugin: audio ports to rescan, restarting it");
         self.push(PluginRequest::Restart);
     }
 }
@@ -554,6 +557,9 @@ impl crate::PluginInstance for ClapInstance {
         let mut requests = self
             .instance
             .access_handler(|h| std::mem::take(&mut *h.requests.borrow_mut()));
+        if restart {
+            tracing::debug!(plugin = %self.descriptor.name, "CLAP plugin: asked for a restart");
+        }
         if restart && !requests.contains(&PluginRequest::Restart) {
             requests.push(PluginRequest::Restart);
         }

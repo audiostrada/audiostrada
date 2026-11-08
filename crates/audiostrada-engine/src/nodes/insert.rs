@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use audiostrada_dsp::Effect;
 
-use crate::nodes::MidiPlayer;
 use crate::nodes::levels::{LevelControls, Levels};
+use crate::nodes::{MidiLayer, MidiPlayer};
 use crate::param::SharedParam;
 use crate::{ProcessContext, Processor};
 
@@ -34,6 +34,10 @@ pub struct Insert {
     applied: Vec<f32>,
     meters: Vec<f32>,
     midi: Option<MidiPlayer>,
+    /// An instrument layered on the track's lead: its notes, and the sound it is given,
+    /// kept aside to be added back under its own.
+    layer: Option<MidiLayer>,
+    under: [Vec<f32>; 2],
     /// Copy of the key inputs for the block.
     key: [Vec<f32>; 2],
     levels: Levels,
@@ -69,6 +73,8 @@ impl Insert {
                 applied: vec![f32::NAN; values.len()],
                 meters: vec![0.0; meters],
                 midi: None,
+                layer: None,
+                under: [Vec::new(), Vec::new()],
                 key: [Vec::new(), Vec::new()],
                 levels,
             },
@@ -81,6 +87,13 @@ impl Insert {
     /// Gives the insert the track's MIDI (instrument slot).
     pub fn with_midi(mut self, midi: Option<MidiPlayer>) -> Self {
         self.midi = midi;
+        self
+    }
+
+    /// Layers the insert on the track's lead instrument: it plays the lead's notes, over the
+    /// sound it is given.
+    pub fn with_layer(mut self, layer: Option<MidiLayer>) -> Self {
+        self.layer = layer;
         self
     }
 }
@@ -103,6 +116,7 @@ impl Processor for Insert {
         self.effect.prepare(sample_rate, max_frames);
         self.levels.prepare(sample_rate);
         self.key = [vec![0.0; max_frames], vec![0.0; max_frames]];
+        self.under = [vec![0.0; max_frames], vec![0.0; max_frames]];
         self.applied.fill(f32::NAN);
     }
 
@@ -116,6 +130,13 @@ impl Processor for Insert {
             return;
         }
         if self.controls.bypass.load(Ordering::Relaxed) {
+            // A lead bypassed still hands its notes to the instruments layered on it.
+            if let Some(midi) = &mut self.midi {
+                midi.collect(ctx.transport, b.frames());
+            }
+            if let Some(layer) = &mut self.layer {
+                layer.collect();
+            }
             let (left, right) = b.output_pair(0, 1);
             self.levels.bypassed(left, right);
             return;
@@ -143,15 +164,33 @@ impl Processor for Insert {
         }
         let (left, right) = b.output_pair(0, 1);
         self.levels.input(left, right);
-        match &mut self.midi {
-            Some(midi) => {
+        // Whatever path the block takes (notes, sidechain, plain): an effect that measures for
+        // its window (the channel strip's spectra) does so while the window is open.
+        self.effect.set_watched(self.levels.watched());
+        // Layered: the sound so far waits aside, the instrument starts from silence.
+        let layered = self.layer.is_some() && self.under[0].len() >= left.len();
+        if layered {
+            self.under[0][..left.len()].copy_from_slice(left);
+            self.under[1][..right.len()].copy_from_slice(right);
+            left.fill(0.0);
+            right.fill(0.0);
+        }
+        let notes = match (&mut self.midi, &mut self.layer) {
+            (Some(midi), _) => {
                 let n = if keyed {
                     left.len().min(frames)
                 } else {
                     left.len()
                 };
+                Some((midi.collect(ctx.transport, n), n))
+            }
+            (None, Some(layer)) => Some((layer.collect(), left.len())),
+            (None, None) => None,
+        };
+        match notes {
+            Some((events, n)) => {
                 let mut cursor = 0;
-                for event in midi.collect(ctx.transport, n) {
+                for event in events {
                     let t = (event.time as usize).min(n);
                     if t > cursor {
                         run(
@@ -181,9 +220,14 @@ impl Processor for Insert {
                     (&self.key[0][..n], &self.key[1][..n]),
                 );
             }
-            None => {
-                self.effect.set_watched(self.levels.watched());
-                self.effect.process(left, right)
+            None => self.effect.process(left, right),
+        }
+        if layered {
+            for (s, u) in left.iter_mut().zip(&self.under[0]) {
+                *s += u;
+            }
+            for (s, u) in right.iter_mut().zip(&self.under[1]) {
+                *s += u;
             }
         }
         // A broken value would stick in every filter after it: silence and restart the effect.

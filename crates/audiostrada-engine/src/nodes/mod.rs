@@ -16,7 +16,7 @@ pub use input::{ConsoleControls, InputStage};
 pub use insert::{Insert, InsertControls};
 pub use levels::LevelControls;
 pub use metronome::{Metronome, MetronomeControls};
-pub use midi::{MidiClip, MidiControls, MidiOut, MidiPlayer, Sequence};
+pub use midi::{MidiClip, MidiControls, MidiLayer, MidiOut, MidiPlayer, MidiShare, Sequence};
 pub use monitor::Monitor;
 pub use player::{Clip, ClipPlayer, PlayerControls};
 pub use plugin::{PluginControls, PluginNode};

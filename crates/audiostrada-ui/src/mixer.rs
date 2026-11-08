@@ -77,6 +77,9 @@ pub struct MixerView {
     fx_fallback: Option<FxTarget>,
     /// Editors to bring to the front (their insert clicked again, their track selected).
     raise: Vec<InsertId>,
+    /// The instrument the browser was opened to replace ("Change instrument…"); an
+    /// instrument chosen otherwise is layered on those leading its track.
+    replace_instrument: bool,
     /// The window to give the focus back to, and when: windows brought to the front for a
     /// track selected take it on the way.
     refocus: Option<(egui::ViewportId, f64)>,
@@ -1854,6 +1857,7 @@ impl MixerView {
             fx_target: None,
             fx_fallback: None,
             raise: Vec::new(),
+            replace_instrument: false,
             refocus: None,
             error: None,
             browser: Default::default(),
@@ -2056,7 +2060,7 @@ impl MixerView {
                     ),
                     (
                         Action::AddInstrumentTrack,
-                        tr("A MIDI track with the built-in synth, ready to play"),
+                        tr("A MIDI track: choose its instrument in the browser"),
                     ),
                     (
                         Action::AddDrumTrack,
@@ -3117,7 +3121,7 @@ impl MixerView {
                 && matches!(channel, Channel::Track(_))
                 && is_instrument(doc, &insert.effect);
             response.context_menu(|ui| {
-                if instrument {
+                if instrument && let Channel::Track(track) = channel {
                     if ui
                         .button(tr("Change instrument…"))
                         .on_hover_text(tr(
@@ -3126,8 +3130,18 @@ impl MixerView {
                         ))
                         .clicked()
                     {
-                        self.rack.place = None;
-                        self.browser.borrow_mut().open_instruments((channel, false));
+                        self.choose_instrument(track, true);
+                        ui.close();
+                    }
+                    if ui
+                        .button(tr("Add an instrument…"))
+                        .on_hover_text(tr(
+                            "Another instrument playing the same notes, layered on this one: \
+                             their sounds add up, the effects after them process the mix",
+                        ))
+                        .clicked()
+                    {
+                        self.choose_instrument(track, false);
                         ui.close();
                     }
                     ui.separator();
@@ -3410,15 +3424,27 @@ impl MixerView {
         } else {
             Default::default()
         };
-        // An instrument leads its track, in place of the one there.
+        // An instrument goes after those leading its track, layered on them (the first one
+        // leads), or in place of the first when the browser was opened to change it.
+        let replace = std::mem::take(&mut self.replace_instrument);
+        let leading = |doc: &Document, t: TrackId| -> Vec<InsertId> {
+            doc.project().track(t).map_or_else(Vec::new, |t| {
+                t.inserts
+                    .iter()
+                    .take_while(|i| is_instrument(doc, &i.effect))
+                    .map(|i| i.id)
+                    .collect()
+            })
+        };
         let replaced = match channel {
-            Channel::Track(t) if is_instrument(doc, key) => Some(
-                doc.project()
-                    .track(t)
-                    .and_then(|t| t.inserts.first())
-                    .filter(|i| is_instrument(doc, &i.effect))
-                    .map(|i| i.id),
-            ),
+            Channel::Track(t) if is_instrument(doc, key) => {
+                let leading = leading(doc, t);
+                Some(if replace {
+                    (leading.first().copied(), 0)
+                } else {
+                    (None, leading.len())
+                })
+            }
             _ => None,
         };
         doc.history_mut()
@@ -3429,14 +3455,14 @@ impl MixerView {
                 {
                     i.monitor = true;
                 }
-                if let (Some(old), Some(id)) = (replaced, added) {
+                if let (Some((old, at)), Some(id)) = (replaced, added) {
                     if let Some(old) = old {
                         routing::remove_insert(p, channel, old);
                     }
-                    added = routing::place_insert(p, (channel, id), (channel, false, 0), false);
+                    added = routing::place_insert(p, (channel, id), (channel, false, at), false);
                 }
             });
-        if let Some(Some(old)) = replaced {
+        if let Some((Some(old), _)) = replaced {
             self.editors.retain(|e| *e != (channel, old));
         }
         if let Some(id) = added {
@@ -4118,6 +4144,16 @@ impl MixerView {
                 }
             }
         }
+    }
+
+    /// Opens the browser on the instruments for a track: to replace its lead instrument, or
+    /// to add one (the first, or a layer on those there).
+    pub fn choose_instrument(&mut self, track: TrackId, replace: bool) {
+        self.rack.place = None;
+        self.replace_instrument = replace;
+        self.browser
+            .borrow_mut()
+            .open_instruments((Channel::Track(track), false));
     }
 
     /// Opens the channel strip of a channel, adding it if it has none yet.
