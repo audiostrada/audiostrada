@@ -26,6 +26,11 @@ pub(crate) struct NamCore {
     fifo_start: usize,
     fifo_len: usize,
     delay: usize,
+    /// The model's state went non-finite: the next reset clears it.
+    broken: bool,
+    /// Samples run through the model since its state was blank: once it has had
+    /// [`Self::warm_len`], its output no longer depends on the blank start.
+    fed: usize,
 }
 
 impl NamCore {
@@ -52,6 +57,8 @@ impl NamCore {
             fifo_start: 0,
             fifo_len: 0,
             delay: 0,
+            broken: false,
+            fed: 0,
         }
     }
 
@@ -86,6 +93,35 @@ impl NamCore {
             self.up = Some(up);
             self.down = Some(down);
         }
+        if let Some(model) = &mut self.runtime {
+            model.reset();
+        }
+        self.fed = 0;
+    }
+
+    /// Samples the model needs from a blank state before its output is its own: from a blank
+    /// state, a capture answers its first samples with a thump (up to +9 dBFS for some),
+    /// then a step of its offset that the cabinet rings with.
+    pub(crate) fn warm_len(&self) -> usize {
+        let remembered = self.runtime.as_ref().map_or(0, Model::receptive_field) as f64
+            * f64::from(self.rate)
+            / f64::from(self.model_rate.max(1));
+        remembered.ceil() as usize + self.delay
+    }
+
+    /// Whether the model has run long enough since its state was blank (see
+    /// [`Self::warm_len`]).
+    pub(crate) fn is_warm(&self) -> bool {
+        self.fed >= self.warm_len()
+    }
+
+    /// Runs the model on silence until it is warm (not in real time: when preparing).
+    pub(crate) fn warm(&mut self, max: usize) {
+        let mut silence = vec![0.0f32; max.max(1)];
+        while self.runtime.is_some() && !self.is_warm() {
+            silence.fill(0.0);
+            self.process(&mut silence);
+        }
     }
 
     /// Delay added by resampling, in samples.
@@ -93,9 +129,16 @@ impl NamCore {
         self.delay
     }
 
+    /// Keeps the model's state, which forgets the past by itself within
+    /// [`Self::warm_len`]: a blank one would thump at each start of playback. Only a state
+    /// gone non-finite is cleared.
     pub(crate) fn reset(&mut self) {
-        if let Some(m) = &mut self.runtime {
+        if self.broken
+            && let Some(m) = &mut self.runtime
+        {
             m.reset();
+            self.broken = false;
+            self.fed = 0;
         }
     }
 
@@ -128,6 +171,11 @@ impl NamCore {
                 }
             }
             _ => model.process_buffer(buffer),
+        }
+        self.fed = self.fed.saturating_add(buffer.len());
+        // A non-finite value stays in the model's state: noted for the next reset.
+        if buffer.last().is_some_and(|s| !s.is_finite()) {
+            self.broken = true;
         }
     }
 }

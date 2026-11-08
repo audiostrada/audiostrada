@@ -447,13 +447,24 @@ const FILES: [FileSlot; 2 + SLOTS] = [
 ];
 
 const TARGET_LOUDNESS: f32 = -18.0;
+/// Most the normalization raises a capture. A clean amp captured quietly (the US Twin's at
+/// -40 dB) has the peaks of a clean amp: raised by its whole 22 dB, a guitar DI peaking at
+/// -6 dBFS came out at +10.
+const MAX_BOOST_DB: f32 = 12.0;
 const FADE_MS: f32 = 30.0;
+/// How long the output stays muted when the amp changes, for the DC blocker and the
+/// cabinet to settle on its offset.
+const SETTLE_MS: f32 = 50.0;
 
 /// Captures of one piece of gear at several settings, sorted by gain.
 struct Pack {
     cores: Vec<NamCore>,
     current: usize,
     previous: Option<usize>,
+    /// Samples the capture switched to still runs alongside the one heard, on the same
+    /// input, before the crossfade: its state is then its own, not a thump from a blank one
+    /// or an echo of what it last played.
+    preroll: usize,
     fade: usize,
     fade_len: usize,
     scratch: Vec<f32>,
@@ -469,10 +480,28 @@ impl Pack {
             cores: models.into_iter().map(NamCore::new).collect(),
             current: 0,
             previous: None,
+            preroll: 0,
             fade: 0,
             fade_len: 1,
             scratch: Vec::new(),
         }
+    }
+
+    /// Warms the capture in use (see `NamCore::warm`), when preparing.
+    fn warm(&mut self, max: usize) {
+        if let Some(core) = self.cores.get_mut(self.current) {
+            core.warm(max);
+        }
+    }
+
+    /// Whether the capture in use has run long enough to be heard.
+    fn is_warm(&self) -> bool {
+        self.cores.get(self.current).is_none_or(NamCore::is_warm)
+    }
+
+    /// Samples the capture in use needs, from a blank state, before it can be heard.
+    fn warm_len(&self) -> usize {
+        self.cores.get(self.current).map_or(0, NamCore::warm_len)
     }
 
     fn prepare(&mut self, rate: u32, max: usize) {
@@ -482,23 +511,35 @@ impl Pack {
         self.scratch = vec![0.0; max];
         self.fade_len = (FADE_MS * 0.001 * rate as f32) as usize + 1;
         self.previous = None;
+        self.preroll = 0;
+    }
+
+    fn index(&self, knob: f32) -> usize {
+        let last = self.cores.len().saturating_sub(1);
+        ((knob / 10.0).clamp(0.0, 1.0) * last as f32).round() as usize
+    }
+
+    /// Puts the capture for `knob` in use at once, without a crossfade (when preparing).
+    fn jump(&mut self, knob: f32) {
+        self.current = self.index(knob);
+        self.previous = None;
+        self.preroll = 0;
     }
 
     /// The capture for a knob from 0 to 10.
     fn select(&mut self, knob: f32) {
-        let last = self.cores.len().saturating_sub(1);
-        let index = ((knob / 10.0).clamp(0.0, 1.0) * last as f32).round() as usize;
+        let index = self.index(knob);
         if index != self.current && self.previous.is_none() {
-            self.cores[index].reset();
             self.previous = Some(self.current);
             self.current = index;
+            self.preroll = self.cores[index].warm_len();
             self.fade = self.fade_len;
         }
     }
 
     fn level(&self, index: usize, normalize: bool) -> f32 {
         match (normalize, self.cores[index].loudness()) {
-            (true, Some(loudness)) => db_to_gain(TARGET_LOUDNESS - loudness),
+            (true, Some(loudness)) => db_to_gain((TARGET_LOUDNESS - loudness).min(MAX_BOOST_DB)),
             _ => 1.0,
         }
     }
@@ -524,6 +565,14 @@ impl Pack {
                 self.scratch[..n].copy_from_slice(buffer);
                 self.cores[old].process(&mut self.scratch[..n]);
                 self.cores[self.current].process(buffer);
+                if self.preroll > 0 {
+                    // The new capture runs, unheard, until its state is its own.
+                    self.preroll = self.preroll.saturating_sub(n);
+                    for (s, o) in buffer.iter_mut().zip(&self.scratch[..n]) {
+                        *s = o * before;
+                    }
+                    return;
+                }
                 for (s, o) in buffer.iter_mut().zip(&self.scratch[..n]) {
                     let t = self.fade as f32 / self.fade_len as f32;
                     *s = *s * now * (1.0 - t) + o * before * t;
@@ -801,6 +850,13 @@ pub struct Rig {
     cab_history: Vec<f32>,
     cab_at: usize,
     dc: (f32, f32),
+    /// The DC blocker's state on silence, after the amp's offset: where a reset puts it.
+    dc_rest: (f32, f32),
+    /// The amp model last heard; samples the output stays muted while a model just chosen
+    /// warms up (see `NamCore::warm_len`), then fades in over.
+    heard_model: usize,
+    muted: usize,
+    unmute: usize,
     gate_env: f32,
     gate_gain: f32,
     dirty: bool,
@@ -831,6 +887,10 @@ impl Default for Rig {
             cab_history: Vec::new(),
             cab_at: 0,
             dc: (0.0, 0.0),
+            dc_rest: (0.0, 0.0),
+            heard_model: usize::MAX,
+            muted: 0,
+            unmute: 0,
             gate_env: 0.0,
             gate_gain: 1.0,
             dirty: true,
@@ -957,6 +1017,43 @@ impl Effect for Rig {
         self.dry_at = 0;
         self.tone_filters = [Biquad::default(); 4];
         self.update();
+        // Only the captures in use are warmed here: all of them would take most of a second.
+        // Another one warms when chosen, unheard (see `Pack::select`, `heard_model`).
+        let gain = self.values[2];
+        let model = self.values[MODEL].round().max(0.0) as usize;
+        if let Some(pack) = model
+            .checked_sub(1)
+            .and_then(|i| self.factory.get_mut(i))
+            .and_then(Option::as_mut)
+        {
+            pack.jump(gain);
+            pack.warm(max);
+        }
+        if let Some(amp) = &mut self.amp {
+            amp.jump(gain);
+            amp.warm(max);
+        }
+        for index in 0..SLOTS {
+            let (_, _, knobs) = self.slot(index);
+            if let Some(pack) = &mut self.slots[index].capture {
+                pack.jump(knobs[0]);
+                pack.warm(max);
+            }
+        }
+        self.heard_model = model;
+        self.muted = 0;
+        self.unmute = 0;
+        // The DC blocker and the cabinet settle on the amp's offset before any sound.
+        self.dc = (0.0, 0.0);
+        let (mut left, mut right) = (vec![0.0f32; max], vec![0.0f32; max]);
+        let mut done = 0;
+        while done < self.rate as usize / 10 {
+            left.fill(0.0);
+            right.fill(0.0);
+            self.process(&mut left, &mut right);
+            done += max;
+        }
+        self.dc_rest = self.dc;
     }
 
     fn set_param(&mut self, index: usize, value: f32) {
@@ -1000,7 +1097,9 @@ impl Effect for Rig {
         self.dry.fill(0.0);
         self.tone_filters = [Biquad::default(); 4];
         self.cab_history.fill(0.0);
-        self.dc = (0.0, 0.0);
+        // The DC blocker goes back to the amp's offset on silence, as the captures keep
+        // theirs (see `NamCore::reset`): cleared, it would step, and the cabinet ring with it.
+        self.dc = self.dc_rest;
         self.gate_env = 0.0;
         self.gate_gain = 1.0;
     }
@@ -1084,6 +1183,23 @@ impl Effect for Rig {
             }
         }
         let model = self.values[MODEL].round().max(0.0) as usize;
+        if model != self.heard_model {
+            // Another amp: unheard until its captures have run long enough (a blank one
+            // thumps) and the DC blocker has followed its offset, then faded in.
+            self.heard_model = model;
+            let pack = match model.checked_sub(1) {
+                None => self.amp.as_mut(),
+                Some(i) => self.factory.get_mut(i).and_then(Option::as_mut),
+            };
+            let mut muted = (SETTLE_MS * 0.001 * rate) as usize;
+            if let Some(pack) = pack {
+                pack.select(gain);
+                if !pack.is_warm() {
+                    muted += pack.warm_len();
+                }
+            }
+            self.muted = muted;
+        }
         let factory = model
             .checked_sub(1)
             .and_then(|i| self.factory.get_mut(i))
@@ -1143,8 +1259,19 @@ impl Effect for Rig {
             }
         }
         let out = db_to_gain(master);
+        let fade_len = (FADE_MS * 0.001 * rate) as usize + 1;
         for i in 0..n {
-            let s = self.mono[i] * out;
+            let ramp = if self.muted > 0 {
+                self.muted -= 1;
+                self.unmute = fade_len;
+                0.0
+            } else if self.unmute > 0 {
+                self.unmute -= 1;
+                1.0 - self.unmute as f32 / fade_len as f32
+            } else {
+                1.0
+            };
+            let s = self.mono[i] * out * ramp;
             left[i] = s;
             right[i] = s;
         }
@@ -1222,6 +1349,72 @@ mod tests {
                     "{pedal} through {cabinet}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn a_guitar_comes_out_near_its_level() {
+        // A plucked note peaking at -6 dBFS, as from a DI: no amp may push it past +3 dBFS.
+        // The US Twin, raised by its capture's whole 22 dB, put it at +10.
+        // The pick's attack: a short burst of noise, then the string's tones.
+        let mut seed = 1u32;
+        let mut noise = move || {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (seed >> 8) as f32 / (1 << 23) as f32 - 1.0
+        };
+        let note: Vec<f32> = (0..48_000)
+            .map(|i| {
+                let t = i as f32 / 48_000.0;
+                let tones = (std::f32::consts::TAU * 196.0 * t).sin()
+                    + 0.4 * (std::f32::consts::TAU * 392.0 * t).sin();
+                0.5 * ((-t * 4.0).exp() * tones / 1.4 + (-t * 300.0).exp() * noise())
+                    .clamp(-1.0, 1.0)
+            })
+            .collect();
+        for (model, name) in AMPS.iter().enumerate().skip(1) {
+            let mut rig = Rig::default();
+            rig.set_param(MODEL, model as f32);
+            rig.prepare(48_000, 256);
+            let mut peak = 0.0f32;
+            for block in note.chunks(256) {
+                let (mut l, mut r) = (block.to_vec(), block.to_vec());
+                rig.process(&mut l, &mut r);
+                peak = l.iter().fold(peak, |m, s| m.max(s.abs()));
+            }
+            let db = 20.0 * peak.log10();
+            assert!(db < 3.0, "{name} peaks at {db:.1} dBFS");
+        }
+    }
+
+    #[test]
+    fn playback_starts_in_silence() {
+        // From a blank state, captures answered silence with a thump: -6 dBFS for the
+        // Panama 52, and up to +9 dBFS on a guitar's first note.
+        for (model, name) in AMPS.iter().enumerate().skip(1) {
+            let mut rig = Rig::default();
+            rig.set_param(MODEL, model as f32);
+            rig.prepare(48_000, 256);
+            let loudest = |rig: &mut Rig| {
+                let (mut l, mut r) = (vec![0.0f32; 256], vec![0.0f32; 256]);
+                let mut most = 0.0f32;
+                for _ in 0..40 {
+                    l.fill(0.0);
+                    r.fill(0.0);
+                    rig.process(&mut l, &mut r);
+                    most = l.iter().chain(&r).fold(most, |m, s| m.max(s.abs()));
+                }
+                most
+            };
+            assert!(loudest(&mut rig) < 1e-4, "{name} starts with a thump");
+            // A locate or a stop resets the effects: still silent after.
+            rig.reset();
+            assert!(loudest(&mut rig) < 1e-4, "{name} thumps after a reset");
+            // Another amp chosen, or another capture of the pack by the gain knob, while
+            // playing: warmed unheard first.
+            rig.set_param(MODEL, (model % (AMPS.len() - 1) + 1) as f32);
+            assert!(loudest(&mut rig) < 1e-4, "{name}: the next amp thumps");
+            rig.set_param(2, 10.0);
+            assert!(loudest(&mut rig) < 1e-4, "{name}: its gain thumps");
         }
     }
 
