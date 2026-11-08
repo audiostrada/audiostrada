@@ -26,10 +26,13 @@ use clack_extensions::state::{HostState, HostStateImpl, PluginState};
 use clack_extensions::timer::{HostTimer, HostTimerImpl, PluginTimer, TimerId};
 use clack_host::events::Match;
 use clack_host::events::event_types::{
-    MidiEvent as ClapMidiEvent, NoteOffEvent, NoteOnEvent, ParamValueEvent,
+    MidiEvent as ClapMidiEvent, NoteOffEvent, NoteOnEvent, ParamValueEvent, TransportEvent,
+    TransportFlags,
 };
 use clack_host::events::spaces::CoreEventSpace;
+use clack_host::events::{EventFlags, EventHeader};
 use clack_host::prelude::*;
+use clack_host::utils::{BeatTime, SecondsTime};
 
 use crate::{Format, MidiEvent, ParamDesc, PluginDescriptor, PluginProcessor, PluginRequest};
 
@@ -295,12 +298,24 @@ impl ClapInstance {
     }
 
     /// Channel count of the main input and output ports.
-    fn main_channels(&mut self) -> (usize, usize) {
+    /// Every audio port the plugin declares, inputs then outputs: its channel counts and which
+    /// one is the main port. The host must give a buffer to each (a sidechain too): Pro-Q 4
+    /// wrote through the sidechain it was not given, and crashed, once its window was open.
+    fn ports(&mut self) -> (Ports, Ports) {
         let handle = self.instance.plugin_handle();
         let Some(ports) = handle.get_extension::<PluginAudioPorts>() else {
-            return (2, 2);
+            return (
+                Ports {
+                    channels: vec![2],
+                    main: 0,
+                },
+                Ports {
+                    channels: vec![2],
+                    main: 0,
+                },
+            );
         };
-        let main = |input: bool| -> usize {
+        let list = |input: bool| -> Ports {
             let mut infos = Vec::new();
             for i in 0..ports.count(&handle, input) {
                 let mut buffer = AudioPortInfoBuffer::new();
@@ -308,13 +323,12 @@ impl ClapInstance {
                     infos.push((p.flags.contains(AudioPortFlags::IS_MAIN), p.channel_count));
                 }
             }
-            infos
-                .iter()
-                .find(|(main, _)| *main)
-                .or(infos.first())
-                .map_or(0, |(_, channels)| *channels as usize)
+            Ports {
+                main: infos.iter().position(|(main, _)| *main).unwrap_or(0),
+                channels: infos.iter().map(|(_, c)| *c as usize).collect(),
+            }
         };
-        (main(true), main(false))
+        (list(true), list(false))
     }
 
     /// Calls the plugin timers that are due.
@@ -422,7 +436,7 @@ impl crate::PluginInstance for ClapInstance {
         sample_rate: u32,
         max_frames: usize,
     ) -> Result<Box<dyn PluginProcessor>, String> {
-        let (inputs, outputs) = self.main_channels();
+        let (in_ports, out_ports) = self.ports();
         let configuration = PluginAudioConfiguration {
             sample_rate: f64::from(sample_rate),
             min_frames_count: 1,
@@ -433,15 +447,26 @@ impl crate::PluginInstance for ClapInstance {
             .activate(|_, _| (), configuration)
             .map_err(|e| e.to_string())?;
         let max = max_frames.max(1);
+        let buffers = |ports: &Ports| -> Vec<Vec<Vec<f32>>> {
+            ports
+                .channels
+                .iter()
+                .map(|&c| vec![vec![0.0; max]; c])
+                .collect()
+        };
+        let total = |ports: &Ports| ports.channels.iter().sum::<usize>();
         Ok(Box::new(ClapProcessor {
             processor: processor.into(),
-            inputs: vec![vec![0.0; max]; inputs],
-            outputs: vec![vec![0.0; max]; outputs],
-            input_ports: AudioPorts::with_capacity(inputs, 1),
-            output_ports: AudioPorts::with_capacity(outputs, 1),
+            inputs: buffers(&in_ports),
+            outputs: buffers(&out_ports),
+            main_in: in_ports.main,
+            main_out: out_ports.main,
+            input_ports: AudioPorts::with_capacity(total(&in_ports), in_ports.channels.len()),
+            output_ports: AudioPorts::with_capacity(total(&out_ports), out_ports.channels.len()),
             events_in: EventBuffer::with_capacity(2 * MAX_EVENTS),
             events_out: EventBuffer::with_capacity(MAX_EVENTS),
             steady: 0,
+            transport: None,
         }))
     }
 
@@ -656,16 +681,27 @@ impl Drop for ClapInstance {
     }
 }
 
+/// The audio ports of one direction: channels per port, and the main one.
+struct Ports {
+    channels: Vec<usize>,
+    main: usize,
+}
+
 /// Audio side of a CLAP plugin.
 pub struct ClapProcessor {
     processor: PluginAudioProcessor<ClapHost>,
-    inputs: Vec<Vec<f32>>,
-    outputs: Vec<Vec<f32>>,
+    /// A buffer per channel of each port; the track plays into and out of the main ports,
+    /// the others (sidechains, aux outputs) get silence and are left unheard.
+    inputs: Vec<Vec<Vec<f32>>>,
+    outputs: Vec<Vec<Vec<f32>>>,
+    main_in: usize,
+    main_out: usize,
     input_ports: AudioPorts,
     output_ports: AudioPorts,
     events_in: EventBuffer,
     events_out: EventBuffer,
     steady: u64,
+    transport: Option<TransportEvent>,
 }
 
 impl std::fmt::Debug for ClapProcessor {
@@ -685,7 +721,11 @@ impl PluginProcessor for ClapProcessor {
         midi: &[MidiEvent],
         params_out: &mut dyn FnMut(u32, f64),
     ) {
-        let max = self.outputs.first().map_or(0, Vec::len);
+        let max = self
+            .outputs
+            .get(self.main_out)
+            .and_then(|p| p.first())
+            .map_or(0, Vec::len);
         let n = left.len().min(right.len()).min(max);
         if n == 0 || self.processor.ensure_processing_started().is_err() {
             return;
@@ -714,22 +754,25 @@ impl PluginProcessor for ClapProcessor {
                     .push(&ClapMidiEvent::new(time, 0, event.data));
             }
         }
-        crate::fill_inputs(&mut self.inputs, left, right, n);
-        let port = (!self.inputs.is_empty()).then(|| AudioPortBuffer {
-            latency: 0,
-            channels: AudioPortBufferType::f32_input_only(
-                self.inputs
-                    .iter_mut()
-                    .map(|b| InputChannel::variable(&mut b[..n])),
-            ),
-        });
-        let inputs = self.input_ports.with_input_buffers(port);
-        let mut outputs = self.output_ports.with_output_buffers([AudioPortBuffer {
-            latency: 0,
-            channels: AudioPortBufferType::f32_output_only(
-                self.outputs.iter_mut().map(|b| &mut b[..n]),
-            ),
-        }]);
+        if let Some(main) = self.inputs.get_mut(self.main_in) {
+            crate::fill_inputs(main, left, right, n);
+        }
+        let inputs = self
+            .input_ports
+            .with_input_buffers(self.inputs.iter_mut().map(|port| AudioPortBuffer {
+                latency: 0,
+                channels: AudioPortBufferType::f32_input_only(
+                    port.iter_mut().map(|b| InputChannel::variable(&mut b[..n])),
+                ),
+            }));
+        let mut outputs = self
+            .output_ports
+            .with_output_buffers(self.outputs.iter_mut().map(|port| AudioPortBuffer {
+                latency: 0,
+                channels: AudioPortBufferType::f32_output_only(
+                    port.iter_mut().map(|b| &mut b[..n]),
+                ),
+            }));
         let result = self.processor.ensure_processing_started().map(|p| {
             p.process(
                 &inputs,
@@ -737,12 +780,14 @@ impl PluginProcessor for ClapProcessor {
                 &self.events_in.as_input(),
                 &mut self.events_out.as_output(),
                 Some(self.steady),
-                None,
+                self.transport.as_ref(),
             )
         });
         self.steady += n as u64;
-        if matches!(result, Ok(Ok(_))) {
-            crate::take_outputs(&self.outputs, left, right, n);
+        if matches!(result, Ok(Ok(_)))
+            && let Some(main) = self.outputs.get(self.main_out)
+        {
+            crate::take_outputs(main, left, right, n);
         }
         for event in self.events_out.iter() {
             if let Some(CoreEventSpace::ParamValue(e)) = event.as_core_event()
@@ -756,6 +801,31 @@ impl PluginProcessor for ClapProcessor {
 
     fn reset(&mut self) {
         self.processor.reset();
+    }
+
+    fn set_transport(&mut self, t: &crate::Transport) {
+        let mut flags = TransportFlags::HAS_TEMPO
+            | TransportFlags::HAS_BEATS_TIMELINE
+            | TransportFlags::HAS_TIME_SIGNATURE;
+        if t.playing {
+            flags |= TransportFlags::IS_PLAYING;
+        }
+        self.transport = Some(TransportEvent {
+            header: EventHeader::new_core(0, EventFlags::empty()),
+            flags,
+            song_pos_beats: BeatTime::from_float(t.beats),
+            song_pos_seconds: SecondsTime::from_float(0.0),
+            tempo: t.tempo,
+            tempo_inc: 0.0,
+            loop_start_beats: BeatTime::from_float(0.0),
+            loop_end_beats: BeatTime::from_float(0.0),
+            loop_start_seconds: SecondsTime::from_float(0.0),
+            loop_end_seconds: SecondsTime::from_float(0.0),
+            bar_start: BeatTime::from_float(t.bar_start),
+            bar_number: t.bar,
+            time_signature_numerator: t.numerator as u16,
+            time_signature_denominator: t.denominator as u16,
+        });
     }
 }
 
