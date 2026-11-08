@@ -152,7 +152,9 @@ pub fn from_json(bytes: &[u8]) -> Result<Project, ProjectError> {
     if version > VERSION {
         return Err(ProjectError::TooNew { found: version });
     }
-    let value = migrate(value, version)?;
+    let mut value = migrate(value, version)?;
+    // Saved before Strada-Amp's models were renumbered.
+    crate::legacy::upgrade_amp_rigs(&mut value);
     let envelope: Envelope<Project> =
         serde_json::from_value(value).map_err(|e| ProjectError::Format(e.to_string()))?;
     let mut project = envelope.project;

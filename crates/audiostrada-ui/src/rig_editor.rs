@@ -1318,7 +1318,7 @@ fn capture_name(params: &Params, slot: &str) -> Option<String> {
 /// The style of the loaded amp, from its name.
 /// The built-in amp in use, if not the captures.
 fn builtin(params: &Params) -> Option<&'static audiostrada_dsp::amp::Model> {
-    let model = params.get("model").round() as usize;
+    let model = params.get("amp").round() as usize;
     model.checked_sub(1).and_then(|i| MODELS.get(i))
 }
 
@@ -1355,7 +1355,7 @@ fn amp_choices(ctx: &egui::Context) -> Vec<AmpChoice> {
 
 /// Where the amp in use is among `choices`.
 fn current_choice(params: &Params, choices: &[AmpChoice]) -> Option<usize> {
-    let model = params.get("model").round() as usize;
+    let model = params.get("amp").round() as usize;
     if model > 0 {
         return choices.iter().position(|c| *c == AmpChoice::Model(model));
     }
@@ -1375,7 +1375,7 @@ fn set_model(ui: &Ui, params: &mut Params, model: usize) {
         ui.scope_id().with("rig-model"),
         Sense::hover(),
     );
-    set_now(params, "model", model as f32, &response);
+    set_now(params, "amp", model as f32, &response);
     let impulse = params.get("cab").round() as usize == CABS.len() - 1;
     if let (false, Some(m)) = (impulse, MODELS.get(model.wrapping_sub(1))) {
         set_now(params, "cab", m.cab as f32, &response);
@@ -1762,7 +1762,7 @@ fn load_into(ui: &Ui, params: &mut Params, target: Picker, path: &std::path::Pat
         Picker::Cab => set_now(params, "cab", (CABS.len() - 1) as f32, &response),
         // A full rig already has its cabinet.
         Picker::Amp => {
-            set_now(params, "model", 0.0, &response);
+            set_now(params, "amp", 0.0, &response);
             if full_rig {
                 set_now(params, "cab", (CABS.len() - 2) as f32, &response);
             }
@@ -1949,7 +1949,7 @@ fn picker(ui: &mut Ui, params: &mut Params, state: &mut RigState) {
             }
             ui.separator();
             if state.tab == Tab::BuiltIn {
-                let current = params.get("model").round() as usize;
+                let current = params.get("amp").round() as usize;
                 if let Some(model) = builtin_list(ui, current) {
                     picked_model = Some(model);
                 }
@@ -2164,10 +2164,10 @@ enum CardAction {
 const FAMILIES: [(&str, &[usize]); 6] = [
     ("American clean", &[1, 2, 3]),
     ("Tweed", &[4, 5]),
-    ("British", &[6, 7, 8, 9, 10]),
-    ("Boutique", &[11]),
-    ("High gain", &[12, 13, 14]),
-    ("Bass amps", &[15, 16]),
+    ("British", &[6, 7, 8]),
+    ("Boutique", &[9]),
+    ("High gain", &[10, 11]),
+    ("Bass amps", &[12, 13]),
 ];
 
 /// The built-in amps; returns the model clicked (index in the rig's amp models).
@@ -2911,7 +2911,7 @@ mod tests {
             let mut script = script.into_iter();
             crate::effect_editors::drive_for_test(
                 "amp_rig",
-                &[("model", 0.0)],
+                &[("amp", 0.0)],
                 frames,
                 |frame, state| {
                     if frame == 0 {

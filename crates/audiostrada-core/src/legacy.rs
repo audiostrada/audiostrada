@@ -168,6 +168,97 @@ fn rename_targets(value: &mut Value, eqs: &BTreeSet<u64>, renamed: &mut Vec<(u64
     }
 }
 
+/// What Strada-Amp's amp parameter was before three of its models went (Brit 900, Brit Hot Mod,
+/// Brit Lead 100): `model`, numbered with them. Each old number gives the amp now: the Plexi
+/// for the two British ones, the Panama 52 for the Laney.
+const AMP_OF_OLD_MODEL: [f32; 17] = [
+    0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 8.0, 8.0, 9.0, 10.0, 11.0, 11.0, 12.0, 13.0,
+];
+
+/// Strada-Amp's parameters saved with its old `model` numbering, as `amp`. Returns whether
+/// anything was old.
+pub fn upgrade_amp_rig(params: &mut BTreeMap<String, f32>) -> bool {
+    let Some(old) = params.remove("model") else {
+        return false;
+    };
+    let index = (old.round().max(0.0) as usize).min(AMP_OF_OLD_MODEL.len() - 1);
+    params
+        .entry("amp".to_owned())
+        .or_insert(AMP_OF_OLD_MODEL[index]);
+    true
+}
+
+/// Strada-Amp's old `model` parameter in a whole project file: in its inserts (parallel
+/// branches too), the console snapshots holding their values, and the automation lanes
+/// driving it (renamed; their points keep their values).
+pub fn upgrade_amp_rigs(value: &mut Value) {
+    fn params_of(value: &mut Value) -> Option<BTreeMap<String, f32>> {
+        serde_json::from_value(value.get("params")?.clone()).ok()
+    }
+    fn upgrade(value: &mut Value) -> bool {
+        let Some(mut params) = params_of(value) else {
+            return false;
+        };
+        if !upgrade_amp_rig(&mut params) {
+            return false;
+        }
+        if let (Some(slot), Ok(new)) = (value.get_mut("params"), serde_json::to_value(params)) {
+            *slot = new;
+        }
+        true
+    }
+    /// The ids of the rigs, their own parameters upgraded on the way.
+    fn rigs(value: &mut Value, ids: &mut BTreeSet<String>) {
+        match value {
+            Value::Object(map) => {
+                if map.get("effect").and_then(Value::as_str) == Some("amp_rig")
+                    && let Some(id) = map.get("id")
+                {
+                    ids.insert(id.to_string());
+                }
+                for child in map.values_mut() {
+                    rigs(child, ids);
+                }
+                if map.get("effect").and_then(Value::as_str) == Some("amp_rig") {
+                    let mut object = Value::Object(std::mem::take(map));
+                    upgrade(&mut object);
+                    if let Value::Object(upgraded) = object {
+                        *map = upgraded;
+                    }
+                }
+            }
+            Value::Array(items) => items.iter_mut().for_each(|v| rigs(v, ids)),
+            _ => {}
+        }
+    }
+    /// Snapshot values and lanes of those rigs.
+    fn uses(value: &mut Value, ids: &BTreeSet<String>) {
+        match value {
+            Value::Object(map) => {
+                let lane = map.get("insert").map(Value::to_string);
+                if lane.is_some_and(|id| ids.contains(&id))
+                    && map.get("param").and_then(Value::as_str) == Some("model")
+                {
+                    map.insert("param".into(), Value::from("amp"));
+                }
+                for (key, child) in map.iter_mut() {
+                    if ids.contains(key) || ids.contains(&format!("\"{key}\"")) {
+                        upgrade(child);
+                    }
+                    uses(child, ids);
+                }
+            }
+            Value::Array(items) => items.iter_mut().for_each(|v| uses(v, ids)),
+            _ => {}
+        }
+    }
+    let mut ids = BTreeSet::new();
+    rigs(value, &mut ids);
+    if !ids.is_empty() {
+        uses(value, &ids);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,5 +318,49 @@ mod tests {
         );
         assert_eq!(p["midi_map"][0]["target"]["Param"]["param"], "b8_freq");
         assert_eq!(p["snapshots"][0]["inserts"]["7"]["params"]["b3_gain"], 4.0);
+    }
+
+    #[test]
+    fn strada_amp_settings_of_old_find_their_amp() {
+        let mut params = BTreeMap::from([("model".to_owned(), 9.0), ("gain".to_owned(), 5.0)]);
+        assert!(upgrade_amp_rig(&mut params));
+        assert_eq!(
+            params.get("amp"),
+            Some(&8.0),
+            "the Brit 900 is now the Plexi"
+        );
+        assert!(!params.contains_key("model"));
+        assert!(!upgrade_amp_rig(&mut params), "once");
+        let mut params = BTreeMap::from([("model".to_owned(), 15.0)]);
+        upgrade_amp_rig(&mut params);
+        assert_eq!(params["amp"], 12.0, "the bass amp moved down");
+        let mut params = BTreeMap::from([("model".to_owned(), 14.0)]);
+        upgrade_amp_rig(&mut params);
+        assert_eq!(params["amp"], 11.0, "the Laney is now the Panama");
+
+        // A whole file: an insert in a parallel branch, a snapshot, a lane.
+        let mut file = serde_json::json!({
+            "tracks": [{"inserts": [{"id": 3, "effect": "parallel", "params": {}, "branches": [
+                {"inserts": [{"id": 7, "effect": "amp_rig", "params": {"model": 12.0}}]}
+            ]}, {"id": 8, "effect": "console", "params": {"model": 2.0}}],
+            "automation": [{"target": {"Param": {"insert": 7, "param": "model"}}}]}],
+            "snapshots": [{"inserts": {"7": {"params": {"model": 13.0}}, "8": {"params": {"model": 1.0}}}}]
+        });
+        upgrade_amp_rigs(&mut file);
+        let rig = &file["tracks"][0]["inserts"][0]["branches"][0]["inserts"][0];
+        assert_eq!(rig["params"], serde_json::json!({"amp": 10.0}));
+        assert_eq!(
+            file["tracks"][0]["inserts"][1]["params"]["model"], 2.0,
+            "not a rig"
+        );
+        assert_eq!(
+            file["tracks"][0]["automation"][0]["target"]["Param"]["param"],
+            "amp"
+        );
+        assert_eq!(
+            file["snapshots"][0]["inserts"]["7"]["params"],
+            serde_json::json!({"amp": 11.0})
+        );
+        assert_eq!(file["snapshots"][0]["inserts"]["8"]["params"]["model"], 1.0);
     }
 }

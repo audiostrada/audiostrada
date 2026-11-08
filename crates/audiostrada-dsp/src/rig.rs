@@ -41,7 +41,7 @@ pub const INFO: EffectInfo = EffectInfo {
 /// In each pack, from the cleanest capture to the most driven, as measured (distortion of a
 /// tone at -36, -24 and -12 dBFS): their files tell no gain to sort them by, and in file
 /// order the Plexi's gain knob jumped to its most driven capture at 2.5.
-pub const FACTORY: [&[&[u8]]; 16] = [
+pub const FACTORY: [&[&[u8]]; 13] = [
     &[
         include_bytes!("../assets/amps/amp01_0.bin"),
         include_bytes!("../assets/amps/amp01_1.bin"),
@@ -65,22 +65,6 @@ pub const FACTORY: [&[&[u8]]; 16] = [
         include_bytes!("../assets/amps/amp08_4.bin"),
     ],
     &[
-        include_bytes!("../assets/amps/amp09_0.bin"),
-        include_bytes!("../assets/amps/amp09_1.bin"),
-        include_bytes!("../assets/amps/amp09_2.bin"),
-        include_bytes!("../assets/amps/amp09_3.bin"),
-        include_bytes!("../assets/amps/amp09_4.bin"),
-        include_bytes!("../assets/amps/amp09_5.bin"),
-        include_bytes!("../assets/amps/amp09_6.bin"),
-        include_bytes!("../assets/amps/amp09_7.bin"),
-    ],
-    &[
-        include_bytes!("../assets/amps/amp10_0.bin"),
-        include_bytes!("../assets/amps/amp10_1.bin"),
-        include_bytes!("../assets/amps/amp10_2.bin"),
-        include_bytes!("../assets/amps/amp10_3.bin"),
-    ],
-    &[
         include_bytes!("../assets/amps/amp11_2.bin"),
         include_bytes!("../assets/amps/amp11_3.bin"),
         include_bytes!("../assets/amps/amp11_0.bin"),
@@ -96,12 +80,6 @@ pub const FACTORY: [&[&[u8]]; 16] = [
         include_bytes!("../assets/amps/amp13_2.bin"),
         include_bytes!("../assets/amps/amp13_1.bin"),
     ],
-    &[
-        include_bytes!("../assets/amps/amp14_0.bin"),
-        include_bytes!("../assets/amps/amp14_1.bin"),
-        include_bytes!("../assets/amps/amp14_2.bin"),
-        include_bytes!("../assets/amps/amp14_3.bin"),
-    ],
     &[],
     &[],
 ];
@@ -109,16 +87,16 @@ pub const FACTORY: [&[&[u8]]; 16] = [
 /// Into each built-in amp (by `MODELS` index), in dB: the Plexi's captures crunched from
 /// the first notch of the gain knob; 9 dB less into them, they clean up as its sibling the
 /// Brit 45 does at the same settings.
-const INPUT_PAD_DB: [f32; 16] = [
-    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -9.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+const INPUT_PAD_DB: [f32; 13] = [
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -9.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 ];
 
 /// Out of each built-in amp (by `MODELS` index), in dB: every guitar amp about as loud as the
 /// others (-12 LUFS) on the same DI with its knobs at their defaults, its peaks under
 /// -1 dBFS. The Deluxes came out 5 dB over the Voxy; the clean US Twin stays a little
 /// quieter, its peaks being the highest. The bass amps, measured with a guitar, keep theirs.
-const LEVEL_TRIM_DB: [f32; 16] = [
-    0.7, -0.5, -3.2, -4.5, 1.8, 1.0, -0.7, 2.5, -0.2, 1.6, -1.8, -0.7, 1.1, 0.1, 0.0, 0.0,
+const LEVEL_TRIM_DB: [f32; 13] = [
+    0.7, -0.5, -3.2, -4.5, 1.8, 1.0, -0.7, 2.5, -1.8, -0.7, 1.1, 0.0, 0.0,
 ];
 
 /// Impulse responses of the simulated cabinets, at 48 kHz (Guitarix, GPL-2.0-or-later).
@@ -291,7 +269,7 @@ const DIRECT: usize = 9;
 const IMPULSE: usize = 10;
 
 /// Amp models: the loaded captures, then the built-in amps of `amp::MODELS`.
-pub const AMPS: [&str; 17] = [
+pub const AMPS: [&str; 14] = [
     "Capture",
     "US Twin",
     "US Super 4x10",
@@ -301,12 +279,9 @@ pub const AMPS: [&str; 17] = [
     "Voxy 15 Top Boost",
     "Brit 45 Bluesbreaker",
     "Brit Plexi 100",
-    "Brit 900",
-    "Brit Hot Mod",
     "Boutique 59",
     "Cali Mark IV",
     "Panama 52",
-    "Brit Lead 100",
     "Bass Classic",
     "Bass Flip 15",
 ];
@@ -371,7 +346,7 @@ const PARAMS: [ParamInfo; PARAM_COUNT] = [
     knob("p4_k1", "Pedal 4 knob 1"),
     knob("p4_k2", "Pedal 4 knob 2"),
     knob("p4_k3", "Pedal 4 knob 3"),
-    choice("model", "Amp model", &AMPS, 2.0),
+    choice("amp", "Amp model", &AMPS, 2.0),
     choice("p5_type", "Pedal 5", &PEDALS, 0.0),
     switch("p5_on", "Pedal 5 on", 1.0),
     knob("p5_k1", "Pedal 5 knob 1"),
@@ -1350,6 +1325,59 @@ impl Effect for Rig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The spectrum of each built-in capture under low-level noise, by octave from 100 Hz,
+    /// relative to 800 Hz: a capture of an amp alone reaches past 6 kHz, one through a
+    /// speaker and a microphone falls from 4 to 5 kHz.
+    #[test]
+    #[ignore = "prints the captures' spectra"]
+    fn capture_spectra() {
+        let bands = [
+            100.0, 200.0, 400.0, 800.0, 1600.0, 3200.0, 6400.0, 10_000.0, 14_000.0,
+        ];
+        for (m, pack) in factory_models().iter().enumerate() {
+            for (k, model) in pack.iter().enumerate() {
+                let mut core = NamCore::new(model.clone());
+                core.prepare(48_000, 512);
+                let mut seed = 12_345u32;
+                let mut noise = move || {
+                    seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    (seed >> 8) as f32 / (1u32 << 24) as f32 * 2.0 - 1.0
+                };
+                let mut out = Vec::new();
+                for block in 0..(48_000 * 4 / 512) {
+                    let mut b: Vec<f32> = (0..512).map(|_| 0.01 * noise()).collect();
+                    core.process(&mut b);
+                    if block > 94 {
+                        out.extend(b);
+                    }
+                }
+                let energy: Vec<f64> = bands
+                    .iter()
+                    .map(|&f| {
+                        let c = Coefficients::design(FilterKind::BandPass, f, 1.4, 0.0, 48_000.0);
+                        let mut q = Biquad::default();
+                        out.iter()
+                            .map(|&x| q.process(&c, f64::from(x)).powi(2))
+                            .sum::<f64>()
+                    })
+                    .collect();
+                let reference = energy[3].max(1e-30);
+                let rms =
+                    (out.iter().map(|x| f64::from(x * x)).sum::<f64>() / out.len() as f64).sqrt();
+                println!(
+                    "{:22} {k}: {}  out {:+.1} dBFS",
+                    AMPS[m + 1],
+                    energy
+                        .iter()
+                        .map(|e| format!("{:+6.1}", 10.0 * (e / reference).log10()))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    20.0 * rms.max(1e-12).log10()
+                );
+            }
+        }
+    }
 
     /// A one-layer WaveNet computing a fixed nonlinear function (from the nam-rs docs).
     fn tiny(gain: f32) -> Vec<u8> {

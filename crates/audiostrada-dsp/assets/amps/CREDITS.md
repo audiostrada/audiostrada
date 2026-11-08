@@ -18,18 +18,6 @@ the GNU GPL v3). Each file keeps the capture's settings and weights; only the fo
 | amp08_2.bin | Brit Plexi 100 | George B Ceriatone King Kong chan2 70s both br sw L |
 | amp08_3.bin | Brit Plexi 100 | George B Ceriatone King Kong Channel 2 80s mode both br sw R |
 | amp08_4.bin | Brit Plexi 100 | George B Ceriatone King Kong  KK Ch2 60s solo 80s |
-| amp09_0.bin | Brit 900 | Tim R JCM90050WDualVerbChAG4 |
-| amp09_1.bin | Brit 900 | Tim R JCM90050WDualVerbCHAG6 |
-| amp09_2.bin | Brit 900 | Tim R JCM90050WDualVerbChAG8 |
-| amp09_3.bin | Brit 900 | Tim R JCM90050WDualVerbchAG10 |
-| amp09_4.bin | Brit 900 | Tim R JCM90050WDualVerbChBG8 |
-| amp09_5.bin | Brit 900 | Tim R JCM90050WDualVerbChBG12 |
-| amp09_6.bin | Brit 900 | Tim R JCM90050WDualVerbChBG16 |
-| amp09_7.bin | Brit 900 | Tim R JCM90050WDualVerbChBG20 |
-| amp10_0.bin | Brit Hot Mod | Sascha S DirtyShirleyMini_Clean_B1_M6_T7_MV10_G4 |
-| amp10_1.bin | Brit Hot Mod | Sascha S DirtyShirleyMini_lowDrive_G6_GainStrucLow |
-| amp10_2.bin | Brit Hot Mod | Sascha S DirtyShirleyMini_crunch_G6 |
-| amp10_3.bin | Brit Hot Mod | Sascha S DirtyShirleyMini_crunch_G8 |
 | amp11_0.bin | Boutique 59 | Tim R Magnatone Super 59 Mkii Ch1 Norm |
 | amp11_1.bin | Boutique 59 | Tim R Magnatone Super 59 Mkii Ch1 Br |
 | amp11_2.bin | Boutique 59 | Tim R Magnatone Super 59 Mkii Ch2 Norm |
@@ -42,7 +30,3 @@ the GNU GPL v3). Each file keeps the capture's settings and weights; only the fo
 | amp13_0.bin | Panama 52 | Tim R 5152 Clean ish |
 | amp13_1.bin | Panama 52 | Tim R 5152 Crunch No Boost |
 | amp13_2.bin | Panama 52 | Tim R 5152 Lead No Boost |
-| amp14_0.bin | Brit Lead 100 | Phillipe P LaneyGH100S-Lo-AfterBreakUp-ESR0,001 |
-| amp14_1.bin | Brit Lead 100 | Phillipe P LaneyGH100S-Lo-CrunchGain-ESR0,024 |
-| amp14_2.bin | Brit Lead 100 | Phillipe P LaneyGH100S-Hi-MidGain-ESR0,003 |
-| amp14_3.bin | Brit Lead 100 | Phillipe P LaneyGH100S-Hi-HiNoon-ESR0,024 |

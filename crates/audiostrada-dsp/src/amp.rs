@@ -40,11 +40,9 @@ const DELUXE: Stack = stack(250.0, 250.0, 6.8, 100.0, 250.0, 100.0, 47.0);
 const BLUES: Stack = stack(250.0, 250.0, 25.0, 100.0, 250.0, 22.0, 22.0);
 const JTM45: Stack = stack(250.0, 1000.0, 25.0, 33.0, 270.0, 22.0, 22.0);
 const PLEXI: Stack = stack(250.0, 1000.0, 25.0, 33.0, 500.0, 22.0, 22.0);
-const JCM800: Stack = stack(220.0, 1000.0, 22.0, 33.0, 470.0, 22.0, 22.0);
 const AC30: Stack = stack(1000.0, 1000.0, 10.0, 100.0, 50.0, 22.0, 22.0);
 const SOLDANO: Stack = stack(250.0, 1000.0, 25.0, 47.0, 470.0, 20.0, 20.0);
 const MESA: Stack = stack(250.0, 250.0, 25.0, 100.0, 250.0, 100.0, 47.0);
-const TRIPLE: Stack = stack(250.0, 1000.0, 33.0, 51.0, 220.0, 15.0, 47.0);
 const AMPEG: Stack = stack(250.0, 1000.0, 25.0, 32.0, 470.0, 22.0, 22.0);
 const FLIPTOP: Stack = stack(250.0, 250.0, 10.0, 100.0, 100.0, 100.0, 47.0);
 
@@ -233,7 +231,7 @@ pub const CAB_BASS115: usize = 8;
 /// The built-in amps, after "Capture" in the rig's model list. Chosen among the most played
 /// and most downloaded amps (TONE3000 download counts, classic amp lists). Those with captures
 /// in [`crate::rig::FACTORY`] play them; the others are modeled here.
-pub const MODELS: [Model; 16] = [
+pub const MODELS: [Model; 13] = [
     Model {
         name: "US Twin",
         face: "blackface",
@@ -403,50 +401,6 @@ pub const MODELS: [Model; 16] = [
         lp: 9000.0,
     },
     Model {
-        name: "Brit 900",
-        face: "plexi",
-        based_on: "Marshall JCM900 50 W Dual Reverb (captures by Tim R)",
-        blurb: "From British clean to hard rock and lead, eight captures of gain.",
-        cab: CAB_V30,
-        stages: &[
-            st(12.0, 30.0, 9000.0, 0.2),
-            st(20.0, 120.0, 7000.0, 0.35),
-            st(12.0, 40.0, 7000.0, 0.25),
-            st(2.0, 20.0, 9000.0, 0.0),
-        ],
-        stack_at: 3,
-        stack: JCM800,
-        pot: 40.0,
-        bright: 4.0,
-        power: 3.0,
-        track: 0.0,
-        sag: 0.3,
-        nfb: 0.8,
-        lp: 7000.0,
-    },
-    Model {
-        name: "Brit Hot Mod",
-        face: "plexi",
-        based_on: "Friedman Dirty Shirley Mini (captures by Sascha S)",
-        blurb: "A hot-rodded Plexi voice, clean to tight crunch.",
-        cab: CAB_V30,
-        stages: &[
-            st(12.0, 40.0, 9000.0, 0.2),
-            st(20.0, 150.0, 7000.0, 0.35),
-            st(16.0, 60.0, 6500.0, 0.3),
-            st(2.0, 20.0, 9000.0, 0.0),
-        ],
-        stack_at: 3,
-        stack: JCM800,
-        pot: 42.0,
-        bright: 3.0,
-        power: 3.0,
-        track: 0.0,
-        sag: 0.25,
-        nfb: 0.8,
-        lp: 6800.0,
-    },
-    Model {
         name: "Boutique 59",
         face: "boutique",
         based_on: "Magnatone Super 59 Mk II (captures by Tim R)",
@@ -513,29 +467,6 @@ pub const MODELS: [Model; 16] = [
         sag: 0.2,
         nfb: 0.8,
         lp: 6500.0,
-    },
-    Model {
-        name: "Brit Lead 100",
-        face: "modern",
-        based_on: "Laney GH100S (captures by Phillipe P)",
-        blurb: "British high gain: from just past breakup to a saturated lead.",
-        cab: CAB_V30,
-        stages: &[
-            st(12.0, 40.0, 9000.0, 0.2),
-            st(20.0, 150.0, 7500.0, 0.35),
-            st(18.0, 70.0, 6500.0, 0.35),
-            st(12.0, 50.0, 6500.0, 0.3),
-            st(2.0, 20.0, 9000.0, 0.0),
-        ],
-        stack_at: 4,
-        stack: TRIPLE,
-        pot: 50.0,
-        bright: 2.0,
-        power: 3.0,
-        track: 0.0,
-        sag: 0.25,
-        nfb: 0.8,
-        lp: 7000.0,
     },
     Model {
         name: "Bass Classic",

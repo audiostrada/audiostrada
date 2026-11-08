@@ -70,6 +70,10 @@ pub fn list(root: Option<&Path>, effect: &str) -> Vec<Preset> {
             if effect == "eq" {
                 audiostrada_core::legacy::upgrade_eq(&mut p.params);
             }
+            // Saved before Strada-Amp's models were renumbered.
+            if effect == "amp_rig" {
+                audiostrada_core::legacy::upgrade_amp_rig(&mut p.params);
+            }
             p
         })
         .collect();
@@ -2958,7 +2962,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("Clean"),
                 &[
-                    ("model", 1.0),
+                    ("amp", 1.0),
                     ("gain", 3.0),
                     ("treble", 6.0),
                     ("cab", 3.0),
@@ -2974,7 +2978,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("Edge of breakup"),
                 &[
-                    ("model", 2.0),
+                    ("amp", 2.0),
                     ("gain", 6.0),
                     ("cab", 4.0),
                     ("p1_type", 13.0),
@@ -2987,7 +2991,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("Jangle"),
                 &[
-                    ("model", 6.0),
+                    ("amp", 6.0),
                     ("gain", 4.0),
                     ("treble", 6.5),
                     ("cab", 2.0),
@@ -3003,7 +3007,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("Blues"),
                 &[
-                    ("model", 7.0),
+                    ("amp", 7.0),
                     ("gain", 5.0),
                     ("cab", 1.0),
                     ("p1_type", 14.0),
@@ -3017,7 +3021,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("Crunch"),
                 &[
-                    ("model", 8.0),
+                    ("amp", 8.0),
                     ("gain", 7.0),
                     ("mid", 6.0),
                     ("cab", 1.0),
@@ -3033,7 +3037,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 tr("Lead"),
                 &[
                     ("gate", -60.0),
-                    ("model", 10.0),
+                    ("amp", 8.0),
                     ("gain", 7.0),
                     ("mid", 6.5),
                     ("presence", 6.0),
@@ -3053,7 +3057,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 tr("Metal"),
                 &[
                     ("gate", -50.0),
-                    ("model", 13.0),
+                    ("amp", 11.0),
                     ("gain", 6.0),
                     ("bass", 6.0),
                     ("mid", 4.0),
@@ -3068,7 +3072,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("Fuzz rock"),
                 &[
-                    ("model", 8.0),
+                    ("amp", 8.0),
                     ("gain", 4.0),
                     ("cab", 1.0),
                     ("p1_type", 16.0),
@@ -3081,7 +3085,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("Bass"),
                 &[
-                    ("model", 15.0),
+                    ("amp", 12.0),
                     ("gain", 4.0),
                     ("bass", 6.5),
                     ("treble", 4.0),
@@ -3093,7 +3097,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("In the style of: AC/DC Crunch"),
                 &[
-                    ("model", 8.0),
+                    ("amp", 8.0),
                     ("gain", 5.5),
                     ("mid", 6.0),
                     ("treble", 6.5),
@@ -3104,7 +3108,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("In the style of: Nile Funk"),
                 &[
-                    ("model", 1.0),
+                    ("amp", 1.0),
                     ("gain", 3.0),
                     ("mid", 4.0),
                     ("treble", 7.0),
@@ -3118,7 +3122,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("In the style of: Desert Fuzz"),
                 &[
-                    ("model", 15.0),
+                    ("amp", 12.0),
                     ("gain", 6.0),
                     ("cab", 1.0),
                     ("p1_type", 16.0),
@@ -3130,7 +3134,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("In the style of: Djent"),
                 &[
-                    ("model", 12.0),
+                    ("amp", 10.0),
                     ("gain", 7.0),
                     ("bass", 4.0),
                     ("mid", 7.0),
@@ -3146,7 +3150,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("In the style of: Hendrix Fuzz"),
                 &[
-                    ("model", 8.0),
+                    ("amp", 8.0),
                     ("gain", 6.0),
                     ("cab", 1.0),
                     ("p1_type", 4.0),
@@ -3158,7 +3162,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("In the style of: Slash Lead"),
                 &[
-                    ("model", 10.0),
+                    ("amp", 8.0),
                     ("gain", 7.0),
                     ("mid", 7.0),
                     ("cab", 1.0),
@@ -3171,7 +3175,7 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("In the style of: Surf Twang"),
                 &[
-                    ("model", 1.0),
+                    ("amp", 1.0),
                     ("gain", 3.0),
                     ("treble", 7.0),
                     ("cab", 3.0),

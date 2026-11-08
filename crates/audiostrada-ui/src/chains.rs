@@ -92,6 +92,9 @@ pub fn list(root: Option<&Path>) -> Vec<Chain> {
                     if i.effect == "eq" {
                         audiostrada_core::legacy::upgrade_eq(&mut i.params);
                     }
+                    if i.effect == "amp_rig" {
+                        audiostrada_core::legacy::upgrade_amp_rig(&mut i.params);
+                    }
                     i
                 })
                 .collect(),
