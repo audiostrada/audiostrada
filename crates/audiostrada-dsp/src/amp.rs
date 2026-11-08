@@ -596,9 +596,19 @@ struct Chain {
     stack_at: usize,
     stack: ToneStack,
     bright: (Coefficients, Biquad),
+    /// The bright shelf's boost (dB) as heard, gliding to what the gain knob asks: its
+    /// coefficients changed at once clicked, the strongest step of all.
+    bright_db: f32,
+    bright_target: f32,
     presence: (Coefficients, Biquad),
     resonance: (Coefficients, Biquad),
     drive: f32,
+    /// What the knobs ask for: the stage gains, the drive and the makeup glide there (see
+    /// `GLIDE_MS`), as a step in a chain of saturating stages clicks.
+    target_gains: [f32; MAX_STAGES],
+    target_drive: f32,
+    target_makeup: f32,
+    glide: f32,
     sag: f32,
     env: f32,
     attack: f32,
@@ -610,6 +620,17 @@ struct Chain {
 
 impl Chain {
     fn tick(&mut self, x: f32) -> f32 {
+        let g = self.glide;
+        for (now, target) in self
+            .gains
+            .iter_mut()
+            .zip(&self.target_gains)
+            .take(self.count)
+        {
+            *now = target + g * (*now - target);
+        }
+        self.drive = self.target_drive + g * (self.drive - self.target_drive);
+        self.makeup = self.target_makeup + g * (self.makeup - self.target_makeup);
         let mut v = self.input.high(x);
         for i in 0..self.count {
             if i == self.stack_at {
@@ -644,12 +665,24 @@ impl Chain {
     }
 }
 
+/// How long the gain-driven values take to reach a knob's new setting (time constant).
+const GLIDE_MS: f32 = 10.0;
+/// Samples between two designs of the gliding bright shelf (32 still clicked a little).
+const BRIGHT_STEP: usize = 8;
+
+/// The bright channel's high shelf for a boost in dB, at the oversampled rate `os`.
+fn bright(db: f32, os: f64) -> Coefficients {
+    Coefficients::design(FilterKind::HighShelf, 2500.0, 0.7, f64::from(db), os)
+}
+
 /// A built-in amp running one of `MODELS`.
 #[derive(Debug)]
 pub struct AmpSim {
     stage: Oversampler,
     chain: Chain,
     model: Option<usize>,
+    /// The oversampled rate the filters are designed at.
+    os: f64,
 }
 
 impl Default for AmpSim {
@@ -658,6 +691,7 @@ impl Default for AmpSim {
             stage: Oversampler::new(Taps::Short),
             chain: Chain::default(),
             model: None,
+            os: 48_000.0 * FACTOR as f64,
         }
     }
 }
@@ -668,7 +702,9 @@ impl AmpSim {
         let Some(m) = MODELS.get(model) else {
             return;
         };
-        if self.model != Some(model) {
+        // Another model starts where its knobs are; the same one glides to them.
+        let jump = self.model != Some(model);
+        if jump {
             self.reset();
             self.model = Some(model);
         }
@@ -680,7 +716,7 @@ impl AmpSim {
         c.count = m.stages.len().min(MAX_STAGES);
         let pot = db_to_gain(-m.pot * (1.0 - gain).powf(1.6));
         for (i, s) in m.stages.iter().take(c.count).enumerate() {
-            c.gains[i] = db_to_gain(s.gain) * if i == 1 { pot } else { 1.0 };
+            c.target_gains[i] = db_to_gain(s.gain) * if i == 1 { pot } else { 1.0 };
             c.bias[i] = s.bias;
             c.rest[i] = triode(s.bias);
             c.hp[i].set(s.hp, fs);
@@ -695,17 +731,18 @@ impl AmpSim {
         );
         c.stack.design(&m.stack, t, mid, bass, os);
         let design = |kind, f: f64, q, g: f32| Coefficients::design(kind, f, q, f64::from(g), os);
-        c.bright.0 = design(
-            FilterKind::HighShelf,
-            2500.0,
-            0.7,
-            m.bright * (1.0 - 0.6 * gain),
-        );
+        self.os = os;
+        c.bright_target = m.bright * (1.0 - 0.6 * gain);
+        if jump {
+            c.bright_db = c.bright_target;
+            c.bright.0 = bright(c.bright_db, os);
+        }
         let presence = (k(knobs.presence) - 0.5) * 2.0 * 8.0 * (0.25 + 0.75 * m.nfb);
         c.presence.0 = design(FilterKind::HighShelf, 3500.0, 0.7, presence);
         c.resonance.0 = design(FilterKind::Peak, 90.0, 0.9, 3.0 * m.nfb);
         let drive_db = m.power + m.track * gain;
-        c.drive = db_to_gain(drive_db);
+        c.target_drive = db_to_gain(drive_db);
+        c.glide = (-1.0 / (GLIDE_MS * 0.001 * fs)).exp();
         c.sag = m.sag * 3.0;
         c.attack = (-1.0 / (0.005 * fs)).exp();
         c.release = (-1.0 / (0.15 * fs)).exp();
@@ -722,19 +759,34 @@ impl AmpSim {
             if i == c.stack_at {
                 a *= mid_gain;
             }
-            a = (triode(a * c.gains[i] + c.bias[i]) - c.rest[i]).abs();
+            a = (triode(a * c.target_gains[i] + c.bias[i]) - c.rest[i]).abs();
         }
         if c.stack_at >= c.count {
             a *= mid_gain;
         }
-        let out = (a * c.drive).tanh();
-        c.makeup = 0.5 / out.max(1e-4);
+        let out = (a * c.target_drive).tanh();
+        c.target_makeup = 0.5 / out.max(1e-4);
+        if jump {
+            c.gains = c.target_gains;
+            c.drive = c.target_drive;
+            c.makeup = c.target_makeup;
+        }
     }
 
     pub fn process(&mut self, buffer: &mut [f32]) {
-        let chain = &mut self.chain;
-        for s in buffer {
-            *s = self.stage.run(*s, |x| chain.tick(x));
+        // The bright shelf glides by steps of a few samples, each one too small to hear.
+        let step =
+            (-(BRIGHT_STEP as f32) / (GLIDE_MS * 0.001 * self.os as f32 / FACTOR as f32)).exp();
+        for chunk in buffer.chunks_mut(BRIGHT_STEP) {
+            let c = &mut self.chain;
+            if (c.bright_db - c.bright_target).abs() > 0.001 {
+                c.bright_db = c.bright_target + step * (c.bright_db - c.bright_target);
+                c.bright.0 = bright(c.bright_db, self.os);
+            }
+            let chain = &mut self.chain;
+            for s in chunk {
+                *s = self.stage.run(*s, |x| chain.tick(x));
+            }
         }
     }
 

@@ -31,7 +31,15 @@ pub(crate) struct NamCore {
     /// Samples run through the model since its state was blank: once it has had
     /// [`Self::warm_len`], its output no longer depends on the blank start.
     fed: usize,
+    /// The capture's own DC blocker (last input and output): captures carry offsets of their
+    /// own, and a crossfade from one to another ramped between them, a click at each end.
+    dc: (f32, f32),
 }
+
+/// The captures' DC blocker: about 8 Hz at 48 kHz, under the amp's own lows.
+const DC_POLE: f32 = 0.999;
+/// Time the DC blocker takes to settle on a capture's offset (five time constants).
+const DC_SETTLE_MS: f32 = 120.0;
 
 impl NamCore {
     /// Reads a `.nam` file, checking that it can run.
@@ -59,6 +67,7 @@ impl NamCore {
             delay: 0,
             broken: false,
             fed: 0,
+            dc: (0.0, 0.0),
         }
     }
 
@@ -97,6 +106,7 @@ impl NamCore {
             model.reset();
         }
         self.fed = 0;
+        self.dc = (0.0, 0.0);
     }
 
     /// Samples the model needs from a blank state before its output is its own: from a blank
@@ -106,7 +116,9 @@ impl NamCore {
         let remembered = self.runtime.as_ref().map_or(0, Model::receptive_field) as f64
             * f64::from(self.rate)
             / f64::from(self.model_rate.max(1));
-        remembered.ceil() as usize + self.delay
+        // Long enough for the DC blocker to settle too.
+        let settle = (DC_SETTLE_MS * 0.001 * self.rate as f32) as usize;
+        (remembered.ceil() as usize + self.delay).max(settle)
     }
 
     /// Whether the model has run long enough since its state was blank (see
@@ -172,6 +184,14 @@ impl NamCore {
             }
             _ => model.process_buffer(buffer),
         }
+        let (mut x1, mut y1) = self.dc;
+        for s in buffer.iter_mut() {
+            let y = *s - x1 + DC_POLE * y1;
+            x1 = *s;
+            y1 = y;
+            *s = y;
+        }
+        self.dc = (x1, y1);
         self.fed = self.fed.saturating_add(buffer.len());
         // A non-finite value stays in the model's state: noted for the next reset.
         if buffer.last().is_some_and(|s| !s.is_finite()) {

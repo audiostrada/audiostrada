@@ -38,6 +38,9 @@ pub const INFO: EffectInfo = EffectInfo {
 
 /// Captures of the built-in amps, clean to driven, by model (empty: modeled in `amp`).
 /// From the Neural Amp Modeler community collection (GPL-3.0), see assets/amps/CREDITS.md.
+/// In each pack, from the cleanest capture to the most driven, as measured (distortion of a
+/// tone at -36, -24 and -12 dBFS): their files tell no gain to sort them by, and in file
+/// order the Plexi's gain knob jumped to its most driven capture at 2.5.
 pub const FACTORY: [&[&[u8]]; 16] = [
     &[
         include_bytes!("../assets/amps/amp01_0.bin"),
@@ -48,17 +51,17 @@ pub const FACTORY: [&[&[u8]]; 16] = [
     &[],
     &[],
     &[
-        include_bytes!("../assets/amps/amp06_0.bin"),
         include_bytes!("../assets/amps/amp06_1.bin"),
+        include_bytes!("../assets/amps/amp06_0.bin"),
         include_bytes!("../assets/amps/amp06_2.bin"),
         include_bytes!("../assets/amps/amp06_3.bin"),
     ],
     &[],
     &[
         include_bytes!("../assets/amps/amp08_0.bin"),
-        include_bytes!("../assets/amps/amp08_1.bin"),
         include_bytes!("../assets/amps/amp08_2.bin"),
         include_bytes!("../assets/amps/amp08_3.bin"),
+        include_bytes!("../assets/amps/amp08_1.bin"),
         include_bytes!("../assets/amps/amp08_4.bin"),
     ],
     &[
@@ -78,20 +81,20 @@ pub const FACTORY: [&[&[u8]]; 16] = [
         include_bytes!("../assets/amps/amp10_3.bin"),
     ],
     &[
-        include_bytes!("../assets/amps/amp11_0.bin"),
-        include_bytes!("../assets/amps/amp11_1.bin"),
         include_bytes!("../assets/amps/amp11_2.bin"),
         include_bytes!("../assets/amps/amp11_3.bin"),
+        include_bytes!("../assets/amps/amp11_0.bin"),
+        include_bytes!("../assets/amps/amp11_1.bin"),
         include_bytes!("../assets/amps/amp11_4.bin"),
-        include_bytes!("../assets/amps/amp11_5.bin"),
         include_bytes!("../assets/amps/amp11_6.bin"),
+        include_bytes!("../assets/amps/amp11_5.bin"),
         include_bytes!("../assets/amps/amp11_7.bin"),
     ],
     &[include_bytes!("../assets/amps/amp12_0.bin")],
     &[
         include_bytes!("../assets/amps/amp13_0.bin"),
-        include_bytes!("../assets/amps/amp13_1.bin"),
         include_bytes!("../assets/amps/amp13_2.bin"),
+        include_bytes!("../assets/amps/amp13_1.bin"),
     ],
     &[
         include_bytes!("../assets/amps/amp14_0.bin"),
@@ -101,6 +104,21 @@ pub const FACTORY: [&[&[u8]]; 16] = [
     ],
     &[],
     &[],
+];
+
+/// Into each built-in amp (by `MODELS` index), in dB: the Plexi's captures crunched from
+/// the first notch of the gain knob; 9 dB less into them, they clean up as its sibling the
+/// Brit 45 does at the same settings.
+const INPUT_PAD_DB: [f32; 16] = [
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -9.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+];
+
+/// Out of each built-in amp (by `MODELS` index), in dB: every guitar amp about as loud as the
+/// others (-12 LUFS) on the same DI with its knobs at their defaults, its peaks under
+/// -1 dBFS. The Deluxes came out 5 dB over the Voxy; the clean US Twin stays a little
+/// quieter, its peaks being the highest. The bass amps, measured with a guitar, keep theirs.
+const LEVEL_TRIM_DB: [f32; 16] = [
+    0.7, -0.5, -3.2, -4.5, 1.8, 1.0, -0.7, 2.5, -0.2, 1.6, -1.8, -0.7, 1.1, 0.1, 0.0, 0.0,
 ];
 
 /// Impulse responses of the simulated cabinets, at 48 kHz (Guitarix, GPL-2.0-or-later).
@@ -470,6 +488,12 @@ struct Pack {
     /// input, before the crossfade: its state is then its own, not a thump from a blank one
     /// or an echo of what it last played.
     preroll: usize,
+    /// Each capture's polarity, as heard: captures are not all made the same way round, and
+    /// a crossfade between two of opposite polarity cancelled to nearly nothing halfway (the
+    /// US Twin's, a hole at 5 on the gain knob). Set from how the one switched to answers
+    /// the same input as the one heard, during the preroll.
+    signs: Vec<f32>,
+    agreement: f64,
     fade: usize,
     fade_len: usize,
     scratch: Vec<f32>,
@@ -481,11 +505,14 @@ impl Pack {
             let gain = |m: &NamModel| m.metadata_typed().gain.unwrap_or(f32::MAX);
             gain(a).total_cmp(&gain(b))
         });
+        let signs = vec![1.0; models.len()];
         Self {
             cores: models.into_iter().map(NamCore::new).collect(),
             current: 0,
             previous: None,
             preroll: 0,
+            signs,
+            agreement: 0.0,
             fade: 0,
             fade_len: 1,
             scratch: Vec::new(),
@@ -538,6 +565,7 @@ impl Pack {
             self.previous = Some(self.current);
             self.current = index;
             self.preroll = self.cores[index].warm_len();
+            self.agreement = 0.0;
             self.fade = self.fade_len;
         }
     }
@@ -563,16 +591,25 @@ impl Pack {
     fn process(&mut self, buffer: &mut [f32], normalize: bool) {
         let n = buffer.len().min(self.scratch.len());
         let buffer = &mut buffer[..n];
-        let now = self.level(self.current, normalize);
+        let now = self.level(self.current, normalize) * self.signs[self.current];
         match self.previous {
             Some(old) => {
-                let before = self.level(old, normalize);
+                let before = self.level(old, normalize) * self.signs[old];
                 self.scratch[..n].copy_from_slice(buffer);
                 self.cores[old].process(&mut self.scratch[..n]);
                 self.cores[self.current].process(buffer);
                 if self.preroll > 0 {
-                    // The new capture runs, unheard, until its state is its own.
+                    // The new capture runs, unheard, until its state is its own; meanwhile,
+                    // whether it answers the way round the one heard does.
+                    self.agreement += buffer
+                        .iter()
+                        .zip(&self.scratch[..n])
+                        .map(|(s, o)| f64::from(s * now * o * before))
+                        .sum::<f64>();
                     self.preroll = self.preroll.saturating_sub(n);
+                    if self.preroll == 0 && self.agreement < 0.0 {
+                        self.signs[self.current] = -self.signs[self.current];
+                    }
                     for (s, o) in buffer.iter_mut().zip(&self.scratch[..n]) {
                         *s = o * before;
                     }
@@ -1209,6 +1246,16 @@ impl Effect for Rig {
             .checked_sub(1)
             .and_then(|i| self.factory.get_mut(i))
             .and_then(Option::as_mut);
+        let (pad, trim) = model.checked_sub(1).map_or((0.0, 0.0), |i| {
+            (
+                INPUT_PAD_DB.get(i).copied().unwrap_or(0.0),
+                LEVEL_TRIM_DB.get(i).copied().unwrap_or(0.0),
+            )
+        });
+        if pad != 0.0 {
+            let pad = db_to_gain(pad);
+            self.mono[..n].iter_mut().for_each(|s| *s *= pad);
+        }
         if let Some(pack) = factory {
             pack.select(gain);
             pack.process(&mut self.mono[..n], normalize);
@@ -1263,7 +1310,7 @@ impl Effect for Rig {
                 }
             }
         }
-        let out = db_to_gain(master);
+        let out = db_to_gain(master + trim);
         let fade_len = (FADE_MS * 0.001 * rate) as usize + 1;
         for i in 0..n {
             let ramp = if self.muted > 0 {
@@ -1355,6 +1402,46 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn a_built_in_amp_glides_to_a_new_gain() {
+        // A held note while the gain jumps from 0 to 10: the waveform bends no sharper than
+        // the note does at the new gain, no click from the stages changing at once.
+        let mut rig = Rig::default();
+        rig.set_param(MODEL, 4.0);
+        rig.set_param(2, 0.0);
+        rig.set_param(8, DIRECT as f32);
+        rig.prepare(48_000, 256);
+        let mut t = 0usize;
+        let mut block = |rig: &mut Rig| {
+            let mut l: Vec<f32> = (0..256)
+                .map(|i| 0.1 * ((t + i) as f32 * std::f32::consts::TAU * 110.0 / 48_000.0).sin())
+                .collect();
+            t += 256;
+            let mut r = l.clone();
+            rig.process(&mut l, &mut r);
+            l
+        };
+        // A click is a break in the waveform's slope: its second difference.
+        let steepest = |x: &[f32]| {
+            x.windows(3)
+                .fold(0.0f32, |m, w| m.max((w[2] - 2.0 * w[1] + w[0]).abs()))
+        };
+        for _ in 0..60 {
+            block(&mut rig);
+        }
+        rig.set_param(2, 10.0);
+        let change: Vec<f32> = (0..4).flat_map(|_| block(&mut rig)).collect();
+        for _ in 0..60 {
+            block(&mut rig);
+        }
+        let steady: Vec<f32> = (0..4).flat_map(|_| block(&mut rig)).collect();
+        let (jump, held) = (steepest(&change), steepest(&steady));
+        assert!(
+            jump < held * 1.5,
+            "a break of {jump} where the note bends by {held}"
+        );
     }
 
     #[test]
@@ -1554,7 +1641,8 @@ mod tests {
             "knob at 5 of 0..10 on 3 captures"
         );
         rig.set_param(2, 0.0);
-        let out = render(&mut rig, 20);
+        // The capture switched to runs unheard for 120 ms at least, then fades in over 30.
+        let out = render(&mut rig, 40);
         assert!(out.iter().all(|s| s.is_finite()));
         assert_eq!(rig.amp.as_ref().unwrap().current, 0);
         assert!(
