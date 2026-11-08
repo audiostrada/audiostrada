@@ -95,7 +95,7 @@ pub fn definitions(live: bool) -> Vec<Value> {
         ),
     ];
     if live {
-        tools.push(tool("plugin_params", "The parameters of a third-party plugin insert, with their number, range and current value; set them with set_insert, by number.", json!({"track": track, "insert": insert, "filter": {"type": "string"}}), &["track", "insert"]));
+        tools.push(tool("plugin_params", "The parameters of a third-party plugin insert, with their number, range, current value and the text the plugin shows for it; set them with set_insert, by number.", json!({"track": track, "insert": insert, "filter": {"type": "string"}}), &["track", "insert"]));
     }
     tools
 }
@@ -561,7 +561,9 @@ pub fn call(doc: &mut Document, name: &str, args: &Value) -> Option<Result<Value
                     .take(400)
                     .map(|p| {
                         let value = stored.get(&p.id.to_string()).map(|v| f64::from(*v)).or_else(|| plugin.param_value(p.id));
-                        json!({"param": p.id, "name": p.name, "min": p.min, "max": p.max, "value": value})
+                        // As the plugin shows it (dB, ms, a mode's name): what its number means.
+                        let text = value.and_then(|v| plugin.value_text(p.id, v));
+                        json!({"param": p.id, "name": p.name, "min": p.min, "max": p.max, "value": value, "text": text})
                     })
                     .collect();
                 Ok(json!(params))
