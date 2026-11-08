@@ -533,7 +533,7 @@ struct MemoryStream {
 }
 
 impl Class for MemoryStream {
-    type Interfaces = (IBStream,);
+    type Interfaces = (IBStream, ISizeableStream);
 }
 
 impl MemoryStream {
@@ -626,6 +626,29 @@ impl IBStreamTrait for MemoryStream {
             }
             None => kInvalidArgument,
         }
+    }
+}
+
+impl ISizeableStreamTrait for MemoryStream {
+    unsafe fn getStreamSize(&self, size: *mut int64) -> tresult {
+        // SAFETY: the plugin passes a writable size or null.
+        match unsafe { size.as_mut() } {
+            Some(size) => {
+                *size = self.data.borrow().len() as i64;
+                kResultOk
+            }
+            None => kInvalidArgument,
+        }
+    }
+
+    unsafe fn setStreamSize(&self, size: int64) -> tresult {
+        let Ok(size) = usize::try_from(size) else {
+            return kInvalidArgument;
+        };
+        self.data.borrow_mut().resize(size, 0);
+        let position = self.position.get().min(size);
+        self.position.set(position);
+        kResultOk
     }
 }
 
@@ -1796,6 +1819,20 @@ mod tests {
             s.write(b"XYZ".as_ptr() as *mut c_void, 3, &mut written);
         }
         assert_eq!(&*stream.data.borrow(), b"aXYZ");
+        // Its size, as plugins ask it: BIAS FX 2 crashed AudioStrada's host loading a state
+        // from a stream that could not tell it.
+        let sized = stream.as_com_ref::<ISizeableStream>().unwrap();
+        let mut size = 0;
+        // SAFETY: out pointers live for the calls.
+        unsafe {
+            assert_eq!(sized.getStreamSize(&mut size), kResultOk);
+            assert_eq!(size, 4);
+            assert_eq!(sized.getStreamSize(std::ptr::null_mut()), kInvalidArgument);
+            assert_eq!(sized.setStreamSize(2), kResultOk);
+            assert_eq!(sized.setStreamSize(-1), kInvalidArgument);
+        }
+        assert_eq!(&*stream.data.borrow(), b"aX");
+        assert_eq!(stream.position.get(), 2);
         let changes = ParamChanges::new();
         changes.push(7, 0.25);
         changes.push(7, 0.5);
