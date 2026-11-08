@@ -215,6 +215,11 @@ const CAPTURE: usize = 12;
 const WAH: usize = 19;
 const ANALOG_DELAY: usize = 20;
 
+/// Whether a pedal type plays after the amp, in its effects loop (delays and reverb).
+pub fn in_loop(kind: usize) -> bool {
+    matches!(kind, DELAY | REVERB | ANALOG_DELAY)
+}
+
 /// The pedal each type is modeled on.
 pub fn pedal_based_on(kind: usize) -> &'static str {
     match kind {

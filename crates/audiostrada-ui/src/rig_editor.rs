@@ -8,7 +8,9 @@ use std::sync::{LazyLock, Mutex};
 
 use audiostrada_core::routing;
 use audiostrada_dsp::amp::MODELS;
-use audiostrada_dsp::rig::{CABS, PEDAL_GROUPS, PEDALS, SLOTS, knob_names, pedal_based_on};
+use audiostrada_dsp::rig::{
+    CABS, PEDAL_GROUPS, PEDALS, SLOTS, in_loop, knob_names, pedal_based_on,
+};
 use eframe::egui::{
     self, Align2, Color32, FontId, Pos2, Rect, Response, RichText, Sense, Stroke, Ui, pos2, vec2,
 };
@@ -462,21 +464,16 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut RigSta
     let p = theme::current(ui);
     let input = meters.first().copied().unwrap_or(-120.0);
     ui.horizontal(|ui| {
-        ui.label(RichText::new(tr("INPUT")).size(10.0).color(p.weak));
-        let (rect, _) = ui.allocate_exact_size(vec2(120.0, 8.0), Sense::hover());
-        ui.painter().rect_filled(rect, 3.0, p.base);
-        let fill = ((input + 48.0) / 48.0).clamp(0.0, 1.0);
-        let color = if input > -3.0 {
+        // The guitar's level into the rig: red when it would clip the first stage.
+        let (dot, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
+        let lit = if input > -3.0 {
             theme::RECORD
-        } else {
+        } else if input > -40.0 {
             theme::PLAY
+        } else {
+            p.base
         };
-        ui.painter().rect_filled(
-            Rect::from_min_size(rect.min, vec2(rect.width() * fill, 8.0)),
-            3.0,
-            color,
-        );
-        ui.add_space(8.0);
+        ui.painter().circle_filled(dot.center(), 4.0, lit);
         small_param(ui, params, "input", tr("Input"));
         small_param(ui, params, "gate", tr("Gate"));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -497,6 +494,8 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut RigSta
             }
         });
     });
+    ui.add_space(6.0);
+    chain(ui, params, state);
     let open_browser = |state: &mut RigState, kind: Kind| {
         state.browser = Some(Browse {
             kind,
@@ -537,13 +536,15 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut RigSta
     // The head sits on its cabinet, as on stage.
     let width = ui.available_width().max(560.0);
     let cab = (params.get("cab").round().max(0.0) as usize).min(CABS.len() - 1);
-    let size = cab_size(cab, width);
-    let head_width = size.x.max(520.0).min(width - 120.0);
+    let size = cab_size(cab, width) * CAB_SCALE;
+    // The head is the rig's face: as wide as the window allows, in its proportions.
+    let head_width = (width - 120.0).clamp(520.0, 760.0);
+    let head_height = head_width * 0.29;
     ui.add_space(10.0);
-    let (row, _) = ui.allocate_exact_size(vec2(width, 170.0 + 20.0), Sense::hover());
+    let (row, _) = ui.allocate_exact_size(vec2(width, head_height + 30.0), Sense::hover());
     let head = Rect::from_center_size(
-        pos2(row.center().x, row.top() + 12.0 + 80.0),
-        vec2(head_width, 160.0),
+        pos2(row.center().x, row.top() + 12.0 + head_height / 2.0),
+        vec2(head_width, head_height),
     );
     amp(ui, params, state, head.expand2(vec2(52.0, 0.0)));
     let (row, _) = ui.allocate_exact_size(vec2(width, size.y + 36.0), Sense::hover());
@@ -551,6 +552,183 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut RigSta
     poll_session(ui, params, state);
     picker(ui, params, state);
     browser(ui, params, state);
+}
+
+/// The cabinet under the head, smaller than life: the head is what is played with.
+const CAB_SCALE: f32 = 0.62;
+
+/// One block of the chain overview.
+struct Block {
+    name: String,
+    color: Color32,
+    on: bool,
+    /// What a click on it does.
+    action: BlockAction,
+}
+
+#[derive(Clone, Copy)]
+enum BlockAction {
+    TogglePedal(usize),
+    PickAmp,
+    PickCab,
+}
+
+/// The whole rig as the signal goes through it, on one line: pedals, amp, cabinet, then the
+/// effects loop. A pedal's block switches it, the amp's and the cabinet's choose them.
+fn chain(ui: &mut Ui, params: &mut Params, state: &mut RigState) {
+    let p = theme::current(ui);
+    let pedal = |params: &Params, slot: usize| {
+        let kind = pedal_kind(params, slot);
+        let name = if kind == 12 {
+            capture_name(params, &format!("pedal{}", slot + 1))
+                .unwrap_or_else(|| tr(PEDALS[kind]).into())
+        } else {
+            tr(PEDALS[kind]).to_owned()
+        };
+        Block {
+            name,
+            color: pedal_color(kind),
+            on: params.get(&slot_id(slot, "on")) >= 0.5,
+            action: BlockAction::TogglePedal(slot),
+        }
+    };
+    let used: Vec<usize> = (0..SLOTS).filter(|&s| pedal_kind(params, s) != 0).collect();
+    let mut blocks: Vec<Block> = used
+        .iter()
+        .filter(|&&s| !in_loop(pedal_kind(params, s)))
+        .map(|&s| pedal(params, s))
+        .collect();
+    let style = amp_style(params);
+    let amp_name = match builtin(params) {
+        Some(model) => model.name.to_owned(),
+        None => capture_name(params, "amp").unwrap_or_else(|| tr("Choose an amp").into()),
+    };
+    blocks.push(Block {
+        name: amp_name,
+        color: style.look().panel,
+        on: true,
+        action: BlockAction::PickAmp,
+    });
+    let cab = (params.get("cab").round().max(0.0) as usize).min(CABS.len() - 1);
+    blocks.push(Block {
+        name: tr(CABS[cab]).to_owned(),
+        color: Color32::from_rgb(52, 52, 56),
+        on: true,
+        action: BlockAction::PickCab,
+    });
+    blocks.extend(
+        used.iter()
+            .filter(|&&s| in_loop(pedal_kind(params, s)))
+            .map(|&s| pedal(params, s)),
+    );
+    let height = 34.0;
+    let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), height + 8.0), Sense::hover());
+    let painter = ui.painter_at(row);
+    let mid = row.center().y;
+    let font = theme::strong(11.0);
+    let widths: Vec<f32> = blocks
+        .iter()
+        .map(|b| {
+            painter
+                .layout_no_wrap(b.name.clone(), font.clone(), Color32::WHITE)
+                .size()
+                .x
+                .clamp(40.0, 150.0)
+                + 26.0
+        })
+        .collect();
+    let gap = 22.0;
+    let total: f32 = widths.iter().sum::<f32>() + gap * (blocks.len() + 1) as f32;
+    // Squeezed to the row when it is too long.
+    let squeeze = ((row.width() - 40.0) / total).min(1.0);
+    let line = Stroke::new(1.5, p.weak.gamma_multiply(0.6));
+    painter.line_segment(
+        [pos2(row.left() + 6.0, mid), pos2(row.right() - 14.0, mid)],
+        line,
+    );
+    painter.circle_stroke(pos2(row.left() + 6.0, mid), 3.0, line);
+    let tip = pos2(row.right() - 6.0, mid);
+    painter.add(egui::Shape::convex_polygon(
+        vec![tip, tip - vec2(9.0, 5.0), tip - vec2(9.0, -5.0)],
+        p.weak.gamma_multiply(0.6),
+        Stroke::NONE,
+    ));
+    let mut x = row.left() + 20.0 + gap * squeeze;
+    let mut clicked = None;
+    for (i, (block, w)) in blocks.iter().zip(&widths).enumerate() {
+        let w = w * squeeze;
+        let rect = Rect::from_min_size(pos2(x, mid - height / 2.0), vec2(w, height));
+        let response = ui.interact(rect, ui.scope_id().with(("chain", i)), Sense::click());
+        let fill = if block.on {
+            block.color
+        } else {
+            block.color.gamma_multiply(0.25)
+        };
+        painter.rect_filled(rect, 6.0, p.base);
+        painter.rect_filled(rect.shrink(1.0), 5.0, fill);
+        if response.hovered() {
+            painter.rect_stroke(
+                rect.expand(1.5),
+                7.0,
+                Stroke::new(1.5, p.text),
+                egui::StrokeKind::Outside,
+            );
+        }
+        let ink = if block.on {
+            theme::text_on(fill)
+        } else {
+            p.weak
+        };
+        let shown = fit(&painter, &block.name, &font, w - 10.0);
+        painter.text(
+            rect.center(),
+            Align2::CENTER_CENTER,
+            shown,
+            font.clone(),
+            ink,
+        );
+        let hint = match block.action {
+            BlockAction::TogglePedal(_) if block.on => {
+                trf!("{name}: click to switch it off", name = block.name)
+            }
+            BlockAction::TogglePedal(_) => {
+                trf!("{name} (off): click to switch it on", name = block.name)
+            }
+            BlockAction::PickAmp => trf!("{name}: click to choose the amp", name = block.name),
+            BlockAction::PickCab => {
+                trf!("{name}: click to choose the cabinet", name = block.name)
+            }
+        };
+        let response = response.on_hover_text(hint);
+        if let BlockAction::PickCab = block.action {
+            egui::Popup::menu(&response).show(|ui| {
+                for (k, name) in CABS.iter().enumerate() {
+                    if ui.selectable_label(k == cab, tr(name)).clicked() {
+                        set_now(params, "cab", k as f32, &response);
+                        ui.close();
+                    }
+                }
+            });
+        } else if response.clicked() {
+            clicked = Some((block.action, block.on, response));
+        }
+        x += w + gap * squeeze;
+    }
+    match clicked {
+        Some((BlockAction::TogglePedal(slot), on, response)) => {
+            set_now(
+                params,
+                &slot_id(slot, "on"),
+                if on { 0.0 } else { 1.0 },
+                &response,
+            );
+        }
+        Some((BlockAction::PickAmp, _, _)) => {
+            state.picker = Some(Picker::Amp);
+            state.filter.clear();
+        }
+        _ => {}
+    }
 }
 
 /// A section title with buttons on the right; returns the button clicked.

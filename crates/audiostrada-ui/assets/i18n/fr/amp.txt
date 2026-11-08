@@ -524,3 +524,15 @@ Du high gain serré, du presque clair au canal lead classique.
 
 British high gain: from just past breakup to a saturated lead.
 High gain britannique : de la limite de saturation au lead saturé.
+
+{name}: click to switch it off
+{name} : cliquer pour l'éteindre
+
+{name} (off): click to switch it on
+{name} (éteinte) : cliquer pour l'allumer
+
+{name}: click to choose the amp
+{name} : cliquer pour choisir l'ampli
+
+{name}: click to choose the cabinet
+{name} : cliquer pour choisir le baffle
