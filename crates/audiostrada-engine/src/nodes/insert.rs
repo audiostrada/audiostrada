@@ -181,7 +181,10 @@ impl Processor for Insert {
                     (&self.key[0][..n], &self.key[1][..n]),
                 );
             }
-            None => self.effect.process(left, right),
+            None => {
+                self.effect.set_watched(self.levels.watched());
+                self.effect.process(left, right)
+            }
         }
         // A broken value would stick in every filter after it: silence and restart the effect.
         if left.iter().chain(right.iter()).any(|s| !s.is_finite()) {

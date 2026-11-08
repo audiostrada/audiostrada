@@ -49,7 +49,7 @@ pub const INFO: EffectInfo = EffectInfo {
         switch("low_bell", "Low bell", 0.0),
         switch("high_bell", "High bell", 0.0),
     ],
-    meters: &["Gate", "Reduction", "Input", "Output"],
+    meters: &METER_NAMES,
     instrument: false,
     files: &[],
     category: "Channel",
@@ -69,6 +69,20 @@ pub const CHARACTERS: [&str; 5] = [
 
 /// The modules, by the id of their switch, in their default order.
 pub const MODULES: [&str; 5] = ["filters", "gate", "comp", "eq", "drive"];
+
+/// Gate gain, compressor reduction, input and output peaks, then the output's spectrum and
+/// the input's (see `analyzer::BANDS`), drawn behind the EQ curve while the window is open.
+pub const OUTPUT_SPECTRUM: usize = 4;
+pub const INPUT_SPECTRUM: usize = 4 + crate::analyzer::BANDS;
+const METER_COUNT: usize = 4 + 2 * crate::analyzer::BANDS;
+const METER_NAMES: [&str; METER_COUNT] = {
+    let mut names = [""; METER_COUNT];
+    names[0] = "Gate";
+    names[1] = "Reduction";
+    names[2] = "Input";
+    names[3] = "Output";
+    names
+};
 
 /// The order the modules play in, from the `order` parameter: one of the 120 arrangements
 /// (indices into [`MODULES`]).
@@ -143,6 +157,10 @@ pub struct Channel {
     /// the loudest of the blocks between.
     levels: [Hold; 2],
     order: [usize; 5],
+    /// Spectra of the output and of the input, computed only while the window shows them;
+    /// none in the copies the editors draw the curve with (see `with_spectra`).
+    spectra: Option<Box<[crate::analyzer::Analyzer; 2]>>,
+    watched: bool,
 }
 
 impl Default for Channel {
@@ -164,6 +182,8 @@ impl Default for Channel {
             reduction: 0.0,
             levels: [Hold::new(48_000), Hold::new(48_000)],
             order: [0, 1, 2, 3, 4],
+            spectra: None,
+            watched: false,
         };
         channel.design();
         channel.forward_all();
@@ -172,6 +192,14 @@ impl Default for Channel {
 }
 
 impl Channel {
+    /// The channel strip as it plays, with the spectra its window shows.
+    pub fn with_spectra() -> Self {
+        Self {
+            spectra: Some(Box::default()),
+            ..Self::default()
+        }
+    }
+
     fn on(&self, index: usize) -> bool {
         self.values[index] >= 0.5
     }
@@ -344,6 +372,9 @@ impl Effect for Channel {
     fn prepare(&mut self, sample_rate: u32, max_frames: usize) {
         self.rate = f64::from(sample_rate);
         self.levels = [Hold::new(sample_rate), Hold::new(sample_rate)];
+        for spectrum in self.spectra.iter_mut().flat_map(|s| s.iter_mut()) {
+            spectrum.prepare(sample_rate, max_frames);
+        }
         self.gate.prepare(sample_rate, max_frames);
         self.comp.prepare(sample_rate, max_frames);
         self.forward_all();
@@ -367,8 +398,23 @@ impl Effect for Channel {
         }
     }
 
+    fn set_watched(&mut self, watched: bool) {
+        if self.watched && !watched {
+            for spectrum in self.spectra.iter_mut().flat_map(|s| s.iter_mut()) {
+                spectrum.reset();
+            }
+        }
+        self.watched = watched;
+    }
+
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         hold_peaks(&mut self.levels[0], left, right);
+        if self.watched
+            && let Some(spectra) = &mut self.spectra
+        {
+            // The analyzer reads its input and leaves it untouched.
+            spectra[1].process(left, right);
+        }
         self.gate_db = 0.0;
         if !self.on(p::COMP) {
             self.reduction = 0.0;
@@ -396,6 +442,11 @@ impl Effect for Channel {
             }
         }
         hold_peaks(&mut self.levels[1], left, right);
+        if self.watched
+            && let Some(spectra) = &mut self.spectra
+        {
+            spectra[0].process(left, right);
+        }
     }
 
     fn reset(&mut self) {
@@ -434,12 +485,52 @@ impl Effect for Channel {
         ]) {
             *o = v;
         }
+        if let Some(spectra) = &self.spectra {
+            if let Some(out) = out.get_mut(OUTPUT_SPECTRUM..INPUT_SPECTRUM) {
+                spectra[0].meters(out);
+            }
+            if let Some(out) = out.get_mut(INPUT_SPECTRUM..) {
+                spectra[1].meters(out);
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_spectra_are_measured_while_the_window_is_open() {
+        let loudest_near = |watched: bool| {
+            let mut c = Channel::with_spectra();
+            c.prepare(48_000, 256);
+            c.set_watched(watched);
+            for block in 0..80 {
+                let mut l: Vec<f32> = (0..256)
+                    .map(|i| {
+                        0.5 * ((block * 256 + i) as f32 * std::f32::consts::TAU * 1000.0 / 48_000.0)
+                            .sin()
+                    })
+                    .collect();
+                let mut r = l.clone();
+                c.process(&mut l, &mut r);
+            }
+            let mut meters = vec![-120.0; INFO.meters.len()];
+            c.meters(&mut meters);
+            let at = |start: usize| {
+                (0..crate::analyzer::BANDS)
+                    .filter(|&b| (crate::analyzer::band_frequency(b) - 1000.0).abs() < 100.0)
+                    .map(|b| meters[start + b])
+                    .fold(-120.0f32, f32::max)
+            };
+            (at(OUTPUT_SPECTRUM), at(INPUT_SPECTRUM))
+        };
+        let (output, input) = loudest_near(true);
+        assert!(output > -20.0 && input > -20.0, "{output} {input}");
+        // Closed, nothing is computed.
+        assert_eq!(loudest_near(false), (-120.0, -120.0));
+    }
 
     fn index(id: &str) -> usize {
         INFO.params.iter().position(|p| p.id == id).unwrap()

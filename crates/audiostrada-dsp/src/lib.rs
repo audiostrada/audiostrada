@@ -141,6 +141,9 @@ pub trait Effect: Send {
     }
     /// Writes the values named in [`EffectInfo::meters`].
     fn meters(&self, _out: &mut [f32]) {}
+    /// Whether the effect's window is open: what only it shows (a spectrum) can be left
+    /// uncomputed otherwise. Called before each block.
+    fn set_watched(&mut self, _watched: bool) {}
     /// A MIDI message, applied before processing the frames that follow it.
     fn midi(&mut self, _event: &MidiEvent) {}
     /// Project tempo at the current block, for effects synced to it.
@@ -375,7 +378,7 @@ pub fn create(id: &str) -> Option<Box<dyn Effect>> {
     match id {
         "utility" => Some(Box::new(utility::Utility::default())),
         "imager" => Some(Box::new(imager::Imager::default())),
-        "channel" => Some(Box::new(channel::Channel::default())),
+        "channel" => Some(Box::new(channel::Channel::with_spectra())),
         "eq" => Some(Box::new(eq::Equalizer::default())),
         "vintage_eq" => Some(Box::new(vintage_eq::VintageEq::default())),
         "filter" => Some(Box::new(filter::Filter::default())),

@@ -5999,5 +5999,3 @@ Nouvelle : {name}
  bars
  mesures
 
-The last seconds: the input in grey, the output in color over it
-Les dernières secondes : l'entrée en gris, la sortie en couleur par-dessus

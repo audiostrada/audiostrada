@@ -74,7 +74,7 @@ impl Levels {
         self.output = LevelMeter::new(rate);
     }
 
-    fn watched(&self) -> bool {
+    pub(crate) fn watched(&self) -> bool {
         self.controls.watched.get() >= 0.5
     }
 

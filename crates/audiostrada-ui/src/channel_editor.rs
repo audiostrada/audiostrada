@@ -28,14 +28,6 @@ const STAGE: f32 = -18.0;
 pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
     curve(ui, params, meters);
     ui.add_space(8.0);
-    let level = |k: usize| meters.get(k).copied().unwrap_or(-120.0);
-    crate::effect_editors::level_trace(
-        ui,
-        egui::Id::unique(("channel-trace", params.insert.0)),
-        [level(2), level(3)],
-        90.0,
-    );
-    ui.add_space(8.0);
     io_bar(ui, params);
     ui.add_space(8.0);
     modules(ui, params, meters);
@@ -104,6 +96,7 @@ fn curve(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
             p.weak,
         );
     }
+    spectra(&painter, graph, meters, &x_of, &p);
     let mut dsp = audiostrada_dsp::channel::Channel::default();
     dsp.prepare(48_000, 64);
     let character = crate::console_ui::character(params.doc, params.channel);
@@ -197,6 +190,66 @@ fn curve(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
         meters,
         &p,
     );
+}
+
+/// The output's spectrum filled and the input's as a line, -90 to 0 dBFS over the graph's
+/// height, behind the EQ curve: what the EQ is given and what it does to it.
+fn spectra(
+    painter: &egui::Painter,
+    graph: Rect,
+    meters: &[f32],
+    x_of: &dyn Fn(f32) -> f32,
+    p: &theme::Palette,
+) {
+    use audiostrada_dsp::analyzer::{BANDS, band_frequency};
+    use audiostrada_dsp::channel::{INPUT_SPECTRUM, OUTPUT_SPECTRUM};
+    let points = |levels: &[f32]| -> Vec<Pos2> {
+        let mut points: Vec<Pos2> = levels
+            .iter()
+            .enumerate()
+            .map(|(i, m)| {
+                let level = ((m + 90.0) / 90.0).clamp(0.0, 1.0);
+                pos2(
+                    x_of(band_frequency(i)).min(graph.right()),
+                    graph.bottom() - level * graph.height(),
+                )
+            })
+            .collect();
+        points.dedup_by(|a, b| (a.x - b.x).abs() < 0.5);
+        points
+    };
+    let band = |start: usize| meters.get(start..start + BANDS);
+    // Nothing measured yet (the window just opened): nothing drawn.
+    let heard = |levels: &[f32]| levels.iter().any(|m| *m > -119.0);
+    if let Some(input) = band(INPUT_SPECTRUM).filter(|l| heard(l)) {
+        painter.add(egui::Shape::line(
+            points(input),
+            Stroke::new(1.0, p.weak.gamma_multiply(0.45)),
+        ));
+    }
+    if let Some(output) = band(OUTPUT_SPECTRUM).filter(|l| heard(l)) {
+        let line = points(output);
+        let mut mesh = egui::Mesh::default();
+        let (top, bottom) = (p.accent.gamma_multiply(0.18), p.accent.gamma_multiply(0.02));
+        for pair in line.windows(2) {
+            let i = mesh.vertices.len() as u32;
+            for (q, c) in [
+                (pair[0], top),
+                (pair[1], top),
+                (pos2(pair[1].x, graph.bottom()), bottom),
+                (pos2(pair[0].x, graph.bottom()), bottom),
+            ] {
+                mesh.colored_vertex(q, c);
+            }
+            mesh.add_triangle(i, i + 1, i + 2);
+            mesh.add_triangle(i, i + 2, i + 3);
+        }
+        painter.add(egui::Shape::mesh(mesh));
+        painter.add(egui::Shape::line(
+            line,
+            Stroke::new(1.0, p.accent.gamma_multiply(0.45)),
+        ));
+    }
 }
 
 fn band_color(band: usize) -> Color32 {
