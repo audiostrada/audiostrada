@@ -8,7 +8,7 @@
 
 use crate::model::{
     Clip, ClipId, MAX_CLIP_GAIN_DB, MIN_GAIN_DB, Marker, MarkerId, Note, Playlist, Project,
-    TrackId, TrackKind,
+    SourceId, Track, TrackId, TrackKind,
 };
 use crate::tempo::TempoMap;
 
@@ -28,6 +28,7 @@ pub fn duplicate_track(project: &mut Project, id: TrackId) -> Option<TrackId> {
         .clips
         .iter_mut()
         .chain(copy.alternates.iter_mut().flat_map(|p| p.clips.iter_mut()))
+        .chain(copy.takes.iter_mut().flat_map(|p| p.clips.iter_mut()))
     {
         clip.id = project.new_clip_id();
     }
@@ -599,7 +600,8 @@ pub fn set_tempo(project: &mut Project, tempo: TempoMap) {
     for track in &mut project.tracks {
         let track = std::sync::Arc::make_mut(track);
         let alternates = track.alternates.iter_mut().flat_map(|p| p.clips.iter_mut());
-        for clip in track.clips.iter_mut().chain(alternates) {
+        let takes = track.takes.iter_mut().flat_map(|p| p.clips.iter_mut());
+        for clip in track.clips.iter_mut().chain(alternates).chain(takes) {
             if !clip.is_midi() {
                 continue;
             }
@@ -1114,6 +1116,239 @@ pub fn comp_range(
         t.clips.sort_by_key(|c| (c.start, c.id));
     }
     ids
+}
+
+/// Name of the take lane holding what a track played before its first take.
+pub const BEFORE_TAKES: &str = "Before recording";
+
+/// Length of the crossfades at the edges of what is comped in.
+const COMP_CROSSFADE_SECONDS: f64 = 0.01;
+
+/// Records an audio take on a track: it replaces what it covers in the track's clips (the
+/// comp), and is kept whole in a take lane of its own, from which any part of it can be comped
+/// back at any time, the latest take as the others. What the first take covered gets a lane
+/// too. The lanes show once there is a choice. Returns the take's id in the comp.
+pub fn record_take(project: &mut Project, track: TrackId, take: Clip) -> ClipId {
+    let Some(t) = project.track(track) else {
+        return ClipId(0);
+    };
+    let covered: Vec<Clip> = t
+        .clips
+        .iter()
+        .filter(|c| c.start < take.end() && take.start < c.end())
+        .cloned()
+        .collect();
+    let first = t.takes.is_empty();
+    // The comp plays the take where it was recorded; the playlists are left as they were.
+    let alternates = t.alternates.clone();
+    let id = place_take(project, track, take);
+    let placed = clip(project, id).cloned();
+    let mut next = project.peek_id();
+    if let Some(t) = project.track_mut(track) {
+        t.alternates = alternates;
+        if first && !covered.is_empty() {
+            let mut before = covered;
+            for c in &mut before {
+                c.id = ClipId(next);
+                next += 1;
+            }
+            t.takes.push(Playlist {
+                name: BEFORE_TAKES.to_owned(),
+                clips: before,
+            });
+        }
+        if let Some(mut lane) = placed {
+            lane.id = ClipId(next);
+            next += 1;
+            let number = t.takes.iter().filter(|l| l.name != BEFORE_TAKES).count() + 1;
+            t.takes.push(Playlist {
+                name: format!("Take {number}"),
+                clips: vec![lane],
+            });
+        }
+        if t.takes.len() >= 2 {
+            t.show_takes = true;
+        }
+    }
+    project.reserve_ids(next);
+    id
+}
+
+/// Comps `start..end` of take lane `lane` into the track: the take plays there instead of what
+/// the comp had, silence included, with short crossfades across both edges so that no cut
+/// clicks. The lanes are left untouched: anything can be comped back. Returns the clips copied
+/// in.
+pub fn comp_take(
+    project: &mut Project,
+    track: TrackId,
+    lane: usize,
+    start: u64,
+    end: u64,
+) -> Vec<ClipId> {
+    let Some(take) = project
+        .track(track)
+        .and_then(|t| t.takes.get(lane))
+        .map(|l| l.clips.clone())
+    else {
+        return Vec::new();
+    };
+    if end <= start {
+        return Vec::new();
+    }
+    let full = (COMP_CROSSFADE_SECONDS * f64::from(project.sample_rate)) as u64;
+    // Half of each crossfade on either side of an edge; none in a range too short for it.
+    let half = if end - start > 2 * full { full / 2 } else { 0 };
+    let (from, to) = (start.saturating_sub(half), end + half);
+    // The take, cut with the usual split rules on a scratch copy of the track.
+    let mut scratch = project.clone();
+    if let Some(t) = scratch.track_mut(track) {
+        t.clips = take;
+    }
+    let inside = split_range(&mut scratch, &[track], from, to);
+    let pieces: Vec<Clip> = scratch
+        .track(track)
+        .map(|t| {
+            t.clips
+                .iter()
+                .filter(|c| inside.contains(&c.id))
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    // What the comp played across each edge goes on under the take's crossfade.
+    let across = |at: u64| -> Vec<(SourceId, i128)> {
+        project
+            .track(track)
+            .map(|t| {
+                t.clips
+                    .iter()
+                    .filter(|c| !c.is_midi() && c.start < at && at < c.end())
+                    .map(|c| (c.source, i128::from(c.start) - i128::from(c.offset)))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let (before, after) = (across(from), across(to));
+    // The comp makes room over the whole range, crossfades included.
+    delete_range(project, &[track], from, to, false);
+    if half > 0 {
+        let frames: std::collections::BTreeMap<SourceId, u64> = project
+            .sources
+            .iter()
+            .map(|(id, s)| (*id, s.frames))
+            .collect();
+        if let Some(t) = project.track_mut(track) {
+            for c in &mut t.clips {
+                let line = (c.source, i128::from(c.start) - i128::from(c.offset));
+                let room = frames.get(&c.source).copied().unwrap_or(u64::MAX);
+                // Its material goes on past the edge (unstretched, still within its file).
+                if c.end() == from
+                    && before.contains(&line)
+                    && c.stretch == 1.0
+                    && c.offset + c.length + 2 * half <= room
+                {
+                    c.length += 2 * half;
+                    c.fade_out = 2 * half;
+                    clamp_fades(c);
+                }
+                if c.start == to
+                    && after.contains(&line)
+                    && c.stretch == 1.0
+                    && c.offset >= 2 * half
+                {
+                    c.start -= 2 * half;
+                    c.offset -= 2 * half;
+                    c.length += 2 * half;
+                    c.fade_in = 2 * half;
+                    clamp_fades(c);
+                }
+            }
+        }
+    }
+    let mut ids = Vec::new();
+    for mut piece in pieces {
+        if half > 0 {
+            if piece.start == from {
+                piece.fade_in = piece.fade_in.max(2 * half);
+            }
+            if piece.end() == to {
+                piece.fade_out = piece.fade_out.max(2 * half);
+            }
+            clamp_fades(&mut piece);
+        }
+        piece.id = project.new_clip_id();
+        ids.push(piece.id);
+        if let Some(t) = project.track_mut(track) {
+            t.clips.push(piece);
+        }
+    }
+    sort_track(project, track);
+    ids
+}
+
+/// Comps a whole take lane into the track, over all it covers.
+pub fn comp_whole_take(project: &mut Project, track: TrackId, lane: usize) -> Vec<ClipId> {
+    let Some((start, end)) = project
+        .track(track)
+        .and_then(|t| t.takes.get(lane))
+        .and_then(|l| {
+            let start = l.clips.iter().map(|c| c.start).min()?;
+            let end = l.clips.iter().map(Clip::end).max()?;
+            Some((start, end))
+        })
+    else {
+        return Vec::new();
+    };
+    comp_take(project, track, lane, start, end)
+}
+
+/// Removes a take lane; what the comp took from it stays.
+pub fn remove_take(project: &mut Project, track: TrackId, lane: usize) {
+    if let Some(t) = project.track_mut(track)
+        && lane < t.takes.len()
+    {
+        t.takes.remove(lane);
+        if t.takes.is_empty() {
+            t.show_takes = false;
+        }
+    }
+}
+
+/// Whether a clip of the comp plays a lane's clip at its place: the same material, aligned.
+fn plays(comp: &Clip, lane: &Clip) -> bool {
+    !comp.is_midi()
+        && comp.source == lane.source
+        && comp.stretch == lane.stretch
+        && comp.pitch == lane.pitch
+        && i128::from(comp.start) - i128::from(comp.offset)
+            == i128::from(lane.start) - i128::from(lane.offset)
+        && comp.start.max(lane.start) < comp.end().min(lane.end())
+}
+
+/// What the comp plays of each take lane: per lane, the ranges of it the track's clips play.
+pub fn comp_sources(track: &Track) -> Vec<Vec<(u64, u64)>> {
+    track
+        .takes
+        .iter()
+        .map(|lane| {
+            let mut ranges = Vec::new();
+            for c in &track.clips {
+                for l in lane.clips.iter().filter(|l| plays(c, l)) {
+                    ranges.push((c.start.max(l.start), c.end().min(l.end())));
+                }
+            }
+            ranges.sort_unstable();
+            ranges
+        })
+        .collect()
+}
+
+/// The take lane a clip of the comp comes from, if any.
+pub fn take_of(track: &Track, clip: &Clip) -> Option<usize> {
+    track
+        .takes
+        .iter()
+        .position(|lane| lane.clips.iter().any(|l| plays(clip, l)))
 }
 
 /// Places a recorded clip, keeping what it covers in a new playlist ("take") and replacing the
@@ -1891,5 +2126,125 @@ mod tests {
         fades_in_range(&mut p, &[t], 9_000, 21_000);
         let all = clips(&p, t);
         assert_eq!((all[0].4, all[1].3), (1_000, 1_000));
+    }
+
+    /// A loop recorded three times over a clip: each pass in a lane of its own, the clip it
+    /// covered in a lane too, the comp playing the last pass.
+    fn three_takes() -> (Project, TrackId, Vec<ClipId>) {
+        let (mut p, t, ids) = project();
+        let source = clip(&p, ids[0]).unwrap().clone();
+        let mut comp = Vec::new();
+        for pass in 0..3u64 {
+            let mut take = source.clone();
+            // Each take records into a file of its own.
+            take.source = p.add_source(Source {
+                path: PathBuf::from(format!("take{pass}.wav")),
+                channels: 1,
+                sample_rate: 48_000,
+                frames: 40_000,
+            });
+            (take.start, take.length, take.offset) = (0, 30_000, pass * 1000);
+            (take.fade_in, take.fade_out) = (0, 0);
+            comp.push(record_take(&mut p, t, take));
+        }
+        (p, t, comp)
+    }
+
+    #[test]
+    fn every_take_keeps_a_lane_of_its_own() {
+        let (p, t, comp) = three_takes();
+        let track = p.track(t).unwrap();
+        let names: Vec<&str> = track.takes.iter().map(|l| l.name.as_str()).collect();
+        assert_eq!(names, [BEFORE_TAKES, "Take 1", "Take 2", "Take 3"]);
+        assert!(track.show_takes, "the lanes show once there is a choice");
+        assert!(track.alternates.is_empty(), "the playlists are left alone");
+        assert_eq!(track.takes[0].clips.len(), 2, "what the first take covered");
+        assert!(track.takes[1..].iter().all(|l| l.clips.len() == 1));
+        assert_eq!(track.clips.len(), 1);
+        assert_eq!(track.clips[0].id, comp[2], "the comp plays the last take");
+        assert_eq!(take_of(track, &track.clips[0]), Some(3));
+        assert_eq!(comp_sources(track)[3], [(0, 30_000)]);
+        assert!(comp_sources(track)[1].is_empty());
+        let mut ids: Vec<ClipId> = track
+            .clips
+            .iter()
+            .chain(track.takes.iter().flat_map(|l| &l.clips))
+            .map(|c| c.id)
+            .collect();
+        let count = ids.len();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), count, "every clip has its own id");
+        assert!(p.highest_id() >= ids[count - 1].0);
+    }
+
+    #[test]
+    fn comping_a_range_crossfades_and_loses_no_take() {
+        let (mut p, t, _) = three_takes();
+        let rate = u64::from(p.sample_rate);
+        let half = (COMP_CROSSFADE_SECONDS * rate as f64) as u64 / 2;
+        // The second take between 10000 and 20000, over the third.
+        let pieces = comp_take(&mut p, t, 2, 10_000, 20_000);
+        let track = p.track(t).unwrap();
+        assert_eq!(pieces.len(), 1);
+        let piece = track.clips.iter().find(|c| c.id == pieces[0]).unwrap();
+        assert_eq!((piece.start, piece.end()), (10_000 - half, 20_000 + half));
+        assert_eq!((piece.fade_in, piece.fade_out), (2 * half, 2 * half));
+        assert_eq!(take_of(track, piece), Some(2));
+        // The third take fades out and back in under it.
+        let left = track
+            .clips
+            .iter()
+            .find(|c| c.end() == 10_000 + half)
+            .unwrap();
+        let right = track
+            .clips
+            .iter()
+            .find(|c| c.start == 20_000 - half)
+            .unwrap();
+        assert_eq!((left.fade_out, right.fade_in), (2 * half, 2 * half));
+        assert_eq!(take_of(track, left), Some(3));
+        assert_eq!(take_of(track, right), Some(3));
+        let sources = comp_sources(track);
+        assert_eq!(sources[2], [(10_000 - half, 20_000 + half)]);
+        assert_eq!(sources[3], [(0, 10_000 + half), (20_000 - half, 30_000)]);
+        // Every take is still whole in its lane.
+        assert!(track.takes[1..].iter().all(|l| l.clips[0].length == 30_000));
+        // Back to the third take there: comped from its lane.
+        comp_take(&mut p, t, 3, 10_000, 20_000);
+        let track = p.track(t).unwrap();
+        assert!(comp_sources(track)[2].is_empty());
+        assert!(!comp_sources(track)[3].is_empty());
+        // A whole take, and the original material.
+        comp_whole_take(&mut p, t, 1);
+        assert_eq!(comp_sources(p.track(t).unwrap())[1], [(0, 30_000)]);
+        comp_whole_take(&mut p, t, 0);
+        let track = p.track(t).unwrap();
+        assert!(comp_sources(track)[1].is_empty());
+        assert!(!comp_sources(track)[0].is_empty());
+        // Nothing for a lane that is not there, or an empty range.
+        assert!(comp_take(&mut p, t, 9, 0, 100).is_empty());
+        assert!(comp_take(&mut p, t, 1, 500, 500).is_empty());
+    }
+
+    #[test]
+    fn a_short_range_is_comped_without_crossfades_and_lanes_can_go() {
+        let (mut p, t, _) = three_takes();
+        let pieces = comp_take(&mut p, t, 1, 1000, 1100);
+        let track = p.track(t).unwrap();
+        let piece = track.clips.iter().find(|c| c.id == pieces[0]).unwrap();
+        assert_eq!((piece.start, piece.end()), (1000, 1100));
+        remove_take(&mut p, t, 1);
+        let track = p.track(t).unwrap();
+        assert_eq!(track.takes.len(), 3);
+        assert!(
+            track.clips.iter().any(|c| c.start == 1000),
+            "what was comped stays"
+        );
+        for _ in 0..3 {
+            remove_take(&mut p, t, 0);
+        }
+        assert!(!p.track(t).unwrap().show_takes);
+        remove_take(&mut p, t, 0);
     }
 }

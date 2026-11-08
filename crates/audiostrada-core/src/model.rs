@@ -368,6 +368,11 @@ pub struct Track {
     /// Inactive playlists.
     #[serde(default)]
     pub alternates: Vec<Playlist>,
+    /// Take lanes: each take recorded on the track kept whole in a lane of its own, which the
+    /// track's clips (the comp) are assembled from (see `edit::record_take`,
+    /// `edit::comp_take`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub takes: Vec<Playlist>,
     #[serde(default)]
     pub kind: TrackKind,
     /// Folder track containing this one; its output goes there instead of the master.
@@ -793,6 +798,7 @@ impl Project {
                 .clips
                 .iter()
                 .chain(t.alternates.iter().flat_map(|p| p.clips.iter()))
+                .chain(t.takes.iter().flat_map(|p| p.clips.iter()))
             {
                 highest = highest.max(c.id.0);
             }
@@ -817,6 +823,7 @@ impl Project {
                     .clips
                     .iter()
                     .chain(track.alternates.iter().flat_map(|p| p.clips.iter()))
+                    .chain(track.takes.iter().flat_map(|p| p.clips.iter()))
             };
             if !clips().any(Clip::needs_rebase) {
                 continue;
@@ -826,6 +833,7 @@ impl Project {
                 .clips
                 .iter_mut()
                 .chain(t.alternates.iter_mut().flat_map(|p| p.clips.iter_mut()))
+                .chain(t.takes.iter_mut().flat_map(|p| p.clips.iter_mut()))
             {
                 clip.rebase();
             }
@@ -870,6 +878,7 @@ impl Project {
                 .clips
                 .iter_mut()
                 .chain(t.alternates.iter_mut().flat_map(|p| p.clips.iter_mut()))
+                .chain(t.takes.iter_mut().flat_map(|p| p.clips.iter_mut()))
             {
                 clip.start = at(clip.start);
                 clip.offset = at(clip.offset);
@@ -999,6 +1008,7 @@ impl Project {
             armed: false,
             playlist: default_playlist(),
             alternates: Vec::new(),
+            takes: Vec::new(),
             kind: TrackKind::Audio,
             parent: None,
             collapsed: false,
@@ -1172,6 +1182,7 @@ impl Project {
                 t.clips
                     .iter()
                     .chain(t.alternates.iter().flat_map(|p| &p.clips))
+                    .chain(t.takes.iter().flat_map(|p| &p.clips))
                     .filter(|c| !c.is_midi())
                     .map(|c| c.source)
                     .chain(t.frozen.map(|f| f.source))

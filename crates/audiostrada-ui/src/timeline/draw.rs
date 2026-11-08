@@ -362,8 +362,8 @@ impl TimelineView {
             );
     }
 
-    /// Waveform from the peak caches, or from the samples when zoomed in closely.
-    /// The alternate playlists of a track as dimmed lanes under it, with the range being comped.
+    /// The take lanes of a track under it: each take whole, lit in its color where the comp
+    /// plays it and dimmed elsewhere, with the range being comped.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn draw_takes(
         &self,
@@ -376,7 +376,8 @@ impl TimelineView {
         scale: Scale,
         visuals: &egui::Visuals,
     ) {
-        for (k, playlist) in track.alternates.iter().enumerate() {
+        let used = edit::comp_sources(track);
+        for (k, playlist) in track.takes.iter().enumerate() {
             let top = row.bottom() + k as f32 * TAKE_HEIGHT;
             let lane = Rect::from_min_max(
                 pos2(lanes.left(), top),
@@ -386,6 +387,8 @@ impl TimelineView {
                 continue;
             }
             painter.rect_filled(lane.shrink2(vec2(0.0, 0.5)), 0.0, visuals.extreme_bg_color);
+            let color = take_color(track, k);
+            let ranges = used.get(k).map_or(&[][..], Vec::as_slice);
             for clip in &playlist.clips {
                 let rect = Rect::from_min_max(
                     pos2(scale.x(clip.start), lane.top() + 2.0),
@@ -395,7 +398,31 @@ impl TimelineView {
                     continue;
                 }
                 self.draw_clip(painter, rect, doc, project, track, clip, false, visuals);
-                painter.rect_filled(rect, 3.0, visuals.extreme_bg_color.gamma_multiply(0.45));
+                let span =
+                    |a: u64, b: u64| Rect::from_x_y_ranges(scale.x(a)..=scale.x(b), rect.y_range());
+                let dim = visuals.extreme_bg_color.gamma_multiply(0.6);
+                // Lit where the comp plays this take, dimmed elsewhere.
+                let mut x = clip.start;
+                for &(a, b) in ranges
+                    .iter()
+                    .filter(|(a, b)| *a < clip.end() && *b > clip.start)
+                {
+                    let (a, b) = (a.max(clip.start), b.min(clip.end()));
+                    if a > x {
+                        painter.rect_filled(span(x, a), 0.0, dim);
+                    }
+                    let lit = span(a, b);
+                    painter.rect_stroke(lit, 2.0, Stroke::new(1.5, color), StrokeKind::Inside);
+                    painter.rect_filled(
+                        Rect::from_min_max(lit.left_top(), pos2(lit.right(), lit.top() + 3.0)),
+                        0.0,
+                        color,
+                    );
+                    x = x.max(b);
+                }
+                if x < clip.end() {
+                    painter.rect_filled(span(x, clip.end()), 0.0, dim);
+                }
             }
             if let Some((t, p, start, end)) = self.comping
                 && t == track.id
@@ -413,6 +440,7 @@ impl TimelineView {
         }
     }
 
+    /// Waveform from the peak caches, or from the samples when zoomed in closely.
     pub(super) fn draw_waveform(
         &self,
         painter: &egui::Painter,
@@ -922,5 +950,27 @@ pub(super) fn draw_folder(
                 color.gamma_multiply(if clip.muted { 0.3 } else { 0.75 }),
             );
         }
+    }
+}
+
+/// Which take a piece of the comp comes from: the take's color along the clip's foot, and its
+/// name when there is room.
+pub(super) fn draw_take_badge(painter: &egui::Painter, rect: Rect, track: &Track, k: usize) {
+    let color = take_color(track, k);
+    painter.rect_filled(
+        Rect::from_min_max(pos2(rect.left(), rect.bottom() - 3.0), rect.right_bottom()),
+        0.0,
+        color,
+    );
+    if rect.width() > 70.0
+        && let Some(lane) = track.takes.get(k)
+    {
+        painter.text(
+            pos2(rect.left() + 5.0, rect.bottom() - 5.0),
+            Align2::LEFT_BOTTOM,
+            take_name(&lane.name),
+            FontId::proportional(10.0),
+            color,
+        );
     }
 }

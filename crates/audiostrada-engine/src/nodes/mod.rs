@@ -18,7 +18,7 @@ pub use levels::LevelControls;
 pub use metronome::{Metronome, MetronomeControls};
 pub use midi::{MidiClip, MidiControls, MidiLayer, MidiOut, MidiPlayer, MidiShare, Sequence};
 pub use monitor::Monitor;
-pub use player::{Clip, ClipPlayer, PlayerControls};
+pub use player::{Clip, ClipPlayer, PlayerControls, RecordWindow};
 pub use plugin::{PluginControls, PluginNode};
 pub use preview::{Preview, PreviewControls};
 pub use reference::{Reference, ReferenceControls};

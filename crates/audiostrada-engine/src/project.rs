@@ -30,7 +30,7 @@ use crate::meter::MeterReadout;
 use crate::nodes::{
     Clip, ClipPlayer, ConsoleControls, Gain, InputStage, Insert, InsertControls, LevelControls,
     MidiClip, MidiControls, MidiLayer, MidiPlayer, MidiShare, Monitor, PlayerControls,
-    PluginControls, PluginNode, Sequence, SoloBus, Strip, StripControls,
+    PluginControls, PluginNode, RecordWindow, Sequence, SoloBus, Strip, StripControls,
 };
 use crate::record::{Recorder, TakeTarget};
 use crate::{Engine, EngineConfig, EngineProcessor, HARDWARE_CHANNELS, NodeId, Port, SharedParam};
@@ -292,6 +292,8 @@ struct TrackNodes {
     sent: Option<(Vec<audiostrada_core::Clip>, u64, u32)>,
     monitor: NodeId,
     monitor_gain: SharedParam,
+    /// Where the track records over what it plays (see [`RecordWindow`]).
+    record_window: Arc<RecordWindow>,
     /// Level of the track's input, monitored or not.
     input_meter: MeterReadout,
     monitoring: Monitoring,
@@ -1143,9 +1145,12 @@ impl ProjectPlayer {
                     &track.name,
                     false,
                 );
+                let record_window = RecordWindow::new();
                 let (player, player_controls) = ClipPlayer::new(Vec::new());
+                let player = player.with_window(Arc::clone(&record_window));
                 let player = self.engine.add_node(&track.name, player, 0, 2);
                 let (monitor, monitor_gain, input_meter) = Monitor::new();
+                let monitor = monitor.with_window(Arc::clone(&record_window));
                 let monitor = self.engine.add_node(&track.name, monitor, 2, 2);
                 connect_stereo(&mut self.engine, player, channel.input);
                 connect_stereo(&mut self.engine, monitor, channel.input);
@@ -1163,6 +1168,7 @@ impl ProjectPlayer {
                         sent: None,
                         monitor,
                         monitor_gain,
+                        record_window,
                         input_meter,
                         monitoring: Monitoring::Auto,
                         armed: false,
@@ -1616,7 +1622,29 @@ impl ProjectPlayer {
     pub fn stop_recording(&mut self) {
         self.engine.stop_recording();
         self.recording = false;
+        self.set_record_window(&[], None);
         self.apply_monitoring();
+    }
+
+    /// Where `tracks` record over what they play, `start..end` in project samples (`end`
+    /// `u64::MAX` until the recording stops): there they play nothing of their clips, and an
+    /// automatically monitored input is heard only there. `None` closes every window.
+    pub fn set_record_window(&mut self, tracks: &[TrackId], range: Option<(u64, u64)>) {
+        let auto = self.auto_monitoring;
+        for (id, nodes) in &self.tracks {
+            match range.filter(|_| tracks.contains(id)) {
+                Some((start, end)) => {
+                    let end = if end == u64::MAX {
+                        u64::MAX
+                    } else {
+                        self.to_engine(end)
+                    };
+                    let gates = auto && matches!(nodes.monitoring, Monitoring::Auto);
+                    nodes.record_window.open(self.to_engine(start), end, gates);
+                }
+                None => nodes.record_window.close(),
+            }
+        }
     }
 
     /// Automatic input monitoring: armed tracks hear their input while stopped or recording,

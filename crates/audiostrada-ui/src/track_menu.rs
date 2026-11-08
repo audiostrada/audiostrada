@@ -244,7 +244,7 @@ pub fn show(ui: &mut Ui, doc: &mut Document, id: TrackId) -> Vec<Request> {
     let takes = track.show_takes;
     if ui
         .add_enabled(
-            !track.alternates.is_empty() || takes,
+            !track.takes.is_empty() || takes,
             egui::Button::new(if takes {
                 tr("Hide take lanes")
             } else {
@@ -252,7 +252,7 @@ pub fn show(ui: &mut Ui, doc: &mut Document, id: TrackId) -> Vec<Request> {
             }),
         )
         .on_hover_text(tr(
-            "Show the other playlists under the track; drag on one to comp",
+            "Show the takes under the track: drag on one to comp that part in, click a take to use all of it",
         ))
         .clicked()
     {

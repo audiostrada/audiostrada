@@ -718,6 +718,7 @@ impl Document {
                 t.name = name;
                 t.clips.clear();
                 t.alternates.clear();
+                t.takes.clear();
                 t.stereo = true;
                 t.pan = 0.0;
                 t.frozen = None;

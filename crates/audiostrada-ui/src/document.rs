@@ -837,6 +837,14 @@ impl Document {
         } else {
             Some(self.player.start_recording(targets, dir, punch)?)
         };
+        // Where the armed tracks record, what they had is not heard: only the new playing. A
+        // loop recorded over is quiet from its start on every pass.
+        let window = punch.unwrap_or_else(|| {
+            let from = project.looping().map_or(start, |(a, _)| start.min(a));
+            (from, u64::MAX)
+        });
+        let audio: Vec<TrackId> = armed.iter().map(|t| t.id).collect();
+        self.player.set_record_window(&audio, Some(window));
         let midi = (!midi_tracks.is_empty()).then(|| MidiTake {
             reader: self.player.live_midi().reader(),
             events: Vec::new(),
@@ -1170,7 +1178,7 @@ impl Document {
             for (track, source, mut clip) in takes {
                 if clip.length > 0 {
                     clip.source = p.add_source(source);
-                    edit::place_take(p, track, clip);
+                    edit::record_take(p, track, clip);
                 }
             }
         });

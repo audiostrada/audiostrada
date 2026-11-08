@@ -499,7 +499,7 @@ impl TimelineView {
         None
     }
 
-    /// Take lane under `y`: track and index of the playlist in its alternates.
+    /// Take lane under `y`: track and index of the lane in its takes.
     fn take_at(&self, project: &Project, y: f32) -> Option<(TrackId, usize)> {
         let r = self.row_at(y)?;
         let track = &project.tracks[self.rows[r].0];
@@ -1039,6 +1039,11 @@ impl TimelineView {
                     selected,
                     &visuals,
                 );
+                if !track.takes.is_empty()
+                    && let Some(k) = edit::take_of(track, clip)
+                {
+                    draw_take_badge(&lane_painter, rect, track, k);
+                }
                 if selected {
                     draw_handles(&lane_painter, rect, clip, self.zoom, false);
                 }
@@ -1249,9 +1254,41 @@ const LANE_PAD: f32 = 5.0;
 /// Height of the take lanes shown under a track.
 fn takes_height(track: &Track) -> f32 {
     if track.show_takes {
-        track.alternates.len() as f32 * TAKE_HEIGHT
+        track.takes.len() as f32 * TAKE_HEIGHT
     } else {
         0.0
+    }
+}
+
+/// Colors of the take lanes, in turn: the comp's pieces wear the color of the take they come
+/// from.
+const TAKE_COLORS: [Color32; 8] = [
+    Color32::from_rgb(236, 120, 90),
+    Color32::from_rgb(230, 190, 80),
+    Color32::from_rgb(110, 200, 120),
+    Color32::from_rgb(110, 170, 240),
+    Color32::from_rgb(190, 130, 230),
+    Color32::from_rgb(90, 200, 200),
+    Color32::from_rgb(240, 140, 180),
+    Color32::from_rgb(200, 160, 110),
+];
+
+/// The color of a track's take lane `k`; gray for what the track played before its takes.
+fn take_color(track: &Track, k: usize) -> Color32 {
+    match track.takes.get(k) {
+        Some(lane) if lane.name == edit::BEFORE_TAKES => Color32::from_gray(150),
+        _ => TAKE_COLORS[k % TAKE_COLORS.len()],
+    }
+}
+
+/// A take lane's name in the interface's language.
+fn take_name(name: &str) -> String {
+    if name == edit::BEFORE_TAKES {
+        return tr("Before recording").to_owned();
+    }
+    match name.strip_prefix("Take ") {
+        Some(n) => trf!("Take {n}", n = n),
+        None => name.to_owned(),
     }
 }
 
@@ -2237,6 +2274,25 @@ mod tests {
     }
 
     #[test]
+    fn take_lanes_have_names_and_colors() {
+        assert_eq!(take_name("Take 3"), "Take 3");
+        assert_eq!(take_name(edit::BEFORE_TAKES), "Before recording");
+        assert_eq!(take_name("Mine"), "Mine");
+        let mut track = Project::new("t", 48_000);
+        let t = track.add_track("a");
+        let lanes = &mut track.track_mut(t).unwrap().takes;
+        for name in [edit::BEFORE_TAKES, "Take 1", "Take 2"] {
+            lanes.push(audiostrada_core::Playlist {
+                name: name.into(),
+                clips: Vec::new(),
+            });
+        }
+        let track = track.track(t).unwrap();
+        assert_eq!(take_color(track, 0), Color32::from_gray(150));
+        assert_ne!(take_color(track, 1), take_color(track, 2));
+    }
+
+    #[test]
     fn rows_lanes_and_takes_are_found_under_the_pointer() {
         let (mut p, a, _) = project();
         let b = p.add_track("B");
@@ -2249,7 +2305,13 @@ mod tests {
             ];
             t.automation[0].visible = false;
         }
-        edit::new_playlist(&mut p, b);
+        p.track_mut(b)
+            .unwrap()
+            .takes
+            .push(audiostrada_core::Playlist {
+                name: "Take 1".into(),
+                clips: Vec::new(),
+            });
         p.track_mut(b).unwrap().show_takes = true;
         let mut view = TimelineView::new(Rc::new(RefCell::new(Document::new(
             crate::document::AppDirs::default(),

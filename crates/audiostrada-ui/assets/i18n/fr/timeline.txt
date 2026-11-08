@@ -820,3 +820,21 @@ Aimant
 
 Clear loop
 Effacer la boucle
+
+Before recording
+Avant l'enregistrement
+
+Take {n}
+Prise {n}
+
+Comp this whole take in: the track plays it from start to end
+Prendre toute cette prise : la piste la joue du début à la fin
+
+Delete this take; what the track plays of it stays
+Supprimer cette prise ; ce que la piste en joue reste
+
+Delete take
+Supprimer la prise
+
+Show the takes under the track: drag on one to comp that part in, click a take to use all of it
+Afficher les prises sous la piste : glissez sur l'une pour en prendre ce passage, cliquez sur une prise pour la prendre entière

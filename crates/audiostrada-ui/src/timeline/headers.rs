@@ -491,7 +491,8 @@ impl TimelineView {
                 }
             }
             if track.show_takes {
-                for (k, playlist) in track.alternates.iter().enumerate() {
+                let used = edit::comp_sources(track);
+                for (k, playlist) in track.takes.iter().enumerate() {
                     let top = row.bottom() + k as f32 * TAKE_HEIGHT;
                     let take_row = Rect::from_min_max(
                         pos2(header.left(), top),
@@ -505,23 +506,29 @@ impl TimelineView {
                         0.0,
                         visuals.extreme_bg_color,
                     );
+                    // The take's color, and its name lit while the comp plays some of it.
                     painter.rect_filled(
                         Rect::from_min_size(take_row.min, vec2(4.0, TAKE_HEIGHT)),
                         0.0,
-                        color.gamma_multiply(0.3),
+                        take_color(track, k),
                     );
+                    let playing = used.get(k).is_some_and(|r| !r.is_empty());
                     painter.text(
                         pos2(
                             take_row.left() + 12.0 + depth as f32 * 12.0,
                             take_row.center().y,
                         ),
                         Align2::LEFT_CENTER,
-                        &playlist.name,
+                        take_name(&playlist.name),
                         FontId::proportional(11.0),
-                        visuals.weak_text_color(),
+                        if playing {
+                            visuals.strong_text_color()
+                        } else {
+                            visuals.weak_text_color()
+                        },
                     );
                     let use_rect = Rect::from_min_size(
-                        pos2(take_row.right() - 44.0, take_row.center().y - 9.0),
+                        pos2(take_row.right() - 68.0, take_row.center().y - 9.0),
                         vec2(40.0, 18.0),
                     );
                     if ui
@@ -529,11 +536,29 @@ impl TimelineView {
                             use_rect,
                             egui::Button::new(egui::RichText::new(tr("Use")).size(10.0)),
                         )
-                        .on_hover_text(tr("Play this playlist instead of the current one"))
+                        .on_hover_text(tr(
+                            "Comp this whole take in: the track plays it from start to end",
+                        ))
+                        .clicked()
+                    {
+                        doc.history_mut().edit(tr("Comp take"), |p| {
+                            edit::comp_whole_take(p, id, k);
+                        });
+                    }
+                    let remove_rect = Rect::from_min_size(
+                        pos2(take_row.right() - 24.0, take_row.center().y - 9.0),
+                        vec2(20.0, 18.0),
+                    );
+                    if ui
+                        .put(
+                            remove_rect,
+                            egui::Button::new(egui::RichText::new("✕").size(10.0)),
+                        )
+                        .on_hover_text(tr("Delete this take; what the track plays of it stays"))
                         .clicked()
                     {
                         doc.history_mut()
-                            .edit(tr("Select playlist"), |p| edit::select_playlist(p, id, k));
+                            .edit(tr("Delete take"), |p| edit::remove_take(p, id, k));
                     }
                 }
             }

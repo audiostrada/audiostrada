@@ -617,7 +617,7 @@ impl TimelineView {
                 DragKind::Comp(track, playlist, anchor) => {
                     let other = magnet.snap(scale.sample(pos.x));
                     let (a, b) = (anchor.min(other), anchor.max(other));
-                    edit::comp_range(&mut preview, track, playlist, a, b);
+                    edit::comp_take(&mut preview, track, playlist, a, b);
                     self.comping = (b > a).then_some((track, playlist, a, b));
                 }
                 DragKind::Range { anchor } => {
@@ -801,7 +801,7 @@ impl TimelineView {
             false
         };
 
-        // A click on a take promotes the clip under the pointer.
+        // A click on a take comps the whole clip under the pointer in.
         if lanes_response.clicked()
             && let Some(pos) = lanes_response.interact_pointer_pos()
             && let Some((track, playlist)) = self.take_at(project, pos.y - lanes.top())
@@ -809,12 +809,12 @@ impl TimelineView {
             let at = scale.sample(pos.x);
             let clip = project
                 .track(track)
-                .and_then(|t| t.alternates.get(playlist))
+                .and_then(|t| t.takes.get(playlist))
                 .and_then(|a| a.clips.iter().find(|c| c.start <= at && at < c.end()))
-                .map(|c| c.id);
-            if let Some(clip) = clip {
+                .map(|c| (c.start, c.end()));
+            if let Some((start, end)) = clip {
                 doc.history_mut().edit(tr("Comp take"), |p| {
-                    edit::promote_take(p, track, playlist, clip);
+                    edit::comp_take(p, track, playlist, start, end);
                 });
             }
         }

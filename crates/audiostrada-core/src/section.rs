@@ -75,7 +75,8 @@ fn cut(project: &mut Project, start: u64, end: u64, close: bool) {
     for track in &mut project.tracks {
         let track = std::sync::Arc::make_mut(track);
         let playlists = std::iter::once(&mut track.clips)
-            .chain(track.alternates.iter_mut().map(|p| &mut p.clips));
+            .chain(track.alternates.iter_mut().map(|p| &mut p.clips))
+            .chain(track.takes.iter_mut().map(|p| &mut p.clips));
         for clips in playlists {
             cut_clips(clips, start, end, close, declick, &mut next);
         }
