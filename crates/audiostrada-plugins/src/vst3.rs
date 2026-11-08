@@ -1086,6 +1086,10 @@ pub struct Vst3Instance {
     processor_alive: Arc<AtomicBool>,
     editor: Option<Editor>,
     has_editor: Option<bool>,
+    /// The controller's values as the processor was last given them. A preset chosen in the
+    /// plugin's window may change the controller only and say so (`kParamValuesChanged`):
+    /// the values that moved are then sent on, or the sound stayed the old preset's.
+    heard: HashMap<u32, f64>,
 }
 
 impl std::fmt::Debug for Vst3Instance {
@@ -1093,6 +1097,26 @@ impl std::fmt::Debug for Vst3Instance {
         f.debug_struct("Vst3Instance")
             .field("plugin", &self.descriptor.name)
             .finish_non_exhaustive()
+    }
+}
+
+impl Vst3Instance {
+    /// Every parameter of the controller with its normalized value.
+    fn values(&self) -> Vec<(u32, f64)> {
+        let Some(controller) = &self.controller else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        // SAFETY: indices come from getParameterCount; ParameterInfo is plain C data.
+        unsafe {
+            for i in 0..controller.getParameterCount() {
+                let mut info: ParameterInfo = std::mem::zeroed();
+                if ok(controller.getParameterInfo(i, &mut info)) {
+                    out.push((info.id, controller.getParamNormalized(info.id)));
+                }
+            }
+        }
+        out
     }
 }
 
@@ -1162,8 +1186,10 @@ impl Vst3Instance {
             processor_alive: Arc::new(AtomicBool::new(false)),
             editor: None,
             has_editor: None,
+            heard: HashMap::new(),
         };
         instance.sync_controller();
+        instance.heard = instance.values().into_iter().collect();
         Ok(instance)
     }
 
@@ -1415,6 +1441,7 @@ impl crate::PluginInstance for Vst3Instance {
             // SAFETY: plain call on a live controller.
             unsafe { controller.setParamNormalized(id, value) };
         }
+        self.heard.insert(id, value);
     }
 
     fn latency(&mut self) -> u32 {
@@ -1466,17 +1493,18 @@ impl crate::PluginInstance for Vst3Instance {
                 }
             }
         }
+        // The processor and the controller now hold the same state.
+        self.heard = self.values().into_iter().collect();
         true
     }
 
     fn poll(&mut self) -> Vec<PluginRequest> {
         let mut requests = Vec::new();
         if let Ok(mut edits) = self.handler.edits.lock() {
-            requests.extend(
-                edits
-                    .drain(..)
-                    .map(|(id, v)| PluginRequest::ParamChanged(id, v)),
-            );
+            for (id, v) in edits.drain(..) {
+                self.heard.insert(id, v);
+                requests.push(PluginRequest::ParamChanged(id, v));
+            }
         }
         let flags = self
             .handler
@@ -1491,6 +1519,18 @@ impl crate::PluginInstance for Vst3Instance {
             requests.push(PluginRequest::Restart);
         }
         if flags & RestartFlags_::kParamValuesChanged != 0 {
+            let mut moved = 0;
+            for (id, v) in self.values() {
+                if self.heard.insert(id, v) != Some(v) {
+                    requests.push(PluginRequest::ParamChanged(id, v));
+                    moved += 1;
+                }
+            }
+            tracing::debug!(
+                plugin = %self.descriptor.name,
+                moved,
+                "values changed in the controller, sent to the processor"
+            );
             requests.push(PluginRequest::RescanParams);
         }
         let mut closed = false;
