@@ -603,7 +603,7 @@ pub struct Project {
     /// The loop range is kept, but playback does not loop.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub loop_off: bool,
-    /// The loop stays where it is when the time selection changes (else it follows it).
+    /// Read from older projects only: the loop is the time selection now, always.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub loop_fixed: bool,
     /// Console color of every channel, the buses and the master.

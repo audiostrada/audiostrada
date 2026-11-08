@@ -193,8 +193,10 @@ pub struct TimelineView {
     process: Option<processing::ProcessWindow>,
     beat: Option<processing::BeatWindow>,
     groove: Option<processing::GrooveWindow>,
-    /// The span the range and the loop last agreed on, while they are linked.
+    /// The span the range and the loop last agreed on.
     linked: Option<(u64, u64)>,
+    /// The range's span when the loop was last matched to it: a change is the user's.
+    seen_range: Option<(u64, u64)>,
     /// Pointer over the lanes in the last frame, where keyboard zooms are centered.
     hover: Option<Pos2>,
     /// Track whose name is being edited in its header, and the text typed so far.
@@ -291,6 +293,7 @@ impl TimelineView {
             beat: None,
             groove: None,
             linked: None,
+            seen_range: None,
             hover: None,
             renaming: None,
             clip_anchor: None,
@@ -310,10 +313,12 @@ impl TimelineView {
         std::mem::swap(&mut self.clipboard, &mut other.clipboard);
     }
 
-    /// While they are linked, the loop follows the time selection, and the selection a loop
-    /// set otherwise (a command, an undo). Waits for the end of a drag.
+    /// The time selection and the loop are one span: the loop follows the selection (and
+    /// goes with it), the selection a loop set otherwise (the ruler, a command, an undo).
+    /// Whether playback loops over it is the loop switch's business. Waits for the end of a
+    /// drag.
     fn link_loop(&mut self, doc: &mut Document) {
-        if doc.project().loop_fixed || self.drag.is_some() {
+        if self.drag.is_some() {
             return;
         }
         let range = self
@@ -322,16 +327,24 @@ impl TimelineView {
             .map(|r| (r.start, r.end))
             .filter(|(a, b)| b > a);
         let looped = doc.project().loop_range;
-        if range.is_some() && range != self.linked {
-            if looped != range {
+        if range != self.seen_range {
+            // Selected, moved or cleared: the loop with it. A loop set apart since stays when
+            // the selection is cleared.
+            let cleared = range.is_none() && looped != self.linked;
+            if looped != range && !cleared {
                 doc.history_mut()
                     .modify_unrecorded(|p| p.loop_range = range);
             }
-            self.linked = range;
+            self.seen_range = range;
+            self.linked = if cleared { looped } else { range };
         } else if looped != self.linked {
-            if let (Some(r), Some((a, b))) = (&mut self.range, looped) {
-                (r.start, r.end) = (a, b);
+            match (&mut self.range, looped) {
+                (Some(r), Some((a, b))) => (r.start, r.end) = (a, b),
+                // The loop removed: the selection too.
+                (Some(_), None) => self.range = None,
+                (None, _) => {}
             }
+            self.seen_range = self.range.as_ref().map(|r| (r.start, r.end));
             self.linked = looped;
         }
     }
@@ -660,7 +673,12 @@ impl TimelineView {
                     });
                 }
             }
+            // The loop goes with the range (see `link_loop`).
             Action::Deselect if self.range.is_some() => self.range = None,
+            Action::Deselect if selection.is_empty() && doc.project().loop_range.is_some() => {
+                doc.history_mut()
+                    .edit(tr("Clear loop"), |p| p.loop_range = None);
+            }
             Action::SelectAll => {
                 self.selection = doc
                     .project()
@@ -2035,7 +2053,7 @@ mod tests {
         }
 
         #[test]
-        fn the_ruler_selects_and_the_loop_follows_unless_fixed() {
+        fn the_selection_and_the_loop_are_one() {
             let (mut h, doc, tracks) = harness();
             let lanes = h.view.lanes_rect;
             let sample = |x: f32, h: &Harness| {
@@ -2068,20 +2086,27 @@ mod tests {
                 "setting it turns it on"
             );
             assert_eq!(h.view.range.as_ref().unwrap().end, sample(x2, &h));
-            // Fixed, the loop stays while another passage is selected.
+            // The selection is the loop: another passage selected, the loop goes there.
+            let (x3, x4) = (lanes.left() + 300.0, lanes.left() + 400.0);
+            h.drag(pos2(x3, mid), pos2(x4, mid));
+            let r = h.view.range.clone().unwrap();
+            assert_eq!(r.start, sample(x3, &h));
+            assert_eq!(doc.borrow().project().loop_range, Some((r.start, r.end)));
+            // Escape takes both away.
+            let settings = EditSettings::default();
+            assert!(h.view.run(Action::Deselect, &settings));
+            h.frame(vec![]);
+            assert!(h.view.range.is_none());
+            assert_eq!(doc.borrow().project().loop_range, None);
+            // A loop set alone (a command) stays when nothing is selected, until Escape.
             doc.borrow_mut()
                 .history_mut()
-                .edit("Fix", |p| p.loop_fixed = true);
-            let fixed = doc.borrow().project().loop_range;
-            h.drag(
-                pos2(lanes.left() + 300.0, mid),
-                pos2(lanes.left() + 400.0, mid),
-            );
-            assert_eq!(
-                h.view.range.as_ref().unwrap().start,
-                sample(lanes.left() + 300.0, &h)
-            );
-            assert_eq!(doc.borrow().project().loop_range, fixed);
+                .edit("Loop", |p| p.loop_range = Some((100, 200)));
+            h.frame(vec![]);
+            assert_eq!(doc.borrow().project().loop_range, Some((100, 200)));
+            assert!(h.view.run(Action::Deselect, &settings));
+            h.frame(vec![]);
+            assert_eq!(doc.borrow().project().loop_range, None);
         }
 
         #[test]

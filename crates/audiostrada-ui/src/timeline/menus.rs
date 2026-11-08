@@ -809,20 +809,6 @@ impl TimelineView {
             ui.close();
         }
         ui.separator();
-        let mut follows = !project.loop_fixed;
-        if ui
-            .checkbox(&mut follows, Action::LoopFollowsSelection.label())
-            .on_hover_text(tr(
-                "Off, the loop stays where it is while you select elsewhere",
-            ))
-            .changed()
-        {
-            doc.history_mut()
-                .edit(Action::LoopFollowsSelection.label(), |p| {
-                    p.loop_fixed = !follows
-                });
-            ui.close();
-        }
         let length = project.length().max(at + 1);
         let mut range = |ui: &mut Ui, punch: bool| {
             let current = if punch {

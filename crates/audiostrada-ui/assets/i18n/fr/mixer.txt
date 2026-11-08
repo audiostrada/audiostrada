@@ -369,11 +369,11 @@ Copier l'insert
 Insert {name}
 Insérer {name}
 
-Send to {name} (pre-fader). Right-click for options
-Envoi vers {name} (pré-fader). Clic droit pour les options
+Send to {name} (pre-fader). Shift+click to mute, Ctrl+click to remove, right-click for options
+Envoi vers {name} (pré-fader). Maj+clic pour le couper, Ctrl+clic pour le supprimer, clic droit pour les options
 
-Send to {name} (post-fader). Right-click for options
-Envoi vers {name} (post-fader). Clic droit pour les options
+Send to {name} (post-fader). Shift+click to mute, Ctrl+click to remove, right-click for options
+Envoi vers {name} (post-fader). Maj+clic pour le couper, Ctrl+clic pour le supprimer, clic droit pour les options
 
 Send level
 Niveau d'envoi
@@ -834,8 +834,8 @@ Q bas-médium
 Low pass
 Passe-bas
 
-{name}: {state}. Click to switch it, right-click to open it
-{name} : {state}. Cliquer pour l'activer ou le bypasser, clic droit pour l'ouvrir
+{name}: {state}. Click to switch it, Ctrl+click to remove it, right-click to open it
+{name} : {state}. Cliquer pour l'activer ou le bypasser, Ctrl+clic pour le supprimer, clic droit pour l'ouvrir
 
 playing
 actif
@@ -1158,8 +1158,8 @@ Bypasser ou jouer
 Click to edit, drag to move
 Clic pour éditer, glisser pour déplacer
 
-Click to edit, drag to move, right-click to remove
-Clic pour éditer, glisser pour déplacer, clic droit pour retirer
+Click to edit, Shift+click to bypass, Ctrl+click to remove, drag to move, right-click to remove
+Clic pour éditer, Maj+clic pour bypasser, Ctrl+clic pour retirer, glisser pour déplacer, clic droit pour retirer
 
 Drag to move
 Glisser pour déplacer
@@ -1290,14 +1290,11 @@ Retirer du rack
 Right-click to choose the parameters shown here
 Clic droit pour choisir les paramètres affichés ici
 
-Click to edit; drag the module to move it
-Clic pour éditer ; glisser le module pour le déplacer
+Click to edit, Shift+click to bypass, Ctrl+click to remove; drag the module to move it
+Clic pour éditer, Maj+clic pour bypasser, Ctrl+clic pour retirer ; glisser le module pour le déplacer
 
 Pin
 Épingler
-
-Keeps this window shown when another track is selected; unpinned, it shows only while its track is selected
-Garde cette fenêtre affichée quand une autre piste est sélectionnée ; non épinglée, elle ne s'affiche que lorsque sa piste est sélectionnée
 
 {own} dB of its own, {vca} dB from its VCA
 {own} dB propres, {vca} dB venant de son VCA

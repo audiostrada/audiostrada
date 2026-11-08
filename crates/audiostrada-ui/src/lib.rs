@@ -1044,14 +1044,6 @@ impl AudioStradaApp {
             Action::About => self.about = true,
             Action::License => self.license_window.open(),
             Action::Assistants => self.assistants_window.open(),
-            Action::LoopFollowsSelection => {
-                let mut doc = self.doc.borrow_mut();
-                let fixed = !doc.project().loop_fixed;
-                doc.history_mut()
-                    .edit(Action::LoopFollowsSelection.label(), |p| {
-                        p.loop_fixed = fixed
-                    });
-            }
             Action::AddVca => mixer::add_vca(&mut self.doc.borrow_mut()),
             Action::GroupTracks => mixer::group_selection(&mut self.doc.borrow_mut()),
             Action::ToggleGroups => {
@@ -1986,7 +1978,6 @@ impl AudioStradaApp {
         let mut chosen = Vec::new();
         let keymap = self.prefs.keymap.clone();
         let mac = self.mac;
-        let loop_fixed = self.doc.borrow().project().loop_fixed;
         let (undo, redo) = {
             let doc = self.doc.borrow();
             let h = doc.history();
@@ -2205,7 +2196,6 @@ impl AudioStradaApp {
                 ui.menu_button(tr("Loop and punch"), |ui| {
                     item(ui, &mut chosen, Action::ToggleLoop, None, true);
                     item(ui, &mut chosen, Action::LoopSelection, None, true);
-                    check(ui, &mut chosen, Action::LoopFollowsSelection, !loop_fixed);
                     ui.separator();
                     item(ui, &mut chosen, Action::TogglePunch, None, true);
                 });

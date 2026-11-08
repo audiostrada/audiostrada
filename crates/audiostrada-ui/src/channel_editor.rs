@@ -28,6 +28,14 @@ const STAGE: f32 = -18.0;
 pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
     curve(ui, params, meters);
     ui.add_space(8.0);
+    let level = |k: usize| meters.get(k).copied().unwrap_or(-120.0);
+    crate::effect_editors::level_trace(
+        ui,
+        egui::Id::unique(("channel-trace", params.insert.0)),
+        [level(2), level(3)],
+        90.0,
+    );
+    ui.add_space(8.0);
     io_bar(ui, params);
     ui.add_space(8.0);
     modules(ui, params, meters);

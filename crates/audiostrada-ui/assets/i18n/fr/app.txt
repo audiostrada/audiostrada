@@ -152,9 +152,6 @@ Aller à la fin
 Toggle loop
 Activer/désactiver la boucle
 
-Loop follows the selection
-Boucle liée à la sélection
-
 Toggle metronome
 Activer/désactiver le métronome
 

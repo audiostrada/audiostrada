@@ -1842,12 +1842,21 @@ pub(crate) fn section_frame(
         if memo.frame != frame_nr {
             memo.frame = frame_nr;
             memo.last = std::mem::take(&mut memo.sizes);
+            memo.last_titles = std::mem::take(&mut memo.titles);
             memo.start = available;
+            memo.changed = false;
         }
         let index = memo.sizes.len();
         memo.sizes.push(egui::Vec2::ZERO);
+        memo.titles.push(title.to_owned());
+        // A row whose sections changed (a band picked, shown or gone) shares nothing out
+        // until they are measured: the free room counted for the old ones would be given
+        // to each new one, and the window would follow, several times too wide.
+        memo.changed |= memo.last_titles.get(index).is_none_or(|t| t != title);
         let natural = memo.last.get(index).copied().unwrap_or_default();
-        let given = if in_row && !memo.last.is_empty() {
+        let given = if in_row && memo.changed {
+            egui::Vec2::ZERO
+        } else if in_row && !memo.last.is_empty() {
             let used: f32 =
                 memo.last.iter().map(|v| v.x).sum::<f32>() + spacing * (memo.last.len() - 1) as f32;
             let extra = ((memo.start - used) / memo.last.len() as f32).max(0.0);
@@ -1893,6 +1902,9 @@ struct SectionRow {
     start: f32,
     sizes: Vec<egui::Vec2>,
     last: Vec<egui::Vec2>,
+    titles: Vec<String>,
+    last_titles: Vec<String>,
+    changed: bool,
 }
 
 // ---------------------------------------------------------------- Tuner
@@ -5554,6 +5566,94 @@ fn draw_trace(
     }
 }
 
+/// The input and output peaks of the last seconds, scrolling from the right like a waveform:
+/// the input in grey behind, the output over it in the accent color, so that what the
+/// processing takes away (or adds) shows between them. Its history is kept under `key`.
+pub(crate) fn level_trace(ui: &mut Ui, key: egui::Id, levels: [f32; 2], height: f32) {
+    /// Lowest level shown (dBFS): quieter is the middle line.
+    const FLOOR: f32 = -48.0;
+    let p = theme::current(ui);
+    let now = ui.input(|i| i.time);
+    let step = 1.0 / TRACE_RATE;
+    let mut trace = ui.data_mut(|d| {
+        d.get_temp::<(f64, VecDeque<[f32; 2]>)>(key)
+            .unwrap_or_default()
+    });
+    // Back after a while (the window was closed, the app asleep): the old levels would
+    // pass for recent ones.
+    if now - trace.0 > 1.0 {
+        trace = (now - step, VecDeque::new());
+    }
+    while now - trace.0 >= step {
+        trace.0 += step;
+        trace.1.push_back(levels);
+    }
+    while trace.1.len() > TRACE_POINTS {
+        trace.1.pop_front();
+    }
+    let (rect, response) =
+        ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 6.0, p.base);
+    let mid = rect.center().y;
+    let half = rect.height() / 2.0 - 4.0;
+    let reach = |db: f32| ((db - FLOOR) / (DISPLAY_TOP - FLOOR)).clamp(0.0, 1.0) * half;
+    let grid = p.weak.gamma_multiply(0.15);
+    for db in [-24.0, -12.0, 0.0] {
+        for y in [mid - reach(db), mid + reach(db)] {
+            painter.line_segment(
+                [pos2(rect.left(), y), pos2(rect.right(), y)],
+                Stroke::new(1.0, grid),
+            );
+        }
+    }
+    painter.line_segment(
+        [pos2(rect.left(), mid), pos2(rect.right(), mid)],
+        Stroke::new(1.0, grid),
+    );
+    let dx = rect.width() / TRACE_POINTS as f32;
+    let x0 = rect.right() - trace.1.len() as f32 * dx;
+    let points = |k: usize| -> Vec<(f32, f32)> {
+        trace
+            .1
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (x0 + i as f32 * dx, reach(v[k])))
+            .collect()
+    };
+    painter.add(mirrored(&points(0), mid, p.weak.gamma_multiply(0.35)));
+    let output = points(1);
+    painter.add(mirrored(&output, mid, p.base.lerp_to_gamma(p.accent, 0.45)));
+    for sign in [-1.0, 1.0] {
+        let edge = output
+            .iter()
+            .map(|&(x, a)| pos2(x, mid - sign * a))
+            .collect();
+        painter.add(Shape::line(edge, Stroke::new(1.0, p.accent)));
+    }
+    let small = FontId::proportional(9.0);
+    painter.text(
+        rect.left_top() + vec2(8.0, 5.0),
+        Align2::LEFT_TOP,
+        tr("Input"),
+        small.clone(),
+        p.weak,
+    );
+    painter.text(
+        rect.left_top() + vec2(8.0, 17.0),
+        Align2::LEFT_TOP,
+        tr("Output"),
+        small,
+        p.accent,
+    );
+    response.on_hover_text(tr(
+        "The last seconds: the input in grey, the output in color over it",
+    ));
+    ui.data_mut(|d| d.insert_temp(key, trace));
+    ui.ctx()
+        .request_repaint_after(std::time::Duration::from_secs_f64(step));
+}
+
 /// A band between `mid - a` and `mid + a` along the points `(x, a)`.
 fn mirrored(points: &[(f32, f32)], mid: f32, color: Color32) -> Shape {
     let mut mesh = egui::Mesh::default();
@@ -6367,6 +6467,72 @@ mod tests {
         }
         double_click(&mut doc, &mut frame, at);
         assert_eq!(params(&doc).get("b1_used"), Some(&0.0), "removed");
+    }
+
+    #[test]
+    fn eq_window_keeps_its_width_as_bands_come_and_go() {
+        let mut doc = Document::new(AppDirs::default());
+        let (mut insert, mut track) = (None, None);
+        doc.history_mut().edit("Setup", |p| {
+            let t = p.add_track("A");
+            insert = routing::add_insert(p, Channel::Track(t), "eq", Default::default());
+            track = Some(t);
+        });
+        let (channel, insert) = (Channel::Track(track.unwrap()), insert.unwrap());
+        let info = audiostrada_dsp::info("eq").unwrap();
+        let ctx = egui::Context::default();
+        let mut state = EditorState::default();
+        let values = |doc: &Document| -> Vec<f32> {
+            info.params
+                .iter()
+                .map(|q| {
+                    doc.project().tracks[0].inserts[0]
+                        .params
+                        .get(q.id)
+                        .copied()
+                        .unwrap_or(q.default)
+                })
+                .collect()
+        };
+        for n in 0..60 {
+            let values = values(&doc);
+            let mut params = Params {
+                doc: &mut doc,
+                channel,
+                insert,
+                info,
+                values,
+            };
+            match n {
+                10 => add_band(&mut params, &mut state, 600.0, 3.0),
+                20 => add_band(&mut params, &mut state, 4000.0, -3.0),
+                30 => state.selected = 0,
+                40 => remove_band(&mut params, &mut state, 0),
+                _ => {}
+            }
+            // As in the editor's window, 1040 wide: what the content needs past its room
+            // widens the window.
+            let input = RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1040.0, 800.0))),
+                ..Default::default()
+            };
+            let mut out = (egui::Vec2::ZERO, egui::Vec2::ZERO);
+            ctx.run_ui(input, |ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    let o = egui::ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| eq(ui, &mut params, &[], &mut state));
+                    out = (o.content_size, o.inner_rect.size());
+                });
+            })
+            .drop_without_applying_deltas();
+            assert!(
+                out.0.x <= out.1.x + 1.0,
+                "frame {n}: {} wide in {}",
+                out.0.x,
+                out.1.x
+            );
+        }
     }
 }
 

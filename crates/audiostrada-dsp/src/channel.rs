@@ -4,6 +4,7 @@
 //! is transparent. The input gain and polarity are the track's own.
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
+use crate::loudness::Hold;
 use crate::{Effect, EffectInfo, choice, db_to_gain, gain_to_db, param, switch};
 
 pub const INFO: EffectInfo = EffectInfo {
@@ -138,7 +139,9 @@ pub struct Channel {
     /// Gate gain and compressor reduction, for the meters.
     gate_db: f32,
     reduction: f32,
-    levels: [f32; 2],
+    /// Input and output peaks, held a little: whoever reads them a frame later still sees
+    /// the loudest of the blocks between.
+    levels: [Hold; 2],
     order: [usize; 5],
 }
 
@@ -159,7 +162,7 @@ impl Default for Channel {
             comp: Default::default(),
             gate_db: 0.0,
             reduction: 0.0,
-            levels: [-120.0; 2],
+            levels: [Hold::new(48_000), Hold::new(48_000)],
             order: [0, 1, 2, 3, 4],
         };
         channel.design();
@@ -330,13 +333,17 @@ impl Channel {
     }
 }
 
-fn peak(buffer: &[f32]) -> f32 {
-    buffer.iter().fold(0.0f32, |m, s| m.max(s.abs()))
+/// Pushes the louder side of each frame into `hold`.
+fn hold_peaks(hold: &mut Hold, left: &[f32], right: &[f32]) {
+    for (l, r) in left.iter().zip(right) {
+        hold.push(l.abs().max(r.abs()));
+    }
 }
 
 impl Effect for Channel {
     fn prepare(&mut self, sample_rate: u32, max_frames: usize) {
         self.rate = f64::from(sample_rate);
+        self.levels = [Hold::new(sample_rate), Hold::new(sample_rate)];
         self.gate.prepare(sample_rate, max_frames);
         self.comp.prepare(sample_rate, max_frames);
         self.forward_all();
@@ -361,7 +368,7 @@ impl Effect for Channel {
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
-        let input = peak(left).max(peak(right));
+        hold_peaks(&mut self.levels[0], left, right);
         self.gate_db = 0.0;
         if !self.on(p::COMP) {
             self.reduction = 0.0;
@@ -388,7 +395,7 @@ impl Effect for Channel {
                 *x *= g;
             }
         }
-        self.levels = [gain_to_db(input), gain_to_db(peak(left).max(peak(right)))];
+        hold_peaks(&mut self.levels[1], left, right);
     }
 
     fn reset(&mut self) {
@@ -400,6 +407,7 @@ impl Effect for Channel {
         }
         self.gate.reset();
         self.comp.reset();
+        self.levels.iter_mut().for_each(Hold::reset);
     }
 
     fn latency(&self) -> u32 {
@@ -418,10 +426,12 @@ impl Effect for Channel {
     }
 
     fn meters(&self, out: &mut [f32]) {
-        for (o, v) in
-            out.iter_mut()
-                .zip([self.gate_db, self.reduction, self.levels[0], self.levels[1]])
-        {
+        for (o, v) in out.iter_mut().zip([
+            self.gate_db,
+            self.reduction,
+            gain_to_db(self.levels[0].value()),
+            gain_to_db(self.levels[1].value()),
+        ]) {
             *o = v;
         }
     }
@@ -447,7 +457,7 @@ mod tests {
         for (l, r) in left.chunks_mut(256).zip(right.chunks_mut(256)) {
             channel.process(l, r);
         }
-        peak(&left[24_000..])
+        left[24_000..].iter().fold(0.0f32, |m, s| m.max(s.abs()))
     }
 
     #[test]

@@ -576,12 +576,11 @@ impl TimelineView {
                     } else {
                         preview.loop_range = range;
                         preview.loop_off = false;
-                        // A linked selection moves with the loop.
-                        if !project.loop_fixed
-                            && let (Some(r), Some((a, b))) = (&mut self.range, range)
-                        {
+                        // The selection is the loop: it moves with it.
+                        if let (Some(r), Some((a, b))) = (&mut self.range, range) {
                             (r.start, r.end) = (a, b);
                             self.linked = Some((a, b));
+                            self.seen_range = Some((a, b));
                         }
                     }
                 }

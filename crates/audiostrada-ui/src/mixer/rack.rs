@@ -1103,13 +1103,24 @@ impl MixerView {
                             .truncate()
                             .sense(Sense::click_and_drag()),
                     )
-                    .on_hover_text(tr("Click to edit; drag the module to move it"));
+                    .on_hover_text(tr(
+                        "Click to edit, Shift+click to bypass, Ctrl+click to remove; drag the \
+                         module to move it",
+                    ));
                 #[cfg(test)]
                 super::tests::seen(format!("module {}", id.0), head.rect);
                 if head.drag_started() {
                     view.rack.drag = Some(id);
                 }
-                if head.clicked() {
+                let modifiers = ui.input(|i| i.modifiers);
+                if head.clicked() && modifiers.shift {
+                    let bypass = !insert.bypass;
+                    doc.history_mut().edit(tr("Bypass insert"), |p| {
+                        routing::set_bypass(p, channel, id, bypass)
+                    });
+                } else if head.clicked() && modifiers.command {
+                    view.remove_insert(doc, channel, id);
+                } else if head.clicked() {
                     view.open_insert(channel, insert);
                 }
                 if let Some(latency) = &latency {
@@ -1721,17 +1732,25 @@ impl MixerView {
         }) + 34.0)
             .clamp(56.0, 120.0);
         let (head, power) = insert_slot(ui, vec2(width, 18.0), id.0, &look);
-        if power.clicked() {
+        let modifiers = ui.input(|i| i.modifiers);
+        if power.clicked() || (head.clicked() && modifiers.shift) {
             let bypass = !insert.bypass;
             doc.history_mut().edit(tr("Bypass insert"), |p| {
                 routing::set_bypass(p, channel, id, bypass)
             });
         }
-        let head = head.on_hover_text(tr("Click to edit, drag to move, right-click to remove"));
+        let head = head.on_hover_text(tr(
+            "Click to edit, Shift+click to bypass, Ctrl+click to remove, drag to move, \
+             right-click to remove",
+        ));
         if head.drag_started() {
             self.rack.drag = Some(id);
         }
-        if head.clicked() {
+        if head.clicked() && modifiers.command {
+            self.remove_insert(doc, channel, id);
+            return;
+        }
+        if head.clicked() && !modifiers.shift {
             self.open_insert(channel, insert);
         }
         head.context_menu(|ui| {

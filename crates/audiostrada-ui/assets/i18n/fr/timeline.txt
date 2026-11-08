@@ -635,9 +635,6 @@ Sélectionnez d'abord un passage : Maj+glisser sur les pistes
 Select the time these clips cover, on their tracks
 Sélectionner le temps que couvrent ces clips, sur leurs pistes
 
-Off, the loop stays where it is while you select elsewhere
-Décochée, la boucle reste en place pendant que vous sélectionnez ailleurs
-
 Drag to widen or narrow the track headers; double-click for the usual width
 Glisser pour élargir ou rétrécir les en-têtes de pistes ; double-clic pour la largeur habituelle
 
@@ -820,3 +817,6 @@ Glisser pour redimensionner la ligne, double-clic pour sa hauteur habituelle
 
 Snap
 Aimant
+
+Clear loop
+Effacer la boucle
