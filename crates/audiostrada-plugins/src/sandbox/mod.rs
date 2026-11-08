@@ -125,6 +125,7 @@ struct Layout {
     params_in: usize,
     midi: usize,
     params_out: usize,
+    transport: usize,
     len: usize,
 }
 
@@ -136,7 +137,8 @@ impl Layout {
         let params_in = align(right + max_frames * 4);
         let midi = align(params_in + MAX_CHANGES * size_of::<Change>());
         let params_out = align(midi + MAX_MIDI * size_of::<Midi>());
-        let len = align(params_out + MAX_CHANGES * size_of::<Change>());
+        let transport = align(params_out + MAX_CHANGES * size_of::<Change>());
+        let len = align(transport + size_of::<crate::Transport>());
         Self {
             max_frames,
             left,
@@ -144,6 +146,7 @@ impl Layout {
             params_in,
             midi,
             params_out,
+            transport,
             len,
         }
     }
@@ -442,6 +445,7 @@ impl PluginInstance for SandboxInstance {
             offline: false,
             crashed: Arc::clone(&self.crashed),
             alive: Arc::clone(&self.processor_alive),
+            transport: crate::Transport::default(),
         }))
     }
 
@@ -589,6 +593,8 @@ pub struct SandboxProcessor {
     offline: bool,
     crashed: Arc<AtomicBool>,
     alive: Arc<AtomicBool>,
+    /// Given with the next block.
+    transport: crate::Transport,
 }
 
 impl std::fmt::Debug for SandboxProcessor {
@@ -608,6 +614,10 @@ impl SandboxProcessor {
 }
 
 impl PluginProcessor for SandboxProcessor {
+    fn set_transport(&mut self, transport: &crate::Transport) {
+        self.transport = *transport;
+    }
+
     fn process(
         &mut self,
         left: &mut [f32],
@@ -649,6 +659,7 @@ impl PluginProcessor for SandboxProcessor {
                 };
             }
             header.midi.store(count as u32, Ordering::Relaxed);
+            r.slice::<crate::Transport>(l.transport, 1)[0] = self.transport;
         }
         header.frames.store(n as u32, Ordering::Relaxed);
         let previous = self.seq;
@@ -759,6 +770,7 @@ fn serve(
                     data: [m.data[0], m.data[1], m.data[2]],
                 }),
         );
+        processor.set_transport(&r.slice::<crate::Transport>(l.transport, 1)[0]);
         let left = r.slice::<f32>(l.left, n);
         let right = r.slice::<f32>(l.right, n);
         let out = r.slice::<Change>(l.params_out, MAX_CHANGES);
@@ -1219,6 +1231,7 @@ mod tests {
             offline: true,
             crashed: Arc::new(AtomicBool::new(false)),
             alive: Arc::clone(&alive),
+            transport: crate::Transport::default(),
         };
         (processor, name, alive)
     }

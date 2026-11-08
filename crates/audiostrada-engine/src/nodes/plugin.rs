@@ -107,6 +107,25 @@ impl PluginNode {
     }
 }
 
+/// The engine's transport as plugins are given it.
+fn transport(t: &crate::TransportInfo) -> audiostrada_plugins::Transport {
+    let bar = &t.bar;
+    // Quarter notes since the bar started.
+    let into_bar = (f64::from(bar.beat.max(1) - 1) + bar.fraction) * bar.unit;
+    let bar_start = (t.beat - into_bar).max(0.0);
+    let bar_length = f64::from(bar.beats_per_bar.max(1)) * bar.unit;
+    audiostrada_plugins::Transport {
+        playing: t.playing,
+        samples: t.position as i64,
+        beats: t.beat,
+        bar_start,
+        bar: (bar_start / bar_length.max(1e-9)).round() as i32,
+        tempo: t.bpm,
+        numerator: bar.beats_per_bar.max(1),
+        denominator: (4.0 / bar.unit.max(1e-9)).round().max(1.0) as u32,
+    }
+}
+
 impl Processor for PluginNode {
     fn prepare(&mut self, sample_rate: u32, _max_frames: usize) {
         self.levels.prepare(sample_rate);
@@ -149,6 +168,7 @@ impl Processor for PluginNode {
             Some(midi) => midi.collect(ctx.transport, n),
             None => &[],
         };
+        self.processor.set_transport(&transport(ctx.transport));
         let outgoing = &mut self.outgoing;
         self.processor
             .process(left, right, &self.changes, events, &mut |id, value| {
@@ -165,5 +185,48 @@ impl Processor for PluginNode {
     fn reset(&mut self) {
         self.processor.reset();
         self.levels.reset();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{BarPosition, TransportInfo};
+
+    #[test]
+    fn plugins_are_told_where_the_song_is() {
+        // Third beat and a half of the second bar of 4/4, at 96 BPM, playing.
+        let info = TransportInfo {
+            playing: true,
+            position: 192_000,
+            sample_rate: 48_000,
+            beat: 6.5,
+            bpm: 96.0,
+            bar: BarPosition {
+                beat: 3,
+                fraction: 0.5,
+                beats_per_bar: 4,
+                unit: 1.0,
+            },
+        };
+        let t = transport(&info);
+        assert!(t.playing);
+        assert_eq!((t.samples, t.beats, t.tempo), (192_000, 6.5, 96.0));
+        assert_eq!((t.bar_start, t.bar), (4.0, 1));
+        assert_eq!((t.numerator, t.denominator), (4, 4));
+        // 6/8: beats are eighths, half a quarter note each.
+        let info = TransportInfo {
+            beat: 4.5,
+            bar: BarPosition {
+                beat: 4,
+                fraction: 0.0,
+                beats_per_bar: 6,
+                unit: 0.5,
+            },
+            ..info
+        };
+        let t = transport(&info);
+        assert_eq!((t.bar_start, t.bar), (3.0, 1));
+        assert_eq!((t.numerator, t.denominator), (6, 8));
     }
 }

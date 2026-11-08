@@ -153,7 +153,41 @@ pub trait PluginInstance: std::fmt::Debug {
 }
 
 /// Audio side of a plugin instance; runs on audio threads, must not allocate or lock.
+/// Where the song is, for plugins that follow the host: arpeggiators, synced delays and LFOs,
+/// step sequencers. Before it was given, every plugin saw a song stopped at 120 BPM.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Transport {
+    pub playing: bool,
+    /// Position of the block's first frame, in samples and in quarter notes.
+    pub samples: i64,
+    pub beats: f64,
+    /// Where the bar it falls in started, in quarter notes, and its number from 0.
+    pub bar_start: f64,
+    pub bar: i32,
+    pub tempo: f64,
+    pub numerator: u32,
+    pub denominator: u32,
+}
+
+impl Default for Transport {
+    fn default() -> Self {
+        Self {
+            playing: false,
+            samples: 0,
+            beats: 0.0,
+            bar_start: 0.0,
+            bar: 0,
+            tempo: 120.0,
+            numerator: 4,
+            denominator: 4,
+        }
+    }
+}
+
 pub trait PluginProcessor: Send + std::fmt::Debug {
+    /// The transport for the next block, given before it.
+    fn set_transport(&mut self, _transport: &Transport) {}
     /// Processes stereo audio in place. `params_in` are value changes to apply at the start of
     /// the block; changes made by the plugin (GUI, internal) are reported through `params_out`.
     fn process(

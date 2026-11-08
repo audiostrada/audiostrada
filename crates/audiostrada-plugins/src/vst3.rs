@@ -1779,6 +1779,26 @@ impl PluginProcessor for Vst3Processor {
     }
 
     fn reset(&mut self) {}
+
+    fn set_transport(&mut self, t: &crate::Transport) {
+        use ProcessContext_::StatesAndFlags_ as F;
+        #[allow(
+            clippy::unnecessary_cast,
+            reason = "enum types differ between platforms"
+        )]
+        let flags =
+            (F::kTempoValid | F::kTimeSigValid | F::kProjectTimeMusicValid | F::kBarPositionValid)
+                as u32
+                | if t.playing { F::kPlaying as u32 } else { 0 };
+        let c = &mut self.context;
+        c.state = flags;
+        c.projectTimeSamples = t.samples;
+        c.projectTimeMusic = t.beats;
+        c.barPositionMusic = t.bar_start;
+        c.tempo = t.tempo;
+        c.timeSigNumerator = t.numerator as i32;
+        c.timeSigDenominator = t.denominator as i32;
+    }
 }
 
 impl Drop for Vst3Processor {
