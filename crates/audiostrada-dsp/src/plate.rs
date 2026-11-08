@@ -19,6 +19,10 @@ const PARAMS: [ParamInfo; 10] = [
 ];
 
 const PAPER_RATE: f32 = 29_761.0;
+/// Two input all-passes more than the paper (lengths at its rate): the tank gets a denser
+/// burst, and the tail is diffuse within 30 ms instead of 200, as on a real plate (and as
+/// Valhalla's).
+const EXTRA: [f32; 2] = [331.0, 241.0];
 const MAX_PREDELAY_MS: f32 = 200.0;
 
 /// Most the tank keeps on each pass.
@@ -52,7 +56,7 @@ pub(crate) struct Plate {
     values: [f32; 10],
     predelay: Line,
     input_lp: f32,
-    diffusers: [AllPass; 4],
+    diffusers: [AllPass; 6],
     /// Tank halves: modulated all-pass, delay, damping state, all-pass, delay.
     mod_ap: [AllPass; 2],
     delay_a: [Line; 2],
@@ -103,6 +107,8 @@ impl Plate {
             AllPass::new(n(107.0), 0.0),
             AllPass::new(n(379.0), 0.0),
             AllPass::new(n(277.0), 0.0),
+            AllPass::new(n(EXTRA[0]), 0.0),
+            AllPass::new(n(EXTRA[1]), 0.0),
         ];
         self.mod_ap = [
             AllPass::new(n(672.0), self.excursion),
@@ -183,6 +189,8 @@ impl Effect for Plate {
             x = self.diffusers[1].process(x, input_1, 0.0);
             x = self.diffusers[2].process(x, input_2, 0.0);
             x = self.diffusers[3].process(x, input_2, 0.0);
+            x = self.diffusers[4].process(x, input_2, 0.0);
+            x = self.diffusers[5].process(x, input_2, 0.0);
 
             self.lfo = (self.lfo + lfo_step) % std::f32::consts::TAU;
             let offsets = [self.lfo.sin() * excursion, self.lfo.cos() * excursion];

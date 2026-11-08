@@ -460,6 +460,87 @@ mod tests {
         x.iter().map(|s| s * s).sum()
     }
 
+    /// How far single frequencies stand out of the tail between 0.3 and 1.3 s, from 200 Hz to
+    /// 8 kHz: the 99.5th percentile of the fine spectrum over its local median, in dB. A
+    /// perfectly diffuse tail (noise) gives about 9 dB; a ringing, metallic one more.
+    fn ring_db(mono: &[f32]) -> f32 {
+        let window = &mono[14_400..62_400];
+        let n = window.len();
+        let fft = realfft::RealFftPlanner::<f32>::new().plan_fft_forward(n);
+        let mut frame: Vec<f32> = window
+            .iter()
+            .enumerate()
+            .map(|(i, x)| x * (0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / n as f32).cos()))
+            .collect();
+        let mut spectrum = fft.make_output_vec();
+        fft.process(&mut frame, &mut spectrum).unwrap();
+        let hz = 48_000.0 / n as f32;
+        let db: Vec<f32> = spectrum[(200.0 / hz) as usize..(8000.0 / hz) as usize]
+            .iter()
+            .map(|c| 10.0 * (c.norm_sqr() + 1e-30).log10())
+            .collect();
+        let mut over: Vec<f32> = (0..db.len())
+            .map(|i| {
+                let mut near: Vec<f32> =
+                    db[i.saturating_sub(150)..(i + 151).min(db.len())].to_vec();
+                near.sort_by(f32::total_cmp);
+                db[i] - near[near.len() / 2]
+            })
+            .collect();
+        over.sort_by(f32::total_cmp);
+        over[(over.len() as f32 * 0.995) as usize]
+    }
+
+    /// Time until the tail is diffuse: the normalized echo density (Abel and Huang) of 20 ms
+    /// windows reaches 0.9, in seconds.
+    fn diffuse_after(mono: &[f32]) -> f32 {
+        let n = 960;
+        let w: Vec<f32> = (0..n)
+            .map(|i| 0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / n as f32).cos())
+            .collect();
+        let total: f32 = w.iter().sum();
+        let mut start = 0;
+        while start + n < mono.len() {
+            let seg = &mono[start..start + n];
+            let sd = (seg.iter().zip(&w).map(|(x, w)| w * x * x).sum::<f32>() / total).sqrt();
+            let outside: f32 = seg
+                .iter()
+                .zip(&w)
+                .filter(|(x, _)| x.abs() > sd)
+                .map(|(_, w)| w)
+                .sum();
+            if sd > 0.0 && outside / total / 0.3173 >= 0.9 {
+                return (start + n / 2) as f32 / 48_000.0;
+            }
+            start += n / 4;
+        }
+        f32::INFINITY
+    }
+
+    #[test]
+    fn tails_are_diffuse_soon_and_do_not_ring() {
+        // Measured against Valhalla's: Room 9 dB, VintageVerb's hall 12.9, Plate 12.7, its
+        // plate diffuse after 30 ms. Before 16 lines with all-passes in them, the room rang at
+        // 14.3 dB; before two more input all-passes, the plate took 195 ms.
+        for (kind, decay, most_ring, diffuse) in [
+            (ROOM, 1.0, 11.0, 0.08),
+            (HALL, 2.5, 11.0, 0.2),
+            (PLATE, 2.0, 12.0, 0.06),
+        ] {
+            let mut reverb = reverb(&[(TYPE, kind as f32), (DECAY, decay), (PREDELAY, 0.0)]);
+            let (l, r) = impulse(&mut reverb, 1.5);
+            let mono: Vec<f32> = l.iter().zip(&r).map(|(a, b)| 0.5 * (a + b)).collect();
+            let ring = ring_db(&mono);
+            assert!(ring < most_ring, "{}: rings {ring:.1} dB", TYPES[kind]);
+            let after = diffuse_after(&mono);
+            assert!(
+                after < diffuse,
+                "{}: diffuse after {after:.3} s",
+                TYPES[kind]
+            );
+        }
+    }
+
     #[test]
     fn every_space_is_stable_stereo_and_follows_the_decay() {
         for (kind, name) in TYPES.iter().enumerate() {

@@ -33,9 +33,11 @@ const PARAMS: [ParamInfo; 16] = [
     ),
 ];
 
-const LINES: usize = 8;
+const LINES: usize = 16;
 /// Line lengths at full size of a hall, in milliseconds (mutually prime in samples).
-const LENGTHS_MS: [f32; LINES] = [31.3, 37.9, 41.3, 47.9, 53.1, 61.7, 67.3, 79.9];
+const LENGTHS_MS: [f32; LINES] = [
+    23.3, 26.9, 29.7, 33.1, 36.7, 40.9, 44.3, 48.7, 53.9, 58.1, 63.7, 69.1, 74.3, 80.9, 87.7, 95.3,
+];
 const TYPE_SCALE: [f32; 3] = [0.35, 1.0, 1.6];
 /// Early reflection taps: time (fraction of the room time), gain, pan (-1 left to 1 right).
 const EARLY: [(f32, f32, f32); 12] = [
@@ -52,7 +54,23 @@ const EARLY: [(f32, f32, f32); 12] = [
     (0.611, 0.25, -0.1),
     (0.733, 0.20, 0.3),
 ];
-const MAX_MOD_MS: f32 = 1.2;
+/// The lines' sway at full modulation. More smears the modes further but is heard as a
+/// pitch wobble on held notes; Valhalla's rooms show both lower, which the diffusion inside
+/// the loop gets closer to.
+const MAX_MOD_MS: f32 = 0.72;
+/// Input into each line, and output taken from each: the tail's level against the early
+/// reflections, as it was voiced with 8 lines.
+const FEED: f32 = 0.5 * std::f32::consts::FRAC_1_SQRT_2;
+const TAP: f32 = 0.40;
+/// Each line sways a little faster than the one before, the last about twice as fast as the
+/// first (more would be heard as a pitch wobble on held notes).
+const SPREAD: f32 = 1.0 / LINES as f32;
+/// Length of the all-pass inside each line, as a share of the line, and its gain at full
+/// diffusion: echoes multiply at each pass, the tail is dense sooner and rings less. A higher
+/// gain would ring instead: the all-pass delays some frequencies far more than others, and
+/// those go round less often, so decay slower.
+const LOOP_ALLPASS: f32 = 0.45;
+const LOOP_GAIN: f32 = 0.3;
 const MAX_PREDELAY_MS: f32 = 200.0;
 const CROSSOVER_HZ: f32 = 250.0;
 
@@ -61,7 +79,7 @@ fn room_time(kind: usize, size: f32) -> f32 {
     0.08 * TYPE_SCALE[kind.min(2)] * (0.5 + size / 100.0)
 }
 
-/// In-place fast Walsh-Hadamard transform of 8 values, normalized (energy preserving).
+/// In-place fast Walsh-Hadamard transform of the lines' values, normalized (energy preserving).
 #[inline]
 fn hadamard(v: &mut [f32; LINES]) {
     let mut h = 1;
@@ -90,13 +108,15 @@ pub(crate) struct Hall {
     diffusers: [AllPass; 4],
     lines: [Line; LINES],
     lengths: [f32; LINES],
+    loop_allpass: [AllPass; LINES],
     /// Per line: gains of the lows and of the rest, and the crossover and damping states.
     low_gain: [f32; LINES],
     high_gain: [f32; LINES],
     split: [f32; LINES],
     damp: [f32; LINES],
     damp_state: [f32; LINES],
-    phases: [f32; LINES],
+    /// Each line's sway as a turning phasor (cosine, sine): no sine to compute per sample.
+    phases: [(f32, f32); LINES],
     hp: [(f32, f32); 2],
     lp: [f32; 2],
 }
@@ -111,12 +131,16 @@ impl Default for Hall {
             diffusers: Default::default(),
             lines: Default::default(),
             lengths: [0.0; LINES],
+            loop_allpass: Default::default(),
             low_gain: [0.0; LINES],
             high_gain: [0.0; LINES],
             split: [0.0; LINES],
             damp: [0.0; LINES],
             damp_state: [0.0; LINES],
-            phases: std::array::from_fn(|i| i as f32 * 0.785),
+            phases: std::array::from_fn(|i| {
+                let a = i as f32 * 0.785;
+                (a.cos(), a.sin())
+            }),
             hp: [(0.0, 0.0); 2],
             lp: [0.0; 2],
         };
@@ -143,6 +167,10 @@ impl Hall {
             length: 0.0,
         });
         self.lines = LENGTHS_MS.map(|l| Line::new(ms(l * max_scale + MAX_MOD_MS) + 8));
+        self.loop_allpass = LENGTHS_MS.map(|l| AllPass {
+            line: Line::new(ms(l * LOOP_ALLPASS * max_scale + MAX_MOD_MS) + 8),
+            length: 0.0,
+        });
         self.update();
         self.reset();
     }
@@ -161,7 +189,9 @@ impl Hall {
         for i in 0..LINES {
             let length = LENGTHS_MS[i] * scale * 0.001 * rate;
             self.lengths[i] = length;
-            let seconds = length / rate;
+            self.loop_allpass[i].length = length * LOOP_ALLPASS;
+            // The all-pass delays the loop as much as its length, on average.
+            let seconds = length * (1.0 + LOOP_ALLPASS) / rate;
             let gain = |rt: f32| 10f32.powf(-3.0 * seconds / rt.max(0.05));
             self.low_gain[i] = gain(low);
             // Mids keep the decay time; the damping filter takes the highs further down.
@@ -226,8 +256,21 @@ impl Effect for Hall {
         let pre = (predelay * 0.001 * rate).max(1.0);
         let room = room_time(kind, size) * rate;
         let g_diff = 0.7 * diffusion / 100.0;
+        let g_loop = LOOP_GAIN * diffusion / 100.0;
         let excursion = modulation / 100.0 * MAX_MOD_MS * 0.001 * rate;
-        let lfo_step = std::f32::consts::TAU * mod_rate / rate;
+        // A room's tail is over before a hall's slow sway smears its modes: smaller spaces sway
+        // faster, in proportion.
+        let sway_rate = mod_rate / TYPE_SCALE[kind].min(1.0).sqrt();
+        let lfo_step = std::f32::consts::TAU * sway_rate / rate;
+        let turns: [(f32, f32); LINES] = std::array::from_fn(|i| {
+            let a = lfo_step * (1.0 + i as f32 * SPREAD);
+            (a.cos(), a.sin())
+        });
+        // Rounding would make the phasors grow or shrink over time: back to unit length.
+        for p in &mut self.phases {
+            let norm = (p.0 * p.0 + p.1 * p.1).sqrt().max(1e-6);
+            *p = (p.0 / norm, p.1 / norm);
+        }
         let split_c = lowpass_coefficient(crossover, rate);
         let hp_c = pole(low_cut, rate);
         let lp_c = lowpass_coefficient(high_cut, rate);
@@ -253,10 +296,15 @@ impl Effect for Hall {
             }
             let mut outs = [0.0f32; LINES];
             for i in 0..LINES {
-                self.phases[i] =
-                    (self.phases[i] + lfo_step * (1.0 + i as f32 * 0.13)) % std::f32::consts::TAU;
-                let delay = self.lengths[i] + excursion * (1.0 + self.phases[i].sin());
-                let v = self.lines[i].read(delay);
+                let (c, s) = self.phases[i];
+                let (rc, rs) = turns[i];
+                self.phases[i] = (c * rc - s * rs, s * rc + c * rs);
+                let (cos, sin) = self.phases[i];
+                let delay = self.lengths[i] + excursion * (1.0 + sin);
+                // The all-pass sways too, a quarter turn apart: the ring of a mode is smeared
+                // twice over.
+                let sway = excursion * 0.5 * (1.0 + cos);
+                let v = self.loop_allpass[i].process(self.lines[i].read(delay), g_loop, sway);
                 // Two-band decay: lows and the rest get their own gain, then the highs fade.
                 self.split[i] += split_c * (v - self.split[i]);
                 let low = self.split[i];
@@ -272,7 +320,7 @@ impl Effect for Hall {
                 let damp = if frozen { 1.0 } else { self.damp[i] };
                 self.damp_state[i] += damp * (mixed[i] - self.damp_state[i]);
                 let damped = self.damp_state[i];
-                let feed = damped + if i % 2 == 0 { d } else { -d } * 0.5;
+                let feed = damped + if i % 2 == 0 { d } else { -d } * FEED;
                 self.lines[i].push(feed);
             }
             let mut late = [0.0f32; 2];
@@ -288,7 +336,7 @@ impl Effect for Hall {
             }
             let mut out = [0.0f32; 2];
             for ch in 0..2 {
-                out[ch] = er[ch] * early_gain + late[ch] * 0.35 * late_gain;
+                out[ch] = er[ch] * early_gain + late[ch] * TAP * late_gain;
             }
             let mid = 0.5 * (out[0] + out[1]);
             let side = 0.5 * (out[0] - out[1]) * w;
@@ -308,7 +356,7 @@ impl Effect for Hall {
     fn reset(&mut self) {
         self.predelay.clear();
         self.early.clear();
-        for a in &mut self.diffusers {
+        for a in self.diffusers.iter_mut().chain(&mut self.loop_allpass) {
             a.line.clear();
         }
         for l in &mut self.lines {
