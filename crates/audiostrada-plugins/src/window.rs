@@ -30,7 +30,7 @@ static GRABBED: std::sync::Mutex<Vec<(u32, u16)>> = std::sync::Mutex::new(Vec::n
 
 /// Keys that plugin windows hand to AudioStrada rather than to the plugin (the transport's
 /// shortcuts), as X keysyms (lowercase for letters) and modifier masks (Shift 1, Ctrl 4,
-/// Alt 8). Only X11 windows take them.
+/// Alt 8). X11 and Windows plugin windows take them.
 pub fn set_grabbed_keys(keys: Vec<(u32, u16)>) {
     if let Ok(mut grabbed) = GRABBED.lock() {
         *grabbed = keys;
@@ -305,6 +305,7 @@ mod imp {
 
 #[cfg(windows)]
 mod imp {
+    use std::cell::{Cell, RefCell};
     use std::sync::Once;
 
     use std::sync::Mutex;
@@ -321,6 +322,7 @@ mod imp {
         GetCurrentProcessId, GetCurrentThreadId, OpenProcess, PROCESS_NAME_WIN32,
         PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
     };
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
     use windows::Win32::UI::WindowsAndMessaging::{
         AdjustWindowRectEx, AllowSetForegroundWindow, CreateWindowExW, DefWindowProcW,
         DestroyWindow, EnumThreadWindows, GWL_EXSTYLE, GWLP_HWNDPARENT, GetClassNameW,
@@ -331,11 +333,118 @@ mod imp {
         ShowWindow, WINDOW_EX_STYLE, WINDOW_STYLE, WM_CLOSE, WNDCLASSW, WS_CAPTION,
         WS_EX_APPWINDOW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_OVERLAPPED, WS_SYSMENU,
     };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CallNextHookEx, GA_ROOT, GetAncestor, MSG, SetWindowsHookExW, WH_GETMESSAGE, WM_KEYDOWN,
+        WM_NULL, WM_SYSKEYDOWN,
+    };
     use windows::core::{BOOL, PCWSTR, PWSTR, w};
 
     use super::NativeHandle;
 
     const CLASS: PCWSTR = w!("AudioStradaPluginWindow");
+
+    thread_local! {
+        /// The plugin windows (our frames) of this thread, and AudioStrada's keys pressed in
+        /// them, by frame: keysym and modifiers.
+        static FRAMES: RefCell<Vec<isize>> = const { RefCell::new(Vec::new()) };
+        static PRESSED: RefCell<Vec<(isize, u32, u16)>> = const { RefCell::new(Vec::new()) };
+        static HOOKED: Cell<bool> = const { Cell::new(false) };
+    }
+
+    /// Takes AudioStrada's keys (the transport's shortcuts) from the messages of this thread's
+    /// plugin windows, whichever of their windows has the focus: a plugin never sees them, as
+    /// in Reaper, and Space plays whatever plugin window is in front. The hook watches this
+    /// thread's own messages only: in AudioStrada's process, its windows are left alone.
+    fn watch_keys(frame: HWND) {
+        FRAMES.with(|f| f.borrow_mut().push(frame.0 as isize));
+        HOOKED.with(|hooked| {
+            if !hooked.get() {
+                // SAFETY: a hook on this thread's own messages, kept for the thread's life.
+                let set = unsafe {
+                    SetWindowsHookExW(WH_GETMESSAGE, Some(get_message), None, GetCurrentThreadId())
+                };
+                hooked.set(set.is_ok());
+            }
+        });
+    }
+
+    fn forget_keys(frame: HWND) {
+        let frame = frame.0 as isize;
+        FRAMES.with(|f| f.borrow_mut().retain(|&w| w != frame));
+        PRESSED.with(|p| p.borrow_mut().retain(|&(w, ..)| w != frame));
+    }
+
+    unsafe extern "system" fn get_message(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        // Messages leaving the queue only (not those peeked at): each one once.
+        if code >= 0 && wparam.0 == 1 && lparam.0 != 0 {
+            // SAFETY: for this hook, `lparam` points to the message, which it may change.
+            let msg = unsafe { &mut *(lparam.0 as *mut MSG) };
+            if msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN {
+                take_key(msg);
+            }
+        }
+        // SAFETY: handing on to the next hook, as every hook does.
+        unsafe { CallNextHookEx(None, code, wparam, lparam) }
+    }
+
+    /// Keeps a key pressed in one of our plugin windows when it is one of AudioStrada's; the
+    /// plugin is handed nothing instead (nor the character it would type).
+    fn take_key(msg: &mut MSG) {
+        // SAFETY: plain Win32 call; an invalid window gives none.
+        let frame = unsafe { GetAncestor(msg.hwnd, GA_ROOT) }.0 as isize;
+        if !FRAMES.with(|f| f.borrow().contains(&frame)) {
+            return;
+        }
+        // SAFETY: plain Win32 call, the state of the keyboard as this message saw it.
+        let down = |key: i32| unsafe { GetKeyState(key) } < 0;
+        let mods =
+            u16::from(down(0x10)) | (u16::from(down(0x11)) << 2) | (u16::from(down(0x12)) << 3);
+        let key = msg.wParam.0 as u32;
+        let Some((sym, _)) = super::grabbed_keys()
+            .into_iter()
+            .find(|&(sym, m)| m == mods && virtual_key(sym) == Some(key))
+        else {
+            return;
+        };
+        // A key held down repeats: one press only.
+        if msg.lParam.0 & (1 << 30) == 0 {
+            PRESSED.with(|p| p.borrow_mut().push((frame, sym, mods)));
+        }
+        msg.message = WM_NULL;
+    }
+
+    /// The Windows virtual key of an X keysym, among those AudioStrada's shortcuts use.
+    fn virtual_key(sym: u32) -> Option<u32> {
+        Some(match sym {
+            // Letters (lowercase keysyms), digits, Space.
+            0x61..=0x7a => sym - 0x20,
+            0x30..=0x39 | 0x20 => sym,
+            0xff0d => 0x0D,
+            0xff1b => 0x1B,
+            0xff09 => 0x09,
+            0xff08 => 0x08,
+            0xffff => 0x2E,
+            0xff63 => 0x2D,
+            0xff50 => 0x24,
+            0xff57 => 0x23,
+            0xff55 => 0x21,
+            0xff56 => 0x22,
+            0xff51 => 0x25,
+            0xff52 => 0x26,
+            0xff53 => 0x27,
+            0xff54 => 0x28,
+            0x2c => 0xBC,
+            0x2e => 0xBE,
+            0x2d => 0xBD,
+            0x2b | 0x3d => 0xBB,
+            0x2f => 0xBF,
+            0x3b => 0xBA,
+            0x5b => 0xDB,
+            0x5d => 0xDD,
+            0xffbe..=0xffc9 => 0x70 + (sym - 0xffbe),
+            _ => return None,
+        })
+    }
 
     fn process_of(hwnd: HWND) -> u32 {
         let mut pid = 0;
@@ -693,6 +802,7 @@ mod imp {
                 )
                 .map_err(|e| e.to_string())?;
                 let _ = ShowWindow(hwnd, SW_SHOW);
+                watch_keys(hwnd);
                 let mut window = Self {
                     hwnd,
                     title: title.to_owned(),
@@ -828,8 +938,16 @@ mod imp {
             }
         }
 
+        /// AudioStrada's keys pressed in the window since the last call (see `watch_keys`).
         pub fn take_keys(&mut self) -> Vec<(u32, u16)> {
-            Vec::new()
+            let frame = self.hwnd.0 as isize;
+            PRESSED.with(|p| {
+                let mut pressed = p.borrow_mut();
+                let (mine, others): (Vec<_>, Vec<_>) =
+                    pressed.drain(..).partition(|&(w, ..)| w == frame);
+                *pressed = others;
+                mine.into_iter().map(|(_, sym, mods)| (sym, mods)).collect()
+            })
         }
 
         /// True once the user closed the window (it is hidden on close).
@@ -842,6 +960,7 @@ mod imp {
 
     impl Drop for HostWindow {
         fn drop(&mut self) {
+            forget_keys(self.hwnd);
             remember_place(&self.title, self.hwnd);
             // SAFETY: our window, destroyed once.
             unsafe {
@@ -1089,6 +1208,10 @@ mod windows_tests {
         GetWindowLongPtrW, IsWindow, RegisterClassW, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOSIZE,
         SWP_NOZORDER, SetWindowPos, ShowWindow, WNDCLASSW, WS_EX_APPWINDOW, WS_OVERLAPPEDWINDOW,
     };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        DispatchMessageW, MSG, PM_REMOVE, PeekMessageW, PostMessageW, TranslateMessage, WM_KEYDOWN,
+        WS_CHILD, WS_VISIBLE,
+    };
     use windows::core::{PCWSTR, w};
 
     use super::*;
@@ -1195,6 +1318,76 @@ mod windows_tests {
             );
             let _ = DestroyWindow(browser);
             let _ = DestroyWindow(main);
+        }
+    }
+
+    static KEYS_SEEN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    unsafe extern "system" fn plugin_procedure(h: HWND, m: u32, w: WPARAM, l: LPARAM) -> LRESULT {
+        if m == WM_KEYDOWN {
+            KEYS_SEEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+        // SAFETY: default handling, with what Windows handed us.
+        unsafe { DefWindowProcW(h, m, w, l) }
+    }
+
+    #[test]
+    fn plugin_windows_hand_back_audiostradas_keys() {
+        set_grabbed_keys(vec![(0x20, 0)]);
+        let mut host = HostWindow::new("keys", 300, 200).unwrap();
+        let NativeHandle::Win32(frame) = host.handle() else {
+            unreachable!()
+        };
+        // SAFETY: plain Win32 calls with valid arguments, on this test's thread.
+        unsafe {
+            let instance = GetModuleHandleW(None).unwrap().into();
+            RegisterClassW(&WNDCLASSW {
+                lpfnWndProc: Some(plugin_procedure),
+                hInstance: instance,
+                lpszClassName: w!("TestPluginView"),
+                ..Default::default()
+            });
+            // The plugin: a child window of the frame, listening to keys.
+            let view = CreateWindowExW(
+                Default::default(),
+                w!("TestPluginView"),
+                w!(""),
+                WS_CHILD | WS_VISIBLE,
+                0,
+                0,
+                300,
+                200,
+                Some(HWND(frame)),
+                None,
+                Some(instance),
+                None,
+            )
+            .unwrap();
+            let pump = || {
+                let mut msg = MSG::default();
+                while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                    let _ = TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+            };
+            // Space (no modifier held), then Space held down (a repeat), then a key of the
+            // plugin's own.
+            PostMessageW(Some(view), WM_KEYDOWN, WPARAM(0x20), LPARAM(1)).unwrap();
+            PostMessageW(Some(view), WM_KEYDOWN, WPARAM(0x20), LPARAM(1 | (1 << 30))).unwrap();
+            PostMessageW(Some(view), WM_KEYDOWN, WPARAM(0x41), LPARAM(1)).unwrap();
+            pump();
+            assert_eq!(
+                host.take_keys(),
+                vec![(0x20, 0)],
+                "AudioStrada gets Space once"
+            );
+            assert_eq!(
+                KEYS_SEEN.load(std::sync::atomic::Ordering::Relaxed),
+                1,
+                "the plugin gets its own key only"
+            );
+            assert!(host.take_keys().is_empty());
+            let _ = DestroyWindow(view);
         }
     }
 }
