@@ -51,7 +51,10 @@ fn main() -> ExitCode {
             Ok(())
         }
         Command::Mcp { connect: None } => {
-            let mut backend = audiostrada_ui::control::Headless::new();
+            // The plugins installed, as in the window and `render`.
+            let mut backend = audiostrada_ui::control::Headless::with_plugins(
+                audio::plugin_database(&prefs::Prefs::load().ui, false),
+            );
             let stdin = std::io::stdin();
             audiostrada_ui::control::serve(&mut backend, stdin.lock(), std::io::stdout())
                 .map_err(Into::into)

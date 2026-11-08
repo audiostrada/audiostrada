@@ -521,6 +521,11 @@ pub fn call_tool(
     let string = |k: &str| args.get(k).and_then(Value::as_str);
     let time = |k: &str| seconds_to_samples(args.get(k), rate);
     let wait = |doc: &mut Document| if live { Ok(()) } else { settle(doc) };
+    // Headless, nothing else brings the player up to the project between two calls: an insert
+    // added would not be there for the next one (a plugin's parameters...).
+    if !live {
+        doc.update();
+    }
     if let Some(answer) = crate::mix_tools::call(doc, name, args) {
         return answer;
     }
@@ -1063,6 +1068,7 @@ pub fn call_tool(
         "redo" => Ok(json!({"redone": doc.history_mut().redo()})),
         "new_project" if !live => {
             let mut fresh = Document::new(doc.dirs().clone());
+            fresh.set_plugins(doc.player().plugins().clone());
             let name = string("name").unwrap_or("Untitled").to_owned();
             let rate = arg("sample_rate").and_then(Value::as_u64).unwrap_or(48_000) as u32;
             fresh
@@ -1073,7 +1079,9 @@ pub fn call_tool(
         }
         "open_project" if !live => {
             let path = Path::new(string("path").ok_or("`path` is needed")?);
+            let plugins = doc.player().plugins().clone();
             *doc = Document::open(path, doc.dirs().clone()).map_err(|e| e.to_string())?;
+            doc.set_plugins(plugins);
             settle(doc)?;
             Ok(inspect(doc, false))
         }
@@ -1163,6 +1171,13 @@ impl std::fmt::Debug for Headless {
 impl Headless {
     pub fn new() -> Self {
         Self(Document::new(AppDirs::default()))
+    }
+
+    /// With these third-party plugins installed, for every project it opens or starts.
+    pub fn with_plugins(plugins: audiostrada_plugins::scan::Database) -> Self {
+        let mut doc = Document::new(AppDirs::default());
+        doc.set_plugins(plugins);
+        Self(doc)
     }
 }
 
