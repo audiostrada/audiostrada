@@ -244,6 +244,55 @@ pub(crate) fn key_peak(key: Option<(&[f32], &[f32])>, i: usize, l: f32, r: f32) 
     }
 }
 
+/// The loudest of the last samples, over a window: a detector that holds a cycle's peak, so
+/// that what it drives (a compressor's gain) is steady through the cycle instead of chasing
+/// each sample from zero crossing to crest. Never allocates once made.
+#[derive(Clone, Debug)]
+pub(crate) struct PeakHold {
+    /// Candidates for the maximum, by age: each louder than every later one.
+    queue: std::collections::VecDeque<(u64, f32)>,
+    window: u64,
+    now: u64,
+}
+
+impl PeakHold {
+    pub(crate) fn new(window: usize) -> Self {
+        let window = window.max(1);
+        Self {
+            queue: std::collections::VecDeque::with_capacity(window + 1),
+            window: window as u64,
+            now: 0,
+        }
+    }
+
+    /// Pushes a level; returns the loudest of the window.
+    #[inline]
+    pub(crate) fn push(&mut self, x: f32) -> f32 {
+        while self.queue.back().is_some_and(|&(_, v)| v <= x) {
+            self.queue.pop_back();
+        }
+        while self
+            .queue
+            .front()
+            .is_some_and(|&(t, _)| t + self.window <= self.now)
+        {
+            self.queue.pop_front();
+        }
+        self.queue.push_back((self.now, x));
+        self.now += 1;
+        self.queue.front().map_or(x, |&(_, v)| v)
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.queue.clear();
+        self.now = 0;
+    }
+}
+
+/// How long a compressor's detector holds a peak: half a cycle of 50 Hz, the lowest note it
+/// has to stay steady on.
+pub(crate) const DETECTOR_HOLD_MS: f32 = 10.0;
+
 /// Converts a linear gain to decibels (floored at -200 dB).
 #[inline]
 pub fn gain_to_db(gain: f32) -> f32 {

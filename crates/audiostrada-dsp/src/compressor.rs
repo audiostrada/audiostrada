@@ -5,8 +5,8 @@
 use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::drive::{Oversampler, Taps};
 use crate::{
-    Effect, EffectInfo, ParamInfo, choice, db_to_gain, gain_to_db, key_peak, param, switch,
-    time_coefficient,
+    DETECTOR_HOLD_MS, Effect, EffectInfo, ParamInfo, PeakHold, choice, db_to_gain, gain_to_db,
+    key_peak, param, switch, time_coefficient,
 };
 
 pub const INFO: EffectInfo = EffectInfo {
@@ -125,6 +125,10 @@ pub struct Compressor {
     slow: [f32; 2],
     current: [f32; 2],
     held: [usize; 2],
+    /// The detector's level per side, held over a cycle (see `PeakHold`): from each sample
+    /// alone, the gain only reached its depth at the crests, and the attack took 1.7 times
+    /// as long as set.
+    peaks: [PeakHold; 2],
     attack: f32,
     release: f32,
     slow_release: f32,
@@ -151,6 +155,7 @@ impl Default for Compressor {
             slow: [0.0; 2],
             current: [0.0; 2],
             held: [0; 2],
+            peaks: [PeakHold::new(480), PeakHold::new(480)],
             attack: 0.0,
             release: 0.0,
             slow_release: 0.0,
@@ -209,6 +214,7 @@ impl Compressor {
         self.slow = [0.0; 2];
         self.current = [0.0; 2];
         self.held = [0; 2];
+        self.peaks.iter_mut().for_each(PeakHold::clear);
         self.hpf_state = Default::default();
         for line in &mut self.line {
             line.fill(0.0);
@@ -253,9 +259,13 @@ impl Compressor {
                 self.hpf_state[1].process(&self.hpf, f64::from(kr)) as f32,
             ];
             peak_in = peak_in.max(l.abs().max(r.abs()));
-            let both = heard[0].abs().max(heard[1].abs());
-            for (ch, side) in heard.iter().enumerate() {
-                let detected = link * both + (1.0 - link) * side.abs();
+            let held = [
+                self.peaks[0].push(heard[0].abs()),
+                self.peaks[1].push(heard[1].abs()),
+            ];
+            let both = held[0].max(held[1]);
+            for (ch, side) in held.iter().enumerate() {
+                let detected = link * both + (1.0 - link) * side;
                 let mut level = gain_to_db(detected);
                 // The optical cell listens to its own output.
                 if kind == OPTO {
@@ -326,6 +336,8 @@ impl Effect for Compressor {
         let size = (MAX_LOOKAHEAD_MS * 0.001 * self.rate).ceil() as usize + 2;
         self.line = [vec![0.0; size], vec![0.0; size]];
         self.at = 0;
+        let hold = (DETECTOR_HOLD_MS * 0.001 * self.rate) as usize;
+        self.peaks = [PeakHold::new(hold), PeakHold::new(hold)];
         self.update();
         self.clear();
     }
@@ -399,6 +411,8 @@ pub(crate) struct Clean {
     release: f32,
     /// Smoothed gain change in dB.
     envelope: f32,
+    /// The detector's level, held over a cycle (see `PeakHold`).
+    peak: PeakHold,
     reduction: f32,
     /// Peaks of the last block, in dB.
     levels: [f32; 2],
@@ -412,6 +426,7 @@ impl Default for Clean {
             attack: 0.0,
             release: 0.0,
             envelope: 0.0,
+            peak: PeakHold::new(480),
             reduction: 0.0,
             levels: [-120.0; 2],
         }
@@ -430,6 +445,7 @@ impl Effect for Clean {
         self.rate = sample_rate as f32;
         self.update_times();
         self.envelope = 0.0;
+        self.peak = PeakHold::new((DETECTOR_HOLD_MS * 0.001 * self.rate) as usize);
     }
 
     fn set_param(&mut self, index: usize, value: f32) {
@@ -449,6 +465,7 @@ impl Effect for Clean {
 
     fn reset(&mut self) {
         self.envelope = 0.0;
+        self.peak.clear();
     }
 
     fn meters(&self, out: &mut [f32]) {
@@ -471,7 +488,7 @@ impl Clean {
         for (i, (l, r)) in left.iter_mut().zip(right.iter_mut()).enumerate() {
             let detected = key_peak(key, i, *l, *r);
             peak_in = peak_in.max(detected);
-            let level = gain_to_db(detected);
+            let level = gain_to_db(self.peak.push(detected));
             let target = gain_computer(level, threshold, ratio, knee);
             let coefficient = if target < self.envelope {
                 self.attack
@@ -494,6 +511,64 @@ impl Clean {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_attack_and_release_take_the_times_set() {
+        // A 1 kHz tone jumps 30 dB, well over the threshold, then drops back: the gain change
+        // reaches 63 % of its depth in about the attack time, and recovers 63 % of it in
+        // about the release time (plus the detector's hold). Detected sample by sample, the
+        // attack took 1.7 times as long as set.
+        let index = |id: &str| UNIFIED.iter().position(|p| p.id == id).unwrap();
+        let mut c = Compressor::default();
+        for (id, v) in [
+            ("threshold", -22.0),
+            ("ratio", 4.0),
+            ("attack", 10.0),
+            ("release", 100.0),
+            ("auto", 0.0),
+            ("knee", 0.0),
+        ] {
+            c.set_param(index(id), v);
+        }
+        c.prepare(48_000, 256);
+        let level = |i: usize| {
+            if (24_000..52_800).contains(&i) {
+                0.5
+            } else {
+                0.016
+            }
+        };
+        let input: Vec<f32> = (0..100_800)
+            .map(|i| level(i) * (i as f32 * std::f32::consts::TAU * 1000.0 / 48_000.0).sin())
+            .collect();
+        let mut out = input.clone();
+        let mut right = input.clone();
+        for (l, r) in out.chunks_mut(256).zip(right.chunks_mut(256)) {
+            c.process(l, r);
+        }
+        // Gain change per millisecond, in dB.
+        let gain: Vec<f32> = (0..2100)
+            .map(|ms| {
+                let s = ms * 48..(ms + 1) * 48;
+                let peak = |x: &[f32]| x[s.clone()].iter().fold(0.0f32, |m, v| m.max(v.abs()));
+                gain_to_db(peak(&out) / peak(&input).max(1e-9))
+            })
+            .collect();
+        let deepest = gain[1090];
+        let attack = gain[500..]
+            .iter()
+            .position(|g| *g < 0.63 * deepest)
+            .unwrap();
+        assert!((7..=13).contains(&attack), "attack 10 ms takes {attack} ms");
+        let release = gain[1100..]
+            .iter()
+            .position(|g| *g > 0.37 * deepest)
+            .unwrap();
+        assert!(
+            (90..=125).contains(&release),
+            "release 100 ms takes {release} ms"
+        );
+    }
 
     #[test]
     fn static_curve_and_steady_state() {
