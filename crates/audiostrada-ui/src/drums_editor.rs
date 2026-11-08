@@ -1195,7 +1195,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
                 ("room", 22.0),
                 ("room_size", 55.0),
                 ("comp", 25.0),
-                ("volume", -9.8),
+                ("volume", -9.0),
             ],
         ),
         kit(

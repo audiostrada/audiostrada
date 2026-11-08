@@ -5548,7 +5548,7 @@ mod tests {
     }
 
     #[test]
-    fn an_instrument_leads_its_track_in_place_of_the_last_one() {
+    fn instruments_lead_their_track_layered_or_in_place_of_the_first() {
         let doc = Rc::new(RefCell::new(Document::new(AppDirs::default())));
         let mut track = None;
         doc.borrow_mut().history_mut().edit("Setup", |p| {
@@ -5567,12 +5567,27 @@ mod tests {
         view.add_insert(&mut doc.borrow_mut(), channel, false, "synth", "Synth");
         assert_eq!(effects(), ["synth", "eq"], "first");
         let first = routing::inserts(doc.borrow().project(), channel)[0].id;
+        // Another instrument is layered after those leading the track, before the effects.
+        view.add_insert(&mut doc.borrow_mut(), channel, false, "drums", "Drums");
+        assert_eq!(effects(), ["synth", "drums", "eq"], "layered");
+        assert_eq!(
+            routing::inserts(doc.borrow().project(), channel)[0].id,
+            first
+        );
+        // "Change instrument…" replaces the first one.
+        let Channel::Track(track) = channel else {
+            unreachable!()
+        };
+        view.choose_instrument(track, true);
         view.add_insert(&mut doc.borrow_mut(), channel, false, "synth", "Synth");
-        assert_eq!(effects(), ["synth", "eq"], "replaced, not added");
+        assert_eq!(effects(), ["synth", "drums", "eq"], "replaced, not added");
         assert_ne!(
             routing::inserts(doc.borrow().project(), channel)[0].id,
             first
         );
+        // The next one is layered again.
+        view.add_insert(&mut doc.borrow_mut(), channel, false, "synth", "Synth");
+        assert_eq!(effects(), ["synth", "drums", "synth", "eq"]);
         view.add_insert(
             &mut doc.borrow_mut(),
             channel,
@@ -5580,7 +5595,11 @@ mod tests {
             "compressor",
             "Compressor",
         );
-        assert_eq!(effects(), ["synth", "eq", "compressor"], "effects go last");
+        assert_eq!(
+            effects(),
+            ["synth", "drums", "synth", "eq", "compressor"],
+            "effects go last"
+        );
     }
 
     #[test]
