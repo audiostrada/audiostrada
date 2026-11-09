@@ -4,6 +4,7 @@
 pub use audiostrada_midi::MidiEvent;
 
 pub mod amp;
+pub mod analog;
 pub mod analysis;
 pub mod analyzer;
 pub mod biquad;
