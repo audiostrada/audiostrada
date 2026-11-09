@@ -513,13 +513,24 @@ impl TimelineView {
                         take_color(track, k),
                     );
                     let playing = used.get(k).is_some_and(|r| !r.is_empty());
-                    painter.text(
+                    let info = playlist.clips.iter().find_map(|c| c.take.as_deref());
+                    let stars_left = take_row.right() - 112.0;
+                    let name_right = if info.is_some() {
+                        stars_left - 16.0
+                    } else {
+                        take_row.right() - 72.0
+                    };
+                    let name_rect = Rect::from_x_y_ranges(
+                        take_row.left()..=name_right.max(take_row.left()),
+                        take_row.y_range(),
+                    );
+                    painter.with_clip_rect(name_rect).text(
                         pos2(
                             take_row.left() + 12.0 + depth as f32 * 12.0,
                             take_row.center().y,
                         ),
                         Align2::LEFT_CENTER,
-                        take_name(&playlist.name),
+                        lane_label(playlist),
                         FontId::proportional(11.0),
                         if playing {
                             visuals.strong_text_color()
@@ -527,6 +538,9 @@ impl TimelineView {
                             visuals.weak_text_color()
                         },
                     );
+                    if let Some(take) = info {
+                        self.take_marks(ui, doc, (id, k), take, take_row, stars_left);
+                    }
                     let use_rect = Rect::from_min_size(
                         pos2(take_row.right() - 68.0, take_row.center().y - 9.0),
                         vec2(40.0, 18.0),
@@ -1040,5 +1054,84 @@ impl LaneInfo {
             Some(set) => trf!("{value} · set {base}", value = self.text(v), base = set),
             None => self.text(v),
         }
+    }
+}
+
+impl TimelineView {
+    /// A take lane's stars, and a mark when the input clipped or the audio dropped out.
+    fn take_marks(
+        &self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        (track, lane): (TrackId, usize),
+        take: &audiostrada_core::TakeInfo,
+        row: Rect,
+        left: f32,
+    ) {
+        use crate::settings::{ERROR, WARN};
+        let weak = ui.visuals().weak_text_color();
+        for star in 1..=3u8 {
+            let rect = Rect::from_min_size(
+                pos2(left + f32::from(star - 1) * 13.0, row.top()),
+                vec2(13.0, row.height()),
+            );
+            let lit = take.rating >= star;
+            ui.painter().text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                if lit { "★" } else { "☆" },
+                FontId::proportional(11.0),
+                if lit { WARN } else { weak },
+            );
+            let response = ui
+                .interact(
+                    rect,
+                    ui.scope_id().with(("take-star", track, lane, star)),
+                    Sense::click(),
+                )
+                .on_hover_text(tr("Rate this take"));
+            if response.clicked() {
+                let rating = if take.rating == star { 0 } else { star };
+                let number = take.number;
+                doc.history_mut().edit(tr("Rate take"), |p| {
+                    edit::set_take_rating(p, track, number, rating)
+                });
+            }
+        }
+        let mut problems = Vec::new();
+        if take.clipped > 0 {
+            problems.push(trf!(
+                "Clipped {count}×: the input was too loud",
+                count = take.clipped
+            ));
+        }
+        if !take.dropouts.is_empty() {
+            problems.push(trf!(
+                "{count} dropout(s): marked in red on the clip",
+                count = take.dropouts.len()
+            ));
+        }
+        if problems.is_empty() {
+            return;
+        }
+        let rect = Rect::from_min_size(pos2(left - 14.0, row.top()), vec2(12.0, row.height()));
+        let color = if take.dropouts.is_empty() {
+            WARN
+        } else {
+            ERROR
+        };
+        ui.painter().text(
+            rect.center(),
+            Align2::CENTER_CENTER,
+            "!",
+            FontId::proportional(13.0),
+            color,
+        );
+        ui.interact(
+            rect,
+            ui.scope_id().with(("take-problems", track, lane)),
+            Sense::hover(),
+        )
+        .on_hover_text(problems.join("\n"));
     }
 }

@@ -138,4 +138,34 @@ mod tests {
         assert_eq!(prefs.audio.config().inputs, StreamConfig::default().inputs);
         assert_eq!(prefs.audio.backend(), None);
     }
+
+    #[test]
+    fn preferences_of_an_older_version_load_without_its_commands_and_panels() {
+        let text = r#"
+            [ui]
+            detached = ["Inputs", "Mixer"]
+            pane_windows = [
+                ["Takes", { size = [300.0, 200.0], maximized = false }],
+                ["Mixer", { size = [1100.0, 560.0], maximized = true }],
+            ]
+            recording_buffer = 64
+            [ui.keymap]
+            preset = "AudioStrada"
+            version = 16
+            bindings = [
+                [{ alt = true, key = "7" }, "RecordingMode"],
+                [{ command = true, key = "Z" }, "Undo"],
+            ]
+        "#;
+        let prefs: Prefs = toml::from_str(text).unwrap();
+        assert_eq!(prefs.ui.detached, vec![audiostrada_ui::Pane::Mixer]);
+        assert_eq!(prefs.ui.pane_windows.len(), 1);
+        let bindings = &prefs.ui.keymap.bindings;
+        assert_eq!(
+            bindings.len(),
+            1,
+            "the removed command left out, the others kept"
+        );
+        assert_eq!(bindings[0].1, audiostrada_ui::Action::Undo);
+    }
 }

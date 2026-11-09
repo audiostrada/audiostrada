@@ -142,6 +142,7 @@ impl Preset {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Keymap {
     pub preset: Preset,
+    #[serde(deserialize_with = "crate::ui_prefs::known")]
     pub bindings: Vec<(Shortcut, Action)>,
     /// Defaults version the bindings were made from (0 when saved before versions existed).
     #[serde(default)]
@@ -149,7 +150,7 @@ pub struct Keymap {
 }
 
 /// Bumped when default bindings are added, so saved keymaps get them.
-const VERSION: u32 = 15;
+const VERSION: u32 = 16;
 
 impl Default for Keymap {
     fn default() -> Self {
@@ -274,8 +275,6 @@ const PANELS: &[Binding] = &[
     (k(CMD, false, false, Key::F), Action::Fades),
     (k(PLAIN, false, false, Key::Tab), Action::NextTransient),
     (k(PLAIN, true, false, Key::Tab), Action::PreviousTransient),
-    // Recording mode (added in version 15).
-    (k(PLAIN, false, true, Key::Num7), Action::RecordingMode),
 ];
 
 const AUDIOSTRADA: &[Binding] = &[

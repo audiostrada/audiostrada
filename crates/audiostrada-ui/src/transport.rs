@@ -242,7 +242,10 @@ pub fn step_length(project: &Project, position: u64, beats: Option<f64>) -> u64 
 pub struct Audio<'a> {
     pub status: Option<&'a StreamStatus>,
     pub open_settings: bool,
-    pub recording_mode: bool,
+    /// The session's health, while tracks are armed.
+    pub health: Option<crate::recording::Health>,
+    /// The audio buffer, in samples.
+    pub buffer: u32,
 }
 
 pub fn show(
@@ -387,32 +390,24 @@ pub fn show(
         let well = tempo_well(ui, doc, &tempo, k);
         // Its tap button is put inside it, which leaves the cursor behind.
         ui.add_space((well.right() + 10.0 * k - ui.cursor().left()).max(0.0));
-        // With its name when there is room beside the meters, else as an icon, else in the
-        // View menu only.
+        // While tracks are armed: the session's health, and a way out of a slow monitoring.
         let room = ui.available_width() - 410.0 * k;
-        let toggle = if room > 170.0 {
-            Some(theme::labeled_toggle(
-                ui,
-                Icon::Microphone,
-                tr("Recording mode"),
-                audio.recording_mode,
-                theme::RECORD,
-                &hint(Action::RecordingMode),
-            ))
-        } else if room > 36.0 * k {
-            Some(theme::icon_button(
-                ui,
-                Icon::Microphone,
-                audio.recording_mode,
-                theme::RECORD,
-                &hint(Action::RecordingMode),
-                k,
-            ))
-        } else {
-            None
-        };
-        if toggle.is_some_and(|t| t.clicked()) {
-            actions.push(Action::RecordingMode);
+        if let Some(health) = &audio.health
+            && room > 130.0
+        {
+            use crate::recording::{SLOW_MONITORING_MS, SMALL_BUFFER, show_health};
+            show_health(ui, health, room > 340.0);
+            let slow = health.monitoring_ms > SLOW_MONITORING_MS;
+            if slow && (audio.buffer > SMALL_BUFFER || !doc.player().low_latency()) {
+                let reduce = trf!(
+                    "{action}: an audio buffer of {frames} samples and the low latency mode",
+                    action = hint(Action::ReduceLatency),
+                    frames = SMALL_BUFFER
+                );
+                if ui.small_button(tr("Reduce")).on_hover_text(reduce).clicked() {
+                    actions.push(Action::ReduceLatency);
+                }
+            }
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.add_space(4.0 * k);

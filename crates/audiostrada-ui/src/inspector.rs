@@ -298,6 +298,11 @@ fn track_section(ui: &mut Ui, doc: &mut Document, project: &Project, id: TrackId
                 end_gesture(doc.history_mut(), &a);
             });
             ui.end_row();
+            if track.kind == TrackKind::Audio && !doc.is_instrument_track(id) {
+                ui.label(tr("Record"));
+                crate::recording::record_source(ui, doc, track);
+                ui.end_row();
+            }
             ui.label(tr("Playlist"));
             ui.label(RichText::new(&track.playlist).strong());
             ui.end_row();

@@ -368,8 +368,6 @@ pub enum Icon {
     Latency,
     /// A robot's head: the AI assistants.
     Robot,
-    /// A microphone: the recording mode.
-    Microphone,
 }
 
 /// Draws `icon` centered in `rect`.
@@ -487,25 +485,6 @@ pub fn paint_icon(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
             );
             painter.line_segment(
                 [center, pos2(center.x + r * 0.45, center.y - r * 0.55)],
-                stroke,
-            );
-        }
-        Icon::Microphone => {
-            let head = Rect::from_center_size(pos2(c.x, c.y - s * 0.3), vec2(s * 0.62, s * 0.95));
-            painter.rect_filled(head, s * 0.31, color);
-            let cup: Vec<Pos2> = (0..=12)
-                .map(|i| {
-                    let a = std::f32::consts::PI * i as f32 / 12.0;
-                    pos2(c.x + s * 0.5 * a.cos(), c.y - s * 0.2 + s * 0.5 * a.sin())
-                })
-                .collect();
-            painter.add(Shape::line(cup, stroke));
-            painter.line_segment([pos2(c.x, c.y + s * 0.3), pos2(c.x, c.y + s * 0.7)], stroke);
-            painter.line_segment(
-                [
-                    pos2(c.x - s * 0.32, c.y + s * 0.7),
-                    pos2(c.x + s * 0.32, c.y + s * 0.7),
-                ],
                 stroke,
             );
         }

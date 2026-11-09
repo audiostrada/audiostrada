@@ -1472,24 +1472,19 @@ pub fn place_recorded_take(
     record_take(project, track, clip)
 }
 
-/// Rates a recorded take, in the current playlist or an alternate one; 0 clears it.
-pub fn set_take_rating(project: &mut Project, clip: ClipId, rating: u8) {
-    for track in project.tracks.iter_mut() {
-        let has = |c: &Clip| c.id == clip && c.take.is_some();
-        let found =
-            track.clips.iter().any(has) || track.alternates.iter().any(|a| a.clips.iter().any(has));
-        if !found {
-            continue;
-        }
-        let t = std::sync::Arc::make_mut(track);
-        let clips = t
-            .clips
-            .iter_mut()
-            .chain(t.alternates.iter_mut().flat_map(|a| a.clips.iter_mut()));
-        for c in clips.filter(|c| c.id == clip) {
-            if let Some(take) = &mut c.take {
-                take.rating = rating.min(3);
-            }
+/// Rates take `number` of a track wherever it is (the comp, a playlist, its lane); 0 clears it.
+pub fn set_take_rating(project: &mut Project, track: TrackId, number: u32, rating: u8) {
+    let Some(t) = project.track_mut(track) else {
+        return;
+    };
+    let clips = t
+        .clips
+        .iter_mut()
+        .chain(t.alternates.iter_mut().flat_map(|a| a.clips.iter_mut()))
+        .chain(t.takes.iter_mut().flat_map(|l| l.clips.iter_mut()));
+    for take in clips.filter_map(|c| c.take.as_mut()) {
+        if take.number == number {
+            take.rating = rating.min(3);
         }
     }
 }
@@ -1584,18 +1579,30 @@ mod tests {
             frames: 1000,
         });
         let t = p.add_track("Vox");
-        let first = p.add_clip(t, source, 0).unwrap();
-        let track = p.track_mut(t).unwrap();
-        track.clips[0].take = Some(Box::default());
-        new_playlist(&mut p, t);
-        set_take_rating(&mut p, first, 5);
+        for _ in 0..2 {
+            p.add_clip(t, source, 0);
+            let clip = p.track_mut(t).unwrap().clips.pop().unwrap();
+            place_recorded_take(&mut p, t, clip, 0, Vec::new());
+        }
+        set_take_rating(&mut p, t, 2, 5);
         let saved = crate::file::to_json(&p).unwrap();
         let back = crate::file::from_json(&saved).unwrap();
-        let take = back.track(t).unwrap().alternates[0].clips[0].take.clone();
+        let track = back.track(t).unwrap();
+        let rating = |clips: &[Clip]| clips[0].take.as_ref().map(|t| (t.number, t.rating));
         assert_eq!(
-            take.map(|t| t.rating),
-            Some(3),
+            rating(&track.clips),
+            Some((2, 3)),
             "at most 3 stars, kept in the file"
+        );
+        assert_eq!(
+            rating(&track.takes[1].clips),
+            Some((2, 3)),
+            "in its lane too"
+        );
+        assert_eq!(
+            rating(&track.takes[0].clips),
+            Some((1, 0)),
+            "the other take untouched"
         );
     }
 

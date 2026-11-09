@@ -988,7 +988,7 @@ pub(super) fn draw_take_badge(painter: &egui::Painter, rect: Rect, track: &Track
         painter.text(
             pos2(rect.left() + 5.0, rect.bottom() - 5.0),
             Align2::LEFT_BOTTOM,
-            take_name(&lane.name),
+            lane_label(lane),
             FontId::proportional(10.0),
             color,
         );

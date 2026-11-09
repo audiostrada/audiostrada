@@ -1,5 +1,5 @@
 //! Optional modules built into some versions of AudioStrada. A module draws its own windows,
-//! adds a menu and recording-mode tabs, and keeps its data in `Project::extensions`.
+//! adds a menu, and keeps its data in `Project::extensions`.
 
 use eframe::egui;
 
@@ -20,13 +20,6 @@ pub trait Extension {
     }
 
     fn menu(&mut self, _ui: &mut egui::Ui, _doc: &mut Document) {}
-
-    /// Titles of its tabs in the recording mode.
-    fn recording_tabs(&self) -> Vec<String> {
-        Vec::new()
-    }
-
-    fn show_recording_tab(&mut self, _tab: usize, _ui: &mut egui::Ui, _doc: &mut Document) {}
 }
 
 impl Document {

@@ -1292,6 +1292,17 @@ fn take_name(name: &str) -> String {
     }
 }
 
+/// A take lane's label: its take's section and number, else its name.
+fn lane_label(lane: &audiostrada_core::Playlist) -> String {
+    match lane.clips.iter().find_map(|c| c.take.as_deref()) {
+        Some(take) => match &take.section {
+            Some(section) => trf!("{section} · Take {n}", section = section, n = take.number),
+            None => trf!("Take {n}", n = take.number),
+        },
+        None => take_name(&lane.name),
+    }
+}
+
 /// Indices of the automation lanes shown under a track.
 /// Height of an automation lane in the editor.
 fn lane_height(lane: &audiostrada_core::automation::AutomationLane) -> f32 {

@@ -228,8 +228,6 @@ struct Views {
     piano: piano_roll::PianoRoll,
     edit: EditSettings,
     extensions: Vec<Box<dyn extension::Extension>>,
-    /// The session's health, in the recording mode.
-    health: Option<recording::Health>,
 }
 
 impl Views {
@@ -262,12 +260,6 @@ impl PaneContent for Views {
                 self.piano.show(ui, &self.edit, clip);
             }
             Pane::Rack => self.mixer.rack(ui),
-            Pane::Inputs => {
-                recording::inputs_pane(ui, &mut self.doc.borrow_mut(), self.health.as_ref())
-            }
-            Pane::Takes => {
-                recording::takes_pane(ui, &mut self.doc.borrow_mut(), &mut self.extensions)
-            }
         }
     }
 }
@@ -342,19 +334,8 @@ pub struct AudioStradaApp {
     /// The last tools assistants called: (tool, when).
     control_log: std::collections::VecDeque<(String, std::time::SystemTime)>,
     assistants_window: assistants_window::AssistantsWindow,
-    /// What the recording mode changed, while it is on.
-    recording_mode: Option<recording::Saved>,
-    /// Tracks were armed last frame, to offer the recording mode when one gets armed.
-    armed_before: bool,
-    /// The offer of the recording mode, shown or declined for this session.
-    recording_offer: RecordingOffer,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RecordingOffer {
-    Waiting,
-    Shown,
-    Declined,
+    /// The recording session, while tracks are armed.
+    session: Option<recording::Session>,
 }
 
 impl std::fmt::Debug for AudioStradaApp {
@@ -417,7 +398,6 @@ impl AudioStradaApp {
                 piano: piano_roll::PianoRoll::new(Rc::clone(&doc)),
                 edit: EditSettings::default(),
                 extensions: Vec::new(),
-                health: None,
             })),
             inbox: Rc::default(),
             doc,
@@ -474,9 +454,7 @@ impl AudioStradaApp {
             control,
             control_log: Default::default(),
             assistants_window: Default::default(),
-            recording_mode: None,
-            armed_before: false,
-            recording_offer: RecordingOffer::Waiting,
+            session: None,
         }
     }
 
@@ -835,66 +813,48 @@ impl AudioStradaApp {
 
     fn ui_changed(&mut self) {
         let layout = layout::save(&self.tree);
-        if self.recording_mode.is_some() {
-            self.prefs.recording_layout = layout.clone();
-        } else {
-            self.prefs.layout = layout.clone();
-        }
+        self.prefs.layout = layout.clone();
         self.saved_layout = layout;
         self.prefs_applied = false;
         (self.hooks.ui_changed)(&self.prefs);
     }
 
     /// Opens the control channel on `127.0.0.1:port` for `audiostrada mcp --connect`.
-    /// Enters or leaves the recording mode: its layout, a small audio buffer and the low
-    /// latency mode at its own limit. Leaving puts them back; the project is not touched.
-    fn toggle_recording_mode(&mut self) {
+    /// A smaller audio buffer and the low latency mode, for what is played to be heard at once.
+    fn reduce_latency(&mut self) {
         let recording = self.doc.borrow().recording().is_some();
-        let set_buffer = |host: &mut AudioHost, frames: u32| {
-            let mut config = host.config().clone();
-            config.buffer_size = frames;
-            host.apply(config);
-        };
-        match self.recording_mode.take() {
-            Some(saved) => {
-                self.prefs.recording_layout = layout::save(&self.tree);
-                self.tree = layout::load(saved.layout.as_deref());
-                if let Some(frames) = saved.buffer.filter(|_| !recording) {
-                    set_buffer(&mut self.host, frames);
-                }
-                let mut doc = self.doc.borrow_mut();
-                doc.player_mut()
-                    .set_low_latency_limit(saved.low_latency.then_some(1.0));
-            }
-            None => {
-                let before = self.host.config().buffer_size;
-                let wanted = self.prefs.recording_buffer;
-                let change = before != wanted && self.host.stream().is_some() && !recording;
-                if change {
-                    set_buffer(&mut self.host, wanted);
-                }
-                let mut doc = self.doc.borrow_mut();
-                let low_latency = doc.player().low_latency();
-                doc.player_mut()
-                    .set_low_latency_limit(Some(self.prefs.recording_bypass_ms));
-                drop(doc);
-                self.recording_mode = Some(recording::Saved {
-                    layout: layout::save(&self.tree),
-                    buffer: change.then_some(before),
-                    low_latency,
-                    xruns: self.host.status().map_or(0, |s| s.xruns()),
-                    health: None,
-                });
-                self.tree = layout::load_recording(self.prefs.recording_layout.as_deref());
-                self.recording_offer = RecordingOffer::Declined;
-            }
+        let mut config = self.host.config().clone();
+        if config.buffer_size > recording::SMALL_BUFFER
+            && self.host.stream().is_some()
+            && !recording
+        {
+            config.buffer_size = recording::SMALL_BUFFER;
+            self.host.apply(config);
+            (self.hooks.audio_changed)(&self.host);
         }
-        self.ui_changed();
+        let mut doc = self.doc.borrow_mut();
+        doc.player_mut().set_low_latency(true);
+        doc.notify(trf!(
+            "Audio buffer of {frames} samples, low latency mode on",
+            frames = self.host.config().buffer_size
+        ));
     }
 
-    /// The session's health, measured once a second in the recording mode.
-    fn recording_health(&mut self) -> Option<recording::Health> {
-        let saved = self.recording_mode.as_mut()?;
+    /// The session's health while tracks are armed, measured once a second.
+    fn session_health(&mut self) -> Option<recording::Health> {
+        let armed = {
+            let doc = self.doc.borrow();
+            doc.recording().is_some() || doc.project().tracks.iter().any(|t| t.armed)
+        };
+        if !armed {
+            self.session = None;
+            return None;
+        }
+        let xruns = self.host.status().map_or(0, |s| s.xruns());
+        let saved = self.session.get_or_insert(recording::Session {
+            xruns,
+            health: None,
+        });
         if let Some((at, health)) = saved.health
             && at.elapsed() < Duration::from_secs(1)
         {
@@ -922,47 +882,6 @@ impl AudioStradaApp {
         );
         saved.health = Some((Instant::now(), health));
         Some(health)
-    }
-
-    /// Arming a first track offers the recording mode, once per session.
-    fn offer_recording_mode(&mut self, ui: &mut egui::Ui) -> Vec<Action> {
-        let armed = self.doc.borrow().project().tracks.iter().any(|t| t.armed);
-        if armed
-            && !self.armed_before
-            && self.recording_mode.is_none()
-            && self.prefs.recording_offer
-            && self.recording_offer == RecordingOffer::Waiting
-        {
-            self.recording_offer = RecordingOffer::Shown;
-        }
-        self.armed_before = armed;
-        if !armed && self.recording_offer == RecordingOffer::Shown {
-            self.recording_offer = RecordingOffer::Waiting;
-        }
-        if self.recording_offer != RecordingOffer::Shown || self.recording_mode.is_some() {
-            return Vec::new();
-        }
-        let mut actions = Vec::new();
-        egui::Panel::top("recording-offer").show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(tr(
-                    "A track is armed. Switch to the recording mode? It shows the inputs, the \
-                     timeline and the takes, with a small audio buffer.",
-                ));
-                if ui.button(tr("Recording mode")).clicked() {
-                    actions.push(Action::RecordingMode);
-                }
-                if ui.button(tr("Not now")).clicked() {
-                    self.recording_offer = RecordingOffer::Declined;
-                }
-                if ui.button(tr("Never")).clicked() {
-                    self.recording_offer = RecordingOffer::Declined;
-                    self.prefs.recording_offer = false;
-                    (self.hooks.ui_changed)(&self.prefs);
-                }
-            });
-        });
-        actions
     }
 
     /// Adds a module, before `run`.
@@ -1361,9 +1280,7 @@ impl AudioStradaApp {
             | Action::ShowInspector
             | Action::ShowMarkers
             | Action::ShowPianoRoll
-            | Action::ShowRack
-            | Action::ShowInputs
-            | Action::ShowTakes => {
+            | Action::ShowRack => {
                 if let Some(pane) = Pane::from_action(action) {
                     if self.detached.contains(&pane) {
                         // Brings its window forward; Detach or closing the window docks it back.
@@ -1406,13 +1323,9 @@ impl AudioStradaApp {
                     self.detach(pane);
                 }
             }
-            Action::RecordingMode => self.toggle_recording_mode(),
+            Action::ReduceLatency => self.reduce_latency(),
             Action::ResetLayout => {
-                self.tree = if self.recording_mode.is_some() {
-                    layout::recording_tree()
-                } else {
-                    layout::default_tree()
-                };
+                self.tree = layout::default_tree();
                 self.detached.clear();
                 self.prefs.detached.clear();
                 self.ui_changed();
@@ -2399,8 +2312,6 @@ impl AudioStradaApp {
                             Pane::Markers => Action::ShowMarkers,
                             Pane::PianoRoll => Action::ShowPianoRoll,
                             Pane::Rack => Action::ShowRack,
-                            Pane::Inputs => Action::ShowInputs,
-                            Pane::Takes => Action::ShowTakes,
                         };
                         check(
                             ui,
@@ -2428,12 +2339,6 @@ impl AudioStradaApp {
                 });
                 let compact = self.views.borrow().mixer.compact;
                 check(ui, &mut chosen, Action::CompactMixer, compact);
-                check(
-                    ui,
-                    &mut chosen,
-                    Action::RecordingMode,
-                    self.recording_mode.is_some(),
-                );
                 check(
                     ui,
                     &mut chosen,
@@ -3066,12 +2971,12 @@ impl eframe::App for AudioStradaApp {
             .frame(menu_frame)
             .show(ui, |ui| actions.extend(self.menu_bar(ui)));
         let mut counter = self.prefs.counter;
-        let health = self.recording_health();
-        self.views.borrow_mut().health = health;
+        let health = self.session_health();
         let mut audio = transport::Audio {
             status: self.host.stream().map(|s| s.status()),
             open_settings: false,
-            recording_mode: self.recording_mode.is_some(),
+            health,
+            buffer: self.host.config().buffer_size,
         };
         let transport_panel = if self.prefs.transport_bottom {
             egui::Panel::bottom("transport")
@@ -3102,7 +3007,6 @@ impl eframe::App for AudioStradaApp {
         if audio.open_settings {
             self.preferences.open_audio();
         }
-        actions.extend(self.offer_recording_mode(ui));
         if counter != self.prefs.counter {
             self.prefs.counter = counter;
             (self.hooks.ui_changed)(&self.prefs);

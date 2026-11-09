@@ -1222,50 +1222,17 @@ TAP
 Tap tempo: click on the beat, at least twice
 Tap tempo : cliquez en rythme, au moins deux fois
 
-Recording mode
-Mode prise
-
-Armed inputs
-Entrées armées
-
 Takes
 Prises
-
-A track is armed. Switch to the recording mode? It shows the inputs, the timeline and the takes, with a small audio buffer.
-Une piste est armée. Passer en mode prise ? Il montre les entrées, la timeline et les prises, avec un petit tampon audio.
-
-Not now
-Pas maintenant
-
-A layout for recording musicians: the armed inputs, the timeline and the takes. Leaving it puts everything back.
-Une disposition pour enregistrer des musiciens : les entrées armées, la timeline et les prises. En sortir remet tout comme avant.
 
 Audio buffer
 Tampon audio
 
-Bypass the effects of the master and folders adding more than
-Contourner les effets du master et des dossiers ajoutant plus de
-
-Offer it when a track is armed
-Le proposer quand une piste est armée
-
 {frames} samples
 {frames} échantillons
 
-+{ms} ms
-+{ms} ms
-
 Arm a track
 Armer une piste
-
-Armed tracks · {count}
-Pistes armées · {count}
-
-Audio dropouts since the recording mode started
-Coupures audio depuis l'entrée en mode prise
-
-Choose take
-Choisir la prise
 
 Clipped
 Saturé
@@ -1279,20 +1246,8 @@ Heard through
 Monitoring {ms} ms
 Écoute {ms} ms
 
-No track is armed. Arm one to hear its input and record it.
-Aucune piste n'est armée. Armez-en une pour écouter son entrée et l'enregistrer.
-
-Play this take instead
-Jouer cette prise à la place
-
 Recording time left on the disk, at the armed inputs
 Temps d'enregistrement restant sur le disque, avec les entrées armées
-
-The takes of the armed tracks appear here.
-Les prises des pistes armées apparaissent ici.
-
-What the track's effects add to what is heard
-Ce que les effets de la piste ajoutent à l'écoute
 
 no effect
 aucun effet
@@ -1348,18 +1303,6 @@ Pré-roll avant le décompte
 Count-in
 Décompte
 
-Go to this take, and play it if it is in another playlist
-Aller à cette prise, et la faire jouer si elle est dans une autre playlist
-
-In another playlist
-Dans une autre playlist
-
-No take yet
-Pas encore de prise
-
-Plays now
-Jouée en ce moment
-
 Pre-roll
 Pré-roll
 
@@ -1369,17 +1312,30 @@ Noter la prise
 Rate this take
 Noter cette prise
 
-Samples at full scale: the input was too loud
-Échantillons à pleine échelle : l'entrée était trop forte
-
 Take {n}
 Prise {n}
 
-The audio dropped out while it was recorded: marked in red on the clip
-L'audio a décroché pendant l'enregistrement : c'est marqué en rouge sur le clip
-
-clipped {count}×
-sature {count}×
-
 {section} · Take {n}
 {section} · Prise {n}
+
+Reduce the monitoring latency
+Réduire la latence d'écoute
+
+Reduce
+Réduire
+
+{action}: an audio buffer of {frames} samples and the low latency mode
+{action} : un tampon audio de {frames} échantillons et le mode basse latence
+
+Audio buffer of {frames} samples, low latency mode on
+Tampon audio de {frames} échantillons, mode basse latence activé
+
+Audio dropouts since a track was armed
+Coupures audio depuis qu'une piste est armée
+
+Clipped {count}×: the input was too loud
+Saturé {count}× : l'entrée était trop forte
+
+{count} dropout(s): marked in red on the clip
+{count} coupure(s) : marquées en rouge sur le clip
+

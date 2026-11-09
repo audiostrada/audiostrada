@@ -24,6 +24,30 @@ Le bouton haut-parleur à côté de **R** dit quand une piste entend son entrée
 Le bouton est allumé quand l'entrée s'entend. L'indicateur d'une piste armée montre son niveau
 d'entrée, entendu ou non.
 
+## Brut ou traité
+
+La ligne **Enregistrer** de l'Inspecteur dit ce qu'enregistre une piste audio armée :
+
+- **Brut** : l'entrée telle qu'elle arrive ; ses effets peuvent encore changer ensuite.
+- **Traité** : ce que ses effets font de l'entrée, sur une piste créée sous elle, *(imprimé)*.
+- **Les deux** : la prise brute sur la piste, et la prise traitée sur une piste muette sous elle.
+
+Une prise traitée demande que l'entrée passe par la piste : son écoute ne doit pas être
+**Désactivé**.
+
+## État de la séance
+
+Quand une piste est armée, la barre de transport montre :
+
+- **Écoute** : le temps que met ce que vous jouez à arriver à vos oreilles, à travers l'interface
+  audio et les effets les plus lents entendus en direct. Réglez la compensation de latence
+  d'enregistrement dans les Préférences pour un chiffre exact.
+- Les coupures audio depuis qu'une piste est armée.
+- Le temps d'enregistrement qui reste sur le disque.
+
+Quand l'écoute est lente, **Réduire** choisit un tampon audio de 64 échantillons et active le mode
+basse latence.
+
 ## Mode basse latence
 
 Le chronomètre de la barre de transport met en bypass les effets qui ajoutent plus de 1 ms, sauf
@@ -43,8 +67,21 @@ mesures. Le clic n'est jamais exporté.
   sur la règle. L'enregistrement n'a lieu qu'à l'intérieur, pour remplacer une erreur sans toucher
   au reste.
 - **Enregistrement en boucle** : avec la boucle active ([[L]]), chaque passage devient une prise.
-  Les prises sont gardées dans des **playlists** : l'Inspecteur assemble les meilleurs passages de
-  chacune (comping), et le menu de l'en-tête de piste passe d'une playlist à l'autre.
+
+## Prises et comping
+
+Chaque prise audio est gardée entière dans sa propre lane sous la piste, nommée d'après son
+numéro et le marqueur où elle commence (*Refrain · Prise 2*). Ce que jouait la piste avant sa
+première prise a une lane *Avant l'enregistrement*. La piste joue le comping, d'abord la dernière
+prise ; les lanes s'affichent dès qu'il y a un choix.
+
+- Glissez sur une lane pour prendre ce passage, ou cliquez sur une prise pour la prendre en
+  entier. **Choisir** prend toute la prise. De courts fondus adoucissent chaque raccord.
+- Le ✕ supprime une lane ; ce que la piste en joue reste.
+- Cliquez sur les étoiles pour noter une prise. Un **!** signale que l'entrée a saturé ou que
+  l'audio a coupé pendant l'enregistrement ; les coupures sont marquées en rouge sur le clip.
+
+L'enregistrement MIDI en boucle fusionne ses passages en un seul clip.
 
 ## Enregistrer du MIDI
 

@@ -5,6 +5,28 @@ use serde::{Deserialize, Serialize};
 
 use crate::keymap::Keymap;
 
+/// A list read from saved preferences, leaving out entries this version no longer knows
+/// (a removed panel or command) instead of failing to load them all.
+pub(crate) fn known<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Entry<T> {
+        Known(T),
+        Unknown(serde::de::IgnoredAny),
+    }
+    Ok(Vec::<Entry<T>>::deserialize(deserializer)?
+        .into_iter()
+        .filter_map(|e| match e {
+            Entry::Known(t) => Some(t),
+            Entry::Unknown(_) => None,
+        })
+        .collect())
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ThemeChoice {
     #[default]
@@ -138,10 +160,12 @@ pub struct UiPrefs {
     /// Panel layout as JSON text, since TOML has no null.
     pub layout: Option<String>,
     /// Panels shown in their own windows.
+    #[serde(deserialize_with = "known")]
     pub detached: Vec<crate::layout::Pane>,
     /// The main window as it was left.
     pub window: Option<WindowState>,
     /// The detached panels' windows as they were left.
+    #[serde(deserialize_with = "known")]
     pub pane_windows: Vec<(crate::layout::Pane, WindowState)>,
     /// Version of the default layout `layout` was saved against; 0 when missing.
     #[serde(default)]
@@ -189,15 +213,6 @@ pub struct UiPrefs {
     pub transport_large: bool,
     /// How the timeline draws waveforms.
     pub waveforms: crate::timeline::WaveView,
-    /// The recording mode's panel layout, as `layout`.
-    pub recording_layout: Option<String>,
-    /// Audio buffer of the recording mode, in frames.
-    pub recording_buffer: u32,
-    /// In the recording mode, effects on the way of what is played that add more than this
-    /// (in ms) are bypassed.
-    pub recording_bypass_ms: f32,
-    /// Arming a track offers the recording mode.
-    pub recording_offer: bool,
     /// AI assistants may drive AudioStrada through the control channel (MCP).
     pub assistants: bool,
     /// Local port of the control channel.
@@ -237,10 +252,6 @@ impl Default for UiPrefs {
             transport_bottom: false,
             transport_large: false,
             waveforms: crate::timeline::WaveView::default(),
-            recording_layout: None,
-            recording_buffer: 64,
-            recording_bypass_ms: 2.0,
-            recording_offer: true,
             assistants: false,
             assistants_port: crate::integrations::DEFAULT_PORT,
         }

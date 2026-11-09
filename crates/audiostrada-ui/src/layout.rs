@@ -17,13 +17,10 @@ pub enum Pane {
     Markers,
     PianoRoll,
     Rack,
-    /// The armed tracks' inputs, for the recording mode.
-    Inputs,
-    Takes,
 }
 
 impl Pane {
-    pub const ALL: [Pane; 9] = [
+    pub const ALL: [Pane; 7] = [
         Pane::Timeline,
         Pane::Mixer,
         Pane::PianoRoll,
@@ -31,8 +28,6 @@ impl Pane {
         Pane::Browser,
         Pane::Inspector,
         Pane::Markers,
-        Pane::Inputs,
-        Pane::Takes,
     ];
 
     /// The name shown on its tab and window, in the interface's language.
@@ -45,8 +40,6 @@ impl Pane {
             Pane::Markers => tr("Markers"),
             Pane::PianoRoll => tr("Piano roll"),
             Pane::Rack => tr("Rack"),
-            Pane::Inputs => tr("Armed inputs"),
-            Pane::Takes => tr("Takes"),
         }
     }
 
@@ -59,8 +52,6 @@ impl Pane {
             Action::ShowMarkers => Pane::Markers,
             Action::ShowPianoRoll => Pane::PianoRoll,
             Action::ShowRack => Pane::Rack,
-            Action::ShowInputs => Pane::Inputs,
-            Action::ShowTakes => Pane::Takes,
             _ => return None,
         })
     }
@@ -75,59 +66,21 @@ pub fn default_tree() -> Tree<Pane> {
     let markers = tiles.insert_pane(Pane::Markers);
     let piano = tiles.insert_pane(Pane::PianoRoll);
     let rack = tiles.insert_pane(Pane::Rack);
-    let inputs = tiles.insert_pane(Pane::Inputs);
-    let takes = tiles.insert_pane(Pane::Takes);
     let bottom = tiles.insert_tab_tile(vec![mixer, piano, rack]);
     let center = tiles.insert_vertical_tile(vec![timeline, bottom]);
-    let left = tiles.insert_tab_tile(vec![browser, inputs]);
-    let right = tiles.insert_tab_tile(vec![inspector, markers, takes]);
-    let root = tiles.insert_horizontal_tile(vec![left, center, right]);
+    let right = tiles.insert_tab_tile(vec![inspector, markers]);
+    let root = tiles.insert_horizontal_tile(vec![browser, center, right]);
     // Side panels are one View menu click away.
-    for id in [browser, inspector, markers, inputs, takes] {
+    for id in [browser, inspector, markers] {
         tiles.set_visible(id, false);
     }
     set_shares(&mut tiles, center, &[(timeline, 1.15), (bottom, 1.0)]);
     set_shares(
         &mut tiles,
         root,
-        &[(left, 1.0), (center, 4.5), (right, 1.2)],
+        &[(browser, 1.0), (center, 4.5), (right, 1.2)],
     );
     Tree::new(egui::Id::unique("audiostrada-layout"), root, tiles)
-}
-
-/// The recording mode's layout: the armed inputs, the timeline and the takes.
-pub fn recording_tree() -> Tree<Pane> {
-    let mut tree = default_tree();
-    for pane in Pane::ALL {
-        set_visible(&mut tree, pane, false);
-    }
-    for pane in [Pane::Inputs, Pane::Timeline, Pane::Takes] {
-        set_visible(&mut tree, pane, true);
-        activate(&mut tree, pane);
-    }
-    let root = tree.root();
-    let sides: Vec<TileId> = root
-        .and_then(|r| match tree.tiles.get(r) {
-            Some(Tile::Container(c)) => Some(c.children().copied().collect()),
-            _ => None,
-        })
-        .unwrap_or_default();
-    if let (Some(root), [left, center, right]) = (root, sides.as_slice()) {
-        set_shares(
-            &mut tree.tiles,
-            root,
-            &[(*left, 1.7), (*center, 4.5), (*right, 1.5)],
-        );
-    }
-    tree
-}
-
-/// Restores the recording mode's saved layout, falling back to its default one.
-pub fn load_recording(saved: Option<&str>) -> Tree<Pane> {
-    saved
-        .and_then(|v| serde_json::from_str::<Tree<Pane>>(v).ok())
-        .filter(|tree| Pane::ALL.iter().all(|p| tree.tiles.find_pane(p).is_some()))
-        .unwrap_or_else(recording_tree)
 }
 
 fn set_shares(tiles: &mut egui_tiles::Tiles<Pane>, container: TileId, shares: &[(TileId, f32)]) {
@@ -143,7 +96,11 @@ pub const VERSION: u32 = 3;
 
 /// Restores a saved layout, falling back to the default one.
 pub fn load(saved: Option<&str>) -> Tree<Pane> {
-    let mut tree: Option<Tree<Pane>> = saved.and_then(|v| serde_json::from_str(v).ok());
+    let mut tree: Option<Tree<Pane>> = saved.and_then(|v| {
+        serde_json::from_str(v)
+            .ok()
+            .or_else(|| serde_json::from_str(&without_unknown_panes(v)?).ok())
+    });
     // Saved before the rack: it joins the mixer's tabs.
     if let Some(tree) = &mut tree
         && tree.tiles.find_pane(&Pane::Rack).is_none()
@@ -155,24 +112,59 @@ pub fn load(saved: Option<&str>) -> Tree<Pane> {
             container.add_child(rack);
         }
     }
-    // Saved before the recording mode's panels: they join the side panels, hidden.
-    if let Some(tree) = &mut tree
-        && let Some(root) = tree.root()
-    {
-        for pane in [Pane::Inputs, Pane::Takes] {
-            if tree.tiles.find_pane(&pane).is_none() {
-                let id = tree.tiles.insert_pane(pane);
-                tree.tiles.set_visible(id, false);
-                if let Some(egui_tiles::Tile::Container(container)) = tree.tiles.get_mut(root) {
-                    container.add_child(id);
-                }
-            }
-        }
-    }
     match tree {
         Some(tree) if Pane::ALL.iter().all(|p| tree.tiles.find_pane(p).is_some()) => tree,
         _ => default_tree(),
     }
+}
+
+/// A saved layout without the panels of older versions that this one no longer has.
+fn without_unknown_panes(saved: &str) -> Option<String> {
+    use serde_json::Value;
+    let mut value: Value = serde_json::from_str(saved).ok()?;
+    let tiles = value.get_mut("tiles")?;
+    let unknown: Vec<String> = tiles
+        .get("tiles")?
+        .as_object()?
+        .iter()
+        .filter(|(_, tile)| {
+            tile.get("Pane")
+                .is_some_and(|p| serde_json::from_value::<Pane>(p.clone()).is_err())
+        })
+        .map(|(id, _)| id.clone())
+        .collect();
+    let gone = |v: &Value| v.as_u64().is_some_and(|n| unknown.contains(&n.to_string()));
+    if let Some(invisible) = tiles.get_mut("invisible").and_then(Value::as_array_mut) {
+        invisible.retain(|v| !gone(v));
+    }
+    let map = tiles.get_mut("tiles")?.as_object_mut()?;
+    map.retain(|id, _| !unknown.contains(id));
+    for tile in map.values_mut() {
+        let Some(container) = tile
+            .get_mut("Container")
+            .and_then(Value::as_object_mut)
+            .and_then(|c| c.values_mut().next())
+        else {
+            continue;
+        };
+        if let Some(children) = container.get_mut("children").and_then(Value::as_array_mut) {
+            children.retain(|v| !gone(v));
+        }
+        if let Some(shares) = container
+            .pointer_mut("/shares/shares")
+            .and_then(Value::as_object_mut)
+        {
+            shares.retain(|id, _| !unknown.contains(id));
+        }
+        if container.get("active").is_some_and(gone) {
+            let first = container
+                .pointer("/children/0")
+                .cloned()
+                .unwrap_or(Value::Null);
+            container["active"] = first;
+        }
+    }
+    serde_json::to_string(&value).ok()
 }
 
 pub fn save(tree: &Tree<Pane>) -> Option<String> {
@@ -296,6 +288,16 @@ impl Behavior<Pane> for Workspace<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_layout_with_panels_since_removed_keeps_the_others() {
+        // Saved with the recording mode's Inputs (8) and Takes (9) panels, Takes in front.
+        let saved = r#"{"id":1,"root":14,"tiles":{"next_tile_id":16,"tiles":{"2":{"Pane":"Timeline"},"11":{"Container":{"Linear":{"children":[15,10],"dir":"Vertical","shares":{"shares":{"10":1.0,"15":1.15}}}}},"9":{"Pane":"Takes"},"8":{"Pane":"Inputs"},"15":{"Container":{"Tabs":{"children":[2],"active":2}}},"6":{"Pane":"PianoRoll"},"4":{"Pane":"Inspector"},"14":{"Container":{"Linear":{"children":[12,11,13],"dir":"Horizontal","shares":{"shares":{"13":1.5,"11":4.5,"12":1.7}}}}},"5":{"Pane":"Markers"},"13":{"Container":{"Tabs":{"children":[4,5,9],"active":9}}},"7":{"Pane":"Rack"},"10":{"Container":{"Tabs":{"children":[3,6,7],"active":3}}},"12":{"Container":{"Tabs":{"children":[1,8],"active":8}}},"3":{"Pane":"Mixer"},"1":{"Pane":"Browser"}},"invisible":[7,3,1,6,4,5,8]},"height":null,"width":null}"#;
+        let tree = load(Some(saved));
+        assert!(Pane::ALL.iter().all(|p| tree.tiles.find_pane(p).is_some()));
+        assert!(is_visible(&tree, Pane::Timeline), "not the default layout");
+        assert!(!is_visible(&tree, Pane::Mixer));
+    }
 
     #[test]
     fn layout_round_trips_and_toggles() {

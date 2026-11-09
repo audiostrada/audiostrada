@@ -861,7 +861,10 @@ impl Document {
             project
                 .tracks
                 .iter()
-                .filter(|t| t.printed_from.is_some_and(|f| printed.iter().any(|p| p.0 == f)))
+                .filter(|t| {
+                    t.printed_from
+                        .is_some_and(|f| printed.iter().any(|p| p.0 == f))
+                })
                 .map(|t| t.id),
         );
         self.player.set_record_window(&audio, Some(window));

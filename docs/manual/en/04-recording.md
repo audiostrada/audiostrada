@@ -23,6 +23,29 @@ The speaker button beside **R** says when a track hears its input:
 The button is lit while the input is heard. An armed track's meter shows its input level,
 heard or not.
 
+## Raw or processed
+
+The Inspector's **Record** row says what an armed audio track records:
+
+- **Raw**: the input as it comes; its effects can still change afterwards.
+- **Processed**: what its effects make of the input, on a track made under it, *(printed)*.
+- **Both**: the raw take on the track, and the processed one on a silent track under it.
+
+A processed take needs the input to go through the track: its monitoring must not be **Off**.
+
+## Session health
+
+While a track is armed, the transport bar shows:
+
+- **Monitoring**: how long what you play takes to reach your ears, through the audio interface
+  and the slowest effects heard live. Set the recording latency offset in Preferences for an
+  exact figure.
+- The audio dropouts since a track was armed.
+- The recording time left on the disk.
+
+When the monitoring is slow, **Reduce** chooses an audio buffer of 64 samples and turns the low
+latency mode on.
+
 ## Low latency mode
 
 The stopwatch in the transport bar bypasses the effects that add more than 1 ms, except on the
@@ -40,9 +63,22 @@ exported.
 
 - **Punch** ([[P]]): Shift-drag in the ruler sets the punch range, or right-click the ruler.
   Recording only happens inside it, so that a mistake can be replaced without touching the rest.
-- **Loop recording**: with the loop on ([[L]]), each pass becomes a take. Takes are kept in
-  **playlists**: the Inspector compiles the best parts of each (comping), and the track header's
-  menu switches between playlists.
+- **Loop recording**: with the loop on ([[L]]), each pass becomes a take.
+
+## Takes and comping
+
+Each audio take is kept whole in a lane of its own under the track, named after its number and
+the marker it starts at (*Chorus · Take 2*). What the track played before its first take gets a
+lane *Before recording*. The track plays the comp, the last take at first; the lanes show once
+there is a choice.
+
+- Drag on a lane to comp that part in, or click a take to comp all of it. **Use** comps the
+  whole take. Short crossfades smooth every edge.
+- The ✕ deletes a lane; what the track plays of it stays.
+- Click the stars to rate a take. A **!** says the input clipped or the audio dropped out while
+  it was recorded; dropouts are marked in red on the clip.
+
+MIDI loop recording merges its passes into one clip.
 
 ## Recording MIDI
 

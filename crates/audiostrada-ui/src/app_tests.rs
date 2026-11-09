@@ -181,63 +181,41 @@ fn the_transport_moves_to_the_bottom_and_grows() {
 }
 
 #[test]
-fn the_recording_mode_has_its_layout_and_puts_everything_back() {
-    let mut h = Harness::with_song("recording-mode");
+fn the_session_health_shows_while_a_track_is_armed() {
+    let mut h = Harness::with_song("session-health");
     h.frame(Vec::new());
-    let shown = |tree: &egui_tiles::Tree<Pane>| Pane::ALL.map(|p| layout::is_visible(tree, p));
-    let before = shown(&h.app.tree);
-    let buffer = h.app.host.config().buffer_size;
-    assert_ne!(
-        buffer, 64,
-        "the dummy device's buffer differs from the mode's"
-    );
-    h.app.doc.borrow_mut().history_mut().edit("Arm", |p| {
-        let t = p.add_track("Vox");
-        p.track_mut(t).unwrap().armed = true;
+    assert!(h.app.session_health().is_none(), "nothing armed");
+    let vox = {
+        let mut doc = h.app.doc.borrow_mut();
+        let mut vox = None;
+        doc.history_mut().edit("Arm", |p| {
+            let t = p.add_track("Vox");
+            p.track_mut(t).unwrap().armed = true;
+            vox = Some(t);
+        });
+        vox.unwrap()
+    };
+    h.frame(Vec::new());
+    assert!(h.app.session_health().is_some());
+    h.app.doc.borrow_mut().history_mut().edit("Disarm", |p| {
+        p.track_mut(vox).unwrap().armed = false;
     });
     h.frame(Vec::new());
-    assert_eq!(
-        h.app.recording_offer,
-        RecordingOffer::Shown,
-        "arming offers the mode"
+    assert!(h.app.session_health().is_none());
+    assert!(
+        h.app.session.is_none(),
+        "the next arming starts a new session"
     );
-    let project = h.app.doc.borrow().project().clone();
-    h.act(Action::RecordingMode);
-    assert!(h.app.recording_mode.is_some());
-    assert_eq!(h.app.recording_offer, RecordingOffer::Declined);
-    for pane in [Pane::Inputs, Pane::Timeline, Pane::Takes] {
-        assert!(layout::is_visible(&h.app.tree, pane), "{pane:?}");
-    }
-    assert!(!layout::is_visible(&h.app.tree, Pane::Mixer));
-    assert_eq!(h.app.host.config().buffer_size, 64);
+}
+
+#[test]
+fn reducing_the_monitoring_latency_keeps_a_small_buffer_and_the_low_latency_mode() {
+    let mut h = Harness::with_song("reduce-latency");
+    h.frame(Vec::new());
+    assert!(h.app.host.config().buffer_size > recording::SMALL_BUFFER);
+    h.act(Action::ReduceLatency);
+    assert_eq!(h.app.host.config().buffer_size, recording::SMALL_BUFFER);
     assert!(h.app.doc.borrow().player().low_latency());
-    for _ in 0..3 {
-        h.frame(Vec::new());
-    }
-    assert!(h.app.recording_health().is_some());
-    h.act(Action::ShowMarkers);
-    let recording_layout = h.app.prefs.recording_layout.clone();
-    assert!(
-        recording_layout
-            .as_deref()
-            .is_some_and(|l| l.contains("Markers"))
-    );
-    h.act(Action::RecordingMode);
-    assert!(h.app.recording_mode.is_none());
-    assert_eq!(shown(&h.app.tree), before);
-    assert_eq!(shown(&layout::load(h.app.prefs.layout.as_deref())), before);
-    assert_eq!(h.app.host.config().buffer_size, buffer);
-    assert!(!h.app.doc.borrow().player().low_latency());
-    assert_eq!(
-        *h.app.doc.borrow().project(),
-        project,
-        "the project is not touched"
-    );
-    h.act(Action::RecordingMode);
-    assert!(
-        layout::is_visible(&h.app.tree, Pane::Markers),
-        "its own layout comes back"
-    );
 }
 
 #[test]
