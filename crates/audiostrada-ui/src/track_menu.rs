@@ -87,19 +87,6 @@ pub fn show(ui: &mut Ui, doc: &mut Document, id: TrackId) -> Vec<Request> {
         });
         crate::mixer::vca_submenu(ui, doc, &tracks);
     }
-    if routing::has_children(&project, id) {
-        let mut linked = audiostrada_core::groups::folder_group(&project, id).is_some();
-        if ui
-            .checkbox(&mut linked, tr("Folder acts as a group"))
-            .on_hover_text(tr(
-                "Its tracks move, mute, solo and edit together, as set in Groups; tracks moved \
-                 in or out of the folder join or leave",
-            ))
-            .changed()
-        {
-            crate::mixer::toggle_folder_group(doc, id);
-        }
-    }
     if track.kind == TrackKind::Audio {
         midi_out_submenu(ui, doc, id, track.midi_out.as_deref());
     }

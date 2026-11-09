@@ -1318,11 +1318,6 @@ fn groups_menu(ui: &mut Ui, doc: &mut Document) {
                     1..=2 => names.join(", "),
                     n => format!("{}, … ({n})", names[..2].join(", ")),
                 };
-                let folder = group.folder.and_then(|f| project.track(f));
-                let summary = match folder {
-                    Some(f) => trf!("Folder {name}: {members}", name = f.name, members = summary),
-                    None => summary,
-                };
                 ui.label(RichText::new(summary).size(11.0))
                     .on_hover_text(names.join("\n"));
                 ui.horizontal(|ui| {
@@ -1334,13 +1329,12 @@ fn groups_menu(ui: &mut Ui, doc: &mut Document) {
                         doc.set_track_selection(tracks.clone());
                     }
                     let selected = doc.selected_tracks().to_vec();
-                    if folder.is_none()
-                        && ui
-                            .add_enabled(
-                                !selected.is_empty(),
-                                egui::Button::new(tr("Add selected")).small(),
-                            )
-                            .clicked()
+                    if ui
+                        .add_enabled(
+                            !selected.is_empty(),
+                            egui::Button::new(tr("Add selected")).small(),
+                        )
+                        .clicked()
                     {
                         doc.history_mut().edit(tr("Join group"), |p| {
                             for &t in &selected {
@@ -1357,27 +1351,6 @@ fn groups_menu(ui: &mut Ui, doc: &mut Document) {
                     }
                 });
                 ui.end_row();
-            }
-        });
-}
-
-/// Makes a folder act as a group of its tracks, or stop.
-pub(crate) fn toggle_folder_group(doc: &mut Document, folder: TrackId) {
-    let project = doc.project();
-    let existing = groups::folder_group(project, folder);
-    let Some(track) = project.track(folder) else {
-        return;
-    };
-    let (name, color) = (track.name.clone(), track.color);
-    doc.history_mut()
-        .edit(tr("Folder group"), |p| match existing {
-            Some(i) => {
-                p.groups.remove(i);
-            }
-            None => {
-                let mut group = groups::TrackGroup::new(&name, color);
-                group.folder = Some(folder);
-                p.groups.push(group);
             }
         });
 }
@@ -1780,18 +1753,13 @@ pub(crate) fn group_submenu(ui: &mut Ui, doc: &mut Document, track: TrackId) {
             });
             ui.close();
         }
-        let names: Vec<(String, bool)> = doc
+        let names: Vec<String> = doc
             .project()
             .groups
             .iter()
-            .map(|g| (g.name.clone(), g.folder.is_some()))
+            .map(|g| g.name.clone())
             .collect();
-        for (i, (name, folder)) in names.iter().enumerate() {
-            if *folder {
-                ui.add_enabled(false, egui::Button::selectable(current == Some(i), name))
-                    .on_disabled_hover_text(tr("Its members are the tracks of its folder"));
-                continue;
-            }
+        for (i, name) in names.iter().enumerate() {
             if ui.selectable_label(current == Some(i), name).clicked() {
                 doc.history_mut().edit(tr("Join group"), |p| {
                     for &t in &tracks {
@@ -4010,8 +3978,7 @@ impl MixerView {
         if ui
             .checkbox(&mut cut, tr("Cut the output to the master"))
             .on_hover_text(tr(
-                "The track is then heard only through the send (its folder or master \
-             output is turned off)",
+                "The track is then heard only through the send (its output is turned off)",
             ))
             .changed()
         {
@@ -4032,14 +3999,42 @@ impl MixerView {
                     })
             })
             .collect();
-        if candidates.is_empty() {
-            ui.weak(tr("Add a bus first"));
+        let mut candidates = candidates;
+        // The buses first, the tracks after.
+        candidates.sort_by_key(|t| t.kind != TrackKind::Bus);
+        if ui
+            .button(tr("New effect bus"))
+            .on_hover_text(tr("A bus fed by these sends, for a reverb or a delay"))
+            .clicked()
+        {
+            let name = bus_name(project, &[]);
+            let mut result = Ok(());
+            let mut bus = TrackId(0);
+            doc.history_mut().edit(tr("New effect bus"), |p| {
+                bus = routing::add_bus(p, &name);
+                for &t in &tracks {
+                    result = result.and(routing::add_send(p, t, bus));
+                    if cut {
+                        result = result.and(routing::set_master_send(p, t, false));
+                    }
+                }
+            });
+            if let Err(e) = result {
+                self.error = Some(e.to_string());
+            }
+            doc.select_track(bus, crate::document::SelectMode::Only);
+            ui.close();
         }
         // A long list scrolls rather than leaving its window.
         egui::ScrollArea::vertical()
             .max_height(220.0)
             .show(ui, |ui| {
+                let mut tracks_shown = false;
                 for target in candidates {
+                    if target.kind != TrackKind::Bus && !tracks_shown {
+                        tracks_shown = true;
+                        ui.separator();
+                    }
                     let from = senders(target.id);
                     let response = ui
                         .add_enabled(!from.is_empty(), egui::Button::new(&target.name))
@@ -5626,10 +5621,6 @@ mod tests {
         draw(&ctx, &mut |ui, doc| {
             let project = doc.project().clone();
             view.add_send_menu(ui, doc, &project, ids[1]);
-        });
-        draw(&ctx, &mut |ui, doc| {
-            super::toggle_folder_group(doc, ids[0]);
-            ui.label("folder group");
         });
         // The chain dialog, opened as its button does.
         ctx.data_mut(|d| {

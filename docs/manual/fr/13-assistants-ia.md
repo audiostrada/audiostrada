@@ -45,7 +45,7 @@ supprimés.
 
 **Il mixe avec toute la console** : presets et chaînes enregistrées (`list_presets`,
 `load_preset`, `save_preset`, `list_chains`, `add_chain`), automation (`read_automation`,
-`write_automation` : montées de volume, balayages de filtre, départs), départs, dossiers, VCA,
+`write_automation` : montées de volume, balayages de filtre, départs), départs, bus, VCA,
 groupes et sidechains (`set_send`, `set_routing`, `set_sidechain`), la couleur de console
 (`set_console`), les instantanés, et les plugins tiers (`list_plugins`, `add_insert` avec la clé
 d'un plugin, `plugin_params`).

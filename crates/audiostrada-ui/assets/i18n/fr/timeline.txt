@@ -54,9 +54,6 @@ Muet
 Send → {name}
 Envoi → {name}
 
-Show or hide the folder contents
-Afficher ou masquer le contenu du dossier
-
 Frozen
 Gelée
 

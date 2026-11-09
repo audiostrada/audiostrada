@@ -7,7 +7,7 @@
 Chaque piste a sa tranche dans le **Mixer**, dans l'ordre où le signal la traverse : l'entrée avec
 son gain et sa polarité (**Ø**), le channel strip, les inserts, les sends, la sortie (et le VCA),
 puis le panoramique à côté du mode d'automation, le fader et l'indicateur, le muet (**M**), le solo
-(**S**), l'armement (**R**) et le nom de la piste, marqué **BUS** pour un dossier et **VCA** pour un
+(**S**), l'armement (**R**) et le nom de la piste, marqué **BUS** pour un bus et **VCA** pour un
 VCA. Le fader prend la hauteur que le panneau laisse.
 
 - **Ancré** dans la fenêtre principale, la tranche laisse sa hauteur au fader : les boutons **FX**
@@ -76,16 +76,17 @@ clic. Les chaînes parallèles séparent le signal en branches et les remélange
   s'affichent sous lui et se replient avec lui ; glisser une piste parmi elles la route vers ce
   bus. Piste › Ajouter › *Ajouter un bus* en crée un vide, pour une réverbe alimentée par des
   sends.
-- **Les sends** vont vers n'importe quelle piste ou bus (pré ou post fader). Un emplacement de
-  send vide ajoute le send à toutes les pistes sélectionnées ; cochez d'abord *Couper la sortie
+- **Les sends** vont vers n'importe quelle piste ou bus (pré ou post fader) ; le menu d'un
+  emplacement de send vide liste d'abord les bus, et *Nouveau bus d'effet* en crée un alimenté par
+  le send. Le send s'ajoute à toutes les pistes sélectionnées ; cochez d'abord *Couper la sortie
   vers le master* pour les pistes qu'on n'entend que par le send.
 - **VCA** : le clic droit de la piste choisit le VCA qui la pilote ; un **V** sous le fader le
   signale.
 
 ## Groupes
 
-Sélectionnez des pistes et appuyez sur [[Ctrl+G]], ou cochez *Le dossier sert de groupe* dans le
-menu d'un dossier. Le menu Groupes règle ce que partagent les membres : niveau, panoramique et
+Sélectionnez des pistes et appuyez sur [[Ctrl+G]]. Un groupe n'a rien à voir avec les bus : les
+pistes d'un bus restent indépendantes tant qu'elles ne sont pas groupées. Le menu Groupes règle ce que partagent les membres : niveau, panoramique et
 départs (en relatif), muet, solo, armement, bypass des inserts, mode d'automation, polarité, et
 édition (un clic sur un clip ou une piste dans la timeline prend aussi ceux des membres : coupes,
 déplacements, rognages et fondus s'appliquent à tous).

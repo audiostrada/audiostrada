@@ -259,6 +259,16 @@ pub fn upgrade_amp_rigs(value: &mut Value) {
     }
 }
 
+/// Groups that followed a folder: a bus's tracks are now edited each on its own.
+pub fn drop_folder_groups(value: &mut Value) {
+    if let Some(groups) = value
+        .pointer_mut("/project/groups")
+        .and_then(Value::as_array_mut)
+    {
+        groups.retain(|g| g.get("folder").is_none_or(Value::is_null));
+    }
+}
+
 /// Format 2 had folders: any track could hold others and still play clips. A track holding
 /// others becomes a bus; its clips (with its recording settings) go to a new track, first
 /// inside it. A MIDI part takes the inserts too, since an instrument plays it.
@@ -332,7 +342,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn folders_of_format_2_become_buses_and_their_clips_a_track_inside() {
+    fn folders_of_format_2_become_buses_their_clips_a_track_inside_and_their_groups_go() {
         use crate::model::{Source, TrackKind};
         let mut p = crate::Project::new("t", 48_000);
         let source = p.add_source(Source {
@@ -359,6 +369,12 @@ mod tests {
         }
         let mut json: Value = serde_json::from_slice(&crate::file::to_json(&p).unwrap()).unwrap();
         json["version"] = 2.into();
+        json["project"]["groups"] = serde_json::json!([
+            {"name": "Drums", "color": [0, 0, 0], "tracks": [], "active": true, "gain": true,
+             "mute": true, "solo": true, "arm": true, "folder": drums.0},
+            {"name": "Mine", "color": [0, 0, 0], "tracks": [left.0], "active": true,
+             "gain": true, "mute": true, "solo": true, "arm": true}
+        ]);
         let p = crate::file::from_json(&serde_json::to_vec(&json).unwrap()).unwrap();
         let names: Vec<&str> = p.tracks.iter().map(|t| t.name.as_str()).collect();
         assert_eq!(names, ["Guitars", "Guitars", "Left", "Drums", "Kick"]);
@@ -376,6 +392,8 @@ mod tests {
             5,
             "a folder without clips gets no new track"
         );
+        let groups: Vec<&str> = p.groups.iter().map(|g| g.name.as_str()).collect();
+        assert_eq!(groups, ["Mine"], "the group that followed a folder is gone");
     }
 
     #[test]

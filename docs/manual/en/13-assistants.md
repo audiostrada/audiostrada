@@ -43,7 +43,7 @@ files themselves are never moved, changed or deleted.
 
 It mixes with the whole console: presets and saved chains (`list_presets`, `load_preset`,
 `save_preset`, `list_chains`, `add_chain`), automation (`read_automation`, `write_automation`:
-volume rides, filter sweeps, sends), sends, folders, VCAs, groups and sidechains (`set_send`,
+volume rides, filter sweeps, sends), sends, buses, VCAs, groups and sidechains (`set_send`,
 `set_routing`, `set_sidechain`), the console colour (`set_console`), mix snapshots, and
 third-party plugins (`list_plugins`, `add_insert` with a plugin's key, `plugin_params`).
 

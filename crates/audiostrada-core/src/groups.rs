@@ -1,6 +1,6 @@
 //! Track groups: members share level, pan and send changes (relative), switches (mute, solo,
 //! record arm, inserts bypass, polarity), automation mode, and the selection and editing of
-//! their clips. A group can follow a folder: its members are then the folder's tracks.
+//! their clips.
 
 use serde::{Deserialize, Serialize};
 
@@ -36,9 +36,6 @@ pub struct TrackGroup {
     /// Selecting and editing clips, and selecting the tracks in the timeline.
     #[serde(default = "yes")]
     pub edit: bool,
-    /// The folder whose tracks are the members, in place of `tracks`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub folder: Option<TrackId>,
 }
 
 /// What a group links.
@@ -88,7 +85,6 @@ impl TrackGroup {
             automation: true,
             polarity: false,
             edit: true,
-            folder: None,
         }
     }
 
@@ -124,34 +120,17 @@ impl TrackGroup {
     }
 }
 
-/// The tracks of a group: its folder's, or those added to it.
-pub fn members(project: &Project, group: &TrackGroup) -> Vec<TrackId> {
-    match group.folder {
-        Some(folder) => crate::routing::subtree(project, folder)
-            .into_iter()
-            .filter(|t| *t != folder)
-            .collect(),
-        None => group.tracks.clone(),
-    }
+/// The tracks of a group.
+pub fn members(_project: &Project, group: &TrackGroup) -> Vec<TrackId> {
+    group.tracks.clone()
 }
 
-/// Group of a track, if any: one it was added to first, else its folder's.
+/// Group of a track, if any.
 pub fn group_of(project: &Project, track: TrackId) -> Option<usize> {
     project
         .groups
         .iter()
-        .position(|g| g.folder.is_none() && g.tracks.contains(&track))
-        .or_else(|| {
-            project
-                .groups
-                .iter()
-                .position(|g| g.folder.is_some() && members(project, g).contains(&track))
-        })
-}
-
-/// The group following `folder`, if any.
-pub fn folder_group(project: &Project, folder: TrackId) -> Option<usize> {
-    project.groups.iter().position(|g| g.folder == Some(folder))
+        .position(|g| g.tracks.contains(&track))
 }
 
 /// The other tracks a change of `link` on `track` also applies to.
@@ -181,14 +160,7 @@ pub fn maybe_alone<R>(project: &mut Project, alone: bool, f: impl FnOnce(&mut Pr
 }
 
 /// Moves `track` into group `group` (out of any other), or out of every group with `None`.
-/// Folder groups follow their folder and take no one.
 pub fn set_group(project: &mut Project, track: TrackId, group: Option<usize>) {
-    if group
-        .and_then(|g| project.groups.get(g))
-        .is_some_and(|g| g.folder.is_some())
-    {
-        return;
-    }
     for g in &mut project.groups {
         g.tracks.retain(|t| *t != track);
     }
@@ -404,26 +376,16 @@ mod tests {
     }
 
     #[test]
-    fn a_folder_group_follows_the_folder_and_edits_overlapping_clips() {
+    fn a_group_edits_the_clips_of_its_tracks_that_overlap() {
         let mut p = Project::new("t", 48_000);
-        let (drums, kick, snare, bass) = (
-            crate::routing::add_bus(&mut p, "drums"),
+        let (kick, snare, bass) = (
             p.add_track("kick"),
             p.add_track("snare"),
             p.add_track("bass"),
         );
-        for t in [kick, snare] {
-            crate::routing::set_parent(&mut p, t, Some(drums)).unwrap();
-        }
-        let mut group = TrackGroup::new("Drums", [0; 3]);
-        group.folder = Some(drums);
-        p.groups.push(group);
-        assert_eq!(group_of(&p, snare), Some(0));
-        assert_eq!(group_of(&p, drums), None);
-        assert_eq!(linked(&p, kick, Link::Mute), vec![snare]);
-        set_group(&mut p, bass, Some(0));
-        assert_eq!(group_of(&p, bass), None, "membership follows the folder");
-
+        p.groups.push(TrackGroup::new("Drums", [0; 3]));
+        set_group(&mut p, kick, Some(0));
+        set_group(&mut p, snare, Some(0));
         let s = p.add_source(Source {
             path: PathBuf::from("a.wav"),
             channels: 1,

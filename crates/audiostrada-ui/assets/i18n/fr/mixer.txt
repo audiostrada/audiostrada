@@ -270,9 +270,6 @@ Armer l'enregistrement
 VCA. Click to select, drag to reorder, right-click for options
 VCA. Cliquer pour sélectionner, glisser pour réordonner, clic droit pour les options
 
-Folder. Click to select, drag to reorder, right-click for options
-Dossier. Cliquer pour sélectionner, glisser pour réordonner, clic droit pour les options
-
 Click to select (Ctrl adds, Shift extends), drag to reorder, right-click for options
 Cliquer pour sélectionner (Ctrl ajoute, Shift étend), glisser pour réordonner, clic droit pour les options
 
@@ -402,12 +399,6 @@ Retirer l'envoi
 Cut the output to the master
 Couper la sortie vers le master
 
-The track is then heard only through the send (its folder or master output is turned off)
-La piste ne s'entend plus que par l'envoi (sa sortie vers le dossier ou le master est coupée)
-
-Add a bus first
-Ajoutez d'abord un bus
-
 Would create a feedback loop
 Créerait une boucle de réinjection
 
@@ -426,23 +417,11 @@ Sortie: {label}
 {count} tracks selected
 {count} pistes sélectionnées
 
-VCA (its fader and mute act on this track)
-VCA (son fader et son muet agissent sur cette piste)
-
-Send to folder / master
-Envoyer au dossier / master
-
 Output
 Sortie
 
 Folder
 Dossier
-
-None (top level)
-Aucun (niveau supérieur)
-
-Move to folder
-Déplacer dans le dossier
 
 MONITOR (NOT EXPORTED)
 MONITORING (NON EXPORTÉ)
@@ -675,17 +654,8 @@ Ctrl+Maj+G. Décoché, chaque piste agit seule. Pour bouger une seule piste, mai
 Faders move together, keeping their balance
 Les faders bougent ensemble en gardant leur équilibre
 
-Folder group
-Groupe de dossier
-
-Folder {name}: {members}
-Dossier {name} : {members}
-
 Groups (off)
 Groupes (suspendus)
-
-Its members are the tracks of its folder
-Ses membres sont les pistes de son dossier
 
 No groups yet. Members of a group share level changes, mute, solo, arm, editing and more. A folder can also act as a group, from its menu.
 Aucun groupe. Les membres d'un groupe partagent niveau, mute, solo, armement, édition et plus. Un dossier peut aussi servir de groupe, depuis son menu.
@@ -701,12 +671,6 @@ Les départs vers le même bus bougent ensemble en gardant leur équilibre
 
 Tracks whose level, mute, solo, arm, editing and more move together
 Pistes dont niveau, mute, solo, armement, édition et plus vont ensemble
-
-Folder acts as a group
-Le dossier sert de groupe
-
-Its tracks move, mute, solo and edit together, as set in Groups; tracks moved in or out of the folder join or leave
-Ses pistes bougent, se coupent, passent en solo et s'éditent ensemble, selon les réglages de Groupes ; les pistes entrées ou sorties du dossier rejoignent ou quittent le groupe
 
 Low latency mode
 Mode basse latence
@@ -1373,3 +1337,12 @@ VCA
 
 {count} track(s)
 {count} piste(s)
+
+New effect bus
+Nouveau bus d'effet
+
+A bus fed by these sends, for a reverb or a delay
+Un bus alimenté par ces sends, pour une réverbe ou un delay
+
+The track is then heard only through the send (its output is turned off)
+On n'entend alors la piste que par le send (sa sortie est coupée)

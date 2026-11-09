@@ -7,7 +7,7 @@
 Each track has a strip in the **Mixer**, in the order the signal goes through it: the input with
 its gain and polarity (**Ø**), the channel strip, the inserts, the sends, the output (and VCA),
 then the pan beside the automation mode, the fader and meter, mute (**M**), solo (**S**), record
-arm (**R**) and the track's name, marked **BUS** for a folder and **VCA** for a VCA. The fader
+arm (**R**) and the track's name, marked **BUS** for a bus and **VCA** for a VCA. The fader
 takes the height the panel leaves.
 
 - **Docked** in the main window, the strip leaves its height to the fader: the **FX** and **Send**
@@ -73,7 +73,8 @@ chains split the signal into branches of their own and mix them back.
   the master. They hold no clips. In the timeline the tracks of a bus show under it and fold
   with it; dragging a track among them routes it there. Track › Add › *Add bus* makes an empty
   one, for a reverb fed by sends.
-- **Sends** go to any track or bus (pre or post fader). An empty send slot adds the send to every
+- **Sends** go to any track or bus (pre or post fader); the menu of an empty send slot lists
+  the buses first, and *New effect bus* makes one fed by the send. The send is added to every
   selected track; tick *Cut the output to the master* first for tracks heard only through the
   send.
 - **VCA**: the track's right-click menu chooses the VCA that controls it; a **V** under the fader
@@ -81,8 +82,8 @@ chains split the signal into branches of their own and mix them back.
 
 ## Groups
 
-Select tracks and press [[Ctrl+G]], or tick *Folder acts as a group* in a folder's menu. The
-Groups menu sets what members share: level, pan and sends (relative), mute, solo, arm, inserts
+Select tracks and press [[Ctrl+G]]. A group has nothing to do with buses: the tracks of a bus
+stay each on its own unless they are grouped. The Groups menu sets what members share: level, pan and sends (relative), mute, solo, arm, inserts
 bypass, automation mode, polarity, and editing (a click on a clip or a track in the timeline
 takes the members' too, so cuts, moves, trims and fades apply to all).
 

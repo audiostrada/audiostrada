@@ -998,8 +998,6 @@ impl Project {
         };
         self.metronome.count_in = self.metronome.count_in.min(8);
         let ids: Vec<TrackId> = self.tracks.iter().map(|t| t.id).collect();
-        self.groups
-            .retain(|g| g.folder.is_none_or(|f| ids.contains(&f)));
         for g in &mut self.groups {
             let mut kept = Vec::with_capacity(g.tracks.len());
             for t in g.tracks.drain(..) {
@@ -1119,7 +1117,6 @@ impl Project {
         self.tracks.retain(|t| t.id != id);
         self.midi_map
             .retain(|m| m.track != Some(id) && m.target != AutomationTarget::Send(id));
-        self.groups.retain(|g| g.folder != Some(id));
         for g in &mut self.groups {
             g.tracks.retain(|t| *t != id);
         }
