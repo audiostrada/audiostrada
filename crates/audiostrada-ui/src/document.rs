@@ -1720,7 +1720,6 @@ impl Document {
         Ok(())
     }
 
-    /// Tempo of the source part a clip plays, before any stretch.
     /// The tempo of an audio clip: `None` while it is being looked for in the background (the
     /// window repaints once found), `Some(None)` when no clear tempo comes out.
     pub fn clip_tempo(&mut self, clip: ClipId, ctx: &eframe::egui::Context) -> Option<Option<f64>> {
