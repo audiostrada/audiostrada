@@ -54,6 +54,7 @@ them, or picks the Pro Tools, Logic or Reaper preset. On macOS, [[Cmd]] replaces
 | [[Alt+Up]] / [[Alt+Down]] | move the track up / down |
 | [[Shift+Alt+M]] / [[Shift+Alt+S]] / [[Shift+Alt+R]] | mute / solo / arm the selected tracks |
 | [[Ctrl+G]] / [[Ctrl+Shift+G]] | group the selected tracks / groups on or off |
+| [[Ctrl+Shift+B]] | route the selected tracks to a new bus |
 
 ## View
 

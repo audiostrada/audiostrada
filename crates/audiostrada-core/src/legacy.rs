@@ -259,9 +259,124 @@ pub fn upgrade_amp_rigs(value: &mut Value) {
     }
 }
 
+/// Format 2 had folders: any track could hold others and still play clips. A track holding
+/// others becomes a bus; its clips (with its recording settings) go to a new track, first
+/// inside it. A MIDI part takes the inserts too, since an instrument plays it.
+pub fn folders_to_buses(project: &mut crate::Project) {
+    use crate::automation::AutomationTarget;
+    use crate::model::TrackKind;
+    let folders: Vec<crate::TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| {
+            t.kind == TrackKind::Audio && project.tracks.iter().any(|c| c.parent == Some(t.id))
+        })
+        .map(|t| t.id)
+        .collect();
+    for id in folders {
+        let Some(folder) = project.track(id).cloned() else {
+            continue;
+        };
+        let clips = !folder.clips.is_empty()
+            || folder.alternates.iter().any(|a| !a.clips.is_empty())
+            || !folder.takes.is_empty();
+        if clips {
+            let midi = folder.clips.iter().any(|c| c.is_midi());
+            let part = project.add_track(&folder.name);
+            if let Some(t) = project.track_mut(part) {
+                let mut own = folder.clone();
+                own.id = part;
+                own.parent = Some(id);
+                own.master_send = true;
+                own.collapsed = false;
+                (own.gain_db, own.pan, own.mute, own.solo) = (0.0, 0.0, false, false);
+                own.sends.clear();
+                own.vca = None;
+                own.frozen = None;
+                own.automation
+                    .retain(|l| midi && matches!(l.target, AutomationTarget::Param { .. }));
+                if !midi {
+                    own.inserts.clear();
+                }
+                *t = own;
+            }
+            // First inside the bus.
+            if let Some(from) = project.tracks.iter().position(|t| t.id == part) {
+                let track = project.tracks.remove(from);
+                let at = project
+                    .tracks
+                    .iter()
+                    .position(|t| t.id == id)
+                    .map_or(0, |i| i + 1);
+                project.tracks.insert(at, track);
+            }
+        }
+        if let Some(t) = project.track_mut(id) {
+            t.kind = TrackKind::Bus;
+            t.clips.clear();
+            t.alternates.clear();
+            t.takes.clear();
+            t.show_takes = false;
+            t.armed = false;
+            if clips && folder.clips.iter().any(|c| c.is_midi()) {
+                t.inserts.clear();
+                t.automation
+                    .retain(|l| !matches!(l.target, AutomationTarget::Param { .. }));
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn folders_of_format_2_become_buses_and_their_clips_a_track_inside() {
+        use crate::model::{Source, TrackKind};
+        let mut p = crate::Project::new("t", 48_000);
+        let source = p.add_source(Source {
+            path: "a.wav".into(),
+            channels: 1,
+            sample_rate: 48_000,
+            frames: 100,
+        });
+        let guitars = p.add_track("Guitars");
+        let left = p.add_track("Left");
+        let drums = p.add_track("Drums");
+        let kick = p.add_track("Kick");
+        let clip = p.add_clip(guitars, source, 0).unwrap();
+        crate::routing::add_insert(
+            &mut p,
+            crate::routing::Channel::Track(guitars),
+            "eq",
+            BTreeMap::new(),
+        );
+        for (child, parent) in [(left, guitars), (kick, drums)] {
+            if let Some(t) = p.track_mut(child) {
+                t.parent = Some(parent);
+            }
+        }
+        let mut json: Value = serde_json::from_slice(&crate::file::to_json(&p).unwrap()).unwrap();
+        json["version"] = 2.into();
+        let p = crate::file::from_json(&serde_json::to_vec(&json).unwrap()).unwrap();
+        let names: Vec<&str> = p.tracks.iter().map(|t| t.name.as_str()).collect();
+        assert_eq!(names, ["Guitars", "Guitars", "Left", "Drums", "Kick"]);
+        let (bus, part) = (&p.tracks[0], &p.tracks[1]);
+        assert_eq!((bus.kind, part.kind), (TrackKind::Bus, TrackKind::Audio));
+        assert!(
+            bus.clips.is_empty() && bus.inserts.len() == 1,
+            "the bus keeps its effects"
+        );
+        assert_eq!(part.clips[0].id, clip);
+        assert!(part.inserts.is_empty() && part.parent == Some(guitars));
+        assert_eq!(p.track(drums).unwrap().kind, TrackKind::Bus);
+        assert_eq!(
+            p.tracks.len(),
+            5,
+            "a folder without clips gets no new track"
+        );
+    }
 
     #[test]
     fn old_eq_settings_become_bands() {

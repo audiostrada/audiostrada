@@ -439,7 +439,7 @@ impl MixerView {
             .selected_tracks()
             .last()
             .copied()
-            .filter(|&t| project.track(t).is_some_and(|t| t.kind == TrackKind::Audio));
+            .filter(|&t| project.track(t).is_some_and(|t| t.kind.carries_audio()));
         let channel = self
             .rack
             .pin

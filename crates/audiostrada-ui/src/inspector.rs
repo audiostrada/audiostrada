@@ -273,6 +273,20 @@ fn track_section(ui: &mut Ui, doc: &mut Document, project: &Project, id: TrackId
                 );
             }
             ui.end_row();
+            if track.kind.carries_audio() {
+                ui.label(tr("Output"));
+                let output = ui.button(crate::mixer::output_label(project, track));
+                let tracks = vec![id];
+                egui::Popup::menu(&output).show(|ui| {
+                    if let Err(e) = crate::mixer::output_menu(ui, doc, project, &tracks) {
+                        doc.notify(e);
+                    }
+                });
+                ui.end_row();
+            }
+            if track.kind != TrackKind::Audio {
+                return;
+            }
             ui.label(tr("Input"));
             ui.horizontal(|ui| {
                 let mut input = track.input + 1;

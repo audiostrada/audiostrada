@@ -178,4 +178,4 @@ The **waveform menu** in the toolbar chooses how audio is drawn:
 [[Alt+Shift+0]] resets it. Peaks that reach 0 dBFS are marked in red. Zoomed in far enough, the
 waveform shows each channel and the samples themselves, to check the phase between two tracks.
 
-A folder track shows the clips of its tracks in miniature, one thin band each.
+A bus shows the clips of its tracks in miniature, one thin band each.

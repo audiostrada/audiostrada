@@ -595,11 +595,7 @@ fn selection_with(doc: &Document, id: TrackId) -> Vec<TrackId> {
 /// The audio tracks of the selection `id` is part of, else `id` alone.
 fn audio_selection_with(doc: &Document, project: &Project, id: TrackId) -> Vec<TrackId> {
     let mut tracks = selection_with(doc, id);
-    tracks.retain(|t| {
-        project
-            .track(*t)
-            .is_some_and(|t| t.kind == TrackKind::Audio)
-    });
+    tracks.retain(|t| project.track(*t).is_some_and(|t| t.kind.carries_audio()));
     if tracks.is_empty() {
         tracks.push(id);
     }
@@ -1402,7 +1398,7 @@ pub(crate) fn add_vca(doc: &mut Document) {
         .filter(|&t| {
             doc.project()
                 .track(t)
-                .is_some_and(|t| t.kind == TrackKind::Audio)
+                .is_some_and(|t| t.kind.carries_audio())
         })
         .collect();
     let mut created = None;
@@ -1480,6 +1476,207 @@ pub(crate) fn input_choices(ui: &mut Ui, doc: &mut Document, track: &Track) {
             });
         }
     }
+}
+
+/// Adds an empty bus after the selected track, else at the end, and selects it.
+pub(crate) fn add_bus(doc: &mut Document) {
+    let after = doc.selected_tracks().last().copied();
+    let name = bus_name(doc.project(), &[]);
+    let mut bus = TrackId(0);
+    doc.history_mut().edit(tr("Add bus"), |p| {
+        bus = routing::add_bus(p, &name);
+        if let Some(after) = after {
+            routing::move_tracks(p, &[bus], after, true);
+        }
+    });
+    doc.select_track(bus, crate::document::SelectMode::Only);
+}
+
+/// The VCA controlling `tracks`, chosen among the project's VCAs.
+pub(crate) fn vca_submenu(ui: &mut Ui, doc: &mut Document, tracks: &[TrackId]) {
+    let project = doc.project().clone();
+    let current = tracks
+        .first()
+        .and_then(|&t| project.track(t))
+        .and_then(|t| t.vca);
+    let vcas: Vec<&Track> = project
+        .tracks
+        .iter()
+        .map(|t| t.as_ref())
+        .filter(|t| t.kind == TrackKind::Vca)
+        .collect();
+    ui.menu_button(tr("VCA"), |ui| {
+        if vcas.is_empty() {
+            ui.weak(tr("No VCA yet: Track › Add VCA"));
+        }
+        let choices = std::iter::once((None, tr("None")))
+            .chain(vcas.iter().map(|v| (Some(v.id), v.name.as_str())));
+        for (choice, name) in choices {
+            if ui.selectable_label(current == choice, name).clicked() {
+                doc.history_mut().edit(tr("Assign VCA"), |p| {
+                    for &t in tracks {
+                        let _ = routing::set_vca(p, t, choice);
+                    }
+                });
+                ui.close();
+            }
+        }
+    });
+}
+
+/// Where a track's sound goes: the master, its bus, or nowhere.
+pub(crate) fn output_label(project: &Project, track: &Track) -> String {
+    match track.parent.and_then(|p| project.track(p)) {
+        _ if !track.master_send => tr("No output").to_owned(),
+        Some(bus) => bus.name.clone(),
+        None => tr("Master").to_owned(),
+    }
+}
+
+/// The output menu of `tracks`: the master, the buses they can go to, a new bus for them all,
+/// or no output.
+pub(crate) fn output_menu(
+    ui: &mut Ui,
+    doc: &mut Document,
+    project: &Project,
+    tracks: &[TrackId],
+) -> Result<(), String> {
+    let Some(first) = tracks.first().and_then(|&t| project.track(t)) else {
+        return Ok(());
+    };
+    ui.set_min_width(200.0);
+    if tracks.len() > 1 {
+        ui.weak(trf!("Output of {count} tracks", count = tracks.len()));
+    }
+    let current = first.master_send.then_some(first.parent);
+    let mut result = Ok(());
+    let mut route = |doc: &mut Document, target: Option<TrackId>| {
+        doc.history_mut().edit(tr("Output"), |p| {
+            result = routing::set_parents(p, tracks, target).map_err(|e| e.to_string());
+            for &t in tracks {
+                if result.is_ok() {
+                    result = routing::set_master_send(p, t, true).map_err(|e| e.to_string());
+                }
+            }
+        });
+    };
+    if ui
+        .selectable_label(current == Some(None), tr("Master"))
+        .clicked()
+    {
+        route(doc, None);
+        ui.close();
+    }
+    // A bus fed by one of the tracks would make a loop.
+    let inside: Vec<TrackId> = tracks
+        .iter()
+        .flat_map(|&t| routing::subtree(project, t))
+        .collect();
+    let buses: Vec<&Track> = project
+        .tracks
+        .iter()
+        .map(|t| t.as_ref())
+        .filter(|t| {
+            t.kind == TrackKind::Bus
+                && !inside.contains(&t.id)
+                && !tracks
+                    .iter()
+                    .any(|&from| routing::reaches(project, t.id, from))
+        })
+        .collect();
+    if !buses.is_empty() {
+        ui.separator();
+        ui.label(RichText::new(tr("Buses")).weak().small());
+    }
+    for bus in buses {
+        let count = project
+            .tracks
+            .iter()
+            .filter(|t| t.parent == Some(bus.id))
+            .count();
+        let text = format!("{}  ({count})", bus.name);
+        if ui
+            .selectable_label(current == Some(Some(bus.id)), text)
+            .clicked()
+        {
+            route(doc, Some(bus.id));
+            ui.close();
+        }
+    }
+    ui.separator();
+    let new = trf!("New bus for {count} track(s)", count = tracks.len());
+    if ui
+        .button(new)
+        .on_hover_text(tr(
+            "A bus receiving these tracks, placed where the first of them is",
+        ))
+        .clicked()
+    {
+        if let Err(e) = route_to_new_bus(doc, tracks) {
+            result = Err(e);
+        }
+        ui.close();
+    }
+    if ui
+        .selectable_label(current.is_none(), tr("No output"))
+        .on_hover_text(tr("Heard only through its sends"))
+        .clicked()
+    {
+        doc.history_mut().edit(tr("Output"), |p| {
+            for &t in tracks {
+                let _ = routing::set_master_send(p, t, false);
+            }
+        });
+        ui.close();
+    }
+    result
+}
+
+/// A name for a bus of `tracks`: what they have in common, else the next free "Bus n".
+pub(crate) fn bus_name(project: &Project, tracks: &[TrackId]) -> String {
+    use crate::track_icons::TrackIcon;
+    let icons: Vec<TrackIcon> = tracks
+        .iter()
+        .filter_map(|&t| project.track(t))
+        .map(|t| crate::track_icons::of(project, t))
+        .collect();
+    let drums = [
+        TrackIcon::Drums,
+        TrackIcon::Kick,
+        TrackIcon::Snare,
+        TrackIcon::RackTom,
+        TrackIcon::FloorTom,
+        TrackIcon::Cymbals,
+        TrackIcon::HiHat,
+        TrackIcon::DrumMachine,
+    ];
+    let taken = |name: &str| project.tracks.iter().any(|t| t.name == name);
+    let common = match icons.first() {
+        Some(_) if icons.iter().all(|i| drums.contains(i)) => Some(tr("Drums").to_owned()),
+        Some(&first) if icons.iter().all(|&i| i == first) && first != TrackIcon::Waveform => {
+            Some(first.label().to_owned())
+        }
+        _ => None,
+    };
+    if let Some(name) = common.filter(|n| !taken(n)) {
+        return name;
+    }
+    (1..)
+        .map(|n| trf!("Bus {n}", n = n))
+        .find(|n| !taken(n))
+        .unwrap_or_default()
+}
+
+/// Routes `tracks` to a new bus, then selects it.
+pub(crate) fn route_to_new_bus(doc: &mut Document, tracks: &[TrackId]) -> Result<(), String> {
+    let name = bus_name(doc.project(), tracks);
+    let mut result = Ok(TrackId(0));
+    doc.history_mut().edit(tr("New bus"), |p| {
+        result = routing::new_bus(p, tracks, &name);
+    });
+    let bus = result.map_err(|e| e.to_string())?;
+    doc.select_track(bus, crate::document::SelectMode::Only);
+    Ok(())
 }
 
 /// What a monitoring mode does, for its button.
@@ -1967,7 +2164,7 @@ impl MixerView {
                 .filter(|i| i.monitor == monitor && i.effect != routing::STRIP)
                 .count()
         };
-        let audio = project.tracks.iter().filter(|t| t.kind == TrackKind::Audio);
+        let audio = project.tracks.iter().filter(|t| t.kind.carries_audio());
         let fx_rows = audio
             .clone()
             .map(|t| listed(&t.inserts, false))
@@ -2106,6 +2303,10 @@ impl MixerView {
                     (
                         Action::AddDrumTrack,
                         tr("A MIDI track with the built-in drum machine, ready to play"),
+                    ),
+                    (
+                        Action::AddBus,
+                        tr("A bus the tracks are routed to, or that sends feed: a reverb, a delay"),
                     ),
                     (
                         Action::AddVca,
@@ -2310,7 +2511,7 @@ impl MixerView {
         let background = egui::UiBuilder::new().sense(Sense::click_and_drag());
         let strip = ui.scope_builder(background, |ui| {
             Self::strip_frame(ui, width, color(track), selected, |ui| {
-                let folder = routing::has_children(project, id);
+                let folder = track.kind == TrackKind::Bus;
                 let top = ui.cursor().top();
                 let channel = Channel::Track(id);
                 if vca {
@@ -2426,8 +2627,31 @@ impl MixerView {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 3.0;
                     let group = groups::group_of(project, id).map(|g| &project.groups[g]);
-                    let others = if group.is_some() { 19.0 } else { 0.0 };
+                    let master = track.vca.and_then(|v| project.track(v));
+                    let others = if group.is_some() { 19.0 } else { 0.0 }
+                        + if master.is_some() { 19.0 } else { 0.0 };
                     readout(ui, width - 4.0 - others, &db_label(shown_gain));
+                    if let Some(v) = master {
+                        let (rect, response) =
+                            ui.allocate_exact_size(vec2(16.0, 18.0), Sense::click());
+                        ui.painter().rect_filled(rect, 3.0, color(v));
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "V",
+                            egui::FontId::proportional(10.0),
+                            Color32::BLACK,
+                        );
+                        if response
+                            .on_hover_text(trf!(
+                                "Controlled by the VCA {name}. Click to select it",
+                                name = v.name
+                            ))
+                            .clicked()
+                        {
+                            doc.select_track(v.id, crate::document::SelectMode::Only);
+                        }
+                    }
                     if let Some(g) = group {
                         let c = Color32::from_rgb(g.color[0], g.color[1], g.color[2]);
                         let c = if g.active { c } else { c.gamma_multiply(0.4) };
@@ -2457,18 +2681,16 @@ impl MixerView {
                 self.bottom_height = self.bottom_height.max(ui.cursor().top() - bottom);
                 self.pad_bottom(ui, bottom);
                 let icon = crate::track_icons::of(project, track);
-                let kind = if vca {
-                    Some("VCA")
-                } else if folder {
-                    Some(tr("BUS"))
-                } else {
-                    None
+                let kind = match track.kind {
+                    TrackKind::Vca => Some("VCA"),
+                    TrackKind::Bus => Some(tr("BUS")),
+                    TrackKind::Audio => None,
                 };
                 let plate = name_plate(ui, width, &name, color(track), (folder, kind), Some(icon));
                 let plate = plate.on_hover_text(if vca {
                     tr("VCA. Click to select, drag to reorder, right-click for options")
                 } else if folder {
-                    tr("Folder. Click to select, drag to reorder, right-click for options")
+                    tr("Bus. Click to select, drag to reorder, right-click for options")
                 } else {
                     tr(
                         "Click to select (Ctrl adds, Shift extends), drag to reorder, right-click \
@@ -2489,7 +2711,7 @@ impl MixerView {
             })
         });
         let frame = strip.inner;
-        if track.kind == TrackKind::Audio {
+        if track.kind.carries_audio() {
             let count = track.inserts.len();
             self.insert_drop_strip(ui, Channel::Track(id), count, strip.response.rect);
         }
@@ -2525,7 +2747,7 @@ impl MixerView {
         let fader_height = self.fader_height + taller;
         let selected = doc.is_track_selected(id);
         let icon = crate::track_icons::of(project, track);
-        let folder = routing::has_children(project, id);
+        let folder = track.kind == TrackKind::Bus;
         let mut plate = None;
         let background = egui::UiBuilder::new().sense(Sense::click_and_drag());
         let strip = ui.scope_builder(background, |ui| {
@@ -2583,7 +2805,7 @@ impl MixerView {
             })
         });
         let frame = strip.inner;
-        if track.kind == TrackKind::Audio {
+        if track.kind.carries_audio() {
             let count = track.inserts.len();
             self.insert_drop_strip(ui, Channel::Track(id), count, strip.response.rect);
         }
@@ -2725,8 +2947,8 @@ impl MixerView {
     fn track_switches(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track, size: egui::Vec2) {
         let id = track.id;
         let channel = Channel::Track(id);
-        let vca = track.kind == TrackKind::Vca;
-        let monitored = !vca && !doc.is_instrument_track(id);
+        let plays = track.kind == TrackKind::Audio;
+        let monitored = plays && !doc.is_instrument_track(id);
         let toggle = |ui: &mut Ui, text: &str, on: bool, color: Color32, hint: &str| {
             theme::letter_toggle(ui, size, text, on, color)
                 .on_hover_text(hint)
@@ -2763,7 +2985,7 @@ impl MixerView {
                     groups::maybe_alone(p, alone, |p| groups::set_switch(p, id, Link::Solo, solo))
                 });
         }
-        if !vca
+        if plays
             && theme::arm_toggle(ui, size, track.armed)
                 .on_hover_text(tr("Record arm"))
                 .clicked()
@@ -2878,10 +3100,26 @@ impl MixerView {
         }
     }
 
-    /// The audio input to record, or MIDI for an instrument.
+    /// The audio input to record, MIDI for an instrument, or the tracks a bus receives.
     fn input_choice(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track) {
         let id = track.id;
-        if doc.is_instrument_track(id) {
+        if track.kind == TrackKind::Bus {
+            let routed: Vec<TrackId> = doc
+                .project()
+                .tracks
+                .iter()
+                .filter(|t| t.parent == Some(id))
+                .map(|t| t.id)
+                .collect();
+            let text = trf!("{count} track(s)", count = routed.len());
+            if ui
+                .add_sized([STRIP_WIDTH - 8.0, 20.0], egui::Button::new(text))
+                .on_hover_text(tr("The tracks routed to this bus. Click to select them"))
+                .clicked()
+            {
+                doc.set_track_selection(routed);
+            }
+        } else if doc.is_instrument_track(id) {
             // An instrument plays MIDI: no audio input to choose.
             ui.add_sized(
                 [STRIP_WIDTH - 8.0, 20.0],
@@ -3785,7 +4023,7 @@ impl MixerView {
             .iter()
             .map(|t| t.as_ref())
             .filter(|t| {
-                t.kind == TrackKind::Audio
+                t.kind.carries_audio()
                     && !tracks.contains(&t.id)
                     && tracks.iter().any(|&from| {
                         project
@@ -3825,6 +4063,7 @@ impl MixerView {
             });
     }
 
+    /// The output button: where the sound goes, colored like the bus it goes to.
     fn routing_section(
         &mut self,
         ui: &mut Ui,
@@ -3833,91 +4072,25 @@ impl MixerView {
         track: &Track,
         width: f32,
     ) {
-        let id = track.id;
-        let parent = track.parent.and_then(|p| project.track(p));
-        let output = match (track.master_send, parent) {
-            (false, _) => tr("No output").to_owned(),
-            (true, Some(p)) => format!("→ {}", p.name),
-            (true, None) => tr("→ Master").to_owned(),
-        };
-        let vca = track.vca.and_then(|v| project.track(v));
-        let label = match vca {
-            Some(v) => format!("{output} · {}", v.name),
-            None => output,
-        };
-        let button = egui::Button::new(RichText::new(&label).size(10.5))
+        let bus = track
+            .parent
+            .and_then(|p| project.track(p))
+            .filter(|_| track.master_send);
+        let label = output_label(project, track);
+        let mut button = egui::Button::new(RichText::new(&label).size(10.5))
             .wrap_mode(egui::TextWrapMode::Truncate);
+        if let Some(bus) = bus {
+            let p = theme::current(ui);
+            button = button.fill(theme::mix(p.panel, color(bus), 0.35));
+        }
         let response = ui
             .add_sized([width, 20.0], button)
             .on_hover_text(trf!("Output: {label}", label = label));
         // Routing changes apply to every selected track when this one is part of the selection.
-        let tracks = audio_selection_with(doc, project, id);
+        let tracks = audio_selection_with(doc, project, track.id);
         egui::Popup::menu(&response).show(|ui| {
-            if tracks.len() > 1 {
-                ui.weak(trf!("{count} tracks selected", count = tracks.len()));
-            }
-            let vcas: Vec<&Track> = project
-                .tracks
-                .iter()
-                .map(|t| t.as_ref())
-                .filter(|t| t.kind == TrackKind::Vca)
-                .collect();
-            if !vcas.is_empty() {
-                ui.label(RichText::new(tr("VCA (its fader and mute act on this track)")).weak());
-                let choices = std::iter::once((None, tr("None")))
-                    .chain(vcas.iter().map(|v| (Some(v.id), v.name.as_str())));
-                for (choice, name) in choices {
-                    if ui.selectable_label(track.vca == choice, name).clicked() {
-                        doc.history_mut().edit(tr("Assign VCA"), |p| {
-                            for &t in &tracks {
-                                let _ = routing::set_vca(p, t, choice);
-                            }
-                        });
-                        ui.close();
-                    }
-                }
-                ui.separator();
-            }
-            let mut on = track.master_send;
-            if ui
-                .checkbox(&mut on, tr("Send to folder / master"))
-                .changed()
-            {
-                let mut result = Ok(());
-                doc.history_mut().edit(tr("Output"), |p| {
-                    for &t in &tracks {
-                        result = result.and(routing::set_master_send(p, t, on));
-                    }
-                });
-                if let Err(e) = result {
-                    self.error = Some(e.to_string());
-                }
-            }
-            ui.separator();
-            ui.label(RichText::new(tr("Folder")).weak());
-            let inside: Vec<TrackId> = tracks
-                .iter()
-                .flat_map(|&t| routing::subtree(project, t))
-                .collect();
-            let mut targets: Vec<(Option<TrackId>, &str)> = vec![(None, tr("None (top level)"))];
-            targets.extend(
-                project
-                    .tracks
-                    .iter()
-                    .filter(|t| t.kind == TrackKind::Audio && !inside.contains(&t.id))
-                    .map(|t| (Some(t.id), t.name.as_str())),
-            );
-            for (target, name) in targets {
-                if ui.selectable_label(track.parent == target, name).clicked() {
-                    let mut result = Ok(());
-                    doc.history_mut().edit(tr("Move to folder"), |p| {
-                        result = routing::set_parents(p, &tracks, target);
-                    });
-                    if let Err(e) = result {
-                        self.error = Some(e.to_string());
-                    }
-                    ui.close();
-                }
+            if let Err(e) = output_menu(ui, doc, project, &tracks) {
+                self.error = Some(e);
             }
         });
     }
@@ -5318,7 +5491,7 @@ mod tests {
         let mut doc = Document::new(AppDirs::default());
         let mut ids = Vec::new();
         doc.history_mut().edit("Setup", |p| {
-            let folder = p.add_track("Folder");
+            let folder = routing::add_bus(p, "Folder");
             let a = p.add_track("A");
             let b = p.add_track("B");
             let _ = routing::set_parent(p, a, Some(folder));
@@ -5418,7 +5591,7 @@ mod tests {
         let mut doc = Document::new(AppDirs::default());
         let mut ids = Vec::new();
         doc.history_mut().edit("Setup", |p| {
-            let folder = p.add_track("Folder");
+            let folder = routing::add_bus(p, "Folder");
             let a = p.add_track("A");
             let b = p.add_track("B");
             let bus = p.add_track("Bus");
@@ -5506,7 +5679,7 @@ mod tests {
     fn the_mixer_answers_a_user_trying_everything() {
         let mut doc = Document::new(AppDirs::default());
         doc.history_mut().edit("Setup", |p| {
-            let folder = p.add_track("Folder");
+            let folder = routing::add_bus(p, "Folder");
             let a = p.add_track("A");
             let bus = p.add_track("Bus");
             let synth = p.add_track("Synth");
@@ -5538,7 +5711,7 @@ mod tests {
         use audiostrada_core::console::{Console, ConsoleModel};
         let mut doc = Document::new(AppDirs::default());
         doc.history_mut().edit("Setup", |p| {
-            let folder = p.add_track("Folder");
+            let folder = routing::add_bus(p, "Folder");
             let a = p.add_track("A");
             let b = p.add_track("B");
             let bus = p.add_track("Bus");

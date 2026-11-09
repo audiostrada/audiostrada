@@ -62,13 +62,22 @@ chains split the signal into branches of their own and mix them back.
 
 ![The rack](img/rack.webp)
 
-## Sends, folders and buses
+## Outputs, buses and sends
 
-- **Sends** go to any track, which then acts as a bus (pre or post fader). An empty send slot
-  adds the send to every selected track; tick *Cut the output to the master* first for tracks
-  heard only through the bus.
-- **Folders**: a track can hold others; its strip is their bus. The output menu moves the
-  selected tracks into a folder, keeping their order.
+- **Output**: the button above the pan says where the sound goes: **Master**, a bus, or *No
+  output*. Its menu routes every selected track at once, and *New bus for n tracks* makes a bus
+  for them, placed where the first of them was and named after them (*Drums*). Track › *Route
+  the selection to a new bus* ([[Ctrl+Shift+B]]) does the same. The menu is also in the track's
+  right-click menu and in the Inspector.
+- **Buses** sum the tracks routed to them through their own inserts, sends and fader, then go to
+  the master. They hold no clips. In the timeline the tracks of a bus show under it and fold
+  with it; dragging a track among them routes it there. Track › Add › *Add bus* makes an empty
+  one, for a reverb fed by sends.
+- **Sends** go to any track or bus (pre or post fader). An empty send slot adds the send to every
+  selected track; tick *Cut the output to the master* first for tracks heard only through the
+  send.
+- **VCA**: the track's right-click menu chooses the VCA that controls it; a **V** under the fader
+  shows it.
 
 ## Groups
 

@@ -626,8 +626,10 @@ fn detect_at(project: &Project, track: &Track, depth: usize) -> TrackIcon {
             icon
         };
     }
-    if track.kind == TrackKind::Vca {
-        return TrackIcon::Bus;
+    match track.kind {
+        TrackKind::Vca => return TrackIcon::Bus,
+        TrackKind::Bus => return TrackIcon::Folder,
+        TrackKind::Audio => {}
     }
     if track.inserts.first().is_some_and(|i| i.effect == "drums") {
         return TrackIcon::DrumMachine;
@@ -803,7 +805,7 @@ mod tests {
     #[test]
     fn a_track_without_words_takes_its_folder_or_what_it_is() {
         let mut project = Project::new("Test", 48_000);
-        let drums = project.add_track("DRUMS");
+        let drums = audiostrada_core::routing::add_bus(&mut project, "DRUMS");
         let room = project.add_track("AEA");
         let other = project.add_track("Audio 1");
         audiostrada_core::routing::set_parent(&mut project, room, Some(drums)).unwrap();
@@ -811,7 +813,7 @@ mod tests {
         assert_eq!(detect(&project, t(room)), TrackIcon::Drums);
         assert_eq!(detect(&project, t(other)), TrackIcon::Waveform);
         let mut project = project.clone();
-        let folder = project.add_track("Group");
+        let folder = audiostrada_core::routing::add_bus(&mut project, "Group");
         audiostrada_core::routing::set_parent(&mut project, other, Some(folder)).unwrap();
         assert_eq!(
             detect(&project, project.track(folder).unwrap()),

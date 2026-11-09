@@ -193,4 +193,4 @@ d'onde, [[Alt+Shift+0]] la remet à zéro. Les crêtes qui atteignent 0 dBFS son
 En zoomant assez, la forme d'onde montre chaque canal et les échantillons eux-mêmes, pour
 vérifier la phase entre deux pistes.
 
-Une piste dossier montre les clips de ses pistes en miniature, une fine bande chacune.
+Un bus montre les clips de ses pistes en miniature, une fine bande chacune.

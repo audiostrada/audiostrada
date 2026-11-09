@@ -3084,7 +3084,7 @@ mod tests {
         let (a, b) = (doc.project().tracks[0].id, doc.project().tracks[1].id);
         let mut folder = None;
         doc.history_mut().edit("Folder", |p| {
-            let f = p.add_track("Drums");
+            let f = audiostrada_core::routing::add_bus(p, "Drums");
             audiostrada_core::routing::set_parent(p, a, Some(f)).unwrap();
             audiostrada_core::routing::set_parent(p, b, Some(f)).unwrap();
             folder = Some(f);

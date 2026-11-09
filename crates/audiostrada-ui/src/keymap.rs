@@ -150,7 +150,7 @@ pub struct Keymap {
 }
 
 /// Bumped when default bindings are added, so saved keymaps get them.
-const VERSION: u32 = 16;
+const VERSION: u32 = 17;
 
 impl Default for Keymap {
     fn default() -> Self {
@@ -275,6 +275,8 @@ const PANELS: &[Binding] = &[
     (k(CMD, false, false, Key::F), Action::Fades),
     (k(PLAIN, false, false, Key::Tab), Action::NextTransient),
     (k(PLAIN, true, false, Key::Tab), Action::PreviousTransient),
+    // Route the selection to a new bus (added in version 17).
+    (k(CMD, true, false, Key::B), Action::RouteToNewBus),
 ];
 
 const AUDIOSTRADA: &[Binding] = &[

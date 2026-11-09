@@ -1,4 +1,4 @@
-//! Mixing tools for agents: presets and chains, automation, routing (sends, folders, VCAs,
+//! Mixing tools for agents: presets and chains, automation, routing (sends, buses, VCAs,
 //! groups, sidechains), the console colour, mix snapshots, and third-party plugins.
 
 use audiostrada_core::automation::{self, AutomationTarget, CurveShape};
@@ -65,7 +65,7 @@ pub fn definitions(live: bool) -> Vec<Value> {
         ),
         tool(
             "set_routing",
-            "Route a track: into a folder or bus track (`parent`, null for none), under a VCA (`vca`, null for none), into a group (`group` index from inspect, null for none), feeding the master or not (`to_master`).",
+            "Route a track: to a bus, under which it shows (`parent`, null for the master), under a VCA (`vca`, null for none), into a group (`group` index from inspect, null for none), feeding the master or not (`to_master`).",
             json!({"track": track, "parent": {}, "vca": {}, "group": {}, "to_master": {"type": "boolean"}}),
             &["track"],
         ),
@@ -595,7 +595,7 @@ mod tests {
             let t = p.add_track("Keys");
             insert = routing::add_insert(p, Channel::Track(t), "synth", Default::default());
             keys = Some(t);
-            bus = Some(p.add_track("Bus"));
+            bus = Some(routing::add_bus(p, "Bus"));
         });
         let (keys, insert) = (keys.unwrap(), insert.unwrap());
         let presets = run(&mut doc, "list_presets", json!({"effect": "synth"})).unwrap();

@@ -1126,11 +1126,7 @@ impl ProjectPlayer {
         let mut topology = false;
         let mut removed_nodes = Vec::new();
 
-        let audio = |id: TrackId| {
-            project
-                .track(id)
-                .is_some_and(|t| t.kind == TrackKind::Audio)
-        };
+        let audio = |id: TrackId| project.track(id).is_some_and(|t| t.kind.carries_audio());
         let removed: Vec<TrackId> = self
             .tracks
             .keys()
@@ -1171,7 +1167,7 @@ impl ProjectPlayer {
                 at = parent;
             }
         }
-        for track in project.tracks.iter().filter(|t| t.kind == TrackKind::Audio) {
+        for track in project.tracks.iter().filter(|t| t.kind.carries_audio()) {
             if !self.tracks.contains_key(&track.id) {
                 let channel = ChannelNodes::new(
                     &mut self.engine,
@@ -3062,7 +3058,7 @@ mod tests {
         let mut inserts = Vec::new();
         let mut vox = TrackId(0);
         history.edit("Tracks", |p| {
-            let bus = p.add_track("Vocals");
+            let bus = routing::add_bus(p, "Vocals");
             vox = p.add_track("Vox");
             routing::set_parent(p, vox, Some(bus)).unwrap();
             p.track_mut(vox).unwrap().armed = true;
@@ -3283,7 +3279,7 @@ mod tests {
         assert!(close(level("plain", |_, _| {}), 0.5));
         // Track into a folder bus at -6 dB.
         let folder = level("folder", |p, t| {
-            let bus = p.add_track("bus");
+            let bus = routing::add_bus(p, "bus");
             p.track_mut(bus).unwrap().gain_db = -6.0206;
             routing::set_parent(p, t, Some(bus)).unwrap();
         });

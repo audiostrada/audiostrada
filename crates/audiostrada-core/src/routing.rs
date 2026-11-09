@@ -18,6 +18,8 @@ pub enum RoutingError {
     NotAudio,
     #[error("the send already exists")]
     Duplicate,
+    #[error("tracks can only be routed to a bus")]
+    NotBus,
 }
 
 /// A mixer channel holding inserts.
@@ -29,7 +31,7 @@ pub enum Channel {
 
 fn audio(project: &Project, id: TrackId) -> Result<(), RoutingError> {
     match project.track(id).map(|t| t.kind) {
-        Some(TrackKind::Audio) => Ok(()),
+        Some(TrackKind::Audio | TrackKind::Bus) => Ok(()),
         Some(TrackKind::Vca) => Err(RoutingError::NotAudio),
         None => Err(RoutingError::UnknownTrack),
     }
@@ -37,7 +39,7 @@ fn audio(project: &Project, id: TrackId) -> Result<(), RoutingError> {
 
 /// Tracks fed directly by `id`: its folder (when it sends there) and its send targets.
 pub fn destinations(project: &Project, id: TrackId) -> Vec<TrackId> {
-    let Some(t) = project.track(id).filter(|t| t.kind == TrackKind::Audio) else {
+    let Some(t) = project.track(id).filter(|t| t.kind.carries_audio()) else {
         return Vec::new();
     };
     let mut out: Vec<TrackId> = t.sends.iter().map(|s| s.target).collect();
@@ -112,7 +114,7 @@ fn subtree_of(tracks: &[std::sync::Arc<crate::Track>], id: TrackId) -> Vec<Track
     out
 }
 
-/// Puts `id` inside the folder `parent` (or at the top level).
+/// Routes `id` to the bus `parent`, under which it shows (or to the master).
 pub fn set_parent(
     project: &mut Project,
     id: TrackId,
@@ -120,9 +122,11 @@ pub fn set_parent(
 ) -> Result<(), RoutingError> {
     let track = project.track(id).ok_or(RoutingError::UnknownTrack)?;
     if let Some(parent) = parent {
-        audio(project, parent)?;
+        if project.track(parent).map(|t| t.kind) != Some(TrackKind::Bus) {
+            return Err(RoutingError::NotBus);
+        }
         if subtree(project, id).contains(&parent)
-            || (track.master_send && track.kind == TrackKind::Audio && reaches(project, parent, id))
+            || (track.master_send && track.kind.carries_audio() && reaches(project, parent, id))
         {
             return Err(RoutingError::Cycle);
         }
@@ -134,8 +138,8 @@ pub fn set_parent(
     Ok(())
 }
 
-/// Puts several tracks inside the folder `parent` (or at the top level) keeping their order;
-/// those entering the folder go after its contents.
+/// Routes several tracks to the bus `parent` (or to the master) keeping their order; those
+/// entering the bus go after its tracks.
 pub fn set_parents(
     project: &mut Project,
     ids: &[TrackId],
@@ -167,7 +171,7 @@ pub fn set_parents(
     result
 }
 
-/// Enables or disables the feed to the folder or master, refusing loops.
+/// Enables or disables the feed to the bus or master, refusing loops.
 pub fn set_master_send(project: &mut Project, id: TrackId, on: bool) -> Result<(), RoutingError> {
     let parent = project.track(id).ok_or(RoutingError::UnknownTrack)?.parent;
     if on
@@ -327,6 +331,49 @@ pub fn visible_tracks(project: &Project) -> Vec<(usize, usize)> {
         })
         .map(|(i, t)| (i, depth(project, t.id)))
         .collect()
+}
+
+/// Adds an empty bus at the end.
+pub fn add_bus(project: &mut Project, name: &str) -> TrackId {
+    let id = project.add_track(name);
+    if let Some(t) = project.track_mut(id) {
+        t.kind = TrackKind::Bus;
+    }
+    id
+}
+
+/// Routes `tracks` to a new bus placed where the first of them was, in their common bus if
+/// they share one. Tracks inside another selected bus stay where they are.
+pub fn new_bus(
+    project: &mut Project,
+    tracks: &[TrackId],
+    name: &str,
+) -> Result<TrackId, RoutingError> {
+    let mut chosen: Vec<TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| tracks.contains(&t.id) && t.kind.carries_audio())
+        .map(|t| t.id)
+        .collect();
+    let inside: HashSet<TrackId> = chosen
+        .iter()
+        .flat_map(|&t| subtree(project, t).into_iter().skip(1))
+        .collect();
+    chosen.retain(|t| !inside.contains(t));
+    let first = chosen.first().copied().ok_or(RoutingError::UnknownTrack)?;
+    let color = project.track(first).map(|t| t.color);
+    let bus = add_bus(project, name);
+    if let (Some(t), Some(color)) = (project.track_mut(bus), color) {
+        t.color = color;
+    }
+    move_tracks(project, &[bus], first, false);
+    set_parents(project, &chosen, Some(bus))?;
+    for id in chosen {
+        if let Some(t) = project.track_mut(id) {
+            t.master_send = true;
+        }
+    }
+    Ok(bus)
 }
 
 /// Adds a VCA track: it has no audio, only a fader and a mute for its members.
@@ -1048,7 +1095,7 @@ mod tests {
         let mut p = Project::default();
         let a = p.add_track("a");
         let b = p.add_track("b");
-        let bus = p.add_track("bus");
+        let bus = add_bus(&mut p, "bus");
         (p, a, b, bus)
     }
 
@@ -1075,14 +1122,23 @@ mod tests {
         assert_eq!(depth(&p, a), 1);
         assert!(has_children(&p, bus));
         assert_eq!(destinations(&p, a), vec![bus]);
-        assert_eq!(set_parent(&mut p, bus, Some(a)), Err(RoutingError::Cycle));
+        let inner = add_bus(&mut p, "inner");
+        set_parent(&mut p, inner, Some(bus)).unwrap();
+        assert_eq!(
+            set_parent(&mut p, bus, Some(inner)),
+            Err(RoutingError::Cycle)
+        );
         add_send(&mut p, b, a).unwrap();
-        assert_eq!(set_parent(&mut p, b, Some(a)), Ok(()));
+        assert_eq!(
+            set_parent(&mut p, b, Some(a)),
+            Err(RoutingError::NotBus),
+            "only a bus receives tracks"
+        );
         p.track_mut(bus).unwrap().collapsed = true;
-        assert_eq!(visible_tracks(&p), vec![(0, 0)]);
+        assert_eq!(visible_tracks(&p), vec![(0, 0), (1, 0)]);
         move_track(&mut p, bus, true);
         set_parent(&mut p, a, None).unwrap();
-        assert_eq!(depth(&p, b), 1);
+        assert_eq!(depth(&p, a), 0);
     }
 
     #[test]
@@ -1147,7 +1203,7 @@ mod tests {
     fn tracks_move_before_or_after_another_with_their_contents() {
         let mut p = Project::new("t", 48_000);
         let a = p.add_track("a");
-        let folder = p.add_track("folder");
+        let folder = add_bus(&mut p, "folder");
         let child = p.add_track("child");
         let b = p.add_track("b");
         set_parent(&mut p, child, Some(folder)).unwrap();
@@ -1172,7 +1228,7 @@ mod tests {
         let a = p.add_track("a");
         let b = p.add_track("b");
         let c = p.add_track("c");
-        let bus = p.add_track("bus");
+        let bus = add_bus(&mut p, "bus");
         let names = |p: &Project| p.tracks.iter().map(|t| t.name.clone()).collect::<Vec<_>>();
         // In the order they were selected, last to first.
         set_parents(&mut p, &[c, a, b], Some(bus)).unwrap();
@@ -1183,5 +1239,30 @@ mod tests {
         set_parents(&mut p, &[a, c], None).unwrap();
         assert_eq!(p.track(a).unwrap().parent, None);
         assert_eq!(p.track(b).unwrap().parent, Some(bus));
+    }
+
+    #[test]
+    fn a_new_bus_receives_the_selection_where_its_first_track_was() {
+        let mut p = Project::new("t", 48_000);
+        let a = p.add_track("a");
+        let kick = p.add_track("kick");
+        let snare = p.add_track("snare");
+        let drums = new_bus(&mut p, &[snare, kick], "Drums").unwrap();
+        let names = |p: &Project| p.tracks.iter().map(|t| t.name.clone()).collect::<Vec<_>>();
+        assert_eq!(names(&p), ["a", "Drums", "kick", "snare"]);
+        assert_eq!(p.track(drums).unwrap().kind, TrackKind::Bus);
+        assert_eq!(p.track(kick).unwrap().parent, Some(drums));
+        let all = new_bus(&mut p, &[drums, snare, a], "All").unwrap();
+        assert_eq!(names(&p), ["All", "a", "Drums", "kick", "snare"]);
+        assert_eq!(
+            p.track(snare).unwrap().parent,
+            Some(drums),
+            "stays in its selected bus"
+        );
+        assert_eq!(p.track(drums).unwrap().parent, Some(all));
+        assert_eq!(
+            new_bus(&mut p, &[], "None"),
+            Err(RoutingError::UnknownTrack)
+        );
     }
 }

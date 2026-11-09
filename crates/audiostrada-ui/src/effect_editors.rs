@@ -605,7 +605,7 @@ fn sidechain_choice(ui: &mut Ui, params: &mut Params) {
     let tracks: Vec<(audiostrada_core::TrackId, String)> = project
         .tracks
         .iter()
-        .filter(|t| Some(t.id) != own && t.kind == audiostrada_core::TrackKind::Audio)
+        .filter(|t| Some(t.id) != own && t.kind.carries_audio())
         .map(|t| (t.id, t.name.clone()))
         .collect();
     let name = |id: Option<audiostrada_core::TrackId>| {

@@ -56,8 +56,8 @@ pub fn tool_definitions(live: bool) -> Vec<Value> {
         ),
         tool(
             "add_track",
-            "Add a track: audio, instrument (MIDI with the built-in synth) or vca.",
-            json!({"name": {"type": "string"}, "kind": {"type": "string", "enum": ["audio", "instrument", "vca"]}}),
+            "Add a track: audio, instrument (MIDI with the built-in synth), bus (tracks are routed to it, sends feed it) or vca.",
+            json!({"name": {"type": "string"}, "kind": {"type": "string", "enum": ["audio", "instrument", "bus", "vca"]}}),
             &[],
         ),
         tool(
@@ -413,6 +413,7 @@ pub fn inspect(doc: &Document, full: bool) -> Value {
         .map(|t| {
             let kind = match t.kind {
                 TrackKind::Vca => "vca",
+                TrackKind::Bus => "bus",
                 TrackKind::Audio if doc.is_instrument_track(t.id) => "instrument",
                 TrackKind::Audio => "audio",
             };
@@ -563,6 +564,7 @@ pub fn call_tool(
             doc.history_mut().edit(tr("Add track"), |p| {
                 created = Some(match kind {
                     "vca" => routing::add_vca(p, string("name").unwrap_or("VCA")),
+                    "bus" => routing::add_bus(p, string("name").unwrap_or(&trf!("Bus {n}", n = n))),
                     "instrument" => {
                         let t =
                             p.add_track(string("name").unwrap_or(&trf!("Instrument {n}", n = n)));

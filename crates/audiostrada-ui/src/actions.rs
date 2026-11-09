@@ -145,6 +145,8 @@ actions! {
     NewMidiClip => ("Track", "New MIDI clip"),
     Quantize => ("Edit", "Quantize notes"),
     AddVca => ("Track", "Add VCA"),
+    AddBus => ("Track", "Add bus"),
+    RouteToNewBus => ("Track", "Route the selection to a new bus"),
     MoveTrackUp => ("Track", "Move track up"),
     MoveTrackDown => ("Track", "Move track down"),
     DuplicateTracks => ("Track", "Duplicate selected tracks"),

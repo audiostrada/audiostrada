@@ -561,10 +561,7 @@ impl TimelineView {
             .tracks
             .iter()
             .filter(|t| !window.tracks.contains(&t.id))
-            .filter(|t| {
-                t.kind == audiostrada_core::TrackKind::Audio
-                    || audiostrada_core::routing::has_children(project, t.id)
-            })
+            .filter(|t| t.kind.carries_audio())
             .map(|t| {
                 let folder = audiostrada_core::routing::has_children(project, t.id);
                 let name = if folder {

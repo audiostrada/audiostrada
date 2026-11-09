@@ -181,6 +181,31 @@ fn the_transport_moves_to_the_bottom_and_grows() {
 }
 
 #[test]
+fn the_selected_tracks_are_routed_to_a_new_bus_named_after_them() {
+    let mut h = Harness::new("new-bus");
+    h.frame(Vec::new());
+    let mut ids = Vec::new();
+    h.app.doc.borrow_mut().history_mut().edit("Tracks", |p| {
+        ids = ["Bass", "Kick", "Snare"].map(|n| p.add_track(n)).to_vec();
+    });
+    h.app
+        .doc
+        .borrow_mut()
+        .set_track_selection(ids[1..].to_vec());
+    h.act(Action::RouteToNewBus);
+    let doc = h.app.doc.borrow();
+    let project = doc.project();
+    let bus = project.track(ids[1]).unwrap().parent.unwrap();
+    assert_eq!(project.track(ids[2]).unwrap().parent, Some(bus));
+    assert_eq!(
+        project.track(bus).unwrap().kind,
+        audiostrada_core::TrackKind::Bus
+    );
+    assert_eq!(project.track(bus).unwrap().name, "Drums");
+    assert_eq!(doc.selected_tracks(), [bus], "the new bus is selected");
+}
+
+#[test]
 fn the_session_health_shows_while_a_track_is_armed() {
     let mut h = Harness::with_song("session-health");
     h.frame(Vec::new());

@@ -1120,6 +1120,22 @@ impl AudioStradaApp {
             Action::License => self.license_window.open(),
             Action::Assistants => self.assistants_window.open(),
             Action::AddVca => mixer::add_vca(&mut self.doc.borrow_mut()),
+            Action::AddBus => mixer::add_bus(&mut self.doc.borrow_mut()),
+            Action::RouteToNewBus => {
+                let mut doc = self.doc.borrow_mut();
+                let project = doc.project();
+                let tracks: Vec<audiostrada_core::TrackId> = doc
+                    .selected_tracks()
+                    .iter()
+                    .copied()
+                    .filter(|&t| project.track(t).is_some_and(|t| t.kind.carries_audio()))
+                    .collect();
+                if tracks.is_empty() {
+                    doc.notify(tr("Select the tracks to route to a new bus").into());
+                } else if let Err(e) = mixer::route_to_new_bus(&mut doc, &tracks) {
+                    doc.notify(e);
+                }
+            }
             Action::GroupTracks => mixer::group_selection(&mut self.doc.borrow_mut()),
             Action::ToggleGroups => {
                 let mut doc = self.doc.borrow_mut();
@@ -2221,6 +2237,7 @@ impl AudioStradaApp {
                         Action::AddStereoTrack,
                         Action::AddInstrumentTrack,
                         Action::AddDrumTrack,
+                        Action::AddBus,
                         Action::AddVca,
                     ] {
                         item(ui, &mut chosen, action, None, true);
@@ -2233,6 +2250,7 @@ impl AudioStradaApp {
                 for action in [
                     Action::DuplicateTracks,
                     Action::DeleteTracks,
+                    Action::RouteToNewBus,
                     Action::GroupTracks,
                 ] {
                     item(ui, &mut chosen, action, None, true);

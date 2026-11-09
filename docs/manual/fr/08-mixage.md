@@ -64,13 +64,23 @@ clic. Les chaînes parallèles séparent le signal en branches et les remélange
 
 ![Le rack](img/rack.webp)
 
-## Départs, dossiers et bus
+## Sorties, bus et sends
 
-- **Les départs** vont vers n'importe quelle piste, qui sert alors de bus (pré ou post fader). Un
-  emplacement de départ vide ajoute le départ à toutes les pistes sélectionnées ; cochez d'abord
-  *Couper la sortie vers le master* pour les pistes qu'on n'entend que par le bus.
-- **Dossiers** : une piste peut en contenir d'autres ; sa tranche est leur bus. Le menu de sortie
-  range les pistes sélectionnées dans un dossier, dans leur ordre.
+- **Sortie** : le bouton au-dessus du panoramique dit où va le son : **Master**, un bus, ou *Pas
+  de sortie*. Son menu route toutes les pistes sélectionnées d'un coup, et *Nouveau bus pour n
+  piste(s)* crée un bus pour elles, placé là où était la première et nommé d'après elles
+  (*Batterie*). Piste › *Router la sélection vers un nouveau bus* ([[Ctrl+Shift+B]]) fait de même.
+  Le menu est aussi dans le clic droit de la piste et dans l'Inspecteur.
+- **Les bus** additionnent les pistes routées vers eux à travers leurs propres inserts, sends et
+  fader, puis vont au master. Ils ne portent pas de clips. Dans la timeline, les pistes d'un bus
+  s'affichent sous lui et se replient avec lui ; glisser une piste parmi elles la route vers ce
+  bus. Piste › Ajouter › *Ajouter un bus* en crée un vide, pour une réverbe alimentée par des
+  sends.
+- **Les sends** vont vers n'importe quelle piste ou bus (pré ou post fader). Un emplacement de
+  send vide ajoute le send à toutes les pistes sélectionnées ; cochez d'abord *Couper la sortie
+  vers le master* pour les pistes qu'on n'entend que par le send.
+- **VCA** : le clic droit de la piste choisit le VCA qui la pilote ; un **V** sous le fader le
+  signale.
 
 ## Groupes
 

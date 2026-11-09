@@ -5,7 +5,7 @@
 | **Automation** | the movement of a control over time, drawn in a lane |
 | **Bounce** | rendering a track, with its effects, onto a new track |
 | **Buffer size** | how much audio is processed at once: smaller gives less latency, larger fewer dropouts |
-| **Bus** | a track that receives other tracks, through sends or as a folder, to process them together |
+| **Bus** | a channel that sums the tracks routed to it (and sends), to process them together; it holds no clips |
 | **Clip** | a piece of audio or MIDI on a track |
 | **Comping** | building one take from the best parts of several |
 | **Consolidate** | rendering several clips into a single file |

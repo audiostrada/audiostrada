@@ -407,7 +407,7 @@ mod tests {
     fn a_folder_group_follows_the_folder_and_edits_overlapping_clips() {
         let mut p = Project::new("t", 48_000);
         let (drums, kick, snare, bass) = (
-            p.add_track("drums"),
+            crate::routing::add_bus(&mut p, "drums"),
             p.add_track("kick"),
             p.add_track("snare"),
             p.add_track("bass"),

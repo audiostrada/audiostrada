@@ -79,6 +79,14 @@ pub fn show(ui: &mut Ui, doc: &mut Document, id: TrackId) -> Vec<Request> {
         }
     });
     crate::mixer::group_submenu(ui, doc, id);
+    if track.kind.carries_audio() {
+        ui.menu_button(tr("Output"), |ui| {
+            if let Err(e) = crate::mixer::output_menu(ui, doc, &project, &tracks) {
+                doc.notify(e);
+            }
+        });
+        crate::mixer::vca_submenu(ui, doc, &tracks);
+    }
     if routing::has_children(&project, id) {
         let mut linked = audiostrada_core::groups::folder_group(&project, id).is_some();
         if ui
@@ -92,11 +100,11 @@ pub fn show(ui: &mut Ui, doc: &mut Document, id: TrackId) -> Vec<Request> {
             crate::mixer::toggle_folder_group(doc, id);
         }
     }
-    if track.kind != TrackKind::Vca {
+    if track.kind == TrackKind::Audio {
         midi_out_submenu(ui, doc, id, track.midi_out.as_deref());
     }
     ui.separator();
-    if track.kind != TrackKind::Vca && !doc.is_instrument_track(id) {
+    if track.kind == TrackKind::Audio && !doc.is_instrument_track(id) {
         let mut stereo = track.stereo;
         if ui
             .checkbox(&mut stereo, tr("Stereo track"))
@@ -162,7 +170,7 @@ pub fn show(ui: &mut Ui, doc: &mut Document, id: TrackId) -> Vec<Request> {
         requests.push(Request::Action(Action::RevealRack));
         ui.close();
     }
-    if track.kind != TrackKind::Vca && ui.button(tr("Import audio file…")).clicked() {
+    if track.kind == TrackKind::Audio && ui.button(tr("Import audio file…")).clicked() {
         doc.select_track(id, SelectMode::Only);
         requests.push(Request::Action(Action::ImportAudio));
         ui.close();

@@ -54,6 +54,7 @@ lequel, ou choisit le jeu Pro Tools, Logic ou Reaper. Sous macOS, [[Cmd]] rempla
 | [[Alt+Up]] / [[Alt+Down]] | monter / descendre la piste |
 | [[Shift+Alt+M]] / [[Shift+Alt+S]] / [[Shift+Alt+R]] | muet / solo / armement des pistes sélectionnées |
 | [[Ctrl+G]] / [[Ctrl+Shift+G]] | grouper les pistes sélectionnées / suspendre les groupes |
+| [[Ctrl+Shift+B]] | router les pistes sélectionnées vers un nouveau bus |
 
 ## Affichage
 

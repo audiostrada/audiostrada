@@ -418,13 +418,13 @@ pub struct Track {
     pub takes: Vec<Playlist>,
     #[serde(default)]
     pub kind: TrackKind,
-    /// Folder track containing this one; its output goes there instead of the master.
+    /// Bus this track is routed to, and shown under; without one it goes to the master.
     #[serde(default)]
     pub parent: Option<TrackId>,
-    /// Children hidden in the editor (folder tracks).
+    /// Tracks routed to this bus hidden in the editor.
     #[serde(default)]
     pub collapsed: bool,
-    /// Feeds the parent folder, or the master.
+    /// Feeds its bus, or the master.
     #[serde(default = "yes")]
     pub master_send: bool,
     #[serde(default)]
@@ -513,11 +513,20 @@ pub(crate) fn yes() -> bool {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum TrackKind {
-    /// Plays clips and records; with no clips it serves as a bus.
+    /// Plays clips and records.
     #[default]
     Audio,
     /// Carries no audio: its fader and mute act on the member tracks.
     Vca,
+    /// Sums the tracks routed to it through its inserts, sends and fader; holds no clips.
+    Bus,
+}
+
+impl TrackKind {
+    /// Audio goes through it: a track or a bus.
+    pub fn carries_audio(self) -> bool {
+        matches!(self, TrackKind::Audio | TrackKind::Bus)
+    }
 }
 
 /// Extra feed from a track into another track's input.

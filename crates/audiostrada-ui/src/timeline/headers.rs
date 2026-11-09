@@ -208,7 +208,7 @@ impl TimelineView {
                 let text = if track.collapsed { "▸" } else { "▾" };
                 if ui
                     .put(arrow, egui::Button::new(text).frame(false))
-                    .on_hover_text(tr("Show or hide the folder contents"))
+                    .on_hover_text(tr("Show or hide the tracks of this bus"))
                     .clicked()
                 {
                     let collapsed = !track.collapsed;
@@ -289,6 +289,8 @@ impl TimelineView {
                     Align2::LEFT_TOP,
                     if vca {
                         "VCA"
+                    } else if track.kind == TrackKind::Bus {
+                        tr("BUS")
                     } else if track.frozen.is_some() {
                         tr("Frozen")
                     } else {
@@ -336,7 +338,8 @@ impl TimelineView {
                     });
                 }
                 let arm = Rect::from_min_size(pos2(row.left() + 66.0, y), vec2(24.0, 20.0));
-                let arm_response = (!vca).then(|| {
+                let plays = track.kind == TrackKind::Audio;
+                let arm_response = plays.then(|| {
                     let response =
                         ui.interact(arm, ui.scope_id().with(("arm", id.0)), Sense::click());
                     crate::theme::paint_arm_toggle(ui, arm, &response, track.armed);
@@ -365,7 +368,7 @@ impl TimelineView {
                 } else {
                     trf!("In {input}", input = track.input + 1)
                 };
-                if !vca {
+                if plays {
                     let mut left = row.left() + 96.0;
                     // An instrument plays MIDI: no audio input to hear or choose.
                     let instrument = doc.is_instrument_track(id);

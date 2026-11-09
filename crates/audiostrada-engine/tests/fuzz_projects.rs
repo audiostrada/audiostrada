@@ -39,7 +39,7 @@ fn seed_project() -> Project {
         sample_rate: 44_100,
         frames: 441_000,
     });
-    let drums = p.add_track("Drums");
+    let drums = routing::add_bus(&mut p, "Drums");
     let kick = p.add_track("Kick");
     let bus = p.add_track("Bus");
     let keys = p.add_track("Keys");

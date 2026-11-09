@@ -6,7 +6,7 @@
 | **Automation** | le mouvement d'une commande dans le temps, dessiné sur une piste d'automation |
 | **Bounce** | rendre une piste, avec ses effets, sur une nouvelle piste |
 | **Buffer** | la quantité d'audio traitée d'un coup : plus petit, moins de latence ; plus grand, moins de décrochages |
-| **Bus** | une piste qui reçoit d'autres pistes, par des départs ou comme dossier, pour les traiter ensemble |
+| **Bus** | une tranche qui additionne les pistes routées vers elle (et des sends), pour les traiter ensemble ; elle ne porte pas de clips |
 | **Clip** | un morceau d'audio ou de MIDI sur une piste |
 | **Comping** | construire une prise avec les meilleurs passages de plusieurs |
 | **Consolider** | rendre plusieurs clips en un seul fichier |

@@ -1316,3 +1316,60 @@ BUS
 
 Input gain, before the inserts
 Gain d'entrée, avant les inserts
+
+Add bus
+Ajouter un bus
+
+Route the selection to a new bus
+Router la sélection vers un nouveau bus
+
+Bus {n}
+Bus {n}
+
+Show or hide the tracks of this bus
+Afficher ou masquer les pistes de ce bus
+
+Select the tracks to route to a new bus
+Sélectionnez les pistes à router vers un nouveau bus
+
+A bus receiving these tracks, placed where the first of them is
+Un bus qui reçoit ces pistes, placé là où se trouve la première
+
+A bus the tracks are routed to, or that sends feed: a reverb, a delay
+Un bus vers lequel router des pistes, ou que des sends alimentent : une réverbe, un delay
+
+Bus. Click to select, drag to reorder, right-click for options
+Bus. Cliquez pour sélectionner, glissez pour réordonner, clic droit pour les options
+
+Buses
+Bus
+
+Controlled by the VCA {name}. Click to select it
+Piloté par le VCA {name}. Cliquez pour le sélectionner
+
+Drums
+Batterie
+
+Heard only through its sends
+Entendu seulement par ses sends
+
+New bus
+Nouveau bus
+
+New bus for {count} track(s)
+Nouveau bus pour {count} piste(s)
+
+No VCA yet: Track › Add VCA
+Pas encore de VCA : Piste › Ajouter un VCA
+
+Output of {count} tracks
+Sortie de {count} pistes
+
+The tracks routed to this bus. Click to select them
+Les pistes routées vers ce bus. Cliquez pour les sélectionner
+
+VCA
+VCA
+
+{count} track(s)
+{count} piste(s)
