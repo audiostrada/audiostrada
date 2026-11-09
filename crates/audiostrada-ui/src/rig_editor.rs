@@ -2924,37 +2924,44 @@ mod tests {
         }
     }
 
-    #[test]
-    fn the_rig_answers_a_user_trying_everything() {
+    fn sweep_rig(tab: Tab) {
         let pickers = [
             None,
             Some(Picker::Amp),
             Some(Picker::Pedal(0)),
             Some(Picker::Cab),
         ];
-        for tab in [Tab::BuiltIn, Tab::Library] {
-            for picker in pickers {
-                let script = crate::test_sweep::script(
-                    egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1300.0, 1100.0)),
-                    48.0,
-                    true,
-                );
-                let frames = script.len();
-                let mut script = script.into_iter();
-                crate::effect_editors::drive_for_test(
-                    "amp_rig",
-                    &[("p1_type", 2.0), ("p2_type", 20.0), ("p3_type", 19.0)],
-                    frames,
-                    |frame, state| {
-                        if frame == 0 {
-                            state.rig.tab = tab;
-                            state.rig.picker = picker;
-                        }
-                    },
-                    |_| script.next().unwrap_or_default(),
-                );
-            }
+        for picker in pickers {
+            let script = crate::test_sweep::script(
+                egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1300.0, 1100.0)),
+                48.0,
+                true,
+            );
+            let frames = script.len();
+            let mut script = script.into_iter();
+            crate::effect_editors::drive_for_test(
+                "amp_rig",
+                &[("p1_type", 2.0), ("p2_type", 20.0), ("p3_type", 19.0)],
+                frames,
+                |frame, state| {
+                    if frame == 0 {
+                        state.rig.tab = tab;
+                        state.rig.picker = picker;
+                    }
+                },
+                |_| script.next().unwrap_or_default(),
+            );
         }
+    }
+
+    #[test]
+    fn the_rig_answers_a_user_trying_everything() {
+        sweep_rig(Tab::BuiltIn);
+    }
+
+    #[test]
+    fn the_rig_library_answers_a_user_trying_everything() {
+        sweep_rig(Tab::Library);
     }
 
     #[test]

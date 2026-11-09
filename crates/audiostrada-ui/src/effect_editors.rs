@@ -5360,6 +5360,7 @@ pub(crate) fn draw_for_test(
 #[cfg(test)]
 pub(crate) fn sweep_for_test(id: &str, set: &[(&str, f32)], step: f32) {
     use eframe::egui::{Event, Modifiers, PointerButton, pos2};
+    let step = crate::test_sweep::step(step);
     let mut script: Vec<Vec<Event>> = Vec::new();
     let button = |pos, pressed| Event::PointerButton {
         pos,
@@ -5516,12 +5517,14 @@ mod tests {
         sweep_quarter(3);
     }
 
-    #[test]
-    fn every_choice_of_every_editor_draws() {
+    /// Every fourth drawing from `first` of every choice of every editor (four tests, side by
+    /// side: one editor can have far more choices than the others).
+    fn draw_choices_quarter(first: usize) {
+        let mut drawings = Vec::new();
         for info in audiostrada_dsp::EFFECTS {
             for param in info.params.iter().filter(|p| !p.choices.is_empty()) {
                 for value in 0..param.choices.len() {
-                    draw_for_test(info.id, &[(param.id, value as f32)], 1, |_, _| {});
+                    drawings.push((info.id, vec![(param.id, value as f32)], 1));
                 }
             }
             // Switches on, together.
@@ -5531,8 +5534,31 @@ mod tests {
                 .filter(|p| p.choices.is_empty() && p.min == 0.0 && p.max == 1.0)
                 .map(|p| (p.id, 1.0))
                 .collect();
-            draw_for_test(info.id, &on, 2, |_, _| {});
+            drawings.push((info.id, on, 2));
         }
+        for (id, set, frames) in drawings.into_iter().skip(first).step_by(4) {
+            draw_for_test(id, &set, frames, |_, _| {});
+        }
+    }
+
+    #[test]
+    fn every_choice_of_every_editor_draws_0() {
+        draw_choices_quarter(0);
+    }
+
+    #[test]
+    fn every_choice_of_every_editor_draws_1() {
+        draw_choices_quarter(1);
+    }
+
+    #[test]
+    fn every_choice_of_every_editor_draws_2() {
+        draw_choices_quarter(2);
+    }
+
+    #[test]
+    fn every_choice_of_every_editor_draws_3() {
+        draw_choices_quarter(3);
     }
 
     #[test]

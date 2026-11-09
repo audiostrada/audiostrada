@@ -571,7 +571,7 @@ impl Harness {
     /// Clicks over the middle of the window, where dialogs and modals stand.
     fn answer_dialogs(&mut self) {
         let area = Rect::from_min_size(Pos2::new(450.0, 300.0), vec2(700.0, 400.0));
-        for events in crate::test_sweep::script(area, 30.0, false) {
+        for events in crate::test_sweep::script_every(area, 30.0, false) {
             self.frame(events);
         }
     }

@@ -3903,7 +3903,7 @@ mod tests {
         use audiostrada_dsp::MidiEvent;
         let info = audiostrada_dsp::info("synth").unwrap();
         let mut levels = Vec::new();
-        for preset in factory() {
+        for preset in factory().into_iter().step_by(crate::test_sweep::sample()) {
             let mut synth = audiostrada_dsp::create("synth").unwrap();
             for (i, p) in info.params.iter().enumerate() {
                 synth.set_param(i, preset.params.get(p.id).copied().unwrap_or(p.default));

@@ -1840,24 +1840,36 @@ fn effects(ui: &mut Ui, params: &mut Params) {
 
 #[cfg(test)]
 mod tests {
+    fn sweep_tab(tab: Tab) {
+        let script = crate::test_sweep::script(
+            egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1300.0, 1100.0)),
+            36.0,
+            true,
+        );
+        let frames = script.len();
+        let mut script = script.into_iter();
+        crate::effect_editors::drive_for_test(
+            "drums",
+            &[],
+            frames,
+            |_, state| state.drums.tab = tab,
+            |_| script.next().unwrap_or_default(),
+        );
+    }
+
     #[test]
-    fn every_tab_answers_a_user_trying_everything() {
-        for tab in [Tab::Pad, Tab::Pattern, Tab::Effects] {
-            let script = crate::test_sweep::script(
-                egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1300.0, 1100.0)),
-                36.0,
-                true,
-            );
-            let frames = script.len();
-            let mut script = script.into_iter();
-            crate::effect_editors::drive_for_test(
-                "drums",
-                &[],
-                frames,
-                |_, state| state.drums.tab = tab,
-                |_| script.next().unwrap_or_default(),
-            );
-        }
+    fn the_pad_tab_answers_a_user_trying_everything() {
+        sweep_tab(Tab::Pad);
+    }
+
+    #[test]
+    fn the_pattern_tab_answers_a_user_trying_everything() {
+        sweep_tab(Tab::Pattern);
+    }
+
+    #[test]
+    fn the_effects_tab_answers_a_user_trying_everything() {
+        sweep_tab(Tab::Effects);
     }
 
     #[test]
@@ -1877,7 +1889,7 @@ mod tests {
         use audiostrada_dsp::MidiEvent;
         let info = audiostrada_dsp::info("drums").unwrap();
         let mut report = Vec::new();
-        for kit in factory() {
+        for kit in factory().into_iter().step_by(crate::test_sweep::sample()) {
             let mut drums = audiostrada_dsp::create("drums").unwrap();
             for (i, p) in info.params.iter().enumerate() {
                 drums.set_param(i, kit.params.get(p.id).copied().unwrap_or(p.default));

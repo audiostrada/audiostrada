@@ -28,6 +28,8 @@ env:
   CARGO_PROFILE_RELEASE_LTO: false
   CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 16
   CARGO_PROFILE_BENCH_DEBUG: 0
+  # The interface tests click everywhere and check every factory sound, unlike local runs.
+  AUDIOSTRADA_SWEEP: full
 
 jobs:
   fmt:

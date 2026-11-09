@@ -22,8 +22,29 @@ fn escape() -> Event {
     }
 }
 
-/// One list of events per frame, over `area` every `step` pixels.
+/// Whether the tests try everything, as the CI does with `AUDIOSTRADA_SWEEP=full`. By default
+/// they click three times sparser and check every fourth factory sound, to stay light.
+pub(crate) fn full() -> bool {
+    std::env::var_os("AUDIOSTRADA_SWEEP").is_some_and(|v| v == "full")
+}
+
+/// The distance between clicks: `fine` in full sweeps, three times more otherwise.
+pub(crate) fn step(fine: f32) -> f32 {
+    if full() { fine } else { fine * 3.0 }
+}
+
+/// Every item in full sweeps, every fourth otherwise.
+pub(crate) fn sample() -> usize {
+    if full() { 1 } else { 4 }
+}
+
+/// One list of events per frame, over `area`, every `step` pixels in full sweeps.
 pub(crate) fn script(area: Rect, step: f32, right_clicks: bool) -> Vec<Vec<Event>> {
+    script_every(area, self::step(step), right_clicks)
+}
+
+/// One list of events per frame, over `area` every `step` pixels, however light the sweeps.
+pub(crate) fn script_every(area: Rect, step: f32, right_clicks: bool) -> Vec<Vec<Event>> {
     let mut frames: Vec<Vec<Event>> = Vec::new();
     let mut n = 0;
     let mut y = area.top() + step / 2.0;

@@ -7,6 +7,7 @@
 #
 # Arguments go to `cargo test`; those after `--` to the test binaries. TEST_JOBS (4) and
 # TEST_THREADS (4) set how many crates build and how many tests run at once.
+# AUDIOSTRADA_SWEEP=full tests the interface as densely as the CI does, several times slower.
 set -eu
 
 cargo_args=""

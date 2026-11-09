@@ -38,6 +38,10 @@ The toolchain is pinned in `rust-toolchain.toml`. Edition 2024, `rustfmt` at 100
   workspace (`scripts/test.sh`) once before committing, in the background. Release builds too
   stay throttled: `nice -n 19 cargo build -j 4 --release`. CI keeps a plain `cargo test`: its
   machines have no one to disturb, and the code itself keeps renders and tests off real time.
+- **Light sweeps by default.** The interface tests that click everywhere (`test_sweep::script`)
+  click three times sparser, and the level tests check every fourth factory sound, unless
+  `AUDIOSTRADA_SWEEP=full` is set, as in CI. Set it after changing an editor's layout or a
+  factory sound. Split a long test into several (`_0`, `_1`...) so that they run side by side.
 - **Real time only for live audio.** A thread promoted with `audiostrada_rt::thread` runs before
   anything else on the machine, the desktop included. Only the live engine's adaptive worker
   pool, the audio backends and the plugin hosts' audio threads are promoted; renders (exports,
