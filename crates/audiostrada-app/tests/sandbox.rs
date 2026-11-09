@@ -180,7 +180,9 @@ fn the_scan_finds_the_plugin_out_of_process() {
     )
     .join()
     .unwrap();
-    assert_eq!(progress.counts(), Some((1, 1)));
+    // The system's folders are scanned too: every file listed was scanned.
+    let (done, total) = progress.counts().expect("files listed");
+    assert!(total >= 1 && done == total, "{done} of {total}");
     assert!(
         database
             .plugins()

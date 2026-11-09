@@ -26,10 +26,13 @@ use audiostrada_core::groups::{self, Link};
 mod rack;
 
 const STRIP_WIDTH: f32 = 104.0;
-const MIN_FADER: f32 = 60.0;
-/// The column beside a docked strip's fader (its list buttons, then mute, solo, arm, input and
-/// automation): the fader is never shorter, so that every strip keeps the same height.
-const DOCKED_COLUMN: f32 = 3.0 * 26.0 + 3.0 * 21.0 + 6.0;
+/// The switches beside a full strip's fader (mute, solo, arm, input, automation), one under
+/// the other: the fader is never shorter, or the strips would not follow it.
+const MIN_FADER: f32 = 5.0 * 20.0 + 4.0 * 3.0 + 4.0;
+/// The column beside a docked strip's fader (the channel strip, FX and its add button, Sends,
+/// then the switches two by two): the fader is never shorter, so that every strip keeps the
+/// same height.
+const DOCKED_COLUMN: f32 = 3.0 * 26.0 + PILL + 3.0 * 24.0 + 6.0;
 /// Width of a strip of the compact mixer.
 const NARROW_WIDTH: f32 = 46.0;
 /// Height kept above a narrow strip's fader for its name.

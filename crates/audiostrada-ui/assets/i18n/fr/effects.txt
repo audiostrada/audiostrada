@@ -6157,3 +6157,6 @@ Ajouter cet effet aux favoris (F)
 
 The family found from what the plugin declares, its name and a list of known plugins
 La famille trouvée d'après ce que déclare le plugin, son nom et une liste de plugins connus
+
+Monitoring
+Monitoring
