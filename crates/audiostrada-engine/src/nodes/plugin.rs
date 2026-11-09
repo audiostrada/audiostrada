@@ -33,6 +33,8 @@ pub struct PluginControls {
     bypass: Arc<AtomicBool>,
     pub automation: Arc<[AutomationSlot]>,
     pub levels: LevelControls,
+    /// The key inputs (channels 2 and 3) carry a sidechain signal.
+    pub keyed: Arc<AtomicBool>,
 }
 
 impl PluginControls {
@@ -57,6 +59,9 @@ pub struct PluginNode {
     /// Layered on the track's lead instrument (see `Insert::with_layer`).
     layer: Option<MidiLayer>,
     under: [Vec<f32>; 2],
+    keyed: Arc<AtomicBool>,
+    /// Copy of the key inputs for the block.
+    key: [Vec<f32>; 2],
     levels: Levels,
 }
 
@@ -79,6 +84,7 @@ impl PluginNode {
             })
             .collect();
         let (levels, level_controls) = Levels::new();
+        let keyed = Arc::new(AtomicBool::new(false));
         (
             Self {
                 processor,
@@ -91,6 +97,8 @@ impl PluginNode {
                 midi: None,
                 layer: None,
                 under: [Vec::new(), Vec::new()],
+                keyed: Arc::clone(&keyed),
+                key: [Vec::new(), Vec::new()],
                 levels,
             },
             PluginControls {
@@ -99,6 +107,7 @@ impl PluginNode {
                 bypass,
                 automation,
                 levels: level_controls,
+                keyed,
             },
         )
     }
@@ -142,6 +151,7 @@ impl Processor for PluginNode {
     fn prepare(&mut self, sample_rate: u32, max_frames: usize) {
         self.levels.prepare(sample_rate);
         self.under = [vec![0.0; max_frames], vec![0.0; max_frames]];
+        self.key = [vec![0.0; max_frames], vec![0.0; max_frames]];
     }
 
     fn process(&mut self, ctx: &mut ProcessContext<'_>) {
@@ -169,6 +179,15 @@ impl Processor for PluginNode {
         }
         if b.output_channels() < 2 {
             return;
+        }
+        let frames = b.frames();
+        let keyed = self.keyed.load(Ordering::Relaxed)
+            && b.input_channels() >= 4
+            && self.key[0].len() >= frames;
+        if keyed {
+            for (k, ch) in self.key.iter_mut().zip([2, 3]) {
+                k[..frames].copy_from_slice(&b.input(ch)[..frames]);
+            }
         }
         let (left, right) = b.output_pair(0, 1);
         if self.bypass.load(Ordering::Relaxed) {
@@ -198,10 +217,17 @@ impl Processor for PluginNode {
         };
         self.processor.set_transport(&transport(ctx.transport));
         let outgoing = &mut self.outgoing;
-        self.processor
-            .process(left, right, &self.changes, events, &mut |id, value| {
-                let _ = outgoing.try_send((id, value));
-            });
+        let mut report = |id, value| {
+            let _ = outgoing.try_send((id, value));
+        };
+        if keyed {
+            let key = (&self.key[0][..n], &self.key[1][..n]);
+            self.processor
+                .process_keyed(left, right, key, &self.changes, events, &mut report);
+        } else {
+            self.processor
+                .process(left, right, &self.changes, events, &mut report);
+        }
         if layered {
             for (s, u) in left.iter_mut().zip(&self.under[0]) {
                 *s += u;

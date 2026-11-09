@@ -464,6 +464,8 @@ impl crate::PluginInstance for ClapInstance {
             outputs: buffers(&out_ports),
             main_in: in_ports.main,
             main_out: out_ports.main,
+            key_in: (0..in_ports.channels.len()).find(|&i| i != in_ports.main),
+            keyed: false,
             input_ports: AudioPorts::with_capacity(total(&in_ports), in_ports.channels.len()),
             output_ports: AudioPorts::with_capacity(total(&out_ports), out_ports.channels.len()),
             events_in: EventBuffer::with_capacity(2 * MAX_EVENTS),
@@ -586,6 +588,10 @@ impl crate::PluginInstance for ClapInstance {
         requests
     }
 
+    fn has_sidechain(&mut self) -> bool {
+        self.ports().0.channels.len() > 1
+    }
+
     fn has_gui(&mut self) -> bool {
         if self.gui.is_none() {
             self.gui = self.gui_configuration();
@@ -702,6 +708,10 @@ pub struct ClapProcessor {
     outputs: Vec<Vec<Vec<f32>>>,
     main_in: usize,
     main_out: usize,
+    /// The first other input: the sidechain, fed by a key track.
+    key_in: Option<usize>,
+    /// The sidechain holds the key of the last block.
+    keyed: bool,
     input_ports: AudioPorts,
     output_ports: AudioPorts,
     events_in: EventBuffer,
@@ -718,11 +728,12 @@ impl std::fmt::Debug for ClapProcessor {
     }
 }
 
-impl PluginProcessor for ClapProcessor {
-    fn process(
+impl ClapProcessor {
+    fn run(
         &mut self,
         left: &mut [f32],
         right: &mut [f32],
+        key: Option<(&[f32], &[f32])>,
         params_in: &[(u32, f64)],
         midi: &[MidiEvent],
         params_out: &mut dyn FnMut(u32, f64),
@@ -762,6 +773,9 @@ impl PluginProcessor for ClapProcessor {
         }
         if let Some(main) = self.inputs.get_mut(self.main_in) {
             crate::fill_inputs(main, left, right, n);
+        }
+        if let Some(port) = self.key_in.and_then(|i| self.inputs.get_mut(i)) {
+            crate::fill_key(port, key, &mut self.keyed, n);
         }
         let inputs = self
             .input_ports
@@ -804,7 +818,31 @@ impl PluginProcessor for ClapProcessor {
         }
         self.events_out.clear();
     }
+}
 
+impl PluginProcessor for ClapProcessor {
+    fn process(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        params_in: &[(u32, f64)],
+        midi: &[MidiEvent],
+        params_out: &mut dyn FnMut(u32, f64),
+    ) {
+        self.run(left, right, None, params_in, midi, params_out);
+    }
+
+    fn process_keyed(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        key: (&[f32], &[f32]),
+        params_in: &[(u32, f64)],
+        midi: &[MidiEvent],
+        params_out: &mut dyn FnMut(u32, f64),
+    ) {
+        self.run(left, right, Some(key), params_in, midi, params_out);
+    }
     fn reset(&mut self) {
         self.processor.reset();
     }

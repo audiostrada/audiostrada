@@ -6,9 +6,10 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use audiostrada_core::routing::{self, Channel};
-use eframe::egui::{self, Color32, Sense, Ui, vec2};
+use eframe::egui::{self, Align2, Color32, FontId, Key, Pos2, Rect, Sense, Ui, pos2, vec2};
 
 use crate::document::Document;
+use crate::effect_frame::{self, Face, Glyph};
 use crate::i18n::tr;
 use crate::theme;
 
@@ -37,6 +38,16 @@ pub struct EffectBrowser {
     /// Opened again while open: it comes to the front, wherever it was.
     raise: bool,
     scan: Option<Scan>,
+    /// The entry chosen with a click or the arrows, added with Enter or Add.
+    selected: Option<String>,
+    /// The chosen entry was moved to with the keys: it scrolls into view.
+    scroll: bool,
+    /// Cards per row, for Up and Down.
+    columns: usize,
+    /// Where the effect goes, under the title.
+    owner: String,
+    /// Presets of the chosen entry, counted once.
+    presets_of: Option<(String, usize)>,
 }
 
 /// The background plugin scan: what it says, files scanned and to scan, the current one.
@@ -68,6 +79,10 @@ pub fn show(
     // Instruments lead a track; the master has none.
     let instruments = matches!(target, (Channel::Track(_), false));
     b.all = entries(doc, &b.chains, &b.plugin_families, instruments);
+    b.owner = crate::mixer::owner_name(doc.project(), target.0).to_owned();
+    if target.1 {
+        b.owner = format!("{} · {}", b.owner, tr("Monitoring"));
+    }
     b.scan = doc.plugin_scan().map(|s| Scan {
         status: scan_status(s),
         counts: s.counts(),
@@ -87,8 +102,8 @@ pub fn show(
         crate::Floating::Browser,
         egui::ViewportBuilder::default()
             .with_title(format!("{} — AudioStrada", tr("Add an effect")))
-            .with_inner_size([860.0, 600.0])
-            .with_min_inner_size([520.0, 320.0]),
+            .with_inner_size([1000.0, 680.0])
+            .with_min_inner_size([640.0, 400.0]),
     );
     let parent = ctx.viewport_id();
     let shared = crate::MainThread(Rc::clone(browser));
@@ -117,33 +132,121 @@ pub fn scan_status(scan: &audiostrada_plugins::scan::Progress) -> String {
 /// The plugin scan running, above the list: the plugins it finds show when it ends.
 fn scan_banner(ui: &mut Ui, scan: &Scan) {
     let p = theme::current(ui);
-    egui::Frame::new()
-        .fill(theme::mix(p.surface, p.accent, if p.dark { 0.28 } else { 0.16 }))
-        .stroke(egui::Stroke::new(1.0, p.accent))
-        .corner_radius(6.0)
-        .inner_margin(egui::Margin::symmetric(12, 8))
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                ui.spinner();
-                ui.label(egui::RichText::new(&scan.status).strong().color(p.text));
-                if let Some((done, total)) = scan.counts
-                    && total > 0
-                {
-                    ui.add(
-                        egui::ProgressBar::new(done as f32 / total as f32)
-                            .desired_width(180.0)
-                            .desired_height(8.0),
-                    );
-                    ui.label(egui::RichText::new(&scan.current).color(p.text));
-                }
-            });
-            ui.label(egui::RichText::new(tr(
-                "New plugins show here once the scan is done; the ones already known can be used now.",
-            )).color(p.text));
-        });
+    let full = ui.max_rect();
+    let rect = Rect::from_min_max(
+        pos2(full.left() + 14.0, full.top() + 10.0),
+        pos2(full.right() - 14.0, full.bottom() - 4.0),
+    );
+    let painter = ui.painter().with_clip_rect(rect);
+    painter.rect(
+        rect,
+        6.0,
+        theme::mix(
+            effect_frame::field_fill(&p),
+            p.accent,
+            if p.dark { 0.25 } else { 0.12 },
+        ),
+        egui::Stroke::new(1.0, p.accent),
+        egui::StrokeKind::Inside,
+    );
+    let cy = rect.center().y;
+    let light = if p.dark {
+        theme::mix(p.accent, Color32::WHITE, 0.7)
+    } else {
+        theme::mix(p.accent, Color32::BLACK, 0.3)
+    };
+    ui.put(
+        Rect::from_center_size(pos2(rect.left() + 18.0, cy), vec2(14.0, 14.0)),
+        egui::Spinner::new().size(13.0).color(light),
+    );
+    let mut x = painter
+        .text(
+            pos2(rect.left() + 34.0, cy),
+            Align2::LEFT_CENTER,
+            &scan.status,
+            theme::strong(12.0),
+            p.text,
+        )
+        .right()
+        + 10.0;
+    if let Some((done, total)) = scan.counts
+        && total > 0
+    {
+        let bar = Rect::from_min_size(pos2(x, cy - 3.0), vec2(160.0, 6.0));
+        painter.rect_filled(bar, 3.0, effect_frame::field_fill(&p));
+        painter.rect_filled(
+            bar.with_max_x(bar.left() + bar.width() * (done as f32 / total as f32).min(1.0)),
+            3.0,
+            p.accent,
+        );
+        x = bar.right() + 10.0;
+    }
+    painter.text(
+        pos2(x, cy),
+        Align2::LEFT_CENTER,
+        tr("New plugins show here once the scan is done; the ones already known can be used now."),
+        egui::FontId::proportional(12.0),
+        light,
+    );
+    if !scan.current.is_empty() {
+        ui.interact(rect, ui.scope_id().with("scan"), Sense::hover())
+            .on_hover_text(&scan.current);
+    }
     ui.ctx()
         .request_repaint_after(std::time::Duration::from_millis(250));
+}
+
+/// What each family holds, under its name.
+fn family_summary(family: Option<&str>) -> &'static str {
+    tr(summary_of(family))
+}
+
+/// [`family_summary`] in English, which the search also reads.
+fn summary_of(family: Option<&str>) -> &'static str {
+    match family {
+        None => "every effect and plugin",
+        Some(FAVORITES) => "the effects you starred",
+        Some(RECENT) => "the effects added lately",
+        Some("Dynamics") => "compressors, gates, limiters, de-essers",
+        Some("EQ & Filter") => "equalizers and filters",
+        Some("Space") => "reverbs and delays",
+        Some("Modulation") => "chorus, flanger, phaser, pitch",
+        Some("Color") => "saturation, distortion, tape",
+        Some("Stereo") => "width, panning, imaging",
+        Some("Amp & Cab") => "guitar and bass amps, cabinets",
+        Some("Utility") => "gain, meters, tuners, analyzers",
+        Some(INSTRUMENT) => "synths, samplers and drum machines",
+        Some(CHAINS) => "your effect chains, saved from the rack",
+        Some(PLUGINS) => "the plugins installed on this computer",
+        _ => "plugins of another kind",
+    }
+}
+
+/// Lower case without accents, for a search that finds "réverbe" from "reverbe".
+fn fold(text: &str) -> String {
+    text.chars()
+        .flat_map(char::to_lowercase)
+        .map(|c| match c {
+            'à' | 'â' | 'ä' | 'á' | 'ã' | 'å' => 'a',
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'î' | 'ï' | 'í' | 'ì' => 'i',
+            'ô' | 'ö' | 'ó' | 'ò' | 'õ' => 'o',
+            'ù' | 'û' | 'ü' | 'ú' => 'u',
+            'ç' => 'c',
+            'ñ' => 'n',
+            'ÿ' => 'y',
+            c => c,
+        })
+        .collect()
+}
+
+/// What the search reads of an entry: its texts in English and translated, its family and
+/// what the family holds.
+fn search_words(family: &'static str, texts: &[&str]) -> String {
+    let summary = summary_of(Some(family));
+    let mut all: Vec<&str> = texts.to_vec();
+    all.extend([family, tr(family), summary, tr(summary)]);
+    fold(&all.join(" "))
 }
 
 /// One entry of the browser.
@@ -161,6 +264,8 @@ struct Entry {
     /// "AudioStrada" for built-in effects, empty for chains.
     vendor: String,
     format: &'static str,
+    /// What the search reads, folded.
+    words: String,
 }
 
 const PLUGINS: &str = "Plugins";
@@ -170,12 +275,24 @@ pub const CHAIN_KEY: &str = "chain:";
 const AUDIOSTRADA: &str = "AudioStrada";
 const INSTRUMENT: &str = "Instrument";
 
+/// Views of the left column besides the families.
+const FAVORITES: &str = "Favorites";
+const RECENT: &str = "Recent";
+
+/// What a card reports.
+struct CardOut {
+    response: egui::Response,
+    vendor: bool,
+    star: bool,
+}
+
 impl EffectBrowser {
     pub fn open(&mut self, target: Target) {
         self.raise = true;
         self.target = Some(target);
         self.filter.clear();
         self.focus_search = true;
+        self.selected = None;
         self.chains = crate::chains::list(crate::chains::root().as_deref());
         self.plugin_families = crate::plugin_categories::load();
     }
@@ -186,9 +303,36 @@ impl EffectBrowser {
         self.family = Some(INSTRUMENT.to_owned());
     }
 
+    /// The entries of the view chosen at the left, or those matching the search.
+    fn shown<'a>(&self, entries: &'a [Entry]) -> Vec<&'a Entry> {
+        let filter = fold(&self.filter);
+        if !filter.trim().is_empty() {
+            return entries
+                .iter()
+                .filter(|e| filter.split_whitespace().all(|w| e.words.contains(w)))
+                .collect();
+        }
+        match self.family.as_deref() {
+            Some(RECENT) => crate::favorites::with(|f| {
+                f.recent
+                    .iter()
+                    .filter_map(|k| entries.iter().find(|e| &e.key == k))
+                    .collect()
+            }),
+            Some(FAVORITES) => crate::favorites::with(|f| {
+                entries
+                    .iter()
+                    .filter(|e| f.effects.contains(&e.key))
+                    .collect()
+            }),
+            family => entries.iter().filter(|e| in_family(e, family)).collect(),
+        }
+    }
+
     /// Draws the browser in its window: on a choice or when closed, leaves the result for
     /// the window that opened it, hides at once and has that window draw again.
     fn window(&mut self, ui: &mut Ui, target: Target, parent: egui::ViewportId) {
+        let p = theme::current(ui);
         let vendors = choices(self.all.iter().map(|e| e.vendor.as_str()));
         let formats = choices(self.all.iter().map(|e| e.format));
         // Families count what the vendor and format filters leave.
@@ -199,64 +343,125 @@ impl EffectBrowser {
             .filter(|e| self.format.as_ref().is_none_or(|f| e.format == f))
             .cloned()
             .collect();
-        let mut chosen = None;
+        let shown: Vec<String> = self.shown(&entries).iter().map(|e| e.key.clone()).collect();
+        let mut chosen: Option<String> = None;
         let mut open = true;
-        // A sheet like the dialogs: white on light themes.
-        let sheet =
-            egui::Frame::central_panel(&ui.ctx().global_style()).fill(ui.visuals().window_fill);
-        egui::CentralPanel::default().frame(sheet).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(theme_title(tr("Add an effect")));
-                let search = ui.add(
-                    egui::TextEdit::singleline(&mut self.filter)
-                        .hint_text(tr("Search effects and plugins"))
-                        .desired_width(280.0),
-                );
-                if self.focus_search {
-                    search.request_focus();
-                    self.focus_search = false;
+        // Keys: arrows choose, Enter adds, / searches, F stars, Esc closes.
+        let typing = ui.ctx().text_edit_focused();
+        let (escape, enter, star, slash, moves) = ui.input_mut(|i| {
+            let mut moves = Vec::new();
+            for (key, step) in [
+                (Key::ArrowUp, -(self.columns as isize)),
+                (Key::ArrowDown, self.columns as isize),
+                (Key::ArrowLeft, -1),
+                (Key::ArrowRight, 1),
+            ] {
+                if (!typing || matches!(key, Key::ArrowUp | Key::ArrowDown))
+                    && i.consume_key(egui::Modifiers::NONE, key)
+                {
+                    moves.push(step);
                 }
-                filter_combo(
-                    ui,
-                    "browser-vendor",
-                    tr("Vendor"),
-                    &vendors,
-                    &mut self.vendor,
-                );
-                filter_combo(
-                    ui,
-                    "browser-format",
-                    tr("Format"),
-                    &formats,
-                    &mut self.format,
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button(tr("Close")).clicked() {
-                        open = false;
-                    }
-                });
-            });
-            ui.separator();
-            if let Some(scan) = &self.scan {
-                scan_banner(ui, scan);
-                ui.separator();
             }
-            ui.horizontal_top(|ui| {
-                self.families(ui, &entries);
-                ui.separator();
-                ui.vertical(|ui| {
-                    ui.set_width(ui.available_width());
-                    chosen = self.cards(ui, &entries);
-                });
-            });
+            let slash = !typing && {
+                let before = i.events.len();
+                i.events
+                    .retain(|e| !matches!(e, egui::Event::Text(t) if t == "/"));
+                i.events.len() != before
+            };
+            (
+                i.consume_key(egui::Modifiers::NONE, Key::Escape),
+                i.consume_key(egui::Modifiers::NONE, Key::Enter),
+                !typing && i.consume_key(egui::Modifiers::NONE, Key::F),
+                slash,
+                moves,
+            )
         });
-        if ui
-            .ctx()
-            .input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape))
-        {
+        if escape {
+            open = false;
+        }
+        if slash {
+            self.focus_search = true;
+        }
+        let at = self
+            .selected
+            .as_ref()
+            .and_then(|k| shown.iter().position(|s| s == k));
+        if !shown.is_empty() {
+            for step in moves {
+                let k = at.map_or(0, |a| {
+                    (a as isize + step).clamp(0, shown.len() as isize - 1) as usize
+                });
+                self.selected = Some(shown[k].clone());
+                self.scroll = true;
+            }
+        }
+        if enter {
+            chosen = at
+                .map(|a| shown[a].clone())
+                .or_else(|| shown.first().cloned());
+        }
+        if star && let Some(key) = &self.selected {
+            crate::favorites::change(|f| f.toggle_effect(key));
+        }
+        egui::Panel::top("browser-top")
+            .frame(egui::Frame::NONE)
+            .exact_size(58.0)
+            .show_separator_line(false)
+            .show(ui, |ui| self.top_bar(ui, &vendors, &formats, &mut open));
+        let selected = self
+            .selected
+            .as_ref()
+            .and_then(|k| entries.iter().find(|e| &e.key == k))
+            .cloned();
+        egui::Panel::bottom("browser-bottom")
+            .frame(egui::Frame::NONE)
+            .exact_size(49.0)
+            .show_separator_line(false)
+            .show(ui, |ui| {
+                if self.bottom_bar(ui, selected.as_ref()) {
+                    chosen = selected.as_ref().map(|e| e.key.clone());
+                }
+            });
+        let body = if p.dark { p.base } else { p.panel };
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE.fill(body))
+            .show(ui, |ui| {
+                if let Some(scan) = &self.scan {
+                    egui::Panel::top("browser-scan")
+                        .frame(egui::Frame::NONE)
+                        .exact_size(50.0)
+                        .show_separator_line(false)
+                        .show(ui, |ui| scan_banner(ui, scan));
+                }
+                egui::Panel::left("browser-side")
+                    .frame(egui::Frame::NONE)
+                    .exact_size(210.0)
+                    .resizable(false)
+                    .show_separator_line(false)
+                    .show(ui, |ui| self.sidebar(ui, &entries));
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE.inner_margin(egui::Margin {
+                        left: 14,
+                        right: 14,
+                        top: 10,
+                        bottom: 0,
+                    }))
+                    .show(ui, |ui| {
+                        if let Some(key) = self.cards(ui, &entries) {
+                            chosen = Some(key);
+                        }
+                    });
+            });
+        if ui.ctx().input(|i| i.viewport().close_requested()) {
             open = false;
         }
         if chosen.is_some() || !open {
+            let chosen = chosen
+                .and_then(|k| self.all.iter().find(|e| e.key == k))
+                .map(|e| (e.key.clone(), e.name.clone()));
+            if let Some((key, _)) = &chosen {
+                crate::favorites::change(|f| f.used(key));
+            }
             self.target = None;
             self.result = chosen.map(|(key, name)| (target, key, name));
             self.hidden = true;
@@ -267,82 +472,401 @@ impl EffectBrowser {
         ui.ctx().request_repaint_of(parent);
     }
 
-    fn families(&mut self, ui: &mut Ui, entries: &[Entry]) {
-        ui.vertical(|ui| {
-            ui.set_width(140.0);
-            let count =
-                |family: Option<&str>| entries.iter().filter(|e| in_family(e, family)).count();
-            let mut row = |ui: &mut Ui, family: Option<&str>, label: &str| {
-                let n = count(family);
-                if n == 0 && family.is_some() {
-                    return;
-                }
-                let on = self.family.as_deref() == family;
-                if ui.selectable_label(on, format!("{label}  {n}")).clicked() {
-                    self.family = family.map(str::to_owned);
-                }
-            };
-            row(ui, None, tr("All"));
-            row(ui, Some(CHAINS), tr(CHAINS));
-            ui.add_space(4.0);
-            for family in audiostrada_dsp::CATEGORIES {
-                row(ui, Some(family), tr(family));
-            }
-            row(
-                ui,
-                Some(crate::plugin_categories::OTHER),
-                tr(crate::plugin_categories::OTHER),
+    /// Logo and title, the search in the middle, the format and vendor filters, Close.
+    fn top_bar(&mut self, ui: &mut Ui, vendors: &[String], formats: &[String], open: &mut bool) {
+        let p = theme::current(ui);
+        let r = effect_frame::radius(&p);
+        let painter = ui.painter().clone();
+        let bar = effect_frame::paint_top_band(&painter, &p, ui.max_rect(), p.accent);
+        ui.allocate_rect(ui.max_rect(), Sense::hover());
+        let cy = bar.center().y;
+        let id = ui.scope_id();
+        let mut x = bar.right() - 14.0;
+        let close = Rect::from_min_max(pos2(x - 30.0, cy - 15.0), pos2(x, cy + 15.0));
+        if effect_frame::glyph_button(ui, close, id.with("close"), Glyph::Close, None, true)
+            .on_hover_text(tr("Close"))
+            .clicked()
+        {
+            *open = false;
+        }
+        x = close.left() - 10.0;
+        // The vendor, from a menu.
+        let font = FontId::proportional(12.0);
+        let text = self
+            .vendor
+            .clone()
+            .unwrap_or_else(|| tr("Vendor").to_owned());
+        let width = painter
+            .layout_no_wrap(text.clone(), font.clone(), p.text)
+            .size()
+            .x
+            .min(150.0)
+            + 34.0;
+        let rect = Rect::from_min_max(pos2(x - width, cy - 15.0), pos2(x, cy + 15.0));
+        let response = effect_frame::button(ui, rect, id.with("vendor"), true);
+        effect_frame::paint_face(ui, rect, r, &response, Face::Plain);
+        painter
+            .with_clip_rect(
+                rect.shrink2(vec2(10.0, 0.0))
+                    .with_max_x(rect.right() - 22.0),
+            )
+            .text(
+                pos2(rect.left() + 10.0, cy),
+                Align2::LEFT_CENTER,
+                &text,
+                font.clone(),
+                theme::mix(p.text, p.weak, 0.2),
             );
-            ui.add_space(4.0);
-            row(ui, Some(PLUGINS), tr(PLUGINS));
+        effect_frame::paint_glyph(
+            &painter,
+            Rect::from_center_size(pos2(rect.right() - 13.0, cy), vec2(10.0, 10.0)),
+            Glyph::Down,
+            p.weak,
+        );
+        egui::Popup::menu(&response).show(|ui| {
+            egui::ScrollArea::vertical()
+                .max_height(360.0)
+                .show(ui, |ui| {
+                    if ui
+                        .selectable_label(self.vendor.is_none(), tr("All"))
+                        .clicked()
+                    {
+                        self.vendor = None;
+                        ui.close();
+                    }
+                    for vendor in vendors {
+                        if ui
+                            .selectable_label(self.vendor.as_ref() == Some(vendor), vendor)
+                            .clicked()
+                        {
+                            self.vendor = Some(vendor.clone());
+                            ui.close();
+                        }
+                    }
+                });
         });
-    }
-
-    /// The entries of the chosen family matching the search, as cards.
-    fn cards(&mut self, ui: &mut Ui, entries: &[Entry]) -> Option<(String, String)> {
-        let filter = self.filter.to_lowercase();
-        let shown: Vec<&Entry> = entries
+        x = rect.left() - 10.0;
+        // The formats, side by side.
+        let segments: Vec<(Option<&String>, &str)> = std::iter::once((None, tr("All")))
+            .chain(formats.iter().map(|f| {
+                (
+                    Some(f),
+                    if f == AUDIOSTRADA {
+                        "Strada"
+                    } else {
+                        f.as_str()
+                    },
+                )
+            }))
+            .collect();
+        let widths: Vec<f32> = segments
             .iter()
-            .filter(|e| in_family(e, self.family.as_deref()))
-            .filter(|e| {
-                filter.is_empty()
-                    || e.name.to_lowercase().contains(&filter)
-                    || e.detail.to_lowercase().contains(&filter)
-                    || tr(e.family).to_lowercase().contains(&filter)
+            .map(|(_, label)| {
+                painter
+                    .layout_no_wrap((*label).to_owned(), theme::strong(12.0), p.text)
+                    .size()
+                    .x
+                    + 22.0
             })
             .collect();
+        let mut sx = x - widths.iter().sum::<f32>();
+        let last = segments.len() - 1;
+        for (k, ((value, label), w)) in segments.iter().zip(&widths).enumerate() {
+            let rect = Rect::from_min_size(pos2(sx, cy - 15.0), vec2(*w, 30.0));
+            let on = self.format.as_ref() == *value;
+            let corners = egui::CornerRadius {
+                nw: if k == 0 { r as u8 } else { 0 },
+                sw: if k == 0 { r as u8 } else { 0 },
+                ne: if k == last { r as u8 } else { 0 },
+                se: if k == last { r as u8 } else { 0 },
+            };
+            let face = if on { Face::Lit(p.accent) } else { Face::Plain };
+            if effect_frame::text_button(ui, rect, id.with(("format", k)), label, face, corners)
+                .clicked()
+            {
+                self.format = value.cloned();
+            }
+            sx = rect.right();
+        }
+        x -= widths.iter().sum::<f32>() + 16.0;
+        // The title, and where the effect goes.
+        let detail = |column: &egui::Painter, at: Pos2| {
+            column.text(
+                at,
+                Align2::LEFT_TOP,
+                &self.owner,
+                FontId::proportional(10.5),
+                p.weak,
+            );
+        };
+        let left = bar.left() + 56.0;
+        let name_width = 190.0f32.min((x - left - 140.0).max(0.0));
+        effect_frame::paint_title(
+            &painter,
+            &p,
+            bar,
+            name_width,
+            tr("Add an effect"),
+            &detail,
+            false,
+        );
+        // The search.
+        let start = left + name_width + 16.0;
+        let room = x - start;
+        let width = room.clamp(120.0, 420.0);
+        let field = Rect::from_min_size(
+            pos2(start + ((room - width) / 2.0).max(0.0), cy - 16.0),
+            vec2(width, 32.0),
+        );
+        let search_id = id.with("search");
+        let focused = ui.ctx().memory(|m| m.has_focus(search_id));
+        painter.rect(
+            field,
+            r,
+            effect_frame::field_fill(&p),
+            egui::Stroke::new(
+                1.0,
+                if focused {
+                    p.accent
+                } else {
+                    effect_frame::button_edge(&p)
+                },
+            ),
+            egui::StrokeKind::Inside,
+        );
+        effect_frame::paint_glyph(
+            &painter,
+            Rect::from_center_size(field.left_center() + vec2(17.0, 0.0), vec2(14.0, 14.0)),
+            Glyph::Search,
+            p.weak,
+        );
+        let text_rect = Rect::from_min_max(
+            pos2(field.left() + 30.0, field.top() + 1.0),
+            pos2(field.right() - 8.0, field.bottom() - 1.0),
+        );
+        let search = ui.put(
+            text_rect,
+            egui::TextEdit::singleline(&mut self.filter)
+                .id(search_id)
+                .frame(egui::Frame::NONE)
+                .hint_text(tr("Search effects and plugins"))
+                .align(Align2::LEFT_CENTER)
+                .desired_width(text_rect.width()),
+        );
+        if std::mem::take(&mut self.focus_search) {
+            search.request_focus();
+        }
+    }
+
+    /// All, favorites, recent, the families, the chains.
+    fn sidebar(&mut self, ui: &mut Ui, entries: &[Entry]) {
+        let p = theme::current(ui);
+        let full = ui.max_rect();
+        ui.painter().line_segment(
+            [
+                pos2(full.right() - 0.5, full.top()),
+                pos2(full.right() - 0.5, full.bottom()),
+            ],
+            egui::Stroke::new(1.0, effect_frame::line_edge(&p)),
+        );
+        let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(Rect::from_min_max(
+            pos2(full.left() + 10.0, full.top() + 6.0),
+            pos2(full.right() - 10.0, full.bottom()),
+        )));
+        let favorites = crate::favorites::with(Clone::clone);
+        let count = |family: Option<&str>| match family {
+            Some(FAVORITES) => entries
+                .iter()
+                .filter(|e| favorites.effects.contains(&e.key))
+                .count(),
+            Some(RECENT) => favorites
+                .recent
+                .iter()
+                .filter(|k| entries.iter().any(|e| &e.key == *k))
+                .count(),
+            family => entries.iter().filter(|e| in_family(e, family)).count(),
+        };
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(&mut inner, |ui| {
+                let mut row = |ui: &mut Ui, family: Option<&str>, label: &str, mark: Mark| {
+                    let n = count(family);
+                    let (rect, response) =
+                        ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+                    let on = self.filter.is_empty() && self.family.as_deref() == family;
+                    let r = effect_frame::radius(&p);
+                    if on {
+                        ui.painter()
+                            .rect_filled(rect, r, effect_frame::chosen_fill(&p));
+                    } else if response.hovered() {
+                        ui.painter().rect_filled(rect, r, p.hover);
+                    }
+                    let mut x = rect.left() + 10.0;
+                    match mark {
+                        Mark::Star => {
+                            effect_frame::paint_glyph(
+                                ui.painter(),
+                                Rect::from_center_size(
+                                    pos2(x + 6.0, rect.center().y),
+                                    vec2(12.0, 12.0),
+                                ),
+                                Glyph::Star(true),
+                                effect_frame::star_color(&p),
+                            );
+                            x += 19.0;
+                        }
+                        Mark::Dot(color) => {
+                            ui.painter()
+                                .circle_filled(pos2(x + 4.0, rect.center().y), 4.0, color);
+                            x += 16.0;
+                        }
+                        Mark::None => {}
+                    }
+                    ui.painter().text(
+                        pos2(x, rect.center().y),
+                        Align2::LEFT_CENTER,
+                        label,
+                        FontId::proportional(12.5),
+                        if on {
+                            p.text
+                        } else {
+                            theme::mix(p.text, p.weak, 0.3)
+                        },
+                    );
+                    ui.painter().text(
+                        pos2(rect.right() - 10.0, rect.center().y),
+                        Align2::RIGHT_CENTER,
+                        n.to_string(),
+                        FontId::proportional(11.0),
+                        if on {
+                            effect_frame::chosen_count(&p)
+                        } else {
+                            p.weak
+                        },
+                    );
+                    if response.clicked() {
+                        self.family = family.map(str::to_owned);
+                        self.filter.clear();
+                    }
+                };
+                row(ui, None, tr("All"), Mark::None);
+                row(ui, Some(FAVORITES), tr("Favorites"), Mark::Star);
+                row(ui, Some(RECENT), tr("Recent"), Mark::None);
+                ui.add_space(4.0);
+                effect_frame::section_title(ui, tr("Families"));
+                for family in audiostrada_dsp::CATEGORIES
+                    .iter()
+                    .copied()
+                    .chain([crate::plugin_categories::OTHER])
+                {
+                    if count(Some(family)) > 0 {
+                        row(
+                            ui,
+                            Some(family),
+                            tr(family),
+                            Mark::Dot(family_color(family)),
+                        );
+                    }
+                }
+                ui.add_space(4.0);
+                effect_frame::section_title(ui, tr("Mine"));
+                row(
+                    ui,
+                    Some(CHAINS),
+                    tr(CHAINS),
+                    Mark::Dot(family_color(CHAINS)),
+                );
+            });
+    }
+
+    /// The title of the view, then its entries as cards; returns the key of the one to add.
+    fn cards(&mut self, ui: &mut Ui, entries: &[Entry]) -> Option<String> {
+        let p = theme::current(ui);
+        let shown = self.shown(entries);
+        let (title, summary) = if self.filter.is_empty() {
+            let family = self.family.as_deref();
+            (family.map_or(tr("All"), tr_family), family_summary(family))
+        } else {
+            (tr("Search"), "")
+        };
+        let count = if shown.len() == 1 {
+            tr("1 effect").to_owned()
+        } else {
+            crate::trf!("{count} effects", count = shown.len())
+        };
+        let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::hover());
+        let end = ui
+            .painter()
+            .text(
+                rect.left_center(),
+                Align2::LEFT_CENTER,
+                title,
+                theme::strong(15.0),
+                p.text,
+            )
+            .right();
+        let line = if summary.is_empty() {
+            count
+        } else {
+            format!("{count} · {summary}")
+        };
+        ui.painter().text(
+            pos2(end + 10.0, rect.center().y + 1.0),
+            Align2::LEFT_CENTER,
+            line,
+            FontId::proportional(11.5),
+            p.weak,
+        );
+        ui.add_space(8.0);
         let mut chosen = None;
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 if shown.is_empty() {
-                    ui.weak(tr(
-                        "Nothing matches. Plugin folders are set in Preferences › Plugins.",
-                    ));
+                    ui.add_space(8.0);
+                    ui.weak(match self.family.as_deref() {
+                        Some(FAVORITES) if self.filter.is_empty() => {
+                            tr("No favorites yet: star an effect, or press F on it.")
+                        }
+                        _ => {
+                            tr("Nothing matches. Plugin folders are set in Preferences › Plugins.")
+                        }
+                    });
                 }
                 let width = ui.available_width();
-                let columns = ((width / 300.0).floor() as usize).max(1);
-                let card_width = width / columns as f32 - 8.0;
+                let columns = ((width + 10.0) / 290.0).floor().max(1.0) as usize;
+                self.columns = columns;
+                let card_width = (width - 10.0 * (columns - 1) as f32) / columns as f32;
                 let mut removed = None;
                 let mut refiled = None;
+                let scroll = std::mem::take(&mut self.scroll);
                 for row in shown.chunks(columns) {
                     ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 10.0;
                         for entry in row {
-                            let (response, vendor) = card(ui, entry, card_width);
-                            if vendor {
+                            let selected = self.selected.as_ref() == Some(&entry.key);
+                            let out = card(ui, entry, card_width, selected);
+                            if selected && scroll {
+                                ui.scroll_to_rect(out.response.rect, None);
+                            }
+                            if out.star {
+                                crate::favorites::change(|f| f.toggle_effect(&entry.key));
+                            } else if out.vendor {
                                 self.vendor = Some(entry.vendor.clone());
-                            } else if response.clicked() {
-                                chosen = Some((entry.key.clone(), entry.name.clone()));
+                            } else if out.response.double_clicked() {
+                                chosen = Some(entry.key.clone());
+                            } else if out.response.clicked() {
+                                self.selected = Some(entry.key.clone());
                             }
                             if entry.removable {
-                                response.context_menu(|ui| {
+                                out.response.context_menu(|ui| {
                                     if ui.button(tr("Delete chain")).clicked() {
                                         removed = Some(entry.key.clone());
                                         ui.close();
                                     }
                                 });
                             } else if entry.plugin && entry.family != INSTRUMENT {
-                                response.context_menu(|ui| {
+                                out.response.context_menu(|ui| {
                                     if let Some(family) = family_menu(ui, entry) {
                                         refiled = Some((entry.key.clone(), family));
                                     }
@@ -350,7 +874,7 @@ impl EffectBrowser {
                             }
                         }
                     });
-                    ui.add_space(4.0);
+                    ui.add_space(10.0);
                 }
                 if let Some((key, family)) = refiled {
                     match family {
@@ -367,86 +891,313 @@ impl EffectBrowser {
             });
         chosen
     }
+
+    /// The chosen entry and Add; returns whether Add was clicked.
+    fn bottom_bar(&mut self, ui: &mut Ui, selected: Option<&Entry>) -> bool {
+        let p = theme::current(ui);
+        let painter = ui.painter().clone();
+        let full = ui.max_rect();
+        effect_frame::paint_bottom_band(&painter, &p, full);
+        ui.allocate_rect(full, Sense::hover());
+        let cy = full.center().y + 0.5;
+        let left = full.left() + 14.0;
+        let text = painter.with_clip_rect(Rect::from_min_max(
+            pos2(left, full.top()),
+            pos2(left + 300.0, full.bottom()),
+        ));
+        match selected {
+            Some(entry) => {
+                text.text(
+                    pos2(left, cy - 1.0),
+                    Align2::LEFT_BOTTOM,
+                    &entry.name,
+                    theme::strong(13.0),
+                    p.text,
+                );
+                if self
+                    .presets_of
+                    .as_ref()
+                    .is_none_or(|(k, _)| *k != entry.key)
+                {
+                    let n = if entry.family == CHAINS {
+                        0
+                    } else {
+                        crate::presets::list(crate::presets::root().as_deref(), &entry.key).len()
+                    };
+                    self.presets_of = Some((entry.key.clone(), n));
+                }
+                let presets = self.presets_of.as_ref().map_or(0, |(_, n)| *n);
+                let mut parts = vec![tr_family(entry.family).to_owned()];
+                if !entry.vendor.is_empty() {
+                    parts.push(entry.vendor.clone());
+                }
+                match presets {
+                    0 => {}
+                    1 => parts.push(tr("1 preset").to_owned()),
+                    n => parts.push(crate::trf!("{count} presets", count = n)),
+                }
+                text.text(
+                    pos2(left, cy + 2.0),
+                    Align2::LEFT_TOP,
+                    parts.join(" · "),
+                    FontId::proportional(10.5),
+                    p.weak,
+                );
+            }
+            None => {
+                text.text(
+                    pos2(left, cy),
+                    Align2::LEFT_CENTER,
+                    tr("Choose an effect, then Add, or double-click it"),
+                    FontId::proportional(12.0),
+                    p.weak,
+                );
+            }
+        }
+        // Add, at the right.
+        let label = tr("Add");
+        let width = painter
+            .layout_no_wrap(label.to_owned(), theme::strong(13.0), p.text)
+            .size()
+            .x
+            + 36.0;
+        let add = Rect::from_min_max(
+            pos2(full.right() - 14.0 - width, cy - 16.0),
+            pos2(full.right() - 14.0, cy + 16.0),
+        );
+        let enabled = selected.is_some();
+        let response = effect_frame::button(ui, add, ui.scope_id().with("add"), enabled);
+        let mut ink = painter.clone();
+        if !enabled {
+            ink.multiply_opacity(0.45);
+        }
+        ink.rect_filled(
+            add,
+            effect_frame::radius(&p),
+            if response.hovered() {
+                theme::mix(p.accent, Color32::WHITE, 0.1)
+            } else {
+                p.accent
+            },
+        );
+        ink.text(
+            add.center(),
+            Align2::CENTER_CENTER,
+            label,
+            theme::strong(13.0),
+            theme::text_on(p.accent),
+        );
+        // The keys, between.
+        let hints: [(&[&str], &str); 4] = [
+            (&["↑", "↓", "←", "→"], tr("browse")),
+            (&["/"], tr("search")),
+            (&["F"], tr("favorite")),
+            (&[tr("Esc")], tr("close")),
+        ];
+        let width = effect_frame::key_hints_width(&painter, &p, &hints);
+        let room = Rect::from_min_max(
+            pos2(left + 300.0, full.top()),
+            pos2(add.left() - 16.0, full.bottom()),
+        );
+        if room.width() >= width {
+            effect_frame::key_hints(
+                &painter,
+                &p,
+                pos2(room.center().x - width / 2.0, cy),
+                &hints,
+            );
+        }
+        response.clicked()
+    }
 }
 
-/// A clickable card: name, family and what the effect does, or a plugin's vendor (clickable,
-/// to show only its plugins), format and version. Also returns whether the vendor was clicked.
-fn card(ui: &mut Ui, entry: &Entry, width: f32) -> (egui::Response, bool) {
+/// What a row of the left column shows before its name.
+#[derive(Clone, Copy)]
+enum Mark {
+    None,
+    Star,
+    Dot(Color32),
+}
+
+/// A family's name, as shown.
+fn tr_family(family: &str) -> &'static str {
+    match family {
+        FAVORITES => tr("Favorites"),
+        RECENT => tr("Recent"),
+        CHAINS => tr(CHAINS),
+        PLUGINS => tr(PLUGINS),
+        INSTRUMENT => tr(INSTRUMENT),
+        f => family_key(f).map_or(tr(crate::plugin_categories::OTHER), tr),
+    }
+}
+
+/// A card: the family's line, the name and format, the vendor (a plugin's is clickable, to
+/// show only its plugins), what it does, a star for the favorites.
+fn card(ui: &mut Ui, entry: &Entry, width: f32, selected: bool) -> CardOut {
     let p = theme::current(ui);
-    let (rect, response) = ui.allocate_exact_size(vec2(width, 66.0), Sense::click());
-    let (card, edge) = theme::card(&p);
-    let fill = if response.hovered() {
-        theme::mix(card, p.accent, 0.14)
-    } else {
-        card
-    };
+    let (rect, response) = ui.allocate_exact_size(vec2(width, 118.0), Sense::click());
     let painter = ui.painter().clone();
-    painter.rect_filled(rect, 6.0, fill);
-    painter.rect_stroke(rect, 6.0, edge, egui::StrokeKind::Inside);
-    painter.rect_filled(
-        egui::Rect::from_min_size(rect.min, vec2(4.0, rect.height())),
+    let r = 8.0;
+    let fill = if p.dark { p.panel } else { Color32::WHITE };
+    let edge = if selected {
+        p.accent
+    } else if response.hovered() {
+        theme::mix(effect_frame::line_edge(&p), p.accent, 0.5)
+    } else {
+        effect_frame::line_edge(&p)
+    };
+    painter.rect(
+        rect,
+        r,
+        if response.hovered() && !selected {
+            theme::mix(fill, p.hover, 0.4)
+        } else {
+            fill
+        },
+        egui::Stroke::new(if selected { 2.0 } else { 1.0 }, edge),
+        egui::StrokeKind::Inside,
+    );
+    let color = family_color(entry.family);
+    painter.with_clip_rect(rect.shrink(1.0)).rect_filled(
+        Rect::from_min_size(rect.min, vec2(rect.width(), 3.0)),
         egui::CornerRadius {
-            nw: 6,
-            sw: 6,
-            ne: 0,
+            nw: r as u8,
+            ne: r as u8,
+            sw: 0,
             se: 0,
         },
-        family_color(entry.family),
+        color,
     );
-    painter.text(
-        rect.min + vec2(14.0, 8.0),
-        egui::Align2::LEFT_TOP,
-        &entry.name,
-        theme::strong(13.0),
-        p.text,
+    let inner = rect.shrink2(vec2(12.0, 0.0));
+    // The format, at the right of the name.
+    let (badge, strada) = if entry.family == CHAINS {
+        (tr("chain").to_uppercase(), true)
+    } else if entry.format == AUDIOSTRADA {
+        ("STRADA".to_owned(), true)
+    } else {
+        (entry.format.to_owned(), false)
+    };
+    let galley = painter.layout_no_wrap(badge, theme::strong(9.5), p.weak);
+    let badge_rect = Rect::from_min_size(
+        pos2(inner.right() - galley.size().x - 12.0, rect.top() + 13.0),
+        vec2(galley.size().x + 12.0, galley.size().y + 4.0),
     );
-    painter.text(
-        rect.right_top() + vec2(-10.0, 9.0),
-        egui::Align2::RIGHT_TOP,
-        tr(entry.family),
-        egui::FontId::proportional(9.5),
-        family_color(entry.family),
-    );
-    let mut vendor_clicked = false;
-    let mut detail_left = rect.min + vec2(14.0, 28.0);
-    if entry.plugin {
-        let vendor = painter.layout_no_wrap(
-            entry.vendor.clone(),
-            egui::FontId::proportional(10.5),
-            p.accent,
+    let (badge_fill, badge_ink) = if strada {
+        if p.dark {
+            (
+                theme::mix(effect_frame::field_fill(&p), p.accent, 0.3),
+                theme::mix(p.accent, Color32::WHITE, 0.7),
+            )
+        } else {
+            (theme::mix(Color32::WHITE, p.accent, 0.14), p.accent)
+        }
+    } else {
+        (p.surface, theme::mix(p.text, p.weak, 0.4))
+    };
+    painter.rect_filled(badge_rect, 4.0, badge_fill);
+    painter.galley(badge_rect.center() - galley.size() / 2.0, galley, badge_ink);
+    painter
+        .with_clip_rect(inner.with_max_x(badge_rect.left() - 8.0))
+        .text(
+            pos2(inner.left(), rect.top() + 12.0),
+            Align2::LEFT_TOP,
+            &entry.name,
+            theme::strong(14.0),
+            p.text,
         );
-        let vendor_rect = egui::Rect::from_min_size(detail_left, vendor.size());
-        let link = ui
+    // The vendor.
+    let mut vendor = false;
+    let vendor_text = if entry.family == CHAINS && entry.removable {
+        tr("My chains").to_owned()
+    } else if entry.family == CHAINS {
+        AUDIOSTRADA.to_owned()
+    } else {
+        entry.vendor.clone()
+    };
+    let link = painter.layout_no_wrap(
+        vendor_text,
+        FontId::proportional(10.5),
+        if entry.plugin { p.accent } else { p.weak },
+    );
+    let link_rect = Rect::from_min_size(pos2(inner.left(), rect.top() + 34.0), link.size());
+    if entry.plugin {
+        let hovered = ui
             .interact(
-                vendor_rect.expand(2.0),
+                link_rect.expand(2.0),
                 ui.scope_id().with(("vendor", &entry.key)),
                 Sense::click(),
             )
             .on_hover_text(tr("Show only this vendor's plugins"))
             .on_hover_cursor(egui::CursorIcon::PointingHand);
-        if link.hovered() {
+        if hovered.hovered() {
             painter.line_segment(
-                [vendor_rect.left_bottom(), vendor_rect.right_bottom()],
+                [link_rect.left_bottom(), link_rect.right_bottom()],
                 egui::Stroke::new(1.0, p.accent),
             );
         }
-        vendor_clicked = link.clicked();
-        painter.galley(detail_left, vendor, p.accent);
-        detail_left.x = vendor_rect.right();
+        vendor = hovered.clicked();
     }
-    let galley = painter.layout(
-        entry.detail.clone(),
-        egui::FontId::proportional(10.5),
-        p.weak,
-        rect.right() - 10.0 - detail_left.x,
+    painter.galley(link_rect.min, link, p.weak);
+    // What it does: two lines at most.
+    let detail = if entry.plugin {
+        let version = entry.detail.rsplit(' ').next().unwrap_or_default();
+        if version.is_empty() {
+            tr(entry.family).to_owned()
+        } else {
+            format!("{} · {version}", tr_family(entry.family))
+        }
+    } else {
+        entry.detail.clone()
+    };
+    let mut job = egui::text::LayoutJob::simple(
+        detail,
+        FontId::proportional(11.5),
+        theme::mix(p.text, p.weak, 0.35),
+        inner.width() - 20.0,
     );
-    painter.galley(detail_left, galley, p.weak);
-    (
-        response.on_hover_cursor(egui::CursorIcon::PointingHand),
-        vendor_clicked,
-    )
+    job.wrap.max_rows = 3;
+    let galley = painter.layout_job(job);
+    painter.galley(
+        pos2(inner.left(), rect.top() + 54.0),
+        galley,
+        theme::mix(p.text, p.weak, 0.35),
+    );
+    // The star, shown on a favorite or under the pointer.
+    let favorite = crate::favorites::with(|f| f.effects.contains(&entry.key));
+    let star_rect =
+        Rect::from_center_size(rect.right_bottom() - vec2(17.0, 17.0), vec2(22.0, 22.0));
+    let star = ui
+        .interact(
+            star_rect,
+            ui.scope_id().with(("star", &entry.key)),
+            Sense::click(),
+        )
+        .on_hover_text(if favorite {
+            tr("Remove this effect from the favorites (F)")
+        } else {
+            tr("Add this effect to the favorites (F)")
+        });
+    if favorite || response.hovered() || star.hovered() {
+        let color = if favorite {
+            effect_frame::star_color(&p)
+        } else if star.hovered() {
+            p.text
+        } else {
+            p.weak
+        };
+        effect_frame::paint_glyph(
+            &painter,
+            Rect::from_center_size(star_rect.center(), vec2(13.0, 13.0)),
+            Glyph::Star(favorite),
+            color,
+        );
+    }
+    CardOut {
+        response: response.on_hover_cursor(egui::CursorIcon::PointingHand),
+        vendor,
+        star: star.clicked(),
+    }
 }
-
 /// Right-click menu of a plugin's card: the family to file it under; `Some(None)` goes back
 /// to the guessed one.
 fn family_menu(ui: &mut Ui, entry: &Entry) -> Option<Option<&'static str>> {
@@ -469,7 +1220,9 @@ fn family_menu(ui: &mut Ui, entry: &Entry) -> Option<Option<&'static str>> {
     ui.separator();
     if ui
         .button(tr("Automatic"))
-        .on_hover_text(tr("The family the plugin declares"))
+        .on_hover_text(tr(
+            "The family found from what the plugin declares, its name and a list of known plugins",
+        ))
         .clicked()
     {
         chosen = Some(None);
@@ -498,37 +1251,6 @@ fn choices<'a>(values: impl Iterator<Item = &'a str>) -> Vec<String> {
     out
 }
 
-/// A filter menu: "All" or one of `values`.
-fn filter_combo(
-    ui: &mut Ui,
-    id: &str,
-    label: &str,
-    values: &[String],
-    chosen: &mut Option<String>,
-) {
-    let shown = chosen.as_deref().unwrap_or(tr("All")).to_owned();
-    egui::ComboBox::from_id_salt(id)
-        .selected_text(format!("{label} : {shown}"))
-        .width(170.0)
-        .show_ui(ui, |ui| {
-            if ui.selectable_label(chosen.is_none(), tr("All")).clicked() {
-                *chosen = None;
-            }
-            for value in values {
-                if ui
-                    .selectable_label(chosen.as_ref() == Some(value), value)
-                    .clicked()
-                {
-                    *chosen = Some(value.clone());
-                }
-            }
-        });
-}
-
-fn theme_title(text: &str) -> egui::RichText {
-    egui::RichText::new(text).font(theme::strong(15.0))
-}
-
 pub(crate) fn family_color(family: &str) -> Color32 {
     match family {
         "Dynamics" => Color32::from_rgb(232, 110, 90),
@@ -551,15 +1273,19 @@ fn entries(
     instruments: bool,
 ) -> Vec<Entry> {
     let name_of = |effect: &str| crate::mixer::effect_name(doc, effect);
-    let chains = chains.iter().map(|c| Entry {
-        key: format!("{CHAIN_KEY}{}", c.name),
-        name: c.label(),
-        family: CHAINS,
-        detail: c.summary(name_of),
-        removable: !c.factory,
-        plugin: false,
-        vendor: String::new(),
-        format: "",
+    let chains = chains.iter().map(|c| {
+        let (name, detail) = (c.label(), c.summary(name_of));
+        Entry {
+            key: format!("{CHAIN_KEY}{}", c.name),
+            words: search_words(CHAINS, &[&name, &c.name, &detail]),
+            name,
+            family: CHAINS,
+            detail,
+            removable: !c.factory,
+            plugin: false,
+            vendor: String::new(),
+            format: "",
+        }
     });
     let mut out: Vec<Entry> = audiostrada_dsp::EFFECTS
         .iter()
@@ -573,6 +1299,17 @@ fn entries(
             plugin: false,
             vendor: AUDIOSTRADA.to_owned(),
             format: AUDIOSTRADA,
+            words: search_words(
+                i.category,
+                &[
+                    i.id,
+                    i.name,
+                    tr(i.name),
+                    i.description,
+                    tr(i.description),
+                    AUDIOSTRADA,
+                ],
+            ),
         })
         .collect();
     out.extend(
@@ -588,9 +1325,14 @@ fn entries(
                     plugin_families
                         .get(&key)
                         .and_then(|f| family_key(f))
-                        .unwrap_or_else(|| crate::plugin_categories::guess(&p.tags))
+                        .unwrap_or_else(|| {
+                            crate::plugin_categories::family(&p.vendor, &p.name, &p.tags)
+                        })
                 };
+                let mut texts = vec![p.name.as_str(), p.vendor.as_str(), p.format.name()];
+                texts.extend(p.tags.iter().map(String::as_str));
                 Entry {
+                    words: search_words(family, &texts),
                     name: p.name.clone(),
                     family,
                     detail: format!(" · {} {}", p.format.name(), p.version),
@@ -696,6 +1438,7 @@ mod tests {
             plugin,
             vendor: String::new(),
             format: "",
+            words: String::new(),
         }
     }
 
@@ -714,5 +1457,23 @@ mod tests {
         let other = crate::plugin_categories::OTHER;
         assert_eq!(family_key(other), Some(other));
         assert_eq!(family_key("Bogus"), None);
+    }
+
+    #[test]
+    fn the_search_reads_english_and_ignores_accents() {
+        assert_eq!(fold("Réverbe Égaliseur"), "reverbe egaliseur");
+        let doc = Document::new(AppDirs::default());
+        let mut browser = EffectBrowser {
+            all: entries(&doc, &[], &BTreeMap::new(), false),
+            ..Default::default()
+        };
+        for search in ["reverb", "Réverb", "delay space", "strada"] {
+            browser.filter = search.into();
+            let all = browser.all.clone();
+            assert!(
+                browser.shown(&all).iter().any(|e| e.key == "reverb"),
+                "{search}"
+            );
+        }
     }
 }

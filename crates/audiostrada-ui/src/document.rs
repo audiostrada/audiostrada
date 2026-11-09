@@ -209,6 +209,9 @@ struct Import {
     target: Option<(Option<TrackId>, u64)>,
 }
 
+/// A clip's sound as far as its tempo goes: its file, offset, length and stretch.
+type TempoKey = (PathBuf, u64, u64, u64);
+
 #[derive(Debug)]
 pub struct Document {
     history: History,
@@ -239,6 +242,9 @@ pub struct Document {
     master_selected: bool,
     /// The plugin scan running in the background, for the windows listing plugins.
     plugin_scan: Option<std::sync::Arc<audiostrada_plugins::scan::Progress>>,
+    /// Tempos found in clips, by what they play, and those still being looked for.
+    tempos: HashMap<TempoKey, Option<f64>>,
+    tempo_jobs: HashMap<TempoKey, std::sync::mpsc::Receiver<Option<f64>>>,
     render_queue: Vec<export::QueuedExport>,
     /// Control waiting for a MIDI controller (MIDI learn): target and value range.
     learning: Option<(Channel, AutomationTarget, f32, f32)>,
@@ -350,6 +356,8 @@ impl Document {
             track_selection: Vec::new(),
             master_selected: false,
             plugin_scan: None,
+            tempos: HashMap::new(),
+            tempo_jobs: HashMap::new(),
             render_queue: Vec::new(),
             learning: None,
             controllers: audiostrada_midi::live::LiveMidi::default().reader(),
@@ -1668,22 +1676,60 @@ impl Document {
     }
 
     /// Tempo of the source part a clip plays, before any stretch.
-    pub fn detect_clip_tempo(&self, clip: ClipId) -> Option<f64> {
+    /// The tempo of an audio clip: `None` while it is being looked for in the background (the
+    /// window repaints once found), `Some(None)` when no clear tempo comes out.
+    pub fn clip_tempo(&mut self, clip: ClipId, ctx: &eframe::egui::Context) -> Option<Option<f64>> {
         let project = self.project();
         let c = audiostrada_core::edit::clip(project, clip).filter(|c| !c.is_midi())?;
         let source = project.sources.get(&c.source)?;
-        let data = self.media.original(&self.resolve(&source.path))?;
+        let path = self.resolve(&source.path);
+        let key = (path.clone(), c.offset, c.length, c.stretch.to_bits());
+        if let Some(found) = self.tempos.get(&key) {
+            return Some(*found);
+        }
+        if let Some(job) = self.tempo_jobs.get(&key) {
+            return match job.try_recv() {
+                Ok(found) => {
+                    self.tempo_jobs.remove(&key);
+                    self.tempos.insert(key, found);
+                    Some(found)
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => None,
+                Err(_) => {
+                    self.tempo_jobs.remove(&key);
+                    Some(None)
+                }
+            };
+        }
+        let Some(data) = self.media.original(&path).cloned() else {
+            return Some(None);
+        };
         let ratio = f64::from(data.sample_rate()) / f64::from(project.sample_rate) / c.stretch;
         let frame = |s: u64| ((s as f64 * ratio) as usize).min(data.frames());
         let (a, b) = (frame(c.offset), frame(c.offset + c.length));
-        let mono: Vec<f32> = (a..b)
-            .map(|i| {
-                (0..data.channels())
-                    .map(|ch| data.channel(ch)[i])
-                    .sum::<f32>()
-            })
-            .collect();
-        audiostrada_dsp::tempo::detect_bpm(&mono, data.sample_rate())
+        let (tx, rx) = std::sync::mpsc::channel();
+        let ctx = ctx.clone();
+        let spawned = std::thread::Builder::new()
+            .name("tempo".into())
+            .spawn(move || {
+                let mono: Vec<f32> = (a..b)
+                    .map(|i| {
+                        (0..data.channels())
+                            .map(|ch| data.channel(ch)[i])
+                            .sum::<f32>()
+                    })
+                    .collect();
+                let _ = tx.send(audiostrada_dsp::tempo::detect_bpm(
+                    &mono,
+                    data.sample_rate(),
+                ));
+                ctx.request_repaint();
+            });
+        if spawned.is_err() {
+            return Some(None);
+        }
+        self.tempo_jobs.insert(key, rx);
+        None
     }
 
     /// Changes the metronome; not an undo step.

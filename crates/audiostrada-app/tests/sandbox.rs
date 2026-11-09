@@ -194,6 +194,29 @@ fn the_scan_finds_the_plugin_out_of_process() {
     );
 }
 
+#[test]
+fn a_sandboxed_plugin_hears_its_sidechain_key() {
+    let file = test_plugin_dir().join("test-gain.clap");
+    let found =
+        scan::scan_out_of_process(exe(), Format::Clap, &file, Duration::from_secs(30)).unwrap();
+    let mut instance = SandboxInstance::new(exe(), &found[0]).unwrap();
+    assert!(instance.has_sidechain());
+    let mut processor = instance.activate(48_000, 64).unwrap();
+    let key = (vec![0.25f32; 64], vec![0.25f32; 64]);
+    let (mut l, mut r) = (vec![0.5f32; 64], vec![0.5f32; 64]);
+    processor.process_keyed(&mut l, &mut r, (&key.0, &key.1), &[], &[], &mut |_, _| {});
+    assert!(
+        (l[10] - 0.75).abs() < 1e-6 && (r[10] - 0.75).abs() < 1e-6,
+        "{}",
+        l[10]
+    );
+    let (mut l, mut r) = (vec![0.5f32; 64], vec![0.5f32; 64]);
+    processor.process(&mut l, &mut r, &[], &[], &mut |_, _| {});
+    assert!((l[10] - 0.5).abs() < 1e-6, "{}", l[10]);
+    drop(processor);
+    assert!(instance.try_deactivate());
+}
+
 /// The test plugin's VST2 side, in a folder of its own as a VST2 library of this system.
 fn test_vst2_dir() -> (PathBuf, PathBuf) {
     let dir = test_plugin_dir();

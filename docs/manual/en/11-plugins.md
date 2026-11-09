@@ -22,13 +22,17 @@ From a terminal, `audiostrada plugins` lists the installed plugins, `--rescan` s
 
 Click *+ insert* or an empty slot. The browser lists the built-in effects by family (Dynamics,
 EQ & Filter, Space, Modulation, Color, Stereo, Utility, Amp & Cab, Instrument), then the
-installed plugins in the same families, from what each declares (CLAP features, VST3
-subcategories, VST2 category, LV2 class). Those that declare nothing precise go to **Other**, and **Plugins**
-lists them all.
+installed plugins in the same families. A plugin's family comes from what it declares (CLAP
+features, VST3 subcategories, VST2 category, LV2 class), else from a list of about a thousand
+known plugins (from [PluginDB](https://github.com/blakebratcher/plugindb), which also knows their
+next versions: Pro-Q 4 is filed like Pro-Q 3), else from the words of its name (*EQ*, *Verb*,
+*Comp*…). The others go to **Other**.
 
-- Right-click a plugin's card › *Family* to file it elsewhere (*Automatic* goes back to what it
-  declares).
-- The **Vendor** and **Format** menus beside the search keep one vendor's or one format's
+- Right-click a plugin's card › *Family* to file it elsewhere (*Automatic* goes back to the
+  family found).
+- The search reads the names, the families and what they hold, in English and in your language,
+  without minding accents: *reverb* finds Strada-Verb.
+- The format buttons and the **Vendor** menu at the top keep one format's or one vendor's
   effects; clicking the vendor on a card does the same.
 
 ## Safety
@@ -45,8 +49,14 @@ effects stay, and plugin inserts keep their settings.
 
 A plugin opens its own window when it is added and when its insert is clicked (clicked again,
 the window comes to the front). Right-click › *Presets, levels and parameters…* opens
-AudioStrada's window for it: presets, A/B, levels, Match, and every parameter. A plugin without
-a window AudioStrada can show opens AudioStrada's window instead.
+AudioStrada's window for it: presets, A/B and Bypass at the top as for the built-in effects,
+levels and Match at the bottom, and every parameter; *Interface* opens or closes the plugin's
+own window. A plugin without a window AudioStrada can show opens AudioStrada's window instead.
+
+A plugin with a **sidechain** input, as many compressors and gates, can be keyed by another
+track, like the built-in compressor: choose the track in the bottom bar of AudioStrada's window,
+or right-click the insert › *Sidechain*. This works with CLAP and VST3 plugins. A plugin with a
+mono input hears both sides of a stereo track, mixed.
 
 Plugin windows follow the selected track; pin one to keep it on its track. They stay above
 AudioStrada while you use it, on Windows and X11. Under Wayland, AudioStrada runs in X11 mode for

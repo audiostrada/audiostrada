@@ -7,9 +7,16 @@ de chaque réglage.
 
 ## Presets et chaînes
 
-- **Presets** : les flèches en haut de la fenêtre d'un effet parcourent les presets, le menu les
-  range par catégorie, *Enregistrer…* garde les vôtres. **A** / **B** retiennent deux réglages à
-  comparer, *A → B* copie l'un sur l'autre.
+- **Presets** : la barre en haut de la fenêtre d'un effet montre le preset chargé, avec un point
+  quand ses réglages ont changé depuis. Les flèches à côté, ou [[Left]] et [[Right]], parcourent
+  les presets. Cliquez sur son nom pour le panneau des presets : une recherche, les catégories,
+  vos favoris, les presets d'usine et les vôtres à part. Le parcourir à la souris ou avec [[Up]]
+  et [[Down]] fait entendre chaque preset ; [[Enter]] le garde, [[Escape]] revient au réglage
+  d'avant. Clic droit sur l'un des vôtres pour le renommer ou le supprimer. L'étoile ajoute le
+  preset à vos favoris, la disquette enregistre les réglages (tapez *Catégorie : nom* pour le
+  ranger). **A** / **B** retiennent deux réglages à comparer, le bouton à côté copie l'un sur
+  l'autre.
+- **Bypass**, à droite de la barre, s'allume en ambre tant que l'effet est bypassé.
 - **À la manière de** : Strada-Verb, Delay, Chorus, Flanger, Phaser, Amp et Correct ont des
   presets d'après des sons célèbres (Tame Impala, Bowie et Visconti, Dick Dale, The Edge, Cher,
   T-Pain…), un point de départ pour faire le vôtre.

@@ -161,6 +161,10 @@ pub trait PluginInstance: std::fmt::Debug {
     fn gui_open(&self) -> bool;
     /// Brings the plugin's open window to the front.
     fn raise_gui(&mut self) {}
+    /// The plugin has a sidechain input, which a track can key.
+    fn has_sidechain(&mut self) -> bool {
+        false
+    }
 }
 
 /// Audio side of a plugin instance; runs on audio threads, must not allocate or lock.
@@ -209,6 +213,20 @@ pub trait PluginProcessor: Send + std::fmt::Debug {
         midi: &[MidiEvent],
         params_out: &mut dyn FnMut(u32, f64),
     );
+    /// Like [`process`](Self::process), with `key` in the plugin's sidechain input (see
+    /// [`PluginInstance::has_sidechain`]).
+    fn process_keyed(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        key: (&[f32], &[f32]),
+        params_in: &[(u32, f64)],
+        midi: &[MidiEvent],
+        params_out: &mut dyn FnMut(u32, f64),
+    ) {
+        let _ = key;
+        self.process(left, right, params_in, midi, params_out);
+    }
     /// Clears tails after a transport jump.
     fn reset(&mut self);
     /// Offline rendering: the plugin may take longer than real time.
@@ -216,10 +234,40 @@ pub trait PluginProcessor: Send + std::fmt::Debug {
 }
 
 /// Copies the first `n` frames of a stereo block to a plugin's inputs: left to the first
-/// channel, right to the others.
+/// channel, right to the others; a mono input gets both, mixed.
 pub(crate) fn fill_inputs(inputs: &mut [Vec<f32>], left: &[f32], right: &[f32], n: usize) {
+    if let [mono] = inputs {
+        for ((m, l), r) in mono[..n].iter_mut().zip(&left[..n]).zip(&right[..n]) {
+            *m = 0.5 * (l + r);
+        }
+        return;
+    }
     for (ch, buffer) in inputs.iter_mut().enumerate() {
         buffer[..n].copy_from_slice(if ch == 0 { &left[..n] } else { &right[..n] });
+    }
+}
+
+/// Fills a plugin's sidechain input with the key, or with silence once there is none
+/// (`keyed` tells whether it holds a key from the last block).
+pub(crate) fn fill_key(
+    inputs: &mut [Vec<f32>],
+    key: Option<(&[f32], &[f32])>,
+    keyed: &mut bool,
+    n: usize,
+) {
+    match key {
+        Some((l, r)) => {
+            let n = n.min(l.len()).min(r.len());
+            fill_inputs(inputs, l, r, n);
+            *keyed = true;
+        }
+        None if *keyed => {
+            for buffer in inputs.iter_mut() {
+                buffer.fill(0.0);
+            }
+            *keyed = false;
+        }
+        None => {}
     }
 }
 
@@ -426,6 +474,16 @@ mod tests {
         fill_inputs(&mut inputs, &left, &right, 3);
         assert_eq!(inputs[0], [1.0, 1.0, 1.0, 0.0]);
         assert_eq!(inputs[2], [2.0, 2.0, 2.0, 0.0]);
+        // A mono input hears both sides.
+        let mut mono = vec![vec![0.0f32; 4]];
+        fill_inputs(&mut mono, &left, &right, 4);
+        assert_eq!(mono[0], [1.5; 4]);
+        // A key, then silence once it is gone.
+        let (mut key, mut keyed) = (vec![vec![0.0f32; 4]; 2], false);
+        fill_key(&mut key, Some((&left, &right)), &mut keyed, 4);
+        assert!(keyed && key[1] == [2.0; 4]);
+        fill_key(&mut key, None, &mut keyed, 4);
+        assert!(!keyed && key[0] == [0.0; 4] && key[1] == [0.0; 4]);
         take_outputs(&[vec![5.0; 4]], &mut left, &mut right, 2);
         assert_eq!((left[..3].to_vec(), right[1]), (vec![5.0, 5.0, 1.0], 5.0));
         take_outputs(

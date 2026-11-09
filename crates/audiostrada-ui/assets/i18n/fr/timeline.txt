@@ -52,7 +52,7 @@ Mute
 Muet
 
 Send → {name}
-Envoi → {name}
+Send → {name}
 
 Frozen
 Gelée
@@ -850,3 +850,6 @@ Masquer la piste master
 
 Show the master track
 Afficher la piste master
+
+Detecting the tempo…
+Détection du tempo…

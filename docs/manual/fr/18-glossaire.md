@@ -12,7 +12,6 @@
 | **Consolider** | rendre plusieurs clips en un seul fichier |
 | **Crête réelle** | le plus haut niveau du signal entre les échantillons, une fois converti en analogique |
 | **dBFS** | décibels sous le maximum numérique : 0 dBFS est le plus fort possible pour un échantillon |
-| **Départ** | une copie du signal d'une piste envoyée vers une autre, avant ou après son fader |
 | **Dither** | un bruit très faible qui garde propres les passages calmes en passant à 16 bits |
 | **Fondu enchaîné** | un fondu de sortie et un fondu d'entrée sur le chevauchement de deux clips |
 | **Geler** | rendre une piste pour économiser du calcul, de façon réversible |
@@ -26,6 +25,7 @@
 | **Playlist** | une autre version des clips d'une piste, comme chaque prise d'un enregistrement en boucle |
 | **Punch** | enregistrer seulement entre deux points |
 | **Réglage des gains** | régler le niveau de chaque étage pour que les effets et les consoles travaillent là où ils sonnent le mieux |
+| **Send** | une copie du signal d'une piste envoyée vers une autre (un bus de réverbération), avant ou après son fader |
 | **Sidechain** | un effet commandé par le signal d'une autre piste (un compresseur qui baisse la basse sous la grosse caisse) |
 | **Stem** | l'export d'une piste ou d'un groupe seul |
 | **Transitoire** | l'attaque d'un son, comme un coup de batterie |

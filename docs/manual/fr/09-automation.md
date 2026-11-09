@@ -1,12 +1,12 @@
 # Automation
 
 L'automation fait bouger une commande dans le temps : une montée de volume, un balayage de
-filtre, un départ qui s'ouvre sur le refrain.
+filtre, un send qui s'ouvre sur le refrain.
 
 ## Pistes d'automation
 
 Affichez les pistes d'automation avec le bouton **A** de l'en-tête et ajoutez-en avec **+** :
-volume, panoramique, muet, départs, et chaque paramètre de ses effets. Un VCA a une piste de
+volume, panoramique, muet, sends, et chaque paramètre de ses effets. Un VCA a une piste de
 volume, qui bouge toutes les pistes qu'il contrôle.
 
 - Cliquez sur une piste d'automation pour ajouter un point, glissez les points pour les déplacer,

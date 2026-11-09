@@ -453,8 +453,7 @@ impl TimelineView {
     }
 
     pub(super) fn clip_menu(&mut self, ui: &mut Ui, doc: &mut Document, clip: ClipId, at: u64) {
-        let project = doc.project().clone();
-        let Some(c) = edit::clip(&project, clip).cloned() else {
+        let Some(c) = edit::clip(doc.project(), clip).cloned() else {
             ui.close();
             return;
         };
@@ -618,8 +617,14 @@ impl TimelineView {
                 }
                 ui.separator();
                 let bpm = doc.project().tempo.bpm_at_beat(0.0);
-                match doc.detect_clip_tempo(clip) {
-                    Some(found) => {
+                match doc.clip_tempo(clip, ui.ctx()) {
+                    None => {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.weak(tr("Detecting the tempo…"));
+                        });
+                    }
+                    Some(Some(found)) => {
                         if ui
                             .button(trf!(
                                 "Match project tempo ({found} → {bpm} BPM)",
@@ -643,7 +648,7 @@ impl TimelineView {
                             ui.close();
                         }
                     }
-                    None => {
+                    Some(None) => {
                         ui.weak(tr("No clear tempo detected"));
                     }
                 }
@@ -684,12 +689,12 @@ impl TimelineView {
         if ui.button(tr("Loop these clips")).clicked() {
             let start = ids
                 .iter()
-                .filter_map(|id| edit::clip(&project, *id))
+                .filter_map(|id| edit::clip(doc.project(), *id))
                 .map(|m| m.start)
                 .min();
             let end = ids
                 .iter()
-                .filter_map(|id| edit::clip(&project, *id))
+                .filter_map(|id| edit::clip(doc.project(), *id))
                 .map(|m| m.end())
                 .max();
             if let (Some(start), Some(end)) = (start, end) {

@@ -44,7 +44,7 @@ fort). Le clic le sélectionne aussi, et l'**onglet du pad** en dessous montre s
 - **Caractère** : 808, 909 ou acoustique, ou *Charger…* un échantillon à vous.
 - **Son** : niveau, panoramique, accord. **Enveloppe** : attaque, décroissance. **Hauteur** :
   quantité et durée de la chute de hauteur. **Filtre** : timbre, coupe-bas, coupe-haut.
-  **Départs** : vers le delay et la réverbération du kit.
+  **Sends** : vers le delay et la réverbération du kit.
 
 Le charleston fermé coupe l'ouvert. Les presets contiennent des kits entiers par style (hip-hop,
 trap, drill, house, électro, latino, afro, lo-fi, drum and bass…).

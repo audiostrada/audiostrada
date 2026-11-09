@@ -1,0 +1,942 @@
+# Plugin families from PluginDB (https://github.com/blakebratcher/plugindb), commit f0486bf9d192,
+# data under CC0 1.0. Made by scripts/update-plugindb.py: do not edit by hand,
+# corrections go in plugin_families_extra.tsv.
+# vendor<TAB>family<TAB>name|alias|...
+Accusonus	Dynamics	Beatformer|Accusonus Beatformer
+Accusonus	Dynamics	ERA De-Esser|Accusonus ERA De-Esser|ERA_DeEsser
+Accusonus	Utility	ERA Plosive Remover|ERA_PlosiveRemover|Accusonus ERA Plosive Remover
+Accusonus	Dynamics	ERA Voice Leveler|ERA_VoiceLeveler|Accusonus ERA Voice Leveler
+Acme Audio (Plugin Alliance)	Dynamics	Acme Opticom XLA-3
+Acme Audio (Plugin Alliance)	Dynamics	Arousor|ACME Arousor
+Acon Digital	EQ & Filter	Equalize 2|Acon Equalize
+Acon Digital	Modulation	Multiply|Acon Multiply|Acon Digital Multiply
+Acustica Audio	Space	1989Verb|1989 Verb
+Acustica Audio	Dynamics	Alchemist|AlchemistV3|Alchemist V3
+Acustica Audio	Dynamics	Big Goat|BigGoat
+Acustica Audio	Dynamics	ContemporaryColor|Contemporary Color
+Acustica Audio	Dynamics	DRP2A MK2|DRP2amk2
+Acustica Audio	Space	Echo Cat|EchoCat
+Acustica Audio	Dynamics	Edelweiss72|Edelweiss 72
+Acustica Audio	EQ & Filter	Ivory 3|Acustica Audio Ivory 3
+Acustica Audio	Dynamics	Kristall|Acustica Kristall
+Acustica Audio	EQ & Filter	Sand 3|Acustica Audio Sand 3
+Aegean Music	Modulation	Pitchproof|Aegean Music Pitchproof|pitchproof-
+Airwindows	Color	Acceleration2|Airwindows Acceleration2
+Airwindows	EQ & Filter	BiquadTriple|Airwindows BiquadTriple
+Airwindows	Color	Channel9|Airwindows Channel9
+Airwindows	Modulation	ChorusEnsemble|Airwindows ChorusEnsemble
+Airwindows	Color	ClayTubes|Airwindows ClayTubes
+Airwindows	Color	Console7|Airwindows Console7
+Airwindows	Color	Density|Airwindows Density|Density Airwindows
+Airwindows	Color	DeRez2|Airwindows DeRez
+Airwindows	Color	Desk4|Airwindows Desk4
+Airwindows	Dynamics	Dyno|Airwindows Dyno
+Airwindows	Space	Galactic|Airwindows Galactic
+Airwindows	Color	IronOxide5|Airwindows IronOxide|Iron Oxide 5
+Airwindows	Color	Loud|Airwindows Loud
+Airwindows	EQ & Filter	MackEQ|Airwindows MackEQ
+Airwindows	Utility	Monitoring|Airwindows Monitoring
+Airwindows	Color	NC-17|Airwindows NC17
+Airwindows	Dynamics	Pop|Airwindows Pop
+Airwindows	Dynamics	Pressure4|Airwindows Pressure
+Airwindows	EQ & Filter	PurestAir|Airwindows PurestAir
+Airwindows	Color	PurestDrive|Airwindows PurestDrive
+Airwindows	Dynamics	Righteous4|Airwindows Righteous4
+Airwindows	Color	ToTape6|Airwindows ToTape6
+Airwindows	Space	Verbity|Airwindows Verbity
+Alex Hilton (A1Audio)	Utility	A1StereoControl|A1 Stereo Control|Alex Hilton A1StereoControl
+Alex Hilton (A1Audio)	Dynamics	A1TriggerGate|A1 Trigger Gate|Alex Hilton A1TriggerGate
+Analog Obsession	Color	ABP2|Analog Obsession ABP2
+Analog Obsession	Color	ABPL2|Analog Obsession ABPL2
+Analog Obsession	Dynamics	AMETHYST|AMETHYST3|AMETHYST3COMP|AMETHYST3COMPZL|AMETHYST3EQ|AMETHYST3EQZL|AMETHYST3PRE|AMETHYST3PREZL|AMETHYST3ZL
+Analog Obsession	Color	AnalogMatrix|Analog Obsession AnalogMatrix
+Analog Obsession	Utility	AnSpec|Analog Obsession AnSpec
+Analog Obsession	EQ & Filter	ARCTIC|ARCTICFLAT|ARCTICFLATZL|ARCTICZL
+Analog Obsession	EQ & Filter	BalanceAnalogMagphaEq
+Analog Obsession	EQ & Filter	BritChannel|Analog Obsession BritChannel
+Analog Obsession	EQ & Filter	BRITE|Analog Obsession BRITE
+Analog Obsession	Dynamics	BRITPRESSOR
+Analog Obsession	Color	BRUTUS
+Analog Obsession	Dynamics	BSPro|Analog Obsession BSPro
+Analog Obsession	Dynamics	BUSSCOMP|Analog Obsession BUSSCOMP
+Analog Obsession	Dynamics	BUSTERse|Analog Obsession BUSTERse|BUSTER
+Analog Obsession	EQ & Filter	BXQ|Analog Obsession BXQ
+Analog Obsession	Dynamics	CEIL|CEILZL
+Analog Obsession	Space	CELESTIAL|CELESTIALMB|CELESTIALMBZL|CELESTIALME|CELESTIALMEZL|CELESTIALMX|CELESTIALMXZL
+Analog Obsession	Dynamics	CERISE|CERISEZL
+Analog Obsession	EQ & Filter	CHANnev|Analog Obsession CHANnev
+Analog Obsession	EQ & Filter	CHIME|Analog Obsession CHIME
+Analog Obsession	Dynamics	CL1|cl1|Analog Obsession CL1
+Analog Obsession	Dynamics	CLMS1|clms1|Analog Obsession CLMS1
+Analog Obsession	Dynamics	CLMS1XL|clms1xl|Analog Obsession CLMS1XL
+Analog Obsession	Modulation	Clonemeld|Analog Obsession Clonemeld
+Analog Obsession	Color	COFFEEPUN|COFFEEPUNZL
+Analog Obsession	Dynamics	COMBOX
+Analog Obsession	Space	DEELAY|Analog Obsession DEELAY
+Analog Obsession	Space	DELAYTOY|Analog Obsession DELAYTOY
+Analog Obsession	Dynamics	DIAMOND|DIAMONDDYN-F|DIAMONDDYN-FT|DIAMONDDYN-FTZL|DIAMONDDYN-FZL|DIAMONDLP-3X|DIAMONDLP-3XT|DIAMONDLP-3XTZL|DIAMONDLP-3XZL
+Analog Obsession	Color	disto-X|Analog Obsession disto-X|distoX
+Analog Obsession	Dynamics	DONTASTE|Analog Obsession DONTASTE
+Analog Obsession	Color	DRIVEEX|Analog Obsession DRIVEEX
+Analog Obsession	EQ & Filter	EAQ|Analog Obsession EAQ
+Analog Obsession	Dynamics	EL REY|EL REYZL
+Analog Obsession	Dynamics	Enforcer|Analog Obsession Enforcer
+Analog Obsession	EQ & Filter	EQ45|Analog Obsession EQ45
+Analog Obsession	EQ & Filter	EQ65|Analog Obsession EQ65
+Analog Obsession	Dynamics	FETchA|Analog Obsession FETchA
+Analog Obsession	Dynamics	FETISH|Analog Obsession FETISH
+Analog Obsession	EQ & Filter	FILTEQ|Analog Obsession FILTEQ
+Analog Obsession	Dynamics	FIRETHECLIP|FIRETHECLIPT|FIRETHECLIPTZL|FIRETHECLIPZL
+Analog Obsession	Dynamics	FIRETHEPUMP|FIRETHEPUMPZL
+Analog Obsession	EQ & Filter	FIVER
+Analog Obsession	Modulation	FLAMEY|Analog Obsession FLAMEY
+Analog Obsession	EQ & Filter	FROST|FROSTZL
+Analog Obsession	Color	GAINSTATION|GAINSTATIONT|GAINSTATIONTZL
+Analog Obsession	Space	HALO|HALO FX
+Analog Obsession	EQ & Filter	HLQ|Analog Obsession HLQ
+Analog Obsession	Dynamics	HOLYCOMP
+Analog Obsession	Amp & Cab	KABIN|Analog Obsession KABIN
+Analog Obsession	Color	KONSOL|Analog Obsession KONSOL
+Analog Obsession	Dynamics	LALA|Analog Obsession LALA|LALA Compressor
+Analog Obsession	EQ & Filter	LCF|Analog Obsession LCF
+Analog Obsession	Dynamics	LIFT|LIFT2|LIFT2-MAST|LIFT2-MASTT|LIFT2-MASTTZL|LIFT2-MASTZL|LIFT2T|LIFT2TZL|LIFT2ZL|LIFT3|LIFT3-MAST|LIFT3-MASTZL|LIFT3ZL
+Analog Obsession	EQ & Filter	LOADED|Analog Obsession LOADED
+Analog Obsession	Dynamics	LowLeveler|Analog Obsession LowLeveler|LowLeveler (x64)
+Analog Obsession	Color	LUXE
+Analog Obsession	Dynamics	MAGC|Analog Obsession MAGC
+Analog Obsession	Color	MAmp|Analog Obsession MAmp
+Analog Obsession	Dynamics	ManicCompressor|Analog Obsession ManicCompressor
+Analog Obsession	EQ & Filter	MESSKontansen|Analog Obsession MESSKontansen
+Analog Obsession	Color	MISHBY
+Analog Obsession	Space	MNDALA
+Analog Obsession	Dynamics	N4 SURREY|N4|N4SURREY-AMPT|N4SURREY-AMPTZL|N4SURREY-CABT|N4SURREY-CABTZL|N4SURREY-LET|N4SURREY-LETZL|N4SURREY-SPACET|N4SURREY-SPACETZL|N4SURREYT|N4SURREYTZL
+Analog Obsession	Color	NightShine|Analog Obsession NightShine
+Analog Obsession	EQ & Filter	Nineteen 91|Analog Obsession Nineteen 91|Nineteen91
+Analog Obsession	EQ & Filter	NVQ|Analog Obsession NVQ
+Analog Obsession	EQ & Filter	NVTQ|Analog Obsession NVTQ
+Analog Obsession	EQ & Filter	OAQ|Analog Obsession OAQ
+Analog Obsession	Modulation	Octavlord|Analog Obsession Octavlord
+Analog Obsession	Dynamics	OPTO-LA|Analog Obsession OPTO-LA
+Analog Obsession	Color	OSS|Analog Obsession OSS
+Analog Obsession	Dynamics	Peakbuster|Analog Obsession Peakbuster
+Analog Obsession	EQ & Filter	PEQ|Analog Obsession PEQ
+Analog Obsession	EQ & Filter	PiandPhiMKII|Analog Obsession PiandPhiMKII
+Analog Obsession	EQ & Filter	PREDD|Analog Obsession PREDD
+Analog Obsession	Dynamics	PREMAX|Analog Obsession PREMAX
+Analog Obsession	Dynamics	PristinePeaks|Analog Obsession PristinePeaks
+Analog Obsession	EQ & Filter	PUREQ|Analog Obsession PUREQ
+Analog Obsession	Dynamics	RARE|Analog Obsession RARE
+Analog Obsession	Dynamics	Re-Function|Analog Obsession Re-Function|ReFunction
+Analog Obsession	Color	REDDI
+Analog Obsession	Color	REKT
+Analog Obsession	Dynamics	RescueMK2|Analog Obsession RescueMK2
+Analog Obsession	Dynamics	RHENIUM|Analog Obsession RHENIUM
+Analog Obsession	Dynamics	RIBBE|Analog Obsession RIBBE
+Analog Obsession	Space	ROOM041|Analog Obsession ROOM041
+Analog Obsession	Dynamics	RoyalCompressor|Analog Obsession RoyalCompressor
+Analog Obsession	Dynamics	Rubber Band Compressor|RubberBandCompressor
+Analog Obsession	Dynamics	SCCore|Analog Obsession SCCore
+Analog Obsession	EQ & Filter	SEQ|Analog Obsession SEQ
+Analog Obsession	Dynamics	SideMinderME|Analog Obsession SideMinderME
+Analog Obsession	EQ & Filter	SILIKA
+Analog Obsession	Dynamics	Soft Limit|SoftLimit|Analog Obsession Soft Limit
+Analog Obsession	Dynamics	SPECOMP|Analog Obsession SPECOMP
+Analog Obsession	EQ & Filter	SSQ|Analog Obsession SSQ
+Analog Obsession	Color	Stereo Imager D|Stereo_Imager_D
+Analog Obsession	Color	TAN|TANZL
+Analog Obsession	Dynamics	TAUPE|TAUPECOMP|TAUPECOMPT|TAUPECOMPTZL|TAUPECOMPZL|TAUPEEQ|TAUPEEQT|TAUPEEQTZL|TAUPEEQZL|TAUPET|TAUPETAPE|TAUPETAPET|TAUPETAPETZL|TAUPETAPEZL|TAUPETZL|TAUPEZL
+Analog Obsession	EQ & Filter	TEQ|Analog Obsession TEQ
+Analog Obsession	EQ & Filter	TREQ|Analog Obsession TREQ
+Analog Obsession	Dynamics	TUBA|Analog Obsession TUBA|TUBA Compressor
+Analog Obsession	Color	TuBa MK2|Analog Obsession TuBa MK2
+Analog Obsession	Color	TuBa MK3|Analog Obsession TuBa MK3
+Analog Obsession	Color	TuBe|Analog Obsession TuBe|Tube64
+Analog Obsession	Dynamics	TUBELM
+Analog Obsession	Color	VariSaturator|Analog Obsession VariSaturator
+Analog Obsession	EQ & Filter	VIOLET|VIOLETZL
+Antares	Modulation	Auto-Tune Access|Antares Auto-Tune Access
+Antares	Modulation	Auto-Tune EFX+|Antares EFX+|Auto-Tune EFX
+Antares	Modulation	Auto-Tune Pro|Antares Auto-Tune Pro|Auto-Tune
+Antares	Modulation	Harmony Engine|Antares Harmony Engine
+Antares	Modulation	THROAT|Antares THROAT
+AOM	Dynamics	Invisible Limiter|AOM Invisible Limiter|Invisible_Limiter
+AOM	Dynamics	Invisible Limiter G2|AOM Invisible Limiter G2|Invisible_Limiter_G2
+Apulsoft	EQ & Filter	apQualizr 2|apQualizr2
+Apulsoft	EQ & Filter	tranQuilizr|Apulsoft tranQuilizr
+ArtsAcoustic	Space	ArtsAcoustic Reverb|ArtsAcousticReverb
+Arturia	Dynamics	Bus FORCE|Arturia Bus FORCE
+Arturia	Modulation	Chorus DIMENSION-D|Arturia Chorus DIMENSION-D
+Arturia	Modulation	Chorus JUN-6|Arturia Chorus JUN-6
+Arturia	Dynamics	Comp FET-76|Arturia Comp FET-76|FET-76|CompFET76|Comp_FET-76|Arturia_Comp_FET-76
+Arturia	Dynamics	Comp VCA-65|Arturia Comp VCA-65
+Arturia	Space	Delay BRIGADE|Arturia Delay BRIGADE
+Arturia	Space	Delay ETERNITY|Arturia Delay ETERNITY
+Arturia	Color	Dist COLDFIRE|Arturia Dist COLDFIRE
+Arturia	Color	Dist TUBE-CULTURE|Arturia Dist TUBE-CULTURE
+Arturia	Space	Efx AMBIENT|Arturia Efx AMBIENT
+Arturia	Modulation	Flanger BL-20|Arturia Flanger BL-20
+Arturia	Modulation	Phaser BI-TRON|Arturia Phaser BI-TRON
+Arturia	Modulation	Pitch SHIFTER-910|Arturia Pitch SHIFTER-910
+Arturia	Space	Plate|Arturia Plate
+Arturia	Color	Pre 1973|Arturia Pre 1973
+Arturia	Color	Pre TridA|Arturia Pre TridA
+Arturia	Space	Rev INTENSITY|Arturia Rev INTENSITY
+Arturia	Space	Rev PLATE-140|Arturia Rev PLATE-140|PLATE-140|RevPLATE140|Rev_PLATE-140|Arturia_Rev_PLATE-140
+Arturia	Space	Rev SPRING-636|Arturia Rev SPRING-636
+Arturia	Modulation	Rotary CLS-222|Arturia Rotary CLS-222
+Arturia	Space	Verv|Arturia Verv
+Arturia	Modulation	Vocoder V|Arturia Vocoder V
+Auburn Sounds	Utility	Panagement|Auburn Sounds Panagement
+Audiaire	EQ & Filter	Nuance|Audiaire Nuance
+Audiified	Amp & Cab	GrindMachine|Audiified GrindMachine
+Audio Assault	Color	Defacer|Audio Assault Defacer
+Audio Assault	Color	Dumpster Fire|DumpsterFire
+Audio Assault	Color	MultiDrive Pedal Pro|MultiDrivePedalPro
+Audio Damage	Space	Canary|Audio Damage Canary
+Audio Damage	Space	DubStation 2|Audio Damage DubStation
+Audio Damage	Modulation	Fathoms|Audio Damage Fathoms
+Audio Damage	Space	Ratshack Reverb|Audio Damage Ratshack Reverb
+Audio Damage	Dynamics	Rough Rider 3|Audio Damage Rough Rider 3
+Audio Damage	Space	Washout|Audio Damage Washout
+Audio Ease	Space	Altiverb 7|Audio Ease Altiverb
+Audio Ease	Space	Crowd Chamber|CrowdChamber
+Audiofile Engineering	Utility	afMonitor|AF Monitor|afMonitor (x64)
+AudioGridder	Utility	AudioGridder|AudioGridderInst|AudioGridderMidi
+Audiority	Color	Aroma|Audiority Aroma
+Audiority	Space	Bucket-500|Bucket500
+Audiority	Space	Drip|Audiority Drip
+Audiority	Space	Echoes|Audiority Echoes
+Audiority	Space	GrainSpace|Audiority GrainSpace
+Audiority	Dynamics	Limited-Z|LVC Audio Limited-Z|Audiority Limited-Z
+Audiority	EQ & Filter	Mango|Audiority Mango
+Audiority	Space	Mimik|Audiority Mimik
+Audiority	Modulation	OVC-128|OVC128
+Audiority	Modulation	Polaris|Audiority Polaris|Polaris Reverb
+Audiority	Color	RX950|Audiority RX950
+Audiority	Space	Space Station UM282|Audiority Space Station
+Audiority	Modulation	TCS-68|TCS68
+Audiority	Color	The Abuser|Audiority The Abuser
+Audiority	Modulation	Tube Modulator|Audiority Tube Modulator
+Audiority	Color	TubeStage Peach|tb_peach_1_2
+Audiority	Space	TubeStage Tapeworm|tb_tapeworm_2_1
+Audiority	Color	TubeStage Toad|tb_toad_1_2
+AudioThing	Space	Echo Cube|AudioThing Echo Cube
+AudioThing	EQ & Filter	FilterJam|AudioThing FilterJam
+AudioThing	Space	Fog Convolver|AudioThing Fog Convolver
+AudioThing	Space	Outer Space|AudioThing Outer Space
+AudioThing	Modulation	Things - Fleet|Things Fleet|AudioThing Things Fleet
+AudioThing	EQ & Filter	Toned|AudioThing Toned
+AuraPlug	Color	FiDef Plugin|FiDefPlugin
+Baby Audio	Color	Blyss|Baby Audio Blyss
+Baby Audio	Space	Comeback Kid|Baby Audio Comeback Kid|Comeback_Kid|ComebackKid|Baby_Audio_Comeback_Kid
+Baby Audio	Space	Crystalline|Baby Audio Crystalline|Baby_Audio_Crystalline|Crystalline_x64
+Baby Audio	Dynamics	IHNY-2|Baby Audio IHNY-2|I Heart NY|IHNY2|IHNY_2|Baby_Audio_IHNY-2|IHeartNY
+Baby Audio	Dynamics	Parallel Aggressor|Baby Audio Parallel Aggressor|Parallel_Aggressor|ParallelAggressor|Baby_Audio_Parallel_Aggressor
+Baby Audio	EQ & Filter	Smooth Operator|Baby Audio Smooth Operator|Smooth_Operator|SmoothOperator|Baby_Audio_Smooth_Operator
+Baby Audio	Space	Spaced Out|Baby Audio Spaced Out|Spaced_Out|SpacedOut|Baby_Audio_Spaced_Out
+Baby Audio	Color	Super VHS|Baby Audio Super VHS|Super_VHS|SuperVHS|Baby_Audio_Super_VHS
+Bertom Audio	Utility	Bertom EQ Curve Analyzer|EQ Curve Analyzer|Bertom EQ Analyzer
+Bettermaker	Dynamics	Bettermaker Bus Compressor DSP|Bettermaker Bus Compressor|Bettermaker_Bus_Compressor|BettermakerBusCompressor
+Bettermaker	EQ & Filter	Bettermaker EQ232D
+Black Box Analog Design (Plugin Alliance)	Color	Black Box Analog Design HG-2
+Black Rooster Audio	Color	Magnetite|Black Rooster Magnetite
+Black Rooster Audio	Dynamics	RO-GOLD|Black Rooster RO-GOLD
+Black Rooster Audio	Color	VPreamp-73|Black Rooster VPreamp 73|VPRE-73|VPRE-376|VPROM|VLA-2A|VLA-3A|VCL-25A|VCL-373|VCL-4|VHL-3C|VEQ-1P|VEQ-5
+Blue Cat Audio	Amp & Cab	Axiom|Blue Cat Axiom|Blue Cat Audio Axiom
+Blue Cat Audio	Utility	Blue Cat Free Pack|Blue Cat Audio Freeware Pack|Blue Cat FreqAnalyst
+Blue Cat Audio	Utility	Blue Cat Gain Suite|Blue Cat Audio Blue Cat Gain Suite
+Blue Cat Audio	Utility	Blue Cat's Connector|Blue Cat Connector|Connector
+Blue Cat Audio	Amp & Cab	Blue Cat's Free Amp|Blue Cat Free Amp|Free Amp
+Blue Cat Audio	Utility	Blue Cat's Gain Suite|Blue Cat Gain Suite 3
+Blue Cat Audio	Space	Blue Cat's Late Replies|Blue Cat Late Replies|Late Replies
+Blue Cat Audio	Dynamics	Blue Cat's MB-7 Mixer|Blue Cat MB-7 Mixer|MB-7 Mixer
+Blue Cat Audio	Utility	Blue Cat's Oscilloscope Multi|Blue Cat Oscilloscope Multi|Oscilloscope Multi
+Blue Cat Audio	Utility	Blue Cat's PatchWork|Blue Cat PatchWork|PatchWork
+Blue Cat Audio	Color	Destructor|Blue Cat Destructor|Blue Cat Audio Destructor
+Blue Cat Audio	Dynamics	Dynamics|Blue Cat Dynamics|Blue Cat Audio Dynamics
+Blue Cat Audio	Utility	Freeware Pack|Blue Cat Freeware Pack
+Blue Cat Audio	Amp & Cab	Re-Guitar|Blue Cat Re-Guitar
+Boz Digital Labs	Utility	Panipulator|Boz Panipulator|Boz Digital Labs Panipulator
+Boz Digital Labs	Dynamics	Sasquatch 2|Sasquatch2
+Brainworx	Amp & Cab	Ampeg SVT Suite|SVT Suite (x64)|SVT Suite
+Brainworx	Modulation	bx_bluechorus2|Brainworx bx_bluechorus2
+Brainworx	Dynamics	bx_boom!|bx_boom|Brainworx bx_boom
+Brainworx	EQ & Filter	bx_cleansweep V2|Brainworx bx_cleansweep
+Brainworx	EQ & Filter	bx_console SSL 4000 G|Brainworx SSL 4000 G|bx_console SSL 4000 E
+Brainworx	Utility	bx_control V2|Brainworx bx_control
+Brainworx	Color	bx_distorange|Brainworx bx_distorange
+Brainworx	EQ & Filter	bx_dynEQ V2|bx_dynEQ V2 Mono|Brainworx bx_dynEQ
+Brainworx	EQ & Filter	bx_hybrid V2|Brainworx bx_hybrid|bx_hybrid V2 mix
+Brainworx	Dynamics	bx_limiter|Brainworx bx_limiter
+Brainworx	Amp & Cab	bx_metal2|Brainworx bx_metal2
+Brainworx	Utility	bx_meter|Brainworx bx_meter
+Brainworx	EQ & Filter	bx_refinement|Brainworx Refinement
+Brainworx	Amp & Cab	bx_rockrack V3|bx_rockrack|bx_rockrack V3 Player|Brainworx bx_rockrack
+Brainworx	Color	bx_saturator V2|Brainworx bx_saturator
+Brainworx	Utility	bx_solo|Brainworx bx_solo
+Brainworx	Dynamics	bx_townhouse Buss Compressor|bx_townhouse|Brainworx Townhouse|Townhouse Buss Compressor
+Brainworx	Dynamics	bx_XL V2|Brainworx bx_XL V2
+Brainworx	Amp & Cab	Diezel Herbert|Brainworx Diezel Herbert
+Brainworx	Amp & Cab	ENGL Amp Sim|ENGL E646 VS|ENGL E765 RT|Brainworx ENGL
+Cableguys	EQ & Filter	FilterShaper|FilterShaper XL|Cableguys FilterShaper|FilterShaper_XL|Cableguys_FilterShaper|Filterstep_64
+Cableguys	Modulation	PanCake 2|Cableguys PanCake
+Caelum Audio	Modulation	Flux Mini 2|Caelum Audio Flux Mini 2
+Caelum Audio	Dynamics	Schlap|Caelum Audio Schlap
+Caelum Audio	Dynamics	Smoosh|Caelum Audio Smoosh
+Caelum Audio	Color	Tape Cassette 2|Caelum Tape Cassette
+Cakewalk	Dynamics	CA-2A T-Type Leveling Amplifier|Cakewalk CA-2A|CA-2A Leveling Amplifier
+Cakewalk	Dynamics	Cakewalk Compressor
+Cakewalk	EQ & Filter	Cakewalk Parametric EQ|Cakewalk EQ
+Calf Studio Gear	Dynamics	Calf Compressor|Calf Studio Compressor
+Calf Studio Gear	Space	Calf Reverb|Calf Studio Reverb
+Camel Audio	Color	CamelCrusher|Camel Crusher|CamelCrusher_x64|Camel_Crusher
+Camel Audio	Color	CamelPhat|CamelPhat3|Camel Audio CamelPhat
+Camel Audio	Dynamics	Slammer
+Celemony	Modulation	Melodyne 5|Celemony Melodyne|Melodyne
+Chandler Limited (Softube)	EQ & Filter	Chandler Limited Curve Bender
+Chandler Limited (Softube)	Dynamics	Chandler Limited Germanium Compressor|Chandler Limited Germanium Comp
+Chandler Limited (Softube)	Dynamics	Chandler Limited Zener Limiter|Chandler Limited Zener-Bender|Chandler GAV19T
+ChowDSP	Amp & Cab	BYOD|ChowDSP BYOD|Build Your Own Distortion
+ChowDSP	Modulation	Chow Phaser|ChowDSP Chow Phaser
+ChowDSP	Color	ChowCentaur|Chow Centaur|ChowDSP Centaur
+ChowDSP	Color	ChowTapeModel|Chow Tape Model|CHOW Tape
+Cockos	Utility	ReaStream|reastream-standalone|Cockos ReaStream
+Cotorro Audio	EQ & Filter	Corte Fino EQ|Cotorro Audio Corte Fino EQ
+Crave DSP	EQ & Filter	Crave EQ|Carve EQ
+Cytomic	Dynamics	The Glue|Cytomic The Glue|The Glue 64
+Cytomic	Color	The Scream|Cytomic The Scream|The Scream 64
+D16 Group	Color	Decimort 2|D16 Decimort|Decimort2|D16_Decimort_2
+D16 Group	Color	Devastor 2|D16 Devastor|Devastor2|D16_Devastor_2
+D16 Group	Dynamics	Frontier|D16 Frontier
+D16 Group	Modulation	Godfazer|D16 Godfazer
+D16 Group	Modulation	Lush-2|D16 Lush-2|Lush2|D16_Lush-2|D16_Lush2
+D16 Group	Space	Repeater|D16 Repeater|D16_Repeater|Repeater_x64
+D16 Group	Space	Sigmund|D16 Sigmund
+D16 Group	Modulation	Syntorus 2|D16 Syntorus
+D16 Group	Space	Tekturon|D16 Tekturon
+Dada Life	Color	Sausage Fattener|Dada Life Sausage Fattener
+Dangerous Music (Plugin Alliance)	EQ & Filter	Dangerous BAX EQ|Dangerous BAX EQ Master|Dangerous BAX EQ Mix
+Dangerous Music (Plugin Alliance)	EQ & Filter	Loki Bass|LokiBass
+DDMF	Dynamics	Fusia|DDMF Fusia
+DDMF	Utility	MetaPlugin|DDMF MetaPlugin
+DDMF	Utility	Plugin Doctor|DDMF Plugin Doctor
+Dead Duck Software	Dynamics	DD Compressor|Dead Duck Compressor
+Dead Duck Software	EQ & Filter	DD EQ|Dead Duck EQ
+Denise Audio	Color	Bad Tape|Denise Bad Tape
+Denise Audio	Color	Bite Harder|Denise Audio Bite Harder
+Denise Audio	Color	Lowender|Lowender_
+Denise Audio	Utility	Noize 2|DeniseNoize2|Denise Noize 2
+Denise Audio	Space	Perfect Room|denise Perfect Room|denise_Perfect_Room|PerfectRoom|DenisePerfectRoom
+Denise Audio	Dynamics	Poltergate|Denise Audio Poltergate
+Denise Audio	EQ & Filter	The Sweeper|Denise The Sweeper
+Devious Machines	Utility	Duck|Devious Machines Duck|Devious_Machines_Duck|Duck_x64
+Devious Machines	Space	Duck Delay|DuckDelay
+Devious Machines	Modulation	Pitch Monster|Devious Machines Pitch Monster|PitchMonster
+Dirac Research	Utility	Dirac Live Processor|DiracLiveProcessor|Dirac Live
+Direct Music	Utility	MiniMeters|MiniMeters Suite
+Direct Music	Utility	MiniMeters - Loudness|MiniMeters Loudness
+DMG Audio	Dynamics	Compassion|DMG Audio Compassion
+DMG Audio	Dynamics	Compassion GE|DMG Audio Compassion GE
+DMG Audio	EQ & Filter	EQuick|DMG Audio EQuick
+DMG Audio	EQ & Filter	Equilibrium|DMG Audio Equilibrium|DMG_Audio_Equilibrium
+DMG Audio	Dynamics	Limitless|DMG Audio Limitless
+Dotec Audio	Dynamics	DeeFat|Dotec Audio DeeFat
+Dotec Audio	Dynamics	DeeSser|Dotec DeeSser|Dotec Audio DeeSser
+Dragonfly Reverb	Space	Dragonfly Hall Reverb
+Dragonfly Reverb	Space	Dragonfly Plate Reverb
+Dragonfly Reverb	Space	Dragonfly Room Reverb
+elysia	Dynamics	Bolt|elysia Bolt
+elysia	Color	karacter|elysia karacter|elysia karacter master|elysia karacter mix|elysia mpressor|elysia mpressor sc|elysia museq master|elysia museq mix|elysia phils cascade
+elysia	EQ & Filter	niveau filter|elysia niveau filter
+Eventide	Space	2016 Stereo Room|Eventide 2016 Stereo Room|SP2016 Stereo Room
+Eventide	Space	Blackhole|Eventide Blackhole|Eventide_Blackhole|Blackhole_x64
+Eventide	Space	Blackhole Immersive|Eventide Blackhole Immersive
+Eventide	Color	CrushStation|Eventide CrushStation
+Eventide	Modulation	Crystals|Eventide Crystals
+Eventide	Modulation	H910 Harmonizer|H910 Dual Harmonizer|Eventide H910
+Eventide	Modulation	H949 Harmonizer|H949 Dual Harmonizer|Eventide H949
+Eventide	Modulation	Instant Flanger Mk II|Instant Flanger|Eventide Instant Flanger
+Eventide	Modulation	Instant Phaser Mk II|Instant Phaser|Eventide Instant Phaser
+Eventide	Space	MangledVerb|Eventide MangledVerb|Eventide_MangledVerb|MangledVerb_x64
+Eventide	Modulation	MicroPitch|Eventide MicroPitch|UltraChannel|UltraReverb|UltraVox
+Eventide	Modulation	Octavox|Eventide Octavox
+Eventide	Dynamics	Omnipressor|Eventide Omnipressor
+Eventide	Modulation	Quadravox|Eventide Quadravox
+Eventide	Space	Quantum|Eventide Quantum
+Eventide	Modulation	Rotary Mod|Eventide Rotary Mod
+Eventide	Space	SP2016 Reverb|Eventide SP2016 Reverb|SP2016
+Eventide	EQ & Filter	SplitEQ|Eventide SplitEQ
+Eventide	Space	TC2290-DT|TC2290|Eventide TC2290
+Eventide	Space	Tverb|Eventide Tverb|Tony Visconti Tverb
+Eventide	Space	UltraTap|Eventide UltraTap|Eventide_UltraTap|UltraTap_x64
+Eventide	Modulation	Undulator|Eventide Undulator
+FabFilter	Dynamics	FabFilter Pro-C 2|Pro-C 2|ProC2|FabfilterProC2|Pro-C2|FabFilter_Pro-C_2|FabFilter Pro-C2|ProC 2|Pro C 2|FabFilter ProC2|FabFilter_ProC2|Pro-C|ProC|FabFilter Pro-C 2 (Mono)
+FabFilter	Dynamics	FabFilter Pro-DS|Pro-DS|ProDS|FabFilter Pro-DS (Mono)
+FabFilter	Dynamics	FabFilter Pro-G|Pro-G|ProG|FabFilter Pro-G (Mono)
+FabFilter	Dynamics	FabFilter Pro-G 2|Pro-G 2
+FabFilter	Dynamics	FabFilter Pro-L 2|Pro-L 2|ProL2|FabfilterProL2|Pro-L2|FabFilter_Pro-L_2|FabFilter Pro-L2|ProL 2|Pro L 2|FabFilter ProL2|FabFilter_ProL2|Pro-L|ProL|FabFilter Pro-L|FabFilter Pro-L (Mono)
+FabFilter	Dynamics	FabFilter Pro-MB|Pro-MB|ProMB|FabfilterProMB|Pro MB|FabFilter_Pro-MB|FabFilter Pro MB|FabFilter_ProMB|FabFilter Pro-MB (Mono)
+FabFilter	EQ & Filter	FabFilter Pro-Q 3|Pro-Q 3|FabfilterProQ3|ProQ3|Pro-Q3|FabFilter_Pro-Q_3|FabFilter Pro-Q3|ProQ 3|Pro Q 3|FabFilter ProQ3|FabFilter_ProQ3|Pro-Q|ProQ|FabFilter Pro-Q|FabFilter Pro-Q (Mono)|FabFilter Pro-Q 2|FabFilter Pro-Q 2 (Mono)
+FabFilter	Space	FabFilter Pro-R 2|Pro-R 2|ProR2|FabfilterProR2|Pro-R2|FabFilter_Pro-R_2|FabFilter Pro-R2|ProR 2|Pro R 2|FabFilter ProR2|FabFilter_ProR2|Pro-R|ProR|FabFilter Pro-R (Mono)
+FabFilter	Color	FabFilter Saturn 2|Saturn 2|Saturn2|FabfilterSaturn2|FabFilter_Saturn_2|FabFilter Saturn2|FabFilter Saturn|FabFilter Saturn (Mono)
+FabFilter	EQ & Filter	FabFilter Simplon|Simplon|FabfilterSimplon|FabFilter_Simplon
+FabFilter	Space	FabFilter Timeless 3|Timeless 3|Timeless3|FabfilterTimeless3|FabFilter_Timeless_3|FabFilter Timeless3|FabFilter Timeless 2|FabFilter Timeless 2 (SC)
+FabFilter	EQ & Filter	FabFilter Volcano 3|Volcano 3|Volcano3|FabfilterVolcano3|FabFilter_Volcano_3|FabFilter Volcano3|FabFilter Volcano 2|FabFilter Volcano 2 (Mono SC)|FabFilter Volcano 2 (Mono)|FabFilter Volcano 2 (SC)
+FabFilter	EQ & Filter	Micro|FabFilter Micro|FabFilter Micro (Mono)
+FabFilter	EQ & Filter	Pro-Q 4|FabFilter Pro-Q 4
+FabFilter	Space	Pro-R|FabFilter Pro-R
+Flux:: (MUSIC Group)	Utility	Flux:: Stereo Tool|Flux Stereo Tool|Stereo Tool V3|StereoToolV3|HEarV3|SpatV3|EpureV3|SoleraV3|SyrahV3|VerbSessionV3|VerbV3|PureCompV3|PureDCompV3|PureDExpV3|PureExpV3|PureLimiterV3|ElixirV3|TraxCsV3|TraxSfV3|TraxV3
+Ghost Note Audio	Space	CloudSeed|Ghost Note Audio CloudSeed
+Ghost Note Audio	Space	Hysteresis|Ghost Note Hysteresis
+Glitchmachines	Space	Hysteresis|Glitchmachines Hysteresis
+Goodhertz	Utility	CanOpener Studio|CanOpener|Goodhertz CanOpener|CanOpener_Studio|Goodhertz_CanOpener|Ghz CanOpener Studio 3
+Goodhertz	Utility	Dethm|Goodhertz Dethm
+Goodhertz	Dynamics	Faraday Limiter|Goodhertz Faraday Limiter|Ghz Faraday Limiter 3
+Goodhertz	Utility	Good Dither|Goodhertz Good Dither|Ghz Good Dither 3
+Goodhertz	EQ & Filter	Lohi|Goodhertz Lohi|Ghz Lohi 3
+Goodhertz	Color	Lossy|Goodhertz Lossy|Goodhertz_Lossy|Lossy_x64|Ghz Lossy 3
+Goodhertz	Space	Megaverb|Goodhertz Megaverb|Ghz Megaverb 3
+Goodhertz	Utility	Midside|Goodhertz Midside|Ghz Midside 3|Ghz Midside Matrix 3
+Goodhertz	Utility	Panpot|Goodhertz Panpot|Ghz Panpot 3
+Goodhertz	Modulation	Pitchwheel|Goodhertz Pitchwheel
+Goodhertz	EQ & Filter	Tiltshift|Goodhertz Tiltshift|Ghz Tiltshift 3
+Goodhertz	EQ & Filter	Tone Control|Goodhertz Tone Control|Ghz Tone Control 3
+Goodhertz	Modulation	Trem Control|Goodhertz Trem Control|Ghz Trem Control 3
+Goodhertz	Dynamics	Vulf Compressor|Vulf Comp|Goodhertz Vulf Compressor|VulfCompressor|Goodhertz_Vulf_Compressor
+Goodhertz	Dynamics	Vulf Compressor 3|Goodhertz Vulf 3|Ghz Vulf Compressor 3
+Goodhertz	Modulation	Wow Control|Goodhertz Wow Control|Ghz Wow Control 3
+GuitarML	Amp & Cab	Chameleon|GuitarML Chameleon
+GuitarML	Amp & Cab	Proteus|GuitarML Proteus
+GuitarML	Amp & Cab	TS-M1N3|GuitarML TS-M1N3
+GVST	Modulation	GChorus|GVST GChorus
+GVST	Color	GClip|GVST GClip
+GVST	Utility	GFader|GVST GFader
+GVST	Dynamics	GGate|GVST GGate
+GVST	Modulation	GSnap|GVST GSnap
+GVST	Utility	GTune|GVST GTune|GVST Tuner
+Harrison	Dynamics	AVA De-Esser|Harrison De-Esser
+Harrison	EQ & Filter	AVA Mastering EQ|Harrison Mastering EQ
+Harrison	Dynamics	AVA Mastering Limiter|Harrison AVA Mastering Limiter
+Harrison	Dynamics	AVA Multiband Compressor|Harrison Multiband Comp
+HoRNet Plugins	Dynamics	HoRNet Gratis
+HoRNet Plugins	Dynamics	HWMCT|HoRNet HWMCT
+HoRNet Plugins	Utility	LUN|HoRNet LUN
+HoRNet Plugins	Utility	VU Meter MK4|HoRNet VU Meter MK4
+Hotone Audio	Amp & Cab	VStompAmp|Hotone VStompAmp
+HY-Plugins	Space	HY-Delay4|HY Delay 4
+HY-Plugins	EQ & Filter	HY-Filter4|HY Filter 4
+HY-Plugins	Color	HY-Gain|HY-Plugins HY-Gain
+iFeature	Dynamics	IFEA - Spectral Compressor|IFEA Spectral Compressor
+iFeature	Dynamics	IFEA - Spectral Gate|IFEA Spectral Gate
+Ignite Amps	Amp & Cab	Ignite Amps Emissary|Emissary
+Ignite Amps	Amp & Cab	NadIR|Ignite Amps NadIR
+IK Multimedia	Amp & Cab	AmpliTube 5|IK AmpliTube|AmpliTube
+IK Multimedia	Amp & Cab	Cypress TT-15|CypressTT-15
+Image-Line	EQ & Filter	DJM Filter|DJMFilter_
+Infected Mushroom	Dynamics	Gatekeeper|Infected Mushroom Gatekeeper|Polyverse Gatekeeper|Polyverse_Gatekeeper|Gatekeeper_x64
+Infected Mushroom	Modulation	I Wish|Infected Mushroom I Wish|Polyverse I Wish|Polyverse_I_Wish|IWish
+Infected Mushroom	Modulation	Manipulator|Infected Mushroom Manipulator|Polyverse Manipulator|Polyverse_Manipulator|Manipulator_x64
+iZotope	Utility	Insight 2|iZotope Insight 2|Insight2|iZInsight|iZInsight2|iZMeterTap
+iZotope	Utility	iZotope Audiolens|Audiolens
+iZotope	EQ & Filter	iZotope Spectral Shaper|Spectral Shaper
+iZotope	Color	iZotope Trash|Trash Distortion
+iZotope	Modulation	iZotope VocalSynth 2|VocalSynth 2|iZotope VocalSynth|VocalSynth|iZVocalSynth2
+iZotope	Space	Neoverb|iZotope Neoverb
+iZotope	EQ & Filter	Ozone 11 Equalizer|iZotope Ozone 11 Equalizer
+iZotope	Color	Ozone 11 Exciter|iZotope Ozone 11 Exciter
+iZotope	Utility	Ozone 11 Imager|iZotope Ozone 11 Imager
+iZotope	Utility	Ozone 11 Master Rebalance|iZotope Ozone 11 Master Rebalance
+iZotope	Dynamics	Ozone 9 Dynamics|iZotope Ozone 9 Dynamics|iZOzone9Dynamics
+iZotope	EQ & Filter	Ozone Equalizer|iZotope Ozone Equalizer
+iZotope	Space	R4|Exponential Audio R4
+iZotope	Utility	Relay|iZotope Relay|iZRelay
+iZotope	Utility	RX 11|iZotope RX 11|RX11|iZotope_RX_11|RX 11 Advanced
+iZotope	EQ & Filter	Sculptor|iZotope Sculptor
+iZotope	Utility	Tonal Balance Control|iZotope Tonal Balance|Tonal Balance Control 2|iZTonalBalanceControl2
+iZotope	Color	Trash 2|iZotope Trash 2|Trash2|iZotope_Trash_2|iZTrash2
+iZotope	Color	Vinyl|iZotope Vinyl|iZotope_Vinyl
+Joey Sturgis Tones	Dynamics	JST Clip
+Joey Sturgis Tones	Amp & Cab	Toneforge - Misha Mansoor|Toneforge Misha Mansoor
+Kazrog	Dynamics	KClip|Kazrog KClip
+Kazrog	Color	True Iron|Kazrog True Iron
+Kilohearts	Color	Bitcrush|Kilohearts Bitcrush|kHs Bitcrush
+Kilohearts	EQ & Filter	Comb Filter|Kilohearts Comb Filter|kHs Comb Filter
+Kilohearts	EQ & Filter	Disperser|Kilohearts Disperser|kHs Disperser|Kilohearts_Disperser|Disperser_x64
+Kilohearts	Modulation	Frequency Shifter|Kilohearts Frequency Shifter|kHs Frequency Shifter
+Kilohearts	Utility	Gain|Kilohearts Gain|kHs Gain
+Kilohearts	Dynamics	kHs Compactor|Kilohearts Compactor|Compactor|kHs Compressor
+Kilohearts	Modulation	Kilohearts Chorus|kHs Chorus
+Kilohearts	Modulation	Kilohearts Flanger|kHs Flanger
+Kilohearts	Dynamics	Kilohearts Gate|kHs Gate
+Kilohearts	Modulation	Kilohearts Phaser|kHs Phaser
+Kilohearts	Dynamics	Kilohearts Trance Gate|kHs Trance Gate
+Kilohearts	Dynamics	Limiter|Kilohearts Limiter|kHs Limiter
+Kilohearts	Dynamics	Multipass|Kilohearts Multipass|Kilohearts_Multipass|kHs Multipass|Multipass_x64
+Kilohearts	Modulation	Pitch Shifter|Kilohearts Pitch Shifter|kHs Pitch Shifter
+Kilohearts	Modulation	Ring Mod|Kilohearts Ring Mod|kHs Ring Mod
+Kilohearts	EQ & Filter	Slice EQ|SliceEQ|kHs Slice EQ
+Klanghelm	Dynamics	DC1A|Klanghelm DC1A|Klanghelm_DC1A|DC1A_x64
+Klanghelm	Dynamics	DC1A3|Klanghelm DC1A3
+Klanghelm	Color	IVGI|Klanghelm IVGI
+Klanghelm	Dynamics	MJUC|Klanghelm MJUC|MJUC jr|Klanghelm_MJUC|MJUC_x64
+Klanghelm	Dynamics	MJUC GE|Klanghelm MJUC GE
+Klanghelm	Dynamics	MJUC jr.|Klanghelm MJUC jr.
+Klanghelm	Utility	VU Meter|Klanghelm VU Meter
+Klevgrand	Color	DAW Cassette|Klevgrand DAW Cassette
+Klevgrand	Amp & Cab	Reamp|Klevgrand Reamp
+Klevgrand	Space	Tapeotronic|Klevgrand Tapeotronic
+Klirrton	Color	Klirrton Grindstein|Grindstein
+Kuassa	Amp & Cab	Amplifikation One|Kuassa Amplifikation One
+Kuassa	Amp & Cab	Amplifikation Vermilion|AmplifikationVermilion|Kuassa Amplifikation Vermilion
+Kuassa	Modulation	Efektor CH3604 Chorus|Efektor CH3604|Kuassa CH3604
+Kuassa	Modulation	Efektor FL3604 Flanger|Efektor FL3604|Kuassa FL3604
+Kuassa	EQ & Filter	Efektor GQ3604 Graphic EQ|Efektor GQ3604|Kuassa GQ3604
+Kuassa	Modulation	Efektor PH3604 Phaser|Efektor PH3604|Kuassa PH3604
+Kuassa	Space	Efektor RV3604 Reverb|Efektor RV3604|Kuassa RV3604
+Kush Audio	EQ & Filter	Electra DSP|ElectraDSP|Kush Electra DSP
+Leapwing Audio	Color	CenterOne|Leapwing CenterOne
+Leapwing Audio	Dynamics	DynOne 3|DynOne3|Leapwing DynOne|DynOne
+Leapwing Audio	Dynamics	preFIX|Leapwing preFIX
+Leapwing Audio	Color	RootOne|Leapwing RootOne
+Leapwing Audio	Color	StageOne|Leapwing StageOne
+Lexicon	Space	Lexicon PCM Native Plugins|LexChamber|LexConcertHall|LexHall|LexPlate|LexRandomHall|LexRoom|LexVintagePlate
+Lexicon	Space	LXP Native Reverb|Lexicon LXP Native
+Lexicon	Space	PCM Native Reverb|Lexicon PCM Native
+Line 6	Amp & Cab	Helix Native|Line 6 Helix Native|Helix Native (x64)
+Line 6	Amp & Cab	POD Farm|Line 6 POD Farm|POD Farm 2.5
+LiquidSonics	Space	Cinematic Rooms|LiquidSonics Cinematic Rooms
+LiquidSonics	Space	PhoenixVerb|LiquidSonics PhoenixVerb
+LiquidSonics	Space	Seventh Heaven|LiquidSonics Seventh Heaven
+LiquidSonics	Space	Tai-Chi 2|LiquidSonics Tai-Chi 2
+lkjb	EQ & Filter	Luftikus|lkjb Luftikus
+Lostin70s	Modulation	QuadraChor|QuadraChor_
+LSP Plugins	Dynamics	LSP Compressor|LSP Plugins Compressor
+LSP Plugins	Dynamics	LSP Compressor Stereo
+LSP Plugins	Dynamics	LSP Gate|LSP Plugins Gate
+LSP Plugins	EQ & Filter	LSP Graphic Equalizer
+LSP Plugins	Dynamics	LSP Limiter|LSP Plugins Limiter
+LSP Plugins	EQ & Filter	LSP Parametric Equalizer|LSP Parametric EQ|LSP Plugins EQ
+MAAT Digital	EQ & Filter	MAAT thEQ|MAAT thEQblue|MAAT thEQorange|MAAT thEQred|MAAT RSPhaseShifter
+Mastering The Mix	EQ & Filter	BASSROOM|BASSROOM by MTM
+Mastering The Mix	Utility	Expose 2|Mastering The Mix Expose 2
+Mastering The Mix	Utility	EXPOSE 2|EXPOSE 2 by MTM
+Mastering The Mix	Utility	LEVELS|Mastering The Mix LEVELS
+Mastering The Mix	Dynamics	LIMITER|LIMITER by MTM|Mastering The Mix LIMITER
+Mastering The Mix	Utility	Reference|Mastering The Mix Reference
+McDSP	EQ & Filter	6020 Ultimate EQ|6020|McDSP 6020
+McDSP	Dynamics	6030 Ultimate Compressor|6030|McDSP 6030
+McDSP	Dynamics	6050 Ultimate Channel Strip|6050|McDSP 6050
+McDSP	Dynamics	6060 Ultimate Module Collection|6060|McDSP 6060
+McDSP	EQ & Filter	AE400|McDSP AE400|AE400 Active EQ
+McDSP	EQ & Filter	AE600|McDSP AE600|AE600 Active EQ
+McDSP	Color	Analog Channel|McDSP Analog Channel|AC101|AC202
+McDSP	Dynamics	Channel G|McDSP Channel G|G Console|G Dynamics|G Equalizer
+McDSP	Dynamics	CompressorBank|McDSP CompressorBank|CB101|CB202|CB303
+McDSP	Dynamics	DE555|McDSP DE555
+McDSP	Space	EC-300|McDSP EC-300|EC300|Echo Collection
+McDSP	EQ & Filter	FilterBank|McDSP FilterBank|FilterBank E606|FilterBank F202|FilterBank P606
+McDSP	Color	FutzBox|McDSP FutzBox
+McDSP	Dynamics	MC2000|McDSP MC2000
+McDSP	Dynamics	ML4000|McDSP ML4000|ML1|ML4
+McDSP	Dynamics	ML8000|McDSP ML8000
+McDSP	EQ & Filter	NF575|McDSP NF575|Noise Filter
+McDSP	Utility	NR800|McDSP NR800|Noise Reduction
+McDSP	Space	Revolver|McDSP Revolver
+McDSP	EQ & Filter	SA-2|McDSP SA-2|SA2|Dialog Processor
+McDSP	EQ & Filter	SA-3|McDSP SA-3|SA3|Spectral Processor
+McDSP	Dynamics	SPC2000|McDSP SPC2000
+MDA (Paul Kellett)	Amp & Cab	MDA Combo
+Melda Production	Utility	MAnalyzer|Melda Production MAnalyzer
+Melda Production	Space	MConvolutionEZ|Melda Production MConvolutionEZ
+Melda Production	EQ & Filter	MEqualizer|Melda Production MEqualizer|MEqualizerLP
+Melda Production	Modulation	MFlanger|Melda Production MFlanger|MFlangerMB
+MeldaProduction	Modulation	MAutopan|Melda MAutopan|MAutopanMB
+MeldaProduction	Modulation	MAutoPitch|Melda MAutoPitch|MeldaProduction MAutoPitch|MAutoPitch_x64|Melda_MAutoPitch
+MeldaProduction	Color	MBitFun|Melda MBitFun|MBitFunMB
+MeldaProduction	Utility	MChannelMatrix|Melda MChannelMatrix
+MeldaProduction	Modulation	MChorus|Melda MChorus|MChorusMB
+MeldaProduction	EQ & Filter	MComb|Melda MComb|MCombMB
+MeldaProduction	Dynamics	MCompressor|Melda MCompressor|MeldaProduction MCompressor|MModernCompressor
+MeldaProduction	Space	MConvolutionEZ|MConvolutionEZ by Melda
+MeldaProduction	EQ & Filter	MFreeformEqualizer|Melda MFreeformEqualizer|MeldaProduction MFreeformEqualizer|MFreeformAnalogEq
+MeldaProduction	Utility	MLoudnessAnalyzer|Melda MLoudnessAnalyzer
+MeldaProduction	Utility	MMatcher|Melda MMatcher|MeldaProduction MMatcher
+MeldaProduction	Utility	MNotepad|Melda MNotepad
+MeldaProduction	Modulation	MPhaser|Melda MPhaser|MPhaserMB
+MeldaProduction	Utility	MRecorder|Melda MRecorder
+MeldaProduction	Modulation	MRingModulator|Melda MRingModulator|MRingModulatorMB
+MeldaProduction	Modulation	MRotary|Melda MRotary|MVintageRotary
+MeldaProduction	Utility	MTestToneGenerator|Melda Test Tone
+MeldaProduction	Utility	MTuner|Melda MTuner
+MeldaProduction	Modulation	MVibrato|Melda MVibrato|MVibratoMB
+MeldaProduction	EQ & Filter	MWobbler|Melda MWobbler|MWobblerMB
+Mercurial Tones	Utility	Scepter|Mercurial Tones Scepter
+Mercuriall	Amp & Cab	Euphoria|Mercuriall Euphoria
+Mercuriall	Amp & Cab	Greed Smasher|Mercuriall Greed Smasher
+Mercuriall	Amp & Cab	ReAxis|Mercuriall ReAxis
+Mercuriall	Amp & Cab	Spark|Mercuriall Spark
+Minimal Audio	Space	Cluster|Minimal Audio Cluster|Cluster Delay
+Minimal Audio	Space	Cluster Delay|Minimal Audio Cluster Delay
+Minimal Audio	EQ & Filter	Morph EQ|Minimal Audio Morph EQ
+Minimal Audio	Color	Rift|Minimal Audio Rift|Minimal_Audio_Rift|Rift_x64|Rift 2|Rift Filter Lite
+Minimal Audio	Color	Rift 2|Minimal Audio Rift 2
+Mixing Night Audio	Space	Cascade|Mixing Night Audio Cascade
+Moog Music	EQ & Filter	Moogerfooger MF-101S Lowpass Filter|MF-101S|Moogerfooger Lowpass Filter
+Moog Music	Modulation	Moogerfooger MF-102S Ring Modulator|MF-102S|Moogerfooger Ring Modulator
+Moog Music	Modulation	Moogerfooger MF-103S 12-Stage Phaser|MF-103S|Moogerfooger Phaser
+Moog Music	Space	Moogerfooger MF-104S Analog Delay|MF-104S|Moogerfooger Analog Delay
+Moog Music	Modulation	Moogerfooger MF-108S Cluster Flux|MF-108S|Moogerfooger Cluster Flux
+Moog Music	Color	Moogerfooger MF-109S Saturator|MF-109S|Moogerfooger Saturator
+Native Instruments	Modulation	Choral|NI Choral|Native Instruments Choral
+Native Instruments	Color	Crush Pack|NI Crush Pack
+Native Instruments	Color	Driver|NI Driver|Native Instruments Driver
+Native Instruments	EQ & Filter	Enhanced EQ|NI Enhanced EQ
+Native Instruments	Modulation	Flair|NI Flair|Native Instruments Flair
+Native Instruments	Amp & Cab	Guitar Rig 6 Player|NI Guitar Rig Player
+Native Instruments	Amp & Cab	Guitar Rig 7|NI Guitar Rig 7|Guitar Rig|GuitarRig7|Guitar_Rig_7|NI_Guitar_Rig_7|GuitarRig
+Native Instruments	EQ & Filter	Passive EQ|NI Passive EQ
+Native Instruments	Modulation	Phasis|NI Phasis|Native Instruments Phasis
+Native Instruments	Space	Raum|Native Instruments Raum
+Native Instruments	Space	RC 24|RC24|NI RC 24
+Native Instruments	Space	RC 48|RC48|NI RC 48
+Native Instruments	Space	Replika|NI Replika
+Native Instruments	Space	Replika XT|NI Replika XT|Native Instruments Replika XT
+Native Instruments	Dynamics	Solid Bus Comp|NI Solid Bus Comp
+Native Instruments	Dynamics	Solid Dynamics|NI Solid Dynamics
+Native Instruments	EQ & Filter	Solid EQ|NI Solid EQ
+Native Instruments	Dynamics	Supercharger|NI Supercharger|Native Instruments Supercharger
+Native Instruments	Dynamics	Supercharger GT|NI Supercharger GT
+Native Instruments	Dynamics	Transient Master|NI Transient Master
+Native Instruments	Dynamics	Vari Comp|NI Vari Comp
+Nembrini Audio	Amp & Cab	Blackface Deluxe Reverb|NA Blackface Deluxe|Nembrini Blackface
+Nembrini Audio	Amp & Cab	Blackface SC-5|Blueface SC-5|Blue Face
+Nembrini Audio	Amp & Cab	F-59|Nembrini F-59
+Nembrini Audio	Color	Faturator|Nembrini Audio Faturator|Nembrini_Faturator|Faturator_x64
+Nembrini Audio	Amp & Cab	MRH810 Lead Series|MRH810|Nembrini MRH810|Nembrini Plexi
+Nembrini Audio	Dynamics	NA 1176|Nembrini 1176
+Neural DSP	Amp & Cab	Archetype Gojira|Neural DSP Archetype Gojira|Neural_DSP_Archetype_Gojira|ArchetypeGojira
+Neural DSP	Amp & Cab	Archetype: Abasi|Archetype Abasi|Neural DSP Abasi
+Neural DSP	Amp & Cab	Archetype: Cory Wong|Archetype Cory Wong|Neural DSP Cory Wong
+Neural DSP	Amp & Cab	Archetype: Nameless|Archetype Nameless|Neural DSP Nameless
+Neural DSP	Amp & Cab	Archetype: Nolly|Archetype Nolly|Neural DSP Nolly
+Neural DSP	Amp & Cab	Archetype: Petrucci|Archetype Petrucci|Neural DSP Petrucci
+Neural DSP	Amp & Cab	Archetype: Plini|Archetype Plini|Neural DSP Plini
+Neural DSP	Amp & Cab	Archetype: Rabea|Archetype Rabea|Neural DSP Rabea
+Neural DSP	Amp & Cab	Archetype: Tim Henson|Archetype Tim Henson|Neural DSP Tim Henson
+Neural DSP	Amp & Cab	Darkglass Ultra|Neural DSP Darkglass
+Neural DSP	Amp & Cab	Fortin Cali Suite|Neural DSP Fortin Cali
+Neural DSP	Amp & Cab	Fortin Nameless Suite|Fortin Nameless Suite (x64)|Neural DSP Fortin Nameless
+Neural DSP	Amp & Cab	Fortin NTS Suite|Neural DSP Fortin NTS
+Neural DSP	Amp & Cab	Omega Ampworks|Neural DSP Omega|OMEGA Ampworks Granophyre|Granophyre
+Neural DSP	Amp & Cab	Parallax|Neural DSP Parallax
+Neural DSP	Amp & Cab	Soldano SLO-100|Neural DSP Soldano
+Neural DSP	Amp & Cab	Tone King Imperial MKII|Tone King Imperial|Neural DSP Tone King
+Newfangled Audio	Dynamics	Elevate|Newfangled Audio Elevate|Eventide Elevate|Newfangled_Audio_Elevate|Elevate_x64|Newfangled Elevate
+Newfangled Audio	EQ & Filter	EQuivocate|Newfangled EQuivocate
+Newfangled Audio	Dynamics	Invigorate|Eventide Invigorate
+Newfangled Audio	Dynamics	Punctuate|Newfangled Punctuate
+Newfangled Audio	Color	Saturate|Newfangled Audio Saturate|Eventide Saturate|Newfangled_Audio_Saturate|Saturate_x64|Newfangled Saturate
+Nicky Romero	Utility	Kickstart 2|Kickstart|Nicky Romero Kickstart|Kickstart2|Kickstart_2|Nicky_Romero_Kickstart|Kickstart-
+Nimble Tools	Dynamics	ArgentCompressor|Argent Compressor|Nimble Argent|Nimble_Argent_Compressor|Nimble Tools Argent
+Noise Engineering	Color	Ruina|Noise Engineering Ruina
+NUGEN Audio	Dynamics	LevelMagic|NUGEN LevelMagic
+NUGEN Audio	Utility	NUGEN MasterCheck|NUGEN Send
+oeksound	EQ & Filter	bloom|oeksound bloom
+oeksound	EQ & Filter	soothe2|Soothe 2|soothe2_x64|oeksound soothe2|oeksound_soothe2|soothe2_|soothe64
+OTO Machines	Color	OTO Biscuit 8-bit Effects|OTO Biscuit
+Output	Modulation	Movement|Movement (output)
+Output	Color	Portal|Output Portal|Output_Portal|Portal_x64
+Output	Color	Thermal|Thermal (output)
+Overloud	Dynamics	Gem Comp LA|Overloud Gem Comp LA|Gem Comp670-64
+Overloud	EQ & Filter	Gem EQ495|Overloud Gem EQ495|Gem Dopamine-64|Gem EQ84-64|Gem Mod-64|Gem Modula-64|Gem Voice-64
+Overloud	Amp & Cab	TH-U|Overloud TH-U
+Peavey Electronics	Amp & Cab	ReValver 4|ReValver4|Peavey ReValver 4|Peavey ReValver
+Plogue	Utility	Bidule|Plogue Bidule
+Plogue	Color	chipcrusher2|Chipcrusher 2|chipcrusher2_x64|Plogue_chipcrusher2
+Plugin Alliance	Dynamics	ADPTR Streamliner|Streamliner|ADPTR_Streamliner
+Plugin Alliance	EQ & Filter	bx_digital V3|Brainworx bx_digital V3|bx_digital|bx_digitalV3|Brainworx_bx_digital_V3|bx_digital V2|bx_digital V2 Mono
+Plugin Alliance	Dynamics	elysia alpha compressor|Alpha Compressor|elysia alpha master|elysia alpha mix
+Plugin Alliance	Dynamics	Kush UBK-1
+Plugin Alliance	EQ & Filter	Lindell Audio 50 Series|Lindell 50 Series|Lindell Audio 50|Lindell 254E|Lindell 354E|Lindell 6X-500|Lindell 7X-500|Lindell 80 Bus|Lindell 80 Channel|Lindell ChannelX|Lindell PEX-500|Lindell TE-100
+Plugin Alliance	Dynamics	MagicDeathEye
+Plugin Alliance	Utility	PPMulator|PPMulator3
+Plugin Alliance	Dynamics	SPL De-Esser|Plugin Alliance SPL De-Esser|SPL_De-Esser|SPL_DeEsser|Plugin_Alliance_SPL_De-Esser
+Plugin Alliance	Dynamics	SPL Iron|Plugin Alliance SPL Iron|SPL_Iron|Plugin_Alliance_SPL_Iron
+Polyverse	Space	Comet|Polyverse Comet|Polyverse_Comet|Comet_x64
+Polyverse	EQ & Filter	Supermodal|Polyverse Supermodal
+Polyverse	Utility	Wider|Polyverse Wider|Infected Mushroom Wider|Polyverse_Wider|Wider_x64
+Positive Grid	Amp & Cab	BIAS Amp 2|Positive Grid BIAS Amp 2
+Positive Grid	Amp & Cab	BIAS FX 2|Positive Grid BIAS FX
+Positive Grid	Amp & Cab	Spark Amp|Spark Amp Plugin|Positive Grid Spark Plugin
+Pro Audio DSP	Color	Pro Audio DSP DSM V3|DSM V3
+PSP Audioware	Space	PianoVerb|PSP PianoVerb
+PSP Audioware	Space	PSP 2445|PSP EMT 245|PSP EMT 244
+PSP Audioware	Color	PSP VintageWarmer2|VintageWarmer2|PSP VintageWarmer|VintageWarmer|PSP MicroWarmer|PSP Twin-L
+Psychic Modulation	Color	Wave Shredder|Wave_Shredder
+Pulsar Audio	Dynamics	Pulsar 1178
+Pulsar Audio	Space	Pulsar Echorec
+Pulsar Audio	Dynamics	Pulsar Mu
+Pulsar Audio	Dynamics	Pulsar Smasher
+Roland	Modulation	Chorus CE-2W|Roland Chorus CE-2W
+Scuffham Amps	Amp & Cab	S-Gear 2|S-Gear2_|Scuffham S-Gear
+Shadow Hills (Plugin Alliance)	Dynamics	Shadow Hills Mastering Compressor|Shadow Hills Class A Mastering Comp
+Sinevibes	Modulation	Blend|Sinevibes Blend
+Sinevibes	Modulation	Dispersion|Sinevibes Dispersion
+Sinevibes	Space	Fraction|Sinevibes Fraction
+SIR Audio Tools	Color	StandardCLIP|SIR Audio StandardCLIP
+SKnote	Dynamics	BM-DOPE|BMDOPE
+SKnote	Dynamics	CCAdvanced|CC Advanced
+SKnote	Color	Tessla PRO MkII|TesslaPROmkII
+SKnote	Color	Tessla SE|TesslaSE
+Slate Digital	EQ & Filter	Eiosis AirEQ|AirEQ|Slate AirEQ
+Slate Digital	Color	FG-Bomber|Slate Digital FG-Bomber
+Slate Digital	Dynamics	FG-X 2|Slate Digital FG-X 2|FGX2|FG-X_2|FGX 2|Slate_Digital_FG-X_2
+Slate Digital	EQ & Filter	Fresh Air|Slate Digital Fresh Air|Slate Fresh Air
+Slate Digital	EQ & Filter	Infinity EQ|Slate Infinity EQ
+Slate Digital	Utility	Slate VSX|VS|VSDSX|VSX|VSfx
+Slate Digital	Color	Virtual Console Collection|Slate VCC
+Slate Digital	Color	Virtual Tape Machines|VTM|Slate Digital Virtual Tape Machines|Virtual_Tape_Machines|Slate_Digital_VTM
+Slate Digital	Color	Virtual Tape Machines 2|Slate VTM 2
+Softube	Amp & Cab	Amp Room|Softube Amp Room
+Softube	Modulation	Fix Flanger and Doubler|Softube Fix Flanger|Fix Doubler|Fix Flanger|Fix Phaser
+Softube	Color	Harmonics|Softube Harmonics|Harmonics Analog Saturation Processor
+Softube	EQ & Filter	Mutronics Mutator|Mutator
+Softube	Color	Saturation Knob|Saturation Knob (softube)
+Softube	Space	Tube Delay|Softube Tube Delay
+Sonalksis	Dynamics	Sonalksis Plugin Suite|Sonalksis|Sonalksis CQ1 Mono|Sonalksis CQ1 Stereo|Sonalksis Creative Filter Mono|Sonalksis Creative Filter Stereo|Sonalksis DQ1 Mono|Sonalksis DQ1 Stereo|Sonalksis Digital Grimebox Mono|Sonalksis Digital Grimebox Stereo|Sonalksis FreeG Mono|Sonalksis FreeG Stereo|Sonalksis MaxLimit|Sonalksis MaxLimit Mono|Sonalksis MultiLimit|Sonalksis SV-315Mk2 Mono Compressor|Sonalksis SV-315Mk2 Mono Compressor SC|Sonalksis SV-315Mk2 Stereo Compressor|Sonalksis SV-315Mk2 Stereo Compressor SC|Sonalksis SV-517Mk2 Mono EQ|Sonalksis SV-517Mk2 Stereo EQ|Sonalksis SV-719 Mono Gate|Sonalksis SV-719 Mono Gate SC|Sonalksis SV-719 Stereo Gate|Sonalksis SV-719 Stereo Gate SC|Sonalksis StereoTools|Sonalksis Uber Compressor Mono|Sonalksis Uber Compressor Stereo|Sonalksis Ultimate-D
+Sonarworks	Utility	SoundID Reference|SoundID Reference VST Plugin|Sonarworks Reference
+sonible	EQ & Filter	entropy:EQ+|sonible entropy EQ
+sonible	Dynamics	smart:comp 2|smart comp 2|sonible smart comp 2
+sonible	Dynamics	smart:deess|smart deess|sonible smart deess
+sonible	EQ & Filter	smart:EQ 4|smart EQ 4|sonible smart EQ 4
+sonible	Dynamics	smart:gate|smart gate|sonible smart gate
+sonible	Dynamics	smart:limit|sonible smart limit|smartlimit
+Sonic Anomaly	Space	LOSTinVerb|Sonic Anomaly LOSTinVerb
+Sonic Anomaly	Dynamics	TransGainer
+Sonic Anomaly	Dynamics	Transpire|Sonic Anomaly Transpire
+Sonic Charge	Modulation	Bitspeek|Sonic Charge Bitspeek|Sonic_Charge_Bitspeek|Bitspeek_x64
+Sonic Charge	EQ & Filter	Pi|Sonic Charge Pi
+Sonimus	EQ & Filter	Burnley 73|Sonimus Burnley 73
+Sonimus	Color	Satson CS|Sonimus Satson CS
+Sonnox	Dynamics	Oxford Drum Gate 2|Sonnox Oxford Drum Gate 2
+Sonnox	Dynamics	Oxford Dynamics|Sonnox Oxford Dynamics|Sonnox_Oxford_Dynamics|Oxford_Dynamics|Oxford Dynamics Native
+Sonnox	Dynamics	Oxford Envolution|Sonnox Envolution|Oxford TransMod Native
+Sonnox	EQ & Filter	Oxford EQ|Sonnox Oxford EQ|Sonnox_Oxford_EQ|Oxford_EQ|Oxford EQ Native
+Sonnox	Color	Oxford Inflator|Sonnox Inflator|Oxford Inflator Native
+Sonnox	Dynamics	Oxford Limiter|Sonnox Oxford Limiter|Sonnox_Oxford_Limiter|Oxford_Limiter|Oxford Limiter Native
+Sonnox	Utility	Oxford Pro-Codec|Sonnox Pro-Codec
+Sonnox	Space	Oxford Reverb|Sonnox Reverb|Oxford Reverb Native
+Sonnox	Dynamics	Oxford SuprEsser|Sonnox SuprEsser|Sonnox De-Esser|Oxford SuprEsser HR|Oxford SuprEsser LL
+Sonnox	Dynamics	PureLimit|purelimit
+Sonoris Audio Engineering	Dynamics	Sonoris Mastering Compressor|Sonoris_Mastering_Compressor
+Sound Radix	Utility	FrontDAW|Sound Radix FrontDAW
+Soundtheory	EQ & Filter	Gullfoss|Soundtheory Gullfoss|Gullfoss Live|Gullfoss Master
+Soundtoys	Space	Crystallizer|Crystallizer (soundtoys)
+Soundtoys	Color	Decapitator|Soundtoys Decapitator|Soundtoys_Decapitator|Decapitator_x64
+Soundtoys	Color	Devil-Loc Deluxe|Devil-Loc|Soundtoys Devil-Loc|Soundtoys_Devil-Loc|DevilLoc|Devil-Loc_Deluxe
+Soundtoys	Space	EchoBoy|Soundtoys EchoBoy|EchoBoy Jr|Soundtoys_EchoBoy|EchoBoy_x64|EchoBoy Jr.
+Soundtoys	EQ & Filter	FilterFreak|FilterFreak (soundtoys)
+Soundtoys	Modulation	Little AlterBoy|Little AlterBoy (soundtoys)
+Soundtoys	Space	Little Plate|Little Plate (soundtoys)
+Soundtoys	Modulation	PanMan|Soundtoys PanMan|Soundtoys_PanMan|PanMan_x64
+Soundtoys	Modulation	PhaseMistress|Soundtoys PhaseMistress
+Soundtoys	Space	PrimalTap|PrimalTap (soundtoys)
+Soundtoys	Color	Radiator|Soundtoys Radiator
+Soundtoys	EQ & Filter	Sie-Q|Sie-Q (soundtoys)
+Soundtoys	Modulation	Tremolator|Tremolator (soundtoys)
+SPL	Dynamics	SPL Attacker
+SPL	Dynamics	SPL De-Esser Dual-Band
+SPL	Utility	SPL De-Verb|SPL Mo-Verb
+SPL	Dynamics	SPL DrumXchanger
+SPL	EQ & Filter	SPL Passeq|SPL Passeq Single
+SPL	EQ & Filter	SPL Ranger|SPL Bass Ranger|SPL Free Ranger|SPL Full Ranger|SPL Vox Ranger
+SPL	Color	SPL TwinTube
+SPL	Color	SPL Vitalizer MK2-T
+SPL	EQ & Filter	Vitalizer MK3-T|SPL Vitalizer MK3-T
+SSL	Space	FlexVerb|SSL FlexVerb|SSL Native FlexVerb
+SSL	Dynamics	SSL Native Bus Compressor 2|SSL SSL Native Bus Compressor 2|SSL Native Bus Compressor v6|SSL Fusion Vintage Drive
+SSL	EQ & Filter	SSL Native Channel Strip 2|SSL Channel Strip 2|SSL Native Channelstrip v6
+SSL	Dynamics	SSL Native X-Comp|SSL X-Comp|SSL Native X-Comp v6
+SSL	EQ & Filter	SSL Native X-EQ 2|SSL X-EQ 2
+SSL	Utility	SSL Native X-Phase|SSL Native X-Phase v6|SSL X-Phase
+SSL	Color	SSL Native X-Saturator|SSL Native X-Saturator v6|SSL X-Saturator
+SSL	Dynamics	SSL Native X-ValveComp|SSL Native X-ValveComp v6|SSL X-ValveComp
+STL Tones	Amp & Cab	AmpHub|STL Tones AmpHub
+STL Tones	Amp & Cab	STL Tonality|STL Tonality - Howard Benson
+STL Tones	Amp & Cab	ToneHub|STL Tones ToneHub
+STW Audio	Color	ZenithAPS|Zenith APS
+Sugar Bytes	EQ & Filter	Nest|Sugar Bytes Nest
+Surreal Machines	Space	Modnetic|Surreal Machines Modnetic|Surreal_Machines_Modnetic|Modnetic_x64
+Synchro Arts	Modulation	RePitch|Synchro Arts RePitch
+Synchro Arts	Modulation	Revoice Pro|Synchro Arts Revoice Pro
+Synchro Arts	Modulation	VocAlign Ultra|VocAlign|Synchro Arts VocAlign
+TAL	Modulation	TAL-Chorus-LX|TAL Chorus LX|TAL-Chorus-LX-V2|TAL_Chorus_LX|TALChorusLX|TAL-Chorus-LX-64
+TAL	Space	TAL-Dub|TAL Dub|TAL-Dub-3|TAL_Dub|TALDub|TAL-Dub-3_x64
+TAL	Space	TAL-Reverb-4|TAL Reverb 4|TAL_Reverb_4|TALReverb4
+TAL Software	EQ & Filter	TAL-Filter-2|TAL Filter 2
+TAL Software	Space	TAL-Reverb-2|TAL Reverb 2
+TAL Software	Modulation	TAL-Vocoder|TAL Vocoder
+TBProAudio	Utility	dpMeter XT|TBProAudio dpMeter
+TBProAudio	Utility	dpMeter5|dpMeter5 (tbproaudio)
+TBProAudio	Dynamics	EBusLim|TBProAudio EBusLim
+TBProAudio	EQ & Filter	Gyraf Buss EQ|TBProAudio Gyraf Buss EQ
+TBProAudio	Utility	ISOL8|TBProAudio ISOL8
+TBProAudio	Color	Knorr|TBProAudio Knorr
+TBProAudio	Dynamics	LimitedS|TBProAudio LimitedS
+TDR	Dynamics	Kotelnikov GE|TDR Kotelnikov GE
+TDR	Dynamics	Molotok|TDR Molotok
+TDR	EQ & Filter	Nova GE|TDR Nova GE
+TDR	Dynamics	TDR Limiter 6 GE|Limiter 6 GE
+TDR	Dynamics	TDR Molotok|TDR Molotok (tdr)
+Techivation	EQ & Filter	DSEQ|Techivation DSEQ|DSEQMono
+Three-Body Technology	EQ & Filter	Kirchhoff EQ|Three-Body Technology Kirchhoff EQ|KirchhoffEQ(64)
+Three-Body Technology	Color	Tape Vibe|Three-Body Technology Tape Vibe
+Time Off Audio	Utility	Dime[mb]|Time Off Audio Dime[mb]
+Tin Brooke Tales	Modulation	Clone Ensemble|CloneEnsembleV42
+Tokyo Dawn Records	Dynamics	TDR Kotelnikov|Kotelnikov|Tokyo Dawn Kotelnikov|TDR_Kotelnikov|TDRKotelnikov|TDR Ultrasonic Filter
+Tokyo Dawn Records	EQ & Filter	TDR Nova|Nova|Tokyo Dawn Nova|TDR_Nova|TDRNova
+Tokyo Dawn Records	EQ & Filter	TDR VOS SlickEQ|SlickEQ|Tokyo Dawn SlickEQ|TDR_VOS_SlickEQ|TDRSlickEQ|VOS SlickEQ|TDR VOS SlickEQ GE
+Tone Empire	Dynamics	Crunchessor|Tone Empire Crunchessor
+Tone Empire	Color	Goliath V2|Tone Empire Goliath
+Tone Empire	Dynamics	Loc-Ness|Tone Empire Loc-Ness
+Tone Empire	EQ & Filter	Neural Q|Tone Empire Neural Q
+Tone Empire	Color	Shinechilla|Tone Empire Shinechilla
+ToneLib	Amp & Cab	ToneLib GFX|ToneLib-GFX|Tonelib Guitar FX
+TSE Audio	Amp & Cab	TSE X50|TSE R47|TSE_808_2.0_
+Two Notes	Utility	Torpedo Wall of Sound|Two Notes Torpedo Wall of Sound
+u-he	Space	Colour Copy|u-he Colour Copy
+u-he	Dynamics	Presswerk|u-he Presswerk|u-he_Presswerk|uhe Presswerk
+u-he	Color	Satin|u-he Satin|u-he_Satin|uhe Satin|Satin_x64
+Unfiltered Audio	Color	Dent 2|Unfiltered Audio Dent 2
+Unfiltered Audio	Space	Sandman Pro|Unfiltered Sandman Pro
+United Plugins	Space	Cloud Machine|CloudMachine
+Universal Audio	Dynamics	1176|Universal Audio 1176
+Universal Audio	Dynamics	API 2500 Bus Compressor|UA API 2500|API 2500 UA
+Universal Audio	Space	Capitol Chambers|UA Capitol Chambers
+Universal Audio	Dynamics	dbx 160 Compressor/Limiter|UA dbx 160|dbx 160 UA
+Universal Audio	Dynamics	Empirical Labs Distressor|UA Distressor|Distressor UA|EL8 Distressor
+Universal Audio	Dynamics	Fairchild 670|UA Fairchild 670|Fairchild 670 UA
+Universal Audio	Space	Galaxy Tape Echo|UA Galaxy Tape Echo|Roland RE-201 UA
+Universal Audio	Dynamics	LA-2A|Universal Audio LA-2A
+Universal Audio	Space	Lexicon 224 Digital Reverb|UA Lexicon 224|Lexicon 224
+Universal Audio	EQ & Filter	Neve 1073 Preamp & EQ|Neve 1073|UA Neve 1073|Neve 1073 Preamp|Millennia NSEQ-2|Millennia TCL-2
+Universal Audio	Color	Neve Preamp|UA Neve Preamp
+Universal Audio	Dynamics	Precision Limiter|UA Precision Limiter|Precision Time Align|Precision Time Delay
+Universal Audio	EQ & Filter	Pultec EQP-1A|UA Pultec EQP-1A|Pultec EQP1A|UA Pultec
+Universal Audio	Space	Pure Plate Reverb|UA Pure Plate
+Universal Audio	EQ & Filter	SSL 4000 E Channel Strip|UA SSL 4000 E|SSL 4000 E Channel Strip UA
+Universal Audio	Color	Studer A800 Multichannel Tape Recorder|UA Studer A800|Studer A800
+Universal Audio	Dynamics	Teletronix LA-2A Classic Leveler|UA Teletronix LA-2A Classic|LA-2A Classic Leveler
+Valhalla DSP	Space	Tai Chi|Valhalla DSP Tai Chi
+Valhalla DSP	Space	Valhalla DSP Collection|Valhalla DSP Bundle|ValhallaDSP
+Valhalla DSP	Space	ValhallaDelay|Valhalla Delay|Valhalla_Delay|VhallaDelay
+Valhalla DSP	Space	ValhallaFreqEcho|Valhalla FreqEcho|Valhalla Freq Echo|Valhalla_FreqEcho|Valhalla_Freq_Echo|FreqEcho
+Valhalla DSP	Space	ValhallaPlate|Valhalla Plate|Valhalla_Plate|VhallaPlate
+Valhalla DSP	Space	ValhallaRoom|Valhalla Room|Valhalla_Room|VhallaRoom|ValhallaRoom_
+Valhalla DSP	Space	ValhallaShimmer|Valhalla Shimmer|Valhalla_Shimmer|VhallaShimmer|ValhallaShimmer_
+Valhalla DSP	Modulation	ValhallaSpaceModulator|Valhalla SpaceModulator|Valhalla Space Modulator
+Valhalla DSP	Space	ValhallaSupermassive|Valhalla Supermassive|ValhallaSupermassive_
+Valhalla DSP	Modulation	ValhallaUberMod|Valhalla UberMod|Valhalla_UberMod|UberMod|ValhallaUberMod_
+Valhalla DSP	Space	ValhallaVintageVerb|Valhalla VintageVerb|Valhalla Vintage Verb|Valhalla_VintageVerb|Valhalla_Vintage_Verb|VintageVerb|ValhallaVintageVerb_
+Variety Of Sound	EQ & Filter	BaxterEQ|Variety of Sound BaxterEQ|BootEQmkII
+Variety Of Sound	Dynamics	Density MK4|Variety of Sound Density MK4|DensitymkIII
+Variety Of Sound	Space	epicVerb|Variety Of Sound epicVerb|VoS epicVerb
+Variety Of Sound	Color	FerricTDS|Variety Of Sound FerricTDS|VoS FerricTDS
+Variety Of Sound	EQ & Filter	Presto|Presto EQ|Variety of Sound Presto
+Variety Of Sound	Dynamics	ThrillseekerLA|Variety of Sound ThrillseekerLA|ThrillseekerVBL|ThrillseekerXTC black|ThrillseekerXTC blue
+Vengeance Sound	Color	LF Max Punch|LFMaxPunch
+Vengeance Sound	Dynamics	V-Clip|Vengeance V-Clip
+Venn Audio	Color	FreeClip|Venn Audio FreeClip
+Venn Audio	Color	Powershaper|Venn Audio Powershaper
+Vertigo Sound	Dynamics	Vertigo VSC-2
+Vertigo Sound	Color	Vertigo VSM-3
+Vienna Symphonic Library	Space	Synchron Stage Reverb|VSL Stage Reverb
+Vienna Symphonic Library	Space	Vienna MIR Pro 3D|MIR Pro|Vienna MIR|Multi Impulse Response
+Vladg Sound	Dynamics	Limiter No6|Vladg Sound Limiter No6
+Vladg Sound	Dynamics	Molot GE|VladG Molot GE
+Voxengo	Amp & Cab	Boogex|Voxengo Boogex
+Voxengo	Utility	Correlometer|Voxengo Correlometer
+Voxengo	EQ & Filter	CurveEQ|Voxengo CurveEQ
+Voxengo	Dynamics	Deft Compressor|Voxengo Deft Compressor
+Voxengo	Dynamics	Drumformer|Voxengo Drumformer
+Voxengo	Dynamics	Elephant|Voxengo Elephant
+Voxengo	Dynamics	Elephant 5|Voxengo Elephant 5
+Voxengo	EQ & Filter	EngineersFilter|Voxengo EngineersFilter
+Voxengo	EQ & Filter	GlissEQ|Voxengo GlissEQ
+Voxengo	EQ & Filter	HarmoniEQ|Voxengo HarmoniEQ
+Voxengo	Utility	Latency Delay|Voxengo Latency Delay
+Voxengo	EQ & Filter	Marvel GEQ|Voxengo Marvel GEQ|Voxengo_Marvel_GEQ|MarvelGEQ|Overtone GEQ
+Voxengo	Utility	MSED|Voxengo MSED|Voxengo_MSED|MSED_x64
+Voxengo	Space	OldSkoolVerb|OldSkoolVerb (voxengo)|OldSkoolVerb Plus
+Voxengo	Utility	PHA-979|PHA979|Voxengo PHA-979
+Voxengo	Utility	PolySquasher|Voxengo PolySquasher|Polysquasher 3
+Voxengo	EQ & Filter	PrimeEQ|Voxengo PrimeEQ
+Voxengo	Dynamics	Soniformer|Voxengo Soniformer
+Voxengo	Utility	Sound Delay|Voxengo Sound Delay
+Voxengo	Utility	SPAN|Voxengo SPAN|Voxengo_SPAN|SPAN_x64
+Voxengo	Utility	SPAN Plus|Voxengo SPAN Plus|Voxengo_SPAN_Plus|SPANPlus
+Voxengo	Space	Tempo Delay|Voxengo Tempo Delay
+Voxengo	Color	Tube Amp|Voxengo Tube Amp
+Voxengo	Utility	Voxengo BMS|BMS
+Voxengo	Utility	Voxengo Correlometer|Voxengo Correlometer Plugin
+Voxengo	Utility	Voxengo Recorder|VoxengoRecorder
+Voxengo	Dynamics	Voxformer|Voxengo Voxformer
+Voxengo	Color	Warmifier|Voxengo Warmifier
+W.A. Production	Color	Secret Sauce|SecretSauce
+Waves	Space	Abbey Road Plates|Waves Abbey Road Plates|Waves_Abbey_Road_Plates|AbbeyRoadPlates
+Waves	Dynamics	API 2500|Waves API 2500|API2500
+Waves	EQ & Filter	API 550A|Waves API 550A|API550A
+Waves	Dynamics	CLA-2A|Waves CLA-2A|Waves_CLA-2A|CLA2A
+Waves	Dynamics	CLA-76|Waves CLA-76|Waves_CLA-76|CLA76
+Waves	Space	H-Delay|Waves H-Delay|HDelay|Waves_H-Delay|H-Delay_x64|H Delay
+Waves	Dynamics	Infected Mushroom Pusher|Waves IM Pusher
+Waves	Color	J37 Tape|J37|Waves J37|J37_Tape|Waves_J37|J37Tape
+Waves	Dynamics	L1 Ultramaximizer|L1|Waves L1|L1_Ultramaximizer|Waves_L1
+Waves	Dynamics	L2 Ultramaximizer|L2|Waves L2|L2_Ultramaximizer|Waves_L2
+Waves	EQ & Filter	Manny Marroquin Tone Shaper|Waves Manny Tone Shaper
+Waves	Color	OneKnob Driver|Waves OneKnob Driver
+Waves	Dynamics	OneKnob Louder|Waves OneKnob Louder
+Waves	Space	OneKnob Wetter|Waves OneKnob Wetter
+Waves	Dynamics	Playlist Rider|Waves Playlist Rider
+Waves	Dynamics	Primary Source Expander|PSE|Waves Primary Source Expander
+Waves	EQ & Filter	PuigTec EQP1A|Waves PuigTec EQP1A|PuigTec EQP-1A
+Waves	Dynamics	Renaissance Compressor|RComp|Waves RComp|Waves_RComp|RCompressor|Renaissance_Compressor
+Waves	EQ & Filter	Renaissance EQ|REQ|Waves REQ|Waves_REQ|Renaissance_EQ|REQ6
+Waves	Dynamics	RVox|R-Vox|Waves RVox|Waves_RVox|Renaissance_Vox
+Waves	Dynamics	Sibilance|Waves Sibilance
+Waves	Dynamics	SSL G-Master Buss Compressor|SSL G-Master Buss|Waves SSL G-Master|SSL_G-Master_Buss_Compressor|Waves_SSL_G-Master|SSL G-Comp
+Waves	Dynamics	Waves ADClip|ADClip|ADClip764|ADClip864|ADClip7|ADClip8
+Waves	Dynamics	Waves C1 Gate|C1 Gate|Waves Gate
+Waves	Dynamics	Waves C6 Multiband Compressor|C6 Multiband|Waves C6
+Waves	Dynamics	Waves DeEsser|DeEsser Plugin
+Waves	Space	Waves H-Reverb|H-Reverb|Waves H Reverb|Waves HReverb
+Waves	Dynamics	Waves L3 Multimaximizer|L3 Multimaximizer|Waves L3|L3-16
+Waves	Dynamics	Waves Linear Phase Multiband Compressor|Waves LinMB|LinMB Compressor
+Waves	Modulation	Waves MetaFlanger|MetaFlanger
+Waves	Modulation	Waves MondoMod|MondoMod
+Waves	Modulation	Waves Morphoder|Morphoder
+Waves	Modulation	Waves Tune LT
+Waves	Modulation	Waves Tune Real-Time
+Waves	Utility	WaveShell|WaveShell1-VST3 14.12_x64|Waves WaveShell|WaveShell1-VST3_14.0_x64|WaveShell1-VST3 14.0_x64|WaveShell_x64|WaveShell1-VST3|WaveShell1-VST 9.92_
+Wavesfactory	Color	Spectre|Wavesfactory Spectre|Wavesfactory_Spectre|Spectre_x64
+Weiss Engineering (Softube)	Dynamics	Weiss Compressor/Limiter|Weiss Compressor Limiter
+Weiss Engineering (Softube)	Dynamics	Weiss DS1-MK3|Weiss Deess
+Weiss Engineering (Softube)	EQ & Filter	Weiss EQ1
+Weiss Engineering (Softube)	Dynamics	Weiss MM-1 Mastering Maximizer
+Wildergarden Audio	Color	Maim|MAIM|Wildergarden MAIM|Wildergarden Audio MAIM
+x42 Plugins	EQ & Filter	x42 EQ|x42 Plugins EQ
+x42 Plugins	Utility	x42 Meters|x42 Plugins Meters
+Xfer Records	Dynamics	OTT|Xfer OTT|Xfer_OTT|OTT_x64|Xfer Records OTT|OTT_
+XLN Audio	Dynamics	DS-10 Drum Shaper|XLN Audio DS-10
+XLN Audio	Color	RC-20 Retro Color|RC-20|XLN Audio RC-20|RC20|RC-20_Retro_Color|XLN_Audio_RC-20
+Youlean	Utility	Youlean Loudness Meter 2|Youlean Loudness Meter|Youlean_Loudness_Meter_2|YouleanLoudnessMeter2
+ZAM Audio	EQ & Filter	ZamEQ2|ZAM ZamEQ2
+ZAM Audio	Dynamics	ZaMultiComp|ZAM ZaMultiComp
+zplane	Modulation	Elastique Pitch V2|ElastiquePitchV2
+Zynaptiq	Space	Adaptiverb|Zynaptiq Adaptiverb|ADAPTIVERB VST
+Zynaptiq	Dynamics	INTENSITY|Zynaptiq INTENSITY|INTENSITY VST
+Zynaptiq	Modulation	PITCHMAP|PITCHMAP (zynaptiq)
+Zynaptiq	Modulation	PITCHMAP COLORS|PITCHMAP COLORS VST3|Zynaptiq PITCHMAP|Zynaptiq_PITCHMAP_COLORS|PITCHMAP|PITCHMAP VST
+Zynaptiq	Modulation	reTune|Zynaptiq reTune
+Zynaptiq	EQ & Filter	UNFILTER|Zynaptiq UNFILTER
+Zynaptiq	Utility	UNVEIL|Zynaptiq UNVEIL|UNVEIL VST|UNVEIL 8ch VST

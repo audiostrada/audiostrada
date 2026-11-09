@@ -43,6 +43,7 @@ enum Request {
     LoadState(Vec<u8>),
     Poll,
     HasGui,
+    HasSidechain,
     /// Title, the window to stay above and the keys to hand back (see `window`).
     OpenGui(String, u64, Vec<(u32, u16)>),
     CloseGui,
@@ -69,6 +70,7 @@ impl Request {
             Self::LoadState(_) => "LoadState",
             Self::Poll => "Poll",
             Self::HasGui => "HasGui",
+            Self::HasSidechain => "HasSidechain",
             Self::OpenGui(..) => "OpenGui",
             Self::CloseGui => "CloseGui",
             Self::RaiseGui => "RaiseGui",
@@ -99,6 +101,8 @@ struct Header {
     params_in: AtomicU32,
     midi: AtomicU32,
     params_out: AtomicU32,
+    /// The block comes with a sidechain key.
+    keyed: AtomicU32,
 }
 
 #[repr(C)]
@@ -122,6 +126,8 @@ struct Layout {
     max_frames: usize,
     left: usize,
     right: usize,
+    key_left: usize,
+    key_right: usize,
     params_in: usize,
     midi: usize,
     params_out: usize,
@@ -134,7 +140,9 @@ impl Layout {
         let align = |x: usize| x.next_multiple_of(64);
         let left = 64;
         let right = align(left + max_frames * 4);
-        let params_in = align(right + max_frames * 4);
+        let key_left = align(right + max_frames * 4);
+        let key_right = align(key_left + max_frames * 4);
+        let params_in = align(key_right + max_frames * 4);
         let midi = align(params_in + MAX_CHANGES * size_of::<Change>());
         let params_out = align(midi + MAX_MIDI * size_of::<Midi>());
         let transport = align(params_out + MAX_CHANGES * size_of::<Change>());
@@ -143,6 +151,8 @@ impl Layout {
             max_frames,
             left,
             right,
+            key_left,
+            key_right,
             params_in,
             midi,
             params_out,
@@ -549,6 +559,13 @@ impl PluginInstance for SandboxInstance {
         )
     }
 
+    fn has_sidechain(&mut self) -> bool {
+        matches!(
+            self.call(Request::HasSidechain, CALL_TIMEOUT),
+            Ok(Response::Flag(true))
+        )
+    }
+
     fn open_gui(&mut self, title: &str) -> Result<(), String> {
         crate::window::allow_foreground(self.pid());
         let request = Request::OpenGui(
@@ -604,24 +621,11 @@ impl std::fmt::Debug for SandboxProcessor {
 }
 
 impl SandboxProcessor {
-    fn timeout(&self, frames: usize) -> Duration {
-        if self.offline {
-            return Duration::from_secs(5);
-        }
-        let block = Duration::from_secs_f64(frames as f64 / f64::from(self.rate));
-        block.max(Duration::from_millis(2))
-    }
-}
-
-impl PluginProcessor for SandboxProcessor {
-    fn set_transport(&mut self, transport: &crate::Transport) {
-        self.transport = *transport;
-    }
-
-    fn process(
+    fn send(
         &mut self,
         left: &mut [f32],
         right: &mut [f32],
+        key: Option<(&[f32], &[f32])>,
         params_in: &[(u32, f64)],
         midi: &[MidiEvent],
         params_out: &mut dyn FnMut(u32, f64),
@@ -644,6 +648,15 @@ impl PluginProcessor for SandboxProcessor {
         unsafe {
             r.slice::<f32>(l.left, n).copy_from_slice(&left[..n]);
             r.slice::<f32>(l.right, n).copy_from_slice(&right[..n]);
+            let keyed = match key {
+                Some((kl, kr)) if kl.len() >= n && kr.len() >= n => {
+                    r.slice::<f32>(l.key_left, n).copy_from_slice(&kl[..n]);
+                    r.slice::<f32>(l.key_right, n).copy_from_slice(&kr[..n]);
+                    1
+                }
+                _ => 0,
+            };
+            header.keyed.store(keyed, Ordering::Relaxed);
             let changes = r.slice::<Change>(l.params_in, MAX_CHANGES);
             let count = params_in.len().min(MAX_CHANGES);
             for (slot, &(id, value)) in changes.iter_mut().zip(&params_in[..count]) {
@@ -680,6 +693,42 @@ impl PluginProcessor for SandboxProcessor {
         }
     }
 
+    fn timeout(&self, frames: usize) -> Duration {
+        if self.offline {
+            return Duration::from_secs(5);
+        }
+        let block = Duration::from_secs_f64(frames as f64 / f64::from(self.rate));
+        block.max(Duration::from_millis(2))
+    }
+}
+
+impl PluginProcessor for SandboxProcessor {
+    fn set_transport(&mut self, transport: &crate::Transport) {
+        self.transport = *transport;
+    }
+
+    fn process(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        params_in: &[(u32, f64)],
+        midi: &[MidiEvent],
+        params_out: &mut dyn FnMut(u32, f64),
+    ) {
+        self.send(left, right, None, params_in, midi, params_out);
+    }
+
+    fn process_keyed(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        key: (&[f32], &[f32]),
+        params_in: &[(u32, f64)],
+        midi: &[MidiEvent],
+        params_out: &mut dyn FnMut(u32, f64),
+    ) {
+        self.send(left, right, Some(key), params_in, midi, params_out);
+    }
     fn reset(&mut self) {}
 
     fn set_offline(&mut self, offline: bool) {
@@ -775,12 +824,21 @@ fn serve(
         let right = r.slice::<f32>(l.right, n);
         let out = r.slice::<Change>(l.params_out, MAX_CHANGES);
         let mut written = 0;
-        processor.process(left, right, changes, events, &mut |id, value| {
+        let mut report = |id, value| {
             if written < MAX_CHANGES {
                 out[written] = Change { id, _pad: 0, value };
                 written += 1;
             }
-        });
+        };
+        if header.keyed.load(Ordering::Relaxed) != 0 {
+            let key = (
+                &*r.slice::<f32>(l.key_left, n),
+                &*r.slice::<f32>(l.key_right, n),
+            );
+            processor.process_keyed(left, right, key, changes, events, &mut report);
+        } else {
+            processor.process(left, right, changes, events, &mut report);
+        }
         header.params_out.store(written as u32, Ordering::Relaxed);
     }
 }
@@ -1050,6 +1108,7 @@ impl Host {
                 Response::Requests(requests)
             }
             Request::HasGui => Response::Flag(instance.has_gui()),
+            Request::HasSidechain => Response::Flag(instance.has_sidechain()),
             Request::OpenGui(title, parent, keys) => {
                 crate::window::set_parent(parent);
                 crate::window::set_grabbed_keys(keys);

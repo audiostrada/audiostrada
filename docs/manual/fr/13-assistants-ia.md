@@ -21,7 +21,7 @@ d'AudioStrada, se reconnecte à sa requête suivante.
 ## Ce qu'un assistant peut faire
 
 L'assistant commence par appeler `inspect_project`, qui décrit les pistes, les clips, les inserts
-et les départs. Il peut importer de l'audio, ajouter des pistes et des effets, régler les niveaux,
+et les sends. Il peut importer de l'audio, ajouter des pistes et des effets, régler les niveaux,
 couper, supprimer les silences, lancer Beat Detective, exporter et enregistrer.
 
 **Il entend ce qu'il fait.** `analyze_audio` rend une piste (seule, après ses effets) ou le master
@@ -45,7 +45,7 @@ supprimés.
 
 **Il mixe avec toute la console** : presets et chaînes enregistrées (`list_presets`,
 `load_preset`, `save_preset`, `list_chains`, `add_chain`), automation (`read_automation`,
-`write_automation` : montées de volume, balayages de filtre, départs), départs, bus, VCA,
+`write_automation` : montées de volume, balayages de filtre, sends), sends, bus, VCA,
 groupes et sidechains (`set_send`, `set_routing`, `set_sidechain`), la couleur de console
 (`set_console`), les instantanés, et les plugins tiers (`list_plugins`, `add_insert` avec la clé
 d'un plugin, `plugin_params`).

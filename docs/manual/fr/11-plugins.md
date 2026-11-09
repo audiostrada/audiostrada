@@ -23,14 +23,19 @@ nouveau.
 
 Cliquez sur *+ insert* ou sur un emplacement vide. Le navigateur liste les effets intégrés par
 famille (dynamique, égaliseur et filtre, espace, modulation, couleur, stéréo, utilitaires, ampli
-et baffle, instrument), puis les plugins installés dans les mêmes familles, d'après ce que chacun
-déclare (fonctions CLAP, sous-catégories VST3, catégorie VST2, classe LV2). Ceux qui ne déclarent rien de précis
-vont dans **Autres**, et **Plugins** les liste tous.
+et baffle, instrument), puis les plugins installés dans les mêmes familles. La famille d'un
+plugin vient de ce qu'il déclare (fonctions CLAP, sous-catégories VST3, catégorie VST2, classe
+LV2), sinon d'une liste d'un millier de plugins connus (tirée de
+[PluginDB](https://github.com/blakebratcher/plugindb), qui reconnaît aussi leurs versions
+suivantes : Pro-Q 4 est rangé comme Pro-Q 3), sinon des mots de son nom (*EQ*, *Verb*, *Comp*…).
+Les autres vont dans **Autres**.
 
-- Clic droit sur la carte d'un plugin › *Famille* pour le ranger ailleurs (*Automatique* revient à
-  ce qu'il déclare).
-- Les menus **Éditeur** et **Format** à côté de la recherche gardent les effets d'un éditeur ou
-  d'un format ; cliquer sur l'éditeur d'une carte fait de même.
+- Clic droit sur la carte d'un plugin › *Famille* pour le ranger ailleurs (*Automatique* revient
+  à la famille trouvée).
+- La recherche lit les noms, les familles et ce qu'elles contiennent, en anglais et en français,
+  sans tenir compte des accents : *reverb* trouve Strada-Verb.
+- Les boutons de format et le menu **Éditeur** en haut gardent les effets d'un format ou d'un
+  éditeur ; cliquer sur l'éditeur d'une carte fait de même.
 
 ## Sécurité
 
@@ -46,8 +51,14 @@ Les effets intégrés restent, et les inserts de plugins gardent leurs réglages
 
 Un plugin ouvre sa propre fenêtre quand on l'ajoute et quand on clique sur son insert (à nouveau,
 la fenêtre passe au premier plan). Clic droit › *Presets, niveaux et paramètres…* ouvre la fenêtre
-d'AudioStrada pour lui : presets, A/B, niveaux, Match, et tous les paramètres. Un plugin sans
-fenêtre affichable par AudioStrada ouvre directement celle d'AudioStrada.
+d'AudioStrada pour lui : presets, A/B et Bypass en haut comme pour les effets intégrés, niveaux et
+Match en bas, et tous les paramètres ; *Interface* ouvre ou ferme la fenêtre du plugin. Un plugin
+sans fenêtre affichable par AudioStrada ouvre directement celle d'AudioStrada.
+
+Un plugin qui a une entrée **sidechain**, comme beaucoup de compresseurs et de gates, peut être
+piloté par une autre piste, comme le compresseur intégré : choisissez la piste dans la barre du
+bas de la fenêtre d'AudioStrada, ou clic droit sur l'insert › *Sidechain*. Cela marche avec les
+plugins CLAP et VST3. Un plugin à entrée mono entend les deux côtés d'une piste stéréo, mélangés.
 
 Les fenêtres de plugins suivent la piste sélectionnée ; épinglez-en une pour la garder sur sa
 piste. Elles restent au-dessus d'AudioStrada pendant que vous l'utilisez, sous Windows et X11.

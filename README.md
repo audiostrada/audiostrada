@@ -154,3 +154,6 @@ read [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: see [SECURITY.md](SECU
 
 GPL-3.0-or-later, see [LICENSE](LICENSE). The AudioStrada name and logo are covered by
 [TRADEMARKS.md](TRADEMARKS.md).
+
+The families of third-party plugins use the data of
+[PluginDB](https://github.com/blakebratcher/plugindb) (CC0 1.0).

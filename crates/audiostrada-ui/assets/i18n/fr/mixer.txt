@@ -145,7 +145,7 @@ Save snapshot
 Enregistrer l'instantané
 
 Snapshots keep the levels, pans, mutes, sends and effect settings.
-Les instantanés gardent les niveaux, les pans, les muets, les envois et les réglages des effets.
+Les instantanés gardent les niveaux, les pans, les muets, les sends et les réglages des effets.
 
 Rename snapshot
 Renommer l'instantané
@@ -367,7 +367,7 @@ Insert {name}
 Insérer {name}
 
 Send level
-Niveau d'envoi
+Niveau du send
 
 pre
 pré
@@ -379,16 +379,16 @@ Pre-fader
 Pré-fader
 
 Send position
-Position de l'envoi
+Position du send
 
 Unmute
 Rétablir le son
 
 Mute send
-Envoi muet
+Send muet
 
 Remove send
-Retirer l'envoi
+Retirer le send
 
 Cut the output to the master
 Couper la sortie vers le master
@@ -397,7 +397,7 @@ Would create a feedback loop
 Créerait une boucle de réinjection
 
 Add send
-Ajouter un envoi
+Ajouter un send
 
 No output
 Pas de sortie
@@ -556,7 +556,7 @@ The built-in synth or an installed instrument plugin (CLAP, VST3, VST2, LV2) in 
 Le synthé intégré ou un plugin instrument installé (CLAP, VST3, VST2, LV2) à sa place
 
 Add a send
-Ajouter un envoi
+Ajouter un send
 
 Effects: {count}. Click to open the list
 Effets : {count}. Cliquez pour ouvrir la liste
@@ -571,10 +571,10 @@ Pan {pan}. Drag up or right (Shift for fine steps), wheel on a selected track; d
 Balance {pan}. Glissez vers le haut ou la droite (Maj pour le réglage fin), molette sur une piste sélectionnée ; double-clic pour centrer
 
 Send
-Envoi
+Send
 
 Sends: {count}. Click to open the list
-Envois : {count}. Cliquez pour ouvrir la liste
+Sends : {count}. Cliquez pour ouvrir la liste
 
 Group {n}
 Groupe {n}
@@ -634,10 +634,10 @@ Pans move together, by as much
 Les panoramiques bougent ensemble, d'autant
 
 Sends
-Départs
+Sends
 
 Sends to the same bus move together, keeping their balance
-Les départs vers le même bus bougent ensemble en gardant leur équilibre
+Les sends vers le même bus bougent ensemble en gardant leur équilibre
 
 Tracks whose level, mute, solo, arm, editing and more move together
 Pistes dont niveau, mute, solo, armement, édition et plus vont ensemble
@@ -787,7 +787,7 @@ SENDS
 SENDS
 
 Send to {name}: {db} dB{pre}
-Envoi vers {name} : {db} dB{pre}
+Send vers {name} : {db} dB{pre}
 
 Slope
 Pente
@@ -823,7 +823,7 @@ Module order
 Ordre des modules
 
 + Add a send
-+ Ajouter un envoi
++ Ajouter un send
 
 Effects: {count}
 Effets : {count}
@@ -832,7 +832,7 @@ Effects: {count}, bypassed: {bypassed}
 Effets : {count}, bypassés : {bypassed}
 
 Sends: {count}
-Envois : {count}
+Sends : {count}
 
 The effect browser: built-in effects and installed plugins
 Le navigateur d'effets : effets intégrés et plugins installés

@@ -4457,10 +4457,10 @@ Kick high cut
 Grosse caisse : coupe-haut
 
 Kick delay send
-Grosse caisse : départ delay
+Grosse caisse : send delay
 
 Kick reverb send
-Grosse caisse : départ réverb
+Grosse caisse : send réverb
 
 Rim shot attack
 Rim shot : attaque
@@ -4478,10 +4478,10 @@ Rim shot high cut
 Rim shot : coupe-haut
 
 Rim shot delay send
-Rim shot : départ delay
+Rim shot : send delay
 
 Rim shot reverb send
-Rim shot : départ réverb
+Rim shot : send réverb
 
 Snare attack
 Caisse claire : attaque
@@ -4499,10 +4499,10 @@ Snare high cut
 Caisse claire : coupe-haut
 
 Snare delay send
-Caisse claire : départ delay
+Caisse claire : send delay
 
 Snare reverb send
-Caisse claire : départ réverb
+Caisse claire : send réverb
 
 Clap attack
 Clap : attaque
@@ -4520,10 +4520,10 @@ Clap high cut
 Clap : coupe-haut
 
 Clap delay send
-Clap : départ delay
+Clap : send delay
 
 Clap reverb send
-Clap : départ réverb
+Clap : send réverb
 
 Closed hat attack
 Charley fermé : attaque
@@ -4541,10 +4541,10 @@ Closed hat high cut
 Charley fermé : coupe-haut
 
 Closed hat delay send
-Charley fermé : départ delay
+Charley fermé : send delay
 
 Closed hat reverb send
-Charley fermé : départ réverb
+Charley fermé : send réverb
 
 Open hat attack
 Charley ouvert : attaque
@@ -4562,10 +4562,10 @@ Open hat high cut
 Charley ouvert : coupe-haut
 
 Open hat delay send
-Charley ouvert : départ delay
+Charley ouvert : send delay
 
 Open hat reverb send
-Charley ouvert : départ réverb
+Charley ouvert : send réverb
 
 Low tom attack
 Tom grave : attaque
@@ -4583,10 +4583,10 @@ Low tom high cut
 Tom grave : coupe-haut
 
 Low tom delay send
-Tom grave : départ delay
+Tom grave : send delay
 
 Low tom reverb send
-Tom grave : départ réverb
+Tom grave : send réverb
 
 Mid tom attack
 Tom médium : attaque
@@ -4604,10 +4604,10 @@ Mid tom high cut
 Tom médium : coupe-haut
 
 Mid tom delay send
-Tom médium : départ delay
+Tom médium : send delay
 
 Mid tom reverb send
-Tom médium : départ réverb
+Tom médium : send réverb
 
 High tom attack
 Tom aigu : attaque
@@ -4625,10 +4625,10 @@ High tom high cut
 Tom aigu : coupe-haut
 
 High tom delay send
-Tom aigu : départ delay
+Tom aigu : send delay
 
 High tom reverb send
-Tom aigu : départ réverb
+Tom aigu : send réverb
 
 Crash attack
 Crash : attaque
@@ -4646,10 +4646,10 @@ Crash high cut
 Crash : coupe-haut
 
 Crash delay send
-Crash : départ delay
+Crash : send delay
 
 Crash reverb send
-Crash : départ réverb
+Crash : send réverb
 
 Cowbell attack
 Cloche : attaque
@@ -4667,10 +4667,10 @@ Cowbell high cut
 Cloche : coupe-haut
 
 Cowbell delay send
-Cloche : départ delay
+Cloche : send delay
 
 Cowbell reverb send
-Cloche : départ réverb
+Cloche : send réverb
 
 Clave attack
 Clave : attaque
@@ -4688,10 +4688,10 @@ Clave high cut
 Clave : coupe-haut
 
 Clave delay send
-Clave : départ delay
+Clave : send delay
 
 Clave reverb send
-Clave : départ réverb
+Clave : send réverb
 
 Kick 2 attack
 Grosse caisse 2 : attaque
@@ -4709,10 +4709,10 @@ Kick 2 high cut
 Grosse caisse 2 : coupe-haut
 
 Kick 2 delay send
-Grosse caisse 2 : départ delay
+Grosse caisse 2 : send delay
 
 Kick 2 reverb send
-Grosse caisse 2 : départ réverb
+Grosse caisse 2 : send réverb
 
 Snare 2 attack
 Caisse claire 2 : attaque
@@ -4730,10 +4730,10 @@ Snare 2 high cut
 Caisse claire 2 : coupe-haut
 
 Snare 2 delay send
-Caisse claire 2 : départ delay
+Caisse claire 2 : send delay
 
 Snare 2 reverb send
-Caisse claire 2 : départ réverb
+Caisse claire 2 : send réverb
 
 Ride attack
 Ride : attaque
@@ -4751,10 +4751,10 @@ Ride high cut
 Ride : coupe-haut
 
 Ride delay send
-Ride : départ delay
+Ride : send delay
 
 Ride reverb send
-Ride : départ réverb
+Ride : send réverb
 
 Tambourine attack
 Tambourin : attaque
@@ -4772,10 +4772,10 @@ Tambourine high cut
 Tambourin : coupe-haut
 
 Tambourine delay send
-Tambourin : départ delay
+Tambourin : send delay
 
 Tambourine reverb send
-Tambourin : départ réverb
+Tambourin : send réverb
 
 Compression
 Compression
@@ -4790,7 +4790,7 @@ Compression, color, EQ, delay and reverb of the whole kit
 Compression, couleur, EQ, delay et réverb de tout le kit
 
 Each pad sends to the delay and the reverb: set how much in its Sends
-Chaque pad part vers le delay et la réverb : réglez combien dans ses Départs
+Chaque pad part vers le delay et la réverb : réglez combien dans ses Sends
 
 Kit effects
 Effets du kit
@@ -4799,7 +4799,7 @@ Steps of the MIDI clip under the playhead
 Les pas du clip MIDI sous la tête de lecture
 
 The selected pad's sound: tune, envelope, filter and sends
-Le son du pad choisi : accord, enveloppe, filtre et départs
+Le son du pad choisi : accord, enveloppe, filtre et sends
 
 # Drum kits and rhythms
 
@@ -5990,3 +5990,170 @@ Nouvelle : {name}
  bars
  mesures
 
+Bypass the effect: hear the track without it
+Bypasser l'effet : écouter la piste sans lui
+
+Copy A to B
+Copier A vers B
+
+Copy B to A
+Copier B vers A
+
+Bypassed: the effect does not play
+Bypassé : l'effet ne joue pas
+
+Changed since the preset was loaded. Click for all the presets
+Modifié depuis le chargement du preset. Cliquer pour voir tous les presets
+
+Click for all the presets; Left and Right arrows step through them
+Cliquer pour voir tous les presets ; les flèches gauche et droite les font défiler
+
+Remove this preset from the favorites
+Retirer ce preset des favoris
+
+Add this preset to the favorites
+Ajouter ce preset aux favoris
+
+Search presets
+Rechercher un preset
+
+previous, next
+précédent, suivant
+
+browse
+parcourir
+
+Enter
+Entrée
+
+keep
+garder
+
+Esc
+Échap
+
+cancel
+annuler
+
+right-click: rename, delete
+clic droit : renommer, supprimer
+
+No preset matches
+Aucun preset ne correspond
+
+Hover or browse with the keyboard to hear a preset; Esc goes back to the settings before, Enter keeps it.
+Survoler ou parcourir au clavier fait entendre le preset ; Échap revient au réglage d'avant, Entrée le garde.
+
+Cannot rename the preset: {error}
+Impossible de renommer le preset : {error}
+
+Favorites
+Favoris
+
+Factory
+Usine
+
+loaded
+chargé
+
+Save the preset
+Enregistrer le preset
+
+Category: name
+Catégorie : nom
+
+every effect and plugin
+tous les effets et plugins
+
+the effects you starred
+les effets marqués d'une étoile
+
+the effects added lately
+les derniers effets ajoutés
+
+compressors, gates, limiters, de-essers
+compresseurs, gates, limiteurs, de-esseurs
+
+equalizers and filters
+égaliseurs et filtres
+
+reverbs and delays
+réverbes et delays
+
+chorus, flanger, phaser, pitch
+chorus, flanger, phaser, pitch
+
+saturation, distortion, tape
+saturation, distorsion, bande
+
+width, panning, imaging
+largeur, panoramique, image stéréo
+
+guitar and bass amps, cabinets
+amplis guitare et basse, baffles
+
+gain, meters, tuners, analyzers
+gain, mesures, accordeurs, analyseurs
+
+synths, samplers and drum machines
+synthés, samplers et boîtes à rythmes
+
+your effect chains, saved from the rack
+vos chaînes d'effets, enregistrées depuis le rack
+
+the plugins installed on this computer
+les plugins installés sur cet ordinateur
+
+plugins of another kind
+plugins d'un autre genre
+
+Recent
+Récents
+
+Families
+Familles
+
+Mine
+À moi
+
+1 effect
+1 effet
+
+{count} effects
+{count} effets
+
+No favorites yet: star an effect, or press F on it.
+Pas encore de favoris : cliquez l'étoile d'un effet, ou appuyez sur F.
+
+1 preset
+1 preset
+
+{count} presets
+{count} presets
+
+Choose an effect, then Add, or double-click it
+Choisissez un effet, puis Ajouter, ou double-cliquez dessus
+
+search
+rechercher
+
+favorite
+favori
+
+close
+fermer
+
+My chains
+Mes chaînes
+
+chain
+chaîne
+
+Remove this effect from the favorites (F)
+Retirer cet effet des favoris (F)
+
+Add this effect to the favorites (F)
+Ajouter cet effet aux favoris (F)
+
+The family found from what the plugin declares, its name and a list of known plugins
+La famille trouvée d'après ce que déclare le plugin, son nom et une liste de plugins connus

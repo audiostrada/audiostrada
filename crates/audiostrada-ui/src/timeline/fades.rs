@@ -95,7 +95,7 @@ impl TimelineView {
         ids: &[ClipId],
         fade_in: bool,
     ) {
-        let project = doc.project().clone();
+        let choices = lengths(doc.project(), clip);
         let p = theme::current(ui);
         let current = if fade_in {
             clip.fade_shape
@@ -152,7 +152,7 @@ impl TimelineView {
         ui.add_space(4.0);
         ui.label(egui::RichText::new(tr("Length")).weak().size(11.0));
         ui.horizontal_wrapped(|ui| {
-            for (text, length) in lengths(&project, clip) {
+            for (text, length) in choices {
                 let label = if fade_in {
                     tr("Fade in")
                 } else {

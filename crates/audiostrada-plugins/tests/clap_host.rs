@@ -72,6 +72,32 @@ fn sound_goes_through_at_the_gain_set() {
 }
 
 #[test]
+fn the_sidechain_input_hears_the_key_then_silence() {
+    let mut p = instance();
+    assert!(p.has_sidechain());
+    let mut audio = p.activate(48_000, 64).expect("activated");
+    let (mut left, mut right) = (vec![0.5f32; 64], vec![0.5f32; 64]);
+    let key = (vec![0.25f32; 64], vec![-0.5f32; 64]);
+    audio.process_keyed(
+        &mut left,
+        &mut right,
+        (&key.0, &key.1),
+        &[],
+        &[],
+        &mut |_, _| {},
+    );
+    assert!((left[10] - 0.75).abs() < 1e-6, "{}", left[10]);
+    assert!(right[10].abs() < 1e-6, "{}", right[10]);
+    let (mut left, mut right) = (vec![0.5f32; 64], vec![0.5f32; 64]);
+    audio.process(&mut left, &mut right, &[], &[], &mut |_, _| {});
+    assert!(
+        (left[10] - 0.5).abs() < 1e-6,
+        "the key is gone: {}",
+        left[10]
+    );
+}
+
+#[test]
 fn the_state_comes_back() {
     let mut p = instance();
     // CLAP parameters change through the audio side.

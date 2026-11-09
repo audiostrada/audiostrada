@@ -1228,6 +1228,21 @@ impl Vst3Instance {
     }
 }
 
+/// Whether the second audio input of `component` is an aux bus: its sidechain.
+fn aux_input(component: &ComPtr<IComponent>) -> bool {
+    let audio = MediaTypes_::kAudio as MediaType;
+    let input = BusDirections_::kInput as BusDirection;
+    // SAFETY: plain queries on a live component; BusInfo is plain C data.
+    unsafe {
+        if component.getBusCount(audio, input) < 2 {
+            return false;
+        }
+        let mut info: BusInfo = std::mem::zeroed();
+        ok(component.getBusInfo(audio, input, 1, &mut info))
+            && info.busType == BusTypes_::kAux as BusType
+    }
+}
+
 /// Component and controller states in one blob: `SV3\0`, the component's length, both states.
 fn pack_state(component: &[u8], controller: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(8 + component.len() + controller.len());
@@ -1265,8 +1280,9 @@ impl crate::PluginInstance for Vst3Instance {
             BusDirections_::kInput as BusDirection,
             BusDirections_::kOutput as BusDirection,
         );
+        let aux = aux_input(&self.component);
         // SAFETY: plain calls on a live component; arrays outlive the calls.
-        let (inputs, outputs) = unsafe {
+        let (inputs, outputs, key) = unsafe {
             let n_in = self.component.getBusCount(audio, input).max(0) as usize;
             let n_out = self.component.getBusCount(audio, output).max(0) as usize;
             let current = |dir: BusDirection, i: usize| {
@@ -1280,6 +1296,9 @@ impl crate::PluginInstance for Vst3Instance {
             if let Some(main) = ins.first_mut() {
                 *main = SpeakerArr::kStereo;
             }
+            if aux {
+                ins[1] = SpeakerArr::kStereo;
+            }
             if let Some(main) = outs.first_mut() {
                 *main = SpeakerArr::kStereo;
             }
@@ -1291,8 +1310,9 @@ impl crate::PluginInstance for Vst3Instance {
             );
             for (dir, count) in [(input, n_in), (output, n_out)] {
                 for i in 0..count {
+                    let on = i == 0 || (aux && dir == input && i == 1);
                     self.component
-                        .activateBus(audio, dir, i as int32, (i == 0) as TBool);
+                        .activateBus(audio, dir, i as int32, on as TBool);
                 }
             }
             let event = MediaTypes_::kEvent as MediaType;
@@ -1306,7 +1326,12 @@ impl crate::PluginInstance for Vst3Instance {
                     Self::channels(current(dir, 0))
                 }
             };
-            (main(input, n_in), main(output, n_out))
+            let key = if aux {
+                Self::channels(current(input, 1))
+            } else {
+                0
+            };
+            (main(input, n_in), main(output, n_out), key)
         };
         let mut setup = ProcessSetup {
             processMode: ProcessModes_::kRealtime as int32,
@@ -1328,8 +1353,10 @@ impl crate::PluginInstance for Vst3Instance {
         let max = max_frames.max(1);
         let mut buffers_in: Vec<Vec<f32>> = vec![vec![0.0; max]; inputs];
         let mut buffers_out: Vec<Vec<f32>> = vec![vec![0.0; max]; outputs];
+        let mut buffers_key: Vec<Vec<f32>> = vec![vec![0.0; max]; key];
         let in_ptrs = buffers_in.iter_mut().map(|b| b.as_mut_ptr()).collect();
         let out_ptrs = buffers_out.iter_mut().map(|b| b.as_mut_ptr()).collect();
+        let key_ptrs = buffers_key.iter_mut().map(|b| b.as_mut_ptr()).collect();
         // SAFETY: an all-zero ProcessContext is a valid "nothing known" context.
         let mut context: ProcessContext = unsafe { std::mem::zeroed() };
         context.sampleRate = f64::from(sample_rate);
@@ -1372,6 +1399,10 @@ impl crate::PluginInstance for Vst3Instance {
             buffers_out,
             in_ptrs,
             out_ptrs,
+            buffers_key,
+            key_ptrs,
+            aux,
+            keyed: false,
             changes_in: ParamChanges::new(),
             changes_out: ParamChanges::new(),
             events: EventList::new(),
@@ -1580,6 +1611,10 @@ impl crate::PluginInstance for Vst3Instance {
         requests
     }
 
+    fn has_sidechain(&mut self) -> bool {
+        aux_input(&self.component)
+    }
+
     fn has_gui(&mut self) -> bool {
         if self.has_editor.is_none() {
             self.has_editor = Some(self.editor.is_some() || self.create_view().is_some());
@@ -1686,6 +1721,11 @@ pub struct Vst3Processor {
     buffers_out: Vec<Vec<f32>>,
     in_ptrs: Vec<*mut f32>,
     out_ptrs: Vec<*mut f32>,
+    /// The sidechain bus, active when the plugin has one, and whether it holds a key.
+    buffers_key: Vec<Vec<f32>>,
+    key_ptrs: Vec<*mut f32>,
+    aux: bool,
+    keyed: bool,
     changes_in: ComWrapper<ParamChanges>,
     changes_out: ComWrapper<ParamChanges>,
     events: ComWrapper<EventList>,
@@ -1757,11 +1797,12 @@ impl Vst3Processor {
     }
 }
 
-impl PluginProcessor for Vst3Processor {
-    fn process(
+impl Vst3Processor {
+    fn run(
         &mut self,
         left: &mut [f32],
         right: &mut [f32],
+        key: Option<(&[f32], &[f32])>,
         params_in: &[(u32, f64)],
         midi: &[MidiEvent],
         params_out: &mut dyn FnMut(u32, f64),
@@ -1786,13 +1827,23 @@ impl PluginProcessor for Vst3Processor {
             self.midi_event(e, crate::block_time(e, n));
         }
         crate::fill_inputs(&mut self.buffers_in, left, right, n);
-        let mut input = AudioBusBuffers {
-            numChannels: self.in_ptrs.len() as int32,
-            silenceFlags: 0,
-            __field0: AudioBusBuffers__type0 {
-                channelBuffers32: self.in_ptrs.as_mut_ptr(),
+        crate::fill_key(&mut self.buffers_key, key, &mut self.keyed, n);
+        let mut input = [
+            AudioBusBuffers {
+                numChannels: self.in_ptrs.len() as int32,
+                silenceFlags: 0,
+                __field0: AudioBusBuffers__type0 {
+                    channelBuffers32: self.in_ptrs.as_mut_ptr(),
+                },
             },
-        };
+            AudioBusBuffers {
+                numChannels: self.key_ptrs.len() as int32,
+                silenceFlags: 0,
+                __field0: AudioBusBuffers__type0 {
+                    channelBuffers32: self.key_ptrs.as_mut_ptr(),
+                },
+            },
+        ];
         let mut output = AudioBusBuffers {
             numChannels: self.out_ptrs.len() as int32,
             silenceFlags: 0,
@@ -1812,9 +1863,13 @@ impl PluginProcessor for Vst3Processor {
             processMode: ProcessModes_::kRealtime as int32,
             symbolicSampleSize: SymbolicSampleSizes_::kSample32 as int32,
             numSamples: n as int32,
-            numInputs: i32::from(!self.in_ptrs.is_empty()),
+            numInputs: if self.aux {
+                2
+            } else {
+                i32::from(!self.in_ptrs.is_empty())
+            },
             numOutputs: i32::from(!self.out_ptrs.is_empty()),
-            inputs: &mut input,
+            inputs: input.as_mut_ptr(),
             outputs: &mut output,
             inputParameterChanges: changes_in,
             outputParameterChanges: changes_out,
@@ -1834,7 +1889,31 @@ impl PluginProcessor for Vst3Processor {
         }
         self.changes_out.last_values(&mut *params_out);
     }
+}
 
+impl PluginProcessor for Vst3Processor {
+    fn process(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        params_in: &[(u32, f64)],
+        midi: &[MidiEvent],
+        params_out: &mut dyn FnMut(u32, f64),
+    ) {
+        self.run(left, right, None, params_in, midi, params_out);
+    }
+
+    fn process_keyed(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        key: (&[f32], &[f32]),
+        params_in: &[(u32, f64)],
+        midi: &[MidiEvent],
+        params_out: &mut dyn FnMut(u32, f64),
+    ) {
+        self.run(left, right, Some(key), params_in, midi, params_out);
+    }
     fn reset(&mut self) {}
 
     fn set_transport(&mut self, t: &crate::Transport) {

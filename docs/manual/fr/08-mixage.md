@@ -12,14 +12,15 @@ VCA. Le fader prend la hauteur que le panneau laisse. Un clic droit dans l'espac
 tranches ajoute une piste, un bus ou un VCA ; un clic y vide la sélection.
 
 - **Ancré** dans la fenêtre principale, la tranche laisse sa hauteur au fader. À côté de
-  l'indicateur, une pastille par effet montre la chaîne : un clic ouvre l'effet, [[Shift]]-clic le
-  bypasse, [[Ctrl]]-clic le retire, et **+** en ajoute un ; les sends suivent, chacun avec son
-  niveau. Les boutons **FX** et **Send** (allumés, avec leur nombre, quand la liste contient
-  quelque chose) ouvrent toute la liste juste en dessous, pour réordonner ou ajouter ; un clic
-  ailleurs la referme. Le master a **FX** et **Mon** (effets d'écoute).
+  l'indicateur, dans l'ordre du signal : le bouton du channel strip, puis **FX** avec une pastille
+  par effet (un clic ouvre l'effet, [[Shift]]-clic le bypasse, [[Ctrl]]-clic le retire) et **+**
+  pour en ajouter un, puis **Sends** avec une pastille par send qui montre son niveau. **FX** et
+  **Sends** (allumés, avec leur nombre, quand la liste contient quelque chose) ouvrent toute la
+  liste juste en dessous, pour réordonner ou ajouter ; un clic ailleurs la referme. Le master a
+  son channel strip, **FX** et **Mon** (effets d'écoute).
 - **Dans sa propre fenêtre** (Affichage › Mixer › *Dans sa propre fenêtre*, [[Ctrl+M]]), chaque
-  tranche montre ses emplacements d'effets et de départs : cliquez sur un emplacement vide pour
-  ajouter un effet ou un départ. Les listes ont la hauteur de la plus longue, plus un emplacement
+  tranche montre ses emplacements d'effets et de sends : cliquez sur un emplacement vide pour
+  ajouter un effet ou un send. Les listes ont la hauteur de la plus longue, plus un emplacement
   vide, et laissent le reste aux faders. [[Ctrl+M]] à nouveau le remet en place. *Mixer compact*
   ([[Shift+Alt+C]], aussi dans Préférences › Apparence) rétrécit les tranches. Un clic droit sur le
   master le place à gauche des pistes, ou le remet à leur droite.
@@ -49,16 +50,22 @@ les pistes sélectionnées.
 
 - Cliquez sur *+ insert* ou sur un emplacement vide pour ouvrir le **navigateur d'effets** ;
   cliquez sur un effet pour ouvrir sa fenêtre.
+- Dans le navigateur, la colonne de gauche choisit une famille, vos favoris ou les derniers effets
+  ajoutés ; la recherche parcourt tout, les boutons du haut gardent un format ou un éditeur. Un
+  clic choisit un effet et montre ses presets en bas, un double-clic ou *Ajouter* ([[Enter]])
+  l'ajoute. Les flèches passent d'une carte à l'autre, [[/]] va à la recherche, [[F]] met l'effet
+  choisi en favori.
 - [[Shift]]-clic met un effet en bypass, [[Ctrl]]-clic le retire, le clic droit donne les autres
-  options.
+  options ; *Sidechain* y choisit la piste qui pilote un effet doté d'une entrée sidechain.
 - Glissez un effet pour le réordonner, ou sur une autre tranche pour l'y copier ([[Alt]] : le
   déplacer). Déposé sur la liste, il va à l'endroit choisi ; ailleurs sur la tranche, en dernier.
 - **Bypass** au-dessus des inserts met en bypass tous les effets de la tranche, et reste allumé
   tant qu'ils le sont ; sur le master, **ALL** met en bypass tous les effets de la session (un
   instrument en tête de piste continue de jouer).
 
-**Les fenêtres d'effets** montrent le niveau qui entre et qui sort (crêtes et sonie) et le gain de
-**Sortie** après l'effet, gardé dans le mix et l'export. **Match** est une aide à l'écoute : tant
+**Les fenêtres d'effets** montrent, dans leur barre du bas, la piste qui pilote la détection pour
+les effets qui ont un **Sidechain**, le niveau qui entre et qui sort (crêtes et sonie) et le gain
+de **Sortie** après l'effet, gardé dans le mix et l'export. **Match** est une aide à l'écoute : tant
 qu'il est allumé, la sortie est ramenée à la sonie de l'entrée, pour comparer l'effet et son
 bypass à niveau égal. Il n'est jamais enregistré ni exporté et s'éteint quand la fenêtre se ferme ;
 **Garder** reporte sa correction dans la Sortie.
@@ -97,7 +104,7 @@ clic. Les chaînes parallèles séparent le signal en branches et les remélange
 
 Sélectionnez des pistes et appuyez sur [[Ctrl+G]]. Un groupe n'a rien à voir avec les bus : les
 pistes d'un bus restent indépendantes tant qu'elles ne sont pas groupées. Le menu Groupes règle ce que partagent les membres : niveau, panoramique et
-départs (en relatif), muet, solo, armement, bypass des inserts, mode d'automation, polarité, et
+sends (en relatif), muet, solo, armement, bypass des inserts, mode d'automation, polarité, et
 édition (un clic sur un clip ou une piste dans la timeline prend aussi ceux des membres : coupes,
 déplacements, rognages et fondus s'appliquent à tous).
 

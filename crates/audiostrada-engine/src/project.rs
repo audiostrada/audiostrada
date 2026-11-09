@@ -94,6 +94,8 @@ struct InsertNodes {
     /// Latency of the effect, and the one told to the graph (none while bypassed).
     latency: u32,
     declared: u32,
+    /// Inputs 2 and 3 take a sidechain key.
+    sidechain: bool,
 }
 
 /// Plugin instances and what they need besides the graph.
@@ -197,6 +199,7 @@ impl Plugins {
                 (instance, HashMap::new(), Vec::new())
             }
         };
+        let sidechain = instance.has_sidechain();
         let (rate, max) = self.format;
         let mut processor = instance.activate(rate, max)?;
         processor.set_offline(self.offline);
@@ -207,7 +210,7 @@ impl Plugins {
         let node = engine.add_node(
             &descriptor.name,
             node.with_midi(midi).with_layer(layer),
-            2,
+            if sidechain { 4 } else { 2 },
             2,
         );
         let _ = engine.set_latency(node, latency);
@@ -220,6 +223,7 @@ impl Plugins {
             files: insert.files.clone(),
             latency,
             declared: latency,
+            sidechain,
             kind: InsertKind::Plugin(PluginSlot {
                 instance,
                 controls,
@@ -881,11 +885,8 @@ impl ProjectPlayer {
                         info.meters.len(),
                     );
                     // Effects with a sidechain get two key inputs.
-                    let inputs = if audiostrada_dsp::supports_sidechain(info.id) {
-                        4
-                    } else {
-                        2
-                    };
+                    let sidechain = audiostrada_dsp::supports_sidechain(info.id);
+                    let inputs = if sidechain { 4 } else { 2 };
                     let node = engine.add_node(
                         info.name,
                         node.with_midi(midi.take()).with_layer(layer_midi.take()),
@@ -903,6 +904,7 @@ impl ProjectPlayer {
                         files: insert.files.clone(),
                         latency,
                         declared: latency,
+                        sidechain,
                     }
                 }
                 (None, None) => {
@@ -965,6 +967,10 @@ impl ProjectPlayer {
                     controls.levels.gain_db.set(insert.gain_db);
                 }
                 InsertKind::Plugin(plugin) => {
+                    plugin
+                        .controls
+                        .keyed
+                        .store(insert.sidechain.is_some(), Ordering::Relaxed);
                     for (key, &value) in &insert.params {
                         let (Ok(id), value) = (key.parse::<u32>(), f64::from(value)) else {
                             continue;
@@ -1619,7 +1625,10 @@ impl ProjectPlayer {
             for insert in routing::flatten(inserts) {
                 let (Some(source), Some(slot)) = (
                     insert.sidechain.and_then(|s| self.tracks.get(&s)),
-                    channel.inserts.iter().find(|n| n.id == insert.id),
+                    channel
+                        .inserts
+                        .iter()
+                        .find(|n| n.id == insert.id && n.sidechain),
                 ) else {
                     continue;
                 };
@@ -2242,6 +2251,14 @@ impl ProjectPlayer {
             InsertKind::Plugin(plugin) => Some(plugin.instance.as_mut()),
             InsertKind::Builtin(_) => None,
         }
+    }
+
+    /// Whether an insert takes a sidechain key: a built-in effect that has one, or a plugin
+    /// with a sidechain input.
+    pub fn has_sidechain(&mut self, channel: Channel, id: InsertId) -> bool {
+        self.holder_mut(channel, id)
+            .and_then(|h| h.inserts.iter().find(|n| n.id == id))
+            .is_some_and(|n| n.sidechain)
     }
 
     /// Levels before and after an insert, built-in or plugin: `[in L, in R, out L, out R,
@@ -3179,7 +3196,7 @@ mod tests {
     }
 
     #[test]
-    fn a_plugin_insert_plays_on_every_system() {
+    fn a_plugin_insert_plays_on_every_system_and_hears_its_key() {
         let library = audiostrada_test_plugin::built_library()
             .expect("the test plugin is built with the tests");
         let dir = audiostrada_core::scratch::dir("engine-clap");
@@ -3214,6 +3231,27 @@ mod tests {
         let id = f.history.project().tracks[0].inserts[0].id;
         assert!(f.player.plugin(Channel::Track(t), id).is_some());
         assert_eq!(f.player.plugin_states().len(), 1);
+        // Another track keys it: the test plugin adds its sidechain to its output.
+        assert!(f.player.has_sidechain(Channel::Track(t), id));
+        let source = f.history.project().tracks[0].clips[0].source;
+        f.history.edit("Key", |p| {
+            let k = p.add_track("Key");
+            p.add_clip(k, source, 0);
+            p.track_mut(k).unwrap().master_send = false;
+            p.track_mut(t).unwrap().inserts[0].sidechain = Some(k);
+        });
+        f.media.retain(&media_paths(f.history.project(), None));
+        assert!(f.media.wait(Duration::from_secs(10)));
+        f.player.sync(f.history.project(), None, &f.media);
+        f.player.locate(0);
+        f.player.engine_mut().play();
+        let keyed = render(&mut processor, 40);
+        f.player.update();
+        assert!(
+            close(keyed[keyed.len() - 1], 1.0),
+            "keyed: {}",
+            keyed[keyed.len() - 1]
+        );
         f.history.edit("Remove", |p| {
             routing::remove_insert(p, Channel::Track(t), id)
         });

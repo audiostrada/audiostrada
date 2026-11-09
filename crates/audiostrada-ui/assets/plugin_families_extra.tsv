@@ -1,0 +1,4 @@
+# Plugin families AudioStrada knows besides PluginDB's table (plugindb.tsv), and corrections of
+# it: these win over the plugin's own tags and the table.
+# vendor<TAB>family<TAB>name|alias|...
+TONE3000	Amp & Cab	TONE3000

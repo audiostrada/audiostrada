@@ -81,6 +81,6 @@ Les boutons d'un clavier tournent ceux du synthé intégré des pistes armées, 
 standard : CC 74 coupure, 71 résonance, 73 attaque, 75 décroissance, 72 relâchement, 7 volume (en
 mode MPE, le CC 74 façonne plutôt chaque note).
 
-**Apprentissage MIDI** : clic droit sur un fader, un bouton de panoramique, un niveau de départ ou
+**Apprentissage MIDI** : clic droit sur un fader, un bouton de panoramique, un niveau de send ou
 un paramètre d'effet › *Apprentissage MIDI*, puis bougez une commande de votre contrôleur MIDI.
 Un contrôleur appris ne fait que ce pour quoi il a été appris.

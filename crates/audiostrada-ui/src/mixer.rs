@@ -15,6 +15,7 @@ use eframe::egui::{self, Align, Color32, Layout, Rect, Response, RichText, Sense
 use crate::dialogs;
 use crate::document::Document;
 use crate::effect_editors;
+use crate::effect_frame;
 use crate::i18n::tr;
 use crate::settings::{ERROR, OK, WARN};
 use crate::theme;
@@ -334,6 +335,32 @@ fn pill(ui: &mut Ui, width: f32, text: &str, fill: Color32, ink: Color32) -> Res
     response
 }
 
+/// The button under a docked strip's effects that adds one: a plus on a raised face.
+fn add_pill(ui: &mut Ui, width: f32) -> Response {
+    let (rect, response) = ui.allocate_exact_size(vec2(width, 14.0), Sense::click());
+    let p = theme::current(ui);
+    let hovered = response.hovered();
+    ui.painter().rect(
+        rect,
+        3.0,
+        if hovered { p.hover } else { p.surface },
+        egui::Stroke::new(1.0, crate::effect_frame::button_edge(&p)),
+        egui::StrokeKind::Inside,
+    );
+    let ink = if hovered {
+        p.text
+    } else {
+        theme::mix(p.text, p.weak, 0.3)
+    };
+    let c = rect.center();
+    let stroke = egui::Stroke::new(1.6, ink);
+    ui.painter()
+        .line_segment([c - vec2(4.5, 0.0), c + vec2(4.5, 0.0)], stroke);
+    ui.painter()
+        .line_segment([c - vec2(0.0, 4.5), c + vec2(0.0, 4.5)], stroke);
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
 /// A pill per send of a docked strip: its destination's name over a bar as long as its level.
 fn send_pills(ui: &mut Ui, project: &Project, track: &Track, width: f32) {
     let p = theme::current(ui);
@@ -429,8 +456,9 @@ const PAN_KNOB: f32 = 40.0;
 const PAN_KNOB_NARROW: f32 = 32.0;
 /// Height of the buttons under the master's readings.
 const MASTER_BUTTON: f32 = 20.0;
-/// Pills of a docked strip shown before they scroll.
+/// Pills of a docked strip shown before they scroll, and the height of each with its spacing.
 const PILLS_SHOWN: f32 = 4.0;
+const PILL: f32 = 16.0;
 
 /// An empty slot of a list: clicking it adds an effect or a send.
 fn empty_slot(ui: &mut Ui, width: f32, hint: &str) -> Response {
@@ -683,6 +711,55 @@ fn forget_window(ctx: &egui::Context, places: egui::Id, id: egui::ViewportId) {
     });
 }
 
+/// What an editor window gives its content: the keys it took for it, and the body under
+/// the bars.
+struct Fit {
+    keys: Vec<egui::Key>,
+    /// The body's content size, and the room it had.
+    size: Option<(egui::Vec2, egui::Vec2)>,
+}
+
+impl Fit {
+    /// The content, scrolled when the window is too small; the window follows its size.
+    fn body(&mut self, ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
+        egui::CentralPanel::default().show(ui, |ui| {
+            let output = egui::ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .show(ui, add);
+            self.size = Some((output.content_size, output.inner_rect.size()));
+        });
+    }
+}
+
+/// Takes the plain presses of `keys` before the shortcuts do; Left and Right stay with a
+/// text field being typed in.
+fn take_keys(ctx: &egui::Context, keys: &[egui::Key]) -> Vec<egui::Key> {
+    if keys.is_empty() {
+        return Vec::new();
+    }
+    let typing = ctx.text_edit_focused();
+    ctx.input_mut(|i| {
+        let mut taken = Vec::new();
+        i.events.retain(|e| match e {
+            egui::Event::Key {
+                key,
+                pressed: true,
+                modifiers,
+                ..
+            } if modifiers.is_none()
+                && keys.contains(key)
+                && !(typing && matches!(key, egui::Key::ArrowLeft | egui::Key::ArrowRight)) =>
+            {
+                taken.push(*key);
+                false
+            }
+            _ => true,
+        });
+        taken
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
 fn editor_window(
     ctx: &egui::Context,
     places: egui::Id,
@@ -690,15 +767,9 @@ fn editor_window(
     title: &str,
     size: [f32; 2],
     raise: bool,
-    add: impl FnOnce(&mut Ui),
+    keys: &[egui::Key],
+    add: impl FnOnce(&mut Ui, &mut Fit),
 ) -> bool {
-    /// The content's size, and the room it had.
-    fn contents(ui: &mut Ui, add: impl FnOnce(&mut Ui)) -> (egui::Vec2, egui::Vec2) {
-        let output = egui::ScrollArea::vertical()
-            .auto_shrink([false, false])
-            .show(ui, add);
-        (output.content_size, output.inner_rect.size())
-    }
     let id = egui::ViewportId::from_hash_of(key);
     if raise {
         ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Focus);
@@ -719,14 +790,14 @@ fn editor_window(
     let builder = crate::floating_builder(ctx, id, crate::Floating::Editor(id), builder);
     let mut add = Some(add);
     let open = ctx.show_viewport_immediate(id, builder, |ui, _| {
+        let keys = take_keys(ui.ctx(), keys);
         // Before the widgets, so that Space plays instead of pressing a focused button.
         crate::window_shortcuts(ui.ctx());
-        let mut content = None;
-        egui::CentralPanel::default().show(ui, |ui| {
-            if let Some(add) = add.take() {
-                content = Some(contents(ui, add));
-            }
-        });
+        let mut fit = Fit { keys, size: None };
+        if let Some(add) = add.take() {
+            add(ui, &mut fit);
+        }
+        let content = fit.size;
         // The window follows its content, as it changes: no empty space below or at the right,
         // nothing cut when controls appear.
         let ctx = ui.ctx().clone();
@@ -893,7 +964,7 @@ fn is_instrument(doc: &Document, effect: &str) -> bool {
 }
 
 /// Name of a channel's owner in titles and hints.
-fn owner_name(project: &Project, channel: Channel) -> &str {
+pub(crate) fn owner_name(project: &Project, channel: Channel) -> &str {
     match channel {
         Channel::Master => tr("Master"),
         Channel::Track(t) => project.track(t).map_or("?", |t| t.name.as_str()),
@@ -2993,22 +3064,41 @@ impl MixerView {
                             self.track_switches(ui, doc, track, vec2(24.0, 20.0), true);
                         });
                     } else {
-                        ui.vertical(|ui| {
-                            let top = ui.cursor().top();
-                            // Two by two at the bottom of the column, the automation mode last.
-                            let items: u8 = if track.kind == TrackKind::Audio { 5 } else { 3 };
-                            let rows = f32::from(items.div_ceil(2)) * 21.0;
-                            self.list_buttons(ui, doc, track, fader_height - rows - 6.0);
-                            let left = fader_height - (ui.cursor().top() - top) - rows;
-                            if left > 0.0 {
-                                ui.add_space(left);
-                            }
-                            ui.spacing_mut().item_spacing = vec2(3.0, 3.0);
-                            ui.horizontal_wrapped(|ui| {
-                                ui.set_max_width(51.0);
-                                self.track_switches(ui, doc, track, vec2(24.0, 18.0), true);
-                            });
-                        });
+                        // A column as tall as the fader, whatever the track: the lists at
+                        // the top, the switches two by two at the bottom, at the height they
+                        // took last time.
+                        let (column, _) =
+                            ui.allocate_exact_size(vec2(51.0, fader_height), Sense::hover());
+                        let key = egui::Id::unique(("switches-height", track.id.0));
+                        let items: u8 = if track.kind == TrackKind::Audio { 5 } else { 3 };
+                        let rows = ui
+                            .ctx()
+                            .data(|d| d.get_temp::<f32>(key))
+                            .unwrap_or(f32::from(items.div_ceil(2)) * 21.0);
+                        let lists = column.with_max_y(column.bottom() - rows - 6.0);
+                        let down = egui::Layout::top_down(egui::Align::Min);
+                        let mut lists_ui =
+                            ui.new_child(egui::UiBuilder::new().max_rect(lists).layout(down));
+                        self.list_buttons(&mut lists_ui, doc, track, lists.height());
+                        let switches = column.with_min_y(column.bottom() - rows);
+                        let used = ui
+                            .scope_builder(
+                                egui::UiBuilder::new().max_rect(switches).layout(down),
+                                |ui| {
+                                    ui.spacing_mut().item_spacing = vec2(3.0, 3.0);
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.set_max_width(51.0);
+                                        self.track_switches(ui, doc, track, vec2(24.0, 18.0), true);
+                                    });
+                                },
+                            )
+                            .response
+                            .rect
+                            .height();
+                        if (used - rows).abs() > 0.5 {
+                            ui.ctx().data_mut(|d| d.insert_temp(key, used));
+                            ui.ctx().request_repaint();
+                        }
                     }
                 });
                 let bottom = ui.cursor().top();
@@ -4010,6 +4100,11 @@ impl MixerView {
                     });
                     ui.close();
                 }
+                if doc.player_mut().has_sidechain(channel, id) {
+                    ui.menu_button(tr("Sidechain"), |ui| {
+                        effect_frame::sidechain_menu(ui, doc, channel, insert)
+                    });
+                }
                 if ui.button(tr("Move up")).clicked() {
                     doc.history_mut().edit(tr("Move insert"), |p| {
                         routing::move_insert(p, channel, id, true)
@@ -4683,6 +4778,9 @@ impl MixerView {
                 } else {
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
+                        self.strip_button(ui, doc, Channel::Master, vec2(54.0, 22.0));
+                    });
+                    ui.horizontal(|ui| {
                         let inserts = &project.master.inserts;
                         let monitor = inserts.iter().filter(|i| i.monitor).count();
                         let fx = inserts
@@ -4694,9 +4792,6 @@ impl MixerView {
                         self.list_button(ui, doc, project, master, fx, size);
                         let master = (Channel::Master, List::Monitor);
                         self.list_button(ui, doc, project, master, monitor, size);
-                    });
-                    ui.horizontal(|ui| {
-                        self.strip_button(ui, doc, Channel::Master, vec2(54.0, 22.0));
                     });
                 }
                 self.align_top(ui, top);
@@ -4800,7 +4895,8 @@ impl MixerView {
         doc.set_master_level(levels);
     }
 
-    /// The buttons beside a docked strip's fader that open its inserts and sends.
+    /// The buttons beside a docked strip's fader, in the signal's order: the channel strip,
+    /// the effects with their pills and a button to add one, then the sends with theirs.
     fn list_buttons(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track, room: f32) {
         let top = ui.cursor().top();
         let channel = Channel::Track(track.id);
@@ -4811,21 +4907,35 @@ impl MixerView {
             .filter(|i| i.effect != routing::STRIP)
             .count();
         let project = doc.project().clone();
-        self.list_button(ui, doc, &project, (channel, List::Inserts), fx, size);
-        let sends = track.sends.len();
-        self.list_button(ui, doc, &project, (channel, List::Sends), sends, size);
         self.strip_button(ui, doc, channel, size);
-        // A few pills show, the others scroll, rather than make the strip taller.
-        let left = (room - (ui.cursor().top() - top)).clamp(0.0, PILLS_SHOWN * 16.0);
+        self.list_button(ui, doc, &project, (channel, List::Inserts), fx, size);
+        // A few pills show, the others scroll, rather than make the strip taller; the sends'
+        // button and two of their pills keep their room.
+        let sends = track.sends.len();
+        let spacing = ui.spacing().item_spacing.y;
+        let used = ui.cursor().top() - top;
+        let send_room = sends.min(2) as f32 * PILL;
+        let fx_room = (room - used - size.y - spacing - send_room).clamp(PILL, PILLS_SHOWN * PILL);
         egui::ScrollArea::vertical()
-            .id_salt(("pills", track.id.0))
-            .max_height(left)
+            .id_salt(("fx-pills", track.id.0))
+            .max_height(fx_room)
             .auto_shrink([false, true])
             .show(ui, |ui| {
                 ui.set_width(size.x);
                 self.insert_pills(ui, doc, channel, size.x);
-                send_pills(ui, doc.project(), track, size.x);
             });
+        self.list_button(ui, doc, &project, (channel, List::Sends), sends, size);
+        if sends > 0 {
+            let left = (room - (ui.cursor().top() - top)).clamp(PILL, PILLS_SHOWN * PILL);
+            egui::ScrollArea::vertical()
+                .id_salt(("send-pills", track.id.0))
+                .max_height(left)
+                .auto_shrink([false, true])
+                .show(ui, |ui| {
+                    ui.set_width(size.x);
+                    send_pills(ui, doc.project(), track, size.x);
+                });
+        }
     }
 
     /// The button of the channel strip, lit when one of its modules is on; opens it.
@@ -4946,8 +5056,7 @@ impl MixerView {
                 self.open_gui.push((channel, id));
             }
         }
-        let add =
-            pill(ui, width, "+", p.base, p.weak).on_hover_text(tr("Add an effect or a plugin"));
+        let add = add_pill(ui, width).on_hover_text(tr("Add an effect or a plugin"));
         if add.clicked() {
             self.rack.place = None;
             self.browser.borrow_mut().open((channel, false));
@@ -5207,7 +5316,7 @@ impl MixerView {
                 trf!("Effects: {count}. Click to open the list", count = count),
             ),
             List::Sends => (
-                tr("Send"),
+                tr("Sends"),
                 trf!("Sends: {count}. Click to open the list", count = count),
             ),
             List::Monitor => (
@@ -5671,6 +5780,8 @@ impl MixerView {
             let rig = info.id == "amp_rig";
             let raise = self.raise.contains(&id);
             let places = self.places;
+            let meter = effect_editors::is_meter(info.id);
+            let keys = self.editor_states.entry(id).or_default().frame.keys(!meter);
             let open = editor_window(
                 ctx,
                 places,
@@ -5678,60 +5789,78 @@ impl MixerView {
                 &title,
                 size,
                 raise,
-                |ui| {
+                &keys,
+                |ui, fit| {
                     let state = self.editor_states.entry(id).or_default();
-                    let meter = effect_editors::is_meter(info.id);
-                    let toggled = effect_editors::header(ui, info, insert.bypass, |ui| {
-                        ui.horizontal(|ui| {
-                            if !meter {
-                                effect_editors::preset_bar(ui, doc, channel, insert, state);
-                            }
-                        });
-                    });
-                    if let Some(bypass) = toggled {
+                    let who = effect_frame::Identity {
+                        name: tr(info.name).to_owned(),
+                        detail: tr(info.category).to_owned(),
+                        color: crate::effect_browser::family_color(info.category),
+                        dot: true,
+                        presets: !meter,
+                        interface: None,
+                    };
+                    let top = effect_frame::top(
+                        ui,
+                        &fit.keys,
+                        doc,
+                        channel,
+                        insert,
+                        &mut state.frame,
+                        &who,
+                    );
+                    if let Some(bypass) = top.bypass {
                         doc.history_mut().edit(tr("Bypass insert"), |p| {
                             routing::set_bypass(p, channel, id, bypass)
                         });
                     }
                     // An instrument has no input to match.
                     if !meter && !info.instrument {
-                        effect_editors::levels_bar(ui, doc, channel, insert, state);
+                        effect_frame::bottom(
+                            ui,
+                            doc,
+                            channel,
+                            insert,
+                            &mut state.matching,
+                            audiostrada_dsp::supports_sidechain(info.id),
+                        );
                     }
-                    ui.add_space(4.0);
-                    // The synth shows its wavetable files on its own face.
-                    if !rig
-                        && !info.files.is_empty()
-                        && !matches!(info.id, "synth" | "drums" | "trigger")
-                    {
-                        effect_files(ui, doc, channel, insert, info);
-                        ui.separator();
-                    }
-                    let values: Vec<f32> = info
-                        .params
-                        .iter()
-                        .map(|p| {
-                            let lane = AutomationTarget::Param {
-                                insert: id,
-                                param: p.id.to_owned(),
-                            };
-                            doc.automation_value(channel, &lane).unwrap_or_else(|| {
-                                insert.params.get(p.id).copied().unwrap_or(p.default)
+                    fit.body(ui, |ui| {
+                        // The synth shows its wavetable files on its own face.
+                        if !rig
+                            && !info.files.is_empty()
+                            && !matches!(info.id, "synth" | "drums" | "trigger")
+                        {
+                            effect_files(ui, doc, channel, insert, info);
+                            ui.separator();
+                        }
+                        let values: Vec<f32> = info
+                            .params
+                            .iter()
+                            .map(|p| {
+                                let lane = AutomationTarget::Param {
+                                    insert: id,
+                                    param: p.id.to_owned(),
+                                };
+                                doc.automation_value(channel, &lane).unwrap_or_else(|| {
+                                    insert.params.get(p.id).copied().unwrap_or(p.default)
+                                })
                             })
-                        })
-                        .collect();
-                    let meters = doc
-                        .player_mut()
-                        .insert_meters(channel, id)
-                        .unwrap_or_default();
-                    let state = self.editor_states.entry(id).or_default();
-                    let mut params = effect_editors::Params {
-                        doc: &mut *doc,
-                        channel,
-                        insert: id,
-                        info,
-                        values,
-                    };
-                    effect_editors::show(ui, &mut params, &meters, state);
+                            .collect();
+                        let meters = doc
+                            .player_mut()
+                            .insert_meters(channel, id)
+                            .unwrap_or_default();
+                        let state = self.editor_states.entry(id).or_default();
+                        let mut params = effect_editors::Params {
+                            doc: &mut *doc,
+                            channel,
+                            insert: id,
+                            info,
+                            values,
+                        };
+                        effect_editors::show(ui, &mut params, &meters, state);
+                    });
                 },
             );
             if !open {
@@ -5744,6 +5873,7 @@ impl MixerView {
             doc.player_mut().set_insert_match(channel, id, false);
             doc.player_mut().set_insert_watched(channel, id, false);
             if let Some(state) = self.editor_states.get_mut(&id) {
+                state.frame.close(doc, channel, id);
                 state.matching = false;
                 state.synth.release(doc);
                 state.drums.release(doc);
@@ -5821,126 +5951,138 @@ impl MixerView {
         let title = format!("{owner}: {name}");
         let raise = self.raise.contains(&id);
         let places = self.places;
+        let detail = doc
+            .player()
+            .plugins()
+            .find(&insert.effect)
+            .map_or_else(String::new, |d| {
+                if d.vendor.is_empty() {
+                    d.format.name().to_owned()
+                } else {
+                    format!("{} · {}", d.vendor, d.format.name())
+                }
+            });
+        let loaded = error.is_none();
+        let keys = self.editor_states.entry(id).or_default().frame.keys(loaded);
         let open = editor_window(
             ctx,
             places,
             ("insert-editor", id.0),
             &title,
-            [600.0, 520.0],
+            [640.0, 560.0],
             raise,
-            |ui| {
-                if let Some(error) = &error {
-                    ui.colored_label(
-                        ERROR,
-                        trf!("This plugin cannot be loaded: {error}", error = error),
-                    );
-                    return;
-                }
-                ui.horizontal(|ui| {
-                    let mut bypass = insert.bypass;
-                    if ui.checkbox(&mut bypass, tr("Bypass")).changed() {
-                        doc.history_mut().edit(tr("Bypass insert"), |p| {
-                            routing::set_bypass(p, channel, id, bypass)
-                        });
-                    }
-                    let label = if gui_open {
-                        tr("Close plugin window")
-                    } else {
-                        tr("Open plugin window")
-                    };
-                    if ui
-                        .add_enabled(has_gui, egui::Button::new(label))
-                        .on_disabled_hover_text(tr(
-                            "This plugin has no window AudioStrada can open yet",
-                        ))
-                        .clicked()
-                    {
-                        toggle_gui = true;
-                    }
-                });
+            &keys,
+            |ui, fit| {
                 let state = self.editor_states.entry(id).or_default();
-                effect_editors::preset_bar(ui, doc, channel, insert, state);
-                effect_editors::levels_bar(ui, doc, channel, insert, state);
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.param_filter)
-                        .hint_text(tr("Filter parameters"))
-                        .desired_width(f32::INFINITY),
-                );
-                ui.separator();
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        egui::Grid::new(("plugin-params", id.0))
-                            .num_columns(3)
-                            .spacing([10.0, 4.0])
-                            .striped(true)
-                            .show(ui, |ui| {
-                                for (p, current, text) in &rows {
-                                    // Wide enough to read, the whole name on hover.
-                                    ui.scope(|ui| {
-                                        ui.set_width(150.0);
-                                        ui.add(egui::Label::new(&p.name).truncate())
-                                    })
-                                    .inner
-                                    .on_hover_text(
-                                        if p.module.is_empty() {
-                                            p.name.clone()
-                                        } else {
-                                            format!("{}\n{}", p.name, p.module)
-                                        },
-                                    );
-                                    let mut value = *current;
-                                    let mut slider = egui::Slider::new(&mut value, p.min..=p.max)
-                                        .show_value(false);
-                                    if p.stepped {
-                                        slider = slider.step_by(1.0);
-                                    }
-                                    let response = ui.add_enabled(!p.read_only, slider);
-                                    if response.double_clicked() {
-                                        value = p.default;
-                                    }
-                                    ui.monospace(text);
-                                    let lane = AutomationTarget::Param {
-                                        insert: id,
-                                        param: p.id.to_string(),
-                                    };
-                                    let changed = (value != *current).then_some(value as f32);
-                                    automated_control(
-                                        doc,
-                                        channel,
-                                        &lane,
-                                        changed,
-                                        &response,
-                                        |doc, value| {
-                                            doc.history_mut().edit_merged(
-                                                &format!("{name} {}", p.name),
-                                                &format!("insert:{}:{}", id.0, p.id),
-                                                |proj| {
-                                                    routing::set_insert_param(
-                                                        proj,
-                                                        channel,
-                                                        id,
-                                                        &p.id.to_string(),
-                                                        value,
-                                                    )
-                                                },
-                                            );
-                                        },
-                                    );
-                                    learn_menu(
-                                        &response,
-                                        doc,
-                                        channel,
-                                        &lane,
-                                        (p.min as f32, p.max as f32),
-                                    );
-                                    ui.end_row();
-                                }
-                            });
-                        if params.is_empty() {
-                            ui.weak(tr("This plugin exposes no parameters."));
-                        }
+                let who = effect_frame::Identity {
+                    name: name.clone(),
+                    detail,
+                    color: egui::Color32::from_rgb(138, 147, 163),
+                    dot: false,
+                    presets: loaded,
+                    interface: loaded.then_some(effect_frame::Interface {
+                        available: has_gui,
+                        open: gui_open,
+                    }),
+                };
+                let top =
+                    effect_frame::top(ui, &fit.keys, doc, channel, insert, &mut state.frame, &who);
+                if let Some(bypass) = top.bypass {
+                    doc.history_mut().edit(tr("Bypass insert"), |p| {
+                        routing::set_bypass(p, channel, id, bypass)
                     });
+                }
+                toggle_gui = top.interface;
+                if loaded {
+                    let sidechain = doc.player_mut().has_sidechain(channel, id);
+                    effect_frame::bottom(ui, doc, channel, insert, &mut state.matching, sidechain);
+                }
+                fit.body(ui, |ui| {
+                    if let Some(error) = &error {
+                        ui.colored_label(
+                            ERROR,
+                            trf!("This plugin cannot be loaded: {error}", error = error),
+                        );
+                        return;
+                    }
+                    filter_field(ui, &mut self.param_filter);
+                    ui.separator();
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            egui::Grid::new(("plugin-params", id.0))
+                                .num_columns(3)
+                                .spacing([10.0, 4.0])
+                                .striped(true)
+                                .show(ui, |ui| {
+                                    for (p, current, text) in &rows {
+                                        // Wide enough to read, the whole name on hover.
+                                        ui.scope(|ui| {
+                                            ui.set_width(150.0);
+                                            ui.add(egui::Label::new(&p.name).truncate())
+                                        })
+                                        .inner
+                                        .on_hover_text(
+                                            if p.module.is_empty() {
+                                                p.name.clone()
+                                            } else {
+                                                format!("{}\n{}", p.name, p.module)
+                                            },
+                                        );
+                                        let mut value = *current;
+                                        let mut slider =
+                                            egui::Slider::new(&mut value, p.min..=p.max)
+                                                .show_value(false);
+                                        if p.stepped {
+                                            slider = slider.step_by(1.0);
+                                        }
+                                        let response = ui.add_enabled(!p.read_only, slider);
+                                        if response.double_clicked() {
+                                            value = p.default;
+                                        }
+                                        ui.monospace(text);
+                                        let lane = AutomationTarget::Param {
+                                            insert: id,
+                                            param: p.id.to_string(),
+                                        };
+                                        let changed = (value != *current).then_some(value as f32);
+                                        automated_control(
+                                            doc,
+                                            channel,
+                                            &lane,
+                                            changed,
+                                            &response,
+                                            |doc, value| {
+                                                doc.history_mut().edit_merged(
+                                                    &format!("{name} {}", p.name),
+                                                    &format!("insert:{}:{}", id.0, p.id),
+                                                    |proj| {
+                                                        routing::set_insert_param(
+                                                            proj,
+                                                            channel,
+                                                            id,
+                                                            &p.id.to_string(),
+                                                            value,
+                                                        )
+                                                    },
+                                                );
+                                            },
+                                        );
+                                        learn_menu(
+                                            &response,
+                                            doc,
+                                            channel,
+                                            &lane,
+                                            (p.min as f32, p.max as f32),
+                                        );
+                                        ui.end_row();
+                                    }
+                                });
+                            if params.is_empty() {
+                                ui.weak(tr("This plugin exposes no parameters."));
+                            }
+                        });
+                });
             },
         );
         if toggle_gui && let Some(plugin) = doc.player_mut().plugin(channel, id) {
@@ -5952,6 +6094,29 @@ impl MixerView {
         }
         open
     }
+}
+
+/// The field filtering a plugin's parameters, as the bars' fields.
+fn filter_field(ui: &mut Ui, filter: &mut String) {
+    let p = theme::current(ui);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 28.0), Sense::hover());
+    ui.painter().rect(
+        rect,
+        effect_frame::radius(&p),
+        effect_frame::field_fill(&p),
+        egui::Stroke::new(1.0, effect_frame::button_edge(&p)),
+        egui::StrokeKind::Inside,
+    );
+    let text = rect.shrink2(egui::vec2(10.0, 1.0));
+    ui.put(
+        text,
+        egui::TextEdit::singleline(filter)
+            .frame(egui::Frame::NONE)
+            .hint_text(tr("Filter parameters"))
+            .align(egui::Align2::LEFT_CENTER)
+            .desired_width(text.width()),
+    );
+    ui.add_space(6.0);
 }
 
 /// What can be added: tracks, buses and VCAs; from the toolbar and the empty space.

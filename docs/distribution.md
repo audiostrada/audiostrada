@@ -71,6 +71,10 @@ binaires non signés.
 
 ## Publier une version
 
+0. Mettre à jour la table des familles de plugins : `scripts/update-plugindb.py` télécharge la
+   dernière base de [PluginDB](https://github.com/blakebratcher/plugindb) et dit ce qui change.
+   Relire, puis commiter `crates/audiostrada-ui/assets/plugindb.tsv`. Les corrections d'un
+   plugin vont dans `plugin_families_extra.tsv`, que le script ne touche pas.
 1. Monter `version` dans `Cargo.toml`, ajouter les notes de version, commiter.
 2. `git tag v0.2.0 && git push origin v0.2.0` : le CI construit et signe, puis crée un
    brouillon de release avec les paquets, `SHA256SUMS` et `latest.json`.

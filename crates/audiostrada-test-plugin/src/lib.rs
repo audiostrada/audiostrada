@@ -1,5 +1,6 @@
 //! A minimal CLAP plugin for the plugin host's tests: a stereo gain whose one parameter, in dB,
-//! moves by events in the audio thread or from the host, and is saved in its state.
+//! moves by events in the audio thread or from the host, and is saved in its state. Its
+//! sidechain input is added to its output, to hear that the key arrives.
 
 mod vst2;
 
@@ -24,6 +25,7 @@ use clap_sys::ext::params::{
 use clap_sys::ext::state::{CLAP_EXT_STATE, clap_plugin_state};
 use clap_sys::factory::plugin_factory::{CLAP_PLUGIN_FACTORY_ID, clap_plugin_factory};
 use clap_sys::host::clap_host;
+use clap_sys::id::CLAP_INVALID_ID;
 use clap_sys::id::clap_id;
 use clap_sys::plugin::{clap_plugin, clap_plugin_descriptor};
 use clap_sys::plugin_features::{CLAP_PLUGIN_FEATURE_AUDIO_EFFECT, CLAP_PLUGIN_FEATURE_STEREO};
@@ -152,39 +154,51 @@ unsafe extern "C" fn process(
         let input: &clap_audio_buffer = &*process.audio_inputs;
         let output: &clap_audio_buffer = &*process.audio_outputs;
         let channels = input.channel_count.min(output.channel_count) as usize;
+        let key: Option<&clap_audio_buffer> =
+            (process.audio_inputs_count > 1).then(|| &*process.audio_inputs.add(1));
         for c in 0..channels {
             let from = *input.data32.add(c);
             let to = *output.data32.add(c);
+            let keyed = key
+                .filter(|k| (c as u32) < k.channel_count && !k.data32.is_null())
+                .map(|k| *k.data32.add(c));
             for i in 0..frames {
-                *to.add(i) = *from.add(i) * factor;
+                *to.add(i) = *from.add(i) * factor + keyed.map_or(0.0, |k| *k.add(i));
             }
         }
     }
     CLAP_PROCESS_CONTINUE
 }
 
-unsafe extern "C" fn ports_count(_: *const clap_plugin, _input: bool) -> u32 {
-    1
+unsafe extern "C" fn ports_count(_: *const clap_plugin, input: bool) -> u32 {
+    if input { 2 } else { 1 }
 }
 
 unsafe extern "C" fn port_get(
     _: *const clap_plugin,
     index: u32,
-    _input: bool,
+    input: bool,
     info: *mut clap_audio_port_info,
 ) -> bool {
-    if index != 0 {
+    if index > u32::from(input) {
         return false;
     }
     // SAFETY: the host gives a writable info.
     unsafe {
         let info = &mut *info;
-        info.id = 0;
-        write_name(&mut info.name, "Main");
-        info.flags = CLAP_AUDIO_PORT_IS_MAIN;
+        info.id = index;
+        write_name(
+            &mut info.name,
+            if index == 0 { "Main" } else { "Sidechain" },
+        );
+        info.flags = if index == 0 {
+            CLAP_AUDIO_PORT_IS_MAIN
+        } else {
+            0
+        };
         info.channel_count = 2;
         info.port_type = CLAP_PORT_STEREO.as_ptr();
-        info.in_place_pair = 0;
+        info.in_place_pair = if index == 0 { 0 } else { CLAP_INVALID_ID };
     }
     true
 }

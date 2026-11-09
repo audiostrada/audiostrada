@@ -44,7 +44,7 @@ et montre les niveaux d'entrée.
 5. **Éditez** : glissez les clips pour les déplacer, leurs bords pour les rogner, leurs coins
    hauts pour les fondus. [[S]] scinde à la tête de lecture, [[Ctrl+Z]] annule tout.
 6. **Mixez** : dans le **Mixer** sous la timeline, réglez les niveaux aux faders, cliquez sur
-   *+ insert* pour ajouter un effet (un compresseur sur la voix, une réverbération sur un départ).
+   *+ insert* pour ajouter un effet (un compresseur sur la voix, une réverbération sur un send).
 7. **Exportez** : Fichier › Exporter ([[Ctrl+Shift+E]]), choisissez WAV ou MP3, et exportez.
 
 AudioStrada enregistre tout seul pendant que vous travaillez, et chaque enregistrement garde la

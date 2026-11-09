@@ -11,12 +11,13 @@ arm (**R**) and the track's name, marked **BUS** for a bus and **VCA** for a VCA
 takes the height the panel leaves. Right-click the empty space beside the strips to add a track,
 a bus or a VCA; a click there clears the selection.
 
-- **Docked** in the main window, the strip leaves its height to the fader. Beside the meter, a
-  pill per effect shows the chain: a click opens the effect, [[Shift]]-click bypasses it,
-  [[Ctrl]]-click removes it, and **+** adds one; the sends follow, each with its level. The **FX**
-  and **Send** buttons (lit, with their count, when the list holds something) open the whole list
-  just under them, to reorder or add; a click elsewhere closes it. The master has **FX** and
-  **Mon** (monitoring effects).
+- **Docked** in the main window, the strip leaves its height to the fader. Beside the meter, in
+  the signal's order: the channel strip's button, then **FX** with a pill per effect (a click
+  opens the effect, [[Shift]]-click bypasses it, [[Ctrl]]-click removes it) and **+** to add one,
+  then **Sends** with a pill per send showing its level. **FX** and **Sends** (lit, with their
+  count, when the list holds something) open the whole list just under them, to reorder or add;
+  a click elsewhere closes it. The master has its channel strip, **FX** and **Mon** (monitoring
+  effects).
 - **In its own window** (View › Mixer › *In its own window*, [[Ctrl+M]]), each strip shows its
   effect and send slots: click an empty slot to add an effect or a send. The lists are as tall as
   the longest one, plus an empty slot, and leave the rest to the faders. [[Ctrl+M]]
@@ -48,16 +49,22 @@ arm the selected tracks.
 
 - Click *+ insert* or an empty slot to open the **effect browser**; click an effect to open its
   window.
+- In the browser, the left column picks a family, your favorites or the effects added lately;
+  the search looks through everything, the buttons at the top keep one format or one vendor.
+  A click chooses an effect and shows its presets below, a double-click or *Add* ([[Enter]])
+  adds it. The arrows move between the cards, [[/]] goes to the search, [[F]] stars the chosen
+  effect.
 - [[Shift]]-click bypasses an effect, [[Ctrl]]-click removes it, right-click for the other
-  options.
+  options; *Sidechain* there chooses the track keying an effect that has a sidechain input.
 - Drag an effect to reorder it, or onto another strip to copy it there ([[Alt]]: move it). Drop
   it on the list to choose the place, anywhere else on the strip to put it last.
 - **Bypass** above the inserts bypasses every effect of the strip, and stays lit while they are
   bypassed; on the master, **ALL** bypasses every effect of the session (an instrument leading a
   track keeps playing).
 
-**Effect windows** show the level going in and coming out (peaks and loudness) and the **Output**
-gain after the effect, kept in the mix and the export. **Match** is a listening aid: while it is
+**Effect windows** show, in their bottom bar, the track driving the detection for the effects
+that have a **Sidechain**, the level going in and coming out (peaks and loudness) and the
+**Output** gain after the effect, kept in the mix and the export. **Match** is a listening aid: while it is
 lit, the output is brought to the input's loudness, so that bypassing the effect compares it at
 equal level. It is never saved nor exported and turns off when the window closes; **Keep** moves
 its correction into Output.
