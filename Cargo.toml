@@ -71,7 +71,7 @@ tiny-skia = { version = "0.12.0", default-features = false, features = ["std", "
 ab_glyph = "0.2.32"
 ureq = { version = "3.5.0", default-features = false, features = ["gzip"] }
 wasapi = "0.26.0"
-x11rb = "0.13.2"
+x11rb = "0.14.0"
 windows = "0.62.2"
 thiserror = "2.0.21"
 tracing = "0.1.44"
