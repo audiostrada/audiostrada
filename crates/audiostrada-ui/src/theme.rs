@@ -5,9 +5,10 @@ use eframe::egui::{
     Rect, Response, Sense, Shape, Stroke, StrokeKind, TextStyle, Ui, Vec2, Visuals, epaint, pos2,
     vec2,
 };
+use serde::{Deserialize, Serialize};
 
 /// How meters light up.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MeterStyle {
     /// A smooth bar, green to red.
     Gradient,
@@ -18,7 +19,7 @@ pub enum MeterStyle {
 }
 
 /// How fader caps are drawn.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CapStyle {
     /// Flat with a line.
     Modern,
@@ -33,10 +34,20 @@ pub struct Look {
     pub radius: u8,
     pub meter: MeterStyle,
     pub cap: CapStyle,
+    /// Strips and bars as glossy cards lifted off the panel by a soft shadow.
+    pub gloss: bool,
+    /// Color of the strips' and bars' faces, when it differs from the panels'.
+    pub face: Option<Color32>,
 }
 
-const fn look(radius: u8, meter: MeterStyle, cap: CapStyle) -> Look {
-    Look { radius, meter, cap }
+pub const fn look(radius: u8, meter: MeterStyle, cap: CapStyle) -> Look {
+    Look {
+        radius,
+        meter,
+        cap,
+        gloss: false,
+        face: None,
+    }
 }
 
 /// Colors and look of one theme.
@@ -71,36 +82,6 @@ pub const DARK: Palette = Palette {
     look: look(4, MeterStyle::Gradient, CapStyle::Modern),
 };
 
-/// Deep blue night, cyan accent.
-pub const MIDNIGHT: Palette = Palette {
-    base: Color32::from_rgb(10, 14, 24),
-    panel: Color32::from_rgb(18, 24, 38),
-    surface: Color32::from_rgb(30, 39, 60),
-    hover: Color32::from_rgb(40, 52, 78),
-    pressed: Color32::from_rgb(50, 64, 94),
-    border: Color32::from_rgb(6, 9, 16),
-    text: Color32::from_rgb(214, 226, 245),
-    weak: Color32::from_rgb(120, 140, 172),
-    accent: Color32::from_rgb(64, 208, 255),
-    dark: true,
-    look: look(6, MeterStyle::Glow, CapStyle::Modern),
-};
-
-/// Walnut and cream, amber accent, like an old console.
-pub const VINTAGE: Palette = Palette {
-    base: Color32::from_rgb(40, 31, 23),
-    panel: Color32::from_rgb(68, 52, 38),
-    surface: Color32::from_rgb(100, 79, 58),
-    hover: Color32::from_rgb(118, 94, 70),
-    pressed: Color32::from_rgb(136, 109, 81),
-    border: Color32::from_rgb(26, 19, 13),
-    text: Color32::from_rgb(250, 238, 214),
-    weak: Color32::from_rgb(200, 176, 140),
-    accent: Color32::from_rgb(244, 172, 64),
-    dark: true,
-    look: look(3, MeterStyle::Segments, CapStyle::Classic),
-};
-
 /// Neutral studio gray, orange accent.
 pub const STUDIO: Palette = Palette {
     base: Color32::from_rgb(42, 43, 46),
@@ -116,65 +97,169 @@ pub const STUDIO: Palette = Palette {
     look: look(2, MeterStyle::Gradient, CapStyle::Classic),
 };
 
-/// Soft gray daylight, blue accent.
+/// Light gray, white glossy buttons and strips, blue accent.
 pub const LIGHT: Palette = Palette {
-    base: Color32::from_rgb(176, 181, 189),
-    panel: Color32::from_rgb(214, 217, 223),
-    surface: Color32::from_rgb(234, 236, 240),
-    hover: Color32::from_rgb(245, 246, 248),
-    pressed: Color32::from_rgb(198, 203, 211),
-    border: Color32::from_rgb(150, 156, 166),
-    text: Color32::from_rgb(24, 27, 32),
-    weak: Color32::from_rgb(84, 91, 104),
-    accent: Color32::from_rgb(22, 102, 206),
+    base: Color32::from_rgb(160, 165, 173),
+    panel: Color32::from_rgb(200, 204, 210),
+    surface: Color32::from_rgb(250, 251, 252),
+    hover: Color32::from_rgb(255, 255, 255),
+    pressed: Color32::from_rgb(220, 225, 232),
+    border: Color32::from_rgb(110, 116, 125),
+    text: Color32::from_rgb(8, 10, 14),
+    weak: Color32::from_rgb(52, 56, 64),
+    accent: Color32::from_rgb(0, 98, 220),
     dark: false,
-    look: look(5, MeterStyle::Gradient, CapStyle::Modern),
+    look: Look {
+        gloss: true,
+        face: Some(Color32::from_rgb(236, 238, 241)),
+        ..look(5, MeterStyle::Gradient, CapStyle::Modern)
+    },
 };
 
-/// A big console: charcoal, sharp corners, lights for meters, ridged caps, red accent.
-pub const CONSOLE: Palette = Palette {
-    base: Color32::from_rgb(16, 17, 18),
-    panel: Color32::from_rgb(36, 37, 39),
-    surface: Color32::from_rgb(54, 55, 58),
-    hover: Color32::from_rgb(66, 67, 71),
-    pressed: Color32::from_rgb(80, 81, 86),
-    border: Color32::from_rgb(8, 8, 9),
-    text: Color32::from_rgb(232, 230, 224),
-    weak: Color32::from_rgb(150, 148, 142),
-    accent: Color32::from_rgb(242, 88, 60),
-    dark: true,
-    look: look(0, MeterStyle::Segments, CapStyle::Classic),
-};
+/// A theme made from a background, an accent and a contrast (0 soft, 1 strong), readable
+/// whatever they are: the background stays clearly dark or clearly light and only lightly
+/// colored, the texts reach a contrast of 7:1 and 4.5:1 on it, the accent 3:1, and the accent
+/// keeps away from the record red.
+pub fn custom(background: Color32, accent: Color32, contrast: f32, look: Look) -> Palette {
+    let c = contrast.clamp(0.0, 1.0);
+    let (h, s, l) = hsl(background);
+    let dark = l < 0.5;
+    let s = s.min(0.3);
+    let l = if dark {
+        l.clamp(0.04, 0.22)
+    } else {
+        l.clamp(0.7, 0.95)
+    };
+    let tone = |l: f32| from_hsl(h, s, l.clamp(0.0, 1.0));
+    let (base, panel, surface, hover, pressed, border) = if dark {
+        (
+            tone(l - 0.04 - 0.04 * c),
+            tone(l),
+            tone(l + 0.06 + 0.05 * c),
+            tone(l + 0.1 + 0.06 * c),
+            tone(l + 0.14 + 0.07 * c),
+            tone(l - 0.08 - 0.04 * c),
+        )
+    } else {
+        (
+            tone(l - 0.12 - 0.08 * c),
+            tone(l),
+            tone(0.97 + 0.02 * c),
+            tone(1.0),
+            tone(l + 0.05),
+            tone(l - 0.3 - 0.15 * c),
+        )
+    };
+    let ink = if dark { Color32::WHITE } else { Color32::BLACK };
+    let mut text = tone(if dark {
+        0.88 + 0.08 * c
+    } else {
+        0.1 - 0.06 * c
+    });
+    while (contrast_ratio(text, panel) < 7.0 || contrast_ratio(text, surface) < 4.5) && text != ink
+    {
+        text = mix(text, ink, 0.1);
+    }
+    let mut weak = mix(text, panel, 0.42 - 0.17 * c);
+    while contrast_ratio(weak, panel) < 4.5 && weak != text {
+        weak = mix(weak, text, 0.1);
+    }
+    let accent = readable_accent(accent, panel, dark);
+    let face = (!dark).then(|| mix(panel, Color32::WHITE, 0.65));
+    Palette {
+        base,
+        panel,
+        surface,
+        hover,
+        pressed,
+        border,
+        text,
+        weak,
+        accent,
+        dark,
+        look: Look {
+            gloss: !dark,
+            face,
+            ..look
+        },
+    }
+}
 
-/// Black with neon: magenta accent, glowing meters, round corners.
-pub const NEON: Palette = Palette {
-    base: Color32::from_rgb(6, 4, 12),
-    panel: Color32::from_rgb(16, 12, 26),
-    surface: Color32::from_rgb(32, 24, 50),
-    hover: Color32::from_rgb(46, 34, 72),
-    pressed: Color32::from_rgb(60, 44, 92),
-    border: Color32::from_rgb(2, 1, 6),
-    text: Color32::from_rgb(240, 232, 255),
-    weak: Color32::from_rgb(150, 132, 190),
-    accent: Color32::from_rgb(255, 64, 190),
-    dark: true,
-    look: look(8, MeterStyle::Glow, CapStyle::Modern),
-};
+/// `accent` turned away from the record red, then lightened or darkened until it stands out
+/// on `panel` (and, on light themes, carries white text).
+fn readable_accent(accent: Color32, panel: Color32, dark: bool) -> Color32 {
+    let (mut h, s, mut l) = hsl(accent);
+    let (red, _, _) = hsl(RECORD);
+    // Signed distance to the red's hue, -180 to 180 degrees.
+    let away = (h - red + 540.0).rem_euclid(360.0) - 180.0;
+    if s > 0.3 && away.abs() < 22.0 {
+        h = (red + 22.0_f32.copysign(away)).rem_euclid(360.0);
+    }
+    let mut color = from_hsl(h, s, l);
+    for _ in 0..40 {
+        let on_panel = contrast_ratio(color, panel) >= 3.0;
+        let white = dark || contrast_ratio(Color32::WHITE, color) >= 3.0;
+        if on_panel && white {
+            break;
+        }
+        l = if dark { l + 0.02 } else { l - 0.02 }.clamp(0.0, 1.0);
+        color = from_hsl(h, s, l);
+    }
+    color
+}
 
-/// Warm paper and ink, for daylight.
-pub const PAPER: Palette = Palette {
-    base: Color32::from_rgb(190, 178, 156),
-    panel: Color32::from_rgb(226, 216, 196),
-    surface: Color32::from_rgb(240, 232, 216),
-    hover: Color32::from_rgb(248, 242, 230),
-    pressed: Color32::from_rgb(210, 198, 176),
-    border: Color32::from_rgb(156, 140, 114),
-    text: Color32::from_rgb(42, 34, 24),
-    weak: Color32::from_rgb(104, 90, 70),
-    accent: Color32::from_rgb(24, 112, 122),
-    dark: false,
-    look: look(3, MeterStyle::Segments, CapStyle::Classic),
-};
+/// Hue (degrees), saturation and lightness (0 to 1) of a color.
+fn hsl(c: Color32) -> (f32, f32, f32) {
+    let [r, g, b] = [c.r(), c.g(), c.b()].map(|v| f32::from(v) / 255.0);
+    let (max, min) = (r.max(g).max(b), r.min(g).min(b));
+    let l = (max + min) / 2.0;
+    let d = max - min;
+    if d == 0.0 {
+        return (0.0, 0.0, l);
+    }
+    let s = d / (1.0 - (2.0 * l - 1.0).abs());
+    let h = if max == r {
+        60.0 * ((g - b) / d).rem_euclid(6.0)
+    } else if max == g {
+        60.0 * ((b - r) / d + 2.0)
+    } else {
+        60.0 * ((r - g) / d + 4.0)
+    };
+    (h, s, l)
+}
+
+fn from_hsl(h: f32, s: f32, l: f32) -> Color32 {
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let x = c * (1.0 - ((h / 60.0).rem_euclid(2.0) - 1.0).abs());
+    let m = l - c / 2.0;
+    let (r, g, b) = match (h.rem_euclid(360.0) / 60.0) as u8 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    let v = |u: f32| ((u + m) * 255.0).round().clamp(0.0, 255.0) as u8;
+    Color32::from_rgb(v(r), v(g), v(b))
+}
+
+/// Contrast between two colors, as the web's accessibility guidelines measure it (1 to 21).
+pub fn contrast_ratio(a: Color32, b: Color32) -> f32 {
+    let luminance = |c: Color32| {
+        let lin = |v: u8| {
+            let v = f32::from(v) / 255.0;
+            if v <= 0.04045 {
+                v / 12.92
+            } else {
+                ((v + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+    };
+    let (x, y) = (luminance(a), luminance(b));
+    (x.max(y) + 0.05) / (x.min(y) + 0.05)
+}
 
 static ACTIVE: std::sync::RwLock<Option<Palette>> = std::sync::RwLock::new(None);
 
@@ -203,6 +288,70 @@ pub fn palette(dark: bool) -> Palette {
         _ if dark => DARK,
         _ => LIGHT,
     }
+}
+
+/// A card of controls (an editor's section, an effect in the browser): sunken in the base on
+/// dark themes, a card in the theme's button color with an edge on light ones.
+pub fn card(p: &Palette) -> (Color32, Stroke) {
+    if p.dark {
+        (p.base, Stroke::NONE)
+    } else {
+        (p.surface, Stroke::new(1.0, mix(p.border, p.surface, 0.45)))
+    }
+}
+
+/// Behind plots, curves and waveforms in the effect editors: the base on dark themes, nearly
+/// white on light ones, where gray would dull them.
+pub fn screen(p: &Palette) -> Color32 {
+    if p.dark {
+        p.base
+    } else {
+        mix(p.base, Color32::WHITE, 0.82)
+    }
+}
+
+/// The face of a strip or a bar: `fill`, lifted by a soft shadow and lit on its top half when
+/// the theme is glossy; as shapes to put under what is drawn on it.
+pub fn face(rect: Rect, radius: f32, fill: Color32, p: &Palette) -> Vec<Shape> {
+    let mut shapes = Vec::new();
+    if p.look.gloss {
+        for k in 0..4u8 {
+            let grow = 1.0 + f32::from(k) * 2.0;
+            shapes.push(Shape::rect_filled(
+                rect.translate(vec2(0.0, 2.0)).expand(grow),
+                radius + grow,
+                Color32::from_black_alpha(14 - k * 3),
+            ));
+        }
+    }
+    shapes.push(Shape::rect_filled(rect, radius, fill));
+    if p.look.gloss {
+        let inner = rect.shrink(1.0);
+        let top = Rect::from_min_max(inner.min, pos2(inner.right(), inner.center().y));
+        shapes.push(crate::gear::sheen_shape(
+            top,
+            Color32::from_white_alpha(70),
+            Color32::TRANSPARENT,
+        ));
+    }
+    shapes
+}
+
+/// A track's color as drawn: deeper and more saturated on light themes, where pale colors
+/// would wash out.
+pub fn track_color(rgb: [u8; 3]) -> Color32 {
+    let color = Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
+    let light = ACTIVE.read().ok().and_then(|a| *a).is_some_and(|a| !a.dark);
+    if !light {
+        return color;
+    }
+    let luma =
+        (0.3 * f32::from(rgb[0]) + 0.59 * f32::from(rgb[1]) + 0.11 * f32::from(rgb[2])) as u8;
+    let saturate = |c: u8| {
+        let v = f32::from(luma) + (f32::from(c) - f32::from(luma)) * 1.45;
+        (v * 0.84).clamp(0.0, 255.0) as u8
+    };
+    Color32::from_rgb(saturate(rgb[0]), saturate(rgb[1]), saturate(rgb[2]))
 }
 
 /// Color between `a` and `b` (0 = a, 1 = b).
@@ -316,6 +465,12 @@ pub fn visuals(p: Palette) -> Visuals {
         w.hovered.bg_stroke = Stroke::new(1.0, mix(p.border, p.accent, 0.6));
     }
     v.weak_text_color = Some(p.weak);
+    if !dark {
+        // Menus and dialogs float as white sheets over the light panels.
+        v.window_fill = Color32::WHITE;
+        // Text fields are white, as on the sheets they sit on.
+        v.text_edit_bg_color = Some(Color32::WHITE);
+    }
     // Windows and menus float above the panels.
     let shade = if dark { 120 } else { 45 };
     v.window_shadow = egui::Shadow {

@@ -27,74 +27,101 @@ where
         .collect())
 }
 
+/// The themes: three drawn ones and the user's own. Themes of older versions open as the
+/// closest one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ThemeChoice {
     #[default]
+    #[serde(alias = "Midnight", alias = "Console", alias = "Neon")]
     Dark,
-    Midnight,
-    Vintage,
+    #[serde(alias = "Vintage")]
     Studio,
+    #[serde(alias = "Paper")]
     Light,
-    Console,
-    Neon,
-    Paper,
+    Custom,
 }
 
 impl ThemeChoice {
-    pub const ALL: [ThemeChoice; 8] = [
+    pub const ALL: [ThemeChoice; 4] = [
         ThemeChoice::Dark,
-        ThemeChoice::Midnight,
-        ThemeChoice::Console,
-        ThemeChoice::Neon,
-        ThemeChoice::Vintage,
         ThemeChoice::Studio,
         ThemeChoice::Light,
-        ThemeChoice::Paper,
+        ThemeChoice::Custom,
     ];
 
     /// The name shown in the preferences, in the interface's language.
     pub fn name(self) -> &'static str {
         use crate::i18n::tr;
         match self {
-            ThemeChoice::Dark => tr("Modern"),
-            ThemeChoice::Midnight => tr("Midnight"),
-            ThemeChoice::Vintage => tr("Vintage"),
+            ThemeChoice::Dark => tr("Dark"),
             ThemeChoice::Studio => tr("Studio gray"),
             ThemeChoice::Light => tr("Light"),
-            ThemeChoice::Console => tr("Console"),
-            ThemeChoice::Neon => tr("Neon"),
-            ThemeChoice::Paper => tr("Paper"),
+            ThemeChoice::Custom => tr("Custom"),
         }
     }
 
-    pub fn palette(self) -> crate::theme::Palette {
-        use crate::theme::*;
+    /// Its palette; `custom` sets the user's own.
+    pub fn palette(self, custom: &CustomTheme) -> crate::theme::Palette {
+        use crate::theme::{DARK, LIGHT, STUDIO};
         match self {
             ThemeChoice::Dark => DARK,
-            ThemeChoice::Midnight => MIDNIGHT,
-            ThemeChoice::Vintage => VINTAGE,
             ThemeChoice::Studio => STUDIO,
             ThemeChoice::Light => LIGHT,
-            ThemeChoice::Console => CONSOLE,
-            ThemeChoice::Neon => NEON,
-            ThemeChoice::Paper => PAPER,
+            ThemeChoice::Custom => custom.palette(),
         }
-    }
-
-    /// The palette with the user's accent color, if any.
-    pub fn palette_with(self, accent: Option<[u8; 3]>) -> crate::theme::Palette {
-        let mut palette = self.palette();
-        if let Some([r, g, b]) = accent {
-            palette.accent = egui::Color32::from_rgb(r, g, b);
-        }
-        palette
     }
 
     /// Makes this theme active and returns its visuals.
-    pub fn visuals(self, accent: Option<[u8; 3]>) -> Visuals {
-        let palette = self.palette_with(accent);
+    pub fn visuals(self, custom: &CustomTheme) -> Visuals {
+        let palette = self.palette(custom);
         crate::theme::set_palette(palette);
         crate::theme::visuals(palette)
+    }
+}
+
+/// The user's own theme: a background, an accent and a contrast, from which every color is
+/// made readable, and the look.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomTheme {
+    pub background: [u8; 3],
+    pub accent: [u8; 3],
+    /// 0 soft, 1 strong.
+    pub contrast: f32,
+    /// Rounding of buttons and fields, in points.
+    pub radius: u8,
+    pub meter: crate::theme::MeterStyle,
+    pub cap: crate::theme::CapStyle,
+}
+
+impl Default for CustomTheme {
+    fn default() -> Self {
+        Self::from_palette(crate::theme::DARK)
+    }
+}
+
+impl CustomTheme {
+    /// Starts from a drawn theme.
+    pub fn from_palette(p: crate::theme::Palette) -> Self {
+        let rgb = |c: egui::Color32| [c.r(), c.g(), c.b()];
+        Self {
+            background: rgb(p.panel),
+            accent: rgb(p.accent),
+            contrast: 0.5,
+            radius: p.look.radius,
+            meter: p.look.meter,
+            cap: p.look.cap,
+        }
+    }
+
+    pub fn palette(&self) -> crate::theme::Palette {
+        let color = |[r, g, b]: [u8; 3]| egui::Color32::from_rgb(r, g, b);
+        crate::theme::custom(
+            color(self.background),
+            color(self.accent),
+            self.contrast,
+            crate::theme::look(self.radius.min(10), self.meter, self.cap),
+        )
     }
 }
 
@@ -152,8 +179,8 @@ impl WindowState {
 pub struct UiPrefs {
     pub language: crate::i18n::Language,
     pub theme: ThemeChoice,
-    /// Accent color replacing the theme's.
-    pub accent: Option<[u8; 3]>,
+    /// The user's own theme, used when `theme` is `Custom`.
+    pub custom: CustomTheme,
     /// Interface zoom factor.
     pub scale: f32,
     pub keymap: Keymap,
@@ -202,6 +229,10 @@ pub struct UiPrefs {
     pub header_width: f32,
     /// Narrow mixer strips, but for the one opened by a click.
     pub mixer_compact: bool,
+    /// The master strip at the left of the tracks instead of their right.
+    pub master_left: bool,
+    /// The master's band at the top of the timeline, with its automation.
+    pub timeline_master: bool,
     /// The timeline's tool.
     #[serde(default)]
     pub timeline_tool: crate::timeline::Tool,
@@ -224,7 +255,7 @@ impl Default for UiPrefs {
         Self {
             language: crate::i18n::Language::default(),
             theme: ThemeChoice::default(),
-            accent: None,
+            custom: CustomTheme::default(),
             scale: 1.0,
             keymap: Keymap::default(),
             layout: None,
@@ -247,6 +278,8 @@ impl Default for UiPrefs {
             updates_checked: None,
             header_width: 210.0,
             mixer_compact: false,
+            master_left: false,
+            timeline_master: false,
             timeline_tool: crate::timeline::Tool::Smart,
             counter: crate::transport::Counter::default(),
             transport_bottom: false,
@@ -262,7 +295,7 @@ impl UiPrefs {
     pub fn apply(&self, ctx: &egui::Context) {
         crate::i18n::set_language(self.language);
         crate::theme::install_fonts(ctx);
-        ctx.set_visuals(self.theme.visuals(self.accent));
+        ctx.set_visuals(self.theme.visuals(&self.custom));
         ctx.all_styles_mut(crate::theme::style);
         ctx.set_zoom_factor(self.scale.clamp(0.5, 3.0));
     }
@@ -289,8 +322,7 @@ mod tests {
         assert!(prefs.plugin_sandbox && prefs.return_on_stop);
         assert_eq!(prefs.scale, 1.0);
         let mut changed = UiPrefs {
-            theme: ThemeChoice::Neon,
-            accent: Some([1, 2, 3]),
+            theme: ThemeChoice::Custom,
             ..UiPrefs::default()
         };
         changed.detached.push(crate::layout::Pane::Mixer);
@@ -299,14 +331,52 @@ mod tests {
     }
 
     #[test]
-    fn themes_and_accents() {
-        let mut all = ThemeChoice::ALL.to_vec();
-        all.sort_by_key(|t| *t as u8);
-        all.dedup();
-        assert_eq!(all.len(), 8);
-        let palette = ThemeChoice::Light.palette_with(Some([1, 2, 3]));
-        assert_eq!(palette.accent, egui::Color32::from_rgb(1, 2, 3));
-        assert!(!palette.dark);
-        assert!(ThemeChoice::Dark.palette().dark);
+    fn themes_of_older_versions_open_as_the_closest_one() {
+        let theme =
+            |name: &str| serde_json::from_str::<ThemeChoice>(&format!("\"{name}\"")).unwrap();
+        assert_eq!(theme("Neon"), ThemeChoice::Dark);
+        assert_eq!(theme("Vintage"), ThemeChoice::Studio);
+        assert_eq!(theme("Paper"), ThemeChoice::Light);
+        let custom = CustomTheme::default();
+        assert!(ThemeChoice::Dark.palette(&custom).dark);
+        assert!(!ThemeChoice::Light.palette(&custom).dark);
+    }
+
+    #[test]
+    fn a_custom_theme_stays_readable_whatever_its_colors() {
+        use crate::theme::contrast_ratio;
+        let backgrounds = [
+            [0, 0, 0],
+            [128, 128, 128],
+            [255, 0, 0],
+            [250, 250, 250],
+            [90, 60, 200],
+        ];
+        let accents = [
+            [232, 72, 72],
+            [255, 255, 0],
+            [10, 10, 10],
+            [255, 255, 255],
+            [0, 120, 255],
+        ];
+        for background in backgrounds {
+            for accent in accents {
+                for contrast in [0.0, 1.0] {
+                    let theme = CustomTheme {
+                        background,
+                        accent,
+                        contrast,
+                        ..CustomTheme::default()
+                    };
+                    let p = theme.palette();
+                    let what = format!("{background:?} {accent:?} {contrast}");
+                    assert!(contrast_ratio(p.text, p.panel) >= 7.0, "text {what}");
+                    assert!(contrast_ratio(p.text, p.surface) >= 4.5, "buttons {what}");
+                    assert!(contrast_ratio(p.weak, p.panel) >= 4.5, "weak {what}");
+                    assert!(contrast_ratio(p.accent, p.panel) >= 3.0, "accent {what}");
+                    assert_ne!(p.accent, crate::theme::RECORD, "{what}");
+                }
+            }
+        }
     }
 }

@@ -226,16 +226,18 @@ impl TimelineView {
         selected: bool,
         visuals: &egui::Visuals,
     ) {
-        let mut base = Color32::from_rgb(track.color[0], track.color[1], track.color[2]);
+        let mut base = crate::theme::track_color(track.color);
         if clip.muted {
             base = visuals.weak_text_color();
         }
         // A dark body for the waveform to stand out, lighter when selected.
-        let body = mix(
-            visuals.extreme_bg_color,
-            base,
-            if selected { 0.34 } else { 0.2 },
-        );
+        let strength = match (visuals.dark_mode, selected) {
+            (true, false) => 0.2,
+            (true, true) => 0.34,
+            (false, false) => 0.3,
+            (false, true) => 0.45,
+        };
+        let body = mix(visuals.extreme_bg_color, base, strength);
         painter.rect_filled(rect, 4.0, body);
         // A thin name bar in the track color.
         let name_height = NAME_BAR.min(rect.height() / 3.0);
@@ -276,7 +278,13 @@ impl TimelineView {
         if let Some(notes) = &clip.notes {
             draw_notes(painter, wave_rect, clip, notes, self.zoom, base);
         } else {
-            self.draw_waveform(painter, wave_rect, doc, project, clip, base);
+            // On a light theme the track color is too pale over the clip: darker ink.
+            let ink = if visuals.dark_mode {
+                base
+            } else {
+                mix(base, Color32::BLACK, 0.5)
+            };
+            self.draw_waveform(painter, wave_rect, doc, project, clip, ink);
             self.strip_preview(painter, wave_rect, clip);
             self.beat_preview(painter, wave_rect, track.id, clip);
             self.groove_preview(painter, wave_rect, track.id, clip);
@@ -594,6 +602,8 @@ impl TimelineView {
             }
             return;
         }
+        // On a light theme the wave is dark ink: opaque peaks, a darker body.
+        let light = !painter.ctx().global_style().visuals.dark_mode;
         let peak_color = |p: &Peak| -> Color32 {
             let s = p.spectrum();
             if view.spectral && s.iter().sum::<f32>() > 0.0 {
@@ -604,6 +614,8 @@ impl TimelineView {
                     }
                 }
                 Color32::from_rgb(c[0] as u8, c[1] as u8, c[2] as u8)
+            } else if light {
+                color
             } else {
                 mix(color, Color32::WHITE, 0.2)
             }
@@ -678,8 +690,11 @@ impl TimelineView {
                 };
                 let bottom = bottom.max(top + 1.0);
                 let tint = peak_color(p);
-                let soft = tint.gamma_multiply(0.55);
-                let strong = mix(tint, Color32::WHITE, 0.25);
+                let (soft, strong) = if light {
+                    (tint.gamma_multiply(0.85), mix(tint, Color32::BLACK, 0.4))
+                } else {
+                    (tint.gamma_multiply(0.55), mix(tint, Color32::WHITE, 0.25))
+                };
                 strip(&mut outer, previous.is_some(), x, top, bottom, soft);
                 strip(
                     &mut inner,
@@ -956,7 +971,7 @@ pub(super) fn draw_folder(
         let Some(track) = project.track(*id) else {
             continue;
         };
-        let color = Color32::from_rgb(track.color[0], track.color[1], track.color[2]);
+        let color = crate::theme::track_color(track.color);
         let y = top + k as f32 * band;
         for clip in &track.clips {
             let (a, b) = (scale.x(clip.start), scale.x(clip.end()));

@@ -8,26 +8,33 @@ Chaque piste a sa tranche dans le **Mixer**, dans l'ordre où le signal la trave
 son gain et sa polarité (**Ø**), le channel strip, les inserts, les sends, la sortie (et le VCA),
 puis le panoramique à côté du mode d'automation, le fader et l'indicateur, le muet (**M**), le solo
 (**S**), l'armement (**R**) et le nom de la piste, marqué **BUS** pour un bus et **VCA** pour un
-VCA. Le fader prend la hauteur que le panneau laisse.
+VCA. Le fader prend la hauteur que le panneau laisse. Un clic droit dans l'espace vide à côté des
+tranches ajoute une piste, un bus ou un VCA ; un clic y vide la sélection.
 
-- **Ancré** dans la fenêtre principale, la tranche laisse sa hauteur au fader : les boutons **FX**
-  et **Send** à côté de l'indicateur (allumés, avec leur nombre, quand la liste contient quelque
-  chose) ouvrent les effets et les départs de la tranche dans une fenêtre à part. Le master a
-  **FX** et **Mon** (effets d'écoute).
-- **Dans sa propre fenêtre** (Affichage › *Mixer dans sa propre fenêtre*, [[Ctrl+M]]), chaque
+- **Ancré** dans la fenêtre principale, la tranche laisse sa hauteur au fader. À côté de
+  l'indicateur, une pastille par effet montre la chaîne : un clic ouvre l'effet, [[Shift]]-clic le
+  bypasse, [[Ctrl]]-clic le retire, et **+** en ajoute un ; les sends suivent, chacun avec son
+  niveau. Les boutons **FX** et **Send** (allumés, avec leur nombre, quand la liste contient
+  quelque chose) ouvrent toute la liste juste en dessous, pour réordonner ou ajouter ; un clic
+  ailleurs la referme. Le master a **FX** et **Mon** (effets d'écoute).
+- **Dans sa propre fenêtre** (Affichage › Mixer › *Dans sa propre fenêtre*, [[Ctrl+M]]), chaque
   tranche montre ses emplacements d'effets et de départs : cliquez sur un emplacement vide pour
   ajouter un effet ou un départ. Les listes ont la hauteur de la plus longue, plus un emplacement
   vide, et laissent le reste aux faders. [[Ctrl+M]] à nouveau le remet en place. *Mixer compact*
-  ([[Shift+Alt+C]]) rétrécit les tranches.
+  ([[Shift+Alt+C]], aussi dans Préférences › Apparence) rétrécit les tranches. Un clic droit sur le
+  master le place à gauche des pistes, ou le remet à leur droite.
 
 ![Le Mixer dans sa propre fenêtre](img/mixer-window.webp)
 
 ## Faders et panoramique
 
 - **Les faders** suivent une loi de console (0 dB aux trois quarts de la course) : glissez-les,
-  [[Shift]] pour la précision, utilisez la molette, double-cliquez pour 0 dB.
-- **Panoramique** : la barre sous la sortie. Glissez le long ([[Shift]] pour des pas fins ; le
-  centre retient le pointeur), la molette donne des pas de 1 %, un double-clic recentre.
+  [[Shift]] pour la précision, double-cliquez pour 0 dB.
+- **Panoramique** : le potard sous la sortie, sa valeur en dessous. Glissez vers le haut ou la
+  droite ([[Shift]] pour des pas fins ; le centre retient le pointeur), un double-clic recentre.
+- **La molette** règle le fader (un demi-dB par cran, [[Shift]] : un dixième), le panoramique
+  (1 % par cran) et les sends de la piste **sélectionnée** seulement : passer la souris sur le
+  mixer ne bouge rien.
 
 ## Sélectionner des pistes
 
@@ -79,7 +86,10 @@ clic. Les chaînes parallèles séparent le signal en branches et les remélange
 - **Les sends** vont vers n'importe quelle piste ou bus (pré ou post fader) ; le menu d'un
   emplacement de send vide liste d'abord les bus, et *Nouveau bus d'effet* en crée un alimenté par
   le send. Le send s'ajoute à toutes les pistes sélectionnées ; cochez d'abord *Couper la sortie
-  vers le master* pour les pistes qu'on n'entend que par le send.
+  vers le master* pour les pistes qu'on n'entend que par le send. Chaque send est un bouton comme
+  un insert, avec son niveau (et PRÉ avant le fader) : un clic ouvre sa fenêtre de réglages
+  (destination, niveau, pré ou post fader, muet), la molette règle son niveau. Glissez un send pour
+  le réordonner, ou sur une autre tranche pour l'y copier ([[Alt]] : le déplacer).
 - **VCA** : le clic droit de la piste choisit le VCA qui la pilote ; un **V** sous le fader le
   signale.
 
@@ -146,8 +156,14 @@ Les **Instantanés** enregistrent l'état de la console et le rappellent, pour c
 
 ## Master et référence
 
-- Le **master** affiche la sonie (LUFS) et la plus haute crête d'échantillon à côté de son
-  indicateur, remises à zéro par **Réinit.** sous le fader.
+- Le **master** affiche à côté de son indicateur la sonie du mix depuis **Réinit.** (**LUFS**,
+  intégrée ; les plateformes de streaming ramènent les morceaux vers -14) et sa plus haute crête
+  (**PEAK**, en rouge au-dessus de -1 dB, où elle peut saturer une fois encodée).
+- **M** en haut, puis son mode d'automation, comme sur les pistes. **M**, **Dim** et **Mono** ne
+  changent que ce qu'on entend, jamais l'export : M coupe les enceintes, Dim les baisse de 20 dB
+  (pour parler, ou répondre au téléphone), Mono additionne gauche et droite pour vérifier le mix
+  en mono. Ils sont éteints à l'ouverture du projet.
+- Un clic sur la tranche master la sélectionne : le rack et l'Inspecteur l'affichent.
 - **MONITOR** contient les effets qu'on entend mais qui ne sont pas exportés : correction de
   pièce, référence.
 - **REF** à côté (aussi dans la barre de transport, [[Alt+R]]) compare le mix à une chanson finie

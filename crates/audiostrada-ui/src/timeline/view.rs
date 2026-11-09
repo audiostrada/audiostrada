@@ -92,7 +92,7 @@ impl TimelineView {
         let top = rect.center().y - band * rows / 2.0;
         for (i, &(index, _)) in self.rows.iter().enumerate() {
             let track = &project.tracks[index];
-            let color = Color32::from_rgb(track.color[0], track.color[1], track.color[2]);
+            let color = crate::theme::track_color(track.color);
             let y = top + i as f32 * band;
             for clip in &track.clips {
                 let r = Rect::from_x_y_ranges(

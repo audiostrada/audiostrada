@@ -13,6 +13,13 @@ track it controls.
 - Right-click a point for the shape of the curve to the next one: linear, smooth or step.
 - Drag the lower edge of a lane to make it taller.
 
+View › *Master track in the timeline* shows the master at the top, under the ruler. Its volume
+is its main row, twice a lane's height (a fade at the end of the song); its **+** adds a lane for
+a parameter of its effects. Every row is edited the same way and resized by its lower edge. Its automation mode is on its strip in the mixer
+(Read by default). Its **M** and **Mono** are those of its strip. Right-click its name to hide
+it, the empty space under the track headers to show it again; the same option is in Preferences
+› Appearance.
+
 ## Modes
 
 The mode button beside the pan (**Read**, **Touch**...) decides what moving a control does:

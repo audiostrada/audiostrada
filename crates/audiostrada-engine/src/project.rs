@@ -333,6 +333,7 @@ pub struct ProjectPlayer {
     prints: Vec<NodeId>,
     recording: bool,
     preview: crate::nodes::PreviewControls,
+    control_room: crate::nodes::ControlRoomControls,
     plugins: Plugins,
     /// Override flags of the automated controls, kept across automation updates.
     overrides: HashMap<(Channel, AutomationTarget), Arc<AtomicBool>>,
@@ -546,8 +547,10 @@ fn automated(project: &Project) -> HashSet<(Channel, AutomationTarget)> {
     let mut out = HashSet::new();
     let active =
         |l: &&audiostrada_core::automation::AutomationLane| l.enabled && !l.points.is_empty();
-    for lane in project.master.automation.iter().filter(active) {
-        out.insert((Channel::Master, lane.target.clone()));
+    if project.master.automation_mode != AutomationMode::Off {
+        for lane in project.master.automation.iter().filter(active) {
+            out.insert((Channel::Master, lane.target.clone()));
+        }
     }
     for track in project
         .tracks
@@ -655,7 +658,10 @@ impl ProjectPlayer {
         connect_stereo(&mut engine, meter, reference);
         let monitor = ChannelNodes::new(&mut engine, &solo, &console_off, "Monitor", true);
         connect_stereo(&mut engine, reference, monitor.input);
-        connect_stereo(&mut engine, monitor.strip, out);
+        let (room, control_room) = crate::nodes::ControlRoom::new();
+        let room = engine.add_node("Control room", room, 2, 2);
+        connect_stereo(&mut engine, monitor.strip, room);
+        connect_stereo(&mut engine, room, out);
         let (preview, preview_controls) = crate::nodes::Preview::new();
         let preview = engine.add_node("Preview", preview, 0, 2);
         connect_stereo(&mut engine, preview, out);
@@ -667,6 +673,7 @@ impl ProjectPlayer {
             prints: Vec::new(),
             recording: false,
             preview: preview_controls,
+            control_room,
             reference: reference_controls,
             reference_audio: None,
             monitor,
@@ -1567,6 +1574,23 @@ impl ProjectPlayer {
                 self.plugins.retired.push(r.instance);
             }
         }
+    }
+
+    /// The control room on the main output only: Mute, Dim (-20 dB) and Mono.
+    pub fn set_control_room(&mut self, (mute, dim, mono): (bool, bool, bool)) {
+        self.control_room.mute.store(mute, Ordering::Relaxed);
+        self.control_room.dim.store(dim, Ordering::Relaxed);
+        self.control_room.mono.store(mono, Ordering::Relaxed);
+    }
+
+    /// Mute, Dim and Mono of the control room.
+    pub fn control_room(&self) -> (bool, bool, bool) {
+        let room = &self.control_room;
+        (
+            room.mute.load(Ordering::Relaxed),
+            room.dim.load(Ordering::Relaxed),
+            room.mono.load(Ordering::Relaxed),
+        )
     }
 
     /// Routing edges the project asks for.
@@ -2698,6 +2722,42 @@ mod tests {
             "the print is the input through the chain, in line: {worst}"
         );
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn mute_dim_and_mono_change_the_main_output_only() {
+        let mut f = fixture("control-room", vec![0.5; 48_000]);
+        f.media.retain(&media_paths(f.history.project(), None));
+        assert!(f.media.wait(Duration::from_secs(10)));
+        let t = f.history.project().tracks[0].id;
+        f.history
+            .edit("Pan", |p| p.track_mut(t).unwrap().pan = -1.0);
+        let mut processor = f.player.processor(48_000, 64);
+        f.player.sync(f.history.project(), None, &f.media);
+        f.player.engine_mut().play();
+        let mut storage = ChannelBuffers::new(0, 2, 64);
+        let mut level = |player: &mut ProjectPlayer, room| {
+            player.set_control_room(room);
+            for _ in 0..10 {
+                processor.render(&mut storage.buffers(64));
+            }
+            (storage.output(0)[63], storage.output(1)[63])
+        };
+        let (left, right) = level(&mut f.player, (false, false, false));
+        assert!(
+            left > 0.1 && right.abs() < 1e-4,
+            "panned left: {left} {right}"
+        );
+        let (dim, _) = level(&mut f.player, (false, true, false));
+        assert!((dim / left - 0.1).abs() < 0.01, "-20 dB: {}", dim / left);
+        let (l, r) = level(&mut f.player, (false, false, true));
+        assert!(
+            (l - r).abs() < 1e-6 && (l - left / 2.0).abs() < 1e-4,
+            "mono: {l} {r}"
+        );
+        let (muted, _) = level(&mut f.player, (true, false, false));
+        assert_eq!(muted, 0.0, "muted");
+        std::fs::remove_dir_all(&f.dir).unwrap();
     }
 
     #[test]

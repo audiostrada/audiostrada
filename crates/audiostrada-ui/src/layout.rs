@@ -74,7 +74,7 @@ pub fn default_tree() -> Tree<Pane> {
     for id in [browser, inspector, markers] {
         tiles.set_visible(id, false);
     }
-    set_shares(&mut tiles, center, &[(timeline, 1.15), (bottom, 1.0)]);
+    set_shares(&mut tiles, center, &[(timeline, 0.75), (bottom, 1.0)]);
     set_shares(
         &mut tiles,
         root,

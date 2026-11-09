@@ -329,7 +329,7 @@ mod tests {
             audio_changed: Box::new(|_| {}),
             recent_changed: Box::new(|_| {}),
             ui_changed: Box::new(|_| {}),
-            plugin_scan: Box::new(|_, _| std::thread::spawn(Default::default)),
+            plugin_scan: Box::new(|_, _, _| std::thread::spawn(Default::default)),
         };
         AudioStradaApp::new(
             AudioHost::new(Box::new(|_| unreachable!())),

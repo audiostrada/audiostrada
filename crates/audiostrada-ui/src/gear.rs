@@ -200,6 +200,11 @@ pub fn tile(painter: &Painter, rect: Rect, which: Texture, scale: f32, tint: Col
 
 /// A light falling from the top: brighter above, darker below.
 pub fn sheen(painter: &Painter, rect: Rect, top: Color32, bottom: Color32) {
+    painter.add(sheen_shape(rect, top, bottom));
+}
+
+/// [`sheen`] as a shape, to place under what is drawn after.
+pub fn sheen_shape(rect: Rect, top: Color32, bottom: Color32) -> egui::Shape {
     let mut mesh = Mesh::default();
     mesh.colored_vertex(rect.left_top(), top);
     mesh.colored_vertex(rect.right_top(), top);
@@ -207,7 +212,7 @@ pub fn sheen(painter: &Painter, rect: Rect, top: Color32, bottom: Color32) {
     mesh.colored_vertex(rect.left_bottom(), bottom);
     mesh.add_triangle(0, 1, 2);
     mesh.add_triangle(0, 2, 3);
-    painter.add(mesh);
+    egui::Shape::mesh(mesh)
 }
 
 /// A soft disc: `inner` at the center fading to `outer` at `radius`.

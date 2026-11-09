@@ -12,6 +12,10 @@ do not run. *Scan for new plugins* looks for new
 ones; *Rescan everything* forgets the cached list and scans every plugin again. Windows plugins
 do not run on Linux.
 
+New plugins are scanned in the background when AudioStrada starts. While the scan runs, the
+effect browser shows how far it is (and Preferences › Plugins too); the plugins already known
+can be used meanwhile, the new ones show when it ends.
+
 From a terminal, `audiostrada plugins` lists the installed plugins, `--rescan` scans them again.
 
 ## The effect browser

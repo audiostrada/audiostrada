@@ -616,6 +616,9 @@ pub struct Master {
     /// The master's own inserts bypassed (not the monitoring ones).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub fx_off: bool,
+    /// How its automation plays and records; it read it always before it had one.
+    #[serde(default)]
+    pub automation_mode: AutomationMode,
 }
 
 const PALETTE: [[u8; 3]; 8] = [
@@ -832,6 +835,7 @@ impl Project {
                 inserts: Vec::new(),
                 automation: Vec::new(),
                 fx_off: false,
+                automation_mode: AutomationMode::Read,
             },
             loop_range: None,
             punch_range: None,

@@ -255,7 +255,12 @@ fn faceplate(ui: &Ui, rect: Rect, tint: Color32, lit: bool) {
     } else {
         theme::mix(p.panel, p.surface, 0.45)
     };
-    painter.rect_filled(rect, 6.0, fill);
+    if !p.look.gloss {
+        painter.rect_filled(rect, 6.0, fill);
+    } else {
+        let face = p.look.face.unwrap_or(fill);
+        painter.extend(theme::face(rect, 6.0, face, &p));
+    }
     painter.rect_stroke(
         rect,
         6.0,
@@ -335,7 +340,12 @@ fn faceplate_plain(ui: &Ui, rect: Rect, tint: Color32, lit: bool) {
     } else {
         theme::mix(p.panel, p.surface, 0.45)
     };
-    painter.rect_filled(rect, 2.0, fill);
+    if !p.look.gloss {
+        painter.rect_filled(rect, 2.0, fill);
+    } else {
+        let face = p.look.face.unwrap_or(fill);
+        painter.extend(theme::face(rect, 2.0, face, &p));
+    }
     painter.rect_stroke(
         rect,
         2.0,
@@ -444,6 +454,7 @@ impl MixerView {
             .rack
             .pin
             .or(selected.map(Channel::Track))
+            .or(doc.is_master_selected().then_some(Channel::Master))
             .filter(|c| match c {
                 Channel::Track(t) => project.track(*t).is_some(),
                 Channel::Master => true,

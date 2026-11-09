@@ -8,25 +8,33 @@ Each track has a strip in the **Mixer**, in the order the signal goes through it
 its gain and polarity (**Ø**), the channel strip, the inserts, the sends, the output (and VCA),
 then the pan beside the automation mode, the fader and meter, mute (**M**), solo (**S**), record
 arm (**R**) and the track's name, marked **BUS** for a bus and **VCA** for a VCA. The fader
-takes the height the panel leaves.
+takes the height the panel leaves. Right-click the empty space beside the strips to add a track,
+a bus or a VCA; a click there clears the selection.
 
-- **Docked** in the main window, the strip leaves its height to the fader: the **FX** and **Send**
-  buttons beside the meter (lit, with their count, when the list holds something) open the
-  strip's effects and sends in a window of their own. The master has **FX** and **Mon**
-  (monitoring effects).
-- **In its own window** (View › *Mixer in its own window*, [[Ctrl+M]]), each strip shows its
+- **Docked** in the main window, the strip leaves its height to the fader. Beside the meter, a
+  pill per effect shows the chain: a click opens the effect, [[Shift]]-click bypasses it,
+  [[Ctrl]]-click removes it, and **+** adds one; the sends follow, each with its level. The **FX**
+  and **Send** buttons (lit, with their count, when the list holds something) open the whole list
+  just under them, to reorder or add; a click elsewhere closes it. The master has **FX** and
+  **Mon** (monitoring effects).
+- **In its own window** (View › Mixer › *In its own window*, [[Ctrl+M]]), each strip shows its
   effect and send slots: click an empty slot to add an effect or a send. The lists are as tall as
-the longest one, plus an empty slot, and leave the rest to the faders. [[Ctrl+M]]
-  again docks it back. *Compact mixer* ([[Shift+Alt+C]]) narrows the strips.
+  the longest one, plus an empty slot, and leave the rest to the faders. [[Ctrl+M]]
+  again docks it back. *Compact mixer* ([[Shift+Alt+C]], also in Preferences › Appearance)
+  narrows the strips. Right-click the master to put it at the left of the tracks, or back at
+  their right.
 
 ![The mixer in its own window](img/mixer-window.webp)
 
 ## Faders and pan
 
 - **Faders** follow a console law (0 dB at three quarters of the travel): drag them, [[Shift]]
-  for fine moves, use the mouse wheel, double-click for 0 dB.
-- **Pan**: the bar under the output. Drag along it ([[Shift]] for fine steps; the centre holds
-  the pointer), use the wheel for 1 % steps, double-click to centre.
+  for fine moves, double-click for 0 dB.
+- **Pan**: the knob under the output, its value under it. Drag up or right ([[Shift]] for fine
+  steps; the centre holds the pointer), double-click to centre.
+- **The mouse wheel** moves the fader (half a dB a notch, [[Shift]]: a tenth), the pan (1 % a
+  notch) and the sends of the **selected** track only, so that passing over the mixer moves
+  nothing.
 
 ## Selecting tracks
 
@@ -76,7 +84,9 @@ chains split the signal into branches of their own and mix them back.
 - **Sends** go to any track or bus (pre or post fader); the menu of an empty send slot lists
   the buses first, and *New effect bus* makes one fed by the send. The send is added to every
   selected track; tick *Cut the output to the master* first for tracks heard only through the
-  send.
+  send. Each send is a button like an insert, with its level (and PRE before the fader): a click
+  opens its settings window (destination, level, pre or post fader, mute), the wheel sets its
+  level. Drag a send to reorder it, or onto another strip to copy it there ([[Alt]]: move it).
 - **VCA**: the track's right-click menu chooses the VCA that controls it; a **V** under the fader
   shows it.
 
@@ -138,8 +148,14 @@ grip to reorder it. See *Effects* for its parameters.
 
 ## Master and reference
 
-- The **master** shows the loudness (LUFS) and the highest sample peak beside its meter,
-  restarted by **Reset** under the fader.
+- The **master** shows beside its meter the loudness of the mix since **Reset** (**LUFS**,
+  integrated; streaming platforms bring songs to about -14) and its highest **PEAK** (in red over
+  -1 dB, where it may clip once encoded).
+- **M** at the top, then its automation mode, as on the tracks. **M**, **Dim** and **Mono**
+  change only what you hear, never the export: M mutes the speakers, Dim lowers them by 20 dB
+  (to talk, or answer the phone), Mono sums left and right to check the mix in mono. They are off
+  again when the project opens.
+- A click on the master's strip selects it: the rack and the Inspector show it.
 - **MONITOR** holds effects you hear but that are not exported: room correction, a reference.
 - **REF** beside it (also in the transport bar, [[Alt+R]]) compares the mix with a finished song
   (Transport › *Reference track…* to choose it). Click it to hear the reference instead of the

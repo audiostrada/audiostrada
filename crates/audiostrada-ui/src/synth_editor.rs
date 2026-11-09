@@ -3169,7 +3169,7 @@ fn lfo_view(ui: &mut Ui, params: &mut Params, l: usize, phase: f32) {
     let (rect, _) =
         ui.allocate_exact_size(vec2(ui.available_width().max(60.0), 24.0), Sense::hover());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 5.0, p.base);
+    painter.rect_filled(rect, 5.0, theme::screen(&p));
     let shape = params.get(&format!("lfo{l}_shape")).round() as usize;
     let inner = rect.shrink2(vec2(6.0, 5.0));
     let held = [0.6, -0.3, 0.9, -0.8];
@@ -3285,7 +3285,7 @@ fn oscillator_view(ui: &mut Ui, params: &mut Params, wave: &str, voices: &str, l
     let (rect, _) =
         ui.allocate_exact_size(vec2(ui.available_width().max(60.0), 22.0), Sense::hover());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 5.0, p.base);
+    painter.rect_filled(rect, 5.0, theme::screen(&p));
     let kind = params.get(wave).round() as usize;
     let n = params.get(voices).round().clamp(1.0, 16.0) as usize;
     let gain = (params.get(level) / 100.0).clamp(0.0, 1.0);
@@ -3397,7 +3397,7 @@ fn filter_curve(ui: &mut Ui, params: &mut Params, size: egui::Vec2, live: Option
     let p = theme::current(ui);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 6.0, p.base);
+    painter.rect_filled(rect, 6.0, theme::screen(&p));
     let kind = params.get("filter_type").round() as usize;
     // The cutoff the newest note has now, with its envelope and modulations.
     let fc = live.filter(|f| *f > 0.0).unwrap_or(params.get("cutoff"));
@@ -3528,7 +3528,7 @@ fn envelope(ui: &mut Ui, params: &mut Params, size: egui::Vec2, live: Option<(f3
     let p = theme::current(ui);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 8.0, p.base);
+    painter.rect_filled(rect, 8.0, theme::screen(&p));
     let area = rect.shrink2(vec2(10.0, 6.0));
     // Attack, decay and release each get a quarter, sustain holds the third.
     let quarter = area.width() / 4.0;

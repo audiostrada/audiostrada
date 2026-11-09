@@ -222,9 +222,32 @@ pub fn header(
     let width = ui.available_width();
     let (band, _) = ui.allocate_exact_size(vec2(width, 58.0), Sense::hover());
     let painter = ui.painter_at(band);
+    // On a light theme, or one with a material, the title sits on its own plain plate across
+    // the window: white on light themes, as the dialogs.
+    let plate = !p.dark;
+    if plate {
+        let rect = band
+            .expand2(vec2(8.0, 0.0))
+            .with_min_y(ui.max_rect().top().min(band.top()) - 8.0);
+        if p.dark {
+            let top = theme::mix(p.panel, Color32::WHITE, 0.06);
+            theme::gradient_rect(ui.painter(), rect, p.panel, top);
+        } else {
+            ui.painter().rect_filled(rect, 0.0, Color32::WHITE);
+        }
+        ui.painter().line_segment(
+            [rect.left_bottom(), rect.right_bottom()],
+            Stroke::new(1.0, p.border),
+        );
+    }
     // A soft wash of the family color fading to the panel.
     let mut mesh = egui::Mesh::default();
-    let tint = color.gamma_multiply(if bypass { 0.08 } else { 0.22 });
+    // On a white plate the wash would only muddy it: the family's bar is enough.
+    let tint = if !p.dark {
+        Color32::TRANSPARENT
+    } else {
+        color.gamma_multiply(if bypass { 0.08 } else { 0.22 })
+    };
     for (pos, c) in [
         (band.left_top(), tint),
         (band.right_top(), Color32::TRANSPARENT),
@@ -248,9 +271,27 @@ pub fn header(
         ui.scope_id().with(("power", info.id)),
         Sense::click(),
     );
-    let lit = theme::power_ink(!bypass, &p);
-    painter.circle_filled(center, 15.0, p.base);
-    painter.circle_stroke(center, 15.0, Stroke::new(1.5, lit.gamma_multiply(0.7)));
+    // On: a lit green disc with a white sign; off: a plain button with a gray sign.
+    let (disc, ring, lit) = if bypass {
+        (p.surface, p.border, p.weak)
+    } else {
+        (
+            theme::PLAY,
+            theme::mix(theme::PLAY, Color32::BLACK, 0.3),
+            Color32::WHITE,
+        )
+    };
+    if !bypass {
+        crate::gear::glow(
+            &painter,
+            center,
+            21.0,
+            theme::PLAY.gamma_multiply(0.45),
+            Color32::TRANSPARENT,
+        );
+    }
+    painter.circle_filled(center, 14.0, disc);
+    painter.circle_stroke(center, 14.0, Stroke::new(1.5, ring));
     let arc: Vec<Pos2> = (0..=24)
         .map(|i| {
             let a = -std::f32::consts::FRAC_PI_2
@@ -704,7 +745,7 @@ fn knob_panel(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
         ui.horizontal(|ui| {
             ui.label(RichText::new(tr(name)).size(10.5).color(p.weak));
             let (rect, _) = ui.allocate_exact_size(vec2(220.0, 8.0), Sense::hover());
-            ui.painter().rect_filled(rect, 3.0, p.base);
+            ui.painter().rect_filled(rect, 3.0, theme::screen(&p));
             let f = (-value / 24.0).clamp(0.0, 1.0);
             let bar = Rect::from_min_max(
                 rect.min,
@@ -1123,7 +1164,7 @@ fn eq(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState)
     ui.add_space(4.0);
     let (rect, _) = ui.allocate_exact_size(vec2(width, 340.0), Sense::hover());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 8.0, p.base);
+    painter.rect_filled(rect, 8.0, theme::screen(&p));
     let x_of = |f: f32| rect.left() + (f / 20.0).log10() / 3.0 * rect.width();
     let f_of = |x: f32| 20.0 * 1000f32.powf(((x - rect.left()) / rect.width()).clamp(0.0, 1.0));
     let half = rect.height() / 2.0 - 14.0;
@@ -1873,8 +1914,10 @@ pub(crate) fn section_frame(
     let margin = egui::Margin::symmetric(10, 8);
     let pad = margin.sum();
     let mut natural = egui::Vec2::ZERO;
+    let (fill, edge) = theme::card(&p);
     egui::Frame::new()
-        .fill(p.base)
+        .fill(fill)
+        .stroke(edge)
         .corner_radius(8.0)
         .inner_margin(margin)
         .show(ui, |ui| {
@@ -1921,7 +1964,7 @@ fn tuner(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
     let (rect, _) =
         ui.allocate_exact_size(vec2(ui.available_width().max(360.0), 200.0), Sense::hover());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 8.0, p.base);
+    painter.rect_filled(rect, 8.0, theme::screen(&p));
     let heard = (clarity > 0.5 && frequency > 0.0)
         .then(|| audiostrada_dsp::tuner::note(frequency, reference));
     let color_of = |cents: f32| {
@@ -2339,7 +2382,7 @@ fn delay(ui: &mut Ui, params: &mut Params, state: &mut EditorState) {
     let (rect, _) =
         ui.allocate_exact_size(vec2(ui.available_width().max(420.0), 150.0), Sense::hover());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 6.0, p.base);
+    painter.rect_filled(rect, 6.0, theme::screen(&p));
     let mid = rect.center().y;
     let half = rect.height() / 2.0 - 18.0;
     // Echoes are drawn on a 48 dB scale, as far as they stay above it.
@@ -2674,7 +2717,7 @@ fn space_view(ui: &mut Ui, params: &mut Params, lows: f32, highs: f32) {
     let (rect, _) =
         ui.allocate_exact_size(vec2(ui.available_width().max(420.0), 150.0), Sense::hover());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 6.0, p.base);
+    painter.rect_filled(rect, 6.0, theme::screen(&p));
     let span = (predelay + lows * 1.1).clamp(0.5, 12.0);
     let inner = rect.shrink2(vec2(12.0, 16.0));
     let to_x = |t: f32| inner.left() + t / span * inner.width();
@@ -2837,7 +2880,7 @@ fn gate_light(ui: &mut Ui, gain: f32, range: f32, mode: usize, height: f32) {
         pos2(rect.center().x - 6.0, rect.top() + 30.0),
         pos2(rect.center().x + 6.0, rect.bottom() - 16.0),
     );
-    painter.rect_filled(bar, 4.0, p.base);
+    painter.rect_filled(bar, 4.0, theme::screen(&p));
     let open = 1.0 - depth;
     painter.rect_filled(
         Rect::from_min_max(
@@ -3115,7 +3158,7 @@ pub(crate) fn display(ui: &mut Ui, height: f32) -> (Rect, egui::Painter) {
         Sense::hover(),
     );
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 8.0, p.base);
+    painter.rect_filled(rect, 8.0, theme::screen(&p));
     painter.rect_stroke(
         rect,
         8.0,
@@ -3442,7 +3485,7 @@ fn imager(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
         ui.spacing_mut().item_spacing.x = 8.0;
         let (rect, _) = ui.allocate_exact_size(vec2(height, height), Sense::hover());
         let painter = ui.painter_at(rect);
-        painter.rect_filled(rect, 8.0, p.base);
+        painter.rect_filled(rect, 8.0, theme::screen(&p));
         // Goniometer: mid up, side across, rotated 45 degrees as on the classic scopes.
         let size = rect.height() - 24.0;
         let scope = Rect::from_center_size(rect.center(), vec2(size, size));
@@ -3564,7 +3607,7 @@ fn band_view(ui: &mut Ui, params: &mut Params, size: egui::Vec2) {
     let p = theme::current(ui);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click_and_drag());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 8.0, p.base);
+    painter.rect_filled(rect, 8.0, theme::screen(&p));
     let inner = rect.shrink2(vec2(10.0, 22.0));
     let to_x = |f: f32| inner.left() + (f / 20.0).log10() / 3.0 * inner.width();
     let f_of = |x: f32| 20.0 * 1000f32.powf(((x - inner.left()) / inner.width()).clamp(0.0, 1.0));
@@ -3733,7 +3776,7 @@ fn transient(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Edito
         // What the shaper does now, attack and sustain apart.
         let (rect, _) = ui.allocate_exact_size(vec2(182.0, height), Sense::hover());
         let painter = ui.painter_at(rect);
-        painter.rect_filled(rect, 8.0, p.base);
+        painter.rect_filled(rect, 8.0, theme::screen(&p));
         for (i, (name, db, color)) in [
             (tr("Attack"), at(0, 0.0), p.accent),
             (tr("Sustain"), at(1, 0.0), theme::SOLO),
@@ -3796,7 +3839,7 @@ fn transient_view(ui: &mut Ui, state: &EditorState, size: egui::Vec2) {
     let p = theme::current(ui);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 8.0, p.base);
+    painter.rect_filled(rect, 8.0, theme::screen(&p));
     let mid = rect.center().y;
     let half = rect.height() / 2.0 - 10.0;
     // Levels from -48 dBFS (the middle) to 0 (the edges).
@@ -3943,7 +3986,7 @@ fn detection_curve(ui: &mut Ui, params: &mut Params, size: egui::Vec2) {
     let p = theme::current(ui);
     let (rect, response) = ui.allocate_exact_size(size, Sense::drag());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 8.0, p.base);
+    painter.rect_filled(rect, 8.0, theme::screen(&p));
     let inner = rect.shrink2(vec2(10.0, 14.0));
     let (low, high) = (1000.0f32, 20_000.0f32);
     let to_x = |f: f32| inner.left() + (f / low).ln() / (high / low).ln() * inner.width();
@@ -5033,7 +5076,7 @@ fn dynamics_history(
     let p = theme::current(ui);
     let (rect, response) = ui.allocate_exact_size(size, Sense::drag());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 8.0, p.base);
+    painter.rect_filled(rect, 8.0, theme::screen(&p));
     // Levels from -60 to 0 dBFS; the reduction from 0 down to -24 dB.
     let level_y = |db: f32| rect.bottom() - ((db + 60.0) / 60.0).clamp(0.0, 1.0) * rect.height();
     let gr_y = |db: f32| rect.top() + (-db / floor).clamp(0.0, 1.0) * rect.height();
@@ -5178,7 +5221,7 @@ fn transfer_curve(
     let p = theme::current(ui);
     let (rect, response) = ui.allocate_exact_size(vec2(size, size), Sense::drag());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 8.0, p.base);
+    painter.rect_filled(rect, 8.0, theme::screen(&p));
     let to_x = |db: f32| rect.left() + (db + 60.0) / 60.0 * rect.width();
     let to_y = |db: f32| rect.bottom() - (db + 60.0) / 60.0 * rect.height();
     let grid = p.weak.gamma_multiply(0.14);
@@ -5239,7 +5282,7 @@ fn reduction_meter(ui: &mut Ui, reduction: f32, height: f32) {
         rect.left_top() + vec2(4.0, 0.0),
         pos2(rect.left() + 14.0, rect.bottom()),
     );
-    painter.rect_filled(bar, 4.0, p.base);
+    painter.rect_filled(bar, 4.0, theme::screen(&p));
     let depth = (-reduction / 24.0).clamp(0.0, 1.0);
     painter.rect_filled(
         Rect::from_min_max(bar.min, pos2(bar.right(), bar.top() + depth * bar.height())),
@@ -5520,7 +5563,7 @@ fn draw_trace(
     ceiling: f32,
     p: &theme::Palette,
 ) {
-    painter.rect_filled(rect, 6.0, p.base);
+    painter.rect_filled(rect, 6.0, theme::screen(p));
     let mid = rect.center().y;
     let half = rect.height() / 2.0 - 6.0;
     let reach = |db: f32| ((db - METER_FLOOR) / (DISPLAY_TOP - METER_FLOOR)).clamp(0.0, 1.0) * half;
@@ -5605,7 +5648,7 @@ fn level_column(
     for (i, level) in levels.into_iter().enumerate() {
         let x = cx - 10.5 + i as f32 * 12.0;
         let bar = Rect::from_min_max(pos2(x, top), pos2(x + 9.0, bottom));
-        painter.rect_filled(bar, 2.0, p.base);
+        painter.rect_filled(bar, 2.0, theme::screen(&p));
         for (low, high, zone) in [
             (METER_FLOOR, -12.0, theme::PLAY),
             (-12.0, -3.0, theme::SOLO),
@@ -5691,8 +5734,10 @@ fn level_column(
 
 fn readout(ui: &mut Ui, label: &str, value: String, color: Color32) {
     let p = theme::current(ui);
+    let (fill, edge) = theme::card(&p);
     egui::Frame::new()
-        .fill(p.base)
+        .fill(fill)
+        .stroke(edge)
         .corner_radius(6.0)
         .inner_margin(egui::Margin::symmetric(10, 5))
         .show(ui, |ui| {
@@ -5826,7 +5871,7 @@ pub fn levels_bar(
                     rect.min + vec2(0.0, i as f32 * 6.5),
                     vec2(rect.width(), 5.5),
                 );
-                painter.rect_filled(bar, 1.0, p.base);
+                painter.rect_filled(bar, 1.0, theme::screen(&p));
                 let x = |db: f32| bar.left() + ((db + 48.0) / 48.0).clamp(0.0, 1.0) * bar.width();
                 for (low, high, color) in [
                     (-48.0, -12.0, theme::PLAY),
@@ -6581,7 +6626,7 @@ fn analyzer(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Spectr
         state.peaks = levels.clone();
     }
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 8.0, p.base);
+    painter.rect_filled(rect, 8.0, theme::screen(&p));
     // Room for the scales.
     let plot = Rect::from_min_max(rect.min + vec2(36.0, 8.0), rect.max - vec2(8.0, 20.0));
     let x_of = |hz: f32| plot.left() + frequency_fraction(hz) * plot.width();

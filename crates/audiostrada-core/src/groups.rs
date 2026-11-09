@@ -194,10 +194,21 @@ pub fn set_gain_with(project: &mut Project, track: TrackId, gain_db: f32, also: 
 
 /// Sets a track's pan and moves its linked tracks' by as much.
 pub fn set_pan(project: &mut Project, track: TrackId, pan: f32) {
+    set_pan_with(project, track, pan, &[]);
+}
+
+/// [`set_pan`], moving `also` (the other selected tracks) by as much too.
+pub fn set_pan_with(project: &mut Project, track: TrackId, pan: f32, also: &[TrackId]) {
     let Some(old) = project.track(track).map(|t| t.pan) else {
         return;
     };
-    for id in linked(project, track, Link::Pan) {
+    let mut others = linked(project, track, Link::Pan);
+    for &t in also {
+        if t != track && !others.contains(&t) {
+            others.push(t);
+        }
+    }
+    for id in others {
         if let Some(t) = project.track_mut(id) {
             t.pan = (t.pan + pan - old).clamp(-1.0, 1.0);
         }
@@ -399,5 +410,18 @@ mod tests {
         assert_eq!(edit_clips(&p, &[k]), vec![k, s1]);
         assert_eq!(edit_clips(&p, &[b]), vec![b]);
         assert_eq!(edit_tracks(&p, &[snare]), vec![snare, kick]);
+    }
+
+    #[test]
+    fn the_selected_tracks_pan_by_as_much() {
+        let mut p = Project::new("t", 48_000);
+        let (a, b, c) = (p.add_track("a"), p.add_track("b"), p.add_track("c"));
+        p.track_mut(b).unwrap().pan = -0.5;
+        p.track_mut(c).unwrap().pan = 0.9;
+        set_pan_with(&mut p, a, 0.3, &[a, b, c]);
+        let pan = |t| p.track(t).unwrap().pan;
+        assert!((pan(a) - 0.3).abs() < 1e-6);
+        assert!((pan(b) + 0.2).abs() < 1e-6, "moved by as much");
+        assert_eq!(pan(c), 1.0, "held at the right");
     }
 }

@@ -588,9 +588,6 @@ Réinit.
 {count} plugin(s) found
 {count} plugin(s) trouvé(s)
 
-scanning…
-analyse…
-
 Scan for new plugins
 Rechercher de nouveaux plugins
 
@@ -884,8 +881,8 @@ Apparence
 Workspace
 Espace de travail
 
-Time range
-Plage de temps
+Selection
+Sélection
 
 # License and updates
 
@@ -1339,3 +1336,147 @@ Saturé {count}× : l'entrée était trop forte
 {count} dropout(s): marked in red on the clip
 {count} coupure(s) : marquées en rouge sur le clip
 
+
+Dark
+Sombre
+
+Start from
+Partir de
+
+Background
+Fond
+
+Corners
+Coins
+
+Meters
+Vue-mètres
+
+Fader caps
+Capuchons de fader
+
+Gradient
+Dégradé
+
+Lights
+Voyants
+
+Glow
+Halo
+
+Flat
+Plats
+
+Ridged
+Striés
+
+Armed tracks
+Pistes armées
+
+Choose a background, an accent and a contrast: every other color follows, and nothing can become unreadable.
+Choisissez un fond, un accent et un contraste : toutes les autres couleurs suivent, et rien ne peut devenir illisible.
+
+Choose the Custom theme to make your own
+Choisissez le thème Personnalisé pour créer le vôtre
+
+Custom theme
+Thème personnalisé
+
+Customize…
+Personnaliser…
+
+Done
+Terminé
+
+Every command and its keys. Change records a new key.
+Chaque commande et ses touches. Changer enregistre une nouvelle touche.
+
+Folders
+Dossiers
+
+How playback stops, windows and new versions.
+L'arrêt de la lecture, les fenêtres et les nouvelles versions.
+
+Interface
+Interface
+
+Keyboard shortcuts
+Raccourcis clavier
+
+Keyboards and controllers that play and control AudioStrada.
+Les claviers et contrôleurs qui jouent et pilotent AudioStrada.
+
+Language, theme and the size of the interface.
+Langue, thème et taille de l'interface.
+
+Preview
+Aperçu
+
+Sandbox
+Bac à sable
+
+Scan
+Analyse
+
+Search a command
+Chercher une commande
+
+Strong
+Fort
+
+The accent is adjusted to stand out from the background and from the record red.
+L'accent est ajusté pour ressortir sur le fond et s'écarter du rouge d'enregistrement.
+
+The audio interface, its sample rate and its buffer.
+L'interface audio, sa fréquence d'échantillonnage et son tampon.
+
+The background is kept clearly dark or clearly light, and lightly colored.
+Le fond reste nettement sombre ou nettement clair, et peu coloré.
+
+The size of everything, applied when you press Apply.
+La taille de tout l'affichage, appliquée quand vous appuyez sur Appliquer.
+
+Third-party plugins
+Plugins tiers
+
+Third-party plugins: where they are found and how they run.
+Les plugins tiers : où les trouver et comment ils tournent.
+
+Updates
+Mises à jour
+
+What is heard while recording, and where the takes land.
+Ce qu'on entend pendant l'enregistrement, et où se placent les prises.
+
+What stopping playback does to the playhead.
+Ce que fait l'arrêt de la lecture à la tête de lecture.
+
+Where the transport bar sits, and its size.
+La place de la barre de transport, et sa taille.
+
+Your own colors, kept readable whatever you choose.
+Vos propres couleurs, lisibles quoi que vous choisissiez.
+
+In its own window
+Dans sa propre fenêtre
+
+At the left
+À gauche
+
+At the right
+À droite
+
+Where the master strip sits in the mixer.
+La place de la tranche master dans le mixer.
+
+Checking…
+Vérification…
+
+Looking for plugins…
+Recherche des plugins…
+
+Scanning plugins: {done} of {total}
+Scan des plugins : {done} sur {total}
+
+New plugins show here once the scan is done; the ones already known can be used now.
+Les nouveaux plugins apparaîtront ici à la fin du scan ; ceux déjà connus sont utilisables dès maintenant.

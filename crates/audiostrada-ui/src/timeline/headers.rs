@@ -155,7 +155,7 @@ impl TimelineView {
                 Sense::click_and_drag(),
             );
             self.height_edge(ui, doc, row, track.id);
-            let color = Color32::from_rgb(track.color[0], track.color[1], track.color[2]);
+            let color = crate::theme::track_color(track.color);
             painter.rect_filled(
                 Rect::from_min_size(row.min, vec2(4.0, row.height() - 1.0)),
                 0.0,
@@ -228,7 +228,7 @@ impl TimelineView {
                 ui.scope_id().with(("icon", id.0)),
                 Sense::click(),
             );
-            let tint = Color32::from_rgb(track.color[0], track.color[1], track.color[2]);
+            let tint = crate::theme::track_color(track.color);
             if icon_response.hovered() {
                 painter.rect_filled(
                     icon_rect.expand(1.0),
@@ -268,7 +268,7 @@ impl TimelineView {
                 painter.galley(name.min, galley, visuals.strong_text_color());
             }
             if let Some(g) = group {
-                let c = Color32::from_rgb(g.color[0], g.color[1], g.color[2]);
+                let c = crate::theme::track_color(g.color);
                 let c = if g.active { c } else { c.gamma_multiply(0.4) };
                 let tag = Rect::from_min_size(
                     pos2(name.right() + 6.0, name.top() + 1.0),
@@ -692,10 +692,18 @@ impl TimelineView {
                     Action::AddTracks,
                     Action::AddInstrumentTrack,
                     Action::AddDrumTrack,
+                    Action::AddBus,
                     Action::AddVca,
                 ] {
                     if ui.button(action.label()).clicked() {
                         self.requests.push(action);
+                        ui.close();
+                    }
+                }
+                if !self.show_master {
+                    ui.separator();
+                    if ui.button(tr("Show the master track")).clicked() {
+                        self.requests.push(Action::MasterTrack);
                         ui.close();
                     }
                 }

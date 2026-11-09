@@ -36,6 +36,15 @@ pub struct EffectBrowser {
     hidden: bool,
     /// Opened again while open: it comes to the front, wherever it was.
     raise: bool,
+    scan: Option<Scan>,
+}
+
+/// The background plugin scan: what it says, files scanned and to scan, the current one.
+#[derive(Debug)]
+struct Scan {
+    status: String,
+    counts: Option<(usize, usize)>,
+    current: String,
 }
 
 /// The browser, shared with its own window.
@@ -59,6 +68,11 @@ pub fn show(
     // Instruments lead a track; the master has none.
     let instruments = matches!(target, (Channel::Track(_), false));
     b.all = entries(doc, &b.chains, &b.plugin_families, instruments);
+    b.scan = doc.plugin_scan().map(|s| Scan {
+        status: scan_status(s),
+        counts: s.counts(),
+        current: s.current(),
+    });
     let id = egui::ViewportId::from_hash_of(VIEWPORT);
     if std::mem::take(&mut b.hidden) {
         ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Visible(true));
@@ -86,6 +100,50 @@ pub fn show(
         }
     });
     None
+}
+
+/// What a background plugin scan is doing, in a few words.
+pub fn scan_status(scan: &audiostrada_plugins::scan::Progress) -> String {
+    match scan.counts() {
+        None => tr("Looking for plugins…").to_owned(),
+        Some((done, total)) => crate::trf!(
+            "Scanning plugins: {done} of {total}",
+            done = done.min(total),
+            total = total
+        ),
+    }
+}
+
+/// The plugin scan running, above the list: the plugins it finds show when it ends.
+fn scan_banner(ui: &mut Ui, scan: &Scan) {
+    let p = theme::current(ui);
+    egui::Frame::new()
+        .fill(theme::mix(p.surface, p.accent, if p.dark { 0.28 } else { 0.16 }))
+        .stroke(egui::Stroke::new(1.0, p.accent))
+        .corner_radius(6.0)
+        .inner_margin(egui::Margin::symmetric(12, 8))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(egui::RichText::new(&scan.status).strong().color(p.text));
+                if let Some((done, total)) = scan.counts
+                    && total > 0
+                {
+                    ui.add(
+                        egui::ProgressBar::new(done as f32 / total as f32)
+                            .desired_width(180.0)
+                            .desired_height(8.0),
+                    );
+                    ui.label(egui::RichText::new(&scan.current).color(p.text));
+                }
+            });
+            ui.label(egui::RichText::new(tr(
+                "New plugins show here once the scan is done; the ones already known can be used now.",
+            )).color(p.text));
+        });
+    ui.ctx()
+        .request_repaint_after(std::time::Duration::from_millis(250));
 }
 
 /// One entry of the browser.
@@ -143,7 +201,10 @@ impl EffectBrowser {
             .collect();
         let mut chosen = None;
         let mut open = true;
-        egui::CentralPanel::default().show(ui, |ui| {
+        // A sheet like the dialogs: white on light themes.
+        let sheet =
+            egui::Frame::central_panel(&ui.ctx().global_style()).fill(ui.visuals().window_fill);
+        egui::CentralPanel::default().frame(sheet).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(theme_title(tr("Add an effect")));
                 let search = ui.add(
@@ -176,6 +237,10 @@ impl EffectBrowser {
                 });
             });
             ui.separator();
+            if let Some(scan) = &self.scan {
+                scan_banner(ui, scan);
+                ui.separator();
+            }
             ui.horizontal_top(|ui| {
                 self.families(ui, &entries);
                 ui.separator();
@@ -309,13 +374,15 @@ impl EffectBrowser {
 fn card(ui: &mut Ui, entry: &Entry, width: f32) -> (egui::Response, bool) {
     let p = theme::current(ui);
     let (rect, response) = ui.allocate_exact_size(vec2(width, 66.0), Sense::click());
+    let (card, edge) = theme::card(&p);
     let fill = if response.hovered() {
-        p.accent.gamma_multiply(0.18)
+        theme::mix(card, p.accent, 0.14)
     } else {
-        p.base
+        card
     };
     let painter = ui.painter().clone();
     painter.rect_filled(rect, 6.0, fill);
+    painter.rect_stroke(rect, 6.0, edge, egui::StrokeKind::Inside);
     painter.rect_filled(
         egui::Rect::from_min_size(rect.min, vec2(4.0, rect.height())),
         egui::CornerRadius {

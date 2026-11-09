@@ -157,8 +157,26 @@ impl Screenshot {
 pub type AudioHook = Box<dyn FnMut(&AudioHost)>;
 pub type RecentHook = Box<dyn FnMut(&[PathBuf])>;
 pub type UiHook = Box<dyn FnMut(&UiPrefs)>;
-/// Starts a plugin scan with extra folders; `true` rescans everything.
-pub type PluginScanHook = Box<dyn FnMut(Vec<PathBuf>, bool) -> std::thread::JoinHandle<Database>>;
+/// Starts a plugin scan with extra folders; `true` rescans everything. It reports how far it
+/// is in the `Progress` given.
+pub type PluginScanHook = Box<
+    dyn FnMut(
+        Vec<PathBuf>,
+        bool,
+        std::sync::Arc<audiostrada_plugins::scan::Progress>,
+    ) -> std::thread::JoinHandle<Database>,
+>;
+
+/// A plugin scan running in the background, and how far it is.
+type PluginScan = (
+    std::thread::JoinHandle<Database>,
+    std::sync::Arc<audiostrada_plugins::scan::Progress>,
+);
+
+fn start_scan(hook: &mut PluginScanHook, dirs: Vec<PathBuf>, full: bool) -> PluginScan {
+    let progress = std::sync::Arc::default();
+    (hook(dirs, full, std::sync::Arc::clone(&progress)), progress)
+}
 
 /// Callbacks into the application, to persist preferences.
 pub struct Hooks {
@@ -303,7 +321,7 @@ pub struct AudioStradaApp {
     preferences: PreferencesWindow,
     audio_settings: AudioSettingsPanel,
     hooks: Hooks,
-    plugin_scan: Option<std::thread::JoinHandle<Database>>,
+    plugin_scan: Option<PluginScan>,
     recent: Vec<PathBuf>,
     pending: Option<Pending>,
     recovery: Option<RecoveryOffer>,
@@ -368,7 +386,7 @@ impl AudioStradaApp {
         }
         let mut hooks = hooks;
         let plugin_scan = audiostrada_plugins::enabled()
-            .then(|| (hooks.plugin_scan)(prefs.plugin_dirs.clone(), false));
+            .then(|| start_scan(&mut hooks.plugin_scan, prefs.plugin_dirs.clone(), false));
         // AI assistants switched on in a previous session listen again.
         let control = if prefs.assistants {
             control::listen(prefs.assistants_port)
@@ -386,6 +404,7 @@ impl AudioStradaApp {
                 mixer: {
                     let mut mixer = MixerView::new(Rc::clone(&doc));
                     mixer.compact = prefs.mixer_compact;
+                    mixer.master_left = prefs.master_left;
                     mixer
                 },
                 timeline: {
@@ -393,6 +412,7 @@ impl AudioStradaApp {
                     timeline.header_width = prefs.header_width;
                     timeline.tool = prefs.timeline_tool;
                     timeline.wave_view = prefs.waveforms;
+                    timeline.show_master = prefs.timeline_master;
                     timeline
                 },
                 piano: piano_roll::PianoRoll::new(Rc::clone(&doc)),
@@ -1318,6 +1338,24 @@ impl AudioStradaApp {
                 self.prefs.transport_large = !self.prefs.transport_large;
                 self.ui_changed();
             }
+            Action::MasterTrack => {
+                let shown = {
+                    let mut views = self.views.borrow_mut();
+                    views.timeline.show_master = !views.timeline.show_master;
+                    views.timeline.show_master
+                };
+                self.prefs.timeline_master = shown;
+                self.ui_changed();
+            }
+            Action::MasterOnLeft => {
+                let left = {
+                    let mut views = self.views.borrow_mut();
+                    views.mixer.master_left = !views.mixer.master_left;
+                    views.mixer.master_left
+                };
+                self.prefs.master_left = left;
+                self.ui_changed();
+            }
             Action::CompactMixer => {
                 let compact = {
                     let mut views = self.views.borrow_mut();
@@ -2093,6 +2131,21 @@ impl AudioStradaApp {
                 ui.close();
             }
         };
+        // A toggle in a menu, under its command's name or `text` inside a submenu named for it.
+        let toggle = |ui: &mut egui::Ui,
+                      chosen: &mut Vec<Action>,
+                      action: Action,
+                      on: bool,
+                      text: Option<&str>| {
+            let mut button = egui::Button::new(text.unwrap_or(action.label())).selected(on);
+            if let Some(label) = keymap.label(action, mac) {
+                button = button.shortcut_text(label);
+            }
+            if ui.add(button).clicked() {
+                chosen.push(action);
+                ui.close();
+            }
+        };
         let check = |ui: &mut egui::Ui, chosen: &mut Vec<Action>, action: Action, on: bool| {
             let mut button = egui::Button::new(action.label()).selected(on);
             if let Some(label) = keymap.label(action, mac) {
@@ -2105,7 +2158,13 @@ impl AudioStradaApp {
         };
         let mut open_recent = None;
         let mut open_audio = false;
-        egui::MenuBar::new().ui(ui, |ui| {
+        // Roomier than egui's menu bar, so the hovered title stands in a pill.
+        let roomy = |style: &mut egui::Style| {
+            egui::containers::menu::menu_style(style);
+            style.spacing.button_padding = egui::vec2(9.0, 4.0);
+            style.spacing.item_spacing.x = 2.0;
+        };
+        egui::MenuBar::new().style(roomy).ui(ui, |ui| {
             ui.menu_button(tr("File"), |ui| {
                 item(ui, &mut chosen, Action::NewProject, None, true);
                 item(ui, &mut chosen, Action::OpenProject, None, true);
@@ -2169,7 +2228,7 @@ impl AudioStradaApp {
                 ui.separator();
                 item(ui, &mut chosen, Action::SelectAll, None, true);
                 item(ui, &mut chosen, Action::Deselect, None, true);
-                ui.menu_button(tr("Time range"), |ui| {
+                ui.menu_button(tr("Selection"), |ui| {
                     for action in [
                         Action::RangeFromClips,
                         Action::RangeFromLoop,
@@ -2341,34 +2400,60 @@ impl AudioStradaApp {
                     ui.separator();
                     item(ui, &mut chosen, Action::ResetLayout, None, true);
                 });
-                ui.menu_button(tr("Windows"), |ui| {
-                    check(
+                check(
+                    ui,
+                    &mut chosen,
+                    Action::DetachPianoRoll,
+                    self.detached.contains(&Pane::PianoRoll),
+                );
+                ui.separator();
+                ui.menu_button(tr("Mixer"), |ui| {
+                    let (compact, left) = {
+                        let views = self.views.borrow();
+                        (views.mixer.compact, views.mixer.master_left)
+                    };
+                    let detached = self.detached.contains(&Pane::Mixer);
+                    toggle(
                         ui,
                         &mut chosen,
                         Action::DetachMixer,
-                        self.detached.contains(&Pane::Mixer),
+                        detached,
+                        Some(tr("In its own window")),
                     );
-                    check(
+                    toggle(
                         ui,
                         &mut chosen,
-                        Action::DetachPianoRoll,
-                        self.detached.contains(&Pane::PianoRoll),
+                        Action::CompactMixer,
+                        compact,
+                        Some(tr("Compact")),
+                    );
+                    toggle(
+                        ui,
+                        &mut chosen,
+                        Action::MasterOnLeft,
+                        left,
+                        Some(tr("Master on the left")),
                     );
                 });
-                let compact = self.views.borrow().mixer.compact;
-                check(ui, &mut chosen, Action::CompactMixer, compact);
-                check(
-                    ui,
-                    &mut chosen,
-                    Action::TransportAtBottom,
-                    self.prefs.transport_bottom,
-                );
-                check(
-                    ui,
-                    &mut chosen,
-                    Action::LargeTransport,
-                    self.prefs.transport_large,
-                );
+                ui.menu_button(tr("Transport"), |ui| {
+                    let (bottom, large) = (self.prefs.transport_bottom, self.prefs.transport_large);
+                    toggle(
+                        ui,
+                        &mut chosen,
+                        Action::TransportAtBottom,
+                        bottom,
+                        Some(tr("At the bottom")),
+                    );
+                    toggle(
+                        ui,
+                        &mut chosen,
+                        Action::LargeTransport,
+                        large,
+                        Some(tr("Large")),
+                    );
+                });
+                let master = self.views.borrow().timeline.show_master;
+                check(ui, &mut chosen, Action::MasterTrack, master);
                 check(
                     ui,
                     &mut chosen,
@@ -2895,8 +2980,13 @@ impl eframe::App for AudioStradaApp {
         }
         #[cfg(any(target_os = "macos", windows))]
         keep_windows_above(frame, &self.detached);
-        if self.plugin_scan.as_ref().is_some_and(|h| h.is_finished())
-            && let Some(Ok(database)) = self.plugin_scan.take().map(|h| h.join())
+        let progress = self
+            .plugin_scan
+            .as_ref()
+            .map(|s| std::sync::Arc::clone(&s.1));
+        self.doc.borrow_mut().set_plugin_scan(progress);
+        if self.plugin_scan.as_ref().is_some_and(|s| s.0.is_finished())
+            && let Some(Ok(database)) = self.plugin_scan.take().map(|s| s.0.join())
         {
             let mut doc = self.doc.borrow_mut();
             // Files that failed before were already told about.
@@ -2984,7 +3074,7 @@ impl eframe::App for AudioStradaApp {
         self.views.borrow_mut().piano.release_if_hidden(frame);
         let mut actions = self.pressed_actions(&ctx);
         let menu_frame = egui::Frame::side_top_panel(&ctx.global_style())
-            .inner_margin(egui::Margin::symmetric(10, 6));
+            .inner_margin(egui::Margin::symmetric(6, 3));
         egui::Panel::top("menu-bar")
             .frame(menu_frame)
             .show(ui, |ui| actions.extend(self.menu_bar(ui)));
@@ -3078,19 +3168,25 @@ impl eframe::App for AudioStradaApp {
             &mut self.audio_settings,
             &self.host,
             self.mac,
-            (&database, self.plugin_scan.is_some()),
+            (&database, self.plugin_scan.as_ref().map(|s| &*s.1)),
         );
         if outcome.midi_changed {
             self.open_midi_inputs();
         }
         if outcome.ui_changed {
+            let mut views = self.views.borrow_mut();
+            views.mixer.master_left = self.prefs.master_left;
+            views.mixer.compact = self.prefs.mixer_compact;
+            views.timeline.show_master = self.prefs.timeline_master;
+            drop(views);
             self.ui_changed();
         }
         if let Some(full) = outcome.rescan
             && self.plugin_scan.is_none()
             && audiostrada_plugins::enabled()
         {
-            self.plugin_scan = Some((self.hooks.plugin_scan)(
+            self.plugin_scan = Some(start_scan(
+                &mut self.hooks.plugin_scan,
                 self.prefs.plugin_dirs.clone(),
                 full,
             ));
@@ -3183,7 +3279,8 @@ pub fn run(mut app: AudioStradaApp) -> eframe::Result {
         .with_title("AudioStrada")
         // Matches the desktop file, so Wayland shows the right icon.
         .with_app_id("audiostrada");
-    if forced.is_none() && app.prefs.window.is_some_and(|w| w.maximized) {
+    // The first run opens maximized.
+    if forced.is_none() && app.prefs.window.is_none_or(|w| w.maximized) {
         app.maximize_in = 3;
     }
     // As the window was left, else a default size.

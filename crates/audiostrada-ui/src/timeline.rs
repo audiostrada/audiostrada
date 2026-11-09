@@ -29,6 +29,7 @@ mod fades;
 mod gestures;
 mod headers;
 mod magnet;
+mod master;
 mod menus;
 mod processing;
 mod toolbar;
@@ -201,6 +202,10 @@ pub struct TimelineView {
     hover: Option<Pos2>,
     /// Track whose name is being edited in its header, and the text typed so far.
     renaming: Option<(TrackId, String)>,
+    /// The master's band at the top, with its automation.
+    pub show_master: bool,
+    /// A master lane's point being dragged: its lane's target and its index.
+    master_point: Option<(AutomationTarget, usize)>,
     /// Clip last clicked, from which Shift+click extends the selection.
     clip_anchor: Option<ClipId>,
     /// Width of the track headers, set by dragging their edge.
@@ -296,6 +301,8 @@ impl TimelineView {
             seen_range: None,
             hover: None,
             renaming: None,
+            show_master: false,
+            master_point: None,
             clip_anchor: None,
             header_width: HEADER_WIDTH,
             header_resized: false,
@@ -877,8 +884,14 @@ impl TimelineView {
                 .min(full.width() * 0.6)
                 .max(MIN_HEADER_WIDTH),
         );
+        // The master's band under the ruler, the tracks below it.
+        let band = if self.show_master {
+            master::band_height(&project)
+        } else {
+            0.0
+        };
         let header = Rect::from_min_max(
-            pos2(full.left(), full.top() + RULER_HEIGHT),
+            pos2(full.left(), full.top() + RULER_HEIGHT + band),
             pos2(full.left() + header_width, full.bottom()),
         );
         let ruler = Rect::from_min_max(
@@ -886,7 +899,7 @@ impl TimelineView {
             pos2(full.right(), full.top() + RULER_HEIGHT),
         );
         let lanes = Rect::from_min_max(
-            pos2(full.left() + header_width, full.top() + RULER_HEIGHT),
+            pos2(full.left() + header_width, full.top() + RULER_HEIGHT + band),
             full.max,
         );
         self.lanes_width = lanes.width();
@@ -1119,7 +1132,7 @@ impl TimelineView {
                     continue;
                 };
                 let lane = &track.automation[li];
-                let color = Color32::from_rgb(track.color[0], track.color[1], track.color[2]);
+                let color = crate::theme::track_color(track.color);
                 let color = if reading && lane.enabled {
                     color
                 } else {
@@ -1191,6 +1204,12 @@ impl TimelineView {
         );
         self.link_loop(&mut doc);
         self.header_edge(ui, full, header);
+        if band > 0.0 {
+            let top = full.top() + RULER_HEIGHT;
+            let head = Rect::from_min_max(pos2(full.left(), top), pos2(header.right(), top + band));
+            let area = Rect::from_min_max(pos2(lanes.left(), top), pos2(lanes.right(), top + band));
+            self.master_band(ui, &mut doc, &project, (head, area), scale);
+        }
 
         if project.tracks.is_empty() {
             painter.text(

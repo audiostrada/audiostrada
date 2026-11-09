@@ -15,6 +15,14 @@ volume, qui bouge toutes les pistes qu'il contrôle.
   escalier.
 - Tirez le bord bas d'une piste d'automation pour l'agrandir.
 
+Affichage › *Piste master dans la timeline* montre le master en haut, sous la règle. Son volume
+est sa ligne principale, deux fois plus haute qu'une piste d'automation (un fondu en fin de
+morceau) ; son **+** ajoute une piste d'automation pour un paramètre de ses effets. Chaque ligne
+s'édite de la même façon et s'agrandit par son bord bas. Son mode d'automation est
+sur sa tranche dans le mixer (Read par défaut). Ses **M** et **Mono** sont ceux de sa tranche. Un
+clic droit sur son nom le masque, dans l'espace vide sous les en-têtes de piste le réaffiche ; la
+même option est dans Préférences › Apparence.
+
 ## Modes
 
 Le bouton de mode à côté du panoramique (**Read**, **Touch**...) décide de l'effet d'une commande qu'on bouge :

@@ -50,7 +50,7 @@ impl Harness {
             audio_changed: Box::new(|_| {}),
             recent_changed: Box::new(|_| {}),
             ui_changed: Box::new(|_| {}),
-            plugin_scan: Box::new(|_, _| std::thread::spawn(Database::default)),
+            plugin_scan: Box::new(|_, _, _| std::thread::spawn(Database::default)),
         };
         // English, as the other tests of this process expect (the language is global).
         let prefs = UiPrefs {

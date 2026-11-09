@@ -169,11 +169,11 @@ fn run_ui(run: &cli::RunArgs) -> anyhow::Result<()> {
                 prefs.save();
             })
         },
-        plugin_scan: Box::new(|extra, full| {
+        plugin_scan: Box::new(|extra, full, progress| {
             let cache = plugins::database_path()
                 .unwrap_or_else(|| std::env::temp_dir().join("audiostrada-plugins.json"));
             let exe = audiostrada_plugins::own_executable().unwrap_or_else(|| "audiostrada".into());
-            audiostrada_plugins::scan::scan_in_background(cache, extra, exe, full)
+            audiostrada_plugins::scan::scan_in_background(cache, extra, exe, full, progress)
         }),
     };
 

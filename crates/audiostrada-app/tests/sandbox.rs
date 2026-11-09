@@ -170,10 +170,17 @@ fn the_scan_finds_the_plugin_out_of_process() {
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].id, "com.audiostrada.test-gain");
     let cache = dir.join("plugins.json");
-    let database =
-        scan::scan_in_background(cache.clone(), vec![dir.clone()], exe().to_path_buf(), true)
-            .join()
-            .unwrap();
+    let progress = std::sync::Arc::default();
+    let database = scan::scan_in_background(
+        cache.clone(),
+        vec![dir.clone()],
+        exe().to_path_buf(),
+        true,
+        std::sync::Arc::clone(&progress),
+    )
+    .join()
+    .unwrap();
+    assert_eq!(progress.counts(), Some((1, 1)));
     assert!(
         database
             .plugins()
@@ -216,6 +223,7 @@ fn a_sandboxed_vst2_plugin_sounds_and_saves_as_in_process() {
         vec![dir.clone()],
         exe().to_path_buf(),
         true,
+        Default::default(),
     )
     .join()
     .unwrap();

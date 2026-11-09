@@ -42,8 +42,39 @@ pub fn fader_db(position: f32) -> f32 {
     LAW[LAW.len() - 1].1
 }
 
-/// Vertical fader with a dB scale; drag (Shift for fine), wheel, double-click for 0 dB.
-pub fn fader(ui: &mut Ui, db: f32, height: f32, show_scale: bool) -> (Option<f32>, Response) {
+/// Notches of the mouse wheel turned this frame (up is positive), counted from the wheel's own
+/// events: egui spreads a notch over many frames to scroll smoothly. A trackpad's movement
+/// counts a notch every 40 points. The panel under does not scroll this frame.
+pub fn wheel_notches(ui: &Ui) -> f32 {
+    let notches = ui.input(|i| {
+        i.events
+            .iter()
+            .map(|e| match e {
+                egui::Event::MouseWheel { unit, delta, .. } => match unit {
+                    egui::MouseWheelUnit::Line => delta.y,
+                    egui::MouseWheelUnit::Page => delta.y * 3.0,
+                    egui::MouseWheelUnit::Point => delta.y / 40.0,
+                },
+                _ => 0.0,
+            })
+            .sum::<f32>()
+    });
+    if notches != 0.0 {
+        ui.ctx()
+            .input_mut(|i| i.smooth_scroll_delta = egui::Vec2::ZERO);
+    }
+    notches
+}
+
+/// Vertical fader with a dB scale; drag (Shift for fine), double-click for 0 dB, and the wheel
+/// when `wheel` (half a dB a notch, Shift: a tenth).
+pub fn fader(
+    ui: &mut Ui,
+    db: f32,
+    height: f32,
+    show_scale: bool,
+    wheel: bool,
+) -> (Option<f32>, Response) {
     let width = if show_scale { 40.0 } else { 22.0 };
     let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::click_and_drag());
     let p = theme::current(ui);
@@ -89,10 +120,10 @@ pub fn fader(ui: &mut Ui, db: f32, height: f32, show_scale: bool) -> (Option<f32
         let position = fader_position(value) - dy / track.height() * step;
         value = fader_db(position);
     }
-    if response.hovered() {
-        let wheel = ui.input(|i| i.smooth_scroll_delta.y);
-        if wheel != 0.0 {
-            value = (value + wheel.signum() * if fine { 0.1 } else { 0.5 }).clamp(-60.0, 12.0);
+    if wheel && response.hovered() {
+        let notches = wheel_notches(ui);
+        if notches != 0.0 {
+            value = (value + notches * if fine { 0.1 } else { 0.5 }).clamp(-60.0, 12.0);
         }
     }
     if response.double_clicked() {
@@ -379,75 +410,43 @@ fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
     Color32::from_rgb(l(a.r(), b.r()), l(a.g(), b.g()), l(a.b(), b.b()))
 }
 
-/// Rotary knob over `min..=max`; vertical drag (Shift for fine), wheel, double-click resets.
-/// `bipolar` draws the arc from the center (pan, gains around zero).
-/// Horizontal balance bar from -1 (left) to 1 (right): drag along it (Shift for fine steps,
-/// the center holds the pointer a little), wheel for 1 % steps, double-click to center.
-/// `label` is drawn inside it.
-pub fn pan_slider(ui: &mut Ui, value: f32, width: f32, label: &str) -> (Option<f32>, Response) {
-    let (rect, response) = ui.allocate_exact_size(vec2(width, 18.0), Sense::click_and_drag());
+/// A pan knob, -1 (left) to 1 (right): drag up or right (Shift for fine steps; a coarse drag
+/// crossing the center rests on it), double-click to center, and the wheel when `wheel` (1 % a
+/// notch). Its arc leaves the center toward the side it leans to.
+pub fn pan_knob(ui: &mut Ui, value: f32, diameter: f32, wheel: bool) -> (Option<f32>, Response) {
+    let (rect, response) =
+        ui.allocate_exact_size(vec2(diameter, diameter), Sense::click_and_drag());
     let p = theme::current(ui);
     let fine = ui.input(|i| i.modifiers.shift);
     let mut v = value;
     if response.dragged() {
-        let d = response.drag_delta().x / rect.width() * 2.0 * if fine { 0.1 } else { 1.0 };
+        let delta = response.drag_delta();
+        // 150 points from one side to the other.
+        let d = (delta.x - delta.y) / 75.0 * if fine { 0.15 } else { 1.0 };
         v = (v + d).clamp(-1.0, 1.0);
-        // A coarse drag crossing the center rests on it.
         if !fine && value != 0.0 && v.signum() != value.signum() {
             v = 0.0;
         }
     }
-    if response.hovered() {
-        let wheel = ui.input(|i| i.smooth_scroll_delta.y);
-        if wheel != 0.0 {
-            v = ((v * 100.0).round() + wheel.signum()).clamp(-100.0, 100.0) / 100.0;
+    if wheel && response.hovered() {
+        let notches = wheel_notches(ui);
+        if notches != 0.0 {
+            v = ((v * 100.0).round() + notches.round()).clamp(-100.0, 100.0) / 100.0;
         }
     }
     if response.double_clicked() {
         v = 0.0;
     }
-    let painter = ui.painter_at(rect.expand(2.0));
-    // A small horizontal fader: its rail, the side it leans to, its cap.
-    let cap_width = 14.0;
-    // Room at both ends for the value, when there is one.
-    let inset = if label.is_empty() { 10.0 } else { 28.0 };
-    let rail = Rect::from_center_size(rect.center(), vec2(rect.width() - inset, 4.0));
-    let x = |v: f32| rect.center().x + v * rail.width() / 2.0;
-    painter.rect_filled(rail, 2.0, p.border);
-    if v != 0.0 {
-        let (a, b) = (x(0.0).min(x(v)), x(0.0).max(x(v)));
-        painter.rect_filled(
-            Rect::from_min_max(pos2(a, rail.top()), pos2(b, rail.bottom())),
-            2.0,
-            p.accent.gamma_multiply(0.8),
-        );
-    }
-    painter.line_segment(
-        [
-            pos2(x(0.0), rect.top() + 1.0),
-            pos2(x(0.0), rect.top() + 4.0),
-        ],
-        Stroke::new(1.0, p.weak),
+    let active = response.hovered() || response.dragged();
+    paint_knob(
+        ui.painter(),
+        rect,
+        (v + 1.0) / 2.0,
+        true,
+        p.accent,
+        &p,
+        active,
     );
-    // The value on the side away from the cap, so that it stays readable.
-    let (anchor, align) = if v > 0.0 {
-        (rect.left_center() + vec2(2.0, 0.0), Align2::LEFT_CENTER)
-    } else {
-        (rect.right_center() - vec2(2.0, 0.0), Align2::RIGHT_CENTER)
-    };
-    // On a patch of the background: it may cover the end of the rail.
-    if !label.is_empty() {
-        let galley = painter.layout_no_wrap(label.to_owned(), FontId::monospace(9.0), p.weak);
-        let text = align.anchor_size(anchor, galley.size());
-        painter.rect_filled(text.expand2(vec2(2.0, 0.0)), 2.0, p.panel);
-        painter.galley(text.min, galley, p.weak);
-    }
-    let cap = Rect::from_center_size(
-        pos2(x(v), rect.center().y),
-        vec2(cap_width, rect.height() - 2.0),
-    );
-    let active = response.dragged() || response.hovered();
-    paint_cap(&painter, &p, cap, active, true);
     ((v != value).then_some(v), response)
 }
 

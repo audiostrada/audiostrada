@@ -366,12 +366,6 @@ Copier l'insert
 Insert {name}
 Insérer {name}
 
-Send to {name} (pre-fader). Shift+click to mute, Ctrl+click to remove, right-click for options
-Envoi vers {name} (pré-fader). Maj+clic pour le couper, Ctrl+clic pour le supprimer, clic droit pour les options
-
-Send to {name} (post-fader). Shift+click to mute, Ctrl+click to remove, right-click for options
-Envoi vers {name} (post-fader). Maj+clic pour le couper, Ctrl+clic pour le supprimer, clic droit pour les options
-
 Send level
 Niveau d'envoi
 
@@ -431,21 +425,6 @@ Monitoring
 
 Master gain
 Gain du master
-
-Integrated loudness since reset, LUFS
-Loudness intégrée depuis la remise à zéro, LUFS
-
-Highest sample since reset, dBFS
-Échantillon le plus haut depuis la remise à zéro, dBFS
-
-Momentary loudness (400 ms), LUFS
-Loudness momentanée (400 ms), LUFS
-
-Short-term loudness (3 s), LUFS
-Loudness à court terme (3 s), LUFS
-
-{hint}. Click Reset to restart
-{hint}. Cliquer sur RAZ pour recommencer
 
 Reset
 Réinit.
@@ -588,23 +567,14 @@ Mon
 Monitoring effects (not exported): {count}. Click to open the list
 Effets d'écoute (non exportés) : {count}. Cliquez pour ouvrir la liste
 
-Pan {pan}. Drag (Shift for fine steps) or use the wheel; double-click to center
-Balance {pan}. Glissez (Maj pour le réglage fin) ou utilisez la molette ; double-clic pour centrer
+Pan {pan}. Drag up or right (Shift for fine steps), wheel on a selected track; double-click to center
+Balance {pan}. Glissez vers le haut ou la droite (Maj pour le réglage fin), molette sur une piste sélectionnée ; double-clic pour centrer
 
 Send
 Envoi
 
 Sends: {count}. Click to open the list
 Envois : {count}. Cliquez pour ouvrir la liste
-
-{owner}: effects
-{owner} : effets
-
-{owner}: monitoring
-{owner} : écoute
-
-{owner}: sends
-{owner} : envois
 
 Group {n}
 Groupe {n}
@@ -657,8 +627,8 @@ Les faders bougent ensemble en gardant leur équilibre
 Groups (off)
 Groupes (suspendus)
 
-No groups yet. Members of a group share level changes, mute, solo, arm, editing and more. A folder can also act as a group, from its menu.
-Aucun groupe. Les membres d'un groupe partagent niveau, mute, solo, armement, édition et plus. Un dossier peut aussi servir de groupe, depuis son menu.
+No groups yet. Members of a group share level changes, mute, solo, arm, editing and more.
+Aucun groupe. Les membres d'un groupe partagent niveau, mute, solo, armement, édition et plus.
 
 Pans move together, by as much
 Les panoramiques bougent ensemble, d'autant
@@ -798,8 +768,8 @@ Q bas-médium
 Low pass
 Passe-bas
 
-{name}: {state}. Click to switch it, Ctrl+click to remove it, right-click to open it
-{name} : {state}. Cliquer pour l'activer ou le bypasser, Ctrl+clic pour le supprimer, clic droit pour l'ouvrir
+{name}: {state}. Click to open it, Shift+click to switch it, Ctrl+click to remove it
+{name} : {state}. Cliquer pour l'ouvrir, Maj+clic pour l'activer ou le bypasser, Ctrl+clic pour le supprimer
 
 playing
 actif
@@ -807,17 +777,11 @@ actif
 POST
 POST
 
-Post-fader: the level follows the fader. Click for pre-fader
-Post-fader : le niveau suit le fader. Cliquer pour passer en pré-fader
-
 PRE
 PRÉ
 
  (pre-fader)
  (pré-fader)
-
-Pre-fader: the level does not follow the fader. Click for post-fader
-Pré-fader : le niveau ne suit pas le fader. Cliquer pour passer en post-fader
 
 SENDS
 SENDS
@@ -866,12 +830,6 @@ Effets : {count}
 
 Effects: {count}, bypassed: {bypassed}
 Effets : {count}, bypassés : {bypassed}
-
-Mute this send
-Couper cet envoi
-
-Send muted: click to hear it again
-Envoi coupé : cliquer pour le réentendre
 
 Sends: {count}
 Envois : {count}
@@ -1346,3 +1304,84 @@ Un bus alimenté par ces sends, pour une réverbe ou un delay
 
 The track is then heard only through the send (its output is turned off)
 On n'entend alors la piste que par le send (sa sortie est coupée)
+
+Click to choose the icon
+Cliquez pour choisir l'icône
+
+Master on the left
+Master à gauche
+
+Master on the right
+Master à droite
+
+Narrow strips: a click opens one full width.
+Tranches étroites : un clic en ouvre une en pleine largeur.
+
+Click to select the master: the rack and the Inspector show it
+Cliquez pour sélectionner le master : le rack et l'Inspecteur l'affichent
+
+{mix} in the mix, {monitor} for monitoring only
+{mix} dans le mix, {monitor} pour l'écoute seulement
+
+Bypass the master's inserts
+Bypasser les inserts du master
+
+Dim
+Dim
+
+Mute the speakers: what is heard only, never the export
+Couper les enceintes : seulement ce qu'on entend, jamais l'export
+
+Lower what is heard by 20 dB, to talk or answer the phone; never the export
+Baisser l'écoute de 20 dB, pour parler ou répondre au téléphone ; jamais l'export
+
+Hear left and right summed, to check the mix in mono; never the export
+Écouter la gauche et la droite additionnées, pour vérifier le mix en mono ; jamais l'export
+
+The master at the top of the timeline, to draw its automation.
+Le master en haut de la timeline, pour dessiner son automation.
+
+LUFS
+LUFS
+
+PEAK
+PEAK
+
+Loudness of the mix since Reset (integrated). Streaming platforms bring songs to about -14 LUFS
+Sonie du mix depuis Réinit. (intégrée). Les plateformes de streaming ramènent les morceaux vers -14 LUFS environ
+
+Highest sample since Reset, in dB. Over -1 dB (in red) it may clip once encoded
+Plus haut échantillon depuis Réinit., en dB. Au-dessus de -1 dB (en rouge), il peut saturer une fois encodé
+
+Move send
+Déplacer le send
+
+Copy send
+Copier le send
+
+Destination
+Destination
+
+Position
+Position
+
+The level does not follow the fader
+Le niveau ne suit pas le fader
+
+The level follows the fader
+Le niveau suit le fader
+
+Remove the send
+Supprimer le send
+
+Send destination
+Destination du send
+
+Send to {name}. Click for its settings, drag to reorder or onto another track to copy it (Alt: move), wheel for its level; Shift+click mutes, Ctrl+click removes
+Send vers {name}. Cliquez pour ses réglages, glissez pour réordonner ou sur une autre piste pour le copier (Alt : déplacer), molette pour son niveau ; Maj+clic coupe, Ctrl+clic supprime
+
+Settings…
+Réglages…
+
+Send of {track}
+Send de {track}

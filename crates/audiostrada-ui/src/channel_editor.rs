@@ -471,7 +471,7 @@ fn modules(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
         frames[slot] = card;
         x += width + GAP;
         let tint = theme::family_color(family(module));
-        ui.painter().rect_filled(card, 8.0, p.base);
+        ui.painter().rect_filled(card, 8.0, theme::screen(&p));
         if dragged == Some(m) {
             ui.painter().rect_stroke(
                 card,

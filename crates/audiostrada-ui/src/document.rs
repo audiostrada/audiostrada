@@ -235,6 +235,10 @@ pub struct Document {
     stream_inputs: usize,
     /// Selected tracks, shared by the views; the last one has the focus.
     track_selection: Vec<TrackId>,
+    /// The master is selected, in place of any track.
+    master_selected: bool,
+    /// The plugin scan running in the background, for the windows listing plugins.
+    plugin_scan: Option<std::sync::Arc<audiostrada_plugins::scan::Progress>>,
     render_queue: Vec<export::QueuedExport>,
     /// Control waiting for a MIDI controller (MIDI learn): target and value range.
     learning: Option<(Channel, AutomationTarget, f32, f32)>,
@@ -344,6 +348,8 @@ impl Document {
             exporting: None,
             stream_inputs: 0,
             track_selection: Vec::new(),
+            master_selected: false,
+            plugin_scan: None,
             render_queue: Vec::new(),
             learning: None,
             controllers: audiostrada_midi::live::LiveMidi::default().reader(),
@@ -462,6 +468,7 @@ impl Document {
     /// Selects a track: alone, toggled in the selection (Ctrl) or extended up to it from the
     /// focused track in the shown order (Shift).
     pub fn select_track(&mut self, id: TrackId, mode: SelectMode) {
+        self.master_selected = false;
         match mode {
             SelectMode::Only => self.track_selection = vec![id],
             SelectMode::Toggle => {
@@ -498,7 +505,19 @@ impl Document {
     }
 
     pub fn set_track_selection(&mut self, tracks: Vec<TrackId>) {
+        self.master_selected = false;
         self.track_selection = tracks;
+    }
+
+    /// Selects the master alone: the views show its chain and settings, and commands on the
+    /// selected tracks leave it alone.
+    pub fn select_master(&mut self) {
+        self.track_selection.clear();
+        self.master_selected = true;
+    }
+
+    pub fn is_master_selected(&self) -> bool {
+        self.master_selected
     }
 
     /// Reads the track meters, once for every view drawn in the same frame.
@@ -1321,7 +1340,7 @@ impl Document {
 
     pub fn automation_mode(&self, channel: Channel) -> AutomationMode {
         match channel {
-            Channel::Master => AutomationMode::Read,
+            Channel::Master => self.project().master.automation_mode,
             Channel::Track(id) => self
                 .project()
                 .track(id)
@@ -2038,6 +2057,18 @@ impl Document {
 
     pub fn set_plugins(&mut self, database: Database) {
         self.player.set_plugins(database);
+    }
+
+    pub fn set_plugin_scan(
+        &mut self,
+        progress: Option<std::sync::Arc<audiostrada_plugins::scan::Progress>>,
+    ) {
+        self.plugin_scan = progress;
+    }
+
+    /// How far the background plugin scan is, while one runs.
+    pub fn plugin_scan(&self) -> Option<&audiostrada_plugins::scan::Progress> {
+        self.plugin_scan.as_deref()
     }
 
     pub fn save(&mut self) -> Result<(), ProjectError> {

@@ -85,6 +85,70 @@ pub fn add_send(project: &mut Project, from: TrackId, to: TrackId) -> Result<(),
     Ok(())
 }
 
+/// Moves `track`'s send to `target` just before its send to `before`, or last.
+pub fn move_send(project: &mut Project, track: TrackId, target: TrackId, before: Option<TrackId>) {
+    let Some(t) = project.track_mut(track) else {
+        return;
+    };
+    let Some(from) = t.sends.iter().position(|s| s.target == target) else {
+        return;
+    };
+    let send = t.sends.remove(from);
+    let at = before
+        .and_then(|b| t.sends.iter().position(|s| s.target == b))
+        .unwrap_or(t.sends.len());
+    t.sends.insert(at, send);
+}
+
+/// Gives `to` the same send as `from`'s to `target`: level, position and mute.
+pub fn copy_send(
+    project: &mut Project,
+    from: TrackId,
+    target: TrackId,
+    to: TrackId,
+) -> Result<(), RoutingError> {
+    let send = project
+        .track(from)
+        .and_then(|t| t.sends.iter().find(|s| s.target == target))
+        .cloned()
+        .ok_or(RoutingError::UnknownTrack)?;
+    add_send(project, to, target)?;
+    if let Some(s) = project
+        .track_mut(to)
+        .and_then(|t| t.sends.iter_mut().find(|s| s.target == target))
+    {
+        *s = send;
+    }
+    Ok(())
+}
+
+/// Sends `track`'s send to `target` to `new` instead, in the same place with the same settings.
+pub fn retarget_send(
+    project: &mut Project,
+    track: TrackId,
+    target: TrackId,
+    new: TrackId,
+) -> Result<(), RoutingError> {
+    if target == new {
+        return Ok(());
+    }
+    let t = project.track(track).ok_or(RoutingError::UnknownTrack)?;
+    let at = t
+        .sends
+        .iter()
+        .position(|s| s.target == target)
+        .ok_or(RoutingError::UnknownTrack)?;
+    let mut send = t.sends[at].clone();
+    add_send(project, track, new)?;
+    remove_send(project, track, target);
+    send.target = new;
+    if let Some(t) = project.track_mut(track) {
+        t.sends.retain(|s| s.target != new);
+        t.sends.insert(at.min(t.sends.len()), send);
+    }
+    Ok(())
+}
+
 pub fn remove_send(project: &mut Project, from: TrackId, to: TrackId) {
     if let Some(t) = project.track_mut(from) {
         t.sends.retain(|s| s.target != to);
@@ -1263,6 +1327,52 @@ mod tests {
         assert_eq!(
             new_bus(&mut p, &[], "None"),
             Err(RoutingError::UnknownTrack)
+        );
+    }
+
+    #[test]
+    fn sends_move_copy_and_change_destination_keeping_their_settings() {
+        let mut p = Project::new("t", 48_000);
+        let a = p.add_track("a");
+        let b = p.add_track("b");
+        let (verb, delay, other) = (
+            add_bus(&mut p, "verb"),
+            add_bus(&mut p, "delay"),
+            add_bus(&mut p, "other"),
+        );
+        add_send(&mut p, a, verb).unwrap();
+        add_send(&mut p, a, delay).unwrap();
+        if let Some(s) = p
+            .track_mut(a)
+            .unwrap()
+            .sends
+            .iter_mut()
+            .find(|s| s.target == verb)
+        {
+            (s.gain_db, s.pre_fader) = (-6.0, true);
+        }
+        let targets = |p: &Project, t| {
+            p.track(t)
+                .unwrap()
+                .sends
+                .iter()
+                .map(|s| s.target)
+                .collect::<Vec<_>>()
+        };
+        move_send(&mut p, a, delay, Some(verb));
+        assert_eq!(targets(&p, a), [delay, verb]);
+        copy_send(&mut p, a, verb, b).unwrap();
+        let copied = &p.track(b).unwrap().sends[0];
+        assert_eq!(
+            (copied.target, copied.gain_db, copied.pre_fader),
+            (verb, -6.0, true)
+        );
+        retarget_send(&mut p, a, verb, other).unwrap();
+        assert_eq!(targets(&p, a), [delay, other]);
+        assert_eq!(p.track(a).unwrap().sends[1].gain_db, -6.0);
+        assert_eq!(
+            retarget_send(&mut p, a, other, delay),
+            Err(RoutingError::Duplicate)
         );
     }
 }

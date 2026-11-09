@@ -2,6 +2,7 @@
 //! Claude Desktop, Claude Code, Cursor or Gemini CLI, and what assistants did lately.
 
 use std::collections::VecDeque;
+use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::SystemTime;
 
 use eframe::egui::{self, Align2, Color32, RichText, vec2};
@@ -17,6 +18,10 @@ pub enum Change {
     Stop,
 }
 
+/// What Claude Code's `claude` command answered: the addition (true) or removal asked, and
+/// whether AudioStrada is in its servers.
+type ClaudeAnswer = (Option<(bool, Result<(), String>)>, State);
+
 #[derive(Default)]
 pub struct AssistantsWindow {
     open: bool,
@@ -24,6 +29,8 @@ pub struct AssistantsWindow {
     states: Vec<(Client, bool, State)>,
     message: Option<(bool, String)>,
     port: u16,
+    /// The `claude` command takes a second or more: it runs off the interface thread.
+    claude: Option<Receiver<ClaudeAnswer>>,
 }
 
 impl AssistantsWindow {
@@ -33,11 +40,64 @@ impl AssistantsWindow {
         self.message = None;
     }
 
-    fn refresh(&mut self, port: u16) {
+    fn refresh(&mut self, ctx: &egui::Context, port: u16) {
         self.states = Client::ALL
             .iter()
-            .map(|c| (*c, c.found(), integrations::state(*c, port)))
+            .map(|c| {
+                let state = match c {
+                    Client::ClaudeCode => State::NotAdded,
+                    _ => integrations::state(*c, port),
+                };
+                (*c, c.found(), state)
+            })
             .collect();
+        self.ask_claude(ctx, port, None);
+    }
+
+    /// Runs `claude` in the background: adding (true) or removing AudioStrada first if asked,
+    /// then reading whether it is in Claude Code's servers.
+    fn ask_claude(&mut self, ctx: &egui::Context, port: u16, change: Option<bool>) {
+        if !Client::ClaudeCode.found() {
+            self.claude = None;
+            return;
+        }
+        let (send, receive) = std::sync::mpsc::channel();
+        let ctx = ctx.clone();
+        std::thread::spawn(move || {
+            let done = change.map(|add| {
+                let result = if add {
+                    integrations::add(Client::ClaudeCode, port)
+                } else {
+                    integrations::remove(Client::ClaudeCode)
+                };
+                (add, result)
+            });
+            let _ = send.send((done, integrations::state(Client::ClaudeCode, port)));
+            ctx.request_repaint();
+        });
+        self.claude = Some(receive);
+    }
+
+    /// Takes Claude Code's answer once it came.
+    fn claude_answer(&mut self) {
+        let Some(receive) = &self.claude else {
+            return;
+        };
+        let (done, state) = match receive.try_recv() {
+            Ok(answer) => answer,
+            Err(TryRecvError::Empty) => return,
+            Err(TryRecvError::Disconnected) => {
+                self.claude = None;
+                return;
+            }
+        };
+        self.claude = None;
+        if let Some(entry) = self.states.iter_mut().find(|s| s.0 == Client::ClaudeCode) {
+            entry.2 = state;
+        }
+        if let Some((add, result)) = done {
+            self.message = Some(outcome(Client::ClaudeCode, add, result));
+        }
     }
 
     pub fn show(
@@ -54,8 +114,9 @@ impl AssistantsWindow {
             self.port = port;
         }
         if self.states.is_empty() {
-            self.refresh(self.port);
+            self.refresh(ctx, self.port);
         }
+        self.claude_answer();
         let mut change = None;
         let mut open = true;
         egui::Window::new(tr("AI assistants"))
@@ -123,7 +184,7 @@ impl AssistantsWindow {
                 ui.label(RichText::new(tr("Port")).weak());
                 if field.lost_focus() && listening.is_some_and(|p| p != self.port) {
                     change = Some(Change::Start(self.port));
-                    self.refresh(self.port);
+                    self.refresh(ui.ctx(), self.port);
                 }
             });
         });
@@ -133,13 +194,23 @@ impl AssistantsWindow {
     fn clients(&mut self, ui: &mut egui::Ui) {
         ui.label(RichText::new(tr("Connect an assistant")).strong());
         let port = self.port;
-        let mut refresh = false;
+        let checking = self.claude.is_some();
+        let mut job = None;
         egui::Grid::new("assistants-clients")
             .num_columns(3)
             .spacing(vec2(16.0, 8.0))
             .show(ui, |ui| {
                 for (client, found, state) in &self.states {
                     ui.label(RichText::new(client.name()).strong());
+                    if checking && *client == Client::ClaudeCode {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(RichText::new(tr("Checking…")).weak());
+                        });
+                        ui.label("");
+                        ui.end_row();
+                        continue;
+                    }
                     let (text, color) = match (state, found) {
                         (State::Added, _) => (tr("Added"), theme::PLAY),
                         (State::Outdated, _) => {
@@ -172,33 +243,32 @@ impl AssistantsWindow {
                                 )
                                 .clicked()
                         {
-                            self.message = Some(match integrations::add(*client, port) {
-                                Ok(()) => (
-                                    true,
-                                    trf!(
-                                        "Added to {name}: restart it to load AudioStrada.",
-                                        name = client.name()
-                                    ),
-                                ),
-                                Err(e) => (false, e),
-                            });
-                            refresh = true;
+                            job = Some((*client, true));
                         }
                         if remove && ui.button(tr("Remove")).clicked() {
-                            self.message = Some(match integrations::remove(*client) {
-                                Ok(()) => {
-                                    (true, trf!("Removed from {name}.", name = client.name()))
-                                }
-                                Err(e) => (false, e),
-                            });
-                            refresh = true;
+                            job = Some((*client, false));
                         }
                     });
                     ui.end_row();
                 }
             });
-        if refresh {
-            self.refresh(port);
+        match job {
+            Some((Client::ClaudeCode, add)) => {
+                self.message = None;
+                self.ask_claude(ui.ctx(), port, Some(add));
+            }
+            Some((client, add)) => {
+                let result = if add {
+                    integrations::add(client, port)
+                } else {
+                    integrations::remove(client)
+                };
+                self.message = Some(outcome(client, add, result));
+                if let Some(entry) = self.states.iter_mut().find(|s| s.0 == client) {
+                    entry.2 = integrations::state(client, port);
+                }
+            }
+            None => {}
         }
         if let Some((ok, text)) = &self.message {
             ui.label(RichText::new(text).color(if *ok { theme::PLAY } else { theme::MUTE }));
@@ -230,6 +300,21 @@ impl AssistantsWindow {
             .small()
             .weak(),
         );
+    }
+}
+
+/// The message after adding (true) or removing AudioStrada.
+fn outcome(client: Client, add: bool, result: Result<(), String>) -> (bool, String) {
+    match (result, add) {
+        (Ok(()), true) => (
+            true,
+            trf!(
+                "Added to {name}: restart it to load AudioStrada.",
+                name = client.name()
+            ),
+        ),
+        (Ok(()), false) => (true, trf!("Removed from {name}.", name = client.name())),
+        (Err(e), _) => (false, e),
     }
 }
 

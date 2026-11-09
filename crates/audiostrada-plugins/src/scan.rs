@@ -5,6 +5,8 @@ use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -316,6 +318,32 @@ impl Database {
     }
 }
 
+/// How far a background scan is, for the interface to show while it runs.
+#[derive(Debug, Default)]
+pub struct Progress {
+    listed: AtomicBool,
+    done: AtomicUsize,
+    total: AtomicUsize,
+    current: Mutex<String>,
+}
+
+impl Progress {
+    /// Files scanned and to scan; `None` while the folders are still being listed.
+    pub fn counts(&self) -> Option<(usize, usize)> {
+        self.listed.load(Ordering::Relaxed).then(|| {
+            (
+                self.done.load(Ordering::Relaxed),
+                self.total.load(Ordering::Relaxed),
+            )
+        })
+    }
+
+    /// The file being scanned.
+    pub fn current(&self) -> String {
+        self.current.lock().map(|c| c.clone()).unwrap_or_default()
+    }
+}
+
 /// Loads the cached database (or starts afresh when `full`), scans what changed in child
 /// processes of `exe`, and saves the result to `cache`.
 pub fn scan_in_background(
@@ -323,6 +351,7 @@ pub fn scan_in_background(
     extra_dirs: Vec<PathBuf>,
     exe: PathBuf,
     full: bool,
+    progress: Arc<Progress>,
 ) -> std::thread::JoinHandle<Database> {
     std::thread::spawn(move || {
         let mut database = if full {
@@ -330,9 +359,21 @@ pub fn scan_in_background(
         } else {
             Database::load(&cache)
         };
-        let scanned = database.refresh(&extra_dirs, |format, path| {
-            scan_out_of_process(&exe, format, path, Duration::from_secs(30))
-        });
+        let pending = database.pending(&extra_dirs);
+        progress.total.store(pending.len(), Ordering::Relaxed);
+        progress.listed.store(true, Ordering::Relaxed);
+        for (format, path) in &pending {
+            if let Ok(mut current) = progress.current.lock() {
+                *current = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+            }
+            let result = scan_out_of_process(&exe, *format, path, Duration::from_secs(30));
+            database.record(*format, path.clone(), result);
+            progress.done.fetch_add(1, Ordering::Relaxed);
+        }
+        let scanned = pending.len();
         if (scanned > 0 || full)
             && let Err(e) = database.save(&cache)
         {

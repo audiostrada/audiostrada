@@ -12,6 +12,10 @@ leurs plugins. Les plugins 32 bits ne tournent pas. *Rechercher de nouveaux plug
 cherche les nouveaux ; *Tout réanalyser* oublie la liste en cache et analyse à nouveau chaque
 plugin. Les plugins Windows ne tournent pas sous Linux.
 
+Les nouveaux plugins sont analysés en arrière-plan au démarrage d'AudioStrada. Pendant le scan,
+le navigateur d'effets montre où il en est (Préférences › Plugins aussi) ; les plugins déjà
+connus restent utilisables, les nouveaux apparaissent à la fin.
+
 Dans un terminal, `audiostrada plugins` liste les plugins installés, `--rescan` les analyse à
 nouveau.
 

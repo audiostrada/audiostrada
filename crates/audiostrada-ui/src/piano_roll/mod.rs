@@ -439,7 +439,7 @@ impl PianoRoll {
         let color = track
             .and_then(|t| project.track(t))
             .map_or(egui::Color32::from_rgb(82, 160, 255), |t| {
-                egui::Color32::from_rgb(t.color[0], t.color[1], t.color[2])
+                crate::theme::track_color(t.color)
             });
         Some(Scene {
             project,

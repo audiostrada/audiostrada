@@ -2541,7 +2541,7 @@ fn tone_card(ui: &mut Ui, tone: &Tone, width: f32, kind: Kind) -> bool {
     let (rect, response) = ui.allocate_exact_size(vec2(width, 236.0), Sense::click());
     let hot = response.hovered();
     let painter = ui.painter_at(rect.expand(2.0));
-    painter.rect_filled(rect, 8.0, p.base);
+    painter.rect_filled(rect, 8.0, theme::screen(&p));
     if hot {
         painter.rect_stroke(
             rect,
@@ -2751,7 +2751,7 @@ fn card(ui: &mut Ui, pack: &Pack, width: f32) -> CardAction {
         if response.hovered() {
             p.accent.gamma_multiply(0.18)
         } else {
-            p.base
+            theme::screen(&p)
         },
     );
     let thumb = Rect::from_min_size(rect.min + vec2(8.0, 10.0), vec2(80.0, 64.0));

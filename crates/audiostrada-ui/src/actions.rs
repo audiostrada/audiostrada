@@ -132,6 +132,8 @@ actions! {
     ToggleFullscreen => ("View", "Full screen"),
     DetachMixer => ("View", "Mixer in its own window"),
     CompactMixer => ("View", "Compact mixer"),
+    MasterOnLeft => ("View", "Master on the left"),
+    MasterTrack => ("View", "Master track in the timeline"),
     TransportAtBottom => ("View", "Transport at the bottom"),
     LargeTransport => ("View", "Large transport"),
     DetachPianoRoll => ("View", "Piano roll in its own window"),

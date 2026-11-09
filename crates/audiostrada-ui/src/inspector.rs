@@ -41,10 +41,61 @@ pub fn show(ui: &mut Ui, doc: &mut Document, selection: &[ClipId]) {
             ui.separator();
             match track.filter(|t| project.track(*t).is_some()) {
                 Some(id) => track_section(ui, doc, &project, id),
+                None if doc.is_master_selected() => master_section(ui, doc, &project),
                 None => {
                     ui.weak(tr("Click a track header to see the track."));
                 }
             }
+        });
+}
+
+/// The master's settings: its level and its effects.
+fn master_section(ui: &mut Ui, doc: &mut Document, project: &Project) {
+    ui.heading(tr("Master"));
+    egui::Grid::new("master-properties")
+        .num_columns(2)
+        .spacing([12.0, 6.0])
+        .show(ui, |ui| {
+            ui.label(tr("Volume"));
+            let mut gain = project.master.gain_db;
+            let response = ui.add(
+                egui::DragValue::new(&mut gain)
+                    .range(-60.0..=12.0)
+                    .speed(0.1)
+                    .fixed_decimals(1)
+                    .suffix(" dB"),
+            );
+            if response.changed() {
+                doc.history_mut()
+                    .edit_merged(tr("Master gain"), "gain:master", |p| {
+                        p.master.gain_db = gain
+                    });
+            }
+            end_gesture(doc.history_mut(), &response);
+            ui.end_row();
+            ui.label(tr("Effects"));
+            let inserts = &project.master.inserts;
+            let mix = inserts
+                .iter()
+                .filter(|i| !i.monitor && i.effect != audiostrada_core::routing::STRIP)
+                .count();
+            let monitor = inserts.iter().filter(|i| i.monitor).count();
+            ui.label(trf!(
+                "{mix} in the mix, {monitor} for monitoring only",
+                mix = mix,
+                monitor = monitor
+            ));
+            ui.end_row();
+            ui.label(tr("Bypass"));
+            let mut off = project.master.fx_off;
+            if ui
+                .checkbox(&mut off, tr("Bypass the master's inserts"))
+                .changed()
+            {
+                doc.history_mut()
+                    .edit(tr("Bypass inserts"), |p| p.master.fx_off = off);
+            }
+            ui.end_row();
         });
 }
 

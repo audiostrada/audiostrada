@@ -187,7 +187,7 @@ impl PianoRoll {
         let painter = ui.painter().with_clip_rect(area);
         let (t0, t1) = (frame.t(area.left()), frame.t(area.right()));
         for track in &scene.project.tracks {
-            let color = Color32::from_rgb(track.color[0], track.color[1], track.color[2]);
+            let color = crate::theme::track_color(track.color);
             for clip in &track.clips {
                 let Some(notes) = &clip.notes else { continue };
                 if clip.id == scene.clip.id || clip.end() < t0 || clip.start > t1 {

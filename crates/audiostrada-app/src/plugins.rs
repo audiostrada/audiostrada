@@ -26,9 +26,10 @@ pub fn list(rescan: bool) -> anyhow::Result<()> {
     let exe =
         audiostrada_plugins::own_executable().context("cannot find the audiostrada executable")?;
     println!("Scanning plugin folders…");
-    let database: Database = scan::scan_in_background(cache, extra, exe, rescan)
-        .join()
-        .map_err(|_| anyhow!("the scan crashed"))?;
+    let database: Database =
+        scan::scan_in_background(cache, extra, exe, rescan, Default::default())
+            .join()
+            .map_err(|_| anyhow!("the scan crashed"))?;
     let mut plugins: Vec<_> = database.plugins().collect();
     plugins.sort_by_key(|p| {
         (

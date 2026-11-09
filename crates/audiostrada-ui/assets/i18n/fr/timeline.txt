@@ -835,3 +835,18 @@ Supprimer la prise
 
 Show the takes under the track: drag on one to comp that part in, click a take to use all of it
 Afficher les prises sous la piste : glissez sur l'une pour en prendre ce passage, cliquez sur une prise pour la prendre entière
+
+Master track in the timeline
+Piste master dans la timeline
+
+Hide this lane; its points stay
+Masquer cette piste d'automation ; ses points restent
+
+Hide automation lane
+Masquer la piste d'automation
+
+Hide the master track
+Masquer la piste master
+
+Show the master track
+Afficher la piste master

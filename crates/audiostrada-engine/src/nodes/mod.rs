@@ -1,3 +1,4 @@
+mod control_room;
 mod gain;
 mod input;
 mod insert;
@@ -11,6 +12,7 @@ mod preview;
 mod reference;
 mod strip;
 
+pub use control_room::{ControlRoom, ControlRoomControls, DIM_DB};
 pub use gain::Gain;
 pub use input::{ConsoleControls, InputStage};
 pub use insert::{Insert, InsertControls};
