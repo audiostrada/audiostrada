@@ -4,16 +4,19 @@
 
 ## Channel strips
 
-Each track has a strip in the **Mixer**: the output (and VCA), the pan, the fader and meter,
-mute (**M**), solo (**S**), record arm (**R**), the automation mode and the track's name. The
-fader takes the height the panel leaves.
+Each track has a strip in the **Mixer**, in the order the signal goes through it: the input with
+its gain and polarity (**Ø**), the channel strip, the inserts, the sends, the output (and VCA),
+then the pan beside the automation mode, the fader and meter, mute (**M**), solo (**S**), record
+arm (**R**) and the track's name, marked **BUS** for a folder and **VCA** for a VCA. The fader
+takes the height the panel leaves.
 
 - **Docked** in the main window, the strip leaves its height to the fader: the **FX** and **Send**
   buttons beside the meter (lit, with their count, when the list holds something) open the
   strip's effects and sends in a window of their own. The master has **FX** and **Mon**
   (monitoring effects).
 - **In its own window** (View › *Mixer in its own window*, [[Ctrl+M]]), each strip shows its
-  effect and send slots at the top: click an empty slot to add an effect or a send. [[Ctrl+M]]
+  effect and send slots: click an empty slot to add an effect or a send. The lists are as tall as
+the longest one, plus an empty slot, and leave the rest to the faders. [[Ctrl+M]]
   again docks it back. *Compact mixer* ([[Shift+Alt+C]]) narrows the strips.
 
 ![The mixer in its own window](img/mixer-window.webp)
@@ -41,8 +44,9 @@ arm the selected tracks.
   options.
 - Drag an effect to reorder it, or onto another strip to copy it there ([[Alt]]: move it). Drop
   it on the list to choose the place, anywhere else on the strip to put it last.
-- **FX** beside *+ insert* bypasses every effect of the strip; on the master, **ALL** bypasses
-  every effect of the session (an instrument leading a track keeps playing).
+- **Bypass** above the inserts bypasses every effect of the strip, and stays lit while they are
+  bypassed; on the master, **ALL** bypasses every effect of the session (an instrument leading a
+  track keeps playing).
 
 **Effect windows** show the level going in and coming out (peaks and loudness) and the **Output**
 gain after the effect, kept in the mix and the export. **Match** is a listening aid: while it is
@@ -85,8 +89,8 @@ keeping their balance.
   of the VCA. *Assign selected* adds the selected tracks.
 - **Member faders** stand at the level heard, their own plus the VCA's, and move when the VCA
   moves. Moving a member's fader changes only its own level; its tooltip shows the split.
-- **Automation**: a VCA has a volume lane, like any track. Its curve is added to the level of
-  every track it controls, whether they have their own automation or not.
+- **Automation**: a VCA has a volume lane and an automation mode, like any track. Its curve is
+  added to the level of every track it controls, whether they have their own automation or not.
 
 ## Console colour
 

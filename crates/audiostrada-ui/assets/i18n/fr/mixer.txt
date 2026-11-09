@@ -856,7 +856,7 @@ Pre-fader: the level does not follow the fader. Click for post-fader
 Pré-fader : le niveau ne suit pas le fader. Cliquer pour passer en post-fader
 
 SENDS
-ENVOIS
+SENDS
 
 Send to {name}: {db} dB{pre}
 Envoi vers {name} : {db} dB{pre}
@@ -1310,3 +1310,9 @@ Ajouter un instrument…
 
 Another instrument playing the same notes, layered on this one: their sounds add up, the effects after them process the mix
 Un autre instrument qui joue les mêmes notes, superposé à celui-ci : leurs sons s'additionnent, les effets placés après traitent le mélange
+
+BUS
+BUS
+
+Input gain, before the inserts
+Gain d'entrée, avant les inserts

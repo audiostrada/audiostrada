@@ -390,6 +390,8 @@ fn latency_label(doc: &Document, channel: Channel, id: InsertId) -> Option<Strin
 
 /// Height of an insert or send slot, with its spacing.
 const SLOT: f32 = 20.0;
+/// Width of the automation mode button beside the pan.
+const MODE_WIDTH: f32 = 40.0;
 
 /// An empty slot of a list: clicking it adds an effect or a send.
 fn empty_slot(ui: &mut Ui, width: f32, hint: &str) -> Response {
@@ -953,12 +955,13 @@ pub(crate) fn load_button(
 }
 
 /// Track name on its color, at the bottom of a strip.
+/// `kind` ("BUS", "VCA") is shown at the right of the name.
 fn name_plate(
     ui: &mut Ui,
     width: f32,
     name: &str,
     color: Color32,
-    folder: bool,
+    (folder, kind): (bool, Option<&str>),
     icon: Option<crate::track_icons::TrackIcon>,
 ) -> Response {
     let (rect, response) = ui.allocate_exact_size(vec2(width, 22.0), Sense::click_and_drag());
@@ -998,6 +1001,23 @@ fn name_plate(
             Rect::from_center_size(pos2(rect.left() + 13.0, rect.center().y), vec2(14.0, 14.0));
         crate::track_icons::paint(ui, at, icon, ink);
         text.min.x = at.right() + 2.0;
+    }
+    if let Some(kind) = kind {
+        let galley = ui
+            .painter()
+            .layout_no_wrap(kind.to_owned(), theme::strong(8.5), ink);
+        let badge = Rect::from_min_size(
+            pos2(rect.right() - galley.size().x - 9.0, rect.center().y - 6.5),
+            vec2(galley.size().x + 6.0, 13.0),
+        );
+        ui.painter()
+            .rect_filled(badge, 3.0, Color32::from_black_alpha(70));
+        ui.painter().galley(
+            pos2(badge.left() + 3.0, badge.center().y - galley.size().y / 2.0),
+            galley,
+            ink,
+        );
+        text.max.x = badge.left() - 2.0;
     }
     let painter = ui.painter();
     let galley = painter.layout(name.to_owned(), theme::strong(12.0), ink, text.width());
@@ -1805,14 +1825,12 @@ fn mode_selector(ui: &mut Ui, doc: &mut Document, track: &Track, width: f32) {
         AutomationMode::Read => OK,
         _ => ERROR,
     };
-    let letter = match mode {
-        AutomationMode::Off => "–",
-        AutomationMode::Trim => "Tr",
-        m => &m.name()[..1],
-    };
-    let button = egui::Button::new(RichText::new(letter).size(11.0).strong().color(color))
+    let button = egui::Button::new(RichText::new(mode.name()).size(10.5).strong().color(color))
         .min_size(vec2(width, 18.0));
-    let response = ui.add(button).on_hover_text(trf!(
+    let response = ui.add(button);
+    #[cfg(test)]
+    tests::seen(format!("mode {}", id.0), response.rect);
+    let response = response.on_hover_text(trf!(
         "Automation: {mode}. {help}",
         mode = mode.name(),
         help = mode_help(mode)
@@ -1940,6 +1958,29 @@ impl MixerView {
         // Whole pixels, changed by a pixel at least: measuring last frame's layout must not make
         // this one drift or swing (the name plates would shake).
         let mut sizes = StripSizes::new(available, fixed, sends_extra).rounded();
+        // The lists as tall as the longest one and a "+" row: empty slots leave the room to
+        // the faders, which stay lined up.
+        let rows = |n: usize| (n + 1) as f32 * SLOT + 4.0;
+        let listed = |inserts: &[audiostrada_core::Insert], monitor: bool| {
+            inserts
+                .iter()
+                .filter(|i| i.monitor == monitor && i.effect != routing::STRIP)
+                .count()
+        };
+        let audio = project.tracks.iter().filter(|t| t.kind == TrackKind::Audio);
+        let fx_rows = audio
+            .clone()
+            .map(|t| listed(&t.inserts, false))
+            .chain([listed(&project.master.inserts, false)])
+            .max()
+            .unwrap_or(0);
+        let send_rows = audio
+            .map(|t| t.sends.len())
+            .chain([listed(&project.master.inserts, true)])
+            .max()
+            .unwrap_or(0);
+        sizes.fx = sizes.fx.min(rows(fx_rows));
+        sizes.sends = sizes.sends.map(|h| h.min(rows(send_rows)));
         if !self.full_strips {
             sizes.fx = 0.0;
             sizes.sends = None;
@@ -2305,7 +2346,13 @@ impl MixerView {
                         });
                     }
                     self.vca_members(ui, doc, project, id, width);
+                    mode_selector(ui, doc, track, width - 8.0);
                 } else {
+                    // In the signal's order: input, channel strip, inserts, sends, output.
+                    if sizes.input {
+                        ui.add_space(3.0);
+                        self.input_section(ui, doc, track);
+                    }
                     if self.full_strips {
                         ui.add_space(3.0);
                         self.channel_section(ui, doc, channel, width);
@@ -2327,13 +2374,13 @@ impl MixerView {
                             });
                         }
                     }
-                    if sizes.input {
-                        ui.add_space(2.0);
-                        self.input_section(ui, doc, track);
-                    }
                     ui.add_space(2.0);
                     self.routing_section(ui, doc, project, track, width - 4.0);
-                    self.pan_control(ui, doc, track, width - 4.0, true);
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 3.0;
+                        self.pan_control(ui, doc, track, width - 7.0 - MODE_WIDTH, true);
+                        mode_selector(ui, doc, track, MODE_WIDTH);
+                    });
                 }
                 self.align_top(ui, top);
                 let shown_gain = doc
@@ -2379,12 +2426,8 @@ impl MixerView {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 3.0;
                     let group = groups::group_of(project, id).map(|g| &project.groups[g]);
-                    let others =
-                        if vca { 0.0 } else { 27.0 } + if group.is_some() { 19.0 } else { 0.0 };
+                    let others = if group.is_some() { 19.0 } else { 0.0 };
                     readout(ui, width - 4.0 - others, &db_label(shown_gain));
-                    if !vca {
-                        mode_selector(ui, doc, track, 24.0);
-                    }
                     if let Some(g) = group {
                         let c = Color32::from_rgb(g.color[0], g.color[1], g.color[2]);
                         let c = if g.active { c } else { c.gamma_multiply(0.4) };
@@ -2414,7 +2457,14 @@ impl MixerView {
                 self.bottom_height = self.bottom_height.max(ui.cursor().top() - bottom);
                 self.pad_bottom(ui, bottom);
                 let icon = crate::track_icons::of(project, track);
-                let plate = name_plate(ui, width, &name, color(track), folder, Some(icon));
+                let kind = if vca {
+                    Some("VCA")
+                } else if folder {
+                    Some(tr("BUS"))
+                } else {
+                    None
+                };
+                let plate = name_plate(ui, width, &name, color(track), (folder, kind), Some(icon));
                 let plate = plate.on_hover_text(if vca {
                     tr("VCA. Click to select, drag to reorder, right-click for options")
                 } else if folder {
@@ -2522,7 +2572,14 @@ impl MixerView {
                 });
                 self.bottom_height = self.bottom_height.max(ui.cursor().top() - bottom);
                 self.pad_bottom(ui, bottom);
-                plate = Some(name_plate(ui, width, "", color(track), folder, Some(icon)));
+                plate = Some(name_plate(
+                    ui,
+                    width,
+                    "",
+                    color(track),
+                    (folder, None),
+                    Some(icon),
+                ));
             })
         });
         let frame = strip.inner;
@@ -2821,7 +2878,8 @@ impl MixerView {
         }
     }
 
-    fn input_section(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track) {
+    /// The audio input to record, or MIDI for an instrument.
+    fn input_choice(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track) {
         let id = track.id;
         if doc.is_instrument_track(id) {
             // An instrument plays MIDI: no audio input to choose.
@@ -2840,6 +2898,15 @@ impl MixerView {
                 .selected_text(label)
                 .show_ui(ui, |ui| input_choices(ui, doc, track));
         }
+    }
+
+    fn input_section(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track) {
+        let id = track.id;
+        // The same height with a menu or a label, so that the strips stay lined up.
+        ui.horizontal(|ui| {
+            ui.set_height(22.0);
+            self.input_choice(ui, doc, track);
+        });
         ui.horizontal(|ui| {
             let mut trim = track.trim_db;
             let response = ui
@@ -2847,10 +2914,11 @@ impl MixerView {
                     egui::DragValue::new(&mut trim)
                         .range(-24.0..=24.0)
                         .speed(0.1)
-                        .fixed_decimals(1)
+                        .custom_formatter(|v, _| format!("{v:+.1}"))
+                        .prefix(format!("{} ", tr("Gain")))
                         .suffix(" dB"),
                 )
-                .on_hover_text(tr("Input trim"));
+                .on_hover_text(tr("Input gain, before the inserts"));
             if response.changed() {
                 doc.history_mut()
                     .edit_merged(tr("Trim"), &format!("trim:{}", id.0), |p| {
@@ -2885,15 +2953,13 @@ impl MixerView {
             Channel::Track(t) => project.track(t).is_some_and(|t| t.fx_off),
             Channel::Master => project.master.fx_off,
         };
-        // Lit while the effects play, dark once bypassed.
-        let accent = theme::current(ui).accent;
+        // Lit once bypassed, as a mute is lit once muted.
         let toggle = |ui: &mut Ui, label: &str, off: bool, hint: &str| {
             let text = RichText::new(label).size(if small { 8.5 } else { 10.0 });
             let mut button = if off {
-                egui::Button::new(text.weak().strikethrough())
+                egui::Button::new(text.strong().color(Color32::BLACK)).fill(crate::settings::WARN)
             } else {
-                egui::Button::new(text.strong().color(Color32::WHITE))
-                    .fill(accent.gamma_multiply(0.85))
+                egui::Button::new(text.weak())
             };
             if small {
                 button = button.min_size(vec2(22.0, 13.0)).corner_radius(3.0);
@@ -2916,7 +2982,7 @@ impl MixerView {
             }
             (false, true, _) => tr("Every effect is bypassed by ALL on the master"),
         };
-        if toggle(ui, tr("FX"), channel_off || all_off, hint) {
+        if toggle(ui, tr("Bypass"), channel_off || all_off, hint) {
             let alone = clutch(ui);
             doc.history_mut()
                 .edit(tr("Bypass inserts"), |p| match channel {
@@ -3986,7 +4052,14 @@ impl MixerView {
                 // add_space is ignored in this centered layout.
                 ui.allocate_exact_size(vec2(1.0, pad), Sense::hover());
             }
-            name_plate(ui, width, "Master", Color32::from_gray(150), false, None);
+            name_plate(
+                ui,
+                width,
+                "Master",
+                Color32::from_gray(150),
+                (false, None),
+                None,
+            );
         });
         doc.set_master_level(levels);
     }
@@ -5211,6 +5284,33 @@ mod tests {
         };
         ctx.run_ui(input, |ui| view.show(ui))
             .drop_without_applying_deltas();
+    }
+
+    #[test]
+    fn vcas_have_their_automation_mode_and_lists_leave_their_empty_room_to_the_faders() {
+        let mut doc = Document::new(AppDirs::default());
+        let mut vca = super::TrackId(0);
+        doc.history_mut().edit("Setup", |p| {
+            let a = p.add_track("A");
+            p.add_track("B");
+            routing::add_insert(p, Channel::Track(a), "eq", Default::default());
+            vca = routing::add_vca(p, "VCA");
+            let _ = routing::set_vca(p, a, Some(vca));
+        });
+        let doc = Rc::new(RefCell::new(doc));
+        let ctx = egui::Context::default();
+        let mut view = MixerView::new(Rc::clone(&doc));
+        for _ in 0..4 {
+            doc.borrow_mut().update();
+            frame(&ctx, &mut view, Vec::new());
+        }
+        assert!(rect(&format!("mode {}", vca.0)).width() > 0.0);
+        assert_eq!(
+            view.sizes.fx,
+            2.0 * super::SLOT + 4.0,
+            "one insert and a + row"
+        );
+        assert_eq!(view.sizes.sends, Some(super::SLOT + 4.0), "a + row");
     }
 
     #[test]

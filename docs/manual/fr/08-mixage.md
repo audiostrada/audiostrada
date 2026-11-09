@@ -4,17 +4,20 @@
 
 ## Tranches
 
-Chaque piste a sa tranche dans le **Mixer** : la sortie (et le VCA), le panoramique, le fader et
-l'indicateur, le muet (**M**), le solo (**S**), l'armement (**R**), le mode d'automation et le nom
-de la piste. Le fader prend la hauteur que le panneau laisse.
+Chaque piste a sa tranche dans le **Mixer**, dans l'ordre où le signal la traverse : l'entrée avec
+son gain et sa polarité (**Ø**), le channel strip, les inserts, les sends, la sortie (et le VCA),
+puis le panoramique à côté du mode d'automation, le fader et l'indicateur, le muet (**M**), le solo
+(**S**), l'armement (**R**) et le nom de la piste, marqué **BUS** pour un dossier et **VCA** pour un
+VCA. Le fader prend la hauteur que le panneau laisse.
 
 - **Ancré** dans la fenêtre principale, la tranche laisse sa hauteur au fader : les boutons **FX**
   et **Send** à côté de l'indicateur (allumés, avec leur nombre, quand la liste contient quelque
   chose) ouvrent les effets et les départs de la tranche dans une fenêtre à part. Le master a
   **FX** et **Mon** (effets d'écoute).
 - **Dans sa propre fenêtre** (Affichage › *Mixer dans sa propre fenêtre*, [[Ctrl+M]]), chaque
-  tranche montre ses emplacements d'effets et de départs en haut : cliquez sur un emplacement vide
-  pour ajouter un effet ou un départ. [[Ctrl+M]] à nouveau le remet en place. *Mixer compact*
+  tranche montre ses emplacements d'effets et de départs : cliquez sur un emplacement vide pour
+  ajouter un effet ou un départ. Les listes ont la hauteur de la plus longue, plus un emplacement
+  vide, et laissent le reste aux faders. [[Ctrl+M]] à nouveau le remet en place. *Mixer compact*
   ([[Shift+Alt+C]]) rétrécit les tranches.
 
 ![Le Mixer dans sa propre fenêtre](img/mixer-window.webp)
@@ -43,9 +46,9 @@ les pistes sélectionnées.
   options.
 - Glissez un effet pour le réordonner, ou sur une autre tranche pour l'y copier ([[Alt]] : le
   déplacer). Déposé sur la liste, il va à l'endroit choisi ; ailleurs sur la tranche, en dernier.
-- **FX** à côté de *+ insert* met en bypass tous les effets de la tranche ; sur le master,
-  **ALL** met en bypass tous les effets de la session (un instrument en tête de piste continue de
-  jouer).
+- **Bypass** au-dessus des inserts met en bypass tous les effets de la tranche, et reste allumé
+  tant qu'ils le sont ; sur le master, **ALL** met en bypass tous les effets de la session (un
+  instrument en tête de piste continue de jouer).
 
 **Les fenêtres d'effets** montrent le niveau qui entre et qui sort (crêtes et sonie) et le gain de
 **Sortie** après l'effet, gardé dans le mix et l'export. **Match** est une aide à l'écoute : tant
@@ -90,8 +93,9 @@ leur muet ensemble, en gardant leur équilibre.
 - **Les faders des pistes** sont au niveau entendu, le leur plus celui du VCA, et bougent quand le
   VCA bouge. Bouger le fader d'une piste ne change que son niveau propre ; son infobulle montre la
   répartition.
-- **Automation** : un VCA a une piste d'automation de volume, comme toute piste. Sa courbe
-  s'ajoute au niveau de chaque piste qu'il contrôle, qu'elles aient leur propre automation ou non.
+- **Automation** : un VCA a une piste d'automation de volume et un mode d'automation, comme toute
+  piste. Sa courbe s'ajoute au niveau de chaque piste qu'il contrôle, qu'elles aient leur propre
+  automation ou non.
 
 ## Couleur de console
 

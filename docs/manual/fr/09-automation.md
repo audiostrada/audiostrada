@@ -17,7 +17,7 @@ volume, qui bouge toutes les pistes qu'il contrôle.
 
 ## Modes
 
-Le bouton de mode sous **M** / **S** / **R** décide de l'effet d'une commande qu'on bouge :
+Le bouton de mode à côté du panoramique (**Read**, **Touch**...) décide de l'effet d'une commande qu'on bouge :
 
 | Mode | Comportement |
 |---|---|

@@ -15,7 +15,7 @@ track it controls.
 
 ## Modes
 
-The mode button under **M** / **S** / **R** decides what moving a control does:
+The mode button beside the pan (**Read**, **Touch**...) decides what moving a control does:
 
 | Mode | Behaviour |
 |---|---|
