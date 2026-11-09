@@ -533,6 +533,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "audiostrada-core",
+ "audiostrada-dsp",
  "audiostrada-engine",
  "audiostrada-io",
  "audiostrada-license",
@@ -570,6 +571,7 @@ dependencies = [
  "audiostrada-midi",
  "nam-rs",
  "realfft",
+ "serde",
  "serde_json",
  "symphonia",
 ]

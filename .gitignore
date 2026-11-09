@@ -4,3 +4,6 @@
 /target-i18n
 /.claude/worktrees
 /docs/manual/dist
+
+# The reference plugins: listed on the machine that measures them, never in the repository.
+measurements/references/windows.toml

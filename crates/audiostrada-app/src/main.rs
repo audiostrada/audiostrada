@@ -2,6 +2,7 @@ mod audio;
 mod cli;
 mod license;
 mod logging;
+mod measure;
 mod plugins;
 mod prefs;
 
@@ -62,6 +63,9 @@ fn main() -> ExitCode {
         Command::Mcp {
             connect: Some(port),
         } => audiostrada_ui::control::serve_remote(port).map_err(anyhow::Error::msg),
+        Command::Measure(args) => measure_command(args),
+        Command::MeasureReport { files, output } => measure::report(&files, &output),
+        Command::PluginParams(query) => measure::plugin_params(&query),
         Command::License(cli::LicenseCommand::Keygen) => license::keygen(),
         Command::License(cli::LicenseCommand::Check { file, key }) => license::check(&file, &key),
         Command::License(cli::LicenseCommand::Issue {
@@ -79,6 +83,28 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn measure_command(args: cli::MeasureArgs) -> anyhow::Result<()> {
+    if let Some(file) = &args.references {
+        let out = args.out.unwrap_or_else(|| "fingerprints".into());
+        return measure::references(file, &out);
+    }
+    let name = args.console.unwrap_or_default();
+    let amount = args.amount.unwrap_or(50.0);
+    let reference = measure::Reference {
+        name: format!("{name} {amount:.0}%{}", if args.bus { " bus" } else { "" }),
+        console: Some(name),
+        amount,
+        bus: args.bus,
+        noise: args.noise,
+        ..Default::default()
+    };
+    let print = measure::one(&reference)?;
+    let out = args.out.unwrap_or_else(|| "fingerprint.json".into());
+    measure::save(&print, &out)?;
+    println!("{} → {}", print.name, out.display());
+    Ok(())
 }
 
 fn app_dirs() -> AppDirs {

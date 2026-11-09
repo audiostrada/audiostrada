@@ -1,0 +1,42 @@
+# AudioStrada's own consoles, at their default amount: the starting point the new models are
+# compared with. `audiostrada measure measurements/references/builtin.toml --out <DIR>`.
+
+[[reference]]
+name = "British Warm (channel)"
+console = "British Warm"
+
+[[reference]]
+name = "British Bright (channel)"
+console = "British Bright"
+
+[[reference]]
+name = "American Punch (channel)"
+console = "American Punch"
+
+[[reference]]
+name = "Nashville (channel)"
+console = "Nashville"
+
+[[reference]]
+name = "British Warm (bus)"
+console = "British Warm"
+bus = true
+noise = true
+
+[[reference]]
+name = "British Bright (bus)"
+console = "British Bright"
+bus = true
+noise = true
+
+[[reference]]
+name = "American Punch (bus)"
+console = "American Punch"
+bus = true
+noise = true
+
+[[reference]]
+name = "Nashville (bus)"
+console = "Nashville"
+bus = true
+noise = true

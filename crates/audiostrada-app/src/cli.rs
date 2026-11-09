@@ -22,6 +22,14 @@ Commands:
   latency            Measure the round-trip latency (loop output 1 back to input 1)
   compare A B        Compare two audio files sample by sample (null test)
   plugins [--rescan] List the installed plugins (CLAP, VST3, LV2, AU), scanning new ones
+  plugin-params NAME List a plugin's parameters (by key or name), to set it for measure
+  measure FILE.toml [--out DIR]
+                     Fingerprint every reference of the file (consoles, effects, plugins):
+                     gain, harmonics, intermodulation, memory, noise; a JSON file each
+  measure --console NAME [--amount 0-100] [--bus] [--noise] [--out FILE]
+                     Fingerprint a built-in console
+  measure-report FILE.json|DIR... --output PAGE.html
+                     Compare fingerprints (or every one of a folder) on one page of charts
   mcp                Serve the Model Context Protocol on stdio, for agents, on a project of its
                      own; with --connect <PORT>, drive the AudioStrada started with --control <PORT>
   license keygen     Print a new key pair for signing licenses (keep the secret private)
@@ -72,6 +80,23 @@ pub enum Command {
         connect: Option<u16>,
     },
     License(LicenseCommand),
+    Measure(MeasureArgs),
+    MeasureReport {
+        files: Vec<PathBuf>,
+        output: PathBuf,
+    },
+    PluginParams(String),
+}
+
+/// What `measure` fingerprints: the references of a file, or one built-in console.
+#[derive(Debug, Default, PartialEq)]
+pub struct MeasureArgs {
+    pub references: Option<PathBuf>,
+    pub console: Option<String>,
+    pub amount: Option<f32>,
+    pub bus: bool,
+    pub noise: bool,
+    pub out: Option<PathBuf>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -155,6 +180,30 @@ pub fn parse(mut args: impl Iterator<Item = String>) -> Result<Command, String> 
             return Ok(Command::Mcp { connect });
         }
         "license" => return parse_license(args),
+        "measure" => return parse_measure(args),
+        "measure-report" => {
+            let (mut files, mut output) = (Vec::new(), None);
+            while let Some(arg) = args.next() {
+                match arg.as_str() {
+                    "--output" => output = args.next().map(PathBuf::from),
+                    other if other.starts_with("--") => {
+                        return Err(format!("unknown option '{other}' for measure-report"));
+                    }
+                    _ => files.push(arg.into()),
+                }
+            }
+            return match (files.is_empty(), output) {
+                (false, Some(output)) => Ok(Command::MeasureReport { files, output }),
+                _ => Err("'measure-report' needs fingerprints and --output <FILE>".into()),
+            };
+        }
+        "plugin-params" => {
+            let query: Vec<String> = args.collect();
+            if query.is_empty() {
+                return Err("'plugin-params' needs a plugin's key or name".into());
+            }
+            return Ok(Command::PluginParams(query.join(" ")));
+        }
         "plugin-scan" => {
             let (Some(format), Some(path)) = (args.next(), args.next()) else {
                 return Err("'plugin-scan' needs a format and a file".into());
@@ -219,6 +268,35 @@ pub fn parse(mut args: impl Iterator<Item = String>) -> Result<Command, String> 
         }
         _ => Ok(command),
     }
+}
+
+fn parse_measure(mut args: impl Iterator<Item = String>) -> Result<Command, String> {
+    let mut m = MeasureArgs::default();
+    while let Some(arg) = args.next() {
+        let mut value = |name: &str| {
+            args.next()
+                .ok_or_else(|| format!("missing value for {name}"))
+        };
+        match arg.as_str() {
+            "--console" => m.console = Some(value("--console")?),
+            "--amount" => {
+                let v = value("--amount")?;
+                m.amount = Some(v.parse().map_err(|_| format!("invalid amount '{v}'"))?);
+            }
+            "--out" => m.out = Some(value("--out")?.into()),
+            "--bus" => m.bus = true,
+            "--noise" => m.noise = true,
+            other if other.starts_with("--") => {
+                return Err(format!("unknown option '{other}' for measure"));
+            }
+            _ if m.references.is_none() => m.references = Some(arg.into()),
+            _ => return Err("'measure' takes one references file".into()),
+        }
+    }
+    if m.references.is_some() == m.console.is_some() {
+        return Err("'measure' needs a references file or --console <NAME>".into());
+    }
+    Ok(Command::Measure(m))
 }
 
 fn parse_license(mut args: impl Iterator<Item = String>) -> Result<Command, String> {
@@ -439,5 +517,40 @@ mod tests {
         assert!(parse_str("mcp --connect 70000").is_err());
         assert!(parse_str("mcp --connect 9000 extra").is_err());
         assert!(parse_str("mcp --port 9000").is_err());
+    }
+
+    #[test]
+    fn measure_takes_a_references_file_or_a_console() {
+        assert_eq!(
+            parse_str("measure refs.toml --out prints"),
+            Ok(Command::Measure(MeasureArgs {
+                references: Some("refs.toml".into()),
+                out: Some("prints".into()),
+                ..MeasureArgs::default()
+            }))
+        );
+        assert_eq!(
+            parse_str("measure --console Nashville --amount 70 --bus"),
+            Ok(Command::Measure(MeasureArgs {
+                console: Some("Nashville".into()),
+                amount: Some(70.0),
+                bus: true,
+                ..MeasureArgs::default()
+            }))
+        );
+        assert!(parse_str("measure").is_err());
+        assert!(parse_str("measure a.toml --console X").is_err());
+        assert_eq!(
+            parse_str("measure-report a.json b.json --output page.html"),
+            Ok(Command::MeasureReport {
+                files: vec!["a.json".into(), "b.json".into()],
+                output: "page.html".into(),
+            })
+        );
+        assert!(parse_str("measure-report a.json").is_err());
+        assert_eq!(
+            parse_str("plugin-params Pro-Q 4"),
+            Ok(Command::PluginParams("Pro-Q 4".into()))
+        );
     }
 }

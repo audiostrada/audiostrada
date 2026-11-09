@@ -23,6 +23,7 @@ getrandom.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 audiostrada-core.workspace = true
+audiostrada-dsp.workspace = true
 audiostrada-engine.workspace = true
 audiostrada-io.workspace = true
 audiostrada-license.workspace = true
