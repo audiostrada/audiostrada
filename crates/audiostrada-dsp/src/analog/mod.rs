@@ -1,20 +1,27 @@
 //! Stages of analog circuits, the bricks the consoles are built from: a soft shaper without
-//! aliasing, an audio transformer, a class A amplifier, an op-amp and a VCA, and a 2x
-//! oversampler for the stages that need it.
+//! aliasing, an audio transformer, a class A amplifier, an op-amp and a VCA, a 2x oversampler
+//! for the stages that need it; and what makes a channel of a console: a chain of stages pushed
+//! by its amount, its parts' tolerances and its noise floor.
 //!
 //! Each stage takes one channel, a sample at a time, at 1.0 for 0 dBFS. The console's working
 //! level, 0 dBu, is [`WORKING`] (-18 dBFS): levels of the circuits are given in dBu against it.
 //! Nothing allocates once a stage is made.
 
 pub mod amplifier;
+pub mod chain;
+pub mod noise;
 pub mod oversample;
 pub mod shaper;
 pub mod transformer;
+pub mod variation;
 
 pub use amplifier::{ClassA, OpAmp, Vca};
+pub use chain::Chain;
+pub use noise::{Noise, NoiseSettings};
 pub use oversample::Oversampled;
 pub use shaper::Shaper;
 pub use transformer::Transformer;
+pub use variation::Variation;
 
 /// Amplitude of the working level, 0 dBu: -18 dBFS.
 pub const WORKING: f32 = 0.125_892_54;
