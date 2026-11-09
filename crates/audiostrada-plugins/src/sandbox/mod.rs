@@ -236,7 +236,11 @@ impl std::fmt::Debug for SandboxInstance {
 impl SandboxInstance {
     /// Starts `exe plugin-host` and loads `descriptor` in it.
     pub fn new(exe: &Path, descriptor: &PluginDescriptor) -> Result<Self, String> {
-        let mut child = Command::new(exe)
+        let mut command = Command::new(exe);
+        if !audiostrada_rt::thread::realtime_allowed() {
+            command.env(audiostrada_rt::thread::NO_REALTIME_ENV, "1");
+        }
+        let mut child = command
             .arg(HOST_COMMAND)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

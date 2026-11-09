@@ -29,11 +29,20 @@ The toolchain is pinned in `rust-toolchain.toml`. Edition 2024, `rustfmt` at 100
 
 - `cargo fmt --all`, then `cargo clippy --workspace --all-targets` with no warning (CI runs it
   with `-D warnings`).
-- The test suite is heavy: the interface tests run the whole application headless, one per
-  thread. On a machine someone is using, keep it in the background and throttled:
-  `nice -n 19 cargo test -j 4 --workspace -- --test-threads=4`. Test the crates you touched
-  first (`-p audiostrada-engine`, a test name filter), the workspace once before committing.
-  Do the same for release builds (`nice -n 19 cargo build -j 4 --release`).
+- **Run the tests only with `scripts/test.sh`, never with a bare `cargo test`.** The suite is
+  heavy (the interface tests run the whole application headless, thousands of frames each),
+  and a bare run froze a developer's computer until it had to be restarted. The script runs it
+  at the lowest priority, within half the processor and memory (a systemd scope on Linux), with
+  `AUDIOSTRADA_NO_REALTIME=1`. Arguments go to `cargo test`:
+  `scripts/test.sh -p audiostrada-engine sidechain`. Test the crates you touched first, the
+  workspace (`scripts/test.sh`) once before committing, in the background. Release builds too
+  stay throttled: `nice -n 19 cargo build -j 4 --release`. CI keeps a plain `cargo test`: its
+  machines have no one to disturb, and the code itself keeps renders and tests off real time.
+- **Real time only for live audio.** A thread promoted with `audiostrada_rt::thread` runs before
+  anything else on the machine, the desktop included. Only the live engine's adaptive worker
+  pool, the audio backends and the plugin hosts' audio threads are promoted; renders (exports,
+  tests) never are. `forbid_realtime()` or `AUDIOSTRADA_NO_REALTIME` turns promotion off, and
+  a document under `cfg(test)` has no worker threads.
 - CI builds and tests on Linux, Windows and macOS. Code under `cfg(windows)` or
   `cfg(target_os = "macos")` is only checked there: read the APIs you call from the crate
   sources in `~/.cargo/registry` rather than from memory.

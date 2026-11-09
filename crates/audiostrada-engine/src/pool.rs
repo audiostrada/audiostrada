@@ -70,7 +70,9 @@ impl std::fmt::Debug for WorkerPool {
 }
 
 impl WorkerPool {
-    /// `period`: the duration of a device block, for the workers' real-time scheduling.
+    /// `period`: the duration of a device block, for the workers' real-time scheduling. Only
+    /// the adaptive pool of a live engine runs in real time: a render (export, tests) taking
+    /// every core at a real-time priority would starve the whole desktop.
     pub fn new(workers: usize, adaptive: bool, period: std::time::Duration) -> Self {
         let shared = Arc::new(Shared {
             cycle: UnsafeCell::new(Cycle {
@@ -97,7 +99,7 @@ impl WorkerPool {
             let shared = Arc::clone(&shared);
             match thread::Builder::new()
                 .name(format!("audiostrada-worker-{index}"))
-                .spawn(move || worker(&shared, period))
+                .spawn(move || worker(&shared, period, adaptive))
             {
                 Ok(handle) => handles.push(handle),
                 Err(e) => tracing::warn!("cannot start engine worker: {e}"),
@@ -204,8 +206,8 @@ impl Drop for WorkerPool {
     }
 }
 
-fn worker(shared: &Shared, period: std::time::Duration) {
-    if let Err(e) = audiostrada_rt::thread::promote_audio_thread(period) {
+fn worker(shared: &Shared, period: std::time::Duration, realtime: bool) {
+    if realtime && let Err(e) = audiostrada_rt::thread::promote_audio_thread(period) {
         tracing::debug!("engine worker without real-time priority: {e}");
     }
     let mut seen = 0;

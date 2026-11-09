@@ -209,6 +209,17 @@ struct Import {
     target: Option<(Option<TrackId>, u64)>,
 }
 
+/// The engine of a document: under tests, no worker threads and nothing in real time, as
+/// several run at once.
+fn engine_config() -> EngineConfig {
+    if cfg!(test) {
+        audiostrada_rt::thread::forbid_realtime();
+        EngineConfig { workers: Some(0) }
+    } else {
+        EngineConfig::default()
+    }
+}
+
 /// A clip's sound as far as its tempo goes: its file, offset, length and stretch.
 type TempoKey = (PathBuf, u64, u64, u64);
 
@@ -341,7 +352,7 @@ impl Document {
             dirs,
             untitled_autosave,
             media: MediaPool::new(48_000, peaks),
-            player: ProjectPlayer::new(EngineConfig::default()),
+            player: ProjectPlayer::new(engine_config()),
             imports: Vec::new(),
             synced: None,
             messages: Vec::new(),

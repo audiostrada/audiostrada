@@ -18,7 +18,8 @@ get their area labels from the files they change. `sh .github/labels.sh` recreat
 
 ## Before a pull request
 
-- `cargo fmt --all`, `cargo clippy --workspace` (no warnings) and `cargo test --workspace`.
+- `cargo fmt --all`, `cargo clippy --workspace` (no warnings) and `scripts/test.sh` (the tests
+  at a low priority, within half the processor: a bare `cargo test` can freeze a desktop).
 - Interface texts are English keys with a French translation in
   `crates/audiostrada-ui/assets/i18n/fr/` (checked by `every_text_has_its_french`).
 - When users see the change, the manual says so: `docs/manual/en` and `docs/manual/fr`.

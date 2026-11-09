@@ -3,9 +3,37 @@
 /// Priority used for audio threads, below the usual JACK/PipeWire driver priority.
 pub const AUDIO_PRIORITY: i32 = 70;
 
+/// Turns real-time scheduling off for this process and the plugin hosts it starts.
+pub const NO_REALTIME_ENV: &str = "AUDIOSTRADA_NO_REALTIME";
+
+static FORBIDDEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Keeps every thread of this process at the normal priority, as tests do: real-time threads
+/// busy rendering take the processor from the whole desktop.
+pub fn forbid_realtime() {
+    FORBIDDEN.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Whether threads may be promoted: not after [`forbid_realtime`] nor with
+/// [`NO_REALTIME_ENV`] set.
+pub fn realtime_allowed() -> bool {
+    static ENV: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    !FORBIDDEN.load(std::sync::atomic::Ordering::Relaxed)
+        && !*ENV.get_or_init(|| std::env::var_os(NO_REALTIME_ENV).is_some_and(|v| v != "0"))
+}
+
+fn refused() -> Result<(), String> {
+    if realtime_allowed() {
+        Ok(())
+    } else {
+        Err("real-time scheduling is off".into())
+    }
+}
+
 /// Switches the current thread to real-time scheduling.
 #[cfg(target_os = "linux")]
 pub fn promote_current_thread(priority: i32) -> Result<(), String> {
+    refused()?;
     // SAFETY: plain libc calls on the current thread with an initialized sched_param.
     unsafe {
         let mut param: libc::sched_param = std::mem::zeroed();
@@ -20,6 +48,7 @@ pub fn promote_current_thread(priority: i32) -> Result<(), String> {
 /// Registers the current thread with MMCSS ("Pro Audio" task); the priority is chosen by Windows.
 #[cfg(windows)]
 pub fn promote_current_thread(_priority: i32) -> Result<(), String> {
+    refused()?;
     let mut task_index = 0u32;
     // SAFETY: the task name is a static wide string and the index pointer is valid.
     unsafe {
@@ -65,6 +94,7 @@ pub fn promote_audio_thread(_period: std::time::Duration) -> Result<(), String> 
 )]
 pub fn promote_audio_thread(period: std::time::Duration) -> Result<(), String> {
     use std::time::Duration;
+    refused()?;
     let mut timebase = libc::mach_timebase_info { numer: 0, denom: 0 };
     // SAFETY: fills a valid struct.
     unsafe { libc::mach_timebase_info(&mut timebase) };
@@ -103,6 +133,9 @@ pub fn promote_audio_thread(period: std::time::Duration) -> Result<(), String> {
 mod macos_tests {
     #[test]
     fn audio_threads_get_time_constraints() {
+        if !super::realtime_allowed() {
+            return;
+        }
         let result = std::thread::spawn(|| {
             super::promote_audio_thread(std::time::Duration::from_micros(2_667))
         })
