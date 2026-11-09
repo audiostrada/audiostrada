@@ -93,8 +93,6 @@ actions! {
     ListenToReference => ("Transport", "Listen to the reference / the mix"),
     LowLatency => ("Transport", "Low latency mode"),
     RecordingMode => ("Transport", "Recording mode"),
-    HeadphoneMixes => ("Transport", "Headphone mixes"),
-    Talkback => ("Transport", "Talkback"),
     ReferenceTrack => ("Transport", "Reference track…"),
     TogglePunch => ("Transport", "Toggle punch range"),
     LoopSelection => ("Transport", "Loop selected clips"),

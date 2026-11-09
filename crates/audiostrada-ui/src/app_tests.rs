@@ -241,52 +241,6 @@ fn the_recording_mode_has_its_layout_and_puts_everything_back() {
 }
 
 #[test]
-fn the_headphone_window_draws_its_mixes() {
-    let mut h = Harness::with_song("cues");
-    h.app.doc.borrow_mut().history_mut().edit("Cues", |p| {
-        let first = p.tracks[0].id;
-        p.cues = vec![
-            audiostrada_core::CueMix {
-                name: "Singer".into(),
-                more_me: Some(first),
-                ..Default::default()
-            },
-            audiostrada_core::CueMix {
-                name: "Drums".into(),
-                output: 4,
-                follow_main: true,
-                ..Default::default()
-            },
-        ];
-    });
-    h.act(Action::HeadphoneMixes);
-    h.act(Action::RecordingMode);
-    for _ in 0..3 {
-        h.frame(Vec::new());
-    }
-    assert_eq!(h.app.doc.borrow().project().cues.len(), 2);
-}
-
-#[test]
-fn the_talkback_key_holds_or_latches() {
-    let mut h = Harness::new("talkback");
-    h.frame(Vec::new());
-    h.act(Action::Talkback);
-    assert!(!h.app.doc.borrow().player().talkback_on(), "no microphone chosen");
-    h.app.prefs.talkback_input = Some(0);
-    h.act(Action::Talkback);
-    assert!(
-        !h.app.doc.borrow().player().talkback_on(),
-        "held: off once the key is up"
-    );
-    h.app.prefs.talkback_latch = true;
-    h.act(Action::Talkback);
-    assert!(h.app.doc.borrow().player().talkback_on(), "latched");
-    h.act(Action::Talkback);
-    assert!(!h.app.doc.borrow().player().talkback_on());
-}
-
-#[test]
 fn a_module_draws_every_frame_and_keeps_its_data_in_the_project() {
     use std::cell::Cell;
     use std::rc::Rc;

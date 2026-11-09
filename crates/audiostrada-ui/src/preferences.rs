@@ -500,29 +500,6 @@ fn general(ui: &mut egui::Ui, prefs: &mut UiPrefs) -> bool {
                     .changed();
             });
             changed |= ui.checkbox(&mut prefs.recording_offer, tr("Offer it when a track is armed")).changed();
-            ui.horizontal(|ui| {
-                ui.label(tr("Talkback microphone"));
-                let input = |i: Option<u16>| match i {
-                    Some(i) => trf!("In {input}", input = i + 1),
-                    None => tr("None").to_owned(),
-                };
-                egui::ComboBox::from_id_salt("talkback-input")
-                    .selected_text(input(prefs.talkback_input))
-                    .show_ui(ui, |ui| {
-                        changed |= ui.selectable_value(&mut prefs.talkback_input, None, tr("None")).changed();
-                        for i in 0..16 {
-                            changed |= ui.selectable_value(&mut prefs.talkback_input, Some(i), input(Some(i))).changed();
-                        }
-                    });
-                ui.label(tr("lowers the headphones by"));
-                changed |= ui
-                    .add(egui::DragValue::new(&mut prefs.talkback_duck_db).range(-40.0..=0.0).speed(0.5).suffix(" dB"))
-                    .changed();
-            });
-            ui.horizontal(|ui| {
-                changed |= ui.radio_value(&mut prefs.talkback_latch, false, tr("Talk while the key is held")).changed();
-                changed |= ui.radio_value(&mut prefs.talkback_latch, true, tr("The key switches it on and off")).changed();
-            });
             ui.weak(tr("A layout for recording musicians: the armed inputs, the timeline and the takes. Leaving it puts everything back."));
         });
         ui.end_row();

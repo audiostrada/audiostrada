@@ -233,7 +233,6 @@ pub struct Document {
     exporting: Option<export::Exporting>,
     /// Inputs of the running audio stream, offered to tracks.
     stream_inputs: usize,
-    stream_outputs: usize,
     /// Selected tracks, shared by the views; the last one has the focus.
     track_selection: Vec<TrackId>,
     render_queue: Vec<export::QueuedExport>,
@@ -344,7 +343,6 @@ impl Document {
             was_playing: false,
             exporting: None,
             stream_inputs: 0,
-            stream_outputs: 0,
             track_selection: Vec::new(),
             render_queue: Vec::new(),
             learning: None,
@@ -570,14 +568,6 @@ impl Document {
 
     pub fn stream_inputs(&self) -> usize {
         self.stream_inputs
-    }
-
-    pub fn set_stream_outputs(&mut self, outputs: usize) {
-        self.stream_outputs = outputs;
-    }
-
-    pub fn stream_outputs(&self) -> usize {
-        self.stream_outputs
     }
 
     /// Shows a short message to the user.
