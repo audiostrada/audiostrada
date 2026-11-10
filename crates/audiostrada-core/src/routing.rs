@@ -479,9 +479,25 @@ pub fn effective_gain(project: &Project, id: TrackId) -> (f32, bool) {
     }
 }
 
-/// Tracks that stay audible while something is soloed, or `None` when nothing is. Soloing a
-/// track keeps its destinations audible; soloing a folder or a VCA solos its members.
-pub fn solo_audible(project: &Project) -> Option<HashSet<TrackId>> {
+/// What a solo lets through: the tracks heard in full, and those heard only through their sends,
+/// feeding a soloed bus (a reverb soloed with what is sent to it).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Soloed {
+    pub audible: HashSet<TrackId>,
+    pub sends_only: HashSet<TrackId>,
+}
+
+impl Soloed {
+    /// Whether the track is heard at all, in full or through its sends.
+    pub fn heard(&self, id: TrackId) -> bool {
+        self.audible.contains(&id) || self.sends_only.contains(&id)
+    }
+}
+
+/// What stays audible while something is soloed, or `None` when nothing is. Soloing a track
+/// keeps its destinations audible; soloing a folder or a VCA solos its members; the tracks
+/// sending to a soloed bus feed it through their sends, their own output silent.
+pub fn solo_audible(project: &Project) -> Option<Soloed> {
     let soloed: Vec<TrackId> = project
         .tracks
         .iter()
@@ -505,7 +521,35 @@ pub fn solo_audible(project: &Project) -> Option<HashSet<TrackId>> {
             }
         }
     }
-    Some(audible)
+    // What is sent to a soloed bus, or to a track feeding it, and what is routed into those.
+    let mut targets: Vec<TrackId> = soloed.iter().flat_map(|&id| subtree(project, id)).collect();
+    let mut sends_only = HashSet::new();
+    let mut i = 0;
+    while i < targets.len() {
+        let target = targets[i];
+        i += 1;
+        for track in &project.tracks {
+            if audible.contains(&track.id)
+                || sends_only.contains(&track.id)
+                || !track.kind.carries_audio()
+                || !track.sends.iter().any(|s| s.target == target)
+            {
+                continue;
+            }
+            sends_only.insert(track.id);
+            for member in subtree(project, track.id) {
+                if member != track.id {
+                    sends_only.remove(&member);
+                    audible.insert(member);
+                }
+                targets.push(member);
+            }
+        }
+    }
+    Some(Soloed {
+        audible,
+        sends_only,
+    })
 }
 
 fn inserts_mut(project: &mut Project, channel: Channel) -> Option<&mut Vec<Insert>> {
@@ -1231,18 +1275,41 @@ mod tests {
         assert!(solo_audible(&p).is_none());
         add_send(&mut p, b, bus).unwrap();
         p.track_mut(b).unwrap().solo = true;
-        let audible = solo_audible(&p).unwrap();
+        let soloed = solo_audible(&p).unwrap();
+        let audible = &soloed.audible;
         assert!(audible.contains(&b) && audible.contains(&bus) && !audible.contains(&a));
+        assert!(soloed.sends_only.is_empty());
         p.track_mut(b).unwrap().solo = false;
         p.track_mut(vca).unwrap().solo = true;
-        assert!(solo_audible(&p).unwrap().contains(&a));
-        set_parent(&mut p, b, Some(bus)).unwrap();
+        assert!(solo_audible(&p).unwrap().audible.contains(&a));
+        // A soloed bus hears what is sent to it, through the sends only.
         p.track_mut(vca).unwrap().solo = false;
         p.track_mut(bus).unwrap().solo = true;
+        let soloed = solo_audible(&p).unwrap();
+        assert!(soloed.sends_only.contains(&b) && !soloed.audible.contains(&b));
+        assert!(!soloed.heard(a));
+        set_parent(&mut p, b, Some(bus)).unwrap();
+        let soloed = solo_audible(&p).unwrap();
         assert!(
-            solo_audible(&p).unwrap().contains(&b),
+            soloed.audible.contains(&b) && !soloed.sends_only.contains(&b),
             "folder solo includes children"
         );
+    }
+
+    #[test]
+    fn a_soloed_bus_hears_its_feeders_and_what_is_routed_into_them() {
+        let (mut p, a, b, reverb) = project();
+        let group = add_bus(&mut p, "group");
+        set_parent(&mut p, a, Some(group)).unwrap();
+        add_send(&mut p, group, reverb).unwrap();
+        p.track_mut(reverb).unwrap().solo = true;
+        let soloed = solo_audible(&p).unwrap();
+        assert!(soloed.sends_only.contains(&group));
+        assert!(
+            soloed.audible.contains(&a),
+            "heard into the group, which feeds the reverb"
+        );
+        assert!(!soloed.heard(b));
     }
 
     #[test]

@@ -11,6 +11,10 @@ puis le panoramique à côté du mode d'automation, le fader et l'indicateur, le
 VCA. Le fader prend la hauteur que le panneau laisse. Un clic droit dans l'espace vide à côté des
 tranches ajoute une piste, un bus ou un VCA ; un clic y vide la sélection.
 
+Le solo garde audible ce vers quoi va la piste soloée. Un bus en solo fait aussi entendre les
+pistes routées vers lui, et celles qui lui envoient un send, par leur send seulement : un bus de
+réverbe en solo fait entendre la réverbe seule, sans le son direct de ce qui l'alimente.
+
 - **Ancré** dans la fenêtre principale, la tranche laisse sa hauteur au fader. À côté de
   l'indicateur, dans l'ordre du signal : le bouton du channel strip, puis **FX** avec une pastille
   par effet (un clic ouvre l'effet, [[Shift]]-clic le bypasse, [[Ctrl]]-clic le retire) et **+**

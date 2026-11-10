@@ -466,7 +466,8 @@ impl ChannelNodes {
         let (input, input_gain, console) = InputStage::new(bypass.clone());
         let input = engine.add_node(&format!("{name} input"), input, 2, 2);
         let (strip, controls) = Strip::new(solo, master);
-        let strip = engine.add_node(name, strip, 2, 2);
+        // Tracks' strips feed their sends from a second pair (see `Strip`).
+        let strip = engine.add_node(name, strip, 2, if master { 2 } else { 4 });
         Self {
             input,
             input_gain,
@@ -1250,7 +1251,12 @@ impl ProjectPlayer {
                 controls.pan.set(track.pan);
             }
             controls.set_mute(mute);
-            controls.set_solo(audible.as_ref().is_some_and(|a| a.contains(&track.id)));
+            controls.set_solo(audible.as_ref().is_some_and(|a| a.heard(track.id)));
+            controls.set_sends_only(
+                audible
+                    .as_ref()
+                    .is_some_and(|a| a.sends_only.contains(&track.id)),
+            );
             let polarity = if track.invert { -1.0 } else { 1.0 };
             nodes
                 .channel
@@ -1613,7 +1619,8 @@ impl ProjectPlayer {
         };
         chain(&self.master, &mut stereo);
         chain(&self.monitor, &mut stereo);
-        // Sidechain keys: the source track's output into inputs 2 and 3 of the insert.
+        // From the strips' second pair: sidechain keys into inputs 2 and 3 of their insert, and
+        // post-fader sends.
         let mut keys = Vec::new();
         let channels = std::iter::once((&project.master.inserts, &self.master)).chain(
             project
@@ -1634,7 +1641,7 @@ impl ProjectPlayer {
                 };
                 for ch in 0..2 {
                     keys.push((
-                        Port::new(source.channel.strip, ch),
+                        Port::new(source.channel.strip, ch + 2),
                         Port::new(slot.node, ch + 2),
                     ));
                 }
@@ -1660,12 +1667,16 @@ impl ProjectPlayer {
                 let Some(target) = self.tracks.get(&send.target) else {
                     continue;
                 };
-                let source = if send.pre_fader {
-                    nodes.channel.pre_fader()
+                if send.pre_fader {
+                    stereo(nodes.channel.pre_fader(), send.node);
                 } else {
-                    nodes.channel.strip
-                };
-                stereo(source, send.node);
+                    for ch in 0..2 {
+                        keys.push((
+                            Port::new(nodes.channel.strip, ch + 2),
+                            Port::new(send.node, ch),
+                        ));
+                    }
+                }
                 stereo(send.node, target.channel.input);
             }
         }
@@ -3409,6 +3420,18 @@ mod tests {
             track.sends[0].pre_fader = true;
         });
         assert_eq!(muted, 0.0);
+        // A soloed bus hears the track through its send only, its own output silent.
+        for pre_fader in [false, true] {
+            let soloed = level("soloed bus", |p, t| {
+                let bus = routing::add_bus(p, "reverb");
+                routing::add_send(p, t, bus).unwrap();
+                let send = &mut p.track_mut(t).unwrap().sends[0];
+                send.gain_db = -6.0206;
+                send.pre_fader = pre_fader;
+                p.track_mut(bus).unwrap().solo = true;
+            });
+            assert!(close(soloed, 0.25), "{pre_fader} {soloed}");
+        }
     }
 
     #[test]

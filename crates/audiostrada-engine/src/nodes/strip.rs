@@ -1,4 +1,6 @@
-//! Mixer channel strip: gain, constant-power pan, mute, solo and metering.
+//! Mixer channel strip: gain, constant-power pan, mute, solo and metering. Outputs 0-1 go on
+//! to the track's destination, 2-3 (when the node has them) feed its post-fader sends: a track
+//! heard only through its sends, under a bus's solo, silences the first pair only.
 
 use std::f64::consts::{FRAC_PI_4, SQRT_2};
 use std::sync::Arc;
@@ -28,6 +30,7 @@ pub struct StripControls {
     /// Mute driven by automation (0 or 1).
     pub mute_automation: SharedParam,
     solo: Arc<AtomicBool>,
+    sends_only: Arc<AtomicBool>,
     solo_bus: SoloBus,
     /// Masters ignore solo (they are never silenced by it).
     solo_safe: bool,
@@ -52,6 +55,15 @@ impl StripControls {
         self.solo.load(Ordering::Relaxed)
     }
 
+    /// Heard only through its sends: its own output is silent.
+    pub fn sends_only(&self) -> bool {
+        self.sends_only.load(Ordering::Relaxed)
+    }
+
+    pub fn set_sends_only(&self, sends_only: bool) {
+        self.sends_only.store(sends_only, Ordering::Relaxed);
+    }
+
     pub fn set_solo(&self, solo: bool) {
         if self.solo.swap(solo, Ordering::Relaxed) != solo {
             if solo {
@@ -69,6 +81,8 @@ pub struct Strip {
     controls: StripControls,
     left: Smoothed,
     right: Smoothed,
+    /// Gain of the outputs to the destination: 0 while heard through the sends only.
+    main: Smoothed,
     meter: Meter,
 }
 
@@ -80,6 +94,7 @@ impl Strip {
             mute: Arc::new(AtomicBool::new(false)),
             mute_automation: SharedParam::new(0.0),
             solo: Arc::new(AtomicBool::new(false)),
+            sends_only: Arc::new(AtomicBool::new(false)),
             solo_bus: solo_bus.clone(),
             solo_safe,
             meter: MeterReadout::new(2),
@@ -89,6 +104,7 @@ impl Strip {
             controls: controls.clone(),
             left: Smoothed::new(),
             right: Smoothed::new(),
+            main: Smoothed::new(),
         };
         (strip, controls)
     }
@@ -130,6 +146,21 @@ impl Processor for Strip {
                 gain += step;
             }
             self.meter.update(output, dst);
+        }
+        if b.output_channels() >= 4 {
+            b.copy_output(0, 2);
+            b.copy_output(1, 3);
+            let target = if self.controls.sends_only() { 0.0 } else { 1.0 };
+            let (start, step) = self.main.ramp(target, frames);
+            if start != 1.0 || step != 0.0 {
+                for ch in 0..2 {
+                    let mut gain = start;
+                    for d in b.output(ch).iter_mut() {
+                        *d *= gain;
+                        gain += step;
+                    }
+                }
+            }
         }
     }
 }

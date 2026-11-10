@@ -11,6 +11,10 @@ arm (**R**) and the track's name, marked **BUS** for a bus and **VCA** for a VCA
 takes the height the panel leaves. Right-click the empty space beside the strips to add a track,
 a bus or a VCA; a click there clears the selection.
 
+Solo keeps what the soloed track goes to audible. Soloing a bus also plays the tracks routed
+into it, and the tracks sending to it through their sends only: a soloed reverb bus plays the
+reverb alone, without the dry sound of what feeds it.
+
 - **Docked** in the main window, the strip leaves its height to the fader. Beside the meter, in
   the signal's order: the channel strip's button, then **FX** with a pill per effect (a click
   opens the effect, [[Shift]]-click bypasses it, [[Ctrl]]-click removes it) and **+** to add one,
