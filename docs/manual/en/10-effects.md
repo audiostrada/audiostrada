@@ -15,9 +15,6 @@ through them family by family; the parameter tables give each control's range an
   the disk saves the current settings (type *Category: name* to file it). **A** / **B** hold two
   settings to compare, the button beside them copies one onto the other.
 - **Bypass**, at the right of the bar, is lit amber while the effect is bypassed.
-- **In the style of**: Strada-Verb, Delay, Chorus, Flanger, Phaser, Amp and Correct have presets
-  after famous sounds (Tame Impala, Bowie and Visconti, Dick Dale, The Edge, Cher, T-Pain…), a
-  starting point to make your own.
 - **Effect chains** keep a whole list of effects with their settings: right-click an effect (or
   use the track menu) › *Save effects as a chain*, then add it to any track from *+ insert* ›
   *Chains*. Factory chains: Vocal, Drum bus, Acoustic guitar, Master for streaming.

@@ -17,9 +17,6 @@ de chaque réglage.
   ranger). **A** / **B** retiennent deux réglages à comparer, le bouton à côté copie l'un sur
   l'autre.
 - **Bypass**, à droite de la barre, s'allume en ambre tant que l'effet est bypassé.
-- **À la manière de** : Strada-Verb, Delay, Chorus, Flanger, Phaser, Amp et Correct ont des
-  presets d'après des sons célèbres (Tame Impala, Bowie et Visconti, Dick Dale, The Edge, Cher,
-  T-Pain…), un point de départ pour faire le vôtre.
 - **Les chaînes d'effets** gardent toute une liste d'effets avec leurs réglages : clic droit sur
   un effet (ou menu de la piste) › *Enregistrer les effets comme chaîne*, puis ajoutez-la à
   n'importe quelle piste par *+ insert* › *Chaînes*. Chaînes d'usine : voix, bus batterie, guitare
