@@ -1,7 +1,8 @@
 //! The AudioStrada DSP filter node: one mono float port per channel, processed on the PipeWire data thread.
 
-use std::ffi::{CStr, c_char, c_void};
+use std::ffi::{CStr, CString, c_char, c_void};
 use std::ptr;
+use std::time::{Duration, Instant};
 
 use pipewire as pw;
 use pw::properties::PropertiesBox;
@@ -12,6 +13,12 @@ use crate::stream::CallbackRunner;
 use crate::{AudioBuffers, BackendKind, IoError};
 
 pub(super) const MAX_FRAMES: usize = 8192;
+/// Smallest buffer a device is started with. Some USB interfaces (the SSL 2+, whose output
+/// follows its input's clock) start out of step with shorter ALSA periods, and play every
+/// stream slow and distorted until unplugged; once running, a smaller buffer is fine.
+pub(super) const START_FRAMES: u32 = 128;
+/// Time the devices get to start at that size before the buffer asked for applies.
+const SETTLE: Duration = Duration::from_millis(500);
 
 /// State only touched by the data thread once the filter is connected.
 struct ProcessState {
@@ -117,6 +124,10 @@ pub(super) struct FilterStream {
     pub follow_output: bool,
     pub links: Vec<pw::link::Link>,
     pub linked: bool,
+    /// The buffer and rate asked for, when smaller than devices start with.
+    small: Option<(u32, u32)>,
+    /// When to go down to that buffer, once linked.
+    lower_at: Option<Instant>,
 }
 
 impl FilterStream {
@@ -202,6 +213,8 @@ impl FilterStream {
             follow_output: follow.1,
             links: Vec::new(),
             linked: false,
+            small: None,
+            lower_at: None,
             _hooks: hooks,
             _events: events,
         };
@@ -226,6 +239,50 @@ impl FilterStream {
             return Err(error(&format!("cannot connect filter (error {res})")));
         }
         Ok(stream)
+    }
+
+    /// Asks for a buffer of `frames` (opened with `START_FRAMES` when it is smaller).
+    pub(super) fn ask(&mut self, frames: u32, rate: u32) {
+        self.small = (frames < START_FRAMES).then_some((frames, rate));
+    }
+
+    /// Before linking to devices: they start at no less than `START_FRAMES`.
+    pub(super) fn start_large(&mut self) {
+        if let Some((_, rate)) = self.small {
+            self.set_latency(START_FRAMES, rate);
+            self.lower_at = Some(Instant::now() + SETTLE);
+        }
+    }
+
+    /// Once the devices run: the buffer asked for.
+    pub(super) fn settle(&mut self) {
+        if let (Some((frames, rate)), Some(at)) = (self.small, self.lower_at)
+            && Instant::now() >= at
+        {
+            self.lower_at = None;
+            self.set_latency(frames, rate);
+            tracing::info!(frames, "devices started, buffer lowered");
+        }
+    }
+
+    fn set_latency(&mut self, frames: u32, rate: u32) {
+        let (Ok(key), Ok(value)) = (
+            CString::new("node.latency"),
+            CString::new(format!("{frames}/{rate}")),
+        ) else {
+            return;
+        };
+        let item = spa_sys::spa_dict_item {
+            key: key.as_ptr(),
+            value: value.as_ptr(),
+        };
+        let dict = spa_sys::spa_dict {
+            flags: 0,
+            n_items: 1,
+            items: &item,
+        };
+        // SAFETY: the filter is valid; the dictionary and its strings outlive the call.
+        unsafe { pw_sys::pw_filter_update_properties(self.filter, ptr::null_mut(), &dict) };
     }
 
     pub(super) fn node_id(&self) -> Option<u32> {

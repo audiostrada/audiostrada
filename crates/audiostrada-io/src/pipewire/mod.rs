@@ -27,7 +27,7 @@ use crate::{
     AudioBackend, AudioCallback, AudioStream, BackendKind, CallbackFactory, DeviceInfo, IoError,
     StreamConfig, StreamInfo, StreamStatus,
 };
-use filter::{FilterStream, MAX_FRAMES};
+use filter::{FilterStream, MAX_FRAMES, START_FRAMES};
 use graph::{Graph, Node, Port, parse_default_name};
 
 const REPLY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -528,7 +528,7 @@ impl LoopState {
             "media.role" => "DSP",
             "node.name" => "audiostrada",
             "node.description" => "AudioStrada",
-            "node.latency" => format!("{}/{}", info.buffer_size, info.sample_rate),
+            "node.latency" => format!("{}/{}", info.buffer_size.max(START_FRAMES), info.sample_rate),
             "node.autoconnect" => "false",
             "node.always-process" => "true",
             "node.want-driver" => "true",
@@ -539,7 +539,7 @@ impl LoopState {
             props.insert("node.force-rate", "0");
         }
         let runner = CallbackRunner::new(callback, status, info.sample_rate);
-        let stream = FilterStream::new(
+        let mut stream = FilterStream::new(
             &self.core,
             props,
             config.inputs as usize,
@@ -551,6 +551,7 @@ impl LoopState {
             ),
             runner,
         )?;
+        stream.ask(info.buffer_size, info.sample_rate);
         let id = self.next_id.get();
         self.next_id.set(id + 1);
         self.streams.borrow_mut().insert(id, stream);
@@ -598,6 +599,9 @@ impl LoopState {
     /// Links the ports of new filters to their devices once they appear in the graph.
     fn link_pending(&self) {
         let mut streams = self.streams.borrow_mut();
+        for stream in streams.values_mut().filter(|s| s.linked) {
+            stream.settle();
+        }
         for stream in streams.values_mut().filter(|s| !s.linked) {
             let Some(node) = stream.node_id() else {
                 continue;
@@ -611,6 +615,7 @@ impl LoopState {
             ) else {
                 continue;
             };
+            stream.start_large();
             for (out_node, out_port, in_node, in_port) in pairs {
                 let props = pw::properties::properties! {
                     "link.output.node" => out_node.to_string(),
