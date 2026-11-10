@@ -320,6 +320,8 @@ pub struct AudioStradaApp {
     midi_routes: Vec<(String, audiostrada_midi::live::LiveMidi)>,
     /// MIDI ports present at the last check, to notice devices plugged in or out.
     midi_ports: (Instant, Vec<String>, Vec<String>),
+    /// Last logged state of the sound cards and of the stream (rate, frames, dropouts).
+    audio_state: (Instant, String, (u32, u32, u64)),
     preferences: PreferencesWindow,
     audio_settings: AudioSettingsPanel,
     hooks: Hooks,
@@ -446,6 +448,7 @@ impl AudioStradaApp {
                 audiostrada_midi::devices::input_names(),
                 audiostrada_midi::devices::output_names(),
             ),
+            audio_state: (Instant::now(), String::new(), (0, 0, 0)),
             preferences: PreferencesWindow::default(),
             audio_settings: AudioSettingsPanel::default(),
             hooks,
@@ -507,6 +510,32 @@ impl AudioStradaApp {
         self.midi_inputs = Some(inputs);
     }
 
+    /// Logs the sound cards' state and the stream's rate, periods and dropouts when they change,
+    /// to tell afterwards what came before a device misbehaving.
+    fn log_audio_state(&mut self) {
+        if self.audio_state.0.elapsed() < MIDI_PORTS_INTERVAL {
+            return;
+        }
+        let cards = audiostrada_io::diagnostics::sound_cards();
+        let stream = self.host.stream().map_or((0, 0, 0), |s| {
+            let status = s.status();
+            (
+                status.current_sample_rate(),
+                status.current_buffer_size(),
+                status.xruns(),
+            )
+        });
+        let (_, old_cards, old_stream) = &self.audio_state;
+        if cards != *old_cards {
+            tracing::info!("sound cards: {cards}");
+        }
+        if stream != *old_stream {
+            let (rate, frames, dropouts) = stream;
+            tracing::info!(rate, frames, dropouts, "audio stream");
+        }
+        self.audio_state = (Instant::now(), cards, stream);
+    }
+
     /// Reports audio and MIDI devices plugged in or out, reopening MIDI inputs and retrying
     /// MIDI outputs when they change.
     fn watch_devices(&mut self) {
@@ -522,6 +551,7 @@ impl AudioStradaApp {
                 doc.notify(tr("Audio restarted").into());
             }
         }
+        self.log_audio_state();
         if self.midi_ports.0.elapsed() < MIDI_PORTS_INTERVAL {
             return;
         }

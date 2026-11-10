@@ -15,7 +15,6 @@ use cli::Command;
 audiostrada_rt::install_alloc_checker!();
 
 fn main() -> ExitCode {
-    logging::init();
     let command = match cli::parse(std::env::args().skip(1)) {
         Ok(command) => command,
         Err(e) => {
@@ -23,6 +22,7 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    logging::init(matches!(command, Command::Run(_)));
     let result = match command {
         Command::Run(run) => run_ui(&run),
         Command::Help => {

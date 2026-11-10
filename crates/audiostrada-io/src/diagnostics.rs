@@ -599,3 +599,90 @@ Max realtime timeout      unlimited            unlimited            us
         assert_eq!(format!("{:>7}", CheckStatus::Error), "  error");
     }
 }
+
+/// What the kernel says of the sound cards in use: each open stream's format, rate and
+/// periods, and the clock a USB interface runs at. Empty when nothing is open or unknown.
+pub fn sound_cards() -> String {
+    #[cfg(target_os = "linux")]
+    {
+        linux_sound_cards(std::path::Path::new("/proc/asound"))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        String::new()
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_sound_cards(root: &std::path::Path) -> String {
+    let read = |path: std::path::PathBuf| std::fs::read_to_string(path).unwrap_or_default();
+    let mut cards: Vec<_> = std::fs::read_dir(root)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("card") && n[4..].parse::<u32>().is_ok())
+        })
+        .collect();
+    cards.sort();
+    let mut out = Vec::new();
+    for card in cards {
+        let id = read(card.join("id")).trim().to_owned();
+        let mut parts = Vec::new();
+        let mut pcms: Vec<_> = std::fs::read_dir(&card)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("pcm"))
+            })
+            .collect();
+        pcms.sort();
+        for pcm in pcms {
+            let params = read(pcm.join("sub0").join("hw_params"));
+            if params.trim().is_empty() || params.trim() == "closed" {
+                continue;
+            }
+            let fields: Vec<&str> = params
+                .lines()
+                .filter(|l| {
+                    ["format", "channels", "rate", "period_size", "buffer_size"]
+                        .iter()
+                        .any(|k| l.starts_with(k))
+                })
+                .map(str::trim)
+                .collect();
+            let name = pcm
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default()
+                .to_owned();
+            parts.push(format!("{name} [{}]", fields.join(", ")));
+        }
+        for i in 0..4 {
+            let stream = read(card.join(format!("stream{i}")));
+            let clocks: Vec<&str> = stream
+                .lines()
+                .map(str::trim)
+                .filter(|l| {
+                    l.starts_with("Status")
+                        || l.starts_with("Packet Size")
+                        || l.starts_with("Momentary freq")
+                })
+                .collect();
+            if clocks.iter().any(|l| l.contains("Running")) {
+                parts.push(format!("usb [{}]", clocks.join(", ")));
+            }
+        }
+        if !parts.is_empty() {
+            out.push(format!("{id}: {}", parts.join("; ")));
+        }
+    }
+    out.join(" | ")
+}

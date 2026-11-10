@@ -97,7 +97,7 @@ impl AudioHost {
 
     /// Connects to `kind` (or the best available backend) and starts a stream with `config`.
     pub fn start(&mut self, kind: Option<BackendKind>, config: StreamConfig) {
-        self.stream = None;
+        self.stop();
         let connected = match kind {
             Some(kind) => backend(kind).or_else(|e| {
                 tracing::warn!("{kind} unavailable ({e}), falling back to auto-detection");
@@ -131,7 +131,8 @@ impl AudioHost {
 
     /// Reopens the stream with a new configuration.
     pub fn apply(&mut self, config: StreamConfig) {
-        self.stream = None;
+        self.stop();
+        tracing::info!(?config, "opening the audio stream");
         self.config = config;
         let Some(backend) = &self.backend else {
             return;
@@ -211,7 +212,9 @@ impl AudioHost {
     }
 
     pub fn stop(&mut self) {
-        self.stream = None;
+        if self.stream.take().is_some() {
+            tracing::info!("audio stream stopped");
+        }
     }
 
     pub fn kind(&self) -> Option<BackendKind> {
