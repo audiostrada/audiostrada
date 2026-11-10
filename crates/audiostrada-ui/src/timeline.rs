@@ -24,6 +24,7 @@ use crate::i18n::tr;
 use crate::transport::{EditMode, EditSettings};
 use crate::trf;
 
+mod automation;
 mod draw;
 mod fades;
 mod gestures;
@@ -60,12 +61,12 @@ const MIN_ZOOM: f64 = 0.05;
 /// The overview of the whole project under the lanes.
 const OVERVIEW_HEIGHT: f32 = 26.0;
 const MAX_ZOOM: f64 = 200_000.0;
-const LANE_HEIGHT: f32 = 46.0;
-const MIN_LANE_HEIGHT: f32 = 36.0;
+const LANE_HEIGHT: f32 = 84.0;
+const MIN_LANE_HEIGHT: f32 = 40.0;
 const MAX_LANE_HEIGHT: f32 = 320.0;
 const TAKE_HEIGHT: f32 = 36.0;
 /// Distance in pixels within which an automation point can be grabbed.
-const POINT_GRAB: f32 = 9.0;
+const POINT_GRAB: f32 = 10.0;
 const PUNCH: Color32 = Color32::from_rgb(220, 60, 60);
 /// The time range, told apart from the loop and the clip selection.
 const RANGE: Color32 = Color32::from_rgb(64, 196, 176);
@@ -106,8 +107,6 @@ enum DragKind {
     RulerRange {
         anchor: u64,
     },
-    /// An automation point: track, lane index, point index, top of the lane on screen.
-    Point(TrackId, usize, usize, f32),
     /// Swipe comping on a take lane: track, playlist, where the drag started.
     Comp(TrackId, usize, u64),
     /// The eraser (no `mute`) or the mute tool, over every clip the pointer crosses.
@@ -170,8 +169,16 @@ pub struct TimelineView {
     content_height: f32,
     /// Range and name of automation targets whose range comes from a plugin.
     target_info: HashMap<(TrackId, AutomationTarget), headers::LaneInfo>,
-    /// Automation point under the last right click.
-    point_menu: Option<(TrackId, usize, usize)>,
+    /// Automation points chosen, in one lane.
+    chosen: Option<automation::Chosen>,
+    /// A gesture on an automation lane.
+    lane_drag: Option<automation::LaneDrag>,
+    /// A point's value being typed.
+    value_edit: Option<automation::ValueEdit>,
+    /// Lane, point and position of the last right click on an automation lane.
+    lane_menu: Option<(automation::LaneKey, Option<u64>, Pos2)>,
+    /// Automation lanes on screen in the last frame.
+    lane_rects: Vec<(automation::LaneKey, Rect)>,
     /// Clip or lane under the last right click.
     menu: Option<menus::Menu>,
     /// Position and marker under the last right click on the ruler.
@@ -204,8 +211,6 @@ pub struct TimelineView {
     renaming: Option<(TrackId, String)>,
     /// The master's band at the top, with its automation.
     pub show_master: bool,
-    /// A master lane's point being dragged: its lane's target and its index.
-    master_point: Option<(AutomationTarget, usize)>,
     /// Clip last clicked, from which Shift+click extends the selection.
     clip_anchor: Option<ClipId>,
     /// Width of the track headers, set by dragging their edge.
@@ -283,7 +288,11 @@ impl TimelineView {
             tops: Vec::new(),
             content_height: 0.0,
             target_info: HashMap::new(),
-            point_menu: None,
+            chosen: None,
+            lane_drag: None,
+            value_edit: None,
+            lane_menu: None,
+            lane_rects: Vec::new(),
             menu: None,
             ruler_target: None,
             requests: Vec::new(),
@@ -302,7 +311,6 @@ impl TimelineView {
             hover: None,
             renaming: None,
             show_master: false,
-            master_point: None,
             clip_anchor: None,
             header_width: HEADER_WIDTH,
             header_resized: false,
@@ -479,33 +487,6 @@ impl TimelineView {
             .then(|| project.tracks[self.rows[r].0].as_ref())
     }
 
-    /// Automation lane under `y`: row, index of the lane in its track, and the lane's top.
-    fn lane_at(&self, project: &Project, y: f32) -> Option<(usize, usize, f32)> {
-        let r = self.row_at(y)?;
-        let offset = y + self.scroll_y - self.tops[r] - self.row_height(r);
-        if offset < 0.0 {
-            return None;
-        }
-        let track = &project.tracks[self.rows[r].0];
-        let offset = offset - takes_height(track);
-        if offset < 0.0 {
-            return None;
-        }
-        let mut top = 0.0;
-        for li in shown_lanes(track) {
-            let height = lane_height(&track.automation[li]);
-            if offset < top + height {
-                return Some((
-                    r,
-                    li,
-                    self.tops[r] + self.row_height(r) + takes_height(track) + top - self.scroll_y,
-                ));
-            }
-            top += height;
-        }
-        None
-    }
-
     /// Take lane under `y`: track and index of the lane in its takes.
     fn take_at(&self, project: &Project, y: f32) -> Option<(TrackId, usize)> {
         let r = self.row_at(y)?;
@@ -656,6 +637,9 @@ impl TimelineView {
             Action::Copy => self.copy(&doc),
             Action::Cut => self.cut(&mut doc, settings),
             Action::Paste => self.paste(&mut doc),
+            Action::Delete if self.delete_chosen_points(&mut doc) => {}
+            Action::SelectAll if self.choose_every_point(&doc) => {}
+            Action::Deselect if self.chosen.take().is_some() => {}
             Action::Delete if self.range.is_some() => {
                 if let Some(r) = self.range.take() {
                     let shuffle = settings.mode == EditMode::Shuffle;
@@ -1204,11 +1188,15 @@ impl TimelineView {
         );
         self.link_loop(&mut doc);
         self.header_edge(ui, full, header);
+        let magnet =
+            magnet::Magnet::new(settings, &project, scale.zoom, doc.player().position(), &[]);
+        self.lane_rects.clear();
+        self.track_lanes(ui, &mut doc, &project, lanes, scale, &magnet);
         if band > 0.0 {
             let top = full.top() + RULER_HEIGHT;
             let head = Rect::from_min_max(pos2(full.left(), top), pos2(header.right(), top + band));
             let area = Rect::from_min_max(pos2(lanes.left(), top), pos2(lanes.right(), top + band));
-            self.master_band(ui, &mut doc, &project, (head, area), scale);
+            self.master_band(ui, &mut doc, &project, (head, area), scale, &magnet);
         }
 
         if project.tracks.is_empty() {
@@ -1222,7 +1210,46 @@ impl TimelineView {
         }
     }
 
-    /// Lanes that can be added to a track (shown again if hidden).
+    /// Mouse editing of the tracks' automation lanes on screen.
+    fn track_lanes(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        project: &Project,
+        lanes: Rect,
+        scale: Scale,
+        magnet: &magnet::Magnet,
+    ) {
+        for i in 0..self.rows.len() {
+            let track = &project.tracks[self.rows[i].0];
+            let mut top =
+                lanes.top() + self.tops[i] - self.scroll_y + self.heights[i] + takes_height(track);
+            for li in shown_lanes(track) {
+                let lane = &track.automation[li];
+                let rect = Rect::from_min_max(
+                    pos2(lanes.left(), top),
+                    pos2(lanes.right(), top + lane_height(lane)),
+                );
+                top = rect.bottom();
+                if rect.bottom() < lanes.top() || rect.top() > lanes.bottom() {
+                    continue;
+                }
+                let Some(info) = self.lane_info.get(&(track.id, li)).cloned() else {
+                    continue;
+                };
+                let view = automation::LaneView {
+                    key: automation::LaneKey::Track(track.id, lane.target.clone()),
+                    rect,
+                    clip: lanes,
+                    info: &info,
+                    scale,
+                    magnet,
+                };
+                self.lane_editor(ui, doc, &view);
+            }
+        }
+    }
+
     /// Adds to the selection the clips and tracks edited along with it (groups), the tracks
     /// chosen staying last (focused).
     fn follow_groups(&mut self, doc: &mut Document) {
@@ -1268,7 +1295,7 @@ impl TimelineView {
     }
 }
 
-const LANE_PAD: f32 = 5.0;
+const LANE_PAD: f32 = 7.0;
 
 /// Height of the take lanes shown under a track.
 fn takes_height(track: &Track) -> f32 {
@@ -2355,27 +2382,16 @@ mod tests {
 
         assert_eq!(view.row_at(-1.0), None);
         assert_eq!(view.row_at(10.0), Some(0));
-        assert_eq!(view.row_at(130.0), Some(1));
+        assert_eq!(view.row_at(view.tops[1] + 10.0), Some(1));
         assert_eq!(view.row_at(view.content_height), None);
         assert_eq!(view.track_at(&p, 10.0).map(|t| t.id), Some(a));
         assert!(view.track_at(&p, 80.0).is_none(), "on the lane");
-        assert_eq!(view.lane_at(&p, 80.0), Some((0, 1, 72.0)));
         // A taller lane takes more of the row.
         let mut tall = p.clone();
         tall.track_mut(a).unwrap().automation[1].height = 2.0;
         assert_eq!(lanes_height(tall.track(a).unwrap()), 2.0 * LANE_HEIGHT);
-        let short = view.tops[1];
-        view.tops[1] = 72.0 + 2.0 * LANE_HEIGHT;
-        assert_eq!(
-            view.lane_at(&tall, 72.0 + LANE_HEIGHT + 10.0),
-            Some((0, 1, 72.0))
-        );
-        view.tops[1] = short;
-        assert_eq!(view.lane_at(&p, 10.0), None);
-        assert_eq!(view.take_at(&p, 200.0), Some((b, 0)));
-        assert_eq!(view.take_at(&p, 130.0), None);
-        view.scroll_y = 50.0;
-        assert_eq!(view.lane_at(&p, 30.0), Some((0, 1, 22.0)));
+        assert_eq!(view.take_at(&p, view.tops[1] + 72.0 + 10.0), Some((b, 0)));
+        assert_eq!(view.take_at(&p, 80.0), None);
     }
 
     #[test]

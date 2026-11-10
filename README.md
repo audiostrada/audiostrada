@@ -36,7 +36,8 @@ AudioStrada is in active development: features land quickly, and some rough edge
   ranges, markers, time-stretch and transpose, clips matched to the project tempo.
 - **Mixing**: a console with effects and sends on every strip, buses made from the selection
   in one click, groups, VCAs, snapshots, sidechain, console colors, monitor effects and a loudness meter.
-  Automation with curves and Read, Touch, Latch, Write and Trim modes. Track freeze.
+  Automation with bendable curves drawn, moved and selected point by point or freehand, and Read,
+  Touch, Latch, Write and Trim modes. Track freeze.
 - **Effects**, each with its own editor, factory presets, A/B and loudness matching: EQ and
   Vintage EQ, Compressor (Clean, Bus, Opto, FET), Channel Strip, Gate, Limiter, Maximizer,
   Transient Shaper, De-esser, Pitch Correct, Reverb, Delay, Chorus, Flanger, Phaser, Drive, Tape,

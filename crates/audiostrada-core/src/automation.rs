@@ -45,6 +45,39 @@ pub struct AutomationPoint {
     pub value: f32,
     #[serde(default)]
     pub shape: CurveShape,
+    /// Bend of a linear curve to the next point, -1 to 1 (see [`bend`]).
+    #[serde(default, skip_serializing_if = "crate::model::is_zero")]
+    pub tension: f32,
+}
+
+impl AutomationPoint {
+    pub fn new(time: u64, value: f32, shape: CurveShape) -> Self {
+        Self {
+            time,
+            value,
+            shape,
+            tension: 0.0,
+        }
+    }
+}
+
+/// Steepness of the most bent curve.
+const BEND: f32 = 10.0;
+
+/// Share of the way from a point to the next at `x` (0 to 1) along a curve bent by `tension`:
+/// straight at 0, rising late above 0, early below.
+pub fn bend(x: f32, tension: f32) -> f32 {
+    let k = tension.clamp(-1.0, 1.0) * BEND;
+    if k.abs() < 1e-3 {
+        return x;
+    }
+    (k * x).exp_m1() / k.exp_m1()
+}
+
+/// The tension of a curve passing `share` of the way at its middle.
+pub fn tension_through(share: f32) -> f32 {
+    let m = share.clamp(0.005, 0.995);
+    (2.0 * (1.0 / m - 1.0).ln() / BEND).clamp(-1.0, 1.0)
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -131,7 +164,7 @@ pub fn value_at(points: &[AutomationPoint], time: u64) -> Option<f32> {
     let x = (time - a.time) as f32 / (b.time - a.time).max(1) as f32;
     Some(match a.shape {
         CurveShape::Step => a.value,
-        CurveShape::Linear => a.value + (b.value - a.value) * x,
+        CurveShape::Linear => a.value + (b.value - a.value) * bend(x, a.tension),
         CurveShape::Smooth => {
             let eased = (1.0 - (x * std::f32::consts::PI).cos()) / 2.0;
             a.value + (b.value - a.value) * eased
@@ -156,7 +189,10 @@ pub fn sum(
     times.dedup();
     let bends = |points: &[AutomationPoint], t: u64| {
         let i = points.partition_point(|p| p.time <= t);
-        i > 0 && i < points.len() && points[i - 1].shape != CurveShape::Linear
+        i > 0 && i < points.len() && {
+            let p = points[i - 1];
+            p.shape != CurveShape::Linear || p.tension != 0.0
+        }
     };
     let mut all = Vec::with_capacity(times.len());
     for (k, &t) in times.iter().enumerate() {
@@ -172,11 +208,10 @@ pub fn sum(
         }
     }
     all.into_iter()
-        .map(|time| AutomationPoint {
-            time,
-            value: own.and_then(|o| value_at(o, time)).unwrap_or(fixed)
-                + value_at(other, time).unwrap_or(0.0),
-            shape: CurveShape::Linear,
+        .map(|time| {
+            let value = own.and_then(|o| value_at(o, time)).unwrap_or(fixed)
+                + value_at(other, time).unwrap_or(0.0);
+            AutomationPoint::new(time, value, CurveShape::Linear)
         })
         .collect()
 }
@@ -198,7 +233,7 @@ impl AutomationLane {
 
     /// Adds a point, replacing one at the same time.
     pub fn add(&mut self, time: u64, value: f32, shape: CurveShape) {
-        let point = AutomationPoint { time, value, shape };
+        let point = AutomationPoint::new(time, value, shape);
         match self.points.binary_search_by_key(&time, |p| p.time) {
             Ok(i) => self.points[i] = point,
             Err(i) => self.points.insert(i, point),
@@ -255,12 +290,88 @@ impl AutomationLane {
             if inside
                 && a.shape == CurveShape::Linear
                 && p.shape == CurveShape::Linear
+                && a.tension == 0.0
+                && p.tension == 0.0
                 && (p.value - line).abs() <= tolerance
             {
                 self.points.remove(i);
             } else {
                 i += 1;
             }
+        }
+    }
+}
+
+impl AutomationLane {
+    /// Index of the point at `time`.
+    pub fn index_at(&self, time: u64) -> Option<usize> {
+        self.points.binary_search_by_key(&time, |p| p.time).ok()
+    }
+
+    /// Moves the points at `times` together by `dt` samples, as far as their unmoved neighbours
+    /// let them, and maps their values through `value`. Returns their new times.
+    pub fn shift(&mut self, times: &[u64], dt: i64, value: impl Fn(f32) -> f32) -> Vec<u64> {
+        let moved = |p: &AutomationPoint| times.binary_search(&p.time).is_ok();
+        let (mut low, mut high) = (i64::MIN, i64::MAX);
+        let mut fixed_before: Option<u64> = None;
+        for (i, p) in self.points.iter().enumerate() {
+            if !moved(p) {
+                fixed_before = Some(p.time);
+                continue;
+            }
+            let t = p.time as i64;
+            low = low.max(fixed_before.map_or(-t, |f| f as i64 + 1 - t));
+            if let Some(next) = self.points[i + 1..].iter().find(|q| !moved(q)) {
+                high = high.min(next.time as i64 - 1 - t);
+            }
+        }
+        let dt = if low > high { 0 } else { dt.clamp(low, high) };
+        let mut out = Vec::new();
+        for p in self.points.iter_mut().filter(|p| moved(p)) {
+            p.time = (p.time as i64 + dt) as u64;
+            p.value = value(p.value);
+            out.push(p.time);
+        }
+        out
+    }
+
+    /// Removes the points at `times` (sorted).
+    pub fn remove_times(&mut self, times: &[u64]) {
+        self.points
+            .retain(|p| times.binary_search(&p.time).is_err());
+    }
+
+    /// Adds a point on the curve at `time`, leaving its course as it was; returns its index.
+    pub fn insert_on_curve(&mut self, time: u64) -> Option<usize> {
+        let value = self.value_at(time)?;
+        let i = self.points.partition_point(|p| p.time < time);
+        if self.points.get(i).is_some_and(|p| p.time == time) {
+            return Some(i);
+        }
+        let mut point = AutomationPoint::new(time, value, CurveShape::Linear);
+        if i > 0 && i < self.points.len() {
+            // A bent curve cut in two: each piece is the same curve, steepened by its share.
+            let (a, b) = (self.points[i - 1], self.points[i]);
+            let s = (time - a.time) as f32 / (b.time - a.time).max(1) as f32;
+            point.shape = a.shape;
+            point.tension = a.tension * (1.0 - s);
+            self.points[i - 1].tension = a.tension * s;
+        }
+        self.points.insert(i, point);
+        Some(i)
+    }
+
+    /// Replaces the points between the first and last drawn ones by the drawn ones.
+    pub fn draw(&mut self, drawn: &[(u64, f32)]) {
+        let (Some(first), Some(last)) = (
+            drawn.iter().map(|d| d.0).min(),
+            drawn.iter().map(|d| d.0).max(),
+        ) else {
+            return;
+        };
+        self.remove_range(first, last);
+        for &(t, v) in drawn {
+            self.add(t, v, CurveShape::Linear);
         }
     }
 }
@@ -292,7 +403,7 @@ mod tests {
 
     #[test]
     fn two_curves_add_up() {
-        let p = |time, value, shape| AutomationPoint { time, value, shape };
+        let p = AutomationPoint::new;
         let vca = [
             p(0, 0.0, CurveShape::Linear),
             p(100, -10.0, CurveShape::Linear),
@@ -364,5 +475,64 @@ mod tests {
         let times: Vec<u64> = l.points.iter().map(|p| p.time).collect();
         assert_eq!(times, vec![0, 30, 40, 50]);
         assert!(AutomationMode::Latch.writes() && !AutomationMode::Read.writes());
+    }
+
+    #[test]
+    fn bent_curves_keep_their_ends_and_pass_where_asked() {
+        assert_eq!(bend(0.3, 0.0), 0.3);
+        for t in [-1.0, -0.4, 0.5, 1.0] {
+            assert!(bend(0.0, t).abs() < 1e-6 && (bend(1.0, t) - 1.0).abs() < 1e-5);
+            assert!((bend(0.5, tension_through(bend(0.5, t))) - bend(0.5, t)).abs() < 1e-4);
+        }
+        assert!(bend(0.5, 0.6) < 0.5 && bend(0.5, -0.6) > 0.5);
+        let mut l = lane(&[(0, 0.0), (100, 10.0)]);
+        l.points[0].tension = tension_through(0.2);
+        assert!((l.value_at(50).unwrap() - 2.0).abs() < 1e-3);
+        // Thinning leaves bent curves alone.
+        l.add(200, 20.0, CurveShape::Linear);
+        l.thin(0, 200, 100.0);
+        assert_eq!(l.points.len(), 3);
+    }
+
+    #[test]
+    fn a_point_added_on_the_curve_leaves_it_as_it_was() {
+        let mut l = lane(&[(0, 0.0), (1000, 10.0), (2000, 0.0)]);
+        l.points[0].tension = 0.7;
+        l.points[1].shape = CurveShape::Step;
+        let before: Vec<f32> = (0..2000)
+            .step_by(37)
+            .map(|t| l.value_at(t).unwrap())
+            .collect();
+        assert_eq!(l.insert_on_curve(300), Some(1));
+        assert_eq!(l.insert_on_curve(1500), Some(3));
+        assert_eq!(l.insert_on_curve(1000), Some(2));
+        let after: Vec<f32> = (0..2000)
+            .step_by(37)
+            .map(|t| l.value_at(t).unwrap())
+            .collect();
+        for (a, b) in before.iter().zip(&after) {
+            assert!((a - b).abs() < 1e-3, "{a} {b}");
+        }
+        assert_eq!(l.points.len(), 5);
+    }
+
+    #[test]
+    fn points_moved_together_stop_at_their_neighbours() {
+        let mut l = lane(&[(0, 0.0), (100, 1.0), (200, 2.0), (300, 3.0), (400, 4.0)]);
+        let moved = l.shift(&[100, 200], 500, |v| v + 1.0);
+        assert_eq!(moved, vec![199, 299]);
+        let times: Vec<u64> = l.points.iter().map(|p| p.time).collect();
+        assert_eq!(times, vec![0, 199, 299, 300, 400]);
+        assert_eq!(l.points[1].value, 2.0);
+        // Alone before the first unmoved point, as far as time zero.
+        let mut l = lane(&[(50, 0.0), (100, 1.0)]);
+        assert_eq!(l.shift(&[50], -80, |v| v), vec![0]);
+        l.remove_times(&[0]);
+        assert_eq!(l.points.len(), 1);
+        // Drawing replaces what was under the stroke.
+        let mut l = lane(&[(0, 0.0), (100, 1.0), (200, 2.0), (300, 3.0)]);
+        l.draw(&[(150, 9.0), (120, 8.0), (250, 7.0)]);
+        let times: Vec<u64> = l.points.iter().map(|p| p.time).collect();
+        assert_eq!(times, vec![0, 100, 120, 150, 250, 300]);
     }
 }

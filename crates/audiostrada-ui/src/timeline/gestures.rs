@@ -243,77 +243,13 @@ impl TimelineView {
                 original: doc.project().clone(),
             });
         }
-        // Automation lanes: hit test of the pointer.
-        let lane_hit = |pos: Pos2| -> Option<(TrackId, usize, Rect, Option<usize>)> {
-            let (r, li, top) = self.lane_at(project, pos.y - lanes.top())?;
-            let track = &project.tracks[self.rows[r].0];
-            let lane = track.automation.get(li)?;
-            let info = self.lane_info.get(&(track.id, li))?;
-            let rect = Rect::from_min_max(
-                pos2(lanes.left(), lanes.top() + top),
-                pos2(lanes.right(), lanes.top() + top + lane_height(lane)),
-            );
-            let point = lane
-                .points
-                .iter()
-                .enumerate()
-                .map(|(i, p)| {
-                    let d = pos2(scale.x(p.time), value_y(rect, p.value, info)) - pos;
-                    (i, d.length())
-                })
-                .filter(|&(_, d)| d < POINT_GRAB)
-                .min_by(|a, b| a.1.total_cmp(&b.1))
-                .map(|(i, _)| i);
-            Some((track.id, li, rect, point))
-        };
-        // A drag starts a few pixels away from the press: hit test where the button went down.
         let press = ui.input(|i| i.pointer.press_origin());
-        let hit = if lanes_response.drag_started() {
-            press.or(lanes_response.interact_pointer_pos())
-        } else {
-            lanes_response
-                .interact_pointer_pos()
-                .or(lanes_response.hover_pos())
-        }
-        .and_then(lane_hit);
         let start_pos = press.or(lanes_response.interact_pointer_pos());
-        if self.drag.is_none() && hit.is_some() && lanes_response.hovered() {
-            let point = hit.as_ref().and_then(|h| h.3);
-            // What the pointer would set here, or the point under it, beside the set value.
-            if let (Some((track, li, rect, point)), Some(pos)) =
-                (hit.as_ref(), lanes_response.hover_pos())
-                && let Some(info) = self.lane_info.get(&(*track, *li))
-            {
-                let value = point
-                    .and_then(|i| {
-                        project
-                            .track(*track)?
-                            .automation
-                            .get(*li)?
-                            .points
-                            .get(i)
-                            .map(|p| p.value)
-                    })
-                    .unwrap_or_else(|| y_value(*rect, pos.y, info));
-                let accent = ui.visuals().selection.bg_fill;
-                value_tag(ui.ctx(), pos, info.compared(value), accent);
-            }
-            ui.ctx().set_cursor_icon(if point.is_some() {
-                CursorIcon::Grab
-            } else {
-                CursorIcon::Crosshair
-            });
+        // Working on clips leaves the automation points.
+        if lanes_response.clicked() || lanes_response.drag_started() {
+            self.chosen = None;
         }
         if lanes_response.drag_started()
-            && let Some((track, li, rect, Some(point))) = hit
-        {
-            self.drag = Some(Drag {
-                kind: DragKind::Point(track, li, point, rect.top()),
-                clip: None,
-                origin: start_pos.unwrap_or(rect.center()),
-                original: doc.project().clone(),
-            });
-        } else if lanes_response.drag_started()
             && let Some(pos) = start_pos
             && let Some((track, playlist)) = self.take_at(project, pos.y - lanes.top())
         {
@@ -324,7 +260,6 @@ impl TimelineView {
                 original: doc.project().clone(),
             });
         } else if lanes_response.drag_started()
-            && hit.is_none()
             && let Some(pos) = start_pos
         {
             let edge = range_edge(pos, false);
@@ -591,29 +526,6 @@ impl TimelineView {
                     }
                     preview.markers.sort_by_key(|m| (m.position, m.id));
                 }
-                DragKind::Point(track, li, point, top) => {
-                    let height = drag
-                        .original
-                        .track(track)
-                        .and_then(|t| t.automation.get(li))
-                        .map_or(LANE_HEIGHT, lane_height);
-                    if let Some(info) = self.lane_info.get(&(track, li)).cloned() {
-                        let rect = Rect::from_min_max(
-                            pos2(lanes.left(), top),
-                            pos2(lanes.right(), top + height),
-                        );
-                        let time = magnet.snap(scale.sample(pos.x));
-                        let value = y_value(rect, pos.y, &info);
-                        let accent = ui.visuals().selection.bg_fill;
-                        value_tag(ui.ctx(), pos, info.compared(value), accent);
-                        if let Some(lane) = preview
-                            .track_mut(track)
-                            .and_then(|t| t.automation.get_mut(li))
-                        {
-                            lane.move_point(point, time, value);
-                        }
-                    }
-                }
                 DragKind::Comp(track, playlist, anchor) => {
                     let other = magnet.snap(scale.sample(pos.x));
                     let (a, b) = (anchor.min(other), anchor.max(other));
@@ -776,7 +688,6 @@ impl TimelineView {
                 | DragKind::Range { .. }
                 | DragKind::RangeEdge { .. }
                 | DragKind::RulerRange { .. } => tr("Edit"),
-                DragKind::Point(..) => tr("Move automation point"),
                 DragKind::Sweep { mute: None } => tr("Delete clips"),
                 DragKind::Sweep { mute: Some(_) } => tr("Mute clips"),
                 DragKind::Comp(..) => tr("Comp takes"),
@@ -789,8 +700,7 @@ impl TimelineView {
             self.selection
                 .retain(|c| !swept.contains(c) || edit::clip(doc.project(), *c).is_some());
         }
-        let tool_clicked = if hit.is_none()
-            && !matches!(tool, Tool::Smart | Tool::Range)
+        let tool_clicked = if !matches!(tool, Tool::Smart | Tool::Range)
             && lanes_response.clicked()
             && let Some(pos) = lanes_response.interact_pointer_pos()
             && let Some((clip, _, _)) = hovered
@@ -819,43 +729,10 @@ impl TimelineView {
             }
         }
 
-        // Automation clicks: add a point, double-click removes, right-click edits the shape.
-        if let Some((track, li, rect, point)) = hit {
-            let pos = lanes_response
-                .interact_pointer_pos()
-                .unwrap_or(rect.center());
-            if lanes_response.double_clicked()
-                && let Some(point) = point
-            {
-                doc.history_mut().edit(tr("Delete automation point"), |p| {
-                    if let Some(lane) = p.track_mut(track).and_then(|t| t.automation.get_mut(li))
-                        && point < lane.points.len()
-                    {
-                        lane.points.remove(point);
-                    }
-                });
-            } else if lanes_response.clicked()
-                && point.is_none()
-                && let Some(info) = self.lane_info.get(&(track, li)).cloned()
-            {
-                let time = magnet.snap(scale.sample(pos.x));
-                let value = y_value(rect, pos.y, &info);
-                doc.history_mut().edit(tr("Add automation point"), |p| {
-                    if let Some(lane) = p.track_mut(track).and_then(|t| t.automation.get_mut(li)) {
-                        lane.add(time, value, CurveShape::Linear);
-                    }
-                });
-            }
-            if lanes_response.secondary_clicked() {
-                self.point_menu = point.map(|p| (track, li, p));
-            }
-        }
         if lanes_response.secondary_clicked()
-            && hit.is_none()
             && let Some(pos) = lanes_response.interact_pointer_pos()
         {
             let at = magnet.snap(scale.sample(pos.x));
-            self.point_menu = None;
             let row_track = self.track_at(project, pos.y - lanes.top()).map(|t| t.id);
             let in_range = self.range.as_ref().is_some_and(|r| {
                 let s = scale.sample(pos.x);
@@ -899,59 +776,20 @@ impl TimelineView {
         } else if lanes_response.secondary_clicked() {
             self.menu = None;
         }
-        let point_menu = self.point_menu;
         let menu = self.menu;
-        lanes_response.context_menu(|ui| {
-            let Some((track, li, point)) = point_menu else {
-                match menu {
-                    Some(menus::Menu::Clip { clip, at }) => self.clip_menu(ui, doc, clip, at),
-                    Some(menus::Menu::Lane { track, at }) => self.lane_menu(ui, doc, track, at),
-                    Some(menus::Menu::Range) => self.range_menu(ui, doc, settings),
-                    Some(menus::Menu::Fade { clip, fade_in }) => {
-                        self.fade_menu(ui, doc, clip, fade_in)
-                    }
-                    Some(menus::Menu::Crossfade { left, right }) => {
-                        self.crossfade_menu(ui, doc, left, right)
-                    }
-                    None => ui.close(),
-                }
-                return;
-            };
-            ui.label(egui::RichText::new(tr("Curve to the next point")).weak());
-            for (shape, name) in [
-                (CurveShape::Linear, tr("Linear")),
-                (CurveShape::Smooth, tr("Smooth")),
-                (CurveShape::Step, tr("Step")),
-            ] {
-                if ui.button(name).clicked() {
-                    doc.history_mut().edit(tr("Automation curve"), |p| {
-                        if let Some(pt) = p
-                            .track_mut(track)
-                            .and_then(|t| t.automation.get_mut(li))
-                            .and_then(|l| l.points.get_mut(point))
-                        {
-                            pt.shape = shape;
-                        }
-                    });
-                    ui.close();
-                }
+        lanes_response.context_menu(|ui| match menu {
+            Some(menus::Menu::Clip { clip, at }) => self.clip_menu(ui, doc, clip, at),
+            Some(menus::Menu::Lane { track, at }) => self.lane_menu(ui, doc, track, at),
+            Some(menus::Menu::Range) => self.range_menu(ui, doc, settings),
+            Some(menus::Menu::Fade { clip, fade_in }) => self.fade_menu(ui, doc, clip, fade_in),
+            Some(menus::Menu::Crossfade { left, right }) => {
+                self.crossfade_menu(ui, doc, left, right)
             }
-            ui.separator();
-            if ui.button(tr("Delete point")).clicked() {
-                doc.history_mut().edit(tr("Delete automation point"), |p| {
-                    if let Some(lane) = p.track_mut(track).and_then(|t| t.automation.get_mut(li))
-                        && point < lane.points.len()
-                    {
-                        lane.points.remove(point);
-                    }
-                });
-                ui.close();
-            }
+            None => ui.close(),
         });
 
         // Double-click on an empty part of a track creates a MIDI clip.
-        if hit.is_none()
-            && hovered.is_none()
+        if hovered.is_none()
             && lanes_response.double_clicked()
             && let Some(pos) = lanes_response.interact_pointer_pos()
             && let Some(track) = self.track_at(project, pos.y - lanes.top())
@@ -962,8 +800,8 @@ impl TimelineView {
 
         // On the handles: Alt-click turns a fade's shape, a double-click resets the fade, the
         // volume or the crossfade.
-        let handle_clicked = if hit.is_none()
-            && ((lanes_response.clicked() && modifiers.alt) || lanes_response.double_clicked())
+        let handle_clicked = if ((lanes_response.clicked() && modifiers.alt)
+            || lanes_response.double_clicked())
             && let Some(pos) = lanes_response.interact_pointer_pos()
         {
             let double = lanes_response.double_clicked();
@@ -1018,8 +856,7 @@ impl TimelineView {
         };
 
         // Clicks.
-        if hit.is_none()
-            && !tool_clicked
+        if !tool_clicked
             && !handle_clicked
             && lanes_response.clicked()
             && let Some(pos) = lanes_response.interact_pointer_pos()
@@ -1391,7 +1228,7 @@ fn millis(project: &Project, samples: u64) -> String {
     )
 }
 
-fn bars(project: &Project, at: u64) -> String {
+pub(super) fn bars(project: &Project, at: u64) -> String {
     let (tempo, rate) = (&project.tempo, project.sample_rate.max(1));
     let bbt = tempo.beat_to_bbt(tempo.sample_to_beat(at, rate));
     format!("{}.{}.{:03}", bbt.bar, bbt.beat, bbt.tick)

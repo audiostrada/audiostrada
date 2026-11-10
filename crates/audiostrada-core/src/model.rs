@@ -219,7 +219,7 @@ fn is_unit(v: &f64) -> bool {
     (*v - 1.0).abs() < 1e-12
 }
 
-fn is_zero(v: &f32) -> bool {
+pub(crate) fn is_zero(v: &f32) -> bool {
     *v == 0.0
 }
 
@@ -810,6 +810,11 @@ fn repair_lanes(lanes: &mut [AutomationLane]) {
             if !p.value.is_finite() {
                 p.value = 0.0;
             }
+            p.tension = if p.tension.is_finite() {
+                p.tension.clamp(-1.0, 1.0)
+            } else {
+                0.0
+            };
         }
         lane.points.sort_by_key(|p| p.time);
         lane.points.dedup_by_key(|p| p.time);
@@ -1340,11 +1345,7 @@ mod tests {
         p.punch_range = Some((0, u64::MAX));
         p.next_id = 1;
         p.master.gain_db = f32::NAN;
-        let point = |time, value| AutomationPoint {
-            time,
-            value,
-            shape: CurveShape::Linear,
-        };
+        let point = |time, value| AutomationPoint::new(time, value, CurveShape::Linear);
         let mut lane = AutomationLane::new(AutomationTarget::Gain);
         lane.points = vec![point(50, 1.0), point(10, f32::INFINITY), point(50, 2.0)];
         p.master.automation.push(lane.clone());

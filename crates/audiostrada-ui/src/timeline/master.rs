@@ -6,8 +6,8 @@ use headers::{LaneInfo, Reading};
 
 use super::*;
 
-/// The master's volume lane, its main row, is twice a lane's usual height.
-const MAIN: f32 = 2.0 * LANE_HEIGHT;
+/// The master's volume lane, its main row, is taller than a lane.
+const MAIN: f32 = 1.25 * LANE_HEIGHT;
 
 /// The master's lanes shown: its volume first, always, then those added with +.
 fn shown(project: &Project) -> Vec<AutomationLane> {
@@ -57,6 +57,7 @@ impl TimelineView {
         project: &Project,
         (head, area): (Rect, Rect),
         scale: Scale,
+        magnet: &super::magnet::Magnet,
     ) {
         let visuals = ui.visuals().clone();
         let painter = ui.painter().with_clip_rect(head.union(area));
@@ -138,7 +139,15 @@ impl TimelineView {
                 color,
                 &visuals,
             );
-            self.master_lane_edit(ui, doc, &lane, rect, &info, scale);
+            let view = super::automation::LaneView {
+                key: super::automation::LaneKey::Master(lane.target.clone()),
+                rect,
+                clip: area,
+                info: &info,
+                scale,
+                magnet,
+            };
+            self.lane_editor(ui, doc, &view);
             master_lane_edge(ui, doc, name.union(rect), &lane.target);
         }
         painter.hline(
@@ -194,96 +203,6 @@ impl TimelineView {
         egui::Popup::menu(&add)
             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
             .show(|ui| self.master_lane_menu(ui, doc));
-    }
-
-    /// A master lane under the pointer: a click adds a point, a drag moves one, a double-click
-    /// removes it.
-    fn master_lane_edit(
-        &mut self,
-        ui: &mut Ui,
-        doc: &mut Document,
-        lane: &AutomationLane,
-        rect: Rect,
-        info: &LaneInfo,
-        scale: Scale,
-    ) {
-        let target = lane.target.clone();
-        let response = ui.interact(
-            rect,
-            ui.scope_id().with(("master-lane", format!("{target:?}"))),
-            Sense::click_and_drag(),
-        );
-        let near = |pos: Pos2| {
-            lane.points
-                .iter()
-                .enumerate()
-                .map(|(i, p)| {
-                    (
-                        i,
-                        (pos2(scale.x(p.time), value_y(rect, p.value, info)) - pos).length(),
-                    )
-                })
-                .filter(|&(_, d)| d < POINT_GRAB)
-                .min_by(|a, b| a.1.total_cmp(&b.1))
-                .map(|(i, _)| i)
-        };
-        if let Some(pos) = response.hover_pos() {
-            let point = near(pos);
-            ui.ctx().set_cursor_icon(if point.is_some() {
-                CursorIcon::Grab
-            } else {
-                CursorIcon::Crosshair
-            });
-            let value = point.map_or_else(|| y_value(rect, pos.y, info), |i| lane.points[i].value);
-            value_tag(
-                ui.ctx(),
-                pos,
-                info.compared(value),
-                ui.visuals().selection.bg_fill,
-            );
-        }
-        let press = ui.input(|i| i.pointer.press_origin());
-        if response.drag_started() {
-            self.master_point = press.and_then(near).map(|point| (target.clone(), point));
-        }
-        if let Some((_, point)) = self.master_point.clone().filter(|d| d.0 == target)
-            && response.dragged()
-            && let Some(pos) = response.interact_pointer_pos()
-        {
-            let time = scale.sample(pos.x);
-            let value = y_value(rect, pos.y, info);
-            let mut moved = point;
-            doc.history_mut().edit_merged(
-                tr("Move automation point"),
-                &format!("master-point:{target:?}"),
-                |p| moved = master_lane_mut(&mut p.master, &target).move_point(point, time, value),
-            );
-            self.master_point = Some((target.clone(), moved));
-        }
-        if response.drag_stopped() {
-            self.master_point = None;
-            doc.history_mut().end_gesture();
-        }
-        let Some(pos) = response.interact_pointer_pos() else {
-            return;
-        };
-        let point = near(pos);
-        if response.double_clicked()
-            && let Some(point) = point
-        {
-            doc.history_mut().edit(tr("Delete automation point"), |p| {
-                let l = master_lane_mut(&mut p.master, &target);
-                if point < l.points.len() {
-                    l.points.remove(point);
-                }
-            });
-        } else if response.clicked() && point.is_none() {
-            let time = scale.sample(pos.x);
-            let value = y_value(rect, pos.y, info);
-            doc.history_mut().edit(tr("Add automation point"), |p| {
-                master_lane_mut(&mut p.master, &target).add(time, value, CurveShape::Linear);
-            });
-        }
     }
 
     /// What a master lane shows: its volume, or a parameter of one of its effects.

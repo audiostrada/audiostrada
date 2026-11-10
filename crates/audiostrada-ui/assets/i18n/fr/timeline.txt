@@ -171,8 +171,8 @@ Punch désactivé
 Loop off
 Boucle désactivée
 
-Click to add points, or write them during playback
-Cliquer pour ajouter des points, ou les écrire pendant la lecture
+Click to add points, Ctrl+drag to draw them, or write them during playback
+Cliquer pour ajouter des points, Ctrl+glisser pour les dessiner, ou les écrire pendant la lecture
 
 {seconds} s on {count} track(s)
 {seconds} s sur {count} piste(s)
@@ -853,3 +853,51 @@ Afficher la piste master
 
 Detecting the tempo…
 Détection du tempo…
+
+Automation point value
+Valeur du point d'automation
+
+Bend automation curve
+Courber l'automation
+
+Clear automation lane
+Vider la piste d'automation
+
+Click adds a point · Ctrl+drag draws · Shift+drag selects points
+Clic : ajoute un point · Ctrl+glisser : dessine · Shift+glisser : sélectionne des points
+
+Click adds a point on the curve · Drag moves this segment · Alt+drag bends it
+Clic : ajoute un point sur la courbe · Glisser : déplace ce segment · Alt+glisser : le courbe
+
+Click adds a point on the line · Drag moves the line
+Clic : ajoute un point sur la ligne · Glisser : déplace la ligne
+
+Delete every point
+Supprimer tous les points
+
+Delete the selected points
+Supprimer les points sélectionnés
+
+Drag to move (Shift: finely, Ctrl: value only) · Alt+click deletes · Double-click to type a value
+Glisser pour déplacer (Shift : finement, Ctrl : valeur seule) · Alt+clic : supprime · Double-clic : saisir une valeur
+
+Draw automation
+Dessiner l'automation
+
+Move automation segment
+Déplacer le segment d'automation
+
+Not a value of this lane
+Valeur non reconnue pour cette piste
+
+Select every point
+Sélectionner tous les points
+
+Straight
+Droite
+
+Type a value…
+Saisir une valeur…
+
+Value of the point
+Valeur du point

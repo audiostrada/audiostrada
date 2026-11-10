@@ -779,7 +779,7 @@ pub(super) fn draw_lane(
         painter.text(
             pos2(rect.left() + 60.0, rect.center().y),
             Align2::LEFT_CENTER,
-            tr("Click to add points, or write them during playback"),
+            tr("Click to add points, Ctrl+drag to draw them, or write them during playback"),
             FontId::proportional(11.0),
             weak,
         );

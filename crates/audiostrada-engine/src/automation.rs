@@ -69,11 +69,7 @@ mod tests {
 
     #[test]
     fn lanes_drive_parameters_unless_overridden() {
-        let point = |time, value| AutomationPoint {
-            time,
-            value,
-            shape: CurveShape::Linear,
-        };
+        let point = |time, value| AutomationPoint::new(time, value, CurveShape::Linear);
         let target = SharedParam::new(0.0);
         let overridden = Arc::new(AtomicBool::new(false));
         let set = AutomationSet {

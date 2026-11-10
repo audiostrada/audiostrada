@@ -47,13 +47,13 @@ pub fn definitions(live: bool) -> Vec<Value> {
         ),
         tool(
             "read_automation",
-            "The automation lanes of a track (or the master): what each controls and its points [seconds, value, shape].",
+            "The automation lanes of a track (or the master): what each controls and its points [seconds, value, shape, bend?].",
             json!({"track": track}),
             &["track"],
         ),
         tool(
             "write_automation",
-            "Write automation points on a lane: `replace` (default) clears the lane between the first and last point given, `add` keeps it, `clear` empties the lane. Points: [seconds, value, shape?] or {at, value, shape}; shape is linear (default), step or smooth. The lane is shown and switched on.",
+            "Write automation points on a lane: `replace` (default) clears the lane between the first and last point given, `add` keeps it, `clear` empties the lane. Points: [seconds, value, shape?, bend?] or {at, value, shape, bend}; shape is linear (default), step or smooth; bend (-1 to 1) curves a linear shape to the next point, rising late above 0 and early below. The lane is shown and switched on.",
             json!({"track": track, "target": target, "points": {"type": "array"}, "mode": {"type": "string", "enum": ["replace", "add", "clear"]}}),
             &["track", "target"],
         ),
@@ -282,14 +282,22 @@ pub fn call(doc: &mut Document, name: &str, args: &Value) -> Option<Result<Value
                     Channel::Master => project.master.automation.clone(),
                 };
                 let secs = |s: u64| (s as f64 / f64::from(rate) * 1000.0).round() / 1000.0;
-                Ok(json!(lanes
-                    .iter()
-                    .map(|l| json!({
-                        "target": describe_target(doc, &l.target),
-                        "enabled": l.enabled,
-                        "points": l.points.iter().map(|p| json!([secs(p.time), p.value, shape_name(p.shape)])).collect::<Vec<_>>(),
-                    }))
-                    .collect::<Vec<_>>()))
+                Ok(json!(
+                    lanes
+                        .iter()
+                        .map(|l| json!({
+                            "target": describe_target(doc, &l.target),
+                            "enabled": l.enabled,
+                            "points": l.points.iter().map(|p| {
+                                let mut point = json!([secs(p.time), p.value, shape_name(p.shape)]);
+                                if p.tension != 0.0 && let Some(a) = point.as_array_mut() {
+                                    a.push(json!(p.tension));
+                                }
+                                point
+                            }).collect::<Vec<_>>(),
+                        }))
+                        .collect::<Vec<_>>()
+                ))
             }
             "write_automation" => {
                 let channel = track_ref(doc, args.get("track"))?;
@@ -316,7 +324,13 @@ pub fn call(doc: &mut Document, name: &str, args: &Value) -> Option<Result<Value
                         .filter(|v| v.is_finite())
                         .ok_or("each point needs a value")? as f32;
                     let s = shape(p.get("shape").or_else(|| p.get(2)).and_then(Value::as_str));
-                    points.push((at, value, s));
+                    let bend = p
+                        .get("bend")
+                        .or_else(|| p.get(3))
+                        .and_then(Value::as_f64)
+                        .filter(|b| b.is_finite())
+                        .unwrap_or(0.0) as f32;
+                    points.push((at, value, s, bend.clamp(-1.0, 1.0)));
                 }
                 if points.is_empty() && mode != "clear" {
                     return Err("`points` are needed".into());
@@ -343,8 +357,11 @@ pub fn call(doc: &mut Document, name: &str, args: &Value) -> Option<Result<Value
                             lane.remove_range(first, last + 1);
                         }
                     }
-                    for (at, value, s) in &points {
-                        lane.add(*at, *value, *s);
+                    for &(at, value, s, bend) in &points {
+                        lane.add(at, value, s);
+                        if let Some(i) = lane.index_at(at) {
+                            lane.points[i].tension = bend;
+                        }
                     }
                     lane.enabled = true;
                     lane.visible = true;

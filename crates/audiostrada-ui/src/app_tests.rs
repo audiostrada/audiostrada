@@ -16,6 +16,8 @@ pub(crate) struct Harness {
     pub ctx: egui::Context,
     frame: eframe::Frame,
     dir: PathBuf,
+    /// Keys held during the next frames.
+    pub modifiers: egui::Modifiers,
 }
 
 impl Drop for Harness {
@@ -64,6 +66,7 @@ impl Harness {
             ctx: egui::Context::default(),
             frame: eframe::Frame::_new_kittest(),
             dir,
+            modifiers: egui::Modifiers::NONE,
         }
     }
 
@@ -129,7 +132,9 @@ impl Harness {
     ) {
         let input = RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1600.0, 1000.0))),
-            events,
+            events: std::iter::once(Event::ModifiersChanged(self.modifiers))
+                .chain(events)
+                .collect(),
             ..Default::default()
         };
         let (app, frame) = (&mut self.app, &mut self.frame);

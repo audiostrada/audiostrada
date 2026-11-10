@@ -150,18 +150,10 @@ fn close_lane(points: &mut Vec<AutomationPoint>, start: u64, end: u64) {
         && kept.last().is_none_or(|p| p.time < last)
         && !kept.is_empty()
     {
-        kept.push(AutomationPoint {
-            time: last,
-            value,
-            shape: CurveShape::Linear,
-        });
+        kept.push(AutomationPoint::new(last, value, CurveShape::Linear));
     }
     if let Some(value) = after {
-        kept.push(AutomationPoint {
-            time: start,
-            value,
-            shape: CurveShape::Linear,
-        });
+        kept.push(AutomationPoint::new(start, value, CurveShape::Linear));
     }
     for p in points.iter().filter(|p| p.time >= end) {
         let moved = AutomationPoint {
@@ -186,11 +178,7 @@ fn end_lane(points: &mut Vec<AutomationPoint>, end: u64) {
     if let Some(value) = value
         && points.last().is_none_or(|p| p.time < end)
     {
-        points.push(AutomationPoint {
-            time: end,
-            value,
-            shape: CurveShape::Linear,
-        });
+        points.push(AutomationPoint::new(end, value, CurveShape::Linear));
     }
 }
 

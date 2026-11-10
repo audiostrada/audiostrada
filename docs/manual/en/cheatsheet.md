@@ -146,7 +146,13 @@
 | | |
 |---|---|
 | **A** on a header | show the lanes |
-| click a lane | add a point |
-| double-click a point | delete it |
+| click a lane, or its curve | add a point |
+| drag a segment | move it up or down |
+| [[Alt]]+drag a segment | bend it |
+| [[Shift]]+drag a point | move it finely |
+| [[Ctrl]]+drag a lane | draw freehand |
+| [[Shift]]+drag a lane | select points |
+| [[Alt]]+click a point | delete it |
+| double-click a point | type its value |
 | Read, Touch, Latch | play, write while held, write until stop |
 | Write, Trim | write everything, offset the curve |

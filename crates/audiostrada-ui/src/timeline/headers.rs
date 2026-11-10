@@ -1011,7 +1011,10 @@ pub(super) struct LaneInfo {
 impl LaneInfo {
     /// Where a value sits in the range, 0 to 1.
     pub fn share(&self, v: f32) -> f32 {
-        let f = if self.log {
+        // Volumes follow the fader's travel, finer around 0 dB.
+        let f = if matches!(self.reading, Reading::Db) {
+            crate::widgets::fader_position(v)
+        } else if self.log {
             (v.max(self.min) / self.min).ln() / (self.max / self.min).ln()
         } else {
             (v - self.min) / (self.max - self.min).max(1e-9)
@@ -1021,7 +1024,9 @@ impl LaneInfo {
 
     /// The value at a share of the range.
     pub fn at_share(&self, f: f32) -> f32 {
-        if self.log {
+        if matches!(self.reading, Reading::Db) {
+            crate::widgets::fader_db(f)
+        } else if self.log {
             self.min * (self.max / self.min).powf(f)
         } else {
             self.min + f * (self.max - self.min)
@@ -1051,6 +1056,54 @@ impl LaneInfo {
                 )
             }
         }
+    }
+
+    /// Values a moved point is drawn to: the set value, 0 dB, the center, the default.
+    pub fn landmarks(&self) -> Vec<f32> {
+        let mut marks: Vec<f32> = self.base.into_iter().collect();
+        match self.reading {
+            Reading::Db | Reading::Pan => marks.push(0.0),
+            Reading::Param(p) => marks.push(p.default),
+            Reading::Toggle | Reading::Share => {}
+        }
+        marks
+    }
+
+    /// A value typed in the lane's unit: "-3", "-3 dB", "L 20", "2.4 kHz", "50 %".
+    pub fn parse(&self, text: &str) -> Option<f32> {
+        let t = text.trim().to_lowercase();
+        let digits: String = t
+            .chars()
+            .filter(|c| c.is_ascii_digit() || matches!(c, '.' | ',' | '-' | '+'))
+            .collect();
+        let number = digits.replace(',', ".").parse::<f32>().ok();
+        let v = match self.reading {
+            Reading::Db if t.contains("inf") || t.contains('∞') => self.min,
+            Reading::Pan if t.starts_with('c') => 0.0,
+            Reading::Pan => {
+                let n = number? / 100.0;
+                match t.chars().next() {
+                    Some('l' | 'g') => -n.abs(),
+                    Some('r' | 'd') => n.abs(),
+                    _ => n,
+                }
+            }
+            Reading::Toggle => match number {
+                Some(n) => (n >= 0.5) as u8 as f32,
+                None if t.starts_with(&tr("Not muted").to_lowercase()) => 0.0,
+                None if t.starts_with('m') || t == "on" || t == "oui" || t == "yes" => 1.0,
+                None => 0.0,
+            },
+            Reading::Share => self.min + number? / 100.0 * (self.max - self.min),
+            Reading::Param(p) if !p.choices.is_empty() => p
+                .choices
+                .iter()
+                .position(|c| tr(c).to_lowercase() == t || c.to_lowercase() == t)
+                .map_or(number?, |i| p.min + i as f32),
+            Reading::Param(p) if p.unit == "Hz" && t.contains('k') => number? * 1000.0,
+            Reading::Db | Reading::Param(_) => number?,
+        };
+        v.is_finite().then(|| v.clamp(self.min, self.max))
     }
 
     pub fn base_label(&self) -> Option<String> {
@@ -1144,5 +1197,46 @@ impl TimelineView {
             Sense::hover(),
         )
         .on_hover_text(problems.join("\n"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn info(reading: Reading, min: f32, max: f32) -> LaneInfo {
+        LaneInfo {
+            name: String::new(),
+            min,
+            max,
+            reading,
+            log: false,
+            base: Some(-6.0),
+            base_text: None,
+        }
+    }
+
+    #[test]
+    fn typed_values_read_in_the_lane_unit_and_volumes_follow_the_fader() {
+        let db = info(Reading::Db, -60.0, 12.0);
+        assert_eq!(db.parse("-3,5 dB"), Some(-3.5));
+        assert_eq!(db.parse("-inf"), Some(-60.0));
+        assert_eq!(db.parse("40"), Some(12.0));
+        assert_eq!(db.parse("loud"), None);
+        // 0 dB sits where the fader puts it, the top quarter keeping +12 dB.
+        assert!((db.share(0.0) - crate::widgets::fader_position(0.0)).abs() < 1e-6);
+        assert!((db.at_share(db.share(-7.5)) + 7.5).abs() < 1e-4);
+        assert_eq!(db.landmarks(), vec![-6.0, 0.0]);
+        let pan = info(Reading::Pan, -1.0, 1.0);
+        assert_eq!(pan.parse("L 20"), Some(-0.2));
+        assert_eq!(pan.parse("R30"), Some(0.3));
+        assert_eq!(pan.parse("-50"), Some(-0.5));
+        assert_eq!(pan.parse("C"), Some(0.0));
+        let mute = info(Reading::Toggle, 0.0, 1.0);
+        assert_eq!(mute.parse("1"), Some(1.0));
+        assert_eq!(mute.parse("Muted"), Some(1.0));
+        assert_eq!(mute.parse("Not muted"), Some(0.0));
+        let share = info(Reading::Share, 0.0, 2.0);
+        assert_eq!(share.parse("25 %"), Some(0.5));
     }
 }

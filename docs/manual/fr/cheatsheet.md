@@ -146,7 +146,13 @@
 | | |
 |---|---|
 | **A** sur un en-tête | afficher les pistes d'automation |
-| clic sur une piste d'automation | ajouter un point |
-| double-clic sur un point | le supprimer |
+| clic sur une piste d'automation, ou sa courbe | ajouter un point |
+| glisser un segment | le monter ou le descendre |
+| [[Alt]]+glisser un segment | le courber |
+| [[Shift]]+glisser un point | le déplacer finement |
+| [[Ctrl]]+glisser sur la piste | dessiner à main levée |
+| [[Shift]]+glisser sur la piste | sélectionner des points |
+| [[Alt]]+clic sur un point | le supprimer |
+| double-clic sur un point | saisir sa valeur |
 | Read, Touch, Latch | jouer, écrire au toucher, écrire jusqu'à l'arrêt |
 | Write, Trim | tout écrire, décaler la courbe |
