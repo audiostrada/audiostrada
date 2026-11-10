@@ -14,6 +14,9 @@ through them family by family; the parameter tables give each control's range an
   Right-click one of yours to rename or delete it. The star adds the preset to your favorites,
   the disk saves the current settings (type *Category: name* to file it). **A** / **B** hold two
   settings to compare, the button beside them copies one onto the other.
+- **Factory presets** start with *Default*, the effect's own settings, then go by source or job
+  (*Vocal*, *Kick*, *Drum bus*, *Master*, *Fix*...). Those under *Send* are fully wet, for an
+  effect on a bus fed by sends; *Sidechain* presets expect a key from another track.
 - **Bypass**, at the right of the bar, is lit amber while the effect is bypassed.
 - **Effect chains** keep a whole list of effects with their settings: right-click an effect (or
   use the track menu) › *Save effects as a chain*, then add it to any track from *+ insert* ›

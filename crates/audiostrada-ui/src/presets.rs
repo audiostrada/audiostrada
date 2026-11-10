@@ -101,6 +101,8 @@ const LOW_SHELF: f32 = 1.0;
 const HIGH_SHELF: f32 = 2.0;
 const LOW_CUT: f32 = 3.0;
 const HIGH_CUT: f32 = 4.0;
+const NOTCH: f32 = 5.0;
+const TILT: f32 = 7.0;
 
 /// An EQ preset from its bands: type, frequency, gain and Q.
 fn eq_preset(name: &str, bands: &[(f32, f32, f32, f32)]) -> Preset {
@@ -133,15 +135,390 @@ pub(crate) fn preset(name: &str, values: &[(&str, f32)]) -> Preset {
     }
 }
 
+/// An EQ preset with other settings of its bands too (slopes, dynamics, placement).
+fn eq_extra(name: &str, bands: &[(f32, f32, f32, f32)], extra: &[(&str, f32)]) -> Preset {
+    let mut preset = eq_preset(name, bands);
+    preset
+        .params
+        .extend(extra.iter().map(|&(k, v)| (k.to_owned(), v)));
+    preset
+}
+
+/// A cutter preset: its 16 steps written as `x` (open) and `.` (closed).
+fn cutter(name: &str, values: &[(&str, f32)], steps: &str) -> Preset {
+    let mut preset = preset(name, values);
+    for (i, c) in steps.chars().enumerate() {
+        let open = if c == 'x' { 1.0 } else { 0.0 };
+        preset.params.insert(format!("s{}", i + 1), open);
+    }
+    preset
+}
+
 /// Starting points for the built-in effects; parameters not listed keep their defaults.
-/// Names read "Role: character", the role being the source, the bus or the job.
+/// Names read "Role: character", the role being the source, the bus or the job; each list
+/// opens with the effect's defaults.
 fn factory(effect: &str) -> Vec<Preset> {
+    let mut list = match effect {
+        "synth" => return crate::synth_editor::factory(),
+        "drums" => return crate::drums_editor::factory(),
+        "trigger" => return crate::trigger_editor::factory(),
+        _ => builtin(effect),
+    };
+    if !list.is_empty() {
+        list.insert(0, preset(tr("Default"), &[]));
+    }
+    list
+}
+
+fn builtin(effect: &str) -> Vec<Preset> {
     match effect {
-        "synth" => crate::synth_editor::factory(),
-        "drums" => crate::drums_editor::factory(),
-        "trigger" => crate::trigger_editor::factory(),
+        "channel" => vec![
+            preset(
+                tr("Vocal: pop lead"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 90.0),
+                    ("comp", 1.0),
+                    ("comp_type", 2.0),
+                    ("comp_threshold", -22.0),
+                    ("comp_ratio", 3.0),
+                    ("comp_makeup", 4.0),
+                    ("eq", 1.0),
+                    ("lmf_freq", 300.0),
+                    ("lmf_gain", -2.5),
+                    ("lmf_q", 1.0),
+                    ("hmf_freq", 3500.0),
+                    ("hmf_gain", 2.5),
+                    ("hmf_q", 0.8),
+                    ("high_freq", 10_000.0),
+                    ("high_gain", 2.5),
+                    ("character", 2.0),
+                ],
+            ),
+            preset(
+                tr("Vocal: warm ballad"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 80.0),
+                    ("comp", 1.0),
+                    ("comp_type", 2.0),
+                    ("comp_threshold", -20.0),
+                    ("comp_ratio", 2.5),
+                    ("comp_makeup", 3.0),
+                    ("eq", 1.0),
+                    ("low_freq", 150.0),
+                    ("low_gain", 1.0),
+                    ("lmf_freq", 400.0),
+                    ("lmf_gain", -1.5),
+                    ("hmf_freq", 2500.0),
+                    ("hmf_gain", 1.5),
+                    ("high_freq", 12_000.0),
+                    ("high_gain", 2.0),
+                    ("drive", 1.0),
+                    ("drive_amount", 20.0),
+                    ("character", 1.0),
+                ],
+            ),
+            preset(
+                tr("Vocal: rap, upfront"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 100.0),
+                    ("comp", 1.0),
+                    ("comp_type", 3.0),
+                    ("comp_threshold", -24.0),
+                    ("comp_ratio", 6.0),
+                    ("comp_attack", 2.0),
+                    ("comp_release", 80.0),
+                    ("comp_makeup", 9.0),
+                    ("eq", 1.0),
+                    ("lmf_freq", 250.0),
+                    ("lmf_gain", -3.0),
+                    ("hmf_freq", 4000.0),
+                    ("hmf_gain", 3.0),
+                    ("high_freq", 10_000.0),
+                    ("high_gain", 2.0),
+                    ("character", 2.0),
+                ],
+            ),
+            preset(
+                tr("Backing vocals: tucked in"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 150.0),
+                    ("comp", 1.0),
+                    ("comp_type", 2.0),
+                    ("comp_threshold", -26.0),
+                    ("comp_ratio", 4.0),
+                    ("comp_makeup", 6.0),
+                    ("eq", 1.0),
+                    ("lmf_freq", 300.0),
+                    ("lmf_gain", -3.0),
+                    ("hmf_freq", 3000.0),
+                    ("hmf_gain", -1.5),
+                    ("high_freq", 12_000.0),
+                    ("high_gain", 2.0),
+                    ("character", 2.0),
+                ],
+            ),
+            preset(
+                tr("Voice-over: podcast"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 80.0),
+                    ("slope", 1.0),
+                    ("gate", 1.0),
+                    ("gate_threshold", -50.0),
+                    ("gate_range", -15.0),
+                    ("gate_release", 300.0),
+                    ("comp", 1.0),
+                    ("comp_threshold", -24.0),
+                    ("comp_ratio", 3.0),
+                    ("comp_attack", 5.0),
+                    ("comp_release", 120.0),
+                    ("comp_makeup", 9.0),
+                    ("eq", 1.0),
+                    ("lmf_freq", 250.0),
+                    ("lmf_gain", -2.0),
+                    ("hmf_freq", 4000.0),
+                    ("hmf_gain", 2.0),
+                    ("high_freq", 10_000.0),
+                    ("high_gain", 1.5),
+                ],
+            ),
+            preset(
+                tr("Kick: punch"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 30.0),
+                    ("gate", 1.0),
+                    ("gate_threshold", -30.0),
+                    ("gate_range", -30.0),
+                    ("gate_attack", 0.1),
+                    ("gate_release", 80.0),
+                    ("comp", 1.0),
+                    ("comp_threshold", -18.0),
+                    ("comp_ratio", 4.0),
+                    ("comp_attack", 25.0),
+                    ("comp_release", 80.0),
+                    ("comp_makeup", 3.0),
+                    ("eq", 1.0),
+                    ("low_freq", 60.0),
+                    ("low_gain", 3.0),
+                    ("lmf_freq", 350.0),
+                    ("lmf_gain", -4.0),
+                    ("lmf_q", 1.5),
+                    ("hmf_freq", 4000.0),
+                    ("hmf_gain", 3.0),
+                    ("character", 3.0),
+                ],
+            ),
+            preset(
+                tr("Snare: crack"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 80.0),
+                    ("gate", 1.0),
+                    ("gate_threshold", -25.0),
+                    ("gate_range", -20.0),
+                    ("gate_attack", 0.2),
+                    ("gate_release", 150.0),
+                    ("comp", 1.0),
+                    ("comp_type", 3.0),
+                    ("comp_threshold", -20.0),
+                    ("comp_ratio", 4.0),
+                    ("comp_attack", 5.0),
+                    ("comp_release", 100.0),
+                    ("comp_makeup", 4.5),
+                    ("eq", 1.0),
+                    ("low_freq", 200.0),
+                    ("low_gain", 2.0),
+                    ("low_bell", 1.0),
+                    ("lmf_freq", 900.0),
+                    ("lmf_gain", -2.5),
+                    ("lmf_q", 2.0),
+                    ("hmf_freq", 5000.0),
+                    ("hmf_gain", 3.0),
+                    ("character", 3.0),
+                ],
+            ),
+            preset(
+                tr("Toms: full and clear"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 60.0),
+                    ("gate", 1.0),
+                    ("gate_threshold", -30.0),
+                    ("gate_range", -30.0),
+                    ("gate_attack", 0.5),
+                    ("gate_release", 300.0),
+                    ("eq", 1.0),
+                    ("low_freq", 100.0),
+                    ("low_gain", 2.0),
+                    ("low_bell", 1.0),
+                    ("lmf_freq", 500.0),
+                    ("lmf_gain", -4.0),
+                    ("lmf_q", 1.5),
+                    ("hmf_freq", 4000.0),
+                    ("hmf_gain", 2.0),
+                    ("character", 3.0),
+                ],
+            ),
+            preset(
+                tr("Overheads: open"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 150.0),
+                    ("comp", 1.0),
+                    ("comp_type", 1.0),
+                    ("comp_threshold", -16.0),
+                    ("comp_ratio", 2.0),
+                    ("comp_attack", 30.0),
+                    ("comp_makeup", 1.5),
+                    ("eq", 1.0),
+                    ("lmf_freq", 400.0),
+                    ("lmf_gain", -2.0),
+                    ("high_freq", 12_000.0),
+                    ("high_gain", 2.5),
+                    ("character", 2.0),
+                ],
+            ),
+            preset(
+                tr("Bass: DI, round and present"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 35.0),
+                    ("comp", 1.0),
+                    ("comp_type", 2.0),
+                    ("comp_threshold", -20.0),
+                    ("comp_ratio", 4.0),
+                    ("comp_makeup", 4.0),
+                    ("eq", 1.0),
+                    ("low_freq", 80.0),
+                    ("low_gain", 2.0),
+                    ("low_bell", 1.0),
+                    ("lmf_freq", 250.0),
+                    ("lmf_gain", -3.0),
+                    ("lmf_q", 1.2),
+                    ("hmf_freq", 800.0),
+                    ("hmf_gain", 2.0),
+                    ("hmf_q", 1.5),
+                    ("drive", 1.0),
+                    ("drive_amount", 25.0),
+                    ("character", 1.0),
+                ],
+            ),
+            preset(
+                tr("Guitar: electric, in the mix"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 100.0),
+                    ("lpf", 9000.0),
+                    ("eq", 1.0),
+                    ("lmf_freq", 400.0),
+                    ("lmf_gain", -2.0),
+                    ("lmf_q", 1.2),
+                    ("hmf_freq", 2500.0),
+                    ("hmf_gain", 2.0),
+                    ("character", 1.0),
+                ],
+            ),
+            preset(
+                tr("Acoustic guitar: strummed"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 90.0),
+                    ("comp", 1.0),
+                    ("comp_type", 2.0),
+                    ("comp_threshold", -20.0),
+                    ("comp_ratio", 3.0),
+                    ("comp_makeup", 3.0),
+                    ("eq", 1.0),
+                    ("lmf_freq", 250.0),
+                    ("lmf_gain", -3.0),
+                    ("hmf_freq", 3000.0),
+                    ("hmf_gain", 1.0),
+                    ("high_freq", 10_000.0),
+                    ("high_gain", 3.0),
+                    ("character", 4.0),
+                ],
+            ),
+            preset(
+                tr("Piano: clear"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 40.0),
+                    ("comp", 1.0),
+                    ("comp_type", 1.0),
+                    ("comp_threshold", -18.0),
+                    ("comp_ratio", 2.0),
+                    ("comp_attack", 30.0),
+                    ("comp_makeup", 1.5),
+                    ("eq", 1.0),
+                    ("lmf_freq", 300.0),
+                    ("lmf_gain", -1.5),
+                    ("hmf_freq", 3000.0),
+                    ("hmf_gain", 1.5),
+                    ("hmf_q", 0.8),
+                    ("high_freq", 10_000.0),
+                    ("high_gain", 2.0),
+                    ("character", 4.0),
+                ],
+            ),
+            preset(
+                tr("Synth: make room"),
+                &[
+                    ("filters", 1.0),
+                    ("hpf", 150.0),
+                    ("slope", 1.0),
+                    ("eq", 1.0),
+                    ("lmf_freq", 400.0),
+                    ("lmf_gain", -2.0),
+                    ("hmf_freq", 2500.0),
+                    ("hmf_gain", -2.0),
+                    ("hmf_q", 0.8),
+                    ("high_freq", 10_000.0),
+                    ("high_gain", 1.0),
+                ],
+            ),
+            preset(
+                tr("Drum bus: glue and weight"),
+                &[
+                    ("comp", 1.0),
+                    ("comp_type", 1.0),
+                    ("comp_threshold", -16.0),
+                    ("comp_ratio", 4.0),
+                    ("comp_attack", 30.0),
+                    ("comp_release", 300.0),
+                    ("comp_makeup", 3.0),
+                    ("eq", 1.0),
+                    ("low_freq", 60.0),
+                    ("low_gain", 1.5),
+                    ("high_freq", 10_000.0),
+                    ("high_gain", 1.5),
+                    ("drive", 1.0),
+                    ("drive_amount", 20.0),
+                    ("character", 3.0),
+                ],
+            ),
+            preset(
+                tr("Drums: parallel crush"),
+                &[
+                    ("comp", 1.0),
+                    ("comp_type", 3.0),
+                    ("comp_threshold", -30.0),
+                    ("comp_ratio", 20.0),
+                    ("comp_attack", 0.5),
+                    ("comp_release", 150.0),
+                    ("comp_makeup", 10.0),
+                    ("comp_mix", 40.0),
+                    ("drive", 1.0),
+                    ("drive_amount", 40.0),
+                    ("character", 3.0),
+                ],
+            ),
+        ],
         "eq" => vec![
-            preset(tr("Default: flat"), &[]),
             eq_preset(
                 tr("Vocal: presence"),
                 &[
@@ -158,6 +535,26 @@ fn factory(effect: &str) -> Vec<Preset> {
                     (HIGH_SHELF, 12_000.0, 4.0, 0.707),
                 ],
             ),
+            eq_extra(
+                tr("Vocal: less mud"),
+                &[(LOW_CUT, 100.0, 0.0, 0.707), (BELL, 300.0, -3.5, 1.0)],
+                &[("b1_slope", 3.0)],
+            ),
+            eq_extra(
+                tr("Vocal: soften harsh notes"),
+                &[(LOW_CUT, 80.0, 0.0, 0.707), (BELL, 3200.0, 0.0, 2.0)],
+                &[("b2_dyn", 1.0), ("b2_thresh", -30.0), ("b2_range", -5.0)],
+            ),
+            eq_extra(
+                tr("Voice-over: podcast"),
+                &[
+                    (LOW_CUT, 80.0, 0.0, 0.707),
+                    (BELL, 250.0, -2.0, 1.0),
+                    (BELL, 4000.0, 2.0, 0.8),
+                    (HIGH_SHELF, 10_000.0, 1.5, 0.707),
+                ],
+                &[("b1_slope", 3.0)],
+            ),
             eq_preset(
                 tr("Kick: punch"),
                 &[
@@ -166,6 +563,16 @@ fn factory(effect: &str) -> Vec<Preset> {
                     (BELL, 350.0, -4.0, 1.5),
                     (BELL, 4000.0, 3.0, 1.0),
                 ],
+            ),
+            eq_extra(
+                tr("Kick: deep sub"),
+                &[
+                    (LOW_CUT, 25.0, 0.0, 0.707),
+                    (BELL, 55.0, 3.0, 1.2),
+                    (BELL, 300.0, -5.0, 1.5),
+                    (BELL, 3500.0, 3.0, 1.5),
+                ],
+                &[("b1_slope", 3.0)],
             ),
             eq_preset(
                 tr("Snare: crack"),
@@ -177,9 +584,18 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             eq_preset(
+                tr("Toms: full and clear"),
+                &[
+                    (LOW_CUT, 60.0, 0.0, 0.707),
+                    (BELL, 100.0, 2.0, 1.0),
+                    (BELL, 500.0, -4.0, 1.5),
+                    (BELL, 4000.0, 2.0, 1.0),
+                ],
+            ),
+            eq_preset(
                 tr("Overheads: cymbal air"),
                 &[
-                    (LOW_CUT, 200.0, 0.0, 0.707),
+                    (LOW_CUT, 150.0, 0.0, 0.707),
                     (BELL, 400.0, -2.0, 1.0),
                     (HIGH_SHELF, 12_000.0, 2.5, 0.707),
                 ],
@@ -211,6 +627,24 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             eq_preset(
+                tr("Piano: clarity"),
+                &[
+                    (LOW_CUT, 40.0, 0.0, 0.707),
+                    (BELL, 250.0, -2.0, 1.0),
+                    (BELL, 3000.0, 1.5, 0.8),
+                    (HIGH_SHELF, 10_000.0, 2.0, 0.707),
+                ],
+            ),
+            eq_extra(
+                tr("Synth: make room for the vocal"),
+                &[
+                    (LOW_CUT, 150.0, 0.0, 0.707),
+                    (BELL, 400.0, -2.0, 1.0),
+                    (BELL, 2500.0, -2.5, 0.8),
+                ],
+                &[("b1_slope", 3.0)],
+            ),
+            eq_preset(
                 tr("Mix bus: smile"),
                 &[
                     (LOW_SHELF, 80.0, 1.5, 0.707),
@@ -218,14 +652,57 @@ fn factory(effect: &str) -> Vec<Preset> {
                     (HIGH_SHELF, 12_000.0, 1.5, 0.707),
                 ],
             ),
+            eq_preset(tr("Master: tilt brighter"), &[(TILT, 1000.0, 2.0, 0.707)]),
+            eq_preset(tr("Master: tilt warmer"), &[(TILT, 1000.0, -2.0, 0.707)]),
+            eq_extra(
+                tr("Master: mono lows below 120 Hz"),
+                &[(LOW_CUT, 120.0, 0.0, 0.707)],
+                &[("b1_place", 4.0), ("b1_slope", 3.0)],
+            ),
+            eq_extra(
+                tr("Master: wider air"),
+                &[(HIGH_SHELF, 9000.0, 2.5, 0.707)],
+                &[("b1_place", 4.0)],
+            ),
             eq_preset(tr("Fix: low cut 100 Hz"), &[(LOW_CUT, 100.0, 0.0, 0.707)]),
+            eq_extra(
+                tr("Fix: rumble below 30 Hz"),
+                &[(LOW_CUT, 30.0, 0.0, 0.707)],
+                &[("b1_slope", 5.0)],
+            ),
             eq_preset(
+                tr("Fix: mains hum 50 Hz"),
+                &[
+                    (NOTCH, 50.0, 0.0, 10.0),
+                    (NOTCH, 100.0, 0.0, 10.0),
+                    (NOTCH, 150.0, 0.0, 10.0),
+                ],
+            ),
+            eq_preset(
+                tr("Fix: mains hum 60 Hz"),
+                &[
+                    (NOTCH, 60.0, 0.0, 10.0),
+                    (NOTCH, 120.0, 0.0, 10.0),
+                    (NOTCH, 180.0, 0.0, 10.0),
+                ],
+            ),
+            eq_extra(
                 tr("FX: telephone"),
                 &[
                     (LOW_CUT, 400.0, 0.0, 0.707),
                     (BELL, 1500.0, 6.0, 1.0),
                     (HIGH_CUT, 3000.0, 0.0, 0.707),
                 ],
+                &[("b1_slope", 3.0), ("b3_slope", 3.0), ("output", 4.0)],
+            ),
+            eq_extra(
+                tr("FX: old radio"),
+                &[
+                    (LOW_CUT, 250.0, 0.0, 0.707),
+                    (BELL, 1200.0, 4.0, 0.8),
+                    (HIGH_CUT, 5000.0, 0.0, 0.707),
+                ],
+                &[("b1_slope", 3.0), ("b3_slope", 3.0), ("output", 2.0)],
             ),
         ],
         "compressor" => vec![
@@ -265,6 +742,81 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
+                tr("Vocal: rap, upfront"),
+                &[
+                    ("type", 3.0),
+                    ("threshold", -26.0),
+                    ("ratio", 8.0),
+                    ("attack", 1.0),
+                    ("release", 60.0),
+                    ("makeup", 8.0),
+                    ("color", 45.0),
+                    ("sc_hpf", 100.0),
+                ],
+            ),
+            preset(
+                tr("Backing vocals: tucked in"),
+                &[
+                    ("type", 2.0),
+                    ("threshold", -26.0),
+                    ("ratio", 4.0),
+                    ("makeup", 5.0),
+                    ("color", 25.0),
+                    ("sc_hpf", 100.0),
+                ],
+            ),
+            preset(
+                tr("Voice-over: podcast"),
+                &[
+                    ("threshold", -24.0),
+                    ("ratio", 3.0),
+                    ("attack", 5.0),
+                    ("release", 120.0),
+                    ("knee", 6.0),
+                    ("makeup", 6.0),
+                    ("sc_hpf", 80.0),
+                ],
+            ),
+            preset(
+                tr("Kick: punch"),
+                &[
+                    ("threshold", -18.0),
+                    ("ratio", 4.0),
+                    ("attack", 25.0),
+                    ("auto", 0.0),
+                    ("release", 80.0),
+                    ("knee", 3.0),
+                    ("makeup", 3.0),
+                ],
+            ),
+            preset(
+                tr("Snare: crack"),
+                &[
+                    ("type", 3.0),
+                    ("threshold", -20.0),
+                    ("ratio", 8.0),
+                    ("attack", 2.0),
+                    ("release", 120.0),
+                    ("makeup", 5.0),
+                    ("color", 50.0),
+                    ("sc_hpf", 60.0),
+                ],
+            ),
+            preset(
+                tr("Room mics: all buttons"),
+                &[
+                    ("type", 3.0),
+                    ("threshold", -26.0),
+                    ("ratio", 20.0),
+                    ("attack", 0.2),
+                    ("release", 200.0),
+                    ("makeup", 8.0),
+                    ("color", 70.0),
+                    ("sc_hpf", 60.0),
+                    ("mix", 60.0),
+                ],
+            ),
+            preset(
                 tr("Bass: control"),
                 &[
                     ("threshold", -18.0),
@@ -286,27 +838,37 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Kick: punch"),
+                tr("Guitar: sustain"),
                 &[
-                    ("threshold", -18.0),
-                    ("ratio", 4.0),
-                    ("attack", 25.0),
-                    ("release", 80.0),
-                    ("knee", 3.0),
-                    ("makeup", 3.0),
+                    ("threshold", -30.0),
+                    ("ratio", 6.0),
+                    ("attack", 5.0),
+                    ("auto", 0.0),
+                    ("release", 300.0),
+                    ("knee", 6.0),
+                    ("makeup", 12.0),
                 ],
             ),
             preset(
-                tr("Snare: crack"),
+                tr("Acoustic guitar: even strumming"),
                 &[
-                    ("type", 3.0),
+                    ("type", 2.0),
                     ("threshold", -20.0),
-                    ("ratio", 8.0),
-                    ("attack", 2.0),
-                    ("release", 120.0),
-                    ("makeup", 5.0),
-                    ("color", 50.0),
-                    ("sc_hpf", 60.0),
+                    ("ratio", 3.0),
+                    ("makeup", 3.0),
+                    ("color", 20.0),
+                    ("sc_hpf", 80.0),
+                ],
+            ),
+            preset(
+                tr("Piano: gentle"),
+                &[
+                    ("type", 1.0),
+                    ("threshold", -18.0),
+                    ("ratio", 2.0),
+                    ("attack", 30.0),
+                    ("makeup", 2.0),
+                    ("color", 15.0),
                 ],
             ),
             preset(
@@ -316,7 +878,6 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("threshold", -16.0),
                     ("ratio", 4.0),
                     ("attack", 30.0),
-                    ("auto", 1.0),
                     ("release", 300.0),
                     ("makeup", 3.0),
                     ("color", 30.0),
@@ -330,7 +891,6 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("threshold", -24.0),
                     ("ratio", 4.0),
                     ("attack", 3.0),
-                    ("auto", 1.0),
                     ("release", 300.0),
                     ("makeup", 6.0),
                     ("color", 40.0),
@@ -344,23 +904,10 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("threshold", -35.0),
                     ("ratio", 10.0),
                     ("attack", 1.0),
+                    ("auto", 0.0),
                     ("release", 80.0),
                     ("makeup", 12.0),
                     ("mix", 35.0),
-                ],
-            ),
-            preset(
-                tr("Room mics: all buttons"),
-                &[
-                    ("type", 3.0),
-                    ("threshold", -26.0),
-                    ("ratio", 20.0),
-                    ("attack", 0.2),
-                    ("release", 200.0),
-                    ("makeup", 8.0),
-                    ("color", 70.0),
-                    ("sc_hpf", 60.0),
-                    ("mix", 60.0),
                 ],
             ),
             preset(
@@ -370,11 +917,34 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("threshold", -14.0),
                     ("ratio", 2.0),
                     ("attack", 30.0),
-                    ("auto", 1.0),
                     ("release", 300.0),
                     ("makeup", 2.0),
                     ("color", 20.0),
                     ("sc_hpf", 90.0),
+                ],
+            ),
+            preset(
+                tr("Sidechain: duck under the kick"),
+                &[
+                    ("threshold", -30.0),
+                    ("ratio", 6.0),
+                    ("attack", 1.0),
+                    ("auto", 0.0),
+                    ("release", 120.0),
+                    ("knee", 3.0),
+                    ("range", 8.0),
+                ],
+            ),
+            preset(
+                tr("Sidechain: pumping"),
+                &[
+                    ("threshold", -36.0),
+                    ("ratio", 20.0),
+                    ("attack", 0.5),
+                    ("auto", 0.0),
+                    ("release", 200.0),
+                    ("knee", 0.0),
+                    ("range", 18.0),
                 ],
             ),
         ],
@@ -383,10 +953,22 @@ fn factory(effect: &str) -> Vec<Preset> {
                 tr("Vocal: plate"),
                 &[
                     ("type", 3.0),
-                    ("decay", 1.8),
-                    ("predelay", 25.0),
+                    ("decay", 2.0),
+                    ("predelay", 30.0),
                     ("treble", 40.0),
                     ("low_cut", 200.0),
+                    ("mix", 22.0),
+                ],
+            ),
+            preset(
+                tr("Vocal: plate, 1/16 pre-delay"),
+                &[
+                    ("type", 3.0),
+                    ("decay", 2.2),
+                    ("predelay_sync", 1.0),
+                    ("predelay_note", 2.0),
+                    ("treble", 45.0),
+                    ("low_cut", 220.0),
                     ("mix", 22.0),
                 ],
             ),
@@ -399,6 +981,30 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("low_cut", 200.0),
                     ("duck", 60.0),
                     ("mix", 30.0),
+                ],
+            ),
+            preset(
+                tr("Vocal: ballad hall"),
+                &[
+                    ("type", 1.0),
+                    ("size", 75.0),
+                    ("decay", 3.2),
+                    ("predelay", 60.0),
+                    ("low_cut", 250.0),
+                    ("duck", 30.0),
+                    ("mix", 25.0),
+                ],
+            ),
+            preset(
+                tr("Vocal: close ambience"),
+                &[
+                    ("type", 0.0),
+                    ("size", 25.0),
+                    ("decay", 0.4),
+                    ("predelay", 0.0),
+                    ("early", 75.0),
+                    ("low_cut", 200.0),
+                    ("mix", 15.0),
                 ],
             ),
             preset(
@@ -443,6 +1049,17 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("treble", 25.0),
                     ("high_cut", 6000.0),
                     ("mix", 25.0),
+                ],
+            ),
+            preset(
+                tr("Piano: hall"),
+                &[
+                    ("type", 1.0),
+                    ("size", 65.0),
+                    ("decay", 2.2),
+                    ("predelay", 20.0),
+                    ("low_cut", 120.0),
+                    ("mix", 22.0),
                 ],
             ),
             preset(
@@ -513,6 +1130,64 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("mix", 50.0),
                 ],
             ),
+            preset(
+                tr("Send: vocal plate"),
+                &[
+                    ("type", 3.0),
+                    ("decay", 2.2),
+                    ("predelay", 40.0),
+                    ("treble", 40.0),
+                    ("low_cut", 250.0),
+                    ("mix", 100.0),
+                ],
+            ),
+            preset(
+                tr("Send: drum room"),
+                &[
+                    ("type", 0.0),
+                    ("size", 60.0),
+                    ("decay", 0.9),
+                    ("predelay", 5.0),
+                    ("early", 60.0),
+                    ("low_cut", 150.0),
+                    ("mix", 100.0),
+                ],
+            ),
+            preset(
+                tr("Send: medium hall"),
+                &[
+                    ("type", 1.0),
+                    ("size", 60.0),
+                    ("decay", 2.0),
+                    ("predelay", 25.0),
+                    ("low_cut", 200.0),
+                    ("mix", 100.0),
+                ],
+            ),
+            preset(
+                tr("Send: large dark hall"),
+                &[
+                    ("type", 1.0),
+                    ("size", 85.0),
+                    ("decay", 3.5),
+                    ("predelay", 40.0),
+                    ("treble", 25.0),
+                    ("high_cut", 6000.0),
+                    ("low_cut", 200.0),
+                    ("mix", 100.0),
+                ],
+            ),
+            preset(
+                tr("Send: plate, 1/8 pre-delay"),
+                &[
+                    ("type", 3.0),
+                    ("decay", 1.8),
+                    ("predelay_sync", 1.0),
+                    ("predelay_note", 5.0),
+                    ("low_cut", 250.0),
+                    ("mix", 100.0),
+                ],
+            ),
         ],
         "delay" => vec![
             preset(
@@ -547,7 +1222,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: 1/4 throw"),
+                tr("Vocal: 1/4 throw, ducked"),
                 &[
                     ("sync", 1.0),
                     ("note", 8.0),
@@ -557,7 +1232,20 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("drive", 25.0),
                     ("low_cut", 300.0),
                     ("high_cut", 5000.0),
-                    ("mix", 20.0),
+                    ("duck", 60.0),
+                    ("mix", 25.0),
+                ],
+            ),
+            preset(
+                tr("Guitar: slapback 120 ms"),
+                &[
+                    ("time", 120.0),
+                    ("feedback", 10.0),
+                    ("model", 1.0),
+                    ("wow", 15.0),
+                    ("drive", 35.0),
+                    ("high_cut", 5000.0),
+                    ("mix", 30.0),
                 ],
             ),
             preset(
@@ -605,6 +1293,17 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
+                tr("Synth: 1/8 triplet ping-pong"),
+                &[
+                    ("sync", 1.0),
+                    ("note", 4.0),
+                    ("pingpong", 1.0),
+                    ("feedback", 40.0),
+                    ("low_cut", 200.0),
+                    ("mix", 25.0),
+                ],
+            ),
+            preset(
                 tr("Drums: 1/16 ping-pong"),
                 &[
                     ("sync", 1.0),
@@ -630,6 +1329,54 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("mix", 35.0),
                 ],
             ),
+            preset(
+                tr("Send: 1/4 echo"),
+                &[
+                    ("sync", 1.0),
+                    ("note", 8.0),
+                    ("feedback", 30.0),
+                    ("low_cut", 200.0),
+                    ("high_cut", 6000.0),
+                    ("mix", 100.0),
+                ],
+            ),
+            preset(
+                tr("Send: dotted 1/8"),
+                &[
+                    ("sync", 1.0),
+                    ("note", 6.0),
+                    ("feedback", 35.0),
+                    ("low_cut", 200.0),
+                    ("high_cut", 6000.0),
+                    ("mix", 100.0),
+                ],
+            ),
+            preset(
+                tr("Send: slapback"),
+                &[
+                    ("time", 100.0),
+                    ("feedback", 5.0),
+                    ("model", 1.0),
+                    ("wow", 10.0),
+                    ("low_cut", 200.0),
+                    ("high_cut", 6000.0),
+                    ("mix", 100.0),
+                ],
+            ),
+            preset(
+                tr("Send: tape echo"),
+                &[
+                    ("sync", 1.0),
+                    ("note", 8.0),
+                    ("feedback", 45.0),
+                    ("model", 1.0),
+                    ("wow", 30.0),
+                    ("drive", 40.0),
+                    ("low_cut", 250.0),
+                    ("high_cut", 4500.0),
+                    ("mix", 100.0),
+                ],
+            ),
         ],
         "gate" => vec![
             preset(
@@ -640,6 +1387,8 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("attack", 0.1),
                     ("hold", 20.0),
                     ("release", 60.0),
+                    ("lookahead", 1.0),
+                    ("sc_lpf", 1000.0),
                 ],
             ),
             preset(
@@ -650,6 +1399,9 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("attack", 0.2),
                     ("hold", 40.0),
                     ("release", 120.0),
+                    ("lookahead", 1.0),
+                    ("sc_hpf", 120.0),
+                    ("sc_lpf", 6000.0),
                 ],
             ),
             preset(
@@ -660,6 +1412,8 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("attack", 0.5),
                     ("hold", 80.0),
                     ("release", 250.0),
+                    ("lookahead", 1.0),
+                    ("sc_lpf", 3000.0),
                 ],
             ),
             preset(
@@ -685,6 +1439,8 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("Vocal: breath reducer"),
                 &[
+                    ("mode", 1.0),
+                    ("ratio", 2.0),
                     ("threshold", -45.0),
                     ("range", -12.0),
                     ("attack", 2.0),
@@ -695,6 +1451,8 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(
                 tr("Voice-over: room noise"),
                 &[
+                    ("mode", 1.0),
+                    ("ratio", 2.0),
                     ("threshold", -48.0),
                     ("range", -15.0),
                     ("attack", 5.0),
@@ -713,23 +1471,65 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
+                tr("Ducker: music under the voice"),
+                &[
+                    ("mode", 2.0),
+                    ("threshold", -35.0),
+                    ("range", -12.0),
+                    ("attack", 10.0),
+                    ("hold", 200.0),
+                    ("release", 500.0),
+                ],
+            ),
+            preset(
                 tr("Fix: noise floor"),
-                &[("threshold", -55.0), ("range", -20.0), ("release", 300.0)],
+                &[
+                    ("mode", 1.0),
+                    ("ratio", 1.5),
+                    ("threshold", -55.0),
+                    ("range", -20.0),
+                    ("release", 300.0),
+                ],
             ),
         ],
         "limiter" => vec![
-            preset(tr("Master: safety -1 dB"), &[("ceiling", -1.0)]),
             preset(
-                tr("Master: streaming -1 dB"),
-                &[("input", 3.0), ("ceiling", -1.0), ("release", 100.0)],
+                tr("Master: safety -1 dBTP"),
+                &[("ceiling", -1.0), ("true_peak", 1.0), ("auto", 1.0)],
             ),
             preset(
-                tr("Master: broadcast -2 dB"),
-                &[("input", 2.0), ("ceiling", -2.0), ("release", 200.0)],
+                tr("Master: streaming -1 dBTP"),
+                &[
+                    ("input", 3.0),
+                    ("ceiling", -1.0),
+                    ("release", 100.0),
+                    ("true_peak", 1.0),
+                    ("auto", 1.0),
+                ],
+            ),
+            preset(
+                tr("Master: broadcast -2 dBTP"),
+                &[
+                    ("input", 2.0),
+                    ("ceiling", -2.0),
+                    ("release", 200.0),
+                    ("true_peak", 1.0),
+                    ("auto", 1.0),
+                ],
             ),
             preset(
                 tr("Master: loud -0.3 dB"),
                 &[("input", 6.0), ("ceiling", -0.3), ("release", 80.0)],
+            ),
+            preset(
+                tr("Master: wide, unlinked"),
+                &[
+                    ("input", 3.0),
+                    ("ceiling", -1.0),
+                    ("release", 100.0),
+                    ("link", 50.0),
+                    ("true_peak", 1.0),
+                ],
             ),
             preset(
                 tr("Vocal: peak catcher"),
@@ -810,6 +1610,18 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
+                tr("Vocal: megaphone"),
+                &[
+                    ("mode", 1.0),
+                    ("drive", 24.0),
+                    ("tone", 3000.0),
+                    ("level", -16.0),
+                    ("low_cut", 500.0),
+                    ("bass", -12.0),
+                    ("mid", 6.0),
+                ],
+            ),
+            preset(
                 tr("Drums: parallel crunch"),
                 &[
                     ("mode", 1.0),
@@ -817,6 +1629,15 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("tone", 6000.0),
                     ("level", -16.0),
                     ("mix", 30.0),
+                ],
+            ),
+            preset(
+                tr("Drums: warm tape"),
+                &[
+                    ("mode", 4.0),
+                    ("drive", 12.0),
+                    ("tone", 9000.0),
+                    ("level", -7.0),
                 ],
             ),
             preset(
@@ -867,6 +1688,17 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("low_cut", 150.0),
                 ],
             ),
+            preset(
+                tr("Lo-fi: blown speaker"),
+                &[
+                    ("mode", 2.0),
+                    ("drive", 30.0),
+                    ("tone", 2000.0),
+                    ("level", -18.0),
+                    ("low_cut", 300.0),
+                    ("bias", 40.0),
+                ],
+            ),
         ],
         "chorus" => vec![
             preset(
@@ -897,16 +1729,40 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("rate", 1.2),
                     ("depth", 45.0),
                     ("delay", 7.0),
+                    ("tone", 9000.0),
                     ("mix", 45.0),
                 ],
             ),
             preset(
                 tr("Synth: lush ensemble"),
                 &[
-                    ("rate", 0.83),
-                    ("depth", 70.0),
-                    ("delay", 6.0),
+                    ("voices", 2.0),
+                    ("rate", 0.6),
+                    ("depth", 60.0),
+                    ("delay", 8.0),
                     ("mix", 50.0),
+                ],
+            ),
+            preset(
+                tr("Synth: 80s poly chorus"),
+                &[
+                    ("voices", 1.0),
+                    ("rate", 0.5),
+                    ("depth", 50.0),
+                    ("delay", 7.0),
+                    ("stereo", 180.0),
+                    ("mix", 50.0),
+                ],
+            ),
+            preset(
+                tr("Strings: ensemble"),
+                &[
+                    ("voices", 2.0),
+                    ("rate", 0.4),
+                    ("depth", 45.0),
+                    ("delay", 12.0),
+                    ("tone", 10_000.0),
+                    ("mix", 45.0),
                 ],
             ),
             preset(
@@ -937,12 +1793,24 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: flanger-style"),
+                tr("FX: resonant sweep"),
                 &[
                     ("rate", 0.25),
                     ("depth", 80.0),
                     ("delay", 3.0),
                     ("feedback", 60.0),
+                ],
+            ),
+            preset(
+                tr("FX: synced 1 bar swirl"),
+                &[
+                    ("sync", 1.0),
+                    ("note", 11.0),
+                    ("depth", 70.0),
+                    ("delay", 10.0),
+                    ("feedback", 30.0),
+                    ("voices", 1.0),
+                    ("mix", 50.0),
                 ],
             ),
         ],
@@ -1062,6 +1930,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("x1", 100.0),
                     ("x2", 3000.0),
                     ("mix", 60.0),
+                    ("output", 3.0),
                     ("b1_thresh", -30.0),
                     ("b1_ratio", 6.0),
                     ("b1_attack", 10.0),
@@ -1083,6 +1952,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("x1", 200.0),
                     ("x2", 1500.0),
                     ("x3", 6000.0),
+                    ("output", 3.0),
                     ("b1_thresh", -30.0),
                     ("b1_ratio", 3.0),
                     ("b1_attack", 15.0),
@@ -1124,6 +1994,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("count", 1.0),
                     ("x1", 80.0),
                     ("x2", 600.0),
+                    ("output", 2.0),
                     ("b1_thresh", -24.0),
                     ("b1_ratio", 3.0),
                     ("b1_attack", 30.0),
@@ -1144,6 +2015,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("count", 1.0),
                     ("x1", 250.0),
                     ("x2", 3000.0),
+                    ("output", 2.0),
                     ("b1_thresh", -26.0),
                     ("b1_ratio", 2.0),
                     ("b1_attack", 20.0),
@@ -1374,7 +2246,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("smooth", 60.0),
                 ],
             ),
-            preset(
+            cutter(
                 tr("Cutter: trance gate"),
                 &[
                     ("mode", 2.0),
@@ -1383,25 +2255,10 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("gate", 60.0),
                     ("depth", 100.0),
                     ("smooth", 6.0),
-                    ("s1", 1.0),
-                    ("s2", 0.0),
-                    ("s3", 1.0),
-                    ("s4", 0.0),
-                    ("s5", 1.0),
-                    ("s6", 1.0),
-                    ("s7", 0.0),
-                    ("s8", 1.0),
-                    ("s9", 1.0),
-                    ("s10", 0.0),
-                    ("s11", 1.0),
-                    ("s12", 0.0),
-                    ("s13", 1.0),
-                    ("s14", 1.0),
-                    ("s15", 1.0),
-                    ("s16", 0.0),
                 ],
+                "x.x.xx.xx.x.xxx.",
             ),
-            preset(
+            cutter(
                 tr("Cutter: offbeat stabs"),
                 &[
                     ("mode", 2.0),
@@ -1410,25 +2267,10 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("gate", 70.0),
                     ("depth", 100.0),
                     ("smooth", 5.0),
-                    ("s1", 0.0),
-                    ("s2", 0.0),
-                    ("s3", 1.0),
-                    ("s4", 0.0),
-                    ("s5", 0.0),
-                    ("s6", 0.0),
-                    ("s7", 1.0),
-                    ("s8", 0.0),
-                    ("s9", 0.0),
-                    ("s10", 0.0),
-                    ("s11", 1.0),
-                    ("s12", 0.0),
-                    ("s13", 0.0),
-                    ("s14", 0.0),
-                    ("s15", 1.0),
-                    ("s16", 0.0),
                 ],
+                "..x...x...x...x.",
             ),
-            preset(
+            cutter(
                 tr("Cutter: stutter 1/32"),
                 &[
                     ("mode", 2.0),
@@ -1437,25 +2279,10 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("gate", 50.0),
                     ("depth", 100.0),
                     ("smooth", 3.0),
-                    ("s1", 1.0),
-                    ("s2", 1.0),
-                    ("s3", 1.0),
-                    ("s4", 1.0),
-                    ("s5", 1.0),
-                    ("s6", 1.0),
-                    ("s7", 1.0),
-                    ("s8", 1.0),
-                    ("s9", 1.0),
-                    ("s10", 0.0),
-                    ("s11", 1.0),
-                    ("s12", 0.0),
-                    ("s13", 1.0),
-                    ("s14", 0.0),
-                    ("s15", 1.0),
-                    ("s16", 0.0),
                 ],
+                "xxxxxxxxx.x.x.x.",
             ),
-            preset(
+            cutter(
                 tr("Cutter: dotted groove"),
                 &[
                     ("mode", 2.0),
@@ -1464,25 +2291,10 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("gate", 80.0),
                     ("depth", 100.0),
                     ("smooth", 8.0),
-                    ("s1", 1.0),
-                    ("s2", 0.0),
-                    ("s3", 0.0),
-                    ("s4", 1.0),
-                    ("s5", 0.0),
-                    ("s6", 0.0),
-                    ("s7", 1.0),
-                    ("s8", 0.0),
-                    ("s9", 0.0),
-                    ("s10", 1.0),
-                    ("s11", 0.0),
-                    ("s12", 0.0),
-                    ("s13", 1.0),
-                    ("s14", 0.0),
-                    ("s15", 1.0),
-                    ("s16", 0.0),
                 ],
+                "x..x..x..x..x.x.",
             ),
-            preset(
+            cutter(
                 tr("Cutter: half-time duck"),
                 &[
                     ("mode", 2.0),
@@ -1491,25 +2303,10 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("gate", 90.0),
                     ("depth", 70.0),
                     ("smooth", 25.0),
-                    ("s1", 1.0),
-                    ("s2", 0.0),
-                    ("s3", 1.0),
-                    ("s4", 1.0),
-                    ("s5", 1.0),
-                    ("s6", 1.0),
-                    ("s7", 1.0),
-                    ("s8", 1.0),
-                    ("s9", 1.0),
-                    ("s10", 1.0),
-                    ("s11", 1.0),
-                    ("s12", 1.0),
-                    ("s13", 1.0),
-                    ("s14", 1.0),
-                    ("s15", 1.0),
-                    ("s16", 1.0),
                 ],
+                "x.xxxxxxxxxxxxxx",
             ),
-            preset(
+            cutter(
                 tr("Cutter: glitch"),
                 &[
                     ("mode", 2.0),
@@ -1518,23 +2315,8 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("gate", 35.0),
                     ("depth", 100.0),
                     ("smooth", 2.0),
-                    ("s1", 1.0),
-                    ("s2", 1.0),
-                    ("s3", 0.0),
-                    ("s4", 1.0),
-                    ("s5", 0.0),
-                    ("s6", 1.0),
-                    ("s7", 1.0),
-                    ("s8", 1.0),
-                    ("s9", 1.0),
-                    ("s10", 0.0),
-                    ("s11", 0.0),
-                    ("s12", 1.0),
-                    ("s13", 1.0),
-                    ("s14", 1.0),
-                    ("s15", 0.0),
-                    ("s16", 1.0),
                 ],
+                "xx.x.xxxx..xxx.x",
             ),
             preset(
                 tr("Vibrato: subtle"),
@@ -1587,6 +2369,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("freq", 140.0),
                     ("depth", 80.0),
                     ("mix", 80.0),
+                    ("output", 3.0),
                 ],
             ),
             preset(
@@ -1596,6 +2379,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("freq", 880.0),
                     ("depth", 70.0),
                     ("mix", 60.0),
+                    ("output", 3.0),
                 ],
             ),
             preset(
@@ -1609,14 +2393,15 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("freq", 2300.0),
                     ("depth", 100.0),
                     ("mix", 70.0),
+                    ("output", 3.0),
                 ],
             ),
         ],
         "pitch" => vec![
-            preset(tr("Octave up"), &[("a_semis", 12.0)]),
-            preset(tr("Octave down"), &[("a_semis", -12.0)]),
+            preset(tr("Octave: up"), &[("a_semis", 12.0)]),
+            preset(tr("Octave: down"), &[("a_semis", -12.0)]),
             preset(
-                tr("Octaves up and down"),
+                tr("Octave: up and down"),
                 &[
                     ("a_semis", 12.0),
                     ("a_level", 70.0),
@@ -1646,7 +2431,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Thicken: octave below"),
+                tr("Vocal: octave below, blended"),
                 &[
                     ("a_semis", -12.0),
                     ("a_level", 70.0),
@@ -1655,7 +2440,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Sub octave for bass"),
+                tr("Bass: sub octave"),
                 &[
                     ("a_semis", -12.0),
                     ("tone", 1500.0),
@@ -1664,23 +2449,26 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Detuned wide"),
+                tr("Width: micro-shift"),
                 &[
                     ("a_semis", 0.0),
-                    ("a_cents", 12.0),
+                    ("a_cents", 9.0),
                     ("a_pan", -100.0),
                     ("b_semis", 0.0),
-                    ("b_cents", -12.0),
+                    ("b_cents", -9.0),
                     ("b_level", 100.0),
                     ("b_pan", 100.0),
                     ("window", 30.0),
-                    ("mix", 50.0),
+                    ("mix", 40.0),
                 ],
             ),
-            preset(tr("Chipmunk"), &[("a_semis", 12.0), ("window", 25.0)]),
-            preset(tr("Monster voice"), &[("a_semis", -7.0), ("window", 60.0)]),
+            preset(tr("FX: chipmunk"), &[("a_semis", 12.0), ("window", 25.0)]),
             preset(
-                tr("Shimmer spiral"),
+                tr("FX: monster voice"),
+                &[("a_semis", -7.0), ("window", 60.0)],
+            ),
+            preset(
+                tr("Spiral: rising shimmer"),
                 &[
                     ("a_semis", 12.0),
                     ("delay", 250.0),
@@ -1690,7 +2478,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Falling spiral"),
+                tr("Spiral: falling"),
                 &[
                     ("a_semis", -12.0),
                     ("delay", 180.0),
@@ -1699,7 +2487,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Fifth staircase"),
+                tr("Spiral: fifths staircase"),
                 &[
                     ("a_semis", 7.0),
                     ("delay", 300.0),
@@ -1708,13 +2496,14 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Glitch cascade"),
+                tr("Spiral: glitch cascade"),
                 &[
                     ("a_semis", 5.0),
+                    ("a_level", 70.0),
                     ("b_semis", -7.0),
-                    ("b_level", 80.0),
+                    ("b_level", 60.0),
                     ("delay", 90.0),
-                    ("feedback", 80.0),
+                    ("feedback", 55.0),
                     ("window", 15.0),
                     ("mix", 50.0),
                 ],
@@ -1756,6 +2545,28 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
+                tr("Vocal: vintage ADT"),
+                &[
+                    ("voices", 0.0),
+                    ("detune", 4.0),
+                    ("delay", 30.0),
+                    ("width", 60.0),
+                    ("drift", 70.0),
+                    ("mix", 50.0),
+                ],
+            ),
+            preset(
+                tr("Vocal: slapback double"),
+                &[
+                    ("voices", 0.0),
+                    ("detune", 3.0),
+                    ("delay", 60.0),
+                    ("width", 90.0),
+                    ("drift", 20.0),
+                    ("mix", 45.0),
+                ],
+            ),
+            preset(
                 tr("Guitar: wall"),
                 &[
                     ("voices", 1.0),
@@ -1791,29 +2602,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("ADT: vintage double tracking"),
-                &[
-                    ("voices", 0.0),
-                    ("detune", 4.0),
-                    ("delay", 30.0),
-                    ("width", 60.0),
-                    ("drift", 70.0),
-                    ("mix", 50.0),
-                ],
-            ),
-            preset(
-                tr("Slapback double"),
-                &[
-                    ("voices", 0.0),
-                    ("detune", 3.0),
-                    ("delay", 60.0),
-                    ("width", 90.0),
-                    ("drift", 20.0),
-                    ("mix", 45.0),
-                ],
-            ),
-            preset(
-                tr("Out of tune choir"),
+                tr("FX: out-of-tune choir"),
                 &[
                     ("voices", 1.0),
                     ("detune", 35.0),
@@ -2008,6 +2797,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("speed", 1.0),
                     ("drive", 6.0),
                     ("bump", 3.5),
+                    ("output", -1.0),
                 ],
             ),
             preset(
@@ -2018,6 +2808,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("speed", 0.0),
                     ("drive", 8.0),
                     ("bump", 4.5),
+                    ("output", -2.0),
                 ],
             ),
             preset(
@@ -2061,6 +2852,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("drive", 4.0),
                     ("bump", 2.5),
                     ("wow", 35.0),
+                    ("output", -1.0),
                 ],
             ),
             preset(
@@ -2175,12 +2967,25 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
+                tr("Synth: 1 bar sweep"),
+                &[
+                    ("sync", 1.0),
+                    ("note", 11.0),
+                    ("depth", 80.0),
+                    ("delay", 1.5),
+                    ("feedback", 65.0),
+                    ("mix", 50.0),
+                ],
+            ),
+            preset(
                 tr("Drum bus: through-zero"),
                 &[
+                    ("through_zero", 1.0),
                     ("rate", 0.1),
                     ("depth", 100.0),
-                    ("delay", 0.1),
-                    ("feedback", -60.0),
+                    ("delay", 1.0),
+                    ("feedback", -40.0),
+                    ("stereo", 0.0),
                     ("mix", 50.0),
                 ],
             ),
@@ -2238,6 +3043,17 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("rate", 0.2),
                     ("depth", 100.0),
                     ("feedback", 65.0),
+                ],
+            ),
+            preset(
+                tr("Synth: 1/2 synced sweep"),
+                &[
+                    ("stages", 2.0),
+                    ("sync", 1.0),
+                    ("note", 10.0),
+                    ("depth", 90.0),
+                    ("feedback", 50.0),
+                    ("mix", 50.0),
                 ],
             ),
             preset(
@@ -2322,6 +3138,14 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
+                tr("Mono source: stereoize"),
+                &[
+                    ("stereoize", 60.0),
+                    ("stereoize_time", 12.0),
+                    ("mono_bass", 150.0),
+                ],
+            ),
+            preset(
                 tr("Fix: tame a too-wide source"),
                 &[
                     ("low_width", 70.0),
@@ -2338,15 +3162,30 @@ fn factory(effect: &str) -> Vec<Preset> {
         "transient" => vec![
             preset(
                 tr("Kick: punch"),
-                &[("attack", 60.0), ("sustain", -20.0), ("speed", 8.0)],
+                &[
+                    ("attack", 60.0),
+                    ("sustain", -20.0),
+                    ("speed", 8.0),
+                    ("output", -3.0),
+                ],
             ),
             preset(
                 tr("Snare: crack"),
-                &[("attack", 50.0), ("sustain", 0.0), ("speed", 5.0)],
+                &[
+                    ("attack", 50.0),
+                    ("sustain", 0.0),
+                    ("speed", 5.0),
+                    ("output", -2.5),
+                ],
             ),
             preset(
                 tr("Snare: fat sustain"),
-                &[("attack", 10.0), ("sustain", 40.0), ("speed", 15.0)],
+                &[
+                    ("attack", 10.0),
+                    ("sustain", 40.0),
+                    ("speed", 15.0),
+                    ("output", -2.5),
+                ],
             ),
             preset(
                 tr("Toms: shorter ring"),
@@ -2354,40 +3193,69 @@ fn factory(effect: &str) -> Vec<Preset> {
             ),
             preset(
                 tr("Drums: tight"),
-                &[("attack", 20.0), ("sustain", -60.0), ("speed", 12.0)],
+                &[
+                    ("attack", 20.0),
+                    ("sustain", -60.0),
+                    ("speed", 12.0),
+                    ("output", 1.0),
+                ],
             ),
             preset(
                 tr("Drums: more room"),
-                &[("attack", 0.0), ("sustain", 60.0), ("speed", 20.0)],
+                &[
+                    ("attack", 0.0),
+                    ("sustain", 60.0),
+                    ("speed", 20.0),
+                    ("output", -3.5),
+                ],
+            ),
+            preset(
+                tr("Drum bus: punch"),
+                &[
+                    ("attack", 30.0),
+                    ("sustain", -10.0),
+                    ("speed", 10.0),
+                    ("output", -1.5),
+                ],
             ),
             preset(
                 tr("Acoustic guitar: pick attack"),
-                &[("attack", 35.0), ("sustain", -10.0), ("speed", 6.0)],
+                &[
+                    ("attack", 35.0),
+                    ("sustain", -10.0),
+                    ("speed", 6.0),
+                    ("output", -1.5),
+                ],
             ),
             preset(
                 tr("Bass: pluck definition"),
-                &[("attack", 30.0), ("sustain", 0.0), ("speed", 8.0)],
+                &[
+                    ("attack", 30.0),
+                    ("sustain", 0.0),
+                    ("speed", 8.0),
+                    ("output", -2.0),
+                ],
             ),
             preset(
                 tr("Fix: soften attacks"),
-                &[("attack", -60.0), ("sustain", 10.0)],
+                &[("attack", -60.0), ("sustain", 10.0), ("output", 3.0)],
             ),
         ],
         "pitch_correct" => vec![
             preset(
-                tr("Robot: hard tune"),
+                tr("Vocal: hard tune"),
                 &[("speed", 0.0), ("humanize", 0.0), ("amount", 100.0)],
             ),
             preset(
-                tr("Pop vocal: tight"),
+                tr("Vocal: pop, tight"),
                 &[("speed", 15.0), ("humanize", 20.0), ("amount", 100.0)],
             ),
             preset(
-                tr("Natural: keeps the vibrato"),
+                tr("Vocal: natural, keeps the vibrato"),
                 &[("speed", 60.0), ("humanize", 70.0), ("amount", 100.0)],
             ),
             preset(
-                tr("Subtle: light touch"),
+                tr("Vocal: light touch"),
                 &[("speed", 150.0), ("humanize", 60.0), ("amount", 60.0)],
             ),
             preset(
@@ -2395,7 +3263,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 &[("speed", 10.0), ("humanize", 0.0), ("amount", 100.0)],
             ),
             preset(
-                tr("Octave down"),
+                tr("FX: octave down"),
                 &[("speed", 20.0), ("humanize", 50.0), ("transpose", -12.0)],
             ),
         ],
@@ -2420,7 +3288,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 tr("Vocal: wide-band, natural"),
                 &[
                     ("frequency", 6500.0),
-                    ("threshold", -34.0),
+                    ("threshold", -30.0),
                     ("range", 6.0),
                     ("mode", 1.0),
                 ],
@@ -2473,6 +3341,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("high_freq", 2.0),
                     ("high_boost", 5.0),
                     ("bandwidth", 3.0),
+                    ("output", -2.0),
                 ],
             ),
             preset(
@@ -2561,12 +3430,27 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
+                tr("Synth: wobble 1/8"),
+                &[
+                    ("type", 0.0),
+                    ("slope", 1.0),
+                    ("cutoff", 300.0),
+                    ("resonance", 60.0),
+                    ("drive", 6.0),
+                    ("lfo_depth", 80.0),
+                    ("sync", 1.0),
+                    ("note", 1.0),
+                    ("output", -1.0),
+                ],
+            ),
+            preset(
                 tr("Guitar: auto-wah"),
                 &[
                     ("type", 2.0),
-                    ("cutoff", 900.0),
-                    ("resonance", 70.0),
+                    ("cutoff", 600.0),
+                    ("resonance", 55.0),
                     ("envelope", 80.0),
+                    ("output", 12.0),
                 ],
             ),
             preset(
@@ -2577,6 +3461,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("resonance", 60.0),
                     ("drive", 4.0),
                     ("envelope", 70.0),
+                    ("output", -2.0),
                 ],
             ),
             preset(
@@ -2586,11 +3471,32 @@ fn factory(effect: &str) -> Vec<Preset> {
                     ("cutoff", 1800.0),
                     ("resonance", 20.0),
                     ("drive", 8.0),
+                    ("output", 6.0),
                 ],
             ),
             preset(
                 tr("Drums: next room"),
                 &[("type", 0.0), ("cutoff", 700.0), ("resonance", 10.0)],
+            ),
+            preset(
+                tr("DJ: low-pass with drive"),
+                &[
+                    ("type", 0.0),
+                    ("slope", 1.0),
+                    ("cutoff", 2000.0),
+                    ("resonance", 35.0),
+                    ("drive", 6.0),
+                ],
+            ),
+            preset(
+                tr("DJ: high-pass with drive"),
+                &[
+                    ("type", 1.0),
+                    ("slope", 1.0),
+                    ("cutoff", 150.0),
+                    ("resonance", 35.0),
+                    ("drive", 6.0),
+                ],
             ),
         ],
         "utility" => vec![
@@ -2602,14 +3508,17 @@ fn factory(effect: &str) -> Vec<Preset> {
             preset(tr("Fix: flip left polarity"), &[("invert_left", 1.0)]),
             preset(tr("Fix: flip right polarity"), &[("invert_right", 1.0)]),
             preset(tr("Fix: swap channels"), &[("swap", 1.0)]),
+            preset(tr("Fix: remove DC offset"), &[("dc", 1.0)]),
+            preset(tr("Fix: mono bass below 120 Hz"), &[("bass_mono", 120.0)]),
             preset(tr("Gain: -6 dB headroom"), &[("gain", -6.0)]),
             preset(tr("Gain: +6 dB"), &[("gain", 6.0)]),
             preset(tr("Width: narrow 50%"), &[("width", 50.0)]),
             preset(tr("Width: wide 130%"), &[("width", 130.0)]),
+            preset(tr("Width: Haas widener 12 ms"), &[("delay_right", 12.0)]),
         ],
         "amp_rig" => vec![
             preset(
-                tr("Clean"),
+                tr("Clean: sparkle"),
                 &[
                     ("amp", 1.0),
                     ("gain", 3.0),
@@ -2625,11 +3534,12 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Edge of breakup"),
+                tr("Clean: edge of breakup"),
                 &[
                     ("amp", 2.0),
                     ("gain", 6.0),
                     ("cab", 4.0),
+                    ("master", -3.0),
                     ("p1_type", 13.0),
                     ("p1_k1", 3.0),
                     ("p1_k3", 6.0),
@@ -2638,7 +3548,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Jangle"),
+                tr("Clean: jangle"),
                 &[
                     ("amp", 6.0),
                     ("gain", 4.0),
@@ -2654,11 +3564,12 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Blues"),
+                tr("Crunch: blues"),
                 &[
                     ("amp", 7.0),
                     ("gain", 5.0),
                     ("cab", 1.0),
+                    ("master", -6.0),
                     ("p1_type", 14.0),
                     ("p1_k1", 4.0),
                     ("p1_k3", 6.0),
@@ -2668,7 +3579,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Crunch"),
+                tr("Crunch: rock"),
                 &[
                     ("amp", 8.0),
                     ("gain", 7.0),
@@ -2683,7 +3594,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Lead"),
+                tr("Lead: singing"),
                 &[
                     ("gate", -60.0),
                     ("amp", 8.0),
@@ -2703,7 +3614,7 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Metal"),
+                tr("High gain: metal"),
                 &[
                     ("gate", -50.0),
                     ("amp", 11.0),
@@ -2719,11 +3630,12 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Fuzz rock"),
+                tr("Fuzz: rock"),
                 &[
                     ("amp", 8.0),
                     ("gain", 4.0),
                     ("cab", 1.0),
+                    ("master", -3.0),
                     ("p1_type", 16.0),
                     ("p1_k1", 7.0),
                     ("p1_k2", 4.0),
@@ -2732,13 +3644,14 @@ fn factory(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass"),
+                tr("Bass: classic"),
                 &[
                     ("amp", 12.0),
                     ("gain", 4.0),
                     ("bass", 6.5),
                     ("treble", 4.0),
                     ("cab", 7.0),
+                    ("master", -14.0),
                     ("p1_type", 5.0),
                     ("p1_k1", 6.0),
                 ],
@@ -2800,6 +3713,76 @@ mod tests {
                         preset.name
                     );
                 }
+            }
+        }
+    }
+
+    /// A song-like signal through every built-in effect preset: none clips, runs away or
+    /// falls silent.
+    #[test]
+    fn factory_presets_neither_clip_nor_run_away() {
+        let rate = 48_000u32;
+        let n = rate as usize * 2;
+        let mut seed = 1u32;
+        let mut noise = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            seed as f32 / u32::MAX as f32 * 2.0 - 1.0
+        };
+        let tau = std::f32::consts::TAU;
+        let input: Vec<[f32; 2]> = (0..n)
+            .map(|i| {
+                let t = i as f32 / rate as f32;
+                let beat = t % 0.5;
+                let kick =
+                    (tau * (50.0 + 80.0 * (-beat * 30.0).exp()) * beat).sin() * (-beat * 8.0).exp();
+                let bass = ((110.0 * t) % 1.0 * 2.0 - 1.0) * 0.25;
+                let voice = (tau * 440.0 * t).sin() * 0.15;
+                let hat = noise() * 0.08 * (-(t % 0.25) * 40.0).exp();
+                let m = kick * 0.5 + bass + voice;
+                [(m + hat) * 0.5, (m - hat * 0.5) * 0.5]
+            })
+            .collect();
+        let rms = |x: &[[f32; 2]]| {
+            let e: f32 = x.iter().map(|s| s[0] * s[0] + s[1] * s[1]).sum();
+            10.0 * (e / (2 * x.len()) as f32).max(1e-12).log10()
+        };
+        let skip = rate as usize / 2;
+        let reference = rms(&input[skip..]);
+        for info in audiostrada_dsp::EFFECTS {
+            for preset in builtin(info.id) {
+                let Some(mut fx) = audiostrada_dsp::create(info.id) else {
+                    continue;
+                };
+                fx.prepare(rate, 256);
+                for (i, p) in info.params.iter().enumerate() {
+                    fx.set_param(i, preset.params.get(p.id).copied().unwrap_or(p.default));
+                }
+                let mut out = input.clone();
+                let (mut l, mut r) = (vec![0.0; 256], vec![0.0; 256]);
+                for block in out.chunks_mut(256) {
+                    let k = block.len();
+                    for (j, s) in block.iter().enumerate() {
+                        (l[j], r[j]) = (s[0], s[1]);
+                    }
+                    fx.process(&mut l[..k], &mut r[..k]);
+                    for (j, s) in block.iter_mut().enumerate() {
+                        *s = [l[j], r[j]];
+                    }
+                }
+                let out = &out[skip..];
+                let peak = out
+                    .iter()
+                    .map(|s| s[0].abs().max(s[1].abs()))
+                    .fold(0.0, f32::max);
+                let change = rms(out) - reference;
+                assert!(
+                    peak < 1.0 && (-30.0..12.0).contains(&change),
+                    "{}: {} peaks at {peak}, level {change:+.1} dB",
+                    info.id,
+                    preset.name
+                );
             }
         }
     }

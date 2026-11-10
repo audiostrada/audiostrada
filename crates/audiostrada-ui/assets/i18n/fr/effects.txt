@@ -276,29 +276,14 @@ Wah
 Clean
 Clair
 
-Edge of breakup
-Limite de saturation
-
-Jangle
-Jangle
-
 Blues
 Blues
 
 Crunch
 Crunch
-
-Metal
-Metal
-
-Fuzz rock
-Rock fuzz
 
 Bass
 Basses
-
-Default: flat
-Par défaut : neutre
 
 Vocal: presence
 Voix : présence
@@ -408,9 +393,6 @@ Voix : slapback analogique 110 ms
 Vocal: dark 1/8 echo
 Voix : écho sombre à la croche
 
-Vocal: 1/4 throw
-Voix : écho ponctuel à la noire
-
 Guitar: dotted eighth
 Guitare : croche pointée
 
@@ -455,15 +437,6 @@ Guitare : silence en high gain
 
 Fix: noise floor
 Correction : bruit de fond
-
-Master: safety -1 dB
-Master : sécurité -1 dB
-
-Master: streaming -1 dB
-Master : streaming -1 dB
-
-Master: broadcast -2 dB
-Master : diffusion -2 dB
 
 Master: loud -0.3 dB
 Master : fort -0,3 dB
@@ -539,9 +512,6 @@ Basse : fretless chatoyante
 
 FX: vibrato
 Effet : vibrato
-
-FX: flanger-style
-Effet : façon flanger
 
 Master: acoustic, gentle
 Master : acoustique, en douceur
@@ -1259,23 +1229,8 @@ A#
 B
 B
 
-Robot: hard tune
-Robot: correction instantanée
-
-Pop vocal: tight
-Voix pop: serrée
-
-Natural: keeps the vibrato
-Naturel: garde le vibrato
-
-Subtle: light touch
-Discret: touche légère
-
 Backing vocals: locked
 Chœurs: verrouillés
-
-Octave down
-Octave en dessous
 
 # audiostrada_dsp: limiter
 
@@ -5704,24 +5659,6 @@ septième mineure
 major seventh
 septième majeure
 
-ADT: vintage double tracking
-ADT : doublage vintage
-
-Chipmunk
-Chipmunk
-
-Detuned wide
-Désaccordé large
-
-Falling spiral
-Spirale descendante
-
-Fifth staircase
-Escalier de quintes
-
-Glitch cascade
-Cascade glitch
-
 Guitar: subtle stereo
 Guitare : stéréo subtile
 
@@ -5737,32 +5674,8 @@ Harmonie : tierce majeure au-dessus
 Harmony: third and fifth
 Harmonie : tierce et quinte
 
-Monster voice
-Voix de monstre
-
-Octave up
-Octave au-dessus
-
-Octaves up and down
-Octaves dessus et dessous
-
-Out of tune choir
-Chœur faux
-
-Shimmer spiral
-Spirale scintillante
-
-Slapback double
-Doublage slapback
-
-Sub octave for bass
-Sous-octave pour la basse
-
 Synth: wide pad
 Synthé : nappe large
-
-Thicken: octave below
-Épaissir : octave en dessous
 
 Vocal: natural double
 Voix : doublage naturel
@@ -6052,3 +5965,291 @@ La famille trouvée d'après ce que déclare le plugin, son nom et une liste de 
 
 Monitoring
 Monitoring
+
+Default
+Par défaut
+
+Vocal: pop lead
+Voix : lead pop
+
+Vocal: warm ballad
+Voix : ballade chaude
+
+Vocal: rap, upfront
+Voix : rap, en avant
+
+Backing vocals: tucked in
+Chœurs : en retrait
+
+Voice-over: podcast
+Voix off : podcast
+
+Toms: full and clear
+Toms : pleins et nets
+
+Overheads: open
+Overheads : ouverts
+
+Bass: DI, round and present
+Basse : DI, ronde et présente
+
+Guitar: electric, in the mix
+Guitare : électrique, dans le mix
+
+Acoustic guitar: strummed
+Guitare acoustique : grattée
+
+Piano: clear
+Piano : clair
+
+Synth: make room
+Synthé : faire de la place
+
+Drum bus: glue and weight
+Bus batterie : cohésion et poids
+
+Vocal: less mud
+Voix : moins de bas-médium
+
+Vocal: soften harsh notes
+Voix : adoucir les notes dures
+
+Kick: deep sub
+Grosse caisse : sub profond
+
+Piano: clarity
+Piano : clarté
+
+Synth: make room for the vocal
+Synthé : faire de la place à la voix
+
+Master: tilt brighter
+Master : inclinaison plus brillante
+
+Master: tilt warmer
+Master : inclinaison plus chaude
+
+Master: mono lows below 120 Hz
+Master : graves mono sous 120 Hz
+
+Master: wider air
+Master : aigus plus larges
+
+Fix: rumble below 30 Hz
+Correction : grondement sous 30 Hz
+
+Fix: mains hum 50 Hz
+Correction : ronflette secteur 50 Hz
+
+Fix: mains hum 60 Hz
+Correction : ronflette secteur 60 Hz
+
+FX: old radio
+Effet : vieille radio
+
+Guitar: sustain
+Guitare : sustain
+
+Acoustic guitar: even strumming
+Guitare acoustique : grattage régulier
+
+Piano: gentle
+Piano : en douceur
+
+Sidechain: duck under the kick
+Sidechain : s'effacer sous la grosse caisse
+
+Sidechain: pumping
+Sidechain : pompage
+
+Vocal: plate, 1/16 pre-delay
+Voix : plaque, pré-délai à la double croche
+
+Vocal: ballad hall
+Voix : salle pour ballade
+
+Vocal: close ambience
+Voix : ambiance proche
+
+Piano: hall
+Piano : salle
+
+Send: vocal plate
+Send : plaque pour la voix
+
+Send: drum room
+Send : pièce pour la batterie
+
+Send: medium hall
+Send : salle moyenne
+
+Send: large dark hall
+Send : grande salle sombre
+
+Send: plate, 1/8 pre-delay
+Send : plaque, pré-délai à la croche
+
+Vocal: 1/4 throw, ducked
+Voix : écho ponctuel à la noire, en ducking
+
+Guitar: slapback 120 ms
+Guitare : slapback 120 ms
+
+Synth: 1/8 triplet ping-pong
+Synthé : ping-pong en triolets de croches
+
+Send: 1/4 echo
+Send : écho à la noire
+
+Send: dotted 1/8
+Send : croche pointée
+
+Send: slapback
+Send : slapback
+
+Send: tape echo
+Send : écho à bande
+
+Ducker: music under the voice
+Ducker : musique sous la voix
+
+Master: safety -1 dBTP
+Master : sécurité -1 dBTP
+
+Master: wide, unlinked
+Master : large, canaux indépendants
+
+Vocal: megaphone
+Voix : mégaphone
+
+Drums: warm tape
+Batterie : bande chaude
+
+Lo-fi: blown speaker
+Lo-fi : haut-parleur claqué
+
+Synth: 80s poly chorus
+Synthé : chorus de polyphonique années 80
+
+Strings: ensemble
+Cordes : ensemble
+
+FX: resonant sweep
+Effet : balayage résonant
+
+FX: synced 1 bar swirl
+Effet : tourbillon synchronisé sur 1 mesure
+
+Octave: up
+Octave : au-dessus
+
+Octave: down
+Octave : en dessous
+
+Octave: up and down
+Octave : dessus et dessous
+
+Vocal: octave below, blended
+Voix : octave en dessous, mélangée
+
+Bass: sub octave
+Basse : sous-octave
+
+Width: micro-shift
+Largeur : micro-décalage
+
+FX: chipmunk
+Effet : chipmunk
+
+FX: monster voice
+Effet : voix de monstre
+
+Spiral: rising shimmer
+Spirale : montée scintillante
+
+Spiral: falling
+Spirale : descendante
+
+Spiral: fifths staircase
+Spirale : escalier de quintes
+
+Spiral: glitch cascade
+Spirale : cascade glitch
+
+Vocal: vintage ADT
+Voix : ADT vintage
+
+Vocal: slapback double
+Voix : doublage slapback
+
+FX: out-of-tune choir
+Effet : chœur faux
+
+Synth: 1 bar sweep
+Synthé : balayage sur 1 mesure
+
+Synth: 1/2 synced sweep
+Synthé : balayage synchronisé à la blanche
+
+Mono source: stereoize
+Source mono : rendre stéréo
+
+Vocal: hard tune
+Voix : correction instantanée
+
+Vocal: pop, tight
+Voix : pop, serrée
+
+Vocal: natural, keeps the vibrato
+Voix : naturelle, garde le vibrato
+
+Vocal: light touch
+Voix : touche légère
+
+FX: octave down
+Effet : octave en dessous
+
+Synth: wobble 1/8
+Synthé : wobble à la croche
+
+DJ: low-pass with drive
+DJ : passe-bas saturé
+
+DJ: high-pass with drive
+DJ : passe-haut saturé
+
+Fix: remove DC offset
+Correction : retirer la composante continue
+
+Fix: mono bass below 120 Hz
+Correction : graves mono sous 120 Hz
+
+Width: Haas widener 12 ms
+Largeur : élargissement Haas 12 ms
+
+Clean: sparkle
+Clair : scintillant
+
+Clean: edge of breakup
+Clair : limite de saturation
+
+Clean: jangle
+Clair : jangle
+
+Crunch: blues
+Crunch : blues
+
+Crunch: rock
+Crunch : rock
+
+Lead: singing
+Lead : chantant
+
+High gain: metal
+High gain : metal
+
+Fuzz: rock
+Fuzz : rock
+
+Bass: classic
+Basse : classique
