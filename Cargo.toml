@@ -88,8 +88,9 @@ dbg_macro = "warn"
 todo = "warn"
 unwrap_used = "warn"
 
-# Debug builds stay usable for audio: dependencies and the signal processing crates are
-# optimized, the rest keeps fast builds and full debugging.
+# Debug builds stay usable for audio: dependencies and the crates the audio thread runs are
+# optimized (debug assertions and allocation checks stay on), the rest keeps fast builds and
+# full debugging.
 [profile.dev.package."*"]
 opt-level = 2
 
@@ -97,6 +98,18 @@ opt-level = 2
 opt-level = 3
 
 [profile.dev.package.audiostrada-dsp]
+opt-level = 3
+
+[profile.dev.package.audiostrada-engine]
+opt-level = 3
+
+[profile.dev.package.audiostrada-rt]
+opt-level = 3
+
+[profile.dev.package.audiostrada-io]
+opt-level = 3
+
+[profile.dev.package.audiostrada-midi]
 opt-level = 3
 
 [profile.release]
