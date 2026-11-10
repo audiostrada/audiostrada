@@ -1,6 +1,6 @@
-//! Tuner: detects the pitch of the input (YIN on the mono sum, about fifty times a second) and
-//! reports it, smoothed while the note holds so that the needle does not shake; the signal
-//! passes through, or is muted while tuning.
+//! Tuner: detects the pitch of the input (YIN on the mono sum, about twenty-five times a second,
+//! its search spread over the blocks in between) and reports it, smoothed while the note holds
+//! so that the needle does not shake; the signal passes through, or is muted while tuning.
 
 use crate::{Effect, EffectInfo, ParamInfo, choice, param, switch};
 
@@ -26,7 +26,7 @@ const PARAMS: [ParamInfo; 3] = [
 const SMOOTHING: f32 = 0.35;
 
 const WINDOW: usize = 4096;
-const HOP: usize = 1024;
+const HOP: usize = 2048;
 /// Lowest note tracked: a little below a five-string bass low B.
 const LOWEST_HZ: f32 = 28.0;
 const HIGHEST_HZ: f32 = 1400.0;
@@ -38,8 +38,19 @@ pub struct Tuner {
     input: Vec<f32>,
     filled: usize,
     difference: Vec<f32>,
+    /// The window being searched, while `search` runs.
+    analysis: Vec<f32>,
+    search: Option<Search>,
     frequency: f32,
     clarity: f32,
+}
+
+/// A YIN search under way: the next lag to compare, the last one, the running sum.
+#[derive(Debug, Clone, Copy)]
+struct Search {
+    next: usize,
+    max_lag: usize,
+    running: f32,
 }
 
 impl Default for Tuner {
@@ -50,6 +61,8 @@ impl Default for Tuner {
             input: vec![0.0; WINDOW],
             filled: 0,
             difference: vec![0.0; WINDOW / 2],
+            analysis: vec![0.0; WINDOW],
+            search: None,
             frequency: 0.0,
             clarity: 0.0,
         }
@@ -77,28 +90,46 @@ pub(crate) fn yin(
     longest: usize,
     difference: &mut [f32],
 ) -> Option<(f32, f32)> {
-    let max_lag = longest
-        .min(x.len().saturating_sub(window + 1))
-        .min(difference.len().saturating_sub(2));
-    if max_lag < 3 {
-        return None;
-    }
+    let max_lag = lag_limit(x.len(), window, longest, difference.len())?;
     difference[0] = 1.0;
     let mut running = 0.0;
-    for lag in 1..=max_lag + 1 {
+    differences(x, window, 1..max_lag + 2, &mut running, difference);
+    pick(difference, shortest, max_lag)
+}
+
+/// The longest lag a search can compare in `len` samples.
+fn lag_limit(len: usize, window: usize, longest: usize, room: usize) -> Option<usize> {
+    let max_lag = longest
+        .min(len.saturating_sub(window + 1))
+        .min(room.saturating_sub(2));
+    (max_lag >= 3).then_some(max_lag)
+}
+
+/// Cumulative mean normalized differences of `x` for `lags`, after those before them.
+fn differences(
+    x: &[f32],
+    window: usize,
+    lags: std::ops::Range<usize>,
+    running: &mut f32,
+    difference: &mut [f32],
+) {
+    for lag in lags {
         let mut sum = 0.0;
         for i in 0..window {
             let d = x[i] - x[i + lag];
             sum += d * d;
         }
-        running += sum;
-        // Cumulative mean normalized difference.
-        difference[lag] = if running > 0.0 {
-            sum * lag as f32 / running
+        *running += sum;
+        difference[lag] = if *running > 0.0 {
+            sum * lag as f32 / *running
         } else {
             1.0
         };
     }
+}
+
+/// The first dip under the threshold, refined between its neighbors, and its clarity.
+fn pick(difference: &[f32], shortest: usize, max_lag: usize) -> Option<(f32, f32)> {
     let threshold = 0.15;
     let mut lag = (shortest.max(2)..max_lag).find(|&l| difference[l] < threshold)?;
     while lag + 1 < max_lag && difference[lag + 1] < difference[lag] {
@@ -121,10 +152,67 @@ pub fn note(frequency: f32, reference: f32) -> (i32, f32) {
     (nearest as i32, (semitones - nearest) * 100.0)
 }
 
+impl Tuner {
+    /// Takes the full window for a new search, unless it is silent.
+    fn start(&mut self) {
+        self.analysis.copy_from_slice(&self.input);
+        let energy = self.analysis.iter().map(|s| s * s).sum::<f32>() / WINDOW as f32;
+        let longest = (self.rate / LOWEST_HZ) as usize;
+        match lag_limit(WINDOW, WINDOW / 2, longest, self.difference.len()) {
+            Some(max_lag) if energy >= 1e-7 => {
+                self.difference[0] = 1.0;
+                self.search = Some(Search {
+                    next: 1,
+                    max_lag,
+                    running: 0.0,
+                });
+            }
+            _ => self.clarity = 0.0,
+        }
+    }
+
+    /// Compares up to `lags` more lags, and reads the pitch once all are done.
+    fn search(&mut self, lags: usize) {
+        let Some(mut search) = self.search else {
+            return;
+        };
+        let end = search.next.saturating_add(lags).min(search.max_lag + 2);
+        differences(
+            &self.analysis,
+            WINDOW / 2,
+            search.next..end,
+            &mut search.running,
+            &mut self.difference,
+        );
+        search.next = end;
+        if end <= search.max_lag + 1 {
+            self.search = Some(search);
+            return;
+        }
+        self.search = None;
+        let shortest = (self.rate / HIGHEST_HZ) as usize;
+        match pick(&self.difference, shortest, search.max_lag) {
+            Some((lag, clarity)) => {
+                let f = self.rate / lag;
+                // Same note: glide in cents; a new note: at once.
+                let cents = 1200.0 * (f / self.frequency.max(1.0)).log2();
+                self.frequency = if self.frequency > 0.0 && cents.abs() < 50.0 {
+                    self.frequency * 2f32.powf(cents * SMOOTHING / 1200.0)
+                } else {
+                    f
+                };
+                self.clarity = clarity;
+            }
+            None => self.clarity = 0.0,
+        }
+    }
+}
+
 impl Effect for Tuner {
     fn prepare(&mut self, sample_rate: u32, _max_frames: usize) {
         self.rate = sample_rate as f32;
         self.filled = 0;
+        self.search = None;
     }
 
     fn set_param(&mut self, index: usize, value: f32) {
@@ -138,22 +226,15 @@ impl Effect for Tuner {
             self.input[self.filled] = 0.5 * (l + r);
             self.filled += 1;
             if self.filled == WINDOW {
-                match detect(&self.input, self.rate, &mut self.difference) {
-                    Some((f, clarity)) => {
-                        // Same note: glide in cents; a new note: at once.
-                        let cents = 1200.0 * (f / self.frequency.max(1.0)).log2();
-                        self.frequency = if self.frequency > 0.0 && cents.abs() < 50.0 {
-                            self.frequency * 2f32.powf(cents * SMOOTHING / 1200.0)
-                        } else {
-                            f
-                        };
-                        self.clarity = clarity;
-                    }
-                    None => self.clarity = 0.0,
-                }
+                self.search(usize::MAX);
+                self.start();
                 self.input.copy_within(HOP.., 0);
                 self.filled = WINDOW - HOP;
             }
+        }
+        // Enough lags each block for the search to end before the next window.
+        if let Some(search) = self.search {
+            self.search((search.max_lag + 1) * left.len() / HOP + 1);
         }
         if self.values[1] >= 0.5 {
             left.fill(0.0);
@@ -245,5 +326,30 @@ mod tests {
         // An octave up is another note: no glide from the A2.
         let b = run(220.0);
         assert!((note(b, 220.0).1).abs() < 2.0, "{b}");
+    }
+
+    #[test]
+    fn small_blocks_share_the_search_and_read_the_same_pitch() {
+        let mut tuner = Tuner::default();
+        tuner.prepare(48_000, 64);
+        let mut spread = 0;
+        for block in 0..400 {
+            let (mut l, mut r): (Vec<f32>, Vec<f32>) = (0..64)
+                .map(|i| {
+                    let t = (block * 64 + i) as f32 / 48_000.0;
+                    let s = 0.5 * (t * 82.41 * std::f32::consts::TAU).sin();
+                    (s, s)
+                })
+                .unzip();
+            tuner.process(&mut l, &mut r);
+            spread += usize::from(tuner.search.is_some());
+        }
+        // A window every 32 blocks, searched over most of them.
+        assert!(spread > 300, "{spread}");
+        assert!(
+            (note(tuner.frequency, 82.41).1).abs() < 2.0,
+            "{}",
+            tuner.frequency
+        );
     }
 }
