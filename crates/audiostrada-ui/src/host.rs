@@ -3,6 +3,9 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
+
+use audiostrada_rt::channel::{Receiver, Sender, channel};
 
 use audiostrada_io::tools::{Meters, TestTone};
 use audiostrada_io::{
@@ -12,13 +15,20 @@ use audiostrada_io::{
 
 const TONE_FREQUENCY: f32 = 440.0;
 const TONE_GAIN_DB: f32 = -18.0;
+/// Longest wait for the audio thread to take a new processor before the stream is reopened.
+const HANDOVER: Duration = Duration::from_millis(250);
+
+type Callback = Box<dyn AudioCallback>;
 
 /// Builds the processing callback once the format of a new stream is known.
 pub type ProcessorFactory = Box<dyn FnMut(&StreamInfo) -> Box<dyn AudioCallback>>;
 
-/// Wraps the application callback with the test tone and level meters.
+/// Wraps the application callback with the test tone and level meters. A new callback can
+/// replace it while the stream runs, the old one going back to be dropped off the audio thread.
 struct Monitor {
     inner: Box<dyn AudioCallback>,
+    incoming: Receiver<Callback>,
+    retired: Sender<Callback>,
     tone: TestTone,
     tone_rate: u32,
     tone_on: Arc<AtomicBool>,
@@ -28,6 +38,13 @@ struct Monitor {
 
 impl AudioCallback for Monitor {
     fn process(&mut self, buffers: &mut AudioBuffers<'_>, time: &CallbackTime) {
+        if let Some(next) = self.incoming.try_recv() {
+            let old = std::mem::replace(&mut self.inner, next);
+            if let Err(old) = self.retired.try_send(old) {
+                // The host always drains it first: never freed here, even if full.
+                std::mem::forget(old);
+            }
+        }
         self.inner.process(buffers, time);
         if self.tone_on.load(Ordering::Relaxed) && buffers.output_channels() > 0 {
             if time.sample_rate != self.tone_rate {
@@ -62,6 +79,8 @@ pub struct AudioHost {
     stream: Option<Box<dyn AudioStream>>,
     config: StreamConfig,
     factory: ProcessorFactory,
+    /// Hands the running stream a new processor and takes the old one back.
+    handover: Option<(Sender<Callback>, Receiver<Callback>)>,
     tone_on: Arc<AtomicBool>,
     input_meters: Meters,
     output_meters: Meters,
@@ -86,6 +105,7 @@ impl AudioHost {
             stream: None,
             config: StreamConfig::default(),
             factory,
+            handover: None,
             tone_on: Arc::new(AtomicBool::new(false)),
             input_meters: Meters::new(0),
             output_meters: Meters::new(0),
@@ -140,9 +160,15 @@ impl AudioHost {
         let factory = &mut self.factory;
         let tone_on = &self.tone_on;
         let mut meters = None;
+        let (to_stream, incoming) = channel(2);
+        let (retired, from_stream) = channel(2);
+        let mut ends = Some((incoming, retired));
         let opened = backend.open(&self.config, &mut |info| {
+            let (incoming, retired) = ends.take().unwrap_or_else(|| (channel(1).1, channel(1).0));
             let monitor = Monitor {
                 inner: factory(info),
+                incoming,
+                retired,
                 tone: TestTone::new(TONE_FREQUENCY, TONE_GAIN_DB, info.sample_rate),
                 tone_rate: info.sample_rate,
                 tone_on: Arc::clone(tone_on),
@@ -160,6 +186,7 @@ impl AudioHost {
             Ok(stream) => {
                 tracing::info!(info = ?stream.info(), "audio stream started");
                 self.stream = Some(stream);
+                self.handover = Some((to_stream, from_stream));
                 self.error = None;
             }
             Err(e) => {
@@ -212,9 +239,39 @@ impl AudioHost {
     }
 
     pub fn stop(&mut self) {
+        self.handover = None;
         if self.stream.take().is_some() {
             tracing::info!("audio stream stopped");
         }
+    }
+
+    /// Gives the running stream a new processor from the factory (another project shown),
+    /// keeping the device open: some interfaces misbehave when restarted at once. Reopens the
+    /// stream when none runs or the audio thread does not take it.
+    pub fn reattach(&mut self) {
+        let info = self
+            .stream
+            .as_ref()
+            .filter(|s| !s.status().failed())
+            .map(|s| s.info().clone());
+        let (Some(info), Some((to_stream, from_stream))) = (info, self.handover.as_mut()) else {
+            self.apply(self.config.clone());
+            return;
+        };
+        let processor = (self.factory)(&info);
+        if to_stream.try_send(processor).is_ok() {
+            let start = Instant::now();
+            while start.elapsed() < HANDOVER {
+                if let Some(old) = from_stream.try_recv() {
+                    drop(old);
+                    tracing::info!("audio processor replaced, the stream kept open");
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        }
+        tracing::warn!("the audio thread did not take the new processor: reopening the stream");
+        self.apply(self.config.clone());
     }
 
     pub fn kind(&self) -> Option<BackendKind> {
@@ -255,5 +312,47 @@ impl AudioHost {
 
     pub fn output_meters(&self) -> &Meters {
         &self.output_meters
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicUsize;
+
+    #[test]
+    fn another_processor_takes_over_without_reopening_the_stream() {
+        let made = Arc::new(AtomicUsize::new(0));
+        let playing = Arc::new(AtomicUsize::new(0));
+        let mut host = AudioHost::new({
+            let (made, playing) = (Arc::clone(&made), Arc::clone(&playing));
+            Box::new(move |_| {
+                let id = made.fetch_add(1, Ordering::Relaxed) + 1;
+                let playing = Arc::clone(&playing);
+                Box::new(move |_: &mut AudioBuffers<'_>, _: &CallbackTime| {
+                    playing.store(id, Ordering::Relaxed);
+                })
+            })
+        });
+        host.start(Some(BackendKind::Dummy), StreamConfig::default());
+        let stream = |host: &AudioHost| {
+            host.stream()
+                .map(|s| std::ptr::from_ref(s).cast::<u8>() as usize)
+        };
+        let before = stream(&host);
+        assert!(before.is_some());
+        host.reattach();
+        assert_eq!(made.load(Ordering::Relaxed), 2);
+        assert_eq!(stream(&host), before, "the same stream");
+        let start = Instant::now();
+        while playing.load(Ordering::Relaxed) != 2 && start.elapsed() < Duration::from_secs(2) {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert_eq!(playing.load(Ordering::Relaxed), 2);
+        // Without a stream, it opens one.
+        host.stop();
+        host.reattach();
+        assert!(host.stream().is_some());
+        assert_eq!(made.load(Ordering::Relaxed), 3);
     }
 }

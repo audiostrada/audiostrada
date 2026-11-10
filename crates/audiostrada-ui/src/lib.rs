@@ -623,10 +623,9 @@ impl AudioStradaApp {
     }
 
     fn replace(&mut self, doc: Document) {
-        self.host.stop();
         let mut doc = doc;
         doc.set_plugins(self.doc.borrow().player().plugins().clone());
-        *self.doc.borrow_mut() = doc;
+        let old = std::mem::replace(&mut *self.doc.borrow_mut(), doc);
         {
             let mut views = self.views.borrow_mut();
             views.mixer.reset();
@@ -634,12 +633,13 @@ impl AudioStradaApp {
             views.piano.reset();
         }
         self.restart();
+        // Once the stream has let go of its processor.
+        drop(old);
     }
 
-    /// Restarts the stream on the current document, after it changed.
+    /// Plays the current document, after it changed, on the stream kept open.
     fn restart(&mut self) {
-        let config = self.host.config().clone();
-        self.host.apply(config);
+        self.host.reattach();
         if self.prefs_applied {
             self.open_midi_inputs();
         }

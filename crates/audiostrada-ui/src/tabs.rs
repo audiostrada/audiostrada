@@ -80,7 +80,6 @@ impl AudioStradaApp {
         if to == self.current || to >= self.tabs.len() || !self.can_leave() {
             return;
         }
-        self.host.stop();
         self.park_current();
         let Some(mut parked) = self.tabs[to].take() else {
             return;
@@ -110,7 +109,6 @@ impl AudioStradaApp {
         let mut doc = doc;
         doc.set_plugins(self.doc.borrow().player().plugins().clone());
         let mut parked = self.parked(doc);
-        self.host.stop();
         self.park_current();
         self.exchange(&mut parked);
         self.tabs[self.current] = Some(parked);
@@ -121,16 +119,16 @@ impl AudioStradaApp {
 
     /// Closes the current project and shows tab `to` (an index before the removal).
     fn leave_tab(&mut self, to: usize) {
-        self.host.stop();
         self.park_current();
         let Some(mut parked) = self.tabs.get_mut(to).and_then(Option::take) else {
             return;
         };
         self.exchange(&mut parked);
-        drop(parked);
         self.tabs.remove(self.current);
         self.current = if to > self.current { to - 1 } else { to };
         self.restart();
+        // Once the stream has let go of its processor.
+        drop(parked);
     }
 
     /// Closes the current tab once its changes were saved or dropped.
