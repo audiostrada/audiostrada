@@ -164,7 +164,9 @@ freeze, bounce to a new track, export the track alone, new playlist, automation.
 - **Transients**: [[Tab]] and [[Shift+Tab]] take the playhead to the next or previous hit of the
   selected track's clips.
 - **Markers**: [[M]] adds a marker at the playhead; [[.]] and [[,]] jump between markers.
-  Right-click the ruler or an empty part of a track for *Add marker here*.
+  Right-click the ruler or an empty part of a track for *Add marker here*. Click a marker, its
+  flag or its name, to put the playhead on it; drag it to move it; double-click it to rename
+  it (Enter keeps the name, Escape cancels).
 
 ## Waveforms
 

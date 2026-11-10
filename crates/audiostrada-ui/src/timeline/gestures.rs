@@ -148,11 +148,15 @@ impl TimelineView {
                 false => None,
             }
         };
+        let marker_under = |pos: Pos2| marker_at(ui, project, scale, ruler, pos);
         if self.drag.is_none()
             && let Some(pos) = ruler_response.hover_pos()
-            && range_edge(pos, true).is_some()
         {
-            ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
+            if marker_under(pos).is_some() && !modifiers.alt && !modifiers.shift {
+                ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+            } else if range_edge(pos, true).is_some() {
+                ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
+            }
         }
         if self.drag.is_none()
             && let Some(pos) = lanes_response.hover_pos()
@@ -209,10 +213,7 @@ impl TimelineView {
         {
             let pos = ui.input(|i| i.pointer.press_origin()).unwrap_or(pos);
             let sample = magnet.snap(scale.sample(pos.x));
-            let marker = project
-                .markers
-                .iter()
-                .find(|m| (scale.x(m.position) - pos.x).abs() < 6.0 && pos.y > ruler.top() + 10.0);
+            let marker = marker_under(pos);
             // The loop band (or Alt) sets the loop, from the edge not grabbed; Shift the punch.
             let in_band = pos.y > ruler.bottom() - LOOP_BAND || modifiers.alt;
             let loop_edge = project.loop_range.and_then(|(a, b)| {
@@ -224,6 +225,8 @@ impl TimelineView {
                     anchor: sample,
                     punch: true,
                 }
+            } else if let Some(id) = marker.filter(|_| !modifiers.alt) {
+                DragKind::Marker(id)
             } else if in_band {
                 DragKind::Loop {
                     anchor: loop_edge.unwrap_or(sample),
@@ -231,8 +234,6 @@ impl TimelineView {
                 }
             } else if let Some(anchor) = range_edge(pos, true) {
                 DragKind::RangeEdge { anchor }
-            } else if let Some(m) = marker {
-                DragKind::Marker(m.id)
             } else {
                 DragKind::RulerRange { anchor: sample }
             };
@@ -520,7 +521,11 @@ impl TimelineView {
                     }
                 }
                 DragKind::Marker(id) => {
-                    let target = magnet.snap(scale.sample(pos.x));
+                    // From where it was grabbed, its name as well as its flag.
+                    let from = drag.original.markers.iter().find(|m| m.id == id);
+                    let start = from.map_or(0, |m| m.position);
+                    let moved = start as i64 + scale.samples(delta.x);
+                    let target = magnet.snap(moved.max(0) as u64);
                     if let Some(m) = preview.markers.iter_mut().find(|m| m.id == id) {
                         m.position = target;
                     }
@@ -930,7 +935,10 @@ impl TimelineView {
         if ruler_response.clicked()
             && let Some(pos) = ruler_response.interact_pointer_pos()
         {
-            let target = magnet.snap(scale.sample(pos.x));
+            let marker = marker_under(pos)
+                .and_then(|id| project.markers.iter().find(|m| m.id == id))
+                .map(|m| m.position);
+            let target = marker.unwrap_or_else(|| magnet.snap(scale.sample(pos.x)));
             doc.player_mut().locate(target);
         }
         // Over a fade handle, or dragging one: the pointer is the fade's curve.
@@ -966,18 +974,22 @@ impl TimelineView {
         if ruler_response.secondary_clicked()
             && let Some(pos) = ruler_response.interact_pointer_pos()
         {
-            let marker = project
-                .markers
-                .iter()
-                .find(|m| (scale.x(m.position) - pos.x).abs() < 6.0)
-                .map(|m| m.id);
+            let marker = marker_under(pos);
             let at = magnet.snap(scale.sample(pos.x));
             self.ruler_target = Some((at, marker));
         }
         if let Some((at, marker)) = self.ruler_target {
             ruler_response.context_menu(|ui| self.ruler_menu(ui, doc, at, marker));
         }
-        if ruler_response.double_clicked() {
+        let renamed = ruler_response
+            .interact_pointer_pos()
+            .and_then(marker_under)
+            .and_then(|id| project.markers.iter().find(|m| m.id == id));
+        if ruler_response.double_clicked()
+            && let Some(m) = renamed
+        {
+            self.marker_rename = Some((m.id, m.name.clone(), false));
+        } else if ruler_response.double_clicked() {
             if modifiers.shift {
                 doc.history_mut()
                     .edit(tr("Punch off"), |p| p.punch_range = None);
@@ -986,6 +998,57 @@ impl TimelineView {
                 let label = if off { tr("Loop off") } else { tr("Loop on") };
                 doc.history_mut().edit(label, |p| p.loop_off = off);
             }
+        }
+        self.marker_name_field(ui, doc, project, scale, ruler);
+    }
+
+    /// The field renaming a marker over its name: Enter or a click away keeps the name, Escape
+    /// leaves it as it was.
+    fn marker_name_field(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        project: &Project,
+        scale: Scale,
+        ruler: Rect,
+    ) {
+        let Some((id, text, focused)) = &mut self.marker_rename else {
+            return;
+        };
+        let Some(marker) = project.markers.iter().find(|m| m.id == *id) else {
+            self.marker_rename = None;
+            return;
+        };
+        let at = pos2(scale.x(marker.position) + 6.0, ruler.top() + 8.0);
+        let mut done = false;
+        let mut keep = false;
+        egui::Area::new(egui::Id::unique("marker-name"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(at)
+            .show(ui.ctx(), |ui| {
+                let field = ui.add(
+                    egui::TextEdit::singleline(text)
+                        .desired_width(160.0)
+                        .font(FontId::proportional(11.0)),
+                );
+                if !*focused {
+                    field.request_focus();
+                    *focused = true;
+                } else if field.lost_focus() {
+                    done = true;
+                    keep = !ui.input(|i| i.key_pressed(egui::Key::Escape));
+                }
+            });
+        if done {
+            let (id, name) = (*id, text.trim().to_owned());
+            if keep && !name.is_empty() && name != marker.name {
+                doc.history_mut().edit(tr("Rename marker"), |p| {
+                    if let Some(m) = p.markers.iter_mut().find(|m| m.id == id) {
+                        m.name = name;
+                    }
+                });
+            }
+            self.marker_rename = None;
         }
     }
 
@@ -1228,6 +1291,38 @@ fn millis(project: &Project, samples: u64) -> String {
     )
 }
 
+/// The marker whose flag or name is under `pos` in the ruler; flags first, the later marker
+/// (drawn on top) first.
+pub(super) fn marker_at(
+    ui: &Ui,
+    project: &Project,
+    scale: Scale,
+    ruler: Rect,
+    pos: Pos2,
+) -> Option<MarkerId> {
+    if pos.y < ruler.top() + 10.0 || !ruler.contains(pos) {
+        return None;
+    }
+    let flag = |m: &&audiostrada_core::Marker| {
+        let x = scale.x(m.position);
+        pos.x >= x - 4.0 && pos.x <= x + 10.0
+    };
+    let name = |m: &&audiostrada_core::Marker| {
+        let x = scale.x(m.position);
+        let width = ui
+            .painter()
+            .layout_no_wrap(m.name.clone(), FontId::proportional(10.0), Color32::WHITE)
+            .size()
+            .x;
+        pos.x >= x && pos.x <= x + 12.0 + width
+    };
+    let markers = || project.markers.iter().rev();
+    markers()
+        .find(flag)
+        .or_else(|| markers().find(name))
+        .map(|m| m.id)
+}
+
 pub(super) fn bars(project: &Project, at: u64) -> String {
     let (tempo, rate) = (&project.tempo, project.sample_rate.max(1));
     let bbt = tempo.beat_to_bbt(tempo.sample_to_beat(at, rate));
@@ -1315,4 +1410,94 @@ fn drag_label(drag: &Drag, preview: &Project) -> Option<String> {
 fn next_shape(shape: FadeShape) -> FadeShape {
     let i = FadeShape::ALL.iter().position(|s| *s == shape).unwrap_or(0);
     FadeShape::ALL[(i + 1) % FadeShape::ALL.len()]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app_tests::Harness;
+    use eframe::egui::{Event, Key, Modifiers, PointerButton};
+
+    fn press(h: &mut Harness, at: Pos2, pressed: bool) {
+        h.frame(vec![Event::PointerButton {
+            pos: at,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        }]);
+    }
+
+    fn key(key: Key) -> Event {
+        Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        }
+    }
+
+    fn marker(h: &Harness) -> audiostrada_core::Marker {
+        h.app.doc.borrow().project().markers[0].clone()
+    }
+
+    #[test]
+    fn a_click_on_a_marker_name_goes_to_the_marker_and_a_double_click_renames_it() {
+        let mut h = Harness::with_song("markers");
+        h.app.doc.borrow_mut().history_mut().edit("m", |p| {
+            p.markers.clear();
+            let id = edit::add_marker(p, 48_000);
+            p.markers.iter_mut().find(|m| m.id == id).unwrap().name = "Chorus".into();
+        });
+        h.app.views.borrow_mut().edit = EditSettings::default();
+        for _ in 0..4 {
+            h.frame(Vec::new());
+        }
+        let (ruler, scroll, zoom) = {
+            let views = h.app.views.borrow();
+            let t = &views.timeline;
+            (t.ruler_rect, t.scroll, t.zoom)
+        };
+        let x = ruler.left() + ((48_000.0 - scroll) / zoom) as f32;
+        let name = pos2(x + 25.0, ruler.top() + 19.0);
+
+        // On its name, far from the flag: the playhead goes to the marker.
+        h.frame(vec![Event::PointerMoved(name)]);
+        press(&mut h, name, true);
+        press(&mut h, name, false);
+        for _ in 0..3 {
+            h.frame(Vec::new());
+        }
+        assert_eq!(h.app.doc.borrow().player().position(), 48_000);
+
+        // A double-click opens a field over the name.
+        for _ in 0..2 {
+            press(&mut h, name, true);
+            press(&mut h, name, false);
+        }
+        h.frame(Vec::new());
+        assert!(h.app.views.borrow().timeline.marker_rename.is_some());
+        h.frame(vec![key(Key::End)]);
+        h.frame((0..6).map(|_| key(Key::Backspace)).collect());
+        h.frame(vec![Event::Text("Verse".into())]);
+        h.frame(vec![key(Key::Enter)]);
+        h.frame(Vec::new());
+        assert_eq!(marker(&h).name, "Verse");
+        assert!(h.app.views.borrow().timeline.marker_rename.is_none());
+
+        // Dragged by its name, it moves by the drag without jumping to the pointer.
+        let away = pos2(500.0, 900.0);
+        h.frame(vec![Event::PointerMoved(away)]);
+        press(&mut h, away, true);
+        press(&mut h, away, false);
+        h.frame(vec![Event::PointerMoved(name)]);
+        press(&mut h, name, true);
+        for k in 1..=5 {
+            h.frame(vec![Event::PointerMoved(name + vec2(10.0 * k as f32, 0.0))]);
+        }
+        press(&mut h, name + vec2(50.0, 0.0), false);
+        h.frame(Vec::new());
+        let moved = marker(&h).position as f64;
+        assert!((moved - (48_000.0 + 50.0 * zoom)).abs() <= zoom, "{moved}");
+    }
 }

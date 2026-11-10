@@ -162,6 +162,8 @@ pub struct TimelineView {
     lanes_width: f32,
     /// Lanes area of the last frame, to place files dropped from the system.
     lanes_rect: Rect,
+    /// The ruler of the last frame.
+    ruler_rect: Rect,
     /// Shown tracks (index in the project, folder depth), top to bottom.
     rows: Vec<(usize, usize)>,
     /// Top of each row (track and its automation lanes), from the top of the content.
@@ -183,6 +185,8 @@ pub struct TimelineView {
     menu: Option<menus::Menu>,
     /// Position and marker under the last right click on the ruler.
     ruler_target: Option<(u64, Option<MarkerId>)>,
+    /// Marker being renamed in the ruler, the name typed, and whether the field has the focus.
+    marker_rename: Option<(MarkerId, String, bool)>,
     /// Commands chosen in menus, run by the application.
     pub requests: Vec<Action>,
     /// Track to export, chosen in its header menu.
@@ -284,6 +288,7 @@ impl TimelineView {
             fitted: false,
             lanes_width: 800.0,
             lanes_rect: Rect::NOTHING,
+            ruler_rect: Rect::NOTHING,
             rows: Vec::new(),
             tops: Vec::new(),
             content_height: 0.0,
@@ -295,6 +300,7 @@ impl TimelineView {
             lane_rects: Vec::new(),
             menu: None,
             ruler_target: None,
+            marker_rename: None,
             requests: Vec::new(),
             stem_request: None,
             range: None,
@@ -888,6 +894,7 @@ impl TimelineView {
         );
         self.lanes_width = lanes.width();
         self.lanes_rect = lanes;
+        self.ruler_rect = ruler;
         if !self.fitted && length > 0 && !doc.busy() {
             self.fitted = true;
             self.zoom_to_fit(length);

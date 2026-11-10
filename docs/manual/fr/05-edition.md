@@ -175,7 +175,9 @@ playlist, automation.
   précédent des clips de la piste sélectionnée.
 - **Marqueurs** : [[M]] ajoute un marqueur à la tête de lecture ; [[.]] et [[,]] passent d'un
   marqueur à l'autre. Clic droit sur la règle ou sur un endroit vide d'une piste pour *Ajouter un
-  marqueur ici*.
+  marqueur ici*. Cliquez sur un marqueur, son drapeau ou son nom, pour y placer la tête de
+  lecture ; glissez-le pour le déplacer ; double-cliquez dessus pour le renommer (Entrée garde le
+  nom, Échap annule).
 
 ## Formes d'onde
 
