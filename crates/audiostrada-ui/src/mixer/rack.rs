@@ -107,6 +107,15 @@ fn shown_macros(
         .unwrap_or_default()
 }
 
+/// An add menu, opened where it was clicked: a plain toggle would leave it no place to show.
+fn add_popup(response: &Response) -> egui::Popup<'_> {
+    egui::Popup::menu(response).at_pointer_fixed().open_memory(
+        response
+            .clicked()
+            .then_some(egui::SetOpenCommand::Bool(true)),
+    )
+}
+
 /// A small dark screen, as the hardware's displays.
 pub(super) fn lcd_box(painter: &egui::Painter, rect: Rect) {
     painter.rect_filled(rect, 3.0, Color32::from_rgb(13, 15, 19));
@@ -1278,7 +1287,7 @@ impl MixerView {
             egui::FontId::proportional(17.0),
             ink,
         );
-        egui::Popup::menu(&response).at_pointer_fixed().show(|ui| {
+        add_popup(&response).show(|ui| {
             self.add_menu(ui, doc, channel, (place, index), place.is_none());
         });
     }
@@ -1303,6 +1312,8 @@ impl MixerView {
         let response = ui
             .interact(hole, ui.scope_id().with("rack-empty"), Sense::click())
             .on_hover_text(tr("Add an effect or a parallel chain"));
+        #[cfg(test)]
+        super::tests::seen("rack empty".into(), hole);
         let ink = if response.hovered() {
             p.accent
         } else {
@@ -1336,7 +1347,7 @@ impl MixerView {
             egui::FontId::proportional(11.0),
             ink,
         );
-        egui::Popup::menu(&response).at_pointer_fixed().show(|ui| {
+        add_popup(&response).show(|ui| {
             self.add_menu(ui, doc, channel, (None, index), true);
         });
     }
@@ -1350,7 +1361,10 @@ impl MixerView {
         (place, index): (routing::Place, usize),
         parallel: bool,
     ) {
-        if ui.button(tr("Effect or plugin…")).clicked() {
+        let effect = ui.button(tr("Effect or plugin…"));
+        #[cfg(test)]
+        super::tests::seen("rack add effect".into(), effect.rect);
+        if effect.clicked() {
             self.rack.place = Some((channel, place, index));
             self.browser.borrow_mut().open((channel, false));
             ui.close();
@@ -1740,7 +1754,7 @@ impl MixerView {
         let add = ui
             .add(egui::Button::new(RichText::new("+").strong()).min_size(vec2(18.0, 18.0)))
             .on_hover_text(tr("Add an effect to this branch"));
-        egui::Popup::menu(&add).at_pointer_fixed().show(|ui| {
+        add_popup(&add).show(|ui| {
             self.add_menu(
                 ui,
                 doc,
@@ -2275,6 +2289,44 @@ mod tests {
                 .collect();
             assert_eq!(order, vec![comp, delay], "taken below: {below:?}");
         }
+    }
+
+    #[test]
+    fn the_free_slot_opens_the_browser_where_it_was_clicked() {
+        let doc = Rc::new(RefCell::new(Document::new(AppDirs::default())));
+        let mut t = None;
+        doc.borrow_mut().history_mut().edit("Setup", |p| {
+            let id = p.add_track("A");
+            routing::add_insert(p, Channel::Track(id), "delay", Default::default());
+            t = Some(id);
+        });
+        let t = t.unwrap();
+        doc.borrow_mut()
+            .select_track(t, crate::document::SelectMode::Only);
+        let mut view = MixerView::new(Rc::clone(&doc));
+        let ctx = egui::Context::default();
+        let click = |view: &mut MixerView, at: Pos2| {
+            let button = |pressed| Event::PointerButton {
+                pos: at,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: Modifiers::NONE,
+            };
+            rack_frame(&ctx, view, vec![Event::PointerMoved(at)]);
+            rack_frame(&ctx, view, vec![button(true)]);
+            rack_frame(&ctx, view, vec![button(false)]);
+            rack_frame(&ctx, view, vec![]);
+            rack_frame(&ctx, view, vec![]);
+        };
+        rack_frame(&ctx, &mut view, vec![]);
+        rack_frame(&ctx, &mut view, vec![]);
+        click(&mut view, rect("rack empty").center());
+        click(&mut view, rect("rack add effect").center());
+        assert_eq!(
+            view.rack.place.map(|(c, ..)| c),
+            Some(Channel::Track(t)),
+            "the browser opened for the track"
+        );
     }
 
     #[test]
