@@ -2156,7 +2156,14 @@ fn reverb(ui: &mut Ui, params: &mut Params) {
                 "Holds the tail as it is, for ever; the input is not added",
             );
         });
+        // Its switch under it, as Freeze under the space.
         section_frame(ui, tr("Pre-delay"), p.weak, 118.0, |ui| {
+            if params.get("predelay_sync") >= 0.5 {
+                note_grid(ui, params, "predelay_note", Some(0.5));
+            } else {
+                knob(ui, params, "predelay", accent);
+            }
+            ui.add_space(4.0);
             pill(
                 ui,
                 params,
@@ -2164,12 +2171,6 @@ fn reverb(ui: &mut Ui, params: &mut Params) {
                 "Sync",
                 "A note value at the project's tempo, up to 200 ms",
             );
-            ui.add_space(4.0);
-            if params.get("predelay_sync") >= 0.5 {
-                note_grid(ui, params, "predelay_note", Some(0.5));
-            } else {
-                knob(ui, params, "predelay", accent);
-            }
         });
         section_frame(ui, tr("Motion"), p.weak, 118.0, |ui| {
             ui.horizontal(|ui| {
