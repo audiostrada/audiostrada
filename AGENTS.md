@@ -116,7 +116,11 @@ comments on public items and modules, in the same plain style. No emojis, no em 
 
 - `AUDIOSTRADA_SCREENSHOT=out.ppm audiostrada project.strada` saves the main window after a few
   frames and quits. Combine with `XDG_CONFIG_HOME=<folder>` to start from a configuration of
-  your own instead of the user's.
+  your own instead of the user's (a `Dummy` audio backend leaves the user's sound card alone;
+  set `XDG_DATA_HOME`, `XDG_STATE_HOME` and `XDG_CACHE_HOME` too, or its autosaves land in the
+  user's recovery folder and its log replaces theirs),
+  and with `AUDIOSTRADA_SCREENSHOT_FRAME=<n>` and `--control` to set the window up through MCP
+  before the shot.
 - `audiostrada --control PORT` lets `audiostrada mcp --connect PORT` drive a running window
   through the Model Context Protocol (`crates/audiostrada-ui/src/control.rs` lists the tools).
 - `audiostrada help` lists the command line (render, compare, latency, devices, plugin scan).
