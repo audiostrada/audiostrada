@@ -320,6 +320,8 @@ pub struct AudioStradaApp {
     pane_opened: HashMap<Pane, ui_prefs::WindowState>,
     /// Track selected last frame, to follow a new selection with the panels.
     last_selected: Option<audiostrada_core::TrackId>,
+    /// Modifier keys held in the window with the keyboard focus, and that window.
+    held_keys: (Option<egui::ViewportId>, egui::Modifiers),
     /// Messages of the document shown in a corner, with when they came.
     toasts: Vec<(String, Instant)>,
     midi_outputs: Option<audiostrada_midi::devices::MidiOutputs>,
@@ -470,6 +472,7 @@ impl AudioStradaApp {
             title: String::new(),
             quitting: false,
             prefs_applied: false,
+            held_keys: (None, egui::Modifiers::NONE),
             layout_checked: Instant::now(),
             mac: cfg!(target_os = "macos"),
             screenshot: Screenshot::from_env(),
@@ -2997,6 +3000,42 @@ pub(crate) fn floating_level(ctx: &egui::Context, kind: Floating) -> egui::Windo
 }
 
 impl eframe::App for AudioStradaApp {
+    /// The keyboard goes to one window only: another one under the pointer gets its wheel
+    /// with the modifier keys held there (Ctrl+wheel over the timeline after a move on the
+    /// mixer on another screen).
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        let id = raw_input.viewport_id;
+        if raw_input.focused {
+            let latest = raw_input.events.iter().rev().find_map(|e| match e {
+                egui::Event::ModifiersChanged(m) => Some(*m),
+                _ => None,
+            });
+            if let Some(modifiers) = latest {
+                self.held_keys = (Some(id), modifiers);
+            } else if self.held_keys.0 != Some(id) {
+                self.held_keys = (Some(id), egui::Modifiers::NONE);
+            }
+            return;
+        }
+        let (holder, modifiers) = self.held_keys;
+        if holder == Some(id) {
+            // Focus gone from this window: its keys no longer count.
+            self.held_keys = (None, egui::Modifiers::NONE);
+            return;
+        }
+        if holder.is_none() {
+            return;
+        }
+        for event in &mut raw_input.events {
+            if let egui::Event::MouseWheel { modifiers: m, .. } = event {
+                *m = modifiers;
+            }
+        }
+        raw_input
+            .events
+            .insert(0, egui::Event::ModifiersChanged(modifiers));
+    }
+
     /// Everything that must go on while the main window is hidden (covered, minimized) and
     /// a detached panel is used: the engine, devices, and what the panels ask for.
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {

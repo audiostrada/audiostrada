@@ -171,6 +171,46 @@ fn the_app_starts_and_draws_a_song() {
 }
 
 #[test]
+fn a_wheel_over_a_window_without_the_keyboard_gets_the_keys_held_in_the_other() {
+    let mut h = Harness::new("held-keys");
+    let mixer = egui::ViewportId::from_hash_of("mixer");
+    let ctrl = egui::Modifiers::CTRL;
+    let input = |id, focused, events| egui::RawInput {
+        viewport_id: id,
+        focused,
+        events,
+        ..Default::default()
+    };
+    let wheel = || egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: vec2(0.0, 1.0),
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+        modifiers: egui::Modifiers::NONE,
+    };
+    let ctx = h.ctx.clone();
+    let mut hook = |raw: &mut egui::RawInput| eframe::App::raw_input_hook(&mut h.app, &ctx, raw);
+    hook(&mut input(
+        mixer,
+        true,
+        vec![egui::Event::ModifiersChanged(ctrl)],
+    ));
+    let mut timeline = input(egui::ViewportId::ROOT, false, vec![wheel()]);
+    hook(&mut timeline);
+    assert!(matches!(timeline.events[0], egui::Event::ModifiersChanged(m) if m == ctrl));
+    assert!(
+        matches!(timeline.events[1], egui::Event::MouseWheel { modifiers, .. } if modifiers == ctrl)
+    );
+    // The mixer lost the keyboard: nothing is held any more.
+    hook(&mut input(mixer, false, Vec::new()));
+    let mut timeline = input(egui::ViewportId::ROOT, false, vec![wheel()]);
+    hook(&mut timeline);
+    assert!(
+        matches!(timeline.events[0], egui::Event::MouseWheel { modifiers, .. } if modifiers.is_none())
+    );
+}
+
+#[test]
 fn the_transport_moves_to_the_bottom_and_grows() {
     let mut h = Harness::with_song("transport");
     h.frame(Vec::new());
