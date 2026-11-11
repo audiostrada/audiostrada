@@ -6253,3 +6253,267 @@ Fuzz : rock
 
 Bass: classic
 Basse : classique
+
+Air
+Air
+
+Bite
+Mordant
+
+Bloom
+Éclosion
+
+Body
+Corps
+
+Breath
+Souffle
+
+Dirt
+Saturation
+
+Fifth
+Quinte
+
+Grit
+Grain
+
+Growl
+Grognement
+
+Hammer
+Marteau
+
+Hollow
+Creux
+
+Impact
+Impact
+
+Metal
+Métal
+
+Morph
+Morphing
+
+Pulse
+Impulsion
+
+Punch
+Punch
+
+Squelch
+Acide
+
+Swell
+Crescendo
+
+Thickness
+Épaisseur
+
+Timbre
+Timbre
+
+Vowel
+Voyelle
+
+Wobble
+Wobble
+
+Envelope 2 depth
+Enveloppe 2 profondeur
+
+LFO 1 depth
+LFO 1 profondeur
+
+LFO 2 depth
+LFO 2 profondeur
+
+Expert
+Expert
+
+Only the macros and the mod wheel move this control: it is the whole instrument's, not each note's
+Seules les macros et la molette de modulation agissent sur ce réglage : il vaut pour tout l'instrument, pas pour chaque note
+
+Right-click a knob to assign it to a MIDI controller, or to automate it
+Clic droit sur un potard pour l'assigner à un contrôleur MIDI, ou l'automatiser
+
+Shows the controls few sounds need: fine tuning, FM, sync and ring, key tracking, drift, the depth of the LFOs, MPE
+Affiche les réglages dont peu de sons ont besoin : accord fin, FM, synchro et anneau, suivi du clavier, dérive, profondeur des LFO, MPE
+
+The macro's name in the simple view; Auto names it after what it moves
+Le nom de la macro dans la vue simple ; Auto la nomme d'après ce qu'elle pilote
+
+This macro moves nothing yet: in the advanced view, drag it onto a knob
+Cette macro ne pilote encore rien : dans la vue avancée, glissez-la sur un potard
+
+YOUR SOUND
+VOTRE SON
+
+{name} moves: {targets}. Right-click to assign a MIDI controller
+{name} pilote : {targets}. Clic droit pour assigner un contrôleur MIDI
+
+The sound, its four macros and its effects
+Le son, ses quatre macros et ses effets
+
+Every control: oscillators, filter, LFOs, routings...
+Tous les réglages : oscillateurs, filtre, LFO, routages...
+
+Arp: Pulse bass
+Arpège : Basse pulsée
+
+Atmosphere: Ghost choir
+Ambiance : Chœur fantôme
+
+Atmosphere: Ocean
+Ambiance : Océan
+
+Bass: Rubber
+Basse : Élastique
+
+Bell: Music box
+Cloche : Boîte à musique
+
+Bell: Tubular
+Cloche : Tubulaire
+
+Brass: Fanfare
+Cuivres : Fanfare
+
+Hip-hop: 808 distorted
+Hip-hop : 808 saturée
+
+Hip-hop: 808 glide
+Hip-hop : 808 glissée
+
+Hip-hop: Bell
+Hip-hop : Cloche
+
+Hip-hop: Boom bap bass
+Hip-hop : Basse boom bap
+
+Hip-hop: Dark keys
+Hip-hop : Clavier sombre
+
+Hip-hop: Dark pad
+Hip-hop : Nappe sombre
+
+Hip-hop: Flute
+Hip-hop : Flûte
+
+Hip-hop: G-funk lead
+Hip-hop : Lead G-funk
+
+Hip-hop: Pluck lead
+Hip-hop : Lead pincé
+
+Hip-hop: Soul stab
+Hip-hop : Stab soul
+
+Keys: Dream
+Claviers : Rêve
+
+Keys: Lo-fi
+Claviers : Lo-fi
+
+Lead: Vocal
+Lead : Vocal
+
+Pluck: Glass
+Pluck : Verre
+
+Pluck: Wide
+Pluck : Large
+
+Poly: Chorus
+Poly : Chorus
+
+Poly: Dream
+Poly : Rêve
+
+Strings: Machine
+Cordes : Machine
+
+Modulation 9 amount
+Modulation 9 quantité
+
+Modulation 9 source
+Modulation 9 source
+
+Modulation 9 target
+Modulation 9 destination
+
+Modulation 10 amount
+Modulation 10 quantité
+
+Modulation 10 source
+Modulation 10 source
+
+Modulation 10 target
+Modulation 10 destination
+
+Modulation 11 amount
+Modulation 11 quantité
+
+Modulation 11 source
+Modulation 11 source
+
+Modulation 11 target
+Modulation 11 destination
+
+Modulation 12 amount
+Modulation 12 quantité
+
+Modulation 12 source
+Modulation 12 source
+
+Modulation 12 target
+Modulation 12 destination
+
+Modulation 13 amount
+Modulation 13 quantité
+
+Modulation 13 source
+Modulation 13 source
+
+Modulation 13 target
+Modulation 13 destination
+
+Modulation 14 amount
+Modulation 14 quantité
+
+Modulation 14 source
+Modulation 14 source
+
+Modulation 14 target
+Modulation 14 destination
+
+Modulation 15 amount
+Modulation 15 quantité
+
+Modulation 15 source
+Modulation 15 source
+
+Modulation 15 target
+Modulation 15 destination
+
+Modulation 16 amount
+Modulation 16 quantité
+
+Modulation 16 source
+Modulation 16 source
+
+Modulation 16 target
+Modulation 16 destination
+
+Macro 1 name
+Macro 1 nom
+
+Macro 2 name
+Macro 2 nom
+
+Macro 3 name
+Macro 3 nom
+
+Macro 4 name
+Macro 4 nom

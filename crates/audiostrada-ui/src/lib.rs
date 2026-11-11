@@ -52,6 +52,7 @@ mod screens;
 mod settings;
 mod song_tools;
 mod synth_editor;
+mod synth_presets;
 mod tabs;
 mod tape_deck;
 mod tape_editor;

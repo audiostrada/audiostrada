@@ -12,20 +12,39 @@ pour en superposer un autre, *Changer d'instrument…* pour remplacer le premier
 
 ![Strada-Synth](img/fx/synth.webp)
 
-Un synthétiseur polyphonique : deux oscillateurs avec unisson, un sous-oscillateur et du bruit,
-une dérive analogique, un filtre, un glide et le MPE. Sa fenêtre tient sans défilement :
-Tonalité, Brillance et Jeu côte à côte, Forme en dessous (tirez les coins de l'enveloppe), puis
-le clavier.
+Un synthétiseur polyphonique : deux oscillateurs avec unisson et tables d'ondes, un
+sous-oscillateur et du bruit, un filtre, deux LFO, un arpégiateur et ses propres chorus, delay
+et réverbe. Il s'ouvre sur sa vue **Simple**, faite pour jouer :
 
-- **Les presets** contiennent des sons prêts : claviers doux, nappes, cordes, cuivres, pluck,
-  cloche, lead, basses.
+- **Le son** s'affiche en haut, comme un paysage dessiné par son onde, dans la couleur de sa
+  famille (basses, leads, claviers, nappes...). Choisissez-en un autre dans les presets, ou
+  passez de l'un à l'autre avec les flèches gauche et droite.
+- **Quatre macros**, chacune nommée d'après ce qu'elle fait à ce son (*Brillance*, *Mouvement*,
+  *Espace*...) : un potard pilote plusieurs réglages à la fois, si bien qu'un quart de tour
+  s'entend nettement. Clic droit sur une macro pour l'assigner à un potard de votre contrôleur
+  MIDI, ou l'automatiser.
+- En dessous, ce que tout son possède : l'**attaque** et le **relâchement**, le **chorus**, le
+  **delay** et la **réverbe**, l'**arpégiateur** et le **volume**.
+
+**Avancé** montre le synthé lui-même : oscillateurs, filtre, enveloppes, LFO, effets, et en bas
+les macros avec la liste de ce qui module quoi. Glissez une source colorée (un LFO, la seconde
+enveloppe, une macro, la vélocité, la molette de modulation) sur un potard pour le moduler ;
+une macro glissée sur plusieurs potards les pilote ensemble, et son nom se choisit sous son
+potard. Les macros et la molette de modulation atteignent aussi les effets, les temps de
+l'enveloppe, le désaccord, la vitesse et la profondeur des LFO. **Expert** ajoute les réglages
+dont peu de sons ont besoin : accord fin, FM, synchro et anneau, suivi du clavier, dérive,
+profondeur des LFO et MPE.
+
+- **Les presets** contiennent environ quatre-vingt-dix sons prêts, par famille : basses, leads,
+  claviers, nappes, cordes, cuivres, plucks, cloches, poly, arpèges, ambiances, effets et
+  hip-hop. Tous jouent au même niveau.
 - **Le clavier** joue le synthé sans armer la piste : cliquez ou glissez sur les touches (plus bas
   sur une touche joue plus fort), ou activez *Clavier de l'ordinateur* pour jouer avec les
   lettres : la rangée du milieu pour les touches blanches, celle du dessus pour les noires, deux
   touches de la rangée du bas pour l'octave. Les touches comptent par leur position : AZERTY et
   QWERTY jouent pareil.
-- **Contrôleur MPE** est pour les contrôleurs MPE (Roli Seaboard, LinnStrument, Osmose), qui
-  envoient chaque note sur son propre canal.
+- **MPE** (dans les réglages experts) est pour les contrôleurs MPE (Roli Seaboard, LinnStrument,
+  Osmose), qui envoient chaque note sur son propre canal.
 
 <!-- effect:synth -->
 

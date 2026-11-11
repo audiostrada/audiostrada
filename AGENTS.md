@@ -121,6 +121,10 @@ comments on public items and modules, in the same plain style. No emojis, no em 
   user's recovery folder and its log replaces theirs),
   and with `AUDIOSTRADA_SCREENSHOT_FRAME=<n>` and `--control` to set the window up through MCP
   before the shot.
+- `AUDIOSTRADA_SCREENSHOT_SYNTH=1 audiostrada` opens Strada-Synth's window (a window of its own,
+  which the screenshot above does not show) on the sound named by
+  `AUDIOSTRADA_SCREENSHOT_SOUND` and holds a chord, for a capture of that window from outside;
+  `AUDIOSTRADA_SCREENSHOT_VIEW=advanced` or `expert` chooses the view.
 - `audiostrada --control PORT` lets `audiostrada mcp --connect PORT` drive a running window
   through the Model Context Protocol (`crates/audiostrada-ui/src/control.rs` lists the tools).
 - `audiostrada help` lists the command line (render, compare, latency, devices, plugin scan).

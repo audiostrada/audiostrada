@@ -5668,7 +5668,10 @@ mod tests {
             let channel = Channel::Track(doc.project().tracks[0].id);
             let ctx = egui::Context::default();
             // The synth's advanced view shows all its controls.
-            ctx.data_mut(|d| d.insert_temp(egui::Id::unique("synth-advanced"), true));
+            ctx.data_mut(|d| {
+                d.insert_temp(egui::Id::unique("synth-advanced"), true);
+                d.insert_temp(egui::Id::unique("synth-expert"), true);
+            });
             let mut state = EditorState::default();
             SHOWN.with_borrow_mut(Vec::clear);
             for _ in 0..2 {

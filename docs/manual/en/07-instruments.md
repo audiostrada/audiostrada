@@ -11,17 +11,36 @@ first one. Drum tracks start with Strada-Drums and take layers the same way.
 
 ![Strada-Synth](img/fx/synth.webp)
 
-A polyphonic synthesizer: two oscillators with unison, a sub oscillator and noise, analog drift,
-a filter, glide and MPE. Its window fits without scrolling: Tone, Brightness and Playing side by
-side, Shape below (drag the envelope's corners), then the keyboard.
+A polyphonic synthesizer: two oscillators with unison and wavetables, a sub oscillator and
+noise, a filter, two LFOs, an arpeggiator and its own chorus, delay and reverb. It opens on its
+**Simple** view, made for playing:
 
-- **Presets** hold ready-made sounds: soft keys, pads, strings, brass, pluck, bell, lead, basses.
+- **The sound** shows at the top, as a landscape drawn by its wave in the color of its family
+  (basses, leads, keys, pads...). Choose another one in the presets, or step through them with
+  the Left and Right arrows.
+- **Four macros**, each named after what it does to this sound (*Brightness*, *Motion*,
+  *Space*...): one knob moves several settings at once, so a quarter turn is plainly heard.
+  Right-click a macro to assign it to a knob of your MIDI controller, or to automate it.
+- Under them, what every sound has: the **attack** and the **release**, the **chorus**, the
+  **delay** and the **reverb**, the **arpeggiator** and the **volume**.
+
+**Advanced** shows the synth itself: oscillators, filter, envelopes, LFOs, effects, and at the
+bottom the macros with the list of what modulates what. Drag a colored source (an LFO, the
+second envelope, a macro, the velocity, the mod wheel) onto a knob to modulate it; a macro
+dragged onto several knobs moves them together, and its name is chosen under its knob. The
+macros and the mod wheel also reach the effects, the envelope's times, the detune and the speed
+and depth of the LFOs. **Expert** adds the controls few sounds need: fine tuning, FM, sync and
+ring, key tracking, drift, the depth of the LFOs and MPE.
+
+- **Presets** hold some ninety ready-made sounds by family: basses, leads, keys, pads, strings,
+  brass, plucks, bells, poly, arpeggios, atmospheres, effects and hip-hop. All play at the same
+  level.
 - **The keyboard** plays the synth without arming the track: click or drag across the keys
   (lower on a key plays louder), or turn on *Computer keyboard* to play with the letters: A S D F
   G H J K for the white keys, W E T Y U for the black ones, Z and X for the octave. Keys go by
   position, so AZERTY works the same.
-- **MPE controller** is for MPE controllers (Roli Seaboard, LinnStrument, Osmose), which send
-  each note on its own channel.
+- **MPE** (in the expert controls) is for MPE controllers (Roli Seaboard, LinnStrument, Osmose),
+  which send each note on its own channel.
 
 <!-- effect:synth -->
 

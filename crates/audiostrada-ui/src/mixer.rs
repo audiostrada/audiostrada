@@ -5813,6 +5813,9 @@ impl MixerView {
         }
         self.plugin_windows(doc, project);
         self.follow_selection(ctx, doc, project);
+        if let Some((channel, id)) = crate::synth_editor::shot::open(ctx, doc) {
+            self.show_editor(channel, id);
+        }
         let mut closed = Vec::new();
         for (channel, id) in self.editors.clone() {
             let Some(insert) = routing::find_insert(project, channel, id) else {
@@ -5831,7 +5834,7 @@ impl MixerView {
                 "eq" => [1040.0, 800.0],
                 "amp_rig" => [1000.0, 960.0],
                 "channel" => [1060.0, 720.0],
-                "synth" => [1180.0, 1000.0],
+                "synth" => [1180.0, 720.0],
                 "drums" => [1000.0, 720.0],
                 "trigger" => [960.0, 760.0],
                 "tape" => [980.0, 900.0],

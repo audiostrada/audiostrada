@@ -159,7 +159,7 @@ fn cutter(name: &str, values: &[(&str, f32)], steps: &str) -> Preset {
 /// opens with the effect's defaults.
 fn factory(effect: &str) -> Vec<Preset> {
     let mut list = match effect {
-        "synth" => return crate::synth_editor::factory(),
+        "synth" => return crate::synth_presets::factory(),
         "drums" => return crate::drums_editor::factory(),
         "trigger" => return crate::trigger_editor::factory(),
         _ => builtin(effect),

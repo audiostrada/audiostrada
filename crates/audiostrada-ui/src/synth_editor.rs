@@ -39,8 +39,16 @@ pub struct SynthState {
     targets: Vec<(Rect, usize)>,
     /// What the newest note does, read from the meters.
     live: Live,
-    /// The view the window was last sized for.
-    sized: Option<bool>,
+    /// The view the window was last sized for: advanced, and with the expert controls.
+    sized: Option<(bool, bool)>,
+    /// The ready-made sounds, to tell which one plays, and the one that does.
+    sounds: Option<Vec<(u64, Sound)>>,
+    sound: Option<Sound>,
+    /// The landscape of the simple view: the wave's latest lines, newest first, when the
+    /// last one was added, and the level they are drawn against.
+    ridges: std::collections::VecDeque<Vec<f32>>,
+    pushed: f64,
+    scale: f32,
 }
 
 /// What the synth does now, from its meters.
@@ -82,6 +90,11 @@ impl Default for SynthState {
             targets: Vec::new(),
             live: Live::default(),
             sized: None,
+            sounds: None,
+            sound: None,
+            ridges: std::collections::VecDeque::new(),
+            pushed: 0.0,
+            scale: 0.02,
         }
     }
 }
@@ -147,1974 +160,6 @@ pub(crate) fn keys_id(viewport: egui::ViewportId) -> egui::Id {
     egui::Id::unique(("computer-piano-keys", viewport))
 }
 
-/// Ready-made sounds, by role; settings not listed keep their defaults (one saw with two
-/// unison voices, the filter at 2.5 kHz).
-pub(crate) fn factory() -> Vec<crate::presets::Preset> {
-    use crate::presets::preset;
-    let adsr = |a: f32, d: f32, s: f32, r: f32| {
-        [("attack", a), ("decay", d), ("sustain", s), ("release", r)]
-    };
-    let filter = |cutoff: f32, resonance: f32, env: f32| {
-        [
-            ("cutoff", cutoff),
-            ("resonance", resonance),
-            ("env_amount", env),
-        ]
-    };
-    let sound =
-        |name: &str, shape: &[(&str, f32)], envelope: [(&str, f32); 4], tone: [(&str, f32); 3]| {
-            let all: Vec<(&str, f32)> = shape.iter().copied().chain(envelope).chain(tone).collect();
-            preset(name, &all)
-        };
-    // Waves: 0 saw, 1 square, 2 sine, 3 triangle. Modes: 0 poly, 1 mono, 2 legato.
-    let mut presets = vec![
-        preset(tr("Init"), &[]),
-        sound(
-            tr("Bass: Fold"),
-            &[
-                ("wave", 4.0),
-                ("osc1_table", 6.0),
-                ("osc1_voices", 1.0),
-                ("osc2_level", 0.0),
-                ("sub_level", 50.0),
-                ("mode", 1.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 350.0),
-                ("env2_sustain", 10.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 12.0),
-                ("mod1_amount", 80.0),
-                ("velocity", 40.0),
-                ("volume", -11.0),
-            ],
-            adsr(2.0, 300.0, 90.0, 120.0),
-            filter(5000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Bass: Wobble"),
-            &[
-                ("osc1_voices", 2.0),
-                ("detune", 12.0),
-                ("osc2_wave", 1.0),
-                ("osc2_level", 60.0),
-                ("osc2_octave", -1.0),
-                ("sub_level", 40.0),
-                ("filter_type", 2.0),
-                ("drive", 35.0),
-                ("mode", 1.0),
-                ("lfo1_sync", 1.0),
-                ("lfo1_note", 5.0),
-                ("lfo1_shape", 1.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 8.0),
-                ("mod1_amount", 45.0),
-                ("volume", -7.1),
-            ],
-            adsr(2.0, 300.0, 100.0, 120.0),
-            filter(400.0, 55.0, 0.0),
-        ),
-        sound(
-            tr("Bass: Sub"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("sub_level", 60.0),
-                ("mode", 1.0),
-                ("drift", 5.0),
-                ("velocity", 40.0),
-                ("volume", -10.0),
-            ],
-            adsr(2.0, 300.0, 90.0, 120.0),
-            filter(800.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Bass: Reese"),
-            &[
-                ("detune", 25.0),
-                ("osc2_level", 80.0),
-                ("osc2_voices", 2.0),
-                ("osc2_detune", 18.0),
-                ("osc2_fine", -10.0),
-                ("sub_level", 50.0),
-                ("mode", 1.0),
-                ("spread", 20.0),
-                ("volume", -11.6),
-            ],
-            adsr(5.0, 300.0, 100.0, 150.0),
-            filter(900.0, 15.0, 20.0),
-        ),
-        sound(
-            tr("Bass: Acid"),
-            &[
-                ("mod1_source", 4.0),
-                ("mod1_target", 8.0),
-                ("mod1_amount", 25.0),
-                ("filter_type", 2.0),
-                ("drive", 40.0),
-                ("osc1_voices", 1.0),
-                ("mode", 2.0),
-                ("glide", 90.0),
-                ("drift", 0.0),
-                ("volume", -2.9),
-            ],
-            adsr(1.0, 180.0, 20.0, 80.0),
-            filter(300.0, 85.0, 80.0),
-        ),
-        sound(
-            tr("Bass: Analog"),
-            &[
-                ("filter_type", 2.0),
-                ("drive", 25.0),
-                ("wave", 1.0),
-                ("osc1_voices", 1.0),
-                ("osc2_level", 60.0),
-                ("osc2_octave", -1.0),
-                ("mode", 1.0),
-                ("drift", 15.0),
-                ("volume", -6.3),
-            ],
-            adsr(2.0, 400.0, 50.0, 150.0),
-            filter(700.0, 25.0, 55.0),
-        ),
-        sound(
-            tr("Bass: FM Growl"),
-            &[
-                ("wave", 0.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 0.0),
-                ("osc2_octave", -1.0),
-                ("fm", 20.0),
-                ("sub_level", 35.0),
-                ("mode", 1.0),
-                ("lfo1_sync", 1.0),
-                ("lfo1_note", 5.0),
-                ("lfo1_shape", 1.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 14.0),
-                ("mod1_amount", 40.0),
-                ("mod2_source", 5.0),
-                ("mod2_target", 8.0),
-                ("mod2_amount", 30.0),
-                ("drive", 30.0),
-                ("volume", -6.0),
-            ],
-            adsr(2.0, 300.0, 90.0, 120.0),
-            filter(1200.0, 25.0, 20.0),
-        ),
-        sound(
-            tr("Bass: 808"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("mode", 1.0),
-                ("drift", 0.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 90.0),
-                ("env2_sustain", 0.0),
-                ("velocity", 30.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 25.0),
-                ("volume", -10.1),
-            ],
-            adsr(1.0, 1800.0, 0.0, 300.0),
-            filter(18000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Bass: Funk"),
-            &[
-                ("wave", 1.0),
-                ("osc1_voices", 1.0),
-                ("mode", 1.0),
-                ("filter_type", 1.0),
-                ("velocity", 60.0),
-                ("drive", 20.0),
-                ("volume", -7.2),
-            ],
-            adsr(1.0, 220.0, 30.0, 80.0),
-            filter(500.0, 45.0, 70.0),
-        ),
-        sound(
-            tr("Bass: Ladder"),
-            &[
-                ("osc1_voices", 1.0),
-                ("osc2_level", 60.0),
-                ("osc2_octave", -1.0),
-                ("osc2_voices", 1.0),
-                ("mode", 2.0),
-                ("glide", 40.0),
-                ("filter_type", 2.0),
-                ("drive", 45.0),
-                ("key_track", 30.0),
-                ("volume", -4.9),
-            ],
-            adsr(2.0, 350.0, 60.0, 120.0),
-            filter(350.0, 55.0, 45.0),
-        ),
-        sound(
-            tr("Bass: Pluck"),
-            &[
-                ("osc1_voices", 2.0),
-                ("detune", 6.0),
-                ("sub_level", 40.0),
-                ("filter_type", 1.0),
-                ("velocity", 50.0),
-                ("volume", -9.8),
-            ],
-            adsr(1.0, 180.0, 0.0, 90.0),
-            filter(300.0, 25.0, 80.0),
-        ),
-        sound(
-            tr("Bass: Hoover"),
-            &[
-                ("osc1_voices", 7.0),
-                ("detune", 30.0),
-                ("osc1_octave", -1.0),
-                ("osc2_level", 50.0),
-                ("osc2_voices", 5.0),
-                ("osc2_detune", 25.0),
-                ("mode", 2.0),
-                ("glide", 120.0),
-                ("filter_type", 1.0),
-                ("spread", 80.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 300.0),
-                ("env2_sustain", 0.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", -8.0),
-                ("volume", -10.0),
-            ],
-            adsr(5.0, 500.0, 90.0, 250.0),
-            filter(3000.0, 15.0, 20.0),
-        ),
-        sound(
-            tr("Lead: Supersaw"),
-            &[
-                ("mod1_source", 5.0),
-                ("mod1_target", 8.0),
-                ("mod1_amount", 40.0),
-                ("mod2_source", 7.0),
-                ("mod2_target", 8.0),
-                ("mod2_amount", 40.0),
-                ("filter_type", 1.0),
-                ("key_track", 30.0),
-                ("osc1_voices", 9.0),
-                ("detune", 28.0),
-                ("osc2_level", 40.0),
-                ("osc2_octave", 1.0),
-                ("osc2_voices", 5.0),
-                ("osc2_detune", 18.0),
-                ("spread", 85.0),
-                ("volume", -14.0),
-            ],
-            adsr(5.0, 400.0, 80.0, 300.0),
-            filter(6000.0, 10.0, 25.0),
-        ),
-        sound(
-            tr("Lead: Mono glide"),
-            &[
-                ("lfo1_rate", 5.5),
-                ("mod1_source", 5.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 3.0),
-                ("mod2_source", 4.0),
-                ("mod2_target", 8.0),
-                ("mod2_amount", 20.0),
-                ("filter_type", 2.0),
-                ("drive", 20.0),
-                ("key_track", 50.0),
-                ("mode", 1.0),
-                ("glide", 120.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 1.0),
-                ("osc2_semi", 7.0),
-                ("osc2_level", 50.0),
-                ("sub_level", 30.0),
-                ("volume", -5.0),
-            ],
-            adsr(5.0, 400.0, 80.0, 200.0),
-            filter(3000.0, 30.0, 40.0),
-        ),
-        sound(
-            tr("Lead: Chip"),
-            &[
-                ("wave", 1.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 1.0),
-                ("osc2_level", 25.0),
-                ("osc2_octave", 1.0),
-                ("drift", 0.0),
-                ("volume", -17.0),
-            ],
-            adsr(1.0, 200.0, 70.0, 80.0),
-            filter(18000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Lead: Sync"),
-            &[
-                ("wave", 4.0),
-                ("osc1_table", 5.0),
-                ("osc1_voices", 2.0),
-                ("detune", 8.0),
-                ("osc2_level", 0.0),
-                ("mode", 2.0),
-                ("glide", 60.0),
-                ("mod1_source", 5.0),
-                ("mod1_target", 12.0),
-                ("mod1_amount", 70.0),
-                ("mod2_source", 7.0),
-                ("mod2_target", 12.0),
-                ("mod2_amount", 30.0),
-                ("osc1_position", 20.0),
-                ("volume", -6.0),
-            ],
-            adsr(5.0, 400.0, 85.0, 200.0),
-            filter(7000.0, 15.0, 0.0),
-        ),
-        sound(
-            tr("Lead: Sync sweep"),
-            &[
-                ("wave", 0.0),
-                ("osc1_voices", 1.0),
-                ("osc1_semi", 7.0),
-                ("osc2_level", 50.0),
-                ("osc2_voices", 1.0),
-                ("sync", 1.0),
-                ("mode", 2.0),
-                ("glide", 50.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 450.0),
-                ("env2_sustain", 20.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 2.0),
-                ("mod1_amount", 70.0),
-                ("mod2_source", 5.0),
-                ("mod2_target", 2.0),
-                ("mod2_amount", 40.0),
-                ("fx_delay", 20.0),
-                ("fx_reverb", 12.0),
-                ("volume", -6.0),
-            ],
-            adsr(3.0, 400.0, 85.0, 200.0),
-            filter(6000.0, 20.0, 10.0),
-        ),
-        sound(
-            tr("Lead: Saw solo"),
-            &[
-                ("osc1_voices", 1.0),
-                ("osc2_level", 70.0),
-                ("osc2_voices", 1.0),
-                ("osc2_fine", 7.0),
-                ("mode", 2.0),
-                ("glide", 60.0),
-                ("filter_type", 2.0),
-                ("drive", 25.0),
-                ("lfo1_rate", 5.5),
-                ("lfo1_retrig", 0.0),
-                ("fx_delay", 18.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 2.0),
-                ("mod2_source", 5.0),
-                ("mod2_target", 8.0),
-                ("mod2_amount", 40.0),
-                ("volume", -3.9),
-            ],
-            adsr(5.0, 400.0, 80.0, 250.0),
-            filter(2800.0, 30.0, 30.0),
-        ),
-        sound(
-            tr("Lead: Square"),
-            &[
-                ("wave", 4.0),
-                ("osc1_table", 2.0),
-                ("osc1_voices", 1.0),
-                ("mode", 2.0),
-                ("glide", 40.0),
-                ("lfo1_rate", 0.6),
-                ("lfo1_retrig", 0.0),
-                ("fx_delay", 15.0),
-                ("fx_reverb", 10.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 12.0),
-                ("mod1_amount", 45.0),
-                ("volume", 4.3),
-            ],
-            adsr(5.0, 300.0, 85.0, 200.0),
-            filter(5000.0, 15.0, 15.0),
-        ),
-        sound(
-            tr("Lead: Whistle"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("noise", 12.0),
-                ("mode", 2.0),
-                ("glide", 80.0),
-                ("lfo1_rate", 5.0),
-                ("lfo1_retrig", 0.0),
-                ("fx_reverb", 25.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 1.5),
-                ("volume", -7.3),
-            ],
-            adsr(60.0, 300.0, 90.0, 300.0),
-            filter(6000.0, 10.0, 0.0),
-        ),
-        sound(
-            tr("Lead: Screamer"),
-            &[
-                ("osc1_voices", 2.0),
-                ("detune", 10.0),
-                ("filter_type", 2.0),
-                ("drive", 70.0),
-                ("mode", 2.0),
-                ("glide", 30.0),
-                ("mod1_source", 6.0),
-                ("mod1_target", 8.0),
-                ("mod1_amount", 50.0),
-                ("mod2_source", 5.0),
-                ("mod2_target", 9.0),
-                ("mod2_amount", 40.0),
-                ("volume", -2.8),
-            ],
-            adsr(3.0, 400.0, 80.0, 180.0),
-            filter(1800.0, 70.0, 40.0),
-        ),
-        sound(
-            tr("Lead: Fold"),
-            &[
-                ("wave", 4.0),
-                ("osc1_table", 6.0),
-                ("osc1_voices", 2.0),
-                ("detune", 8.0),
-                ("mode", 2.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 600.0),
-                ("env2_sustain", 30.0),
-                ("fx_delay", 15.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 12.0),
-                ("mod1_amount", 70.0),
-                ("volume", -8.2),
-            ],
-            adsr(3.0, 400.0, 85.0, 200.0),
-            filter(9000.0, 10.0, 0.0),
-        ),
-        sound(
-            tr("Keys: Soft"),
-            &[
-                ("key_track", 40.0),
-                ("wave", 3.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 40.0),
-                ("osc2_octave", 1.0),
-                ("drift", 15.0),
-                ("velocity", 80.0),
-            ],
-            adsr(3.0, 900.0, 35.0, 500.0),
-            filter(3500.0, 10.0, 35.0),
-        ),
-        sound(
-            tr("Keys: Electric"),
-            &[
-                ("lfo1_rate", 4.5),
-                ("lfo1_retrig", 0.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 11.0),
-                ("mod1_amount", 15.0),
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 3.0),
-                ("osc2_level", 30.0),
-                ("osc2_octave", 1.0),
-                ("velocity", 90.0),
-                ("volume", -14.0),
-            ],
-            adsr(1.0, 1500.0, 20.0, 600.0),
-            filter(6000.0, 0.0, 30.0),
-        ),
-        sound(
-            tr("Keys: Organ"),
-            &[
-                ("wave", 4.0),
-                ("osc1_table", 7.0),
-                ("osc1_voices", 1.0),
-                ("osc1_position", 60.0),
-                ("osc2_level", 0.0),
-                ("lfo1_rate", 6.0),
-                ("lfo1_retrig", 0.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 11.0),
-                ("mod1_amount", 8.0),
-                ("drift", 5.0),
-                ("volume", -11.0),
-            ],
-            adsr(3.0, 100.0, 100.0, 60.0),
-            filter(12000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Keys: FM Electric"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 0.0),
-                ("fm", 15.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 700.0),
-                ("env2_sustain", 0.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 14.0),
-                ("mod1_amount", 45.0),
-                ("mod2_source", 4.0),
-                ("mod2_target", 14.0),
-                ("mod2_amount", 25.0),
-                ("drift", 5.0),
-                ("velocity", 70.0),
-                ("fx_chorus", 30.0),
-                ("fx_reverb", 15.0),
-                ("volume", -11.5),
-            ],
-            adsr(2.0, 1800.0, 25.0, 450.0),
-            filter(16000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Keys: Clav"),
-            &[
-                ("wave", 4.0),
-                ("osc1_table", 2.0),
-                ("osc1_position", 80.0),
-                ("osc1_voices", 1.0),
-                ("filter_type", 0.0),
-                ("velocity", 70.0),
-                ("key_track", 60.0),
-                ("volume", -0.4),
-            ],
-            adsr(1.0, 350.0, 20.0, 80.0),
-            filter(3200.0, 25.0, 55.0),
-        ),
-        sound(
-            tr("Keys: Bright FM"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 0.0),
-                ("osc2_octave", 2.0),
-                ("fm", 12.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 500.0),
-                ("env2_sustain", 10.0),
-                ("velocity", 70.0),
-                ("fx_chorus", 20.0),
-                ("fx_reverb", 12.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 14.0),
-                ("mod1_amount", 40.0),
-                ("mod2_source", 4.0),
-                ("mod2_target", 14.0),
-                ("mod2_amount", 20.0),
-                ("volume", -12.0),
-            ],
-            adsr(1.0, 1400.0, 20.0, 400.0),
-            filter(16000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Keys: Wurly"),
-            &[
-                ("wave", 3.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 1.0),
-                ("osc2_level", 25.0),
-                ("osc2_voices", 1.0),
-                ("drive", 25.0),
-                ("filter_type", 1.0),
-                ("lfo1_rate", 5.5),
-                ("lfo1_retrig", 0.0),
-                ("velocity", 70.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 11.0),
-                ("mod1_amount", 15.0),
-                ("volume", -12.0),
-            ],
-            adsr(2.0, 1200.0, 30.0, 300.0),
-            filter(2500.0, 10.0, 40.0),
-        ),
-        sound(
-            tr("Pad: Warm"),
-            &[
-                ("lfo1_rate", 0.2),
-                ("lfo1_shape", 1.0),
-                ("lfo1_retrig", 0.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 8.0),
-                ("mod1_amount", 15.0),
-                ("mod2_source", 7.0),
-                ("mod2_target", 8.0),
-                ("mod2_amount", 40.0),
-                ("osc1_voices", 4.0),
-                ("detune", 15.0),
-                ("osc2_level", 60.0),
-                ("osc2_octave", -1.0),
-                ("osc2_voices", 3.0),
-                ("osc2_detune", 12.0),
-                ("spread", 80.0),
-                ("drift", 30.0),
-                ("velocity", 30.0),
-                ("volume", -16.0),
-            ],
-            adsr(600.0, 1500.0, 80.0, 2500.0),
-            filter(1200.0, 15.0, 20.0),
-        ),
-        sound(
-            tr("Pad: Glass"),
-            &[
-                ("lfo1_rate", 0.15),
-                ("lfo1_retrig", 0.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 5.0),
-                ("mod1_amount", 40.0),
-                ("mod2_source", 7.0),
-                ("mod2_target", 8.0),
-                ("mod2_amount", 40.0),
-                ("wave", 3.0),
-                ("osc1_voices", 3.0),
-                ("detune", 10.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 50.0),
-                ("osc2_octave", 1.0),
-                ("spread", 90.0),
-                ("drift", 20.0),
-                ("velocity", 30.0),
-                ("volume", -17.0),
-            ],
-            adsr(900.0, 2000.0, 85.0, 3500.0),
-            filter(5000.0, 25.0, 15.0),
-        ),
-        sound(
-            tr("Pad: Airy"),
-            &[
-                ("osc1_voices", 5.0),
-                ("detune", 18.0),
-                ("osc2_wave", 3.0),
-                ("osc2_level", 50.0),
-                ("osc2_octave", 1.0),
-                ("filter_type", 3.0),
-                ("spread", 100.0),
-                ("drift", 25.0),
-                ("velocity", 30.0),
-                ("volume", -8.0),
-            ],
-            adsr(1200.0, 2000.0, 85.0, 4000.0),
-            filter(700.0, 20.0, 0.0),
-        ),
-        sound(
-            tr("Pad: Evolving"),
-            &[
-                ("osc1_voices", 4.0),
-                ("detune", 14.0),
-                ("osc2_wave", 3.0),
-                ("osc2_level", 70.0),
-                ("osc2_octave", 1.0),
-                ("osc2_voices", 2.0),
-                ("filter_type", 1.0),
-                ("spread", 90.0),
-                ("drift", 25.0),
-                ("lfo1_shape", 1.0),
-                ("lfo1_rate", 0.08),
-                ("lfo1_retrig", 0.0),
-                ("lfo2_rate", 0.13),
-                ("lfo2_retrig", 0.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 8.0),
-                ("mod1_amount", 30.0),
-                ("mod2_source", 2.0),
-                ("mod2_target", 5.0),
-                ("mod2_amount", 60.0),
-                ("mod3_source", 7.0),
-                ("mod3_target", 9.0),
-                ("mod3_amount", 50.0),
-                ("velocity", 30.0),
-                ("volume", -16.0),
-            ],
-            adsr(1500.0, 3000.0, 80.0, 4000.0),
-            filter(900.0, 30.0, 10.0),
-        ),
-        sound(
-            tr("Pad: Vowels"),
-            &[
-                ("wave", 4.0),
-                ("osc1_table", 3.0),
-                ("osc1_voices", 4.0),
-                ("detune", 12.0),
-                ("osc2_level", 0.0),
-                ("spread", 80.0),
-                ("drift", 15.0),
-                ("lfo1_shape", 1.0),
-                ("lfo1_rate", 0.12),
-                ("lfo1_retrig", 0.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 12.0),
-                ("mod1_amount", 50.0),
-                ("osc1_position", 50.0),
-                ("volume", -11.0),
-            ],
-            adsr(800.0, 2000.0, 85.0, 2500.0),
-            filter(6000.0, 10.0, 0.0),
-        ),
-        sound(
-            tr("Pad: Space"),
-            &[
-                ("osc1_voices", 5.0),
-                ("detune", 16.0),
-                ("osc2_wave", 3.0),
-                ("osc2_level", 50.0),
-                ("osc2_octave", 1.0),
-                ("filter_type", 1.0),
-                ("spread", 100.0),
-                ("drift", 20.0),
-                ("fx_chorus", 40.0),
-                ("fx_reverb", 45.0),
-                ("fx_reverb_decay", 7.0),
-                ("fx_delay", 15.0),
-                ("fx_delay_note", 8.0),
-                ("volume", -6.5),
-            ],
-            adsr(1800.0, 3000.0, 85.0, 4500.0),
-            filter(2200.0, 15.0, 10.0),
-        ),
-        sound(
-            tr("Pad: Dark"),
-            &[
-                ("osc1_voices", 6.0),
-                ("detune", 14.0),
-                ("osc1_octave", -1.0),
-                ("osc2_level", 50.0),
-                ("osc2_voices", 4.0),
-                ("filter_type", 1.0),
-                ("spread", 100.0),
-                ("drift", 25.0),
-                ("fx_reverb", 30.0),
-                ("fx_reverb_decay", 5.0),
-                ("volume", -10.8),
-            ],
-            adsr(900.0, 2000.0, 90.0, 3000.0),
-            filter(600.0, 20.0, 10.0),
-        ),
-        sound(
-            tr("Pad: PWM"),
-            &[
-                ("wave", 4.0),
-                ("osc1_table", 2.0),
-                ("osc1_voices", 4.0),
-                ("detune", 10.0),
-                ("osc2_wave", 4.0),
-                ("osc2_table", 2.0),
-                ("osc2_level", 70.0),
-                ("osc2_voices", 4.0),
-                ("lfo1_rate", 0.3),
-                ("lfo1_retrig", 0.0),
-                ("lfo2_rate", 0.21),
-                ("lfo2_retrig", 0.0),
-                ("fx_chorus", 30.0),
-                ("fx_reverb", 25.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 12.0),
-                ("mod1_amount", 60.0),
-                ("mod2_source", 2.0),
-                ("mod2_target", 13.0),
-                ("mod2_amount", 60.0),
-                ("volume", -3.2),
-            ],
-            adsr(500.0, 2000.0, 90.0, 2500.0),
-            filter(5000.0, 10.0, 0.0),
-        ),
-        sound(
-            tr("Pad: Sweep"),
-            &[
-                ("osc1_voices", 5.0),
-                ("detune", 16.0),
-                ("osc2_wave", 1.0),
-                ("osc2_level", 40.0),
-                ("osc2_voices", 3.0),
-                ("filter_type", 1.0),
-                ("spread", 90.0),
-                ("lfo1_shape", 1.0),
-                ("lfo1_rate", 0.07),
-                ("lfo1_retrig", 0.0),
-                ("fx_reverb", 30.0),
-                ("fx_reverb_decay", 6.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 8.0),
-                ("mod1_amount", 45.0),
-                ("volume", -10.2),
-            ],
-            adsr(700.0, 2000.0, 90.0, 3000.0),
-            filter(900.0, 40.0, 0.0),
-        ),
-        sound(
-            tr("Pad: Choir"),
-            &[
-                ("wave", 4.0),
-                ("osc1_table", 3.0),
-                ("osc1_position", 15.0),
-                ("osc1_voices", 5.0),
-                ("detune", 12.0),
-                ("spread", 90.0),
-                ("lfo1_rate", 0.15),
-                ("lfo1_retrig", 0.0),
-                ("fx_chorus", 35.0),
-                ("fx_reverb", 35.0),
-                ("fx_reverb_decay", 5.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 12.0),
-                ("mod1_amount", 20.0),
-                ("volume", -6.4),
-            ],
-            adsr(600.0, 2000.0, 90.0, 2500.0),
-            filter(7000.0, 10.0, 0.0),
-        ),
-        sound(
-            tr("Strings: Ensemble"),
-            &[
-                ("lfo1_rate", 5.0),
-                ("lfo1_retrig", 0.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 1.0),
-                ("mod2_source", 5.0),
-                ("mod2_target", 8.0),
-                ("mod2_amount", 35.0),
-                ("filter_type", 1.0),
-                ("key_track", 30.0),
-                ("osc1_voices", 7.0),
-                ("detune", 22.0),
-                ("spread", 90.0),
-                ("drift", 25.0),
-                ("velocity", 40.0),
-                ("volume", -15.0),
-            ],
-            adsr(350.0, 800.0, 85.0, 1200.0),
-            filter(2800.0, 5.0, 10.0),
-        ),
-        sound(
-            tr("Strings: Slow"),
-            &[
-                ("osc1_voices", 6.0),
-                ("detune", 12.0),
-                ("filter_type", 1.0),
-                ("spread", 100.0),
-                ("lfo1_rate", 5.0),
-                ("lfo1_retrig", 0.0),
-                ("fx_chorus", 30.0),
-                ("fx_reverb", 30.0),
-                ("fx_reverb_decay", 4.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 1.2),
-                ("volume", -10.0),
-            ],
-            adsr(1200.0, 2000.0, 90.0, 2000.0),
-            filter(3500.0, 10.0, 15.0),
-        ),
-        sound(
-            tr("Strings: Pizzicato"),
-            &[
-                ("osc1_voices", 4.0),
-                ("detune", 10.0),
-                ("filter_type", 1.0),
-                ("spread", 80.0),
-                ("velocity", 60.0),
-                ("fx_reverb", 25.0),
-                ("volume", -7.8),
-            ],
-            adsr(1.0, 220.0, 0.0, 250.0),
-            filter(1500.0, 15.0, 60.0),
-        ),
-        sound(
-            tr("Brass: Analog"),
-            &[
-                ("lfo1_rate", 5.5),
-                ("env2_attack", 1.0),
-                ("env2_decay", 350.0),
-                ("mod1_source", 5.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 2.0),
-                ("mod2_source", 3.0),
-                ("mod2_target", 8.0),
-                ("mod2_amount", 20.0),
-                ("key_track", 50.0),
-                ("detune", 10.0),
-                ("osc2_level", 70.0),
-                ("osc2_fine", 7.0),
-                ("drift", 20.0),
-                ("volume", -13.0),
-            ],
-            adsr(60.0, 500.0, 70.0, 250.0),
-            filter(900.0, 20.0, 70.0),
-        ),
-        sound(
-            tr("Brass: Stab"),
-            &[
-                ("osc1_voices", 3.0),
-                ("detune", 9.0),
-                ("osc2_level", 60.0),
-                ("osc2_voices", 2.0),
-                ("filter_type", 1.0),
-                ("velocity", 60.0),
-                ("fx_reverb", 15.0),
-                ("volume", -12.0),
-            ],
-            adsr(2.0, 250.0, 30.0, 150.0),
-            filter(500.0, 20.0, 80.0),
-        ),
-        sound(
-            tr("Brass: Soft horns"),
-            &[
-                ("osc1_voices", 3.0),
-                ("detune", 7.0),
-                ("filter_type", 1.0),
-                ("velocity", 50.0),
-                ("lfo1_rate", 5.0),
-                ("lfo1_retrig", 0.0),
-                ("fx_reverb", 20.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 1.0),
-                ("volume", -10.4),
-            ],
-            adsr(180.0, 800.0, 75.0, 500.0),
-            filter(700.0, 15.0, 50.0),
-        ),
-        sound(
-            tr("Pluck: Bright"),
-            &[
-                ("mod1_source", 4.0),
-                ("mod1_target", 8.0),
-                ("mod1_amount", 20.0),
-                ("key_track", 60.0),
-                ("osc1_voices", 3.0),
-                ("detune", 12.0),
-                ("velocity", 80.0),
-                ("volume", -11.0),
-            ],
-            adsr(1.0, 250.0, 0.0, 250.0),
-            filter(600.0, 35.0, 75.0),
-        ),
-        sound(
-            tr("Pluck: Soft"),
-            &[
-                ("wave", 3.0),
-                ("osc1_voices", 2.0),
-                ("detune", 5.0),
-                ("filter_type", 1.0),
-                ("velocity", 50.0),
-                ("fx_reverb", 20.0),
-                ("volume", -9.2),
-            ],
-            adsr(1.0, 400.0, 0.0, 350.0),
-            filter(800.0, 10.0, 50.0),
-        ),
-        sound(
-            tr("Pluck: Harp"),
-            &[
-                ("wave", 3.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 40.0),
-                ("osc2_octave", 1.0),
-                ("velocity", 60.0),
-                ("spread", 60.0),
-                ("fx_reverb", 30.0),
-                ("fx_reverb_decay", 3.0),
-                ("volume", -10.3),
-            ],
-            adsr(1.0, 1100.0, 0.0, 1000.0),
-            filter(6000.0, 0.0, 30.0),
-        ),
-        sound(
-            tr("Pluck: Muted"),
-            &[
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 1.0),
-                ("osc2_level", 40.0),
-                ("osc2_voices", 1.0),
-                ("filter_type", 1.0),
-                ("velocity", 60.0),
-                ("fx_delay", 20.0),
-                ("fx_delay_note", 6.0),
-                ("volume", 0.9),
-            ],
-            adsr(1.0, 150.0, 0.0, 120.0),
-            filter(400.0, 20.0, 50.0),
-        ),
-        sound(
-            tr("Pluck: Square"),
-            &[
-                ("wave", 1.0),
-                ("osc1_voices", 2.0),
-                ("detune", 8.0),
-                ("filter_type", 1.0),
-                ("velocity", 50.0),
-                ("fx_delay", 25.0),
-                ("fx_reverb", 12.0),
-                ("volume", -12.0),
-            ],
-            adsr(1.0, 260.0, 0.0, 200.0),
-            filter(900.0, 30.0, 70.0),
-        ),
-        sound(
-            tr("Pluck: Kalimba"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 0.0),
-                ("osc2_octave", 2.0),
-                ("osc2_semi", 5.0),
-                ("fm", 20.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 120.0),
-                ("env2_sustain", 0.0),
-                ("velocity", 60.0),
-                ("fx_reverb", 20.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 14.0),
-                ("mod1_amount", 50.0),
-                ("volume", -12.0),
-            ],
-            adsr(1.0, 600.0, 0.0, 500.0),
-            filter(14000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Bell: Classic"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 35.0),
-                ("osc2_octave", 1.0),
-                ("osc2_semi", 7.0),
-                ("drift", 0.0),
-                ("velocity", 80.0),
-                ("volume", -14.0),
-            ],
-            adsr(1.0, 2500.0, 0.0, 2500.0),
-            filter(18000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Bell: Metal"),
-            &[
-                ("wave", 4.0),
-                ("osc1_table", 4.0),
-                ("osc1_voices", 1.0),
-                ("osc1_position", 15.0),
-                ("osc2_wave", 2.0),
-                ("osc2_octave", 1.0),
-                ("osc2_level", 30.0),
-                ("mod1_source", 4.0),
-                ("mod1_target", 12.0),
-                ("mod1_amount", 40.0),
-                ("spread", 60.0),
-                ("velocity", 60.0),
-                ("volume", -9.0),
-            ],
-            adsr(1.0, 1800.0, 0.0, 1800.0),
-            filter(16000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Bell: Ring"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc1_level", 30.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 0.0),
-                ("osc2_octave", 1.0),
-                ("osc2_semi", 3.0),
-                ("osc2_fine", 12.0),
-                ("ring", 80.0),
-                ("velocity", 60.0),
-                ("spread", 60.0),
-                ("fx_reverb", 30.0),
-                ("fx_reverb_decay", 4.0),
-                ("volume", -8.0),
-            ],
-            adsr(1.0, 2200.0, 0.0, 2200.0),
-            filter(14000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Bell: Marimba"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 0.0),
-                ("osc2_octave", 2.0),
-                ("ring", 40.0),
-                ("velocity", 60.0),
-                ("fx_reverb", 15.0),
-                ("volume", -12.0),
-            ],
-            adsr(1.0, 500.0, 0.0, 450.0),
-            filter(12000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Bell: Vibraphone"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 20.0),
-                ("osc2_octave", 2.0),
-                ("lfo1_rate", 5.0),
-                ("lfo1_retrig", 0.0),
-                ("velocity", 60.0),
-                ("fx_reverb", 25.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 11.0),
-                ("mod1_amount", 25.0),
-                ("volume", -13.3),
-            ],
-            adsr(1.0, 2500.0, 0.0, 2000.0),
-            filter(12000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Bell: Celesta"),
-            &[
-                ("wave", 3.0),
-                ("osc1_voices", 1.0),
-                ("osc1_octave", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 0.0),
-                ("osc2_octave", 3.0),
-                ("fm", 10.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 200.0),
-                ("env2_sustain", 0.0),
-                ("velocity", 60.0),
-                ("fx_reverb", 25.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 14.0),
-                ("mod1_amount", 30.0),
-                ("volume", -9.8),
-            ],
-            adsr(1.0, 1300.0, 0.0, 1200.0),
-            filter(14000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Poly: Juno"),
-            &[
-                ("osc1_voices", 2.0),
-                ("detune", 6.0),
-                ("sub_level", 30.0),
-                ("filter_type", 1.0),
-                ("fx_chorus", 45.0),
-                ("velocity", 40.0),
-                ("volume", -12.8),
-            ],
-            adsr(5.0, 600.0, 70.0, 400.0),
-            filter(1800.0, 15.0, 30.0),
-        ),
-        sound(
-            tr("Poly: House stab"),
-            &[
-                ("wave", 4.0),
-                ("osc1_table", 7.0),
-                ("osc1_position", 70.0),
-                ("osc1_voices", 1.0),
-                ("filter_type", 1.0),
-                ("velocity", 50.0),
-                ("fx_reverb", 15.0),
-                ("fx_delay", 12.0),
-                ("volume", -6.3),
-            ],
-            adsr(1.0, 280.0, 10.0, 150.0),
-            filter(2500.0, 15.0, 40.0),
-        ),
-        sound(
-            tr("Poly: Detuned"),
-            &[
-                ("osc1_voices", 9.0),
-                ("detune", 25.0),
-                ("osc2_level", 50.0),
-                ("osc2_voices", 5.0),
-                ("osc2_detune", 20.0),
-                ("spread", 100.0),
-                ("filter_type", 0.0),
-                ("fx_reverb", 15.0),
-                ("volume", -12.7),
-            ],
-            adsr(10.0, 800.0, 80.0, 500.0),
-            filter(5000.0, 10.0, 15.0),
-        ),
-        sound(
-            tr("Poly: Sync chords"),
-            &[
-                ("osc1_voices", 2.0),
-                ("osc1_semi", 12.0),
-                ("osc2_level", 40.0),
-                ("osc2_voices", 2.0),
-                ("sync", 1.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 500.0),
-                ("env2_sustain", 0.0),
-                ("fx_chorus", 20.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 2.0),
-                ("mod1_amount", 40.0),
-                ("volume", -12.0),
-            ],
-            adsr(3.0, 500.0, 60.0, 300.0),
-            filter(6000.0, 10.0, 10.0),
-        ),
-        sound(
-            tr("Poly: Soft square"),
-            &[
-                ("wave", 1.0),
-                ("osc1_voices", 3.0),
-                ("detune", 6.0),
-                ("filter_type", 1.0),
-                ("fx_chorus", 25.0),
-                ("fx_reverb", 15.0),
-                ("velocity", 40.0),
-                ("volume", -14.5),
-            ],
-            adsr(30.0, 800.0, 70.0, 600.0),
-            filter(1500.0, 10.0, 20.0),
-        ),
-        sound(
-            tr("Arp: Bright pluck"),
-            &[
-                ("arp", 1.0),
-                ("arp_octaves", 2.0),
-                ("arp_gate", 50.0),
-                ("osc1_voices", 3.0),
-                ("detune", 10.0),
-                ("osc2_wave", 1.0),
-                ("osc2_level", 40.0),
-                ("osc2_octave", 1.0),
-                ("filter_type", 1.0),
-                ("velocity", 40.0),
-                ("fx_delay", 25.0),
-                ("fx_reverb", 15.0),
-                ("volume", -6.5),
-            ],
-            adsr(1.0, 250.0, 0.0, 150.0),
-            filter(700.0, 30.0, 70.0),
-        ),
-        sound(
-            tr("Arp: Up and down keys"),
-            &[
-                ("arp", 1.0),
-                ("arp_mode", 2.0),
-                ("arp_note", 5.0),
-                ("arp_octaves", 2.0),
-                ("arp_gate", 80.0),
-                ("wave", 3.0),
-                ("osc1_voices", 2.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 50.0),
-                ("osc2_octave", 1.0),
-                ("fx_chorus", 30.0),
-                ("fx_reverb", 20.0),
-                ("volume", -8.0),
-            ],
-            adsr(3.0, 600.0, 40.0, 300.0),
-            filter(4000.0, 10.0, 20.0),
-        ),
-        sound(
-            tr("Arp: Random bells"),
-            &[
-                ("arp", 1.0),
-                ("arp_mode", 3.0),
-                ("arp_note", 5.0),
-                ("arp_octaves", 3.0),
-                ("arp_gate", 40.0),
-                ("arp_hold", 1.0),
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 0.0),
-                ("osc2_octave", 2.0),
-                ("fm", 25.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 400.0),
-                ("env2_sustain", 0.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 14.0),
-                ("mod1_amount", 40.0),
-                ("spread", 70.0),
-                ("fx_delay", 30.0),
-                ("fx_delay_note", 6.0),
-                ("fx_reverb", 30.0),
-                ("fx_reverb_decay", 5.0),
-                ("volume", -6.0),
-            ],
-            adsr(1.0, 900.0, 0.0, 900.0),
-            filter(14000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Arp: Down sequence"),
-            &[
-                ("arp", 1.0),
-                ("arp_mode", 1.0),
-                ("arp_octaves", 2.0),
-                ("arp_gate", 45.0),
-                ("osc1_voices", 2.0),
-                ("detune", 6.0),
-                ("filter_type", 1.0),
-                ("velocity", 40.0),
-                ("fx_delay", 25.0),
-                ("fx_reverb", 15.0),
-                ("volume", -3.5),
-            ],
-            adsr(1.0, 220.0, 0.0, 150.0),
-            filter(900.0, 25.0, 60.0),
-        ),
-        sound(
-            tr("Arp: Acid line"),
-            &[
-                ("arp", 1.0),
-                ("arp_mode", 4.0),
-                ("arp_octaves", 2.0),
-                ("arp_gate", 55.0),
-                ("osc1_voices", 1.0),
-                ("mode", 1.0),
-                ("filter_type", 2.0),
-                ("drive", 40.0),
-                ("lfo1_rate", 0.1),
-                ("lfo1_retrig", 0.0),
-                ("fx_delay", 20.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 8.0),
-                ("mod1_amount", 40.0),
-                ("volume", -1.1),
-            ],
-            adsr(1.0, 250.0, 30.0, 80.0),
-            filter(500.0, 70.0, 60.0),
-        ),
-        sound(
-            tr("Arp: Chime"),
-            &[
-                ("arp", 1.0),
-                ("arp_mode", 0.0),
-                ("arp_note", 5.0),
-                ("arp_octaves", 3.0),
-                ("arp_gate", 50.0),
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 30.0),
-                ("osc2_octave", 2.0),
-                ("fx_delay", 30.0),
-                ("fx_reverb", 30.0),
-                ("fx_reverb_decay", 5.0),
-                ("volume", -5.2),
-            ],
-            adsr(1.0, 700.0, 0.0, 600.0),
-            filter(14000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Atmosphere: Wind"),
-            &[
-                ("osc1_level", 0.0),
-                ("noise", 100.0),
-                ("osc1_voices", 1.0),
-                ("filter_type", 4.0),
-                ("lfo1_rate", 0.09),
-                ("lfo1_retrig", 0.0),
-                ("lfo2_rate", 0.23),
-                ("lfo2_retrig", 0.0),
-                ("spread", 100.0),
-                ("fx_reverb", 40.0),
-                ("fx_reverb_decay", 7.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 8.0),
-                ("mod1_amount", 50.0),
-                ("mod2_source", 2.0),
-                ("mod2_target", 9.0),
-                ("mod2_amount", 30.0),
-                ("volume", 3.2),
-            ],
-            adsr(1500.0, 2000.0, 90.0, 3000.0),
-            filter(1400.0, 35.0, 0.0),
-        ),
-        sound(
-            tr("Atmosphere: Drone"),
-            &[
-                ("osc1_voices", 4.0),
-                ("detune", 10.0),
-                ("osc1_octave", -1.0),
-                ("osc2_level", 60.0),
-                ("osc2_semi", 7.0),
-                ("osc2_voices", 3.0),
-                ("filter_type", 1.0),
-                ("drift", 40.0),
-                ("lfo1_rate", 0.05),
-                ("lfo1_retrig", 0.0),
-                ("fx_reverb", 40.0),
-                ("fx_reverb_decay", 8.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 8.0),
-                ("mod1_amount", 30.0),
-                ("volume", -9.8),
-            ],
-            adsr(2000.0, 3000.0, 100.0, 4000.0),
-            filter(900.0, 30.0, 0.0),
-        ),
-        sound(
-            tr("Atmosphere: Shimmer"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 3.0),
-                ("detune", 8.0),
-                ("osc1_octave", 1.0),
-                ("osc2_wave", 3.0),
-                ("osc2_level", 40.0),
-                ("osc2_octave", 2.0),
-                ("spread", 100.0),
-                ("fx_chorus", 30.0),
-                ("fx_delay", 25.0),
-                ("fx_delay_note", 8.0),
-                ("fx_reverb", 50.0),
-                ("fx_reverb_decay", 9.0),
-                ("volume", -9.3),
-            ],
-            adsr(1500.0, 2000.0, 90.0, 4000.0),
-            filter(10000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Atmosphere: Dark matter"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc1_octave", -1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 0.0),
-                ("osc2_semi", 5.0),
-                ("osc2_fine", 13.0),
-                ("ring", 60.0),
-                ("fm", 15.0),
-                ("lfo1_rate", 0.06),
-                ("lfo1_retrig", 0.0),
-                ("drift", 50.0),
-                ("fx_reverb", 45.0),
-                ("fx_reverb_decay", 8.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 14.0),
-                ("mod1_amount", 30.0),
-                ("volume", -11.1),
-            ],
-            adsr(2000.0, 3000.0, 100.0, 4000.0),
-            filter(3000.0, 20.0, 0.0),
-        ),
-        sound(
-            tr("FX: Noise sweep"),
-            &[
-                ("filter_type", 4.0),
-                ("osc1_level", 0.0),
-                ("noise", 100.0),
-                ("spread", 100.0),
-                ("volume", 4.1),
-            ],
-            adsr(1500.0, 2000.0, 40.0, 2500.0),
-            filter(500.0, 70.0, 100.0),
-        ),
-        sound(
-            tr("FX: Riser"),
-            &[
-                ("osc1_voices", 5.0),
-                ("detune", 20.0),
-                ("noise", 40.0),
-                ("env2_attack", 4000.0),
-                ("env2_decay", 100.0),
-                ("env2_sustain", 100.0),
-                ("fx_reverb", 35.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 100.0),
-                ("mod2_source", 3.0),
-                ("mod2_target", 8.0),
-                ("mod2_amount", 60.0),
-                ("volume", -10.6),
-            ],
-            adsr(100.0, 1000.0, 100.0, 1500.0),
-            filter(800.0, 30.0, 0.0),
-        ),
-        sound(
-            tr("FX: Laser"),
-            &[
-                ("wave", 1.0),
-                ("osc1_voices", 1.0),
-                ("mode", 1.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 250.0),
-                ("env2_sustain", 0.0),
-                ("fx_delay", 30.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 100.0),
-                ("volume", -8.0),
-            ],
-            adsr(1.0, 400.0, 0.0, 200.0),
-            filter(8000.0, 20.0, 0.0),
-        ),
-        sound(
-            tr("FX: Alarm"),
-            &[
-                ("wave", 1.0),
-                ("osc1_voices", 1.0),
-                ("lfo1_shape", 4.0),
-                ("lfo1_rate", 4.0),
-                ("lfo1_retrig", 1.0),
-                ("fx_reverb", 20.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 30.0),
-                ("volume", -15.5),
-            ],
-            adsr(1.0, 500.0, 90.0, 200.0),
-            filter(5000.0, 10.0, 0.0),
-        ),
-        sound(
-            tr("FX: Sci-fi"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 1.0),
-                ("osc2_level", 0.0),
-                ("ring", 70.0),
-                ("lfo1_shape", 5.0),
-                ("lfo1_rate", 8.0),
-                ("lfo1_retrig", 0.0),
-                ("fx_delay", 30.0),
-                ("fx_reverb", 30.0),
-                ("mod1_source", 1.0),
-                ("mod1_target", 3.0),
-                ("mod1_amount", 50.0),
-                ("volume", -9.8),
-            ],
-            adsr(5.0, 800.0, 80.0, 800.0),
-            filter(6000.0, 30.0, 0.0),
-        ),
-        sound(
-            tr("Trap: 808 glide"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("mode", 2.0),
-                ("glide", 90.0),
-                ("drift", 0.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 70.0),
-                ("env2_sustain", 0.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 15.0),
-                ("osc2_wave", 3.0),
-                ("osc2_level", 15.0),
-                ("osc2_octave", 1.0),
-                ("drive", 25.0),
-                ("velocity", 30.0),
-                ("volume", -7.8),
-            ],
-            adsr(1.0, 3000.0, 40.0, 220.0),
-            filter(12000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Trap: 808 distorted"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("mode", 2.0),
-                ("glide", 70.0),
-                ("drift", 0.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 70.0),
-                ("env2_sustain", 0.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 20.0),
-                ("filter_type", 1.0),
-                ("drive", 80.0),
-                ("velocity", 30.0),
-                ("volume", -4.4),
-            ],
-            adsr(1.0, 2500.0, 35.0, 200.0),
-            filter(2600.0, 10.0, 0.0),
-        ),
-        sound(
-            tr("Drill: 808 slide"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("mode", 2.0),
-                ("glide", 220.0),
-                ("drift", 0.0),
-                ("env2_attack", 1.0),
-                ("env2_decay", 70.0),
-                ("env2_sustain", 0.0),
-                ("mod1_source", 3.0),
-                ("mod1_target", 1.0),
-                ("mod1_amount", 12.0),
-                ("sub_level", 20.0),
-                ("drive", 45.0),
-                ("velocity", 25.0),
-                ("volume", -6.6),
-            ],
-            adsr(1.0, 4000.0, 55.0, 250.0),
-            filter(9000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Trap: Bell"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 30.0),
-                ("osc2_octave", 2.0),
-                ("fm", 28.0),
-                ("drift", 0.0),
-                ("velocity", 70.0),
-                ("fx_reverb", 22.0),
-                ("fx_reverb_decay", 3.5),
-                ("fx_delay", 18.0),
-                ("fx_delay_note", 6.0),
-                ("volume", -10.4),
-            ],
-            adsr(1.0, 1600.0, 0.0, 1400.0),
-            filter(18000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Trap: Arp bells"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 25.0),
-                ("osc2_octave", 2.0),
-                ("fm", 22.0),
-                ("drift", 0.0),
-                ("arp", 1.0),
-                ("arp_mode", 2.0),
-                ("arp_note", 1.0),
-                ("arp_octaves", 2.0),
-                ("arp_gate", 50.0),
-                ("velocity", 60.0),
-                ("fx_reverb", 20.0),
-                ("volume", -11.1),
-            ],
-            adsr(1.0, 500.0, 0.0, 400.0),
-            filter(18000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Trap: Dark keys"),
-            &[
-                ("wave", 3.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 45.0),
-                ("osc2_octave", -1.0),
-                ("filter_type", 1.0),
-                ("drift", 15.0),
-                ("velocity", 60.0),
-                ("fx_reverb", 25.0),
-                ("fx_reverb_decay", 3.0),
-                ("volume", -11.2),
-            ],
-            adsr(2.0, 1500.0, 20.0, 700.0),
-            filter(1100.0, 10.0, 30.0),
-        ),
-        sound(
-            tr("Trap: Flute"),
-            &[
-                ("wave", 2.0),
-                ("osc1_voices", 1.0),
-                ("mode", 2.0),
-                ("glide", 60.0),
-                ("osc2_wave", 3.0),
-                ("osc2_level", 20.0),
-                ("noise", 6.0),
-                ("drift", 5.0),
-                ("lfo1_rate", 5.5),
-                ("mod2_source", 1.0),
-                ("mod2_target", 1.0),
-                ("mod2_amount", 3.0),
-                ("velocity", 40.0),
-                ("fx_reverb", 25.0),
-                ("fx_delay", 15.0),
-                ("volume", -6.7),
-            ],
-            adsr(70.0, 400.0, 85.0, 350.0),
-            filter(5000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Trap: Dark pad"),
-            &[
-                ("osc1_voices", 5.0),
-                ("detune", 18.0),
-                ("osc2_level", 40.0),
-                ("osc2_octave", -1.0),
-                ("osc2_voices", 3.0),
-                ("filter_type", 1.0),
-                ("spread", 100.0),
-                ("drift", 25.0),
-                ("fx_reverb", 40.0),
-                ("fx_reverb_decay", 6.0),
-                ("volume", -8.8),
-            ],
-            adsr(1200.0, 2000.0, 90.0, 3000.0),
-            filter(650.0, 15.0, 10.0),
-        ),
-        sound(
-            tr("Trap: Pluck lead"),
-            &[
-                ("wave", 1.0),
-                ("osc1_voices", 2.0),
-                ("detune", 8.0),
-                ("key_track", 50.0),
-                ("velocity", 70.0),
-                ("fx_delay", 25.0),
-                ("fx_delay_note", 6.0),
-                ("fx_delay_feedback", 40.0),
-                ("fx_reverb", 15.0),
-                ("volume", -11.1),
-            ],
-            adsr(1.0, 280.0, 0.0, 250.0),
-            filter(700.0, 30.0, 70.0),
-        ),
-        sound(
-            tr("Drill: Choir"),
-            &[
-                ("wave", 4.0),
-                ("osc1_table", 3.0),
-                ("osc1_position", 40.0),
-                ("osc1_voices", 4.0),
-                ("detune", 10.0),
-                ("spread", 90.0),
-                ("drift", 20.0),
-                ("fx_reverb", 40.0),
-                ("fx_reverb_decay", 5.0),
-                ("volume", -6.8),
-            ],
-            adsr(400.0, 1500.0, 85.0, 1800.0),
-            filter(4500.0, 10.0, 0.0),
-        ),
-        sound(
-            tr("Drill: Strings"),
-            &[
-                ("osc1_voices", 5.0),
-                ("detune", 15.0),
-                ("osc2_level", 35.0),
-                ("osc2_octave", 1.0),
-                ("filter_type", 0.0),
-                ("spread", 100.0),
-                ("fx_chorus", 20.0),
-                ("fx_reverb", 30.0),
-                ("fx_reverb_decay", 4.0),
-                ("volume", -10.3),
-            ],
-            adsr(300.0, 1200.0, 85.0, 1200.0),
-            filter(3500.0, 10.0, 10.0),
-        ),
-        sound(
-            tr("Drill: Glide lead"),
-            &[
-                ("wave", 3.0),
-                ("osc1_voices", 1.0),
-                ("mode", 2.0),
-                ("glide", 140.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 40.0),
-                ("osc2_octave", 1.0),
-                ("lfo1_rate", 5.0),
-                ("mod2_source", 1.0),
-                ("mod2_target", 1.0),
-                ("mod2_amount", 4.0),
-                ("fx_delay", 20.0),
-                ("fx_delay_note", 6.0),
-                ("fx_reverb", 20.0),
-                ("volume", -5.1),
-            ],
-            adsr(10.0, 500.0, 80.0, 300.0),
-            filter(6000.0, 0.0, 0.0),
-        ),
-        sound(
-            tr("Rap: Lo-fi keys"),
-            &[
-                ("wave", 3.0),
-                ("osc1_voices", 1.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 50.0),
-                ("osc2_octave", 1.0),
-                ("drift", 45.0),
-                ("velocity", 70.0),
-                ("fx_chorus", 30.0),
-                ("fx_reverb", 15.0),
-                ("volume", -11.3),
-            ],
-            adsr(2.0, 1200.0, 30.0, 500.0),
-            filter(2200.0, 5.0, 20.0),
-        ),
-        sound(
-            tr("Rap: G-funk lead"),
-            &[
-                ("wave", 1.0),
-                ("osc1_voices", 1.0),
-                ("mode", 2.0),
-                ("glide", 120.0),
-                ("osc2_wave", 2.0),
-                ("osc2_level", 50.0),
-                ("lfo1_rate", 5.5),
-                ("mod2_source", 1.0),
-                ("mod2_target", 1.0),
-                ("mod2_amount", 4.0),
-                ("fx_delay", 15.0),
-                ("fx_reverb", 15.0),
-                ("volume", -11.9),
-            ],
-            adsr(15.0, 300.0, 85.0, 250.0),
-            filter(2600.0, 20.0, 10.0),
-        ),
-        sound(
-            tr("Rap: Boom bap bass"),
-            &[
-                ("wave", 3.0),
-                ("osc1_voices", 1.0),
-                ("mode", 1.0),
-                ("sub_level", 50.0),
-                ("filter_type", 1.0),
-                ("drift", 10.0),
-                ("velocity", 50.0),
-                ("volume", -8.5),
-            ],
-            adsr(2.0, 600.0, 40.0, 120.0),
-            filter(450.0, 10.0, 30.0),
-        ),
-        sound(
-            tr("Rap: Soul stab"),
-            &[
-                ("osc1_voices", 3.0),
-                ("detune", 10.0),
-                ("osc2_wave", 1.0),
-                ("osc2_level", 40.0),
-                ("filter_type", 1.0),
-                ("velocity", 70.0),
-                ("fx_reverb", 18.0),
-                ("volume", -8.4),
-            ],
-            adsr(5.0, 350.0, 20.0, 250.0),
-            filter(900.0, 20.0, 60.0),
-        ),
-    ];
-    // A touch of space on the sounds made for it, and the level the dry part loses back.
-    type Space<'a> = (&'a str, f32, &'a [(&'a str, f32)]);
-    let space: [Space; 10] = [
-        (
-            "Keys: Soft",
-            1.5,
-            &[("fx_chorus", 25.0), ("fx_reverb", 15.0)],
-        ),
-        (
-            "Keys: Electric",
-            2.0,
-            &[("fx_chorus", 35.0), ("fx_reverb", 12.0)],
-        ),
-        (
-            "Pad: Warm",
-            4.0,
-            &[("fx_reverb", 25.0), ("fx_reverb_decay", 4.0)],
-        ),
-        (
-            "Pad: Glass",
-            2.0,
-            &[("fx_reverb", 30.0), ("fx_reverb_decay", 5.0)],
-        ),
-        (
-            "Pad: Airy",
-            2.5,
-            &[("fx_reverb", 35.0), ("fx_reverb_decay", 6.0)],
-        ),
-        (
-            "Strings: Ensemble",
-            4.0,
-            &[("fx_chorus", 40.0), ("fx_reverb", 20.0)],
-        ),
-        (
-            "Lead: Supersaw",
-            4.0,
-            &[("fx_delay", 15.0), ("fx_reverb", 15.0)],
-        ),
-        ("Lead: Mono glide", 2.0, &[("fx_delay", 20.0)]),
-        (
-            "Pluck: Bright",
-            6.0,
-            &[("fx_delay", 25.0), ("fx_reverb", 15.0)],
-        ),
-        (
-            "Bell: Classic",
-            2.5,
-            &[("fx_reverb", 30.0), ("fx_reverb_decay", 4.0)],
-        ),
-    ];
-    let volume = audiostrada_dsp::info("synth")
-        .and_then(|i| i.params.iter().find(|p| p.id == "volume"))
-        .map_or(-12.0, |p| p.default);
-    for (name, louder, extra) in space {
-        if let Some(sound) = presets.iter_mut().find(|p| p.name == tr(name)) {
-            for &(id, v) in extra {
-                sound.params.insert(id.to_owned(), v);
-            }
-            *sound.params.entry("volume".to_owned()).or_insert(volume) += louder;
-        }
-    }
-    for sound in presets.iter_mut().skip(1) {
-        give_macros(sound);
-    }
-    presets
-}
-
-/// Routes the four macros of a factory sound, where it left them free: brightness,
-/// resonance, grit, then the wavetable's position or some air. At zero they change nothing.
-fn give_macros(sound: &mut crate::presets::Preset) {
-    use audiostrada_dsp::synth::{SLOTS, WAVETABLE, target};
-    let get = |p: &crate::presets::Preset, id: &str| p.params.get(id).copied().unwrap_or(0.0);
-    let fourth = if get(sound, "wave").round() as u32 == WAVETABLE {
-        (target::OSC1_POSITION, 60.0)
-    } else {
-        (target::NOISE, 25.0)
-    };
-    let wanted = [
-        (target::CUTOFF, 40.0),
-        (target::RESONANCE, 50.0),
-        (target::DRIVE, 60.0),
-        fourth,
-    ];
-    for (m, (to, amount)) in wanted.into_iter().enumerate() {
-        let source = (m + 7) as f32;
-        let used = |p: &crate::presets::Preset, k: usize| get(p, &format!("mod{k}_source")) > 0.0;
-        if (1..=SLOTS).any(|k| get(sound, &format!("mod{k}_source")) == source) {
-            continue;
-        }
-        let Some(k) = (1..=SLOTS).find(|&k| !used(sound, k)) else {
-            return;
-        };
-        for (field, v) in [
-            ("source", source),
-            ("target", to as f32),
-            ("amount", amount),
-        ] {
-            sound.params.insert(format!("mod{k}_{field}"), v);
-        }
-    }
-}
-
 /// Color of each modulation source, as on its pill, its ring and its routing.
 fn source_color(source: usize) -> Color32 {
     match source {
@@ -2145,6 +190,17 @@ fn target_of(id: &str) -> Option<usize> {
         "resonance" => target::RESONANCE,
         "drive" => target::DRIVE,
         "volume" => target::VOLUME,
+        "fx_chorus" => target::CHORUS,
+        "fx_delay" => target::DELAY,
+        "fx_reverb" => target::REVERB,
+        "detune" | "osc2_detune" => target::DETUNE,
+        "attack" => target::ATTACK,
+        "decay" => target::DECAY,
+        "release" => target::RELEASE,
+        "env_amount" => target::ENV_AMOUNT,
+        "lfo1_depth" => target::LFO_DEPTH,
+        "lfo2_depth" => target::LFO_DEPTH + 1,
+        "env2_depth" => target::ENV2_DEPTH,
         _ => return None,
     })
 }
@@ -2164,8 +220,18 @@ fn routes(params: &Params) -> Vec<(usize, usize, usize, f32)> {
 /// A knob that takes modulation: dropped sources land on it, its routings show as colored arcs
 /// around it.
 fn mod_knob(ui: &mut Ui, params: &mut Params, state: &mut SynthState, id: &str, name: &str) {
+    mod_knob_sized(ui, params, state, id, name, 38.0);
+}
+
+fn mod_knob_sized(
+    ui: &mut Ui,
+    params: &mut Params,
+    state: &mut SynthState,
+    id: &str,
+    name: &str,
+    size: f32,
+) {
     let accent = theme::current(ui).accent;
-    let size = 38.0;
     let rect = ui
         .scope(|ui| wide_knob(ui, params, id, name, size, accent))
         .response
@@ -2284,6 +350,16 @@ fn drop_source(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
     let Some(&(_, target)) = state.targets.iter().find(|(r, _)| r.contains(at)) else {
         return;
     };
+    if !audiostrada_dsp::synth::reaches(source, target) {
+        params.doc.notify(
+            tr(
+                "Only the macros and the mod wheel move this control: it is the whole \
+                instrument's, not each note's",
+            )
+            .into(),
+        );
+        return;
+    }
     let existing = routes(params);
     if existing
         .iter()
@@ -2316,18 +392,118 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
     state.live = live.clone();
     ui.ctx()
         .data_mut(|d| d.insert_temp(egui::Id::unique("synth-live-mods"), live.mods.clone()));
-    let advanced = view_switch(ui, state);
+    let (advanced, expert) = view_switch(ui, state);
     // Every row gets the same width, whatever a cell may have pushed out.
     let full = ui.available_width();
-    hero(ui, meters, &live);
-    ui.add_space(GAP);
+    // The ready-made sound these settings are, if any.
+    let print = fingerprint(|i, _| params.values.get(i).copied().unwrap_or(0.0));
+    let known = state.sounds.get_or_insert_with(known_sounds);
+    state.sound = known.iter().find(|s| s.0 == print).map(|s| s.1.clone());
     if advanced {
-        advanced_face(ui, params, state, full, &live);
+        hero(ui, meters, &live);
+        ui.add_space(GAP);
+        advanced_face(ui, params, state, full, &live, expert);
     } else {
-        simple_face(ui, params, state, full, &live);
+        landscape(ui, meters, state);
+        ui.add_space(GAP);
+        simple_face(ui, params, state, full);
     }
     keyboard(ui, params, state);
     drop_source(ui, params, state);
+    shot::tick(ui, params);
+}
+
+/// Development aid: with `AUDIOSTRADA_SCREENSHOT_SYNTH` set, opens Strada-Synth's window on the
+/// sound named by `AUDIOSTRADA_SCREENSHOT_SOUND` (in the view of `AUDIOSTRADA_SCREENSHOT_VIEW`:
+/// `advanced` or `expert`) and holds a chord, for a capture of the window from outside.
+pub(crate) mod shot {
+    use super::*;
+    use std::cell::Cell;
+
+    thread_local! {
+        static OPENED: Cell<u32> = const { Cell::new(0) };
+        static FRAMES: Cell<u32> = const { Cell::new(0) };
+    }
+    const CHORD: [u8; 3] = [57, 60, 64];
+
+    fn asked() -> Option<()> {
+        std::env::var_os("AUDIOSTRADA_SCREENSHOT_SYNTH").map(|_| ())
+    }
+
+    /// The synth to open, once it is in the project: the first one, or one added for the shot.
+    pub(crate) fn open(
+        ctx: &egui::Context,
+        doc: &mut crate::document::Document,
+    ) -> Option<(Channel, audiostrada_core::InsertId)> {
+        asked()?;
+        ctx.request_repaint();
+        let calls = OPENED.get();
+        OPENED.set(calls.saturating_add(1));
+        let found = doc.project().tracks.iter().find_map(|t| {
+            let insert = t.inserts.iter().find(|i| i.effect == "synth")?;
+            Some((Channel::Track(t.id), insert.id))
+        });
+        match (calls, found) {
+            (0, None) => {
+                doc.history_mut().edit("Synth", |p| {
+                    let t = p.add_track("Synth");
+                    audiostrada_core::routing::add_insert(
+                        p,
+                        Channel::Track(t),
+                        "synth",
+                        Default::default(),
+                    );
+                });
+                None
+            }
+            (5, Some((channel, insert))) => {
+                let wanted = std::env::var("AUDIOSTRADA_SCREENSHOT_SOUND").unwrap_or_default();
+                let sound = crate::synth_presets::factory()
+                    .into_iter()
+                    .find(|s| s.name == wanted);
+                if let Some(sound) = sound {
+                    doc.history_mut().edit("Sound", |p| {
+                        for (id, value) in &sound.params {
+                            audiostrada_core::routing::set_insert_param(
+                                p, channel, insert, id, *value,
+                            );
+                        }
+                    });
+                }
+                Some((channel, insert))
+            }
+            _ => None,
+        }
+    }
+
+    /// In the synth's window: the view asked for, the chord, then the picture.
+    pub(crate) fn tick(ui: &mut Ui, params: &Params) {
+        if asked().is_none() {
+            return;
+        }
+        let frame = FRAMES.get() + 1;
+        FRAMES.set(frame);
+        let ctx = ui.ctx().clone();
+        ctx.request_repaint();
+        let play = |on: bool| {
+            if let Some(track) = track_of(params) {
+                for key in CHORD {
+                    let data = if on { [0x90, key, 100] } else { [0x80, key, 0] };
+                    params.doc.player().play_key(track, data);
+                }
+            }
+        };
+        if frame == 1 {
+            let view = std::env::var("AUDIOSTRADA_SCREENSHOT_VIEW").unwrap_or_default();
+            ctx.data_mut(|d| {
+                d.insert_temp(egui::Id::unique("synth-advanced"), !view.is_empty());
+                d.insert_temp(egui::Id::unique("synth-expert"), view == "expert");
+            });
+        }
+        if frame == 20 {
+            play(true);
+        }
+    }
 }
 
 /// The routings in use, one line each: source, target, amount, removal.
@@ -2489,18 +665,28 @@ fn wavetable_file(ui: &mut Ui, params: &mut Params, n: usize) {
     });
 }
 
-/// The switch between the simple view and the advanced one, shared by every synth; the
-/// window takes the size of the view chosen.
-fn view_switch(ui: &mut Ui, state: &mut SynthState) -> bool {
+/// The switch between the simple view and the advanced one, shared by every synth, and in
+/// the advanced one the switch that shows the expert controls; the window takes the size of
+/// the view chosen. Returns the two.
+fn view_switch(ui: &mut Ui, state: &mut SynthState) -> (bool, bool) {
     let id = egui::Id::unique("synth-advanced");
+    let expert_id = egui::Id::unique("synth-expert");
     let mut advanced = ui.ctx().data(|d| d.get_temp::<bool>(id)).unwrap_or(false);
+    let mut expert = ui
+        .ctx()
+        .data(|d| d.get_temp::<bool>(expert_id))
+        .unwrap_or(false);
     ui.horizontal(|ui| {
         for (on, label, hint) in [
-            (false, "Simple", "The controls that shape the sound most"),
+            (
+                false,
+                "Simple",
+                "The sound, its four macros and its effects",
+            ),
             (
                 true,
                 "Advanced",
-                "Every control: wavetables, LFOs, routings, FM...",
+                "Every control: oscillators, filter, LFOs, routings...",
             ),
         ] {
             let text = RichText::new(tr(label)).size(12.5);
@@ -2512,14 +698,27 @@ fn view_switch(ui: &mut Ui, state: &mut SynthState) -> bool {
                 advanced = on;
             }
         }
+        if advanced {
+            ui.add_space(8.0);
+            let response = pill_switch(ui, expert, tr("Expert")).on_hover_text(tr(
+                "Shows the controls few sounds need: fine tuning, FM, sync and ring, key \
+                 tracking, drift, the depth of the LFOs, MPE",
+            ));
+            if response.clicked() {
+                expert = !expert;
+            }
+        }
     });
-    ui.ctx().data_mut(|d| d.insert_temp(id, advanced));
-    if state.sized != Some(advanced) {
-        state.sized = Some(advanced);
-        let height = if advanced {
-            ADVANCED_HEIGHT
-        } else {
-            SIMPLE_HEIGHT
+    ui.ctx().data_mut(|d| {
+        d.insert_temp(id, advanced);
+        d.insert_temp(expert_id, expert);
+    });
+    if state.sized != Some((advanced, expert)) {
+        state.sized = Some((advanced, expert));
+        let height = match (advanced, expert) {
+            (false, _) => SIMPLE_HEIGHT,
+            (true, false) => ADVANCED_HEIGHT,
+            (true, true) => EXPERT_HEIGHT,
         };
         let width = ui
             .ctx()
@@ -2528,19 +727,41 @@ fn view_switch(ui: &mut Ui, state: &mut SynthState) -> bool {
             .send_viewport_cmd(egui::ViewportCommand::InnerSize(vec2(width, height)));
     }
     ui.add_space(4.0);
-    advanced
+    (advanced, expert)
 }
 
 /// Window heights that show each view whole, keyboard included.
-const SIMPLE_HEIGHT: f32 = 910.0;
-const ADVANCED_HEIGHT: f32 = 1180.0;
+const SIMPLE_HEIGHT: f32 = 720.0;
+const ADVANCED_HEIGHT: f32 = 1010.0;
+const EXPERT_HEIGHT: f32 = 1150.0;
 
-/// Every control.
-fn advanced_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full: f32, live: &Live) {
+/// A switch of the synth, as a pill with its hint.
+fn pill(ui: &mut Ui, params: &mut Params, id: &str, label: &'static str, hint: &'static str) {
+    params.toggle(ui, id, |ui, on| {
+        let response = pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
+        if response.clicked() {
+            *on = !*on;
+        }
+        response
+    });
+}
+
+const ARP_HINT: &str = "Plays the held keys one after the other, in time";
+const HOLD_HINT: &str = "Keeps playing once the keys are up, until the next chord";
+
+/// Every control; the ones few sounds need only when `expert`.
+fn advanced_face(
+    ui: &mut Ui,
+    params: &mut Params,
+    state: &mut SynthState,
+    full: f32,
+    live: &Live,
+    expert: bool,
+) {
     let p = theme::current(ui);
     // Three columns kept from row to row: the two oscillators' width, then a narrow one.
     row(ui, full, &[1, 1, 1], 112.0, |ui, c| match c {
-        0 | 1 => oscillator(ui, params, state, c + 1, false),
+        0 | 1 => oscillator(ui, params, state, c + 1, !expert),
         _ => panel(ui, |ui| {
             ui.horizontal(|ui| {
                 title(ui, tr("Sub and noise"), p.weak);
@@ -2552,33 +773,38 @@ fn advanced_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full:
             });
         }),
     });
-    row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
-        0 | 1 => screen(ui, |ui| wavetable_half(ui, params, state, c + 1)),
-        _ => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Voice"), p.weak);
-                segmented(
-                    ui,
-                    params,
-                    "mode",
-                    &[
-                        "Chords: every note plays",
-                        "One note at a time, each with its attack",
-                        "One note at a time, a new note slides on without a new attack",
-                    ],
-                )
-            });
-            ui.add_space(6.0);
-            spread(ui, 3, |ui, k| {
-                let (id, name) = [
-                    ("glide", tr("Glide")),
-                    ("spread", tr("Stereo")),
-                    ("drift", tr("Drift")),
-                ][k];
-                mod_knob(ui, params, state, id, name);
-            });
-        }),
-    });
+    // A wavetable chosen on an oscillator brings its panel; the expert sees them always,
+    // with oscillator 2 shaping oscillator 1.
+    let tables = ["wave", "osc2_wave"]
+        .map(|w| params.get(w).round() as u32 == audiostrada_dsp::synth::WAVETABLE);
+    if expert || tables.contains(&true) {
+        row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
+            0 | 1 => screen(ui, |ui| wavetable_half(ui, params, state, c + 1)),
+            _ if expert => panel(ui, |ui| {
+                ui.horizontal(|ui| {
+                    title(ui, tr("Osc 2 → Osc 1"), p.weak);
+                    pill(
+                        ui,
+                        params,
+                        "sync",
+                        "Sync",
+                        "Oscillator 1 starts its cycle again with oscillator 2: tune oscillator \
+                         1 higher, or sweep its pitch, for the tearing sync sound",
+                    );
+                });
+                ui.add_space(6.0);
+                spread(ui, 2, |ui, k| {
+                    let (id, name) = [("fm", tr("FM")), ("ring", tr("Ring"))][k];
+                    mod_knob(ui, params, state, id, name);
+                });
+            }),
+            _ => screen(ui, |ui| {
+                ui.add(
+                    egui::Label::new(RichText::new(tr(ABOUT_WAVETABLES)).weak().size(11.0)).wrap(),
+                );
+            }),
+        });
+    }
     row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
         0 => panel(ui, |ui| {
             ui.horizontal(|ui| {
@@ -2587,7 +813,8 @@ fn advanced_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full:
                 let size = vec2(ui.available_width(), 40.0);
                 filter_curve(ui, params, size, live.cutoff);
             });
-            spread(ui, 5, |ui, k| {
+            let shown = if expert { 5 } else { 4 };
+            spread(ui, shown, |ui, k| {
                 let (id, name) = [
                     ("cutoff", tr("Cutoff")),
                     ("resonance", tr("Resonance")),
@@ -2616,54 +843,60 @@ fn advanced_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full:
         }),
         _ => panel(ui, |ui| {
             ui.horizontal(|ui| {
-                title(ui, tr("Output"), p.weak);
-                params.toggle(ui, "mpe", |ui, on| {
-                    let response = pill_switch(ui, *on, tr("MPE")).on_hover_text(tr(
-                        "For MPE controllers (Roli Seaboard, LinnStrument, Osmose...), which \
-                         send each note on its own MIDI channel: bend, pressure and slide then \
-                         shape every note on its own. Leave it off for an ordinary keyboard.",
-                    ));
-                    if response.clicked() {
-                        *on = !*on;
-                    }
-                    response
-                });
+                title(ui, tr("Voice"), p.weak);
+                segmented(
+                    ui,
+                    params,
+                    "mode",
+                    &[
+                        "Chords: every note plays",
+                        "One note at a time, each with its attack",
+                        "One note at a time, a new note slides on without a new attack",
+                    ],
+                )
             });
-            spread(ui, 3, |ui, k| {
+            ui.add_space(6.0);
+            let shown = if expert { 3 } else { 1 };
+            spread(ui, shown, |ui, k| {
                 let (id, name) = [
-                    ("volume", tr("Volume")),
-                    ("velocity", tr("Velocity")),
-                    ("bend_range", tr("Bend")),
+                    ("glide", tr("Glide")),
+                    ("spread", tr("Stereo")),
+                    ("drift", tr("Drift")),
                 ][k];
                 mod_knob(ui, params, state, id, name);
             });
         }),
     });
-    // The arpeggiator, the effects, and oscillator 2 shaping oscillator 1.
+    // What modulates: the two LFOs and the second envelope.
+    row(ui, full, &[1, 1, 1], 100.0, |ui, c| match c {
+        0 | 1 => lfo(ui, params, state, c + 1, expert),
+        _ => panel(ui, |ui| {
+            source_pill(ui, state, 3);
+            let shown = if expert { 5 } else { 4 };
+            spread(ui, shown, |ui, k| {
+                let (field, name) = [
+                    ("attack", tr("A")),
+                    ("decay", tr("D")),
+                    ("sustain", tr("S")),
+                    ("release", tr("R")),
+                    ("depth", tr("Depth")),
+                ][k];
+                let id = format!("env2_{field}");
+                if k == 4 {
+                    mod_knob_sized(ui, params, state, &id, name, 30.0);
+                } else {
+                    wide_knob(ui, params, &id, name, 30.0, p.accent);
+                }
+            });
+        }),
+    });
+    // The arpeggiator, the effects and the output.
     row(ui, full, &[1, 1, 1], 100.0, |ui, c| match c {
         0 => panel(ui, |ui| {
             ui.horizontal(|ui| {
                 title(ui, tr("Arpeggiator"), p.weak);
-                for (id, label, hint) in [
-                    (
-                        "arp",
-                        "On",
-                        "Plays the held keys one after the other, in time",
-                    ),
-                    (
-                        "arp_hold",
-                        "Hold",
-                        "Keeps playing once the keys are up, until the next chord",
-                    ),
-                ] {
-                    params.toggle(ui, id, |ui, on| {
-                        let response = pill_switch(ui, *on, tr(label)).on_hover_text(tr(hint));
-                        if response.clicked() {
-                            *on = !*on;
-                        }
-                        response
-                    });
-                }
+                pill(ui, params, "arp", "On", ARP_HINT);
+                pill(ui, params, "arp_hold", "Hold", HOLD_HINT);
             });
             spread(ui, 4, |ui, k| {
                 let (id, name) = [
@@ -2688,46 +921,37 @@ fn advanced_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full:
                     ("fx_reverb_decay", tr("Decay")),
                 ][k];
                 ui.spacing_mut().combo_width = 56.0;
-                wide_knob(ui, params, id, name, 34.0, p.accent);
+                mod_knob_sized(ui, params, state, id, name, 34.0);
             });
         }),
         _ => panel(ui, |ui| {
             ui.horizontal(|ui| {
-                title(ui, tr("Osc 2 → Osc 1"), p.weak);
-                params.toggle(ui, "sync", |ui, on| {
-                    let response = pill_switch(ui, *on, tr("Sync")).on_hover_text(tr(
-                        "Oscillator 1 starts its cycle again with oscillator 2: tune oscillator \
-                         1 higher, or sweep its pitch, for the tearing sync sound",
-                    ));
-                    if response.clicked() {
-                        *on = !*on;
-                    }
-                    response
-                });
+                title(ui, tr("Output"), p.weak);
+                if expert {
+                    pill(
+                        ui,
+                        params,
+                        "mpe",
+                        "MPE",
+                        "For MPE controllers (Roli Seaboard, LinnStrument, Osmose...), which \
+                         send each note on its own MIDI channel: bend, pressure and slide then \
+                         shape every note on its own. Leave it off for an ordinary keyboard.",
+                    );
+                }
             });
-            spread(ui, 2, |ui, k| {
-                let (id, name) = [("fm", tr("FM")), ("ring", tr("Ring"))][k];
+            let shown = if expert { 3 } else { 2 };
+            spread(ui, shown, |ui, k| {
+                let (id, name) = [
+                    ("volume", tr("Volume")),
+                    ("velocity", tr("Velocity")),
+                    ("bend_range", tr("Bend")),
+                ][k];
                 mod_knob(ui, params, state, id, name);
             });
         }),
     });
-    row(ui, full, &[1, 1, 1], 100.0, |ui, c| match c {
-        0 | 1 => lfo(ui, params, state, c + 1),
-        _ => panel(ui, |ui| {
-            source_pill(ui, state, 3);
-            spread(ui, 4, |ui, k| {
-                let (field, name) = [
-                    ("attack", tr("A")),
-                    ("decay", tr("D")),
-                    ("sustain", tr("S")),
-                    ("release", tr("R")),
-                ][k];
-                wide_knob(ui, params, &format!("env2_{field}"), name, 30.0, p.accent);
-            });
-        }),
-    });
-    // Macros and what the player does, then the routings over the two other columns.
-    row(ui, full, &[1, 2], 92.0, |ui, c| match c {
+    // The macros with their names, what the player does, and the routings.
+    row(ui, full, &[1, 2], 118.0, |ui, c| match c {
         0 => panel(ui, |ui| {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
@@ -2735,6 +959,14 @@ fn advanced_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full:
                     spread(ui, 4, |ui, k| {
                         source_pill(ui, state, k + 7);
                         wide_knob(ui, params, &format!("macro{}", k + 1), "", 30.0, p.accent);
+                        ui.spacing_mut().combo_width = 78.0;
+                        let id = format!("macro{}_name", k + 1);
+                        ui.scope(|ui| choice_box(ui, params, &id))
+                            .response
+                            .on_hover_text(tr(
+                                "The macro's name in the simple view; Auto names it after \
+                                 what it moves",
+                            ));
                     });
                 });
                 ui.vertical(|ui| {
@@ -2748,144 +980,407 @@ fn advanced_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full:
     });
 }
 
-/// The controls that shape the sound most, on the same grid.
-fn simple_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full: f32, live: &Live) {
-    let p = theme::current(ui);
-    row(ui, full, &[1, 1, 1], 112.0, |ui, c| match c {
-        0 | 1 => oscillator(ui, params, state, c + 1, true),
-        _ => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Sub and noise"), p.weak);
-                segmented(ui, params, "sub_octave", &[]);
-            });
-            spread(ui, 2, |ui, k| {
-                let (id, name) = [("sub_level", tr("Sub")), ("noise", tr("Noise"))][k];
-                mod_knob(ui, params, state, id, name);
-            });
-        }),
-    });
-    // A wavetable chosen on an oscillator brings its panel.
-    let tables = ["wave", "osc2_wave"]
-        .map(|w| params.get(w).round() as u32 == audiostrada_dsp::synth::WAVETABLE);
-    if tables.contains(&true) {
-        row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
-            0 | 1 => screen(ui, |ui| wavetable_half(ui, params, state, c + 1)),
-            _ => screen(ui, |ui| {
-                ui.add(
-                    egui::Label::new(RichText::new(tr(ABOUT_WAVETABLES)).weak().size(11.0)).wrap(),
-                );
-            }),
-        });
+/// What a macro is called: the name chosen for it, else what it moves first.
+fn macro_name(params: &Params, k: usize) -> String {
+    use audiostrada_dsp::synth::{FIRST_MACRO, MACRO_NAMES, SOURCES, TARGETS};
+    let chosen = params.get(&format!("macro{}_name", k + 1)).round() as usize;
+    if (1..MACRO_NAMES.len()).contains(&chosen) {
+        return tr(MACRO_NAMES[chosen]).to_owned();
     }
-    row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
+    let source = FIRST_MACRO + k;
+    routes(params)
+        .iter()
+        .find(|r| r.1 == source && r.3 != 0.0 && r.2 < TARGETS.len())
+        .map_or_else(
+            || tr(SOURCES[source]).to_owned(),
+            |r| tr(TARGETS[r.2]).to_owned(),
+        )
+}
+
+/// What a macro moves, by name.
+fn macro_targets(params: &Params, k: usize) -> Vec<&'static str> {
+    use audiostrada_dsp::synth::{FIRST_MACRO, TARGETS};
+    routes(params)
+        .iter()
+        .filter(|r| r.1 == FIRST_MACRO + k && r.3 != 0.0 && r.2 < TARGETS.len())
+        .map(|r| tr(TARGETS[r.2]))
+        .collect()
+}
+
+/// A macro of the simple view: its name, a large knob in the sound's color, its value.
+fn macro_knob(ui: &mut Ui, params: &mut Params, k: usize, color: Color32) {
+    let p = theme::current(ui);
+    let id = format!("macro{}", k + 1);
+    let Some(info) = params.param(&id) else {
+        return;
+    };
+    let name = macro_name(params, k);
+    let moves = macro_targets(params, k);
+    let value = params.get(&id);
+    ui.label(RichText::new(&name).size(14.0).strong().color(p.text));
+    ui.add_space(10.0);
+    let (changed, response) = crate::widgets::knob(
+        ui,
+        to_unit(info, value),
+        (0.0, 1.0),
+        0.0,
+        MACRO_KNOB,
+        false,
+        if moves.is_empty() { p.weak } else { color },
+    );
+    let changed = changed.map(|t| from_unit(info, t));
+    let shown = changed.unwrap_or(value);
+    // Around the knob, a ring in the sound's color filling up with the macro.
+    if !moves.is_empty() {
+        let sweep = 0.75 * std::f32::consts::TAU;
+        let start = std::f32::consts::FRAC_PI_2 + (std::f32::consts::TAU - sweep) / 2.0;
+        let center = response.rect.center();
+        let radius = MACRO_KNOB / 2.0 + 7.0;
+        let arc = |to: f32| -> Vec<Pos2> {
+            let steps = 48;
+            (0..=steps)
+                .map(|i| {
+                    let a = start + sweep * to * i as f32 / steps as f32;
+                    center + radius * vec2(a.cos(), a.sin())
+                })
+                .collect()
+        };
+        let painter = ui.painter();
+        painter.add(Shape::line(
+            arc(1.0),
+            Stroke::new(3.0, theme::mix(p.base, color, 0.22)),
+        ));
+        let turned = to_unit(info, shown);
+        if turned > 0.004 {
+            painter.add(Shape::line(
+                arc(turned),
+                Stroke::new(7.0, color.gamma_multiply(0.18)),
+            ));
+            painter.add(Shape::line(arc(turned), Stroke::new(3.0, color)));
+        }
+    }
+    let hint = if moves.is_empty() {
+        tr("This macro moves nothing yet: in the advanced view, drag it onto a knob").to_owned()
+    } else {
+        trf!(
+            "{name} moves: {targets}. Right-click to assign a MIDI controller",
+            name = name,
+            targets = moves.join(", ")
+        )
+    };
+    let response = response.on_hover_text(hint);
+    params.set(&id, changed, &response);
+    ui.add_space(8.0);
+    ui.label(
+        RichText::new(format!("{shown:.0} %"))
+            .monospace()
+            .size(11.0)
+            .color(p.weak),
+    );
+}
+
+/// Diameter of the macros of the simple view.
+const MACRO_KNOB: f32 = 68.0;
+
+/// The sound and what plays it best: its four macros, large, then the envelope's two ends,
+/// the effects and the volume.
+fn simple_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full: f32) {
+    let p = theme::current(ui);
+    let color = state.sound.as_ref().map_or(p.accent, |s| s.color);
+    let top = ui.cursor().min;
+    let height = MACRO_KNOB + 104.0;
+    let rect = Rect::from_min_size(top, vec2(full, height));
+    ui.painter().rect_filled(rect, 10.0, p.base);
+    let builder = egui::UiBuilder::new()
+        .max_rect(rect.shrink2(vec2(16.0, 12.0)))
+        .layout(egui::Layout::top_down(egui::Align::Min));
+    ui.scope_builder(builder, |ui| {
+        spread(ui, 4, |ui, k| macro_knob(ui, params, k, color));
+        // How to put the macros under the fingers, said once and softly.
+        ui.add_space(4.0);
+        ui.vertical_centered(|ui| {
+            ui.label(
+                RichText::new(tr(
+                    "Right-click a knob to assign it to a MIDI controller, or to automate it",
+                ))
+                .size(10.5)
+                .color(theme::mix(p.weak, p.base, 0.35)),
+            );
+        });
+    });
+    ui.allocate_rect(rect, Sense::hover());
+    ui.add_space(GAP);
+    row(ui, full, &[1, 1, 1], 96.0, |ui, c| match c {
         0 => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Filter"), p.weak);
-                choice_box(ui, params, "filter_type");
-                let size = vec2(ui.available_width(), 40.0);
-                filter_curve(ui, params, size, live.cutoff);
-            });
-            spread(ui, 3, |ui, k| {
-                let (id, name) = [
-                    ("cutoff", tr("Cutoff")),
-                    ("resonance", tr("Resonance")),
-                    ("env_amount", tr("Envelope")),
-                ][k];
-                mod_knob(ui, params, state, id, name);
-            });
-        }),
-        1 => panel(ui, |ui| {
             ui.horizontal(|ui| {
                 title(ui, tr("Envelope"), p.weak);
                 let width = ui.available_width();
-                envelope(ui, params, vec2(width, 40.0), live.envelope);
-            });
-            spread(ui, 4, |ui, k| {
-                let (id, name) = [
-                    ("attack", tr("Attack")),
-                    ("decay", tr("Decay")),
-                    ("sustain", tr("Sustain")),
-                    ("release", tr("Release")),
-                ][k];
-                mod_knob(ui, params, state, id, name);
-            });
-        }),
-        _ => panel(ui, |ui| {
-            title(ui, tr("Output"), p.weak);
-            spread(ui, 2, |ui, k| {
-                let (id, name) = [("volume", tr("Volume")), ("velocity", tr("Velocity"))][k];
-                mod_knob(ui, params, state, id, name);
-            });
-        }),
-    });
-    row(ui, full, &[1, 1, 1], 100.0, |ui, c| match c {
-        0 => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Arpeggiator"), p.weak);
-                params.toggle(ui, "arp", |ui, on| {
-                    let response = pill_switch(ui, *on, tr("On"))
-                        .on_hover_text(tr("Plays the held keys one after the other, in time"));
-                    if response.clicked() {
-                        *on = !*on;
-                    }
-                    response
-                });
+                envelope(ui, params, vec2(width, 22.0), state.live.envelope);
             });
             spread(ui, 2, |ui, k| {
-                let (id, name) = [("arp_mode", tr("Order")), ("arp_note", tr("Rate"))][k];
-                ui.spacing_mut().combo_width = 90.0;
-                wide_knob(ui, params, id, name, 38.0, p.accent);
+                let (id, name) = [("attack", tr("Attack")), ("release", tr("Release"))][k];
+                wide_knob(ui, params, id, name, 38.0, color);
             });
         }),
         1 => panel(ui, |ui| {
             title(ui, tr("Effects"), p.weak);
+            ui.add_space(4.0);
             spread(ui, 3, |ui, k| {
                 let (id, name) = [
                     ("fx_chorus", tr("Chorus")),
                     ("fx_delay", tr("Delay")),
                     ("fx_reverb", tr("Reverb")),
                 ][k];
-                wide_knob(ui, params, id, name, 38.0, p.accent);
+                wide_knob(ui, params, id, name, 38.0, color);
             });
         }),
         _ => panel(ui, |ui| {
             ui.horizontal(|ui| {
-                title(ui, tr("Voice"), p.weak);
-                segmented(
-                    ui,
-                    params,
-                    "mode",
-                    &[
-                        "Chords: every note plays",
-                        "One note at a time, each with its attack",
-                        "One note at a time, a new note slides on without a new attack",
-                    ],
-                )
+                title(ui, tr("Arpeggiator"), p.weak);
+                pill(ui, params, "arp", "On", ARP_HINT);
+                pill(ui, params, "arp_hold", "Hold", HOLD_HINT);
             });
             spread(ui, 1, |ui, _| {
-                mod_knob(ui, params, state, "glide", tr("Glide"))
+                wide_knob(ui, params, "volume", tr("Volume"), 38.0, color);
             });
         }),
     });
-    // The macros, to drop on a knob, and what the player does.
-    row(ui, full, &[3], 92.0, |ui, _| {
-        panel(ui, |ui| {
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width((ui.available_width() - 130.0).max(200.0));
-                    spread(ui, 4, |ui, k| {
-                        source_pill(ui, state, k + 7);
-                        wide_knob(ui, params, &format!("macro{}", k + 1), "", 30.0, p.accent);
-                    });
+}
+
+/// The sound a synth plays, when it is one of the ready-made ones.
+#[derive(Clone, Debug)]
+struct Sound {
+    category: String,
+    name: String,
+    color: Color32,
+}
+
+/// What the simple view lets the player change: a sound stays itself whatever they are.
+const PLAYED: [&str; 12] = [
+    "macro1",
+    "macro2",
+    "macro3",
+    "macro4",
+    "volume",
+    "attack",
+    "release",
+    "fx_chorus",
+    "fx_delay",
+    "fx_reverb",
+    "arp",
+    "arp_hold",
+];
+
+/// A color for each family of sounds, in the order the families come in the list.
+const FAMILY_COLORS: [Color32; 13] = [
+    Color32::from_rgb(255, 122, 69),
+    Color32::from_rgb(255, 205, 64),
+    Color32::from_rgb(110, 190, 255),
+    Color32::from_rgb(150, 130, 255),
+    Color32::from_rgb(255, 140, 165),
+    Color32::from_rgb(255, 172, 60),
+    Color32::from_rgb(105, 230, 160),
+    Color32::from_rgb(95, 225, 235),
+    Color32::from_rgb(205, 140, 255),
+    Color32::from_rgb(255, 110, 200),
+    Color32::from_rgb(85, 205, 190),
+    Color32::from_rgb(245, 95, 115),
+    Color32::from_rgb(190, 222, 90),
+];
+
+/// What tells a sound from the others: its settings but those the player turns.
+fn fingerprint(value_of: impl Fn(usize, &audiostrada_dsp::ParamInfo) -> f32) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    let Some(info) = audiostrada_dsp::info("synth") else {
+        return 0;
+    };
+    for (i, param) in info.params.iter().enumerate() {
+        if !PLAYED.contains(&param.id) {
+            ((value_of(i, param) * 100.0).round() as i64).hash(&mut hasher);
+        }
+    }
+    hasher.finish()
+}
+
+/// The ready-made sounds by fingerprint, each with its family's color.
+fn known_sounds() -> Vec<(u64, Sound)> {
+    let mut families: Vec<String> = Vec::new();
+    crate::synth_presets::factory()
+        .into_iter()
+        .skip(1)
+        .filter_map(|preset| {
+            let (category, name) = crate::effect_editors::preset_category(&preset.name)?;
+            let family = families
+                .iter()
+                .position(|f| *f == category)
+                .unwrap_or_else(|| {
+                    families.push(category.clone());
+                    families.len() - 1
                 });
-                ui.vertical(|ui| {
-                    for source in 4..=6 {
-                        source_pill(ui, state, source);
-                    }
-                });
-            });
-        });
-    });
+            let print = fingerprint(|_, p| preset.params.get(p.id).copied().unwrap_or(p.default));
+            let color = FAMILY_COLORS[family % FAMILY_COLORS.len()];
+            Some((
+                print,
+                Sound {
+                    category,
+                    name,
+                    color,
+                },
+            ))
+        })
+        .collect()
+}
+
+/// Lines of the landscape, how many points each, and how often one is added.
+const RIDGES: usize = 30;
+const RIDGE_POINTS: usize = 128;
+const RIDGE_EVERY: f64 = 0.035;
+
+/// The top of the simple view: the sound as a landscape, each line a moment of its wave, the
+/// newest in front in the sound's color and the older ones receding behind; over it the
+/// sound's family and name, and the voices playing.
+fn landscape(ui: &mut Ui, meters: &[f32], state: &mut SynthState) {
+    use audiostrada_dsp::synth::meter;
+    let p = theme::current(ui);
+    let color = state.sound.as_ref().map_or(p.accent, |s| s.color);
+    let width = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(vec2(width, 210.0), Sense::hover());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 12.0, SCREEN);
+    // A new line of the wave every few hundredths of a second.
+    let now = ui.input(|i| i.time);
+    if now - state.pushed >= RIDGE_EVERY {
+        state.pushed = now;
+        let samples = meters.get(..meter::SCOPE).unwrap_or(&[]);
+        let peak = samples.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+        // The loudest of late sets the scale: a note that fades is seen fading.
+        state.scale = peak.max(state.scale * 0.985).max(0.02);
+        let step = (samples.len() / RIDGE_POINTS).max(1);
+        let line: Vec<f32> = if state.live.voices > 0 || peak > 1e-4 {
+            let raw: Vec<f32> = samples
+                .chunks(step)
+                .take(RIDGE_POINTS)
+                .map(|c| c.iter().sum::<f32>() / c.len() as f32 / state.scale)
+                .collect();
+            // Rounded a little: a landscape, not a saw blade.
+            (0..raw.len())
+                .map(|k| {
+                    let at = |j: usize| raw[j.min(raw.len() - 1)];
+                    0.25 * at(k.saturating_sub(1)) + 0.5 * at(k) + 0.25 * at(k + 1)
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        state.ridges.push_front(line);
+        state.ridges.truncate(RIDGES);
+    }
+    let lively = state.ridges.iter().any(|r| !r.is_empty());
+    if lively {
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_secs_f64(RIDGE_EVERY));
+    }
+    let far = Color32::from_rgb(70, 60, 150);
+    let field = rect.shrink2(vec2(24.0, 0.0));
+    // From the back to the front, each line hiding what lies behind it.
+    for (i, line) in state.ridges.iter().enumerate().rev() {
+        let depth = i as f32 / (RIDGES - 1) as f32;
+        let base = rect.bottom() - 30.0 - depth.powf(0.85) * rect.height() * 0.5;
+        let inset = depth * field.width() * 0.14;
+        let (left, right) = (field.left() + inset, field.right() - inset);
+        let reach = rect.height() * 0.3 * (1.0 - 0.5 * depth);
+        let near = 1.0 - depth;
+        let tint = theme::mix(color, far, depth.sqrt());
+        let stroke = theme::mix(SCREEN, tint, 0.25 + 0.75 * near * near);
+        // The ends rest on the ground: the wave rises in the middle of the field.
+        let window = |k: usize| {
+            let t = k as f32 / (RIDGE_POINTS - 1) as f32;
+            (std::f32::consts::PI * t).sin().powf(0.7)
+        };
+        let points: Vec<Pos2> = (0..RIDGE_POINTS)
+            .map(|k| {
+                let t = k as f32 / (RIDGE_POINTS - 1) as f32;
+                let s = line.get(k).copied().unwrap_or(0.0).clamp(-1.2, 1.2);
+                pos2(left + t * (right - left), base - s * window(k) * reach)
+            })
+            .collect();
+        // The ground under the line, lit near the line where the wave stands.
+        let mut mesh = egui::Mesh::default();
+        for (k, point) in points.iter().enumerate() {
+            let lit = if line.is_empty() {
+                0.0
+            } else {
+                0.2 * near * window(k)
+            };
+            mesh.colored_vertex(*point, theme::mix(SCREEN, tint, lit));
+            mesh.colored_vertex(pos2(point.x, base + reach), SCREEN);
+        }
+        for k in 0..points.len() as u32 - 1 {
+            mesh.add_triangle(2 * k, 2 * k + 1, 2 * k + 2);
+            mesh.add_triangle(2 * k + 1, 2 * k + 3, 2 * k + 2);
+        }
+        painter.add(Shape::mesh(mesh));
+        if i == 0 && !line.is_empty() {
+            for (width, alpha) in [(8.0, 0.07), (4.0, 0.18)] {
+                painter.add(Shape::line(
+                    points.clone(),
+                    Stroke::new(width, color.gamma_multiply(alpha)),
+                ));
+            }
+        }
+        let width = if i == 0 { 1.8 } else { 1.0 };
+        painter.add(Shape::line(points, Stroke::new(width, stroke)));
+    }
+    // The sound's family and name.
+    let at = rect.min + vec2(18.0, 14.0);
+    match &state.sound {
+        Some(sound) => {
+            painter.text(
+                at,
+                Align2::LEFT_TOP,
+                sound.category.to_uppercase(),
+                FontId::proportional(10.5),
+                sound.color,
+            );
+            painter.text(
+                at + vec2(0.0, 15.0),
+                Align2::LEFT_TOP,
+                &sound.name,
+                FontId::proportional(22.0),
+                Color32::from_rgb(236, 240, 246),
+            );
+        }
+        None => {
+            painter.text(
+                at,
+                Align2::LEFT_TOP,
+                tr("YOUR SOUND"),
+                FontId::proportional(10.5),
+                Color32::from_rgb(150, 165, 185),
+            );
+        }
+    }
+    // The sixteen voices as lights.
+    for v in 0..16 {
+        let at = pos2(
+            rect.right() - 22.0 - (15 - v) as f32 * 11.0,
+            rect.top() + 22.0,
+        );
+        let lit = v < state.live.voices;
+        if lit {
+            painter.circle_filled(at, 5.5, color.gamma_multiply(0.2));
+        }
+        painter.circle_filled(
+            at,
+            2.5,
+            if lit {
+                color
+            } else {
+                Color32::from_rgb(40, 52, 66)
+            },
+        );
+    }
 }
 
 /// Space between the panels.
@@ -3006,9 +1501,9 @@ fn oscillator(ui: &mut Ui, params: &mut Params, state: &mut SynthState, n: usize
             oscillator_view(ui, params, wave, ids[3], level);
         });
         ui.add_space(2.0);
-        // The simple view keeps octave, unison and level.
+        // Without the expert controls: octave, unison, detune and level.
         let shown: &[usize] = if simple {
-            &[0, 3, 5]
+            &[0, 3, 4, 5]
         } else {
             &[0, 1, 2, 3, 4, 5]
         };
@@ -3029,7 +1524,7 @@ fn oscillator(ui: &mut Ui, params: &mut Params, state: &mut SynthState, n: usize
 }
 
 /// An LFO: its shape and where it is, its rate or note, sync and retrigger.
-fn lfo(ui: &mut Ui, params: &mut Params, state: &mut SynthState, l: usize) {
+fn lfo(ui: &mut Ui, params: &mut Params, state: &mut SynthState, l: usize, expert: bool) {
     let accent = theme::current(ui).accent;
     panel(ui, |ui| {
         ui.horizontal(|ui| {
@@ -3050,6 +1545,16 @@ fn lfo(ui: &mut Ui, params: &mut Params, state: &mut SynthState, l: usize) {
                     tr("Rate"),
                     30.0,
                     accent,
+                );
+            }
+            if expert {
+                mod_knob_sized(
+                    ui,
+                    params,
+                    state,
+                    &format!("lfo{l}_depth"),
+                    tr("Depth"),
+                    30.0,
                 );
             }
             ui.add_space(8.0);
@@ -3897,45 +2402,6 @@ mod tests {
         assert_eq!(octave_name(60), "C4");
     }
 
-    /// Loudness of each factory sound playing a chord, so that none jumps out of the list.
-    #[test]
-    fn factory_sounds_have_matching_levels() {
-        use audiostrada_dsp::MidiEvent;
-        let info = audiostrada_dsp::info("synth").unwrap();
-        let mut levels = Vec::new();
-        for preset in factory().into_iter().step_by(crate::test_sweep::sample()) {
-            let mut synth = audiostrada_dsp::create("synth").unwrap();
-            for (i, p) in info.params.iter().enumerate() {
-                synth.set_param(i, preset.params.get(p.id).copied().unwrap_or(p.default));
-            }
-            synth.prepare(48_000, 512);
-            // A held A minor chord around the middle of the keyboard, at a medium velocity.
-            for key in [57, 60, 64] {
-                synth.midi(&MidiEvent::note_on(0, 0, key, 100));
-            }
-            // The loudest 100 ms over two seconds: plucks are judged on their attack.
-            let mut db = f64::MIN;
-            let mut window = Vec::new();
-            for _ in 0..188 {
-                let (mut l, mut r) = (vec![0.0f32; 512], vec![0.0f32; 512]);
-                synth.process(&mut l, &mut r);
-                window.extend(l.iter().chain(&r).map(|s| f64::from(s * s)));
-                if window.len() >= 9600 {
-                    let mean = window.iter().sum::<f64>() / window.len() as f64;
-                    db = db.max(10.0 * mean.max(1e-12).log10());
-                    window.clear();
-                }
-            }
-            levels.push((preset.name.clone(), db));
-        }
-        for (name, db) in &levels {
-            eprintln!("{name}: {db:.1} dB");
-        }
-        for (name, db) in &levels {
-            assert!((-26.0..=-14.0).contains(db), "{name}: {db:.1} dB RMS");
-        }
-    }
-
     #[test]
     fn a_source_dropped_on_a_knob_routes_to_it() {
         use crate::document::{AppDirs, Document};
@@ -3950,6 +2416,7 @@ mod tests {
         let channel = Channel::Track(doc.project().tracks[0].id);
         let info = audiostrada_dsp::info("synth").unwrap();
         let ctx = egui::Context::default();
+        ctx.data_mut(|d| d.insert_temp(egui::Id::unique("synth-advanced"), true));
         let mut state = SynthState::default();
         let frame = |doc: &mut Document, state: &mut SynthState, events: Vec<Event>| {
             let input = RawInput {

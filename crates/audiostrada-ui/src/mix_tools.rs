@@ -624,18 +624,18 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .iter()
-                .any(|p| p["name"] == "Trap: 808 glide")
+                .any(|p| p["name"] == "Hip-hop: 808 glide")
         );
         run(
             &mut doc,
             "load_preset",
-            json!({"track": "Keys", "insert": insert.0, "name": "trap: 808 glide"}),
+            json!({"track": "Keys", "insert": insert.0, "name": "hip-hop: 808 glide"}),
         )
         .unwrap();
         let params = &routing::find_insert(doc.project(), Channel::Track(keys), insert)
             .unwrap()
             .params;
-        assert_eq!(params.get("glide"), Some(&90.0));
+        assert_eq!(params.get("glide"), Some(&130.0));
         assert!(
             run(
                 &mut doc,
