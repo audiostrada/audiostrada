@@ -97,7 +97,7 @@ macro_rules! lilv_api {
                 let library = names
                     .iter()
                     // SAFETY: as above.
-                    .find_map(|n| unsafe { libloading::Library::new(n) }.ok())
+                    .find_map(|n| unsafe { libloading::Library::new(*n) }.ok())
                     .ok_or("the lilv library is not installed (needed for LV2 plugins)")?;
                 // SAFETY: as above.
                 unsafe {

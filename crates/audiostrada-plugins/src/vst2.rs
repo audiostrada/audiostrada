@@ -419,7 +419,7 @@ fn entry(library: &libloading::Library) -> Option<abi::Entry> {
     };
     names.iter().find_map(|name| {
         // SAFETY: the symbol has the VST2 entry point's type.
-        unsafe { library.get::<abi::Entry>(name) }.ok().map(|f| *f)
+        unsafe { library.get::<abi::Entry>(*name) }.ok().map(|f| *f)
     })
 }
 
