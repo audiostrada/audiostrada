@@ -29,10 +29,9 @@ const STRIP_WIDTH: f32 = 104.0;
 /// The switches beside a full strip's fader (mute, solo, arm, input, automation), one under
 /// the other: the fader is never shorter, or the strips would not follow it.
 const MIN_FADER: f32 = 5.0 * 20.0 + 4.0 * 3.0 + 4.0;
-/// The column beside a docked strip's fader (the channel strip, FX and its add button, Sends,
-/// then the switches two by two): the fader is never shorter, so that every strip keeps the
-/// same height.
-const DOCKED_COLUMN: f32 = 3.0 * 26.0 + PILL + 3.0 * 24.0 + 6.0;
+/// The column beside a docked strip's fader (the channel strip, FX, Sends, then the switches
+/// two by two): the fader is never shorter, so that every strip keeps the same height.
+const DOCKED_COLUMN: f32 = 3.0 * 22.0 + 3.0 * 24.0 + 6.0;
 /// Width of a strip of the compact mixer.
 const NARROW_WIDTH: f32 = 46.0;
 /// Height kept above a narrow strip's fader for its name.
@@ -316,91 +315,6 @@ fn strip_modules(project: &Project, channel: Channel) -> [(usize, bool); 5] {
     })
 }
 
-/// A pill of a docked strip: `text` on `fill`, cut to fit.
-fn pill(ui: &mut Ui, width: f32, text: &str, fill: Color32, ink: Color32) -> Response {
-    let (rect, response) = ui.allocate_exact_size(vec2(width, 14.0), Sense::click());
-    let p = theme::current(ui);
-    let fill = if response.hovered() {
-        theme::mix(fill, p.text, 0.15)
-    } else {
-        fill
-    };
-    ui.painter().rect_filled(rect, 3.0, fill);
-    let mut job = egui::text::LayoutJob::simple_singleline(
-        text.to_owned(),
-        egui::FontId::proportional(9.0),
-        ink,
-    );
-    job.wrap = egui::text::TextWrapping::truncate_at_width(rect.width() - 6.0);
-    let galley = ui.fonts_mut(|f| f.layout_job(job));
-    ui.painter()
-        .galley(rect.center() - galley.size() / 2.0, galley, ink);
-    response
-}
-
-/// The button under a docked strip's effects that adds one: a plus on a raised face.
-fn add_pill(ui: &mut Ui, width: f32) -> Response {
-    let (rect, response) = ui.allocate_exact_size(vec2(width, 14.0), Sense::click());
-    let p = theme::current(ui);
-    let hovered = response.hovered();
-    ui.painter().rect(
-        rect,
-        3.0,
-        if hovered { p.hover } else { p.surface },
-        egui::Stroke::new(1.0, crate::effect_frame::button_edge(&p)),
-        egui::StrokeKind::Inside,
-    );
-    let ink = if hovered {
-        p.text
-    } else {
-        theme::mix(p.text, p.weak, 0.3)
-    };
-    let c = rect.center();
-    let stroke = egui::Stroke::new(1.6, ink);
-    ui.painter()
-        .line_segment([c - vec2(4.5, 0.0), c + vec2(4.5, 0.0)], stroke);
-    ui.painter()
-        .line_segment([c - vec2(0.0, 4.5), c + vec2(0.0, 4.5)], stroke);
-    response.on_hover_cursor(egui::CursorIcon::PointingHand)
-}
-
-/// A pill per send of a docked strip: its destination's name over a bar as long as its level.
-fn send_pills(ui: &mut Ui, project: &Project, track: &Track, width: f32) {
-    let p = theme::current(ui);
-    if track.sends.is_empty() {
-        return;
-    }
-    ui.add_space(2.0);
-    for send in &track.sends {
-        let color = project.track(send.target).map_or(Color32::GRAY, |t| {
-            Color32::from_rgb(t.color[0], t.color[1], t.color[2])
-        });
-        let name = project.track(send.target).map_or("?", |t| t.name.as_str());
-        let response = pill(ui, width, &format!("→ {name}"), p.base, p.text);
-        let rect = response.rect;
-        let level = widgets::fader_position(send.gain_db);
-        let bar = Rect::from_min_size(
-            pos2(rect.left(), rect.bottom() - 3.0),
-            vec2(rect.width() * level, 3.0),
-        );
-        ui.painter().rect_filled(
-            bar,
-            1.5,
-            color.gamma_multiply(if send.mute { 0.25 } else { 0.85 }),
-        );
-        response.on_hover_text(trf!(
-            "Send to {name}: {db} dB{pre}",
-            name = name,
-            db = format!("{:.1}", send.gain_db),
-            pre = if send.pre_fader {
-                tr(" (pre-fader)")
-            } else {
-                ""
-            }
-        ));
-    }
-}
-
 /// Where the `shown`-th insert of a list (as shown, without the channel strip) is in the whole
 /// list; past the last one for a larger index.
 fn listed_index(project: &Project, channel: Channel, monitor: bool, shown: usize) -> usize {
@@ -459,9 +373,6 @@ const PAN_KNOB: f32 = 40.0;
 const PAN_KNOB_NARROW: f32 = 32.0;
 /// Height of the buttons under the master's readings.
 const MASTER_BUTTON: f32 = 20.0;
-/// Pills of a docked strip shown before they scroll, and the height of each with its spacing.
-const PILLS_SHOWN: f32 = 4.0;
-const PILL: f32 = 16.0;
 
 /// An empty slot of a list: clicking it adds an effect or a send.
 fn empty_slot(ui: &mut Ui, width: f32, hint: &str, first: bool) -> Response {
@@ -3152,9 +3063,10 @@ impl MixerView {
                             .unwrap_or(f32::from(items.div_ceil(2)) * 21.0);
                         let lists = column.with_max_y(column.bottom() - rows - 6.0);
                         let down = egui::Layout::top_down(egui::Align::Min);
+                        let centered = egui::Layout::top_down(egui::Align::Center);
                         let mut lists_ui =
-                            ui.new_child(egui::UiBuilder::new().max_rect(lists).layout(down));
-                        self.list_buttons(&mut lists_ui, doc, track, lists.height());
+                            ui.new_child(egui::UiBuilder::new().max_rect(lists).layout(centered));
+                        self.list_buttons(&mut lists_ui, doc, track);
                         let switches = column.with_min_y(column.bottom() - rows);
                         let used = ui
                             .scope_builder(
@@ -4889,7 +4801,7 @@ impl MixerView {
                             .iter()
                             .filter(|i| !i.monitor && i.effect != routing::STRIP)
                             .count();
-                        let size = vec2(54.0, 22.0);
+                        let size = vec2(50.0, 18.0);
                         let master = (Channel::Master, List::Inserts);
                         self.list_button(ui, doc, project, master, fx, size);
                         let master = (Channel::Master, List::Monitor);
@@ -4936,7 +4848,10 @@ impl MixerView {
                         mode_selector(ui, doc, Channel::Master, vec2(width, 20.0));
                         let buttons = 3.0 * MASTER_BUTTON + 2.0 * 3.0;
                         let used = ui.cursor().top() - top;
-                        self.loudness(ui, doc, fader_height - used - buttons, width);
+                        // Low, the readings leave the room to the switches.
+                        if self.full_strips {
+                            self.loudness(ui, doc, fader_height - used - buttons, width);
+                        }
                         let left = fader_height - (ui.cursor().top() - top) - buttons;
                         if left > 0.0 {
                             ui.add_space(left);
@@ -4998,11 +4913,10 @@ impl MixerView {
     }
 
     /// The buttons beside a docked strip's fader, in the signal's order: the channel strip,
-    /// the effects with their pills and a button to add one, then the sends with theirs.
-    fn list_buttons(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track, room: f32) {
-        let top = ui.cursor().top();
+    /// the effects, then the sends; each list opens in a popover.
+    fn list_buttons(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track) {
         let channel = Channel::Track(track.id);
-        let size = vec2(48.0, 22.0);
+        let size = vec2(42.0, 18.0);
         let fx = track
             .inserts
             .iter()
@@ -5011,33 +4925,14 @@ impl MixerView {
         let project = doc.project().clone();
         self.strip_button(ui, doc, channel, size);
         self.list_button(ui, doc, &project, (channel, List::Inserts), fx, size);
-        // A few pills show, the others scroll, rather than make the strip taller; the sends'
-        // button and two of their pills keep their room.
-        let sends = track.sends.len();
-        let spacing = ui.spacing().item_spacing.y;
-        let used = ui.cursor().top() - top;
-        let send_room = sends.min(2) as f32 * PILL;
-        let fx_room = (room - used - size.y - spacing - send_room).clamp(PILL, PILLS_SHOWN * PILL);
-        egui::ScrollArea::vertical()
-            .id_salt(("fx-pills", track.id.0))
-            .max_height(fx_room)
-            .auto_shrink([false, true])
-            .show(ui, |ui| {
-                ui.set_width(size.x);
-                self.insert_pills(ui, doc, channel, size.x);
-            });
-        self.list_button(ui, doc, &project, (channel, List::Sends), sends, size);
-        if sends > 0 {
-            let left = (room - (ui.cursor().top() - top)).clamp(PILL, PILLS_SHOWN * PILL);
-            egui::ScrollArea::vertical()
-                .id_salt(("send-pills", track.id.0))
-                .max_height(left)
-                .auto_shrink([false, true])
-                .show(ui, |ui| {
-                    ui.set_width(size.x);
-                    send_pills(ui, doc.project(), track, size.x);
-                });
-        }
+        self.list_button(
+            ui,
+            doc,
+            &project,
+            (channel, List::Sends),
+            track.sends.len(),
+            size,
+        );
     }
 
     /// The button of the channel strip, lit when one of its modules is on; opens it.
@@ -5058,7 +4953,7 @@ impl MixerView {
         }
         let response = ui.add(button);
         // A small EQ curve: the strip.
-        let r = response.rect.shrink2(vec2(8.0, 7.0));
+        let r = response.rect.shrink2(vec2(8.0, 5.0));
         let points: Vec<egui::Pos2> = (0..=12)
             .map(|i| {
                 let t = i as f32 / 12.0;
@@ -5096,78 +4991,6 @@ impl MixerView {
                 Channel::Master => crate::console_ui::console_menu(ui, doc),
                 Channel::Clip(_) => {}
             });
-    }
-
-    /// A pill per insert of a docked strip, named and in its family's color, lit while it
-    /// plays: a click opens it, Shift+click bypasses it, Ctrl+click removes it; then a pill
-    /// adding an effect.
-    fn insert_pills(&mut self, ui: &mut Ui, doc: &mut Document, channel: Channel, width: f32) {
-        let p = theme::current(ui);
-        let project = doc.project().clone();
-        let off = project.all_fx_off
-            || match channel {
-                Channel::Track(t) => project.track(t).is_some_and(|t| t.fx_off),
-                Channel::Master => project.master.fx_off,
-                Channel::Clip(_) => channel
-                    .track(&project)
-                    .and_then(|t| project.track(t))
-                    .is_some_and(|t| t.fx_off),
-            };
-        let inserts: Vec<&audiostrada_core::Insert> = routing::inserts(&project, channel)
-            .iter()
-            .filter(|i| !i.monitor && i.effect != routing::STRIP)
-            .collect();
-        ui.add_space(2.0);
-        for insert in &inserts {
-            let lit = !(insert.bypass || off);
-            let color = theme::family_color(family(doc, &insert.effect));
-            let name = effect_name(doc, &insert.effect);
-            let fill = if lit {
-                color.gamma_multiply(0.85)
-            } else {
-                p.surface
-            };
-            let ink = if lit { theme::text_on(fill) } else { p.weak };
-            let response = pill(ui, width, &name, fill, ink);
-            if !lit {
-                ui.painter().rect_stroke(
-                    response.rect,
-                    3.0,
-                    egui::Stroke::new(1.0, color.gamma_multiply(0.5)),
-                    egui::StrokeKind::Inside,
-                );
-            }
-            let response = response.on_hover_text(trf!(
-                "{name}: {state}. Click to open it, Shift+click to switch it, Ctrl+click to \
-                 remove it",
-                name = name,
-                state = if lit { tr("playing") } else { tr("bypassed") }
-            ));
-            if !response.clicked() {
-                continue;
-            }
-            let id = insert.id;
-            let modifiers = ui.input(|i| i.modifiers);
-            if modifiers.command {
-                self.remove_insert(doc, channel, id);
-            } else if modifiers.shift {
-                let bypass = !insert.bypass;
-                doc.history_mut().edit(tr("Bypass insert"), |p| {
-                    routing::set_bypass(p, channel, id, bypass)
-                });
-            } else if insert.effect == routing::PARALLEL {
-                self.reveal_rack(doc, channel);
-            } else if audiostrada_dsp::info(&insert.effect).is_some() {
-                self.show_editor(channel, id);
-            } else if !self.open_gui.contains(&(channel, id)) {
-                self.open_gui.push((channel, id));
-            }
-        }
-        let add = add_pill(ui, width).on_hover_text(tr("Add an effect or a plugin"));
-        if add.clicked() {
-            self.rack.place = None;
-            self.browser.borrow_mut().open((channel, false));
-        }
     }
 
     /// Opens the browser on the instruments for a track: to replace its lead instrument, or
@@ -5458,18 +5281,24 @@ impl MixerView {
                 ),
             ),
         };
+        let font = if size.y < 20.0 { 9.0 } else { 10.0 };
         let text = if count > 0 {
             RichText::new(format!("{label} {count}"))
-                .size(10.0)
+                .size(font)
                 .strong()
         } else {
-            RichText::new(label).size(10.0).color(p.weak)
+            RichText::new(label).size(font).color(p.weak)
         };
+        // Narrow margins, so that "Sends 2" holds on one line.
         let mut button = egui::Button::new(text).min_size(size);
         if count > 0 {
             button = button.fill(p.accent.gamma_multiply(0.35));
         }
-        let response = ui.add(button).on_hover_text(hint);
+        let padding = ui.spacing().button_padding;
+        ui.spacing_mut().button_padding.x = 2.0;
+        let response = ui.add(button);
+        ui.spacing_mut().button_padding = padding;
+        let response = response.on_hover_text(hint);
         let popover = egui::Popup::from_toggle_button_response(&response)
             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
             .width(if list == List::Sends { 300.0 } else { 280.0 });
