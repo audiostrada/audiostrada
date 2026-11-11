@@ -357,27 +357,33 @@ fn fit_recipes() {
     }
 }
 
-/// Nanoseconds per sample of each console, both sides: within the budget of about 100 ns a
-/// side. `cargo test -p audiostrada-dsp --release -- --ignored console_budget --nocapture`.
+/// Nanoseconds per sample of each console, a side, without and with its noise: within about
+/// 100 ns, 1 % of a core for a stereo channel at 48 kHz.
+/// `cargo test -p audiostrada-dsp --release -- --ignored console_budget --nocapture`.
 #[test]
 #[ignore]
 fn console_budget() {
     let input = sine(440.0, -12.0);
     for (model, bus) in CONSOLES {
-        let mut c = ConsoleColor::new(48_000);
-        c.set(model, 50.0, bus, true, Some(1));
-        let (mut l, mut r) = (input.clone(), input.clone());
-        let start = std::time::Instant::now();
-        for _ in 0..10 {
-            for (a, b) in l.chunks_mut(256).zip(r.chunks_mut(256)) {
-                c.process(a, b);
+        let mut cost = [0.0; 2];
+        for (k, noise) in [false, true].into_iter().enumerate() {
+            let mut c = ConsoleColor::new(48_000);
+            c.set(model, 50.0, bus, noise, Some(1));
+            let (mut l, mut r) = (input.clone(), input.clone());
+            let start = std::time::Instant::now();
+            for _ in 0..20 {
+                for (a, b) in l.chunks_mut(256).zip(r.chunks_mut(256)) {
+                    c.process(a, b);
+                }
             }
+            cost[k] = start.elapsed().as_nanos() as f64 / (input.len() * 20 * 2) as f64;
+            std::hint::black_box(&l);
         }
-        let ns = start.elapsed().as_nanos() as f64 / (input.len() * 10 * 2) as f64;
         println!(
-            "{:<24} {ns:6.1} ns/sample a side ({})",
+            "{:<24} {:6.1} ns/sample a side, {:6.1} with its noise",
             name(model, bus),
-            l[100]
+            cost[0],
+            cost[1]
         );
     }
 }

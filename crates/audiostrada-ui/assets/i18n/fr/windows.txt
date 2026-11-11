@@ -640,3 +640,54 @@ Contrôleur MPE
 
 For MPE controllers (Roli Seaboard, LinnStrument, Osmose...), which send each note on its own MIDI channel: bend, pressure and slide then shape every note on its own. Leave it off for an ordinary keyboard.
 Pour les contrôleurs MPE (Roli Seaboard, LinnStrument, Osmose...), qui envoient chaque note sur son propre canal MIDI : le pitch bend, la pression et le glissement agissent alors sur chaque note séparément. À laisser éteint pour un clavier ordinaire.
+
+Console blind test
+Test en aveugle des consoles
+
+A is the mix through its consoles, B the mix without them, X one of the two. Play the song, listen to A, B and X as often as you like, then say which one X is.
+A est le mix avec ses consoles, B le mix sans elles, X l'un des deux. Lancez la lecture, écoutez A, B et X autant de fois que vous voulez, puis dites lequel est X.
+
+No console colors the mix: choose one in the Console menu first.
+Aucune console ne colore le mix : choisissez-en d'abord une dans le menu Console.
+
+Round {round} of {rounds}
+Essai {round} sur {rounds}
+
+X is A
+X est A
+
+X is B
+X est B
+
+Right.
+Juste.
+
+Wrong.
+Faux.
+
+A and B are at the same level: the consoles keep the working level (-18 dBFS).
+A et B sont au même niveau : les consoles gardent le niveau de travail (-18 dBFS).
+
+{right} right out of {rounds}
+{right} justes sur {rounds}
+
+By guessing, {chance} % of tests do as well.
+Au hasard, {chance} % des tests font aussi bien.
+
+You hear the consoles.
+Vous entendez les consoles.
+
+Not told apart for sure: at this level and amount, the color is subtle.
+Pas de différence sûre : à ce niveau et à ce dosage, la couleur est subtile.
+
+Again
+Recommencer
+
+Blind test
+Test en aveugle
+
+Start…
+Lancer…
+
+Do you hear the consoles? The mix with and without them, one of the two at random: say which.
+Entendez-vous les consoles ? Le mix avec et sans elles, l'un des deux au hasard : dites lequel.

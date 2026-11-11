@@ -34,8 +34,10 @@ pub struct Noise {
     pink: f32,
     b: [f32; 3],
     hum: f32,
-    phase: f64,
-    step: f64,
+    /// The mains' phasor, turned a step each sample: its harmonics follow from it, without a
+    /// sine per sample.
+    phasor: (f64, f64),
+    step: (f64, f64),
 }
 
 /// Paul Kellet's pink filter: three one-poles and a direct path.
@@ -74,8 +76,11 @@ impl Noise {
             } else {
                 0.0
             },
-            phase: 0.0,
-            step: std::f64::consts::TAU * f64::from(mains) / rate,
+            phasor: (0.0, 1.0),
+            step: {
+                let w = std::f64::consts::TAU * f64::from(mains) / rate;
+                (w.sin(), w.cos())
+            },
         }
     }
 
@@ -98,9 +103,16 @@ impl Noise {
             out += self.pink * pink;
         }
         if self.hum > 0.0 {
-            self.phase = (self.phase + self.step) % std::f64::consts::TAU;
-            for (k, level) in HUM_HARMONICS.iter().enumerate() {
-                out += self.hum * level * ((k + 1) as f64 * self.phase).sin() as f32;
+            let ((s, c), (ss, cs)) = (self.phasor, self.step);
+            let (s, c) = (s * cs + c * ss, c * cs - s * ss);
+            // Kept on the unit circle: rounding would otherwise slowly change its level.
+            let k = 1.5 - 0.5 * (s * s + c * c);
+            let (s, c) = (s * k, c * k);
+            self.phasor = (s, c);
+            // sin 2x = 2 sin x cos x, sin 3x = sin x (3 - 4 sin² x).
+            let sines = [s, 2.0 * s * c, s * (3.0 - 4.0 * s * s)];
+            for (sine, level) in sines.iter().zip(HUM_HARMONICS) {
+                out += self.hum * level * *sine as f32;
             }
         }
         out

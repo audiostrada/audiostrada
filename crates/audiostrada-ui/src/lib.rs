@@ -3,6 +3,7 @@
 mod actions;
 mod add_tracks;
 mod assistants_window;
+mod blind_test;
 mod browser;
 mod captures;
 mod chains;
@@ -3196,6 +3197,7 @@ impl eframe::App for AudioStradaApp {
             crate::metronome_window::show(ui.ctx(), &mut doc);
             versions_window::show(ui.ctx(), &mut doc);
             reference_window::show(ui.ctx(), &mut doc);
+            crate::blind_test::show(ui.ctx(), &mut doc);
         });
         if audio.open_settings {
             self.preferences.open_audio();

@@ -134,6 +134,8 @@ leur muet ensemble, en gardant leur équilibre.
 ![Couleur de console](img/console-color.webp)
 
 Le menu **Console** de la barre du Mixer donne à tout le mix le son d'une console analogique :
+chaque piste passe par l'étage d'entrée d'une de ses tranches, les bus et le master par sa
+sommation.
 
 | Console | Caractère |
 |---|---|
@@ -143,9 +145,28 @@ Le menu **Console** de la barre du Mixer donne à tout le mix le son d'une conso
 | **American Punch** | amplis discrets : punch et attaque (inspirée des consoles API) |
 | **Nashville** | douce et chaude, très faible distorsion (inspirée des consoles Harrison) |
 
-*Dosage de la console* règle la quantité de couleur, *Souffle et diaphonie* la part de bruit de
-la console. Chaque piste peut prendre une autre console (*Console de la piste*). Le bouton
+Chaque console est un circuit d'étages analogiques (transformateurs, amplis en classe A, amplis
+op, VCA), calibré sur les mesures des plugins qui modélisent la console dont elle s'inspire.
+Comme les vraies, elles colorent subtilement : au niveau de travail, les harmoniques d'une tranche
+sont 60 à 90 dB sous le signal, et montent quand il est plus fort. Les transformateurs de British
+Warm épaississent surtout les graves ; la tranche de British Bright ajoute des harmoniques
+impaires, égales sur tout le spectre, et son bus de mix est le plus coloré ; American Punch ajoute
+des harmoniques paires ; la tranche de Nashville est presque propre, son bus sature les graves.
+
+*Quantité* pousse le circuit : 50 % est la console à son niveau de travail, 0 % douze
+dB plus doucement, 100 % douze dB plus fort, toujours au même niveau de sortie, pour que seule la
+couleur change. *Souffle et diaphonie* ajoute le bruit de fond de chaque tranche (souffle, un peu
+de ronflement) et les côtés des bus qui débordent l'un sur l'autre. Chaque piste est une tranche à
+part : ses composants diffèrent un peu de ceux de ses voisines, ce qui élargit le mix comme sur
+une vraie console. Chaque piste peut prendre une autre console (*Console de la piste*). Le bouton
 marche/arrêt à côté du menu coupe toutes les couleurs au même niveau, pour comparer.
+
+**Test en aveugle › Lancer…** dit si vous entendez les consoles ou si vous croyez les entendre :
+A est le mix avec ses consoles, B sans elles, X l'un des deux tiré au hasard. Lancez la lecture,
+écoutez A, B et X autant de fois que vous voulez, puis dites lequel est X. Après dix essais, la
+fenêtre dit combien de fois le hasard ferait aussi bien : 9 justes sur 10 n'arrivent au hasard
+qu'environ une fois sur cent. Le test ne change rien au projet ; fermer sa fenêtre rend les
+consoles.
 
 Le caractère d'une console dépend du niveau qu'elle reçoit : **Réglage des gains › Appliquer**
 règle le gain d'entrée de chaque piste audio pour qu'elle joue vers -18 dBFS (les pistes

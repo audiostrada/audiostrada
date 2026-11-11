@@ -155,6 +155,23 @@ fn menu_contents(ui: &mut Ui, doc: &mut Document) {
         console_options(ui, doc, console)
     });
     ui.separator();
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(tr("Blind test")).strong());
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui.button(tr("Start…")).clicked() {
+                crate::blind_test::open(ui.ctx());
+            }
+        });
+    });
+    ui.label(
+        RichText::new(tr(
+            "Do you hear the consoles? The mix with and without them, one of the two at random: \
+             say which.",
+        ))
+        .size(10.5)
+        .color(p.weak),
+    );
+    ui.separator();
     let done_key = egui::Id::unique("console-gain-staging");
     ui.horizontal(|ui| {
         ui.label(RichText::new(tr("Gain staging")).strong());
@@ -190,7 +207,8 @@ fn console_options(ui: &mut Ui, doc: &mut Document, console: Console) {
         let response = ui
             .add(egui::Slider::new(&mut amount, 0.0..=100.0).suffix(" %"))
             .on_hover_text(tr(
-                "50 %: the console as it is. 100 %: pushed harder, more harmonics",
+                "50 %: the console as it is. 0 %: softer, 100 %: pushed harder, more harmonics; \
+                 always at the same level",
             ));
         if response.changed() {
             doc.history_mut()

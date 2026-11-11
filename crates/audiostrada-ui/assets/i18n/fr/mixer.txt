@@ -864,8 +864,8 @@ Inspirée des consoles API
 Inspired by Harrison consoles
 Inspirée des consoles Harrison
 
-50 %: the console as it is. 100 %: pushed harder, more harmonics
-50 % : la console telle quelle. 100 % : poussée plus fort, plus d'harmoniques
+50 %: the console as it is. 0 %: softer, 100 %: pushed harder, more harmonics; always at the same level
+50 % : la console telle quelle. 0 % : plus douce, 100 % : poussée plus fort, plus d'harmoniques ; toujours au même niveau
 
 A console's character depends on the level it gets. Sets each audio track's input gain so it plays around -18 dBFS (the selected tracks, or all of them).
 Le caractère d'une console dépend du niveau qu'elle reçoit. Règle le gain d'entrée de chaque piste audio pour qu'elle joue autour de -18 dBFS (les pistes sélectionnées, ou toutes).

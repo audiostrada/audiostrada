@@ -137,6 +137,8 @@ pub struct ConsoleColor {
     sides: [Chain<Circuit>; 2],
     tone: [Coefficients; 2],
     tone_state: [[Biquad; 2]; 2],
+    /// The shelves that tilt something.
+    tone_on: [bool; 2],
     /// What leaks from one side of a bus into the other: a highpass, and its gain.
     bleed: Coefficients,
     bleed_gain: f32,
@@ -158,6 +160,7 @@ impl ConsoleColor {
             sides: [side(), side()],
             tone: [Coefficients::IDENTITY; 2],
             tone_state: Default::default(),
+            tone_on: [false; 2],
             bleed: Coefficients::IDENTITY,
             bleed_gain: 0.0,
             bleed_state: Default::default(),
@@ -225,6 +228,7 @@ impl ConsoleColor {
                 rate,
             ),
         ];
+        self.tone_on = [r.low.1 != 0.0, r.high.1 != 0.0];
         // A first-order highpass at 10 kHz is 20 dB down at 1 kHz.
         self.bleed = Coefficients::first_order(true, 10_000.0, rate);
         self.bleed_gain = if self.bus && self.noise {
@@ -264,8 +268,10 @@ impl ConsoleColor {
             let states = &mut self.tone_state[side];
             for x in buffer.iter_mut() {
                 let mut y = f64::from(chain.process(*x));
-                for (c, s) in self.tone.iter().zip(states.iter_mut()) {
-                    y = s.process(c, y);
+                for ((c, s), on) in self.tone.iter().zip(states.iter_mut()).zip(self.tone_on) {
+                    if on {
+                        y = s.process(c, y);
+                    }
                 }
                 *x = y as f32;
             }

@@ -359,6 +359,9 @@ pub struct ProjectPlayer {
     live: LiveMidi,
     /// Every console color off, shared by the input stages.
     console_off: Arc<AtomicBool>,
+    /// The console on or off whatever the project says: a blind test's, which leaves nothing in
+    /// the project or its history.
+    console_blind: Option<bool>,
 }
 
 /// Absolute path of every source of `project`, plus the stretched or transposed variants
@@ -732,7 +735,17 @@ impl ProjectPlayer {
             overrides: HashMap::new(),
             live: LiveMidi::default(),
             console_off,
+            console_blind: None,
         }
+    }
+
+    /// Switches every console color off (`Some(true)`) or on whatever the project says, until
+    /// `None` gives it back to the project's switch, `project_off`: what a blind test plays,
+    /// nothing written anywhere.
+    pub fn set_console_blind(&mut self, off: Option<bool>, project_off: bool) {
+        self.console_blind = off;
+        self.console_off
+            .store(off.unwrap_or(project_off), Ordering::Relaxed);
     }
 
     pub fn engine(&self) -> &Engine {
@@ -1129,8 +1142,10 @@ impl ProjectPlayer {
     /// Brings the graph up to date with `project`; cheap when nothing changed.
     pub fn sync(&mut self, project: &Project, paths: Option<&ProjectPaths>, media: &MediaPool) {
         self.sync_reference(project, paths, media);
-        self.console_off
-            .store(project.console_off, Ordering::Relaxed);
+        self.console_off.store(
+            self.console_blind.unwrap_or(project.console_off),
+            Ordering::Relaxed,
+        );
         self.plugins.paths = paths.cloned();
         self.plugins.forced.clear();
         let click = &project.metronome;
@@ -3640,6 +3655,13 @@ mod tests {
         let compared = play(&mut f, &mut processor);
         assert!(!differs(&clean, &compared));
         f.history.edit("Console", |p| p.console_off = false);
+        // A blind test switches it off without touching the project, until it lets go.
+        f.player.set_console_blind(Some(true), false);
+        let blind = play(&mut f, &mut processor);
+        assert!(!differs(&clean, &blind));
+        assert!(!f.history.project().console_off);
+        f.player.set_console_blind(None, false);
+        assert!(differs(&clean, &play(&mut f, &mut processor)));
         // A track of its own stays clean.
         f.history.edit("Console", |p| {
             let t = p.tracks[0].id;

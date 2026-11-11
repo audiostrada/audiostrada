@@ -6,9 +6,17 @@
 
 use super::Stage;
 
-/// `ln(cosh(u))`, without overflow.
+/// `ln(cosh(u))`, without overflow. Near rest, where a circuit spends its time, its series: the
+/// same to 1e-9, a few times faster than an exponential and a logarithm.
 fn log_cosh(u: f64) -> f64 {
     let a = u.abs();
+    if a < 0.3 {
+        let u2 = u * u;
+        return u2
+            * (0.5
+                + u2 * (-1.0 / 12.0
+                    + u2 * (1.0 / 45.0 + u2 * (-17.0 / 2520.0 + u2 * (31.0 / 14175.0)))));
+    }
     a + (-2.0 * a).exp().ln_1p() - std::f64::consts::LN_2
 }
 

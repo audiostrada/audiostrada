@@ -128,6 +128,8 @@ keeping their balance.
 ![Console colour](img/console-color.webp)
 
 The **Console** menu in the mixer's bar gives the whole mix the sound of an analogue console:
+every track goes through the input stage of one of its channels, the buses and the master through
+its summing.
 
 | Console | Character |
 |---|---|
@@ -137,9 +139,27 @@ The **Console** menu in the mixer's bar gives the whole mix the sound of an anal
 | **American Punch** | discrete amplifiers: punch and attack (inspired by API consoles) |
 | **Nashville** | smooth and warm, very low distortion (inspired by Harrison consoles) |
 
-*Console amount* sets how much colour, *Hiss and crosstalk* how much of the console's noise. Each
-track can take another console (*Track console*). The power button beside the menu switches every
-colour off at the same level, to compare.
+Each console is a circuit of analogue stages (transformers, class A amplifiers, op-amps, VCAs),
+calibrated on measurements of the plugins that model the console it is after. Like the real
+ones, they colour subtly: at the working level a channel's harmonics sit 60 to 90 dB below the
+signal, and grow as it gets louder. The transformers of British Warm thicken the lows most;
+British Bright's channel adds odd harmonics, flat across the spectrum, and its mix bus is the
+most coloured; American Punch adds even harmonics; Nashville's channel is nearly clean, its bus
+saturates the lows.
+
+*Amount* pushes the circuit: 50 % is the console at its working level, 0 % twelve dB
+softer, 100 % twelve dB harder, always at the same output level, so only the colour changes.
+*Hiss and crosstalk* adds each channel's noise floor (hiss, a little hum) and the sides of the
+buses leaking into each other. Every track is a channel of its own: its parts differ slightly from
+its neighbours', which widens the mix as a real console does. Each track can take another console
+(*Track console*). The power button beside the menu switches every colour off at the same level,
+to compare.
+
+**Blind test › Start…** tells whether you hear the consoles rather than believe it: A is the mix
+through its consoles, B without them, X one of the two drawn at random. Play the song, listen to
+A, B and X as often as you like, then say which one X is. After ten rounds, the window tells how
+often guessing would do as well: 9 right out of 10 happens about once in a hundred tests by
+chance. The test changes nothing in the project; closing its window gives the consoles back.
 
 A console's character depends on the level it gets: **Gain staging › Apply** sets each audio
 track's input gain so that it plays around -18 dBFS (the selected tracks, or all of them).
