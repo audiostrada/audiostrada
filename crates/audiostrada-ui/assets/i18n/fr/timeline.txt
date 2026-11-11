@@ -1022,9 +1022,6 @@ Glisser sur une zone : elle remplit la vue · Clic : zoomer · Alt+clic ou clic 
 P: pencil · S: selection · E: eraser · Z: zoom · Esc: close
 P : crayon · S : sélection · E : gomme · Z : zoom · Échap : fermer
 
-Zoom out
-Dézoomer
-
 Hide this lane; its points stay and still play
 Masquer cette piste d'automation ; ses points restent et jouent toujours
 

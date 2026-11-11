@@ -320,6 +320,9 @@ impl TimelineView {
             let galley = ui.fonts_mut(|f| f.layout_job(job));
             let elided = galley.elided;
             let name = Rect::from_min_size(pos2(x, line1 - galley.size().y / 2.0), galley.size());
+            // A double-click anywhere in the name's room renames, short names included.
+            let name_room =
+                Rect::from_min_size(pos2(x - 4.0, line1 - 13.0), vec2(max_width + 8.0, 26.0));
             let renaming = self.renaming.as_ref().is_some_and(|(t, _)| *t == id);
             if !renaming {
                 painter.galley(name.min, galley, visuals.strong_text_color());
@@ -552,7 +555,7 @@ impl TimelineView {
             } else if response.double_clicked()
                 && response
                     .interact_pointer_pos()
-                    .is_some_and(|p| name.expand(4.0).contains(p))
+                    .is_some_and(|p| name_room.contains(p))
             {
                 self.renaming = Some((id, track.name.clone()));
             }
