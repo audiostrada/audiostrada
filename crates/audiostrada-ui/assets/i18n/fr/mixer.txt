@@ -1391,3 +1391,6 @@ Clip : {name}
 
 Delay this effect adds, compensated
 Latence de cet effet, compensée
+
+Auto gain: the output keeps the loudness of the input, whatever the modules add or take; the Output knob trims it
+Gain automatique : la sortie garde le volume de l'entrée, quoi que les modules ajoutent ou retirent ; le bouton Sortie l'ajuste

@@ -48,6 +48,7 @@ pub const INFO: EffectInfo = EffectInfo {
         choice("character", "Character", &CHARACTERS, 0.0),
         switch("low_bell", "Low bell", 0.0),
         switch("high_bell", "High bell", 0.0),
+        switch("auto_gain", "Auto gain", 0.0),
     ],
     meters: &METER_NAMES,
     instrument: false,
@@ -132,8 +133,9 @@ mod p {
     pub const CHARACTER: usize = 32;
     pub const LOW_BELL: usize = 33;
     pub const HIGH_BELL: usize = 34;
+    pub const AUTO_GAIN: usize = 35;
 }
-const COUNT: usize = 35;
+const COUNT: usize = 36;
 
 /// Butterworth sections: one for 12 dB/oct, two for 24.
 const Q12: [f64; 1] = [std::f64::consts::FRAC_1_SQRT_2];
@@ -161,6 +163,40 @@ pub struct Channel {
     /// none in the copies the editors draw the curve with (see `with_spectra`).
     spectra: Option<Box<[crate::analyzer::Analyzer; 2]>>,
     watched: bool,
+    auto: AutoGain,
+}
+
+/// Keeps the strip's output as loud as its input: the mean power of each, followed slowly,
+/// sets a gain that moves smoothly toward their ratio.
+#[derive(Debug, Clone, Copy)]
+struct AutoGain {
+    input: f64,
+    output: f64,
+    gain: f32,
+}
+
+impl Default for AutoGain {
+    fn default() -> Self {
+        Self {
+            input: 0.0,
+            output: 0.0,
+            gain: 1.0,
+        }
+    }
+}
+
+/// Below this mean power (-70 dBFS) a side is taken as silent: the gain stays as it was.
+const SILENT_POWER: f64 = 1e-7;
+/// The gain stays within 24 dB either way.
+const AUTO_RANGE_DB: f32 = 24.0;
+
+fn mean_power(left: &[f32], right: &[f32]) -> f64 {
+    let sum: f64 = left
+        .iter()
+        .chain(right)
+        .map(|&x| f64::from(x) * f64::from(x))
+        .sum();
+    sum / (left.len() + right.len()).max(1) as f64
 }
 
 impl Default for Channel {
@@ -184,6 +220,7 @@ impl Default for Channel {
             order: [0, 1, 2, 3, 4],
             spectra: None,
             watched: false,
+            auto: AutoGain::default(),
         };
         channel.design();
         channel.forward_all();
@@ -271,6 +308,53 @@ impl Channel {
         self.gate.set_param(3, 30.0);
         self.comp.set_param(5, 0.0);
         self.comp.set_param(6, 6.0);
+    }
+
+    /// Brings the output back to the input's loudness when `input` (its mean power) is given;
+    /// switched off, the gain glides back to unity.
+    fn auto_gain(&mut self, left: &mut [f32], right: &mut [f32], input: Option<f64>) {
+        let frames = left.len();
+        if frames == 0 {
+            return;
+        }
+        let auto = &mut self.auto;
+        let target = match input {
+            Some(input) => {
+                // Powers followed over about 400 ms.
+                let a = 1.0 - (-(frames as f64) / (self.rate * 0.4)).exp();
+                auto.input += a * (input - auto.input);
+                auto.output += a * (mean_power(left, right) - auto.output);
+                if auto.input > SILENT_POWER && auto.output > SILENT_POWER {
+                    let db = (10.0 * (auto.input / auto.output).log10()) as f32;
+                    db_to_gain(db.clamp(-AUTO_RANGE_DB, AUTO_RANGE_DB))
+                } else {
+                    auto.gain
+                }
+            }
+            None => {
+                auto.input = 0.0;
+                auto.output = 0.0;
+                1.0
+            }
+        };
+        if auto.gain == 1.0 && target == 1.0 {
+            return;
+        }
+        // Toward the target in about 50 ms, ramped across the block.
+        let k = 1.0 - (-(frames as f64) / (self.rate * 0.05)).exp() as f32;
+        let end = auto.gain + (target - auto.gain) * k;
+        let end = if (end - 1.0).abs() < 1e-4 && target == 1.0 {
+            1.0
+        } else {
+            end
+        };
+        let step = (end - auto.gain) / frames as f32;
+        for (i, (l, r)) in left.iter_mut().zip(right.iter_mut()).enumerate() {
+            let g = auto.gain + step * (i + 1) as f32;
+            *l *= g;
+            *r *= g;
+        }
+        auto.gain = end;
     }
 
     fn forward(&mut self, index: usize) {
@@ -409,6 +493,8 @@ impl Effect for Channel {
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         hold_peaks(&mut self.levels[0], left, right);
+        let auto = self.on(p::AUTO_GAIN);
+        let input = if auto { mean_power(left, right) } else { 0.0 };
         if self.watched
             && let Some(spectra) = &mut self.spectra
         {
@@ -434,6 +520,7 @@ impl Effect for Channel {
                 _ => {}
             }
         }
+        self.auto_gain(left, right, auto.then_some(input));
         let output = self.values[p::OUTPUT];
         if output != 0.0 {
             let g = db_to_gain(output);
@@ -459,6 +546,7 @@ impl Effect for Channel {
         self.gate.reset();
         self.comp.reset();
         self.levels.iter_mut().for_each(Hold::reset);
+        self.auto = AutoGain::default();
     }
 
     fn latency(&self) -> u32 {
@@ -573,6 +661,7 @@ mod tests {
             ("character", p::CHARACTER),
             ("low_bell", p::LOW_BELL),
             ("high_bell", p::HIGH_BELL),
+            ("auto_gain", p::AUTO_GAIN),
         ] {
             assert_eq!(index(name), i, "{name}");
         }
@@ -583,6 +672,42 @@ mod tests {
         let original = left.clone();
         channel.process(&mut left, &mut right);
         assert_eq!(left, original, "untouched while every module is off");
+    }
+
+    #[test]
+    fn auto_gain_brings_the_output_back_to_the_input_level() {
+        let mut channel = Channel::default();
+        channel.prepare(48_000, 480);
+        // The EQ lifts everything by 12 dB with both shelves.
+        for (i, v) in [
+            (p::EQ, 1.0),
+            (p::EQ_FIRST + 1, 12.0),
+            (p::EQ_LAST, 12.0),
+            (p::AUTO_GAIN, 1.0),
+        ] {
+            channel.set_param(i, v);
+        }
+        let tone = sine(440.0, 0.1);
+        let level = |s: &[f32]| (s.iter().map(|x| x * x).sum::<f32>() / s.len() as f32).sqrt();
+        let mut last = 0.0;
+        for _ in 0..400 {
+            let (mut left, mut right) = (tone[..480].to_vec(), tone[..480].to_vec());
+            channel.process(&mut left, &mut right);
+            last = level(&left);
+        }
+        let ratio = gain_to_db(last / level(&tone[..480]));
+        assert!(ratio.abs() < 1.0, "{ratio} dB away from the input");
+        // Switched off, the boost comes back without a jump.
+        channel.set_param(p::AUTO_GAIN, 0.0);
+        let mut previous = last;
+        for _ in 0..40 {
+            let (mut left, mut right) = (tone[..480].to_vec(), tone[..480].to_vec());
+            channel.process(&mut left, &mut right);
+            let now = level(&left);
+            assert!(now < previous * 1.5, "{previous} then {now}");
+            previous = now;
+        }
+        assert!(gain_to_db(previous / level(&tone[..480])) > 10.0);
     }
 
     #[test]

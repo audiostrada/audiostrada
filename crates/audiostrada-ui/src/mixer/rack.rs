@@ -1101,18 +1101,46 @@ impl MixerView {
                         .inner_margin(egui::Margin::symmetric(4, 2))
                         .show(ui, |ui| {
                             ui.set_min_height(SECTION);
+                            // Laid out as the modules' sections: a title row, then the knob.
                             ui.vertical(|ui| {
                                 ui.spacing_mut().item_spacing.y = 0.0;
-                                ui.add_sized(
-                                    [20.0, 18.0],
-                                    egui::Label::new(
-                                        RichText::new(tr("Output")).strong().size(10.5),
-                                    )
-                                    .extend(),
-                                );
-                                self.strip_knobs(
-                                    ui, doc, channel, strip, &values, "output", p.text, &meters,
-                                );
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 6.0;
+                                    ui.allocate_exact_size(vec2(0.0, 18.0), Sense::hover());
+                                    ui.label(RichText::new(tr("Output")).strong().size(10.5));
+                                    let auto = values[info
+                                        .params
+                                        .iter()
+                                        .position(|q| q.id == "auto_gain")
+                                        .unwrap_or(0)]
+                                        >= 0.5;
+                                    let (rect, response) =
+                                        ui.allocate_exact_size(vec2(32.0, 16.0), Sense::click());
+                                    theme::flat_toggle(
+                                        ui,
+                                        rect,
+                                        &response,
+                                        tr("Auto"),
+                                        auto,
+                                        p.accent,
+                                    );
+                                    if response
+                                        .on_hover_text(tr(
+                                            "Auto gain: the output keeps the loudness of the \
+                                             input, whatever the modules add or take; the \
+                                             Output knob trims it",
+                                        ))
+                                        .clicked()
+                                    {
+                                        self.set_strip_module(doc, channel, "auto_gain", !auto);
+                                    }
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 0.0;
+                                    self.strip_knobs(
+                                        ui, doc, channel, strip, &values, "output", p.text, &meters,
+                                    );
+                                });
                             });
                         });
                     let width = right - ui.cursor().left() - 2.0;

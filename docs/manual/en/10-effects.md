@@ -107,7 +107,9 @@ track to the trigger.
 ### Strada-Channel
 
 A console channel in one insert: filters, gate, compressor, four-band EQ and drive, in an order
-you choose (see *Mixing*).
+you choose (see *Mixing*). **Auto** beside the output keeps the output as loud as the input,
+whatever the modules add or take, to compare by ear without the level fooling you; the
+*Output* knob trims it.
 
 <!-- effect:channel -->
 

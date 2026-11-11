@@ -322,12 +322,27 @@ fn io_bar(ui: &mut Ui, params: &mut Params) {
                 if let Channel::Track(track) = params.channel {
                     input_gain(ui, params, track);
                 }
-                ui.add_space((ui.available_width() - KNOB - 24.0).max(0.0));
+                ui.add_space((ui.available_width() - KNOB - 90.0).max(0.0));
+                auto_gain_switch(ui, params);
                 ui.vertical(|ui| {
                     named_knob(ui, params, "output", tr("Output"), 34.0, p.accent);
                 });
             });
         });
+}
+
+/// The output's automatic gain: what the modules add or take, given back or taken off.
+fn auto_gain_switch(ui: &mut Ui, params: &mut Params) {
+    ui.vertical(|ui| {
+        ui.add_space(14.0);
+        let on = params.get("auto_gain") >= 0.5;
+        let response = pill_switch(ui, on, tr("Auto")).on_hover_text(tr(
+            "Auto gain: the output keeps the loudness of the input, whatever the modules add \
+             or take; the Output knob trims it",
+        ));
+        let changed = response.clicked().then_some(if on { 0.0 } else { 1.0 });
+        params.set("auto_gain", changed, &response);
+    });
 }
 
 fn console_button(ui: &mut Ui, params: &mut Params) {
@@ -709,8 +724,37 @@ impl Grid {
         label: &str,
         tint: Color32,
     ) {
+        let cell = self.cell(row, column, 1);
         self.span(ui, row, column, 1, |ui| {
-            named_knob(ui, params, id, label, KNOB, tint);
+            // The name on one line across the column, smaller if it must: knobs stay in line.
+            let top = ui.cursor().top();
+            named_knob(ui, params, id, " ", KNOB, tint);
+            let p = theme::current(ui);
+            let room = cell.width() - 4.0;
+            let size = 10.5;
+            let height = ui.fonts_mut(|f| f.row_height(&egui::FontId::proportional(size)));
+            let wide = ui
+                .painter()
+                .layout_no_wrap(label.to_owned(), egui::FontId::proportional(size), p.weak)
+                .size()
+                .x;
+            let fitted = if wide > room {
+                (size * room / wide).max(8.5)
+            } else {
+                size
+            };
+            let mut job = egui::text::LayoutJob::simple_singleline(
+                label.to_owned(),
+                egui::FontId::proportional(fitted),
+                p.weak,
+            );
+            job.wrap = egui::text::TextWrapping::truncate_at_width(room);
+            let galley = ui.fonts_mut(|f| f.layout_job(job));
+            let at = pos2(
+                cell.center().x - galley.size().x / 2.0,
+                top + (height - galley.size().y) / 2.0,
+            );
+            ui.painter().galley(at, galley, p.weak);
         });
     }
 

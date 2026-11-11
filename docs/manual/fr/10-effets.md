@@ -113,7 +113,9 @@ de proximité vers la pièce, et la piste vers le trigger.
 ### Strada-Channel
 
 Une tranche de console dans un seul insert : filtres, gate, compresseur, égaliseur à quatre bandes
-et saturation, dans l'ordre que vous choisissez (voir *Mixage*).
+et saturation, dans l'ordre que vous choisissez (voir *Mixage*). **Auto**, à côté de la sortie,
+garde la sortie au volume de l'entrée, quoi que les modules ajoutent ou retirent, pour comparer à
+l'oreille sans que le volume vous trompe ; le bouton *Sortie* l'ajuste.
 
 <!-- effect:channel -->
 
