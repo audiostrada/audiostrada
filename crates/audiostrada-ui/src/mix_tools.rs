@@ -280,6 +280,7 @@ pub fn call(doc: &mut Document, name: &str, args: &Value) -> Option<Result<Value
                         .map(|t| t.automation.clone())
                         .unwrap_or_default(),
                     Channel::Master => project.master.automation.clone(),
+                    Channel::Clip(_) => Vec::new(),
                 };
                 let secs = |s: u64| (s as f64 / f64::from(rate) * 1000.0).round() / 1000.0;
                 Ok(json!(
@@ -344,6 +345,7 @@ pub fn call(doc: &mut Document, name: &str, args: &Value) -> Option<Result<Value
                         Channel::Master => {
                             Some(automation::master_lane_mut(&mut p.master, &target))
                         }
+                        Channel::Clip(_) => None,
                     };
                     let Some(lane) = lane else { return };
                     match mode.as_str() {
@@ -511,6 +513,7 @@ pub fn call(doc: &mut Document, name: &str, args: &Value) -> Option<Result<Value
                                 }
                             }
                         }
+                        Channel::Clip(_) => {}
                     }
                 });
                 Ok(json!("ok"))

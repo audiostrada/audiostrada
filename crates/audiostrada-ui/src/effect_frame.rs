@@ -633,6 +633,7 @@ fn put(
         let inserts = match channel {
             Channel::Master => Some(&mut p.master.inserts),
             Channel::Track(t) => p.track_mut(t).map(|t| &mut t.inserts),
+            Channel::Clip(c) => audiostrada_core::edit::clip_mut(p, c).map(|c| &mut c.inserts),
         };
         if let Some(i) = inserts.and_then(|list| list.iter_mut().find(|i| i.id == insert)) {
             i.params = settings.params.clone();
@@ -2267,10 +2268,7 @@ fn sidechain_button(
 
 /// The tracks that can key an insert of `channel`: those carrying audio, but its own.
 fn key_tracks(doc: &Document, channel: Channel) -> Vec<(audiostrada_core::TrackId, String)> {
-    let own = match channel {
-        Channel::Track(t) => Some(t),
-        Channel::Master => None,
-    };
+    let own = channel.track(doc.project());
     doc.project()
         .tracks
         .iter()
@@ -2303,6 +2301,7 @@ pub(crate) fn sidechain_menu(ui: &mut Ui, doc: &mut Document, channel: Channel, 
             let inserts = match channel {
                 Channel::Master => Some(&mut p.master.inserts),
                 Channel::Track(t) => p.track_mut(t).map(|t| &mut t.inserts),
+                Channel::Clip(c) => audiostrada_core::edit::clip_mut(p, c).map(|c| &mut c.inserts),
             };
             if let Some(i) = inserts.and_then(|l| l.iter_mut().find(|i| i.id == id)) {
                 i.sidechain = source;

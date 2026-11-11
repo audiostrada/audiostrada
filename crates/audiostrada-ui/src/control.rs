@@ -74,7 +74,7 @@ pub fn tool_definitions(live: bool) -> Vec<Value> {
         ),
         tool(
             "add_insert",
-            "Add a built-in effect (see list_effects) at the end of a track's inserts, with optional parameters. Returns its id.",
+            "Add a built-in effect (see list_effects) at the end of a track's inserts, with optional parameters. Returns its id. `track` may be {\"clip\": id}: the clip's own effects, played on it alone.",
             json!({"track": track, "effect": {"type": "string"}, "params": {"type": "object"}}),
             &["track", "effect"],
         ),
@@ -311,6 +311,12 @@ pub(crate) fn seconds_to_samples(value: Option<&Value>, rate: u32) -> Option<u64
 
 pub(crate) fn track_ref(doc: &Document, value: Option<&Value>) -> Result<Channel, String> {
     let value = value.ok_or("a track is needed")?;
+    if let Some(id) = value.get("clip").and_then(Value::as_u64) {
+        let clip = ClipId(id);
+        return audiostrada_core::edit::clip(doc.project(), clip)
+            .map(|_| Channel::Clip(clip))
+            .ok_or_else(|| format!("no clip {id}"));
+    }
     if value
         .as_str()
         .is_some_and(|s| s.eq_ignore_ascii_case("master"))
@@ -339,6 +345,7 @@ pub(crate) fn track_id(doc: &Document, value: Option<&Value>) -> Result<TrackId,
     match track_ref(doc, value)? {
         Channel::Track(t) => Ok(t),
         Channel::Master => Err("the master has no clips".into()),
+        Channel::Clip(_) => Err("a track is needed here, not a clip".into()),
     }
 }
 
@@ -434,17 +441,23 @@ pub fn inspect(doc: &Document, full: bool) -> Value {
                 v["clips"] = json!(t
                     .clips
                     .iter()
-                    .map(|c| json!({
-                        "id": c.id.0,
-                        "name": c.name,
-                        "start": secs(c.start),
-                        "length": secs(c.length),
-                        "gain_db": c.gain_db,
-                        "fade_in": secs(c.fade_in),
-                        "fade_out": secs(c.fade_out),
-                        "muted": c.muted,
-                        "midi": c.notes.is_some(),
-                    }))
+                    .map(|c| {
+                        let mut clip = json!({
+                            "id": c.id.0,
+                            "name": c.name,
+                            "start": secs(c.start),
+                            "length": secs(c.length),
+                            "gain_db": c.gain_db,
+                            "fade_in": secs(c.fade_in),
+                            "fade_out": secs(c.fade_out),
+                            "muted": c.muted,
+                            "midi": c.notes.is_some(),
+                        });
+                        if !c.inserts.is_empty() {
+                            clip["inserts"] = json!(inserts(&c.inserts));
+                        }
+                        clip
+                    })
                     .collect::<Vec<_>>());
             }
             v
@@ -619,6 +632,7 @@ pub fn call_tool(
                             }
                         }
                     }
+                    Channel::Clip(_) => {}
                 });
             Ok(json!("ok"))
         }
@@ -864,7 +878,9 @@ pub fn call_tool(
             let target = match arg("track") {
                 Some(v) => match track_ref(doc, Some(v))? {
                     Channel::Track(t) => Some(t),
-                    Channel::Master => return Err("clips go on tracks, not the master".into()),
+                    Channel::Master | Channel::Clip(_) => {
+                        return Err("clips go on tracks, not the master".into());
+                    }
                 },
                 None => None,
             };
@@ -923,7 +939,7 @@ pub fn call_tool(
             let track = match arg("track") {
                 Some(v) => match track_ref(doc, Some(v))? {
                     Channel::Track(t) => Some(t),
-                    Channel::Master => None,
+                    Channel::Master | Channel::Clip(_) => None,
                 },
                 None => None,
             };

@@ -22,6 +22,10 @@ const GAP: f32 = 34.0;
 const PARALLEL: f32 = 470.0;
 /// Width of the empty slot at the end of the rack.
 const EMPTY: f32 = 132.0;
+/// Height of a module's footer: A/B and the editor's button.
+const FOOT: f32 = 30.0;
+/// Columns of knobs on a module's face, at most.
+const COLUMNS: usize = 4;
 
 /// Parameter values of an insert, as an A or B slot keeps them.
 type Settings = BTreeMap<String, f32>;
@@ -103,30 +107,253 @@ fn shown_macros(
         .unwrap_or_default()
 }
 
-/// The response of an EQ module's bands, drawn in its face.
-fn eq_curve(ui: &mut Ui, values: &[f32], tint: Color32) {
-    let p = theme::current(ui);
-    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 72.0), Sense::hover());
-    let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 4.0, p.panel);
-    painter.line_segment(
-        [rect.left_center(), rect.right_center()],
-        egui::Stroke::new(1.0, p.weak.gamma_multiply(0.25)),
+/// A small dark screen, as the hardware's displays.
+pub(super) fn lcd_box(painter: &egui::Painter, rect: Rect) {
+    painter.rect_filled(rect, 3.0, Color32::from_rgb(13, 15, 19));
+    painter.rect_stroke(
+        rect,
+        3.0,
+        egui::Stroke::new(1.0, Color32::from_black_alpha(160)),
+        egui::StrokeKind::Inside,
     );
+    painter.line_segment(
+        [rect.left_bottom(), rect.right_bottom()],
+        egui::Stroke::new(1.0, Color32::from_white_alpha(22)),
+    );
+}
+
+/// `count` columns side by side in `face`, at most [`COLUMNS`] to a row; two rows past it.
+fn cells(face: Rect, count: usize) -> Vec<Rect> {
+    if count == 0 {
+        return Vec::new();
+    }
+    let rows = count.div_ceil(COLUMNS);
+    let columns = count.div_ceil(rows);
+    let (w, h) = (face.width() / columns as f32, face.height() / rows as f32);
+    (0..count)
+        .map(|k| {
+            let (row, column) = (k / columns, k % columns);
+            Rect::from_min_size(
+                face.min + vec2(column as f32 * w, row as f32 * h),
+                vec2(w, h),
+            )
+        })
+        .collect()
+}
+
+/// A text cut to `width` with an ellipsis, centered on `at`.
+fn cut_text(
+    painter: &egui::Painter,
+    at: egui::Pos2,
+    text: &str,
+    width: f32,
+    size: f32,
+    color: Color32,
+) {
+    let mut job = egui::text::LayoutJob::simple_singleline(
+        text.to_owned(),
+        egui::FontId::proportional(size),
+        color,
+    );
+    job.wrap = egui::text::TextWrapping {
+        max_width: width.max(8.0),
+        max_rows: 1,
+        break_anywhere: true,
+        overflow_character: Some('…'),
+    };
+    let galley = painter.layout_job(job);
+    painter.galley(pos2(at.x - galley.size().x / 2.0, at.y), galley, color);
+}
+
+/// One parameter on a face, in its cell: its name cut to the cell, its knob, and its value on
+/// a small screen (only under the name when the cell is short, two rows of them).
+fn knob_cell(
+    ui: &mut Ui,
+    cell: Rect,
+    (name, value_text): (&str, &str),
+    knob: impl FnOnce(&mut Ui, f32) -> Response,
+    tint: Color32,
+) -> Response {
+    let p = theme::current(ui);
+    let painter = ui.painter_at(cell);
+    let compact = cell.height() < 80.0;
+    let size = if compact { 26.0 } else { 34.0 };
+    let block = if compact { 54.0 } else { 78.0 };
+    let top = cell.top() + ((cell.height() - block) / 2.0).max(0.0);
+    cut_text(
+        &painter,
+        pos2(cell.center().x, top),
+        name,
+        cell.width() - 6.0,
+        if compact { 9.0 } else { 10.0 },
+        p.weak,
+    );
+    let place = Rect::from_center_size(
+        pos2(cell.center().x, top + 14.0 + size / 2.0),
+        vec2(size, size),
+    );
+    // Its scale, printed around it as on the hardware.
+    let (start, sweep) = (std::f32::consts::PI * 0.75, std::f32::consts::PI * 1.5);
+    let ring = size / 2.0 + 4.0;
+    for k in 0..=10 {
+        let a = start + sweep * k as f32 / 10.0;
+        let dot = place.center() + vec2(a.cos(), a.sin()) * ring;
+        let big = k == 0 || k == 5 || k == 10;
+        painter.circle_filled(
+            dot,
+            if big { 1.1 } else { 0.7 },
+            p.weak.gamma_multiply(if big { 0.8 } else { 0.5 }),
+        );
+    }
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(place));
+    let response = knob(&mut child, size);
+    let value_top = place.bottom() + 4.0;
+    if compact {
+        cut_text(
+            &painter,
+            pos2(cell.center().x, value_top),
+            value_text,
+            cell.width() - 4.0,
+            9.0,
+            theme::mix(p.text, p.weak, 0.3),
+        );
+    } else {
+        let screen = Rect::from_center_size(
+            pos2(cell.center().x, value_top + 8.0),
+            vec2((cell.width() - 8.0).min(68.0), 16.0),
+        );
+        lcd_box(&painter, screen);
+        cut_text(
+            &painter,
+            pos2(screen.center().x, screen.top() + 2.0),
+            value_text,
+            screen.width() - 6.0,
+            10.0,
+            theme::mix(tint, Color32::WHITE, 0.45),
+        );
+    }
+    response
+}
+
+/// A built-in effect's parameter in a face's cell.
+fn face_knob(
+    ui: &mut Ui,
+    params: &mut effect_editors::Params,
+    id: &str,
+    cell: Rect,
+    tint: Color32,
+) {
+    use effect_editors::{format_value, from_unit, to_unit};
+    let Some(p) = params.param(id) else {
+        return;
+    };
+    let value = params.get(id);
+    let mut changed = None;
+    let response = knob_cell(
+        ui,
+        cell,
+        (tr(p.name), &format_value(p, value)),
+        |ui, size| {
+            let bipolar = p.min < 0.0 && p.max > 0.0;
+            let (moved, response) = widgets::knob(
+                ui,
+                to_unit(p, value),
+                (0.0, 1.0),
+                to_unit(p, p.default),
+                size,
+                bipolar,
+                tint,
+            );
+            changed = moved.map(|t| from_unit(p, t));
+            response
+        },
+        tint,
+    );
+    let shown = changed.unwrap_or(value);
+    let response = response.on_hover_text(trf!(
+        "{name}: {value}. Drag, Shift for fine, double-click to reset",
+        name = tr(p.name),
+        value = format_value(p, shown)
+    ));
+    params.set(id, changed, &response);
+}
+
+/// The editor's button of a module, at the right of its footer.
+fn edit_button(ui: &mut Ui, rect: Rect, salt: u64) -> Response {
+    let p = theme::current(ui);
+    let response = ui.interact(
+        rect,
+        ui.scope_id().with(("rack-edit", salt)),
+        Sense::click(),
+    );
+    effect_frame::paint_face(ui, rect, 4.0, &response, effect_frame::Face::Plain);
+    let ink = if response.hovered() {
+        p.text
+    } else {
+        theme::mix(p.text, p.weak, 0.3)
+    };
+    let glyph = Rect::from_center_size(rect.left_center() + vec2(12.0, 0.0), vec2(12.0, 12.0));
+    effect_frame::paint_glyph(ui.painter(), glyph, effect_frame::Glyph::External, ink);
+    cut_text(
+        ui.painter(),
+        pos2(rect.center().x + 8.0, rect.center().y - 7.0),
+        tr("Edit"),
+        rect.width() - 26.0,
+        11.0,
+        ink,
+    );
+    response
+}
+
+/// The response of an EQ module's bands, on a screen in its face.
+fn eq_curve(ui: &mut Ui, values: &[f32], tint: Color32, rect: Rect) {
+    let painter = ui.painter_at(rect);
+    lcd_box(&painter, rect);
+    let x_of = |f: f32| rect.left() + rect.width() * (f / 20.0).log10() / 3.0;
+    let y_of = |db: f32| rect.center().y - db / 18.0 * rect.height() * 0.42;
+    let grid = egui::Stroke::new(1.0, Color32::from_white_alpha(14));
+    for db in [-12.0f32, -6.0, 6.0, 12.0] {
+        painter.line_segment(
+            [pos2(rect.left(), y_of(db)), pos2(rect.right(), y_of(db))],
+            grid,
+        );
+    }
+    painter.line_segment(
+        [pos2(rect.left(), y_of(0.0)), pos2(rect.right(), y_of(0.0))],
+        egui::Stroke::new(1.0, Color32::from_white_alpha(32)),
+    );
+    for (f, label) in [(100.0, "100"), (1000.0, "1k"), (10_000.0, "10k")] {
+        let x = x_of(f);
+        painter.line_segment([pos2(x, rect.top()), pos2(x, rect.bottom())], grid);
+        painter.text(
+            pos2(x + 3.0, rect.bottom() - 2.0),
+            egui::Align2::LEFT_BOTTOM,
+            label,
+            egui::FontId::proportional(8.5),
+            Color32::from_white_alpha(70),
+        );
+    }
     let offsets = [0.0; audiostrada_dsp::eq::BANDS];
-    let points: Vec<egui::Pos2> = (0..=60)
+    let points: Vec<egui::Pos2> = (0..=90)
         .map(|i| {
-            let t = i as f32 / 60.0;
+            let t = i as f32 / 90.0;
             let freq = 20.0 * 1000f64.powf(f64::from(t));
             let db = audiostrada_dsp::eq::response_db(values, &offsets, freq, 48_000.0)
                 .clamp(-18.0, 18.0) as f32;
-            pos2(
-                rect.left() + rect.width() * t,
-                rect.center().y - db / 18.0 * rect.height() * 0.45,
-            )
+            pos2(rect.left() + rect.width() * t, y_of(db))
         })
         .collect();
-    painter.add(egui::Shape::line(points, egui::Stroke::new(1.5, tint)));
+    // The area under the curve, faintly lit, then the curve.
+    let base = y_of(0.0);
+    for pair in points.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        painter.add(egui::Shape::convex_polygon(
+            vec![a, b, pos2(b.x, base), pos2(a.x, base)],
+            tint.gamma_multiply(0.12),
+            egui::Stroke::NONE,
+        ));
+    }
+    painter.add(egui::Shape::line(points, egui::Stroke::new(1.8, tint)));
 }
 
 /// An effect and its settings, as a template puts it in a branch.
@@ -226,15 +453,6 @@ fn add_template(p: &mut Project, channel: Channel, index: usize, template: Templ
 fn rails(ui: &Ui, rect: Rect) {
     let p = theme::current(ui);
     let painter = ui.painter_at(rect);
-    for rail in [
-        Rect::from_min_size(rect.min, vec2(rect.width(), RAIL)),
-        Rect::from_min_size(
-            pos2(rect.left(), rect.bottom() - RAIL),
-            vec2(rect.width(), RAIL),
-        ),
-    ] {
-        theme::gradient_rect(&painter, rail, p.hover, p.surface);
-    }
     painter.rect_filled(
         Rect::from_min_max(
             pos2(rect.left(), rect.top() + RAIL),
@@ -243,66 +461,133 @@ fn rails(ui: &Ui, rect: Rect) {
         0.0,
         p.base,
     );
-}
-
-/// A module's faceplate, as the mixer's strips: their background and border, its family's
-/// color on top.
-fn faceplate(ui: &Ui, rect: Rect, tint: Color32, lit: bool) {
-    let p = theme::current(ui);
-    let painter = ui.painter_at(rect.expand(1.0));
-    let fill = if p.dark {
-        theme::mix(p.panel, p.surface, 0.3)
-    } else {
-        theme::mix(p.panel, p.surface, 0.45)
-    };
-    if !p.look.gloss {
-        painter.rect_filled(rect, 6.0, fill);
-    } else {
-        let face = p.look.face.unwrap_or(fill);
-        painter.extend(theme::face(rect, 6.0, face, &p));
-    }
-    painter.rect_stroke(
-        rect,
-        6.0,
-        egui::Stroke::new(1.0, p.border),
-        egui::StrokeKind::Inside,
-    );
-    painter.rect_filled(
-        Rect::from_min_size(rect.min, vec2(rect.width(), 4.0)),
-        egui::CornerRadius {
-            nw: 6,
-            ne: 6,
-            sw: 0,
-            se: 0,
-        },
-        tint.gamma_multiply(if lit { 1.0 } else { 0.35 }),
-    );
-}
-
-/// The button removing a module, at its faceplate's top right corner.
-/// Two columns of dots at a plate's left edge: where it is taken to move it.
-fn grip(ui: &Ui, plate: Rect, hot: bool) {
-    let p = theme::current(ui);
-    let ink = if hot {
-        p.accent
-    } else {
-        p.weak.gamma_multiply(0.6)
-    };
-    let middle = plate.center().y;
-    for row in -2..=2 {
-        for column in 0..2 {
-            let at = pos2(
-                plate.left() + 6.0 + column as f32 * 4.0,
-                middle + row as f32 * 5.0,
+    for rail in [
+        Rect::from_min_size(rect.min, vec2(rect.width(), RAIL)),
+        Rect::from_min_size(
+            pos2(rect.left(), rect.bottom() - RAIL),
+            vec2(rect.width(), RAIL),
+        ),
+    ] {
+        theme::gradient_rect(&painter, rail, p.hover, p.surface);
+        crate::gear::bevel(&painter, rail, 0.35);
+        // Its row of mounting holes, on a fixed pitch so neighbours line up.
+        let pitch = 18.0;
+        let mut x = (rail.left() / pitch).ceil() * pitch + pitch / 2.0;
+        while x < rail.right() - 4.0 {
+            let hole = Rect::from_center_size(pos2(x, rail.center().y), vec2(7.0, 4.0));
+            painter.rect_filled(hole, 2.0, theme::mix(p.base, Color32::BLACK, 0.4));
+            painter.line_segment(
+                [hole.left_bottom(), hole.right_bottom()],
+                egui::Stroke::new(1.0, Color32::from_white_alpha(18)),
             );
-            ui.painter().circle_filled(at, 1.2, ink);
+            x += pitch;
         }
     }
 }
 
+/// A screw holding a faceplate, its slot turned a little.
+fn screw(painter: &egui::Painter, at: egui::Pos2, p: &theme::Palette) {
+    painter.circle_filled(at + vec2(0.0, 0.6), 3.6, Color32::from_black_alpha(90));
+    let head = if p.dark {
+        theme::mix(p.hover, Color32::WHITE, 0.12)
+    } else {
+        theme::mix(p.surface, p.border, 0.25)
+    };
+    painter.circle_filled(at, 3.0, head);
+    painter.circle_stroke(
+        at,
+        3.0,
+        egui::Stroke::new(0.8, Color32::from_black_alpha(130)),
+    );
+    painter.line_segment(
+        [at + vec2(-1.9, 1.3), at + vec2(1.9, -1.3)],
+        egui::Stroke::new(1.0, Color32::from_black_alpha(170)),
+    );
+}
+
+/// A module's faceplate: brushed metal in the theme's tone, lit from above, its family's color
+/// along its top glowing down its header, held by four screws; its edge takes the color under
+/// the pointer.
+fn faceplate(ui: &Ui, rect: Rect, tint: Color32, lit: bool, hot: bool) {
+    use crate::gear;
+    let p = theme::current(ui);
+    let painter = ui.painter_at(rect.expand(8.0));
+    for k in 0..3u8 {
+        let grow = 1.0 + f32::from(k) * 2.0;
+        painter.rect_filled(
+            rect.translate(vec2(0.0, 2.0)).expand(grow),
+            4.0 + grow,
+            Color32::from_black_alpha(46 - k * 14),
+        );
+    }
+    let metal = if p.dark {
+        theme::mix(p.surface, p.panel, 0.45)
+    } else {
+        theme::mix(p.surface, p.panel, 0.3)
+    };
+    painter.rect_filled(rect, 4.0, metal);
+    let inner = rect.shrink(1.5);
+    let clipped = painter.with_clip_rect(inner);
+    gear::tile(
+        &clipped,
+        inner,
+        gear::Texture::Brushed,
+        1.0,
+        Color32::from_white_alpha(if p.dark { 10 } else { 34 }),
+    );
+    gear::sheen(
+        &clipped,
+        inner,
+        Color32::from_white_alpha(if p.dark { 14 } else { 70 }),
+        Color32::from_black_alpha(if p.dark { 46 } else { 14 }),
+    );
+    let strength = if lit { 1.0 } else { 0.3 };
+    gear::sheen(
+        &clipped,
+        Rect::from_min_size(inner.min, vec2(inner.width(), 26.0)),
+        tint.gamma_multiply(0.22 * strength),
+        Color32::TRANSPARENT,
+    );
+    painter.rect_filled(
+        Rect::from_min_size(rect.min, vec2(rect.width(), 3.0)),
+        egui::CornerRadius {
+            nw: 4,
+            ne: 4,
+            sw: 0,
+            se: 0,
+        },
+        tint.gamma_multiply(strength),
+    );
+    gear::bevel(&painter, rect, if p.dark { 0.55 } else { 0.35 });
+    let edge = if hot {
+        theme::mix(p.border, tint, 0.7)
+    } else {
+        p.border
+    };
+    painter.rect_stroke(
+        rect,
+        4.0,
+        egui::Stroke::new(1.0, edge),
+        egui::StrokeKind::Inside,
+    );
+    for at in [
+        pos2(rect.left() + 7.0, rect.top() + 12.0),
+        pos2(rect.right() - 7.0, rect.top() + 12.0),
+        pos2(rect.left() + 7.0, rect.bottom() - 9.0),
+        pos2(rect.right() - 7.0, rect.bottom() - 9.0),
+    ] {
+        screw(&painter, at, &p);
+    }
+}
+
+/// The button removing a module, in its header at the right, shown while the module is under
+/// the pointer.
 fn close_button(ui: &mut Ui, plate: Rect, salt: u64) -> bool {
     let p = theme::current(ui);
-    let rect = Rect::from_center_size(plate.right_top() + vec2(-15.0, 16.0), vec2(18.0, 18.0));
+    let rect = Rect::from_center_size(plate.right_top() + vec2(-26.0, 19.0), vec2(18.0, 18.0));
+    if !ui.rect_contains_pointer(plate.expand(2.0)) {
+        return false;
+    }
     let response = ui
         .interact(
             rect,
@@ -310,14 +595,13 @@ fn close_button(ui: &mut Ui, plate: Rect, salt: u64) -> bool {
             Sense::click(),
         )
         .on_hover_text(tr("Remove from the rack"));
-    let (fill, ink) = if response.hovered() {
-        (ERROR, Color32::WHITE)
-    } else {
-        (p.surface, p.text)
-    };
     let painter = ui.painter();
-    painter.circle_filled(rect.center(), 9.0, fill);
-    painter.circle_stroke(rect.center(), 9.0, egui::Stroke::new(1.0, p.border));
+    let ink = if response.hovered() {
+        painter.circle_filled(rect.center(), 9.0, ERROR);
+        Color32::WHITE
+    } else {
+        p.weak
+    };
     let r = rect.shrink(5.5);
     let stroke = egui::Stroke::new(1.6, ink);
     painter.line_segment([r.left_top(), r.right_bottom()], stroke);
@@ -431,7 +715,13 @@ fn power_led(ui: &mut Ui, on: bool) -> Response {
         if response.hovered() { p.hover } else { p.base },
     );
     if on {
-        painter.circle_filled(center, 9.5, theme::PLAY.gamma_multiply(0.18));
+        crate::gear::glow(
+            painter,
+            center,
+            13.0,
+            theme::PLAY.gamma_multiply(0.35),
+            Color32::TRANSPARENT,
+        );
     }
     theme::paint_power(painter, rect.shrink(3.0), theme::power_ink(on, &p));
     response
@@ -450,14 +740,27 @@ impl MixerView {
             .last()
             .copied()
             .filter(|&t| project.track(t).is_some_and(|t| t.kind.carries_audio()));
+        // A clip with effects of its own, selected alone on the selected track: its chain.
+        let clip = doc
+            .focused_clip()
+            .filter(|&c| {
+                audiostrada_core::edit::clip(&project, c).is_some_and(|c| !c.inserts.is_empty())
+            })
+            .filter(|&c| {
+                let track = audiostrada_core::edit::track_of_clip(&project, c);
+                selected.is_none() || track == selected
+            })
+            .map(Channel::Clip);
         let channel = self
             .rack
             .pin
+            .or(clip)
             .or(selected.map(Channel::Track))
             .or(doc.is_master_selected().then_some(Channel::Master))
             .filter(|c| match c {
                 Channel::Track(t) => project.track(*t).is_some(),
                 Channel::Master => true,
+                Channel::Clip(id) => audiostrada_core::edit::clip(&project, *id).is_some(),
             });
         self.rack_header(ui, &doc, &project, channel);
         ui.add_space(4.0);
@@ -533,7 +836,8 @@ impl MixerView {
             pos2(rect.left() + 2.0, rect.top() + RAIL - 3.0),
             pos2(rect.right() - 2.0, rect.bottom() - RAIL + 3.0),
         );
-        faceplate(ui, plate, tint, lit);
+        let hot = ui.rect_contains_pointer(plate) || self.rack.drag == Some(insert);
+        faceplate(ui, plate, tint, lit, hot);
         // The whole plate is a handle: its controls, laid over it, keep their own gestures.
         let handle = ui
             .interact(
@@ -545,12 +849,7 @@ impl MixerView {
         if handle.drag_started() {
             self.rack.drag = Some(insert);
         }
-        grip(
-            ui,
-            plate,
-            handle.hovered() || self.rack.drag == Some(insert),
-        );
-        let inner = Rect::from_min_max(plate.min + vec2(16.0, 8.0), plate.max - vec2(16.0, 6.0));
+        let inner = Rect::from_min_max(plate.min + vec2(16.0, 9.0), plate.max - vec2(16.0, 8.0));
         let mut child = ui.new_child(
             egui::UiBuilder::new()
                 .max_rect(inner)
@@ -636,6 +935,7 @@ impl MixerView {
                 .show(|ui| match channel {
                     Channel::Track(t) => crate::console_ui::track_menu(ui, doc, t),
                     Channel::Master => crate::console_ui::console_menu(ui, doc),
+                    Channel::Clip(_) => {}
                 });
             if folded {
                 // The modules on, as on the strips.
@@ -1089,8 +1389,11 @@ impl MixerView {
         let tint = theme::family_color(family(doc, &insert.effect));
         let plate = self.slot(ui, (MODULE, id), (tint, !insert.bypass), |view, ui| {
             let p = theme::current(ui);
+            let full = ui.max_rect();
+            // Its header: switch, name, delay.
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 4.0;
+                ui.set_height(20.0);
+                ui.spacing_mut().item_spacing.x = 6.0;
                 if power_led(ui, !insert.bypass)
                     .on_hover_text(tr("Bypass or play"))
                     .clicked()
@@ -1105,12 +1408,19 @@ impl MixerView {
                     (false, true) => p.weak,
                     (false, false) => p.text,
                 };
-                let width =
-                    ui.available_width() - 22.0 - if latency.is_some() { 44.0 } else { 0.0 };
+                let pill = latency.as_ref().map(|l| {
+                    ui.painter().layout_no_wrap(
+                        l.clone(),
+                        egui::FontId::monospace(9.0),
+                        theme::mix(tint, Color32::WHITE, 0.55),
+                    )
+                });
+                let room = pill.as_ref().map_or(0.0, |g| g.size().x + 16.0);
+                let width = (full.right() - ui.cursor().left() - room - 26.0).max(30.0);
                 let head = ui
                     .add_sized(
-                        [width, 18.0],
-                        egui::Label::new(RichText::new(&name).strong().size(12.5).color(ink))
+                        [width, 20.0],
+                        egui::Label::new(RichText::new(&name).strong().size(13.0).color(ink))
                             .truncate()
                             .sense(Sense::click_and_drag()),
                     )
@@ -1134,14 +1444,34 @@ impl MixerView {
                 } else if head.clicked() {
                     view.open_insert(channel, insert);
                 }
-                if let Some(latency) = &latency {
-                    ui.label(RichText::new(latency).size(9.0).color(p.weak));
+                // The delay it adds, on a small screen.
+                if let Some(galley) = pill {
+                    let (rect, response) =
+                        ui.allocate_exact_size(galley.size() + vec2(10.0, 5.0), Sense::hover());
+                    response.on_hover_text(tr("Delay this effect adds, compensated"));
+                    lcd_box(ui.painter(), rect);
+                    ui.painter().galley(
+                        rect.center() - galley.size() / 2.0,
+                        galley,
+                        theme::mix(tint, Color32::WHITE, 0.45),
+                    );
                 }
             });
-            ui.add_space(6.0);
-            // The whole face takes the right-click of a plugin, under its knobs.
-            let area =
-                Rect::from_min_size(ui.cursor().min, vec2(ui.available_width(), HEIGHT - 66.0));
+            // A line engraved under the header.
+            let y = full.top() + 24.5;
+            ui.painter().line_segment(
+                [pos2(full.left(), y), pos2(full.right(), y)],
+                egui::Stroke::new(1.0, Color32::from_black_alpha(110)),
+            );
+            ui.painter().line_segment(
+                [pos2(full.left(), y + 1.0), pos2(full.right(), y + 1.0)],
+                egui::Stroke::new(1.0, Color32::from_white_alpha(if p.dark { 14 } else { 90 })),
+            );
+            // Its face: the main parameters in columns, or an EQ's curve.
+            let area = Rect::from_min_max(
+                pos2(full.left(), full.top() + 26.0),
+                pos2(full.right(), full.bottom() - FOOT),
+            );
             let face_area = ui.interact(
                 area,
                 ui.scope_id().with(("rack-face", id.0)),
@@ -1155,56 +1485,64 @@ impl MixerView {
                     .on_hover_text(tr("Right-click to choose the parameters shown here"))
                     .context_menu(|ui| view.macro_menu(ui, doc, channel, insert));
             }
-            ui.allocate_ui(vec2(ui.available_width(), HEIGHT - 66.0), |ui| {
-                ui.set_min_height(HEIGHT - 66.0);
-                match audiostrada_dsp::info(&insert.effect) {
-                    Some(info) => {
-                        let mut params = effect_editors::Params {
-                            values: info
-                                .params
-                                .iter()
-                                .map(|p| insert.params.get(p.id).copied().unwrap_or(p.default))
-                                .collect(),
-                            doc: &mut *doc,
-                            channel,
-                            insert: id,
-                            info,
-                        };
-                        if info.id == "eq" {
-                            eq_curve(ui, &params.values, tint);
-                        } else {
-                            ui.horizontal_wrapped(|ui| {
-                                ui.spacing_mut().item_spacing = vec2(0.0, 4.0);
-                                for param in face(info) {
-                                    let name = params.param(param).map_or("", |q| tr(q.name));
-                                    effect_editors::wide_knob(
-                                        ui,
-                                        &mut params,
-                                        param,
-                                        name,
-                                        34.0,
-                                        tint,
-                                    );
-                                }
-                            });
+            let mut face_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(area)
+                    .layout(Layout::top_down(Align::Min)),
+            );
+            if insert.bypass {
+                face_ui.multiply_opacity(0.45);
+            }
+            match audiostrada_dsp::info(&insert.effect) {
+                Some(info) => {
+                    let mut params = effect_editors::Params {
+                        values: info
+                            .params
+                            .iter()
+                            .map(|p| insert.params.get(p.id).copied().unwrap_or(p.default))
+                            .collect(),
+                        doc: &mut *doc,
+                        channel,
+                        insert: id,
+                        info,
+                    };
+                    if info.id == "eq" {
+                        eq_curve(
+                            &mut face_ui,
+                            &params.values,
+                            tint,
+                            area.shrink2(vec2(2.0, 6.0)),
+                        );
+                    } else {
+                        let shown = face(info);
+                        for (k, cell) in cells(area, shown.len()).into_iter().enumerate() {
+                            face_knob(&mut face_ui, &mut params, shown[k], cell, tint);
                         }
                     }
-                    None => view.macros(ui, doc, channel, insert, tint),
                 }
-            });
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                view.ab_buttons(ui, doc, channel, insert);
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if ui
-                        .small_button(tr("Edit"))
-                        .on_hover_text(tr("Every setting, in the effect's window"))
-                        .clicked()
-                    {
-                        view.open_insert(channel, insert);
-                    }
-                });
-            });
+                None => view.macros(&mut face_ui, doc, channel, insert, tint, area),
+            }
+            // Its footer: A and B, and the editor.
+            let foot = Rect::from_min_max(
+                pos2(full.left(), full.bottom() - FOOT + 6.0),
+                full.right_bottom(),
+            );
+            let mut foot_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(foot)
+                    .layout(Layout::left_to_right(Align::Center)),
+            );
+            view.ab_buttons(&mut foot_ui, doc, channel, insert, tint);
+            let edit = Rect::from_min_max(
+                pos2(foot.right() - 74.0, foot.center().y - 10.0),
+                pos2(foot.right(), foot.center().y + 10.0),
+            );
+            if edit_button(ui, edit, id.0)
+                .on_hover_text(tr("Every setting, in the effect's window"))
+                .clicked()
+            {
+                view.open_insert(channel, insert);
+            }
         });
         if close_button(ui, plate, id.0) {
             self.remove_insert(doc, channel, id);
@@ -1463,7 +1801,7 @@ impl MixerView {
         ui.horizontal(|ui| {
             match channel.and_then(|c| match c {
                 Channel::Track(t) => project.track(t),
-                Channel::Master => None,
+                Channel::Master | Channel::Clip(_) => None,
             }) {
                 Some(track) => {
                     let tint = color(track);
@@ -1478,6 +1816,15 @@ impl MixerView {
                 }
                 None if channel == Some(Channel::Master) => {
                     ui.label(RichText::new(tr("Master")).strong().size(14.0));
+                }
+                None if let Some(Channel::Clip(id)) = channel => {
+                    let name =
+                        audiostrada_core::edit::clip(project, id).map_or("", |c| c.name.as_str());
+                    ui.label(
+                        RichText::new(trf!("Clip: {name}", name = name))
+                            .strong()
+                            .size(14.0),
+                    );
                 }
                 None => {}
             }
@@ -1568,7 +1915,8 @@ impl MixerView {
         }
     }
 
-    /// A plugin's chosen parameters as knobs; a right-click on the face picks them.
+    /// A plugin's chosen parameters as knobs in the cells of `face`; a right-click on the face
+    /// picks them.
     fn macros(
         &mut self,
         ui: &mut Ui,
@@ -1576,6 +1924,7 @@ impl MixerView {
         channel: Channel,
         insert: &audiostrada_core::Insert,
         tint: Color32,
+        face: Rect,
     ) {
         let id = insert.id;
         let params = self.plugin_params_of(doc, channel, id);
@@ -1583,52 +1932,70 @@ impl MixerView {
         let chosen: Vec<&audiostrada_plugins::ParamDesc> = shown
             .iter()
             .filter_map(|m| params.iter().find(|p| p.id.to_string() == *m))
+            .take(2 * COLUMNS)
             .collect();
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
-            for p in &chosen {
-                let key = p.id.to_string();
-                let lane = AutomationTarget::Param {
-                    insert: id,
-                    param: key.clone(),
-                };
-                let value = doc
-                    .automation_value(channel, &lane)
-                    .or_else(|| insert.params.get(&key).copied())
-                    .or_else(|| {
-                        doc.player_mut()
-                            .plugin(channel, id)
-                            .and_then(|pl| pl.param_value(p.id))
-                            .map(|v| v as f32)
-                    })
-                    .unwrap_or(p.default as f32);
-                ui.vertical(|ui| {
-                    ui.set_width(44.0);
-                    let (changed, response) = widgets::knob(
+        if chosen.is_empty() {
+            let p = theme::current(ui);
+            cut_text(
+                ui.painter(),
+                pos2(face.center().x, face.center().y - 6.0),
+                tr("Right-click to put parameters here"),
+                face.width() - 8.0,
+                11.0,
+                p.weak,
+            );
+            return;
+        }
+        for (p, cell) in chosen.iter().zip(cells(face, chosen.len())) {
+            let key = p.id.to_string();
+            let lane = AutomationTarget::Param {
+                insert: id,
+                param: key.clone(),
+            };
+            let value = doc
+                .automation_value(channel, &lane)
+                .or_else(|| insert.params.get(&key).copied())
+                .or_else(|| {
+                    doc.player_mut()
+                        .plugin(channel, id)
+                        .and_then(|pl| pl.param_value(p.id))
+                        .map(|v| v as f32)
+                })
+                .unwrap_or(p.default as f32);
+            let text = doc
+                .player_mut()
+                .plugin(channel, id)
+                .and_then(|pl| pl.value_text(p.id, f64::from(value)))
+                .unwrap_or_else(|| format!("{value:.2}"));
+            let mut changed = None;
+            let response = knob_cell(
+                ui,
+                cell,
+                (&p.name, &text),
+                |ui, size| {
+                    let (moved, response) = widgets::knob(
                         ui,
                         value,
                         (p.min as f32, p.max as f32),
                         p.default as f32,
-                        30.0,
+                        size,
                         false,
                         tint,
                     );
-                    ui.add(egui::Label::new(RichText::new(&p.name).size(9.0)).truncate());
-                    let response = response.on_hover_text(&p.name);
-                    let name = p.name.clone();
-                    automated_control(doc, channel, &lane, changed, &response, |doc, v| {
-                        doc.history_mut().edit_merged(
-                            &name,
-                            &format!("insert:{}:{}", id.0, key),
-                            |proj| routing::set_insert_param(proj, channel, id, &key, v),
-                        );
+                    changed = moved;
+                    response
+                },
+                tint,
+            );
+            let response = response.on_hover_text(format!("{}: {text}", p.name));
+            let name = p.name.clone();
+            automated_control(doc, channel, &lane, changed, &response, |doc, v| {
+                doc.history_mut()
+                    .edit_merged(&name, &format!("insert:{}:{}", id.0, key), |proj| {
+                        routing::set_insert_param(proj, channel, id, &key, v)
                     });
-                });
-            }
-            if chosen.is_empty() {
-                ui.weak(tr("Right-click to put parameters here"));
-            }
-        });
+            });
+        }
     }
 
     /// A plugin's parameters, read from it once.
@@ -1682,23 +2049,56 @@ impl MixerView {
         });
     }
 
-    /// A and B settings of an insert, to compare two of them.
+    /// A and B settings of an insert, to compare two of them: a switch of two halves, the one
+    /// in use lit in the module's color.
     fn ab_buttons(
         &mut self,
         ui: &mut Ui,
         doc: &mut Document,
         channel: Channel,
         insert: &audiostrada_core::Insert,
+        tint: Color32,
     ) {
+        let p = theme::current(ui);
         let id = insert.id;
         let (current, _) = self.rack.ab.get(&id).cloned().unwrap_or_default();
+        let (whole, _) = ui.allocate_exact_size(vec2(52.0, 20.0), Sense::hover());
+        ui.painter()
+            .rect_filled(whole, 5.0, theme::mix(p.base, Color32::BLACK, 0.2));
+        ui.painter().rect_stroke(
+            whole,
+            5.0,
+            egui::Stroke::new(1.0, p.border),
+            egui::StrokeKind::Inside,
+        );
         for (slot, label) in [(0, "A"), (1, "B")] {
-            if ui
-                .selectable_label(current == slot, label)
-                .on_hover_text(tr("Two settings to compare: the other one is kept"))
-                .clicked()
-                && current != slot
-            {
+            let half = Rect::from_min_size(
+                whole.min + vec2(slot as f32 * whole.width() / 2.0, 0.0),
+                vec2(whole.width() / 2.0, whole.height()),
+            )
+            .shrink(2.0);
+            let response = ui
+                .interact(
+                    half,
+                    ui.scope_id().with(("rack-ab", id.0, slot)),
+                    Sense::click(),
+                )
+                .on_hover_text(tr("Two settings to compare: the other one is kept"));
+            let on = current == slot;
+            if on {
+                ui.painter()
+                    .rect_filled(half, 3.5, tint.gamma_multiply(0.85));
+            } else if response.hovered() {
+                ui.painter().rect_filled(half, 3.5, p.hover);
+            }
+            ui.painter().text(
+                half.center(),
+                egui::Align2::CENTER_CENTER,
+                label,
+                theme::strong(11.0),
+                if on { theme::text_on(tint) } else { p.weak },
+            );
+            if response.clicked() && !on {
                 let entry = self.rack.ab.entry(id).or_default();
                 entry.1[current] = Some(insert.params.clone());
                 let next = entry.1[slot]
@@ -1779,6 +2179,21 @@ mod tests {
     use super::*;
     use crate::document::AppDirs;
     use eframe::egui::{Event, Modifiers, PointerButton, Pos2};
+
+    #[test]
+    fn a_face_keeps_its_knobs_inside_whatever_their_names() {
+        let face = Rect::from_min_size(pos2(10.0, 20.0), vec2(236.0, 120.0));
+        assert!(cells(face, 0).is_empty());
+        for count in 1..=2 * COLUMNS {
+            let all = cells(face, count);
+            assert_eq!(all.len(), count);
+            for cell in &all {
+                assert!(face.expand(0.01).contains_rect(*cell), "{count}: {cell:?}");
+            }
+            // Past a row, two rows of shorter cells.
+            assert_eq!(all[0].height() < face.height(), count > COLUMNS);
+        }
+    }
 
     #[test]
     fn a_plugin_shows_its_mix_until_others_are_chosen() {

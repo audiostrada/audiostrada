@@ -79,7 +79,11 @@ enum Command {
 }
 
 #[derive(Clone, Copy, PartialEq)]
-enum Glyph {
+pub(super) enum Glyph {
+    Pencil,
+    Linear,
+    Smooth,
+    Step,
     Smart,
     Range,
     Scissors,
@@ -163,7 +167,7 @@ fn command_hint(command: Command, glyph: Glyph) -> String {
 }
 
 /// A square button with a glyph; `on` marks the chosen tool.
-fn button(ui: &mut Ui, glyph: Glyph, on: bool, text: &str) -> egui::Response {
+pub(super) fn button(ui: &mut Ui, glyph: Glyph, on: bool, text: &str) -> egui::Response {
     let p = theme::current(ui);
     let (rect, response) = ui.allocate_exact_size(BUTTON, Sense::click());
     let fill = if on {
@@ -187,7 +191,7 @@ fn button(ui: &mut Ui, glyph: Glyph, on: bool, text: &str) -> egui::Response {
     response.on_hover_text(text)
 }
 
-fn separator(ui: &mut Ui) {
+pub(super) fn separator(ui: &mut Ui) {
     let p = theme::current(ui);
     ui.add_space(4.0);
     let (rect, _) = ui.allocate_exact_size(vec2(1.0, 18.0), Sense::hover());
@@ -763,6 +767,58 @@ fn paint(painter: &Painter, rect: Rect, glyph: Glyph, color: Color32) {
             }
         }
         Glyph::Waveform => wave(0.75),
+        Glyph::Pencil => {
+            let (tip, end) = (
+                pos2(c.x - 0.8 * s, c.y + 0.8 * s),
+                pos2(c.x + 0.7 * s, c.y - 0.7 * s),
+            );
+            painter.line_segment(
+                [tip + vec2(0.3 * s, -0.3 * s), end],
+                Stroke::new(3.0, color),
+            );
+            painter.add(Shape::convex_polygon(
+                vec![
+                    tip,
+                    tip + vec2(0.45 * s, -0.15 * s),
+                    tip + vec2(0.15 * s, -0.45 * s),
+                ],
+                color,
+                Stroke::NONE,
+            ));
+        }
+        Glyph::Linear => {
+            painter.add(Shape::line(
+                vec![
+                    pos2(c.x - s, c.y + 0.6 * s),
+                    pos2(c.x, c.y - 0.6 * s),
+                    pos2(c.x + s, c.y + 0.2 * s),
+                ],
+                stroke,
+            ));
+        }
+        Glyph::Smooth => {
+            let points: Vec<egui::Pos2> = (0..=16)
+                .map(|k| {
+                    let t = k as f32 / 16.0;
+                    pos2(
+                        c.x - s + 2.0 * s * t,
+                        c.y + 0.6 * s * (t * std::f32::consts::PI).cos(),
+                    )
+                })
+                .collect();
+            painter.add(Shape::line(points, stroke));
+        }
+        Glyph::Step => {
+            painter.add(Shape::line(
+                vec![
+                    pos2(c.x - s, c.y + 0.6 * s),
+                    pos2(c.x - 0.2 * s, c.y + 0.6 * s),
+                    pos2(c.x - 0.2 * s, c.y - 0.6 * s),
+                    pos2(c.x + s, c.y - 0.6 * s),
+                ],
+                stroke,
+            ));
+        }
         Glyph::Smart => {
             // An arrow pointer.
             let tip = pos2(c.x - 0.55 * s, c.y - s);

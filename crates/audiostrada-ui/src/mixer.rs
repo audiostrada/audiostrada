@@ -464,8 +464,24 @@ const PILLS_SHOWN: f32 = 4.0;
 const PILL: f32 = 16.0;
 
 /// An empty slot of a list: clicking it adds an effect or a send.
-fn empty_slot(ui: &mut Ui, width: f32, hint: &str) -> Response {
-    add_slot(ui, vec2(width, SLOT - 2.0), "+", hint)
+fn empty_slot(ui: &mut Ui, width: f32, hint: &str, first: bool) -> Response {
+    // The first one hints at itself; the others only show under the pointer.
+    let (rect, response) = ui.allocate_exact_size(vec2(width, SLOT - 2.0), Sense::click());
+    let p = theme::current(ui);
+    let hovered = response.hovered();
+    if hovered {
+        ui.painter().rect_filled(rect, 3.0, p.hover);
+    }
+    if hovered || first {
+        ui.painter().text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            "+",
+            egui::FontId::proportional(13.0),
+            p.weak.gamma_multiply(if hovered { 1.0 } else { 0.6 }),
+        );
+    }
+    response.on_hover_text(hint)
 }
 
 /// A slot with a faint outline, labelled with what clicking it adds.
@@ -971,6 +987,9 @@ pub(crate) fn owner_name(project: &Project, channel: Channel) -> &str {
     match channel {
         Channel::Master => tr("Master"),
         Channel::Track(t) => project.track(t).map_or("?", |t| t.name.as_str()),
+        Channel::Clip(c) => {
+            audiostrada_core::edit::clip(project, c).map_or("?", |c| c.name.as_str())
+        }
     }
 }
 
@@ -1806,7 +1825,7 @@ fn title_button(ui: &mut Ui, text: &str, lit: Option<Color32>) -> Response {
     let ink = if lit.is_some() {
         Color32::BLACK
     } else {
-        p.weak
+        theme::mix(p.weak, p.text, 0.35)
     };
     let galley = ui.painter().layout_no_wrap(text.to_owned(), font, ink);
     let size = vec2((galley.size().x + 8.0).max(22.0), 13.0);
@@ -1817,6 +1836,15 @@ fn title_button(ui: &mut Ui, text: &str, lit: Option<Color32>) -> Response {
         None => p.surface,
     };
     ui.painter().rect_filled(rect, 3.0, fill);
+    if lit.is_none() {
+        // Edged, so that it stands out on a strip washed in its track's color.
+        ui.painter().rect_stroke(
+            rect,
+            3.0,
+            egui::Stroke::new(1.0, Color32::from_black_alpha(if p.dark { 90 } else { 40 })),
+            egui::StrokeKind::Inside,
+        );
+    }
     ui.painter().galley(
         rect.center() - galley.size() / 2.0,
         galley,
@@ -1827,15 +1855,6 @@ fn title_button(ui: &mut Ui, text: &str, lit: Option<Color32>) -> Response {
         },
     );
     response
-}
-
-/// A selected strip's fill: tinted with the accent.
-fn selected_fill(p: &theme::Palette) -> Color32 {
-    match (p.look.face, p.dark) {
-        (Some(face), _) => theme::mix(face, p.accent, 0.12),
-        (None, true) => theme::mix(p.surface, p.accent, 0.12),
-        (None, false) => theme::mix(p.surface, p.accent, 0.1),
-    }
 }
 
 /// The master's color: a selected strip's, darker by a quarter; its name and icon are in the
@@ -2155,12 +2174,18 @@ fn monitoring_help(mode: audiostrada_core::Monitoring) -> &'static str {
 
 /// The input monitoring button of a track: a click goes to the next mode (for the selection
 /// the track is part of), a right-click chooses one.
-pub(crate) fn monitor_toggle(ui: &mut Ui, rect: Rect, doc: &mut Document, track: &Track) {
+pub(crate) fn monitor_toggle(
+    ui: &mut Ui,
+    rect: Rect,
+    doc: &mut Document,
+    track: &Track,
+    flat: bool,
+) {
     use audiostrada_core::Monitoring;
     let id = track.id;
     let response = ui.interact(rect, ui.scope_id().with(("monitor", id.0)), Sense::click());
     let hearing = doc.player().monitoring(id);
-    theme::paint_monitor_toggle(ui, rect, &response, track.monitor, hearing);
+    theme::paint_monitor_toggle(ui, rect, &response, track.monitor, hearing, flat);
     let state = if hearing {
         tr("It hears its input now.")
     } else {
@@ -2370,13 +2395,18 @@ fn section(
     if let Some(title) = title {
         ui.horizontal(|ui| {
             ui.set_height(13.0);
-            ui.label(RichText::new(title).size(8.5).color(p.weak));
+            ui.label(RichText::new(title).size(8.0).color(p.weak));
         });
     }
+    // No box around the list: a hairline over it.
+    let line = ui.cursor().top();
+    ui.painter().hline(
+        ui.max_rect().x_range(),
+        line,
+        egui::Stroke::new(1.0, p.weak.gamma_multiply(0.16)),
+    );
     egui::Frame::new()
-        .fill(p.base)
-        .corner_radius(4.0)
-        .inner_margin(2.0)
+        .inner_margin(egui::Margin::symmetric(0, 3))
         .show(ui, |ui| {
             egui::ScrollArea::vertical()
                 .id_salt(id)
@@ -2504,6 +2534,7 @@ fn mode_selector(ui: &mut Ui, doc: &mut Document, channel: Channel, size: egui::
                             groups::maybe_alone(p, alone, |p| groups::set_automation_mode(p, id, m))
                         }
                         Channel::Master => p.master.automation_mode = m,
+                        Channel::Clip(_) => {}
                     });
                 ui.close();
             }
@@ -2880,19 +2911,15 @@ impl MixerView {
         add: impl FnOnce(&mut Ui),
     ) -> Response {
         let p = theme::current(ui);
-        let fill = if selected {
-            selected_fill(&p)
-        } else {
-            match (p.look.face, ui.visuals().dark_mode) {
-                (Some(face), _) => face,
-                (None, true) => theme::mix(p.panel, p.surface, 0.3),
-                (None, false) => theme::mix(p.panel, p.surface, 0.45),
-            }
+        let fill = match (p.look.face, ui.visuals().dark_mode) {
+            (Some(face), _) => face,
+            (None, true) => theme::mix(p.panel, p.surface, 0.3),
+            (None, false) => theme::mix(p.panel, p.surface, 0.45),
         };
-        // Selected, only the fill tells: no accent edge.
         let stroke = egui::Stroke::new(1.0, p.border);
         // A glossy face goes under the strip, once its size is known.
         let slot = ui.painter().add(egui::Shape::Noop);
+        let mut halo = None;
         let response = egui::Frame::new()
             .fill(if p.look.gloss {
                 Color32::TRANSPARENT
@@ -2911,25 +2938,70 @@ impl MixerView {
                 ui.set_width(width);
                 ui.with_layout(Layout::top_down(Align::Center), |ui| {
                     ui.set_width(width);
-                    let (bar, _) = ui.allocate_exact_size(vec2(width + 8.0, 4.0), Sense::hover());
-                    ui.painter().rect_filled(
-                        bar,
-                        egui::CornerRadius {
-                            nw: 6,
-                            ne: 6,
-                            sw: 0,
-                            se: 0,
-                        },
-                        accent,
-                    );
+                    halo = Some(ui.painter().add(egui::Shape::Noop));
+                    // Room for the cap, drawn once the frame is known; its width sets the strip's.
+                    ui.allocate_exact_size(vec2(width + 8.0, 4.0), Sense::hover());
                     ui.add_space(2.0);
                     add(ui);
                 });
             })
             .response;
+        let rect = response.rect;
         if p.look.gloss {
-            let face = theme::face(response.rect, 6.0, fill, &p);
+            let face = theme::face(rect, 6.0, fill, &p);
             ui.painter().set(slot, egui::Shape::Vec(face));
+        }
+        if let Some(halo) = halo {
+            // The track's color glows down from its cap, both inside the frame's edge.
+            let inner = rect.shrink(1.0);
+            let cap = Rect::from_x_y_ranges(inner.x_range(), inner.top()..=rect.top() + 4.0);
+            let from = cap.bottom();
+            let band = |length: f32, strength: f32, color: Color32| {
+                crate::gear::sheen_shape(
+                    Rect::from_x_y_ranges(inner.x_range(), from..=from + length),
+                    color.gamma_multiply(strength),
+                    Color32::TRANSPARENT,
+                )
+            };
+            let (near, mid, far) = if p.dark {
+                (0.3, 0.16, 0.12)
+            } else {
+                (0.24, 0.12, 0.09)
+            };
+            let mut shapes = Vec::new();
+            if selected {
+                // Washed in the track's color from the top, as its header in the timeline.
+                // Bright under the cap, gentler over the lists so that their buttons read.
+                let length = rect.bottom() - 6.0 - from;
+                let (body, head) = if p.dark { (0.2, 0.14) } else { (0.15, 0.1) };
+                shapes.push(band(length, body, accent));
+                shapes.push(band(70.0, head, accent));
+            }
+            shapes.extend([
+                band(220.0, far, accent),
+                band(48.0, mid, accent),
+                band(8.0, near, accent),
+                egui::Shape::rect_filled(
+                    cap,
+                    egui::CornerRadius {
+                        nw: 5,
+                        ne: 5,
+                        sw: 0,
+                        se: 0,
+                    },
+                    accent,
+                ),
+                // Lit along its upper edge, like the rack's modules.
+                egui::Shape::rect_filled(
+                    Rect::from_x_y_ranges(
+                        cap.left() + 4.0..=cap.right() - 4.0,
+                        cap.top()..=cap.top() + 1.0,
+                    ),
+                    0.0,
+                    theme::mix(accent, Color32::WHITE, 0.4),
+                ),
+            ]);
+            ui.painter().set(halo, egui::Shape::Vec(shapes));
         }
         response
     }
@@ -3467,8 +3539,19 @@ impl MixerView {
                 ui.spacing_mut().item_spacing.y = 1.0;
                 let knob = widgets::pan_knob(ui, shown, size, wheel);
                 if labelled {
-                    let text = pan_label(knob.0.unwrap_or(shown));
-                    ui.label(RichText::new(text).monospace().size(11.0));
+                    // Only off the center; the line stays, so that the strips keep in line.
+                    let pan = knob.0.unwrap_or(shown);
+                    let centered = (pan * 100.0).round() == 0.0;
+                    let text = if centered {
+                        " ".to_owned()
+                    } else {
+                        pan_label(pan)
+                    };
+                    ui.label(
+                        RichText::new(text)
+                            .size(10.5)
+                            .color(theme::current(ui).accent),
+                    );
                 }
                 knob
             });
@@ -3575,10 +3658,11 @@ impl MixerView {
         let channel = Channel::Track(id);
         let plays = track.kind == TrackKind::Audio;
         let monitored = plays && !doc.is_instrument_track(id);
+        // Flat, as in the track headers.
         let toggle = |ui: &mut Ui, text: &str, on: bool, color: Color32, hint: &str| {
-            theme::letter_toggle(ui, size, text, on, color)
-                .on_hover_text(hint)
-                .clicked()
+            let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+            theme::flat_toggle(ui, rect, &response, text, on, color);
+            response.on_hover_text(hint).clicked()
         };
         let auto_mute = doc.automation_value(channel, &AutomationTarget::Mute);
         let shown_mute = track.mute || auto_mute.is_some_and(|v| v >= 0.5);
@@ -3611,11 +3695,12 @@ impl MixerView {
                     groups::maybe_alone(p, alone, |p| groups::set_switch(p, id, Link::Solo, solo))
                 });
         }
-        if plays
-            && theme::arm_toggle(ui, size, track.armed)
-                .on_hover_text(tr("Record arm"))
-                .clicked()
-        {
+        let arm = plays.then(|| {
+            let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+            theme::flat_arm(ui, rect, &response, track.armed);
+            response.on_hover_text(tr("Record arm")).clicked()
+        });
+        if arm == Some(true) {
             let armed = !track.armed;
             let alone = clutch(ui);
             doc.history_mut().modify_unrecorded(|p| {
@@ -3624,7 +3709,7 @@ impl MixerView {
         }
         if monitored {
             let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-            monitor_toggle(ui, rect, doc, track);
+            monitor_toggle(ui, rect, doc, track, true);
         }
         if mode {
             mode_selector(ui, doc, Channel::Track(track.id), size);
@@ -3824,6 +3909,10 @@ impl MixerView {
         let channel_off = match channel {
             Channel::Track(t) => project.track(t).is_some_and(|t| t.fx_off),
             Channel::Master => project.master.fx_off,
+            Channel::Clip(_) => channel
+                .track(project)
+                .and_then(|t| project.track(t))
+                .is_some_and(|t| t.fx_off),
         };
         // Lit once bypassed, as a mute is lit once muted.
         let toggle = |ui: &mut Ui, label: &str, off: bool, hint: &str| {
@@ -3857,6 +3946,7 @@ impl MixerView {
                         groups::set_switch(p, t, Link::Fx, !channel_off)
                     }),
                     Channel::Master => p.master.fx_off = !p.master.fx_off,
+                    Channel::Clip(_) => {}
                 });
         }
         if channel == Channel::Master
@@ -3929,6 +4019,10 @@ impl MixerView {
         let channel_off = match channel {
             Channel::Track(t) => project.track(t).is_some_and(|t| t.fx_off),
             Channel::Master => project.master.fx_off,
+            Channel::Clip(_) => channel
+                .track(project)
+                .and_then(|t| project.track(t))
+                .is_some_and(|t| t.fx_off),
         };
         let off = all_off || (channel_off && !monitor);
         // The channel strip has its own section.
@@ -4177,8 +4271,13 @@ impl MixerView {
         let free = height.map_or(least, |h| {
             ((h + 2.0 - (ui.cursor().top() - start)) / SLOT).floor()
         });
-        for _ in 0..(free.max(least) as usize) {
-            let slot = empty_slot(ui, STRIP_WIDTH - 12.0, tr("Add an effect or a plugin"));
+        for k in 0..(free.max(least) as usize) {
+            let slot = empty_slot(
+                ui,
+                STRIP_WIDTH - 12.0,
+                tr("Add an effect or a plugin"),
+                k == 0,
+            );
             if slot.clicked() {
                 self.rack.place = None;
                 self.browser.borrow_mut().open((channel, monitor));
@@ -4540,7 +4639,7 @@ impl MixerView {
         let free = height.map_or(1.0, |h| {
             ((h + 2.0 - (ui.cursor().top() - start)) / SLOT).floor()
         });
-        for _ in 0..(free.max(1.0) as usize) {
+        for k in 0..(free.max(1.0) as usize) {
             let slot = if wide {
                 ui.add_space(2.0);
                 add_slot(
@@ -4550,7 +4649,7 @@ impl MixerView {
                     tr("Add a send"),
                 )
             } else {
-                empty_slot(ui, STRIP_WIDTH - 12.0, tr("Add a send"))
+                empty_slot(ui, STRIP_WIDTH - 12.0, tr("Add a send"), k == 0)
             };
             // Stays open when its checkbox is clicked.
             egui::Popup::menu(&slot)
@@ -4995,6 +5094,7 @@ impl MixerView {
             .show(|ui| match channel {
                 Channel::Track(t) => crate::console_ui::track_menu(ui, doc, t),
                 Channel::Master => crate::console_ui::console_menu(ui, doc),
+                Channel::Clip(_) => {}
             });
     }
 
@@ -5008,6 +5108,10 @@ impl MixerView {
             || match channel {
                 Channel::Track(t) => project.track(t).is_some_and(|t| t.fx_off),
                 Channel::Master => project.master.fx_off,
+                Channel::Clip(_) => channel
+                    .track(&project)
+                    .and_then(|t| project.track(t))
+                    .is_some_and(|t| t.fx_off),
             };
         let inserts: Vec<&audiostrada_core::Insert> = routing::inserts(&project, channel)
             .iter()
@@ -5100,7 +5204,7 @@ impl MixerView {
         let console = crate::console_ui::of_channel(doc, channel);
         let own = match channel {
             Channel::Track(t) => doc.project().track(t).is_some_and(|t| t.console.is_some()),
-            Channel::Master => false,
+            Channel::Master | Channel::Clip(_) => false,
         };
         let (rect, response) = ui.allocate_exact_size(vec2(13.0, 13.0), Sense::click());
         let tint = crate::console_ui::color(console.model);
@@ -5135,6 +5239,7 @@ impl MixerView {
             .show(|ui| match channel {
                 Channel::Track(t) => crate::console_ui::track_menu(ui, doc, t),
                 Channel::Master => crate::console_ui::console_menu(ui, doc),
+                Channel::Clip(_) => {}
             });
     }
 
@@ -5235,8 +5340,17 @@ impl MixerView {
                 }
             }
         });
-        let (rect, response) = ui.allocate_exact_size(vec2(width - 4.0, 22.0), Sense::click());
-        ui.painter().rect_filled(rect, 3.0, p.base);
+        let (rect, response) = ui.allocate_exact_size(vec2(width - 4.0, 24.0), Sense::click());
+        // On a small screen, as the rack's EQ.
+        let painter = ui.painter_at(rect);
+        rack::lcd_box(&painter, rect);
+        let x_of = |f: f32| rect.left() + rect.width() * (f / 20.0).log10() / 3.0;
+        for f in [100.0, 1000.0, 10_000.0] {
+            painter.line_segment(
+                [pos2(x_of(f), rect.top()), pos2(x_of(f), rect.bottom())],
+                egui::Stroke::new(1.0, Color32::from_white_alpha(12)),
+            );
+        }
         let strip = routing::strip(doc.project(), channel).cloned();
         if let Some(strip) = &strip {
             // The response of its filters and EQ.
@@ -5252,26 +5366,40 @@ impl MixerView {
                 }
             }
             let mid = rect.center().y;
-            ui.painter().line_segment(
+            painter.line_segment(
                 [pos2(rect.left(), mid), pos2(rect.right(), mid)],
-                egui::Stroke::new(1.0, p.weak.gamma_multiply(0.2)),
+                egui::Stroke::new(1.0, Color32::from_white_alpha(30)),
             );
-            let points: Vec<egui::Pos2> = (0..=40)
+            let points: Vec<egui::Pos2> = (0..=48)
                 .map(|i| {
-                    let t = i as f32 / 40.0;
+                    let t = i as f32 / 48.0;
                     let freq = 20.0 * 1000f64.powf(f64::from(t));
-                    let db = dsp.eq_response_db(freq).clamp(-18.0, 18.0) as f32;
+                    let db = dsp.eq_response_db(freq).clamp(-12.0, 12.0) as f32;
                     pos2(
                         rect.left() + rect.width() * t,
-                        mid - db / 18.0 * rect.height() * 0.45,
+                        mid - db / 12.0 * rect.height() * 0.44,
                     )
                 })
                 .collect();
-            let lit = !strip.bypass;
-            ui.painter().add(egui::Shape::line(
-                points,
-                egui::Stroke::new(1.5, if lit { p.accent } else { p.weak }),
+            let tint = if strip.bypass {
+                Color32::from_white_alpha(90)
+            } else {
+                theme::family_color("EQ & Filter")
+            };
+            // The area under the curve faintly lit, a soft glow, then the curve.
+            for pair in points.windows(2) {
+                let (a, b) = (pair[0], pair[1]);
+                painter.add(egui::Shape::convex_polygon(
+                    vec![a, b, pos2(b.x, mid), pos2(a.x, mid)],
+                    tint.gamma_multiply(0.26),
+                    egui::Stroke::NONE,
+                ));
+            }
+            painter.add(egui::Shape::line(
+                points.clone(),
+                egui::Stroke::new(3.5, tint.gamma_multiply(0.22)),
             ));
+            painter.add(egui::Shape::line(points, egui::Stroke::new(1.4, tint)));
             if let Some(meters) = doc.player_mut().insert_meters(channel, strip.id) {
                 let reduction = meters.get(1).copied().unwrap_or(0.0).abs().min(24.0);
                 if reduction > 0.1 {
@@ -5288,9 +5416,9 @@ impl MixerView {
             }
         } else {
             let mid = rect.center().y;
-            ui.painter().line_segment(
-                [pos2(rect.left() + 4.0, mid), pos2(rect.right() - 4.0, mid)],
-                egui::Stroke::new(1.0, p.weak.gamma_multiply(0.35)),
+            painter.line_segment(
+                [pos2(rect.left(), mid), pos2(rect.right(), mid)],
+                egui::Stroke::new(1.0, Color32::from_white_alpha(30)),
             );
         }
         if response
@@ -5363,12 +5491,9 @@ impl MixerView {
                         self.sends_section(ui, doc, project, track, None);
                     }
                 }
-                (List::Sends, Channel::Master) => {}
+                (List::Sends, Channel::Master | Channel::Clip(_)) => {}
                 (List::Inserts | List::Monitor, _) => {
-                    let inserts = match channel {
-                        Channel::Track(t) => project.track(t).map_or(&[][..], |t| &t.inserts),
-                        Channel::Master => &project.master.inserts,
-                    };
+                    let inserts = routing::inserts(project, channel);
                     let owner = owner_name(project, channel);
                     self.fx_target = None;
                     self.fx_fallback = None;
@@ -5393,6 +5518,10 @@ impl MixerView {
         let p = theme::current(ui);
         let (name, color) = match channel {
             Channel::Master => (tr("Master"), Color32::from_gray(200)),
+            Channel::Clip(c) => (
+                audiostrada_core::edit::clip(project, c).map_or("?", |c| c.name.as_str()),
+                Color32::from_gray(200),
+            ),
             Channel::Track(t) => project.track(t).map_or(("?", Color32::GRAY), |t| {
                 (
                     t.name.as_str(),
@@ -5404,7 +5533,7 @@ impl MixerView {
             List::Sends => {
                 let count = match channel {
                     Channel::Track(t) => project.track(t).map_or(0, |t| t.sends.len()),
-                    Channel::Master => 0,
+                    Channel::Master | Channel::Clip(_) => 0,
                 };
                 trf!("Sends: {count}", count = count)
             }
@@ -5468,7 +5597,9 @@ impl MixerView {
     /// The master's mute, which only the speakers hear.
     fn master_mute(&mut self, ui: &mut Ui, doc: &mut Document, size: egui::Vec2) {
         let (mute, dim, mono) = doc.player().control_room();
-        if theme::letter_toggle(ui, size, "M", mute, theme::MUTE)
+        let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+        theme::flat_toggle(ui, rect, &response, "M", mute, theme::MUTE);
+        if response
             .on_hover_text(tr(
                 "Mute the speakers: what is heard only, never the export",
             ))
@@ -5609,9 +5740,50 @@ impl MixerView {
                     self.rack.pin = None;
                 }
             }
-            Channel::Master => self.rack.pin = Some(Channel::Master),
+            Channel::Master => self.rack.pin = Some(channel),
+            // The rack follows the clip selected; its track's clip is selected with it.
+            Channel::Clip(c) => {
+                if let Some(t) = channel.track(doc.project()) {
+                    doc.select_track(t, crate::document::SelectMode::Only);
+                }
+                doc.set_focused_clip(Some(c));
+                if self.rack.pin.is_some_and(|p| p != channel) {
+                    self.rack.pin = None;
+                }
+            }
         }
         self.requests.push(crate::actions::Action::RevealRack);
+    }
+
+    /// Opens a clip's own effects, its chain in the rack, and the browser when `add` or while it
+    /// has none, else the effect's window when it has one.
+    pub fn show_clip_effects(
+        &mut self,
+        doc: &mut Document,
+        clip: audiostrada_core::ClipId,
+        add: bool,
+    ) {
+        let channel = Channel::Clip(clip);
+        self.reveal_rack(doc, channel);
+        let (count, first) = {
+            let inserts = routing::inserts(doc.project(), channel);
+            (
+                inserts.len(),
+                inserts.first().map(|i| (i.id, i.effect.clone())),
+            )
+        };
+        match (count, first) {
+            (0, _) => self.browser.borrow_mut().open((channel, false)),
+            _ if add => self.browser.borrow_mut().open((channel, false)),
+            (1, Some((id, effect))) if effect != routing::PARALLEL => {
+                if audiostrada_dsp::info(&effect).is_some() {
+                    self.show_editor(channel, id);
+                } else if !self.open_gui.contains(&(channel, id)) {
+                    self.open_gui.push((channel, id));
+                }
+            }
+            _ => {}
+        }
     }
 
     /// Opens an insert's window in AudioStrada, or brings it to the front.

@@ -484,6 +484,45 @@ impl TimelineView {
             );
         }
         ui.separator();
+        if !c.is_midi() {
+            if ui
+                .button(tr("Add effects to the clip…"))
+                .on_hover_text(tr(
+                    "Effects of this clip alone, between it and its track, as in the rack",
+                ))
+                .clicked()
+            {
+                self.clip_effects = Some((clip, true));
+                ui.close();
+            }
+            if !c.inserts.is_empty()
+                && ui
+                    .button(trf!("Clip effects ({count})…", count = c.inserts.len()))
+                    .clicked()
+            {
+                self.clip_effects = Some((clip, false));
+                ui.close();
+            }
+            let any = ids
+                .iter()
+                .any(|id| edit::clip(doc.project(), *id).is_some_and(|c| !c.inserts.is_empty()));
+            if !c.inserts.is_empty() {
+                ui.menu_button(tr("Automate the clip effects"), |ui| {
+                    clip_automation_menu(ui, doc, &c)
+                });
+            }
+            if any && ui.button(tr("Remove the clip effects")).clicked() {
+                doc.history_mut().edit(tr("Remove clip effects"), |p| {
+                    for id in &ids {
+                        if let Some(c) = edit::clip_mut(p, *id) {
+                            c.inserts.clear();
+                        }
+                    }
+                });
+                ui.close();
+            }
+            ui.separator();
+        }
         if ui.button(tr("Split here")).clicked() {
             let mut created = Vec::new();
             doc.history_mut()
@@ -871,4 +910,97 @@ impl TimelineView {
             }
         }
     }
+}
+
+/// A parameter that can be automated: its target, its name and the value set.
+type Automatable = (audiostrada_core::automation::AutomationTarget, String, f32);
+
+/// The parameters of a clip's effects, each drawn over the clip as a curve while ticked; a new
+/// curve starts flat at the value set, across the clip.
+fn clip_automation_menu(ui: &mut Ui, doc: &mut Document, clip: &Clip) {
+    use audiostrada_core::automation::{AutomationLane, AutomationTarget, CurveShape};
+    let channel = routing::Channel::Clip(clip.id);
+    let mut effects: Vec<(String, Vec<Automatable>)> = Vec::new();
+    for insert in routing::flatten(&clip.inserts)
+        .into_iter()
+        .filter(|i| i.effect != routing::PARALLEL)
+    {
+        let target = |param: String| AutomationTarget::Param {
+            insert: insert.id,
+            param,
+        };
+        let (name, params): (String, Vec<Automatable>) = match audiostrada_dsp::info(&insert.effect)
+        {
+            Some(info) => (
+                tr(info.name).to_owned(),
+                info.params
+                    .iter()
+                    .map(|p| {
+                        let value = insert.params.get(p.id).copied().unwrap_or(p.default);
+                        (target(p.id.to_owned()), tr(p.name).to_owned(), value)
+                    })
+                    .collect(),
+            ),
+            None => {
+                let name = doc
+                    .player()
+                    .plugins()
+                    .find(&insert.effect)
+                    .map_or_else(|| insert.effect.clone(), |p| p.name.clone());
+                let params = doc
+                    .player_mut()
+                    .plugin(channel, insert.id)
+                    .map(|plugin| {
+                        plugin
+                            .params()
+                            .into_iter()
+                            .filter(|p| !p.hidden && !p.read_only)
+                            .map(|p| {
+                                let value = plugin.param_value(p.id).unwrap_or(p.default) as f32;
+                                (target(p.id.to_string()), p.name, value)
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                (name, params)
+            }
+        };
+        effects.push((name, params));
+    }
+    let mut changed = None;
+    egui::ScrollArea::vertical()
+        .max_height(360.0)
+        .show(ui, |ui| {
+            for (effect, params) in &effects {
+                ui.label(RichText::new(effect).weak());
+                for (target, name, value) in params {
+                    let mut shown = clip
+                        .automation
+                        .iter()
+                        .any(|l| &l.target == target && l.visible);
+                    if ui.checkbox(&mut shown, name.as_str()).changed() {
+                        changed = Some((target.clone(), *value, shown));
+                    }
+                }
+            }
+        });
+    let Some((target, value, shown)) = changed else {
+        return;
+    };
+    let (id, from, to) = (clip.id, clip.offset, clip.offset + clip.length);
+    doc.history_mut().edit(tr("Clip automation"), |p| {
+        let Some(c) = edit::clip_mut(p, id) else {
+            return;
+        };
+        match c.automation.iter().position(|l| l.target == target) {
+            Some(i) => c.automation[i].visible = shown,
+            None if shown => {
+                let mut lane = AutomationLane::new(target);
+                lane.add(from, value, CurveShape::Linear);
+                lane.add(to, value, CurveShape::Linear);
+                c.automation.push(lane);
+            }
+            None => {}
+        }
+    });
 }

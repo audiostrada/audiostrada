@@ -74,6 +74,7 @@ actions! {
     ToolSplit => ("Edit", "Scissors"),
     ToolErase => ("Edit", "Eraser"),
     ToolMute => ("Edit", "Mute tool"),
+    AutomationEditor => ("View", "Automation editor of the selected tracks"),
     ToggleSnap => ("Edit", "Toggle snap to grid"),
     GridFiner => ("Edit", "Finer grid"),
     GridCoarser => ("Edit", "Coarser grid"),

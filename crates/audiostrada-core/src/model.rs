@@ -193,6 +193,13 @@ pub struct Clip {
     /// What is known of a recorded take.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub take: Option<Box<TakeInfo>>,
+    /// Effects of the clip alone, between it and its track.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inserts: Vec<Insert>,
+    /// Automation of those effects, timed from the start of the content (as the notes): it
+    /// follows the clip when moved, and its audio when trimmed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub automation: Vec<AutomationLane>,
 }
 
 /// A recorded take: its number on its track, the section it was played in, how it was rated
@@ -802,6 +809,28 @@ pub struct MidiMapping {
     pub max: f32,
 }
 
+/// Gives `insert` (and those of its branches) a new id if `seen` has it, then marks it seen;
+/// `renewed` gets the old and new ids.
+fn renew_repeated(
+    insert: &mut Insert,
+    seen: &mut std::collections::HashSet<InsertId>,
+    next: &mut u64,
+    renewed: &mut Vec<(InsertId, InsertId)>,
+) {
+    if !seen.insert(insert.id) {
+        let id = InsertId(*next);
+        *next = next.saturating_add(1);
+        renewed.push((insert.id, id));
+        insert.id = id;
+        seen.insert(id);
+    }
+    for branch in &mut insert.branches {
+        for inner in &mut branch.inserts {
+            renew_repeated(inner, seen, next, renewed);
+        }
+    }
+}
+
 /// Points in range, finite, sorted and one per time.
 fn repair_lanes(lanes: &mut [AutomationLane]) {
     for lane in lanes {
@@ -874,6 +903,9 @@ impl Project {
                 .chain(t.takes.iter().flat_map(|p| p.clips.iter()))
             {
                 highest = highest.max(c.id.0);
+                for i in crate::routing::flatten(&c.inserts) {
+                    highest = highest.max(i.id.0);
+                }
             }
             for i in &t.inserts {
                 highest = highest.max(i.id.0);
@@ -886,6 +918,78 @@ impl Project {
             highest = highest.max(m.id.0);
         }
         highest
+    }
+
+    /// Gives new ids to the effects of a clip that share theirs with another chain: a clip
+    /// split, duplicated or pasted copies its effects, which must stay apart.
+    pub fn separate_clip_inserts(&mut self) {
+        let has_clip_inserts = self.tracks.iter().any(|t| {
+            t.clips
+                .iter()
+                .chain(t.alternates.iter().flat_map(|p| p.clips.iter()))
+                .chain(t.takes.iter().flat_map(|p| p.clips.iter()))
+                .any(|c| !c.inserts.is_empty())
+        });
+        if !has_clip_inserts {
+            return;
+        }
+        let mut seen: std::collections::HashSet<InsertId> = self
+            .master
+            .inserts
+            .iter()
+            .chain(self.tracks.iter().flat_map(|t| t.inserts.iter()))
+            .flat_map(|i| crate::routing::flatten(std::slice::from_ref(i)))
+            .map(|i| i.id)
+            .collect();
+        let mut next = self.next_id;
+        for index in 0..self.tracks.len() {
+            let track = &self.tracks[index];
+            let clash = track
+                .clips
+                .iter()
+                .chain(track.alternates.iter().flat_map(|p| p.clips.iter()))
+                .chain(track.takes.iter().flat_map(|p| p.clips.iter()))
+                .flat_map(|c| crate::routing::flatten(&c.inserts))
+                .any(|i| seen.contains(&i.id));
+            let all_new = || {
+                track
+                    .clips
+                    .iter()
+                    .chain(track.alternates.iter().flat_map(|p| p.clips.iter()))
+                    .chain(track.takes.iter().flat_map(|p| p.clips.iter()))
+                    .flat_map(|c| crate::routing::flatten(&c.inserts))
+                    .map(|i| i.id)
+                    .collect::<Vec<_>>()
+            };
+            let ids = all_new();
+            let repeated = ids.len() != ids.iter().collect::<std::collections::HashSet<_>>().len();
+            if !clash && !repeated {
+                seen.extend(ids);
+                continue;
+            }
+            let t = Arc::make_mut(&mut self.tracks[index]);
+            for clip in t
+                .clips
+                .iter_mut()
+                .chain(t.alternates.iter_mut().flat_map(|p| p.clips.iter_mut()))
+                .chain(t.takes.iter_mut().flat_map(|p| p.clips.iter_mut()))
+            {
+                let mut renewed = Vec::new();
+                for insert in &mut clip.inserts {
+                    renew_repeated(insert, &mut seen, &mut next, &mut renewed);
+                }
+                // Its automation follows its effects to their new ids.
+                for lane in &mut clip.automation {
+                    if let crate::automation::AutomationTarget::Param { insert, .. } =
+                        &mut lane.target
+                        && let Some(&(_, id)) = renewed.iter().find(|(old, _)| *old == *insert)
+                    {
+                        *insert = id;
+                    }
+                }
+            }
+        }
+        self.next_id = next;
     }
 
     /// Rebases the MIDI clips whose content would begin before the project's start.
@@ -956,6 +1060,7 @@ impl Project {
                 clip.start = at(clip.start);
                 clip.offset = at(clip.offset);
                 clip.length = clip.length.clamp(1, MAX_POSITION);
+                repair_lanes(&mut clip.automation);
                 if let Some(notes) = &mut clip.notes {
                     for n in Arc::make_mut(notes) {
                         n.start = at(n.start);
@@ -1208,6 +1313,8 @@ impl Project {
             notes: None,
             variations: Vec::new(),
             take: None,
+            inserts: Vec::new(),
+            automation: Vec::new(),
         });
         Some(id)
     }
@@ -1242,6 +1349,8 @@ impl Project {
             notes: Some(Arc::new(notes)),
             variations: Vec::new(),
             take: None,
+            inserts: Vec::new(),
+            automation: Vec::new(),
         });
         track.clips.sort_by_key(|c| (c.start, c.id));
         Some(id)
@@ -1473,5 +1582,49 @@ mod tests {
         p.prune_sources();
         assert!(p.sources.contains_key(&used));
         assert!(!p.sources.contains_key(&unused));
+    }
+
+    #[test]
+    fn copied_clips_get_effects_of_their_own() {
+        let mut p = Project::new("t", 48_000);
+        let t = p.add_track("a");
+        let s = p.add_source(Source {
+            path: "a.wav".into(),
+            channels: 1,
+            sample_rate: 48_000,
+            frames: 1000,
+        });
+        let c = p.add_clip(t, s, 0).unwrap();
+        let channel = crate::routing::Channel::Clip(c);
+        let eq = crate::routing::add_insert(&mut p, channel, "eq", BTreeMap::new()).unwrap();
+        assert_eq!(crate::routing::inserts(&p, channel)[0].id, eq);
+        let target = AutomationTarget::Param {
+            insert: eq,
+            param: "b1_gain".into(),
+        };
+        p.track_mut(t).unwrap().clips[0]
+            .automation
+            .push(AutomationLane::new(target));
+        let mut copy = p.track(t).unwrap().clips[0].clone();
+        copy.id = ClipId(p.highest_id() + 100);
+        copy.start = 2000;
+        p.track_mut(t).unwrap().clips.push(copy);
+        p.separate_clip_inserts();
+        let clips = &p.track(t).unwrap().clips;
+        let (first, second) = (clips[0].inserts[0].id, clips[1].inserts[0].id);
+        assert_eq!(first, eq);
+        assert_ne!(second, eq);
+        // Its automation follows its own effect.
+        let follows = |c: &Clip, id: InsertId| matches!(&c.automation[0].target, AutomationTarget::Param { insert, .. } if *insert == id);
+        assert!(follows(&clips[0], first) && follows(&clips[1], second));
+        assert!(p.new_insert_id().0 > second.0);
+        // A clip that is not there takes none.
+        let midi = crate::routing::add_insert(
+            &mut p,
+            crate::routing::Channel::Clip(ClipId(424_242)),
+            "eq",
+            BTreeMap::new(),
+        );
+        assert_eq!(midi, None);
     }
 }

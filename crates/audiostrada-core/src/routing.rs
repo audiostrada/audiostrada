@@ -6,7 +6,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use crate::automation::{AutomationLane, AutomationTarget};
-use crate::model::{Branch, Insert, InsertId, Project, TrackId, TrackKind, TrackSend};
+use crate::model::{Branch, ClipId, Insert, InsertId, Project, TrackId, TrackKind, TrackSend};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum RoutingError {
@@ -22,11 +22,23 @@ pub enum RoutingError {
     NotBus,
 }
 
-/// A mixer channel holding inserts.
+/// A mixer channel holding inserts, or a clip's own chain of effects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Channel {
     Track(TrackId),
     Master,
+    Clip(ClipId),
+}
+
+impl Channel {
+    /// The track a channel belongs to: its own, or its clip's.
+    pub fn track(self, project: &Project) -> Option<TrackId> {
+        match self {
+            Channel::Track(id) => Some(id),
+            Channel::Master => None,
+            Channel::Clip(id) => crate::edit::track_of_clip(project, id),
+        }
+    }
 }
 
 fn audio(project: &Project, id: TrackId) -> Result<(), RoutingError> {
@@ -552,10 +564,20 @@ pub fn solo_audible(project: &Project) -> Option<Soloed> {
     })
 }
 
+/// Whether a channel takes effects: an audio track or bus, the master, an audio clip.
+fn accepts_inserts(project: &Project, channel: Channel) -> bool {
+    match channel {
+        Channel::Track(id) => audio(project, id).is_ok(),
+        Channel::Master => true,
+        Channel::Clip(id) => crate::edit::clip(project, id).is_some_and(|c| !c.is_midi()),
+    }
+}
+
 fn inserts_mut(project: &mut Project, channel: Channel) -> Option<&mut Vec<Insert>> {
     match channel {
         Channel::Track(id) => project.track_mut(id).map(|t| &mut t.inserts),
         Channel::Master => Some(&mut project.master.inserts),
+        Channel::Clip(id) => crate::edit::clip_mut(project, id).map(|c| &mut c.inserts),
     }
 }
 
@@ -563,6 +585,7 @@ fn lanes_mut(project: &mut Project, channel: Channel) -> Option<&mut Vec<Automat
     match channel {
         Channel::Track(id) => project.track_mut(id).map(|t| &mut t.automation),
         Channel::Master => Some(&mut project.master.automation),
+        Channel::Clip(id) => crate::edit::clip_mut(project, id).map(|c| &mut c.automation),
     }
 }
 
@@ -671,6 +694,7 @@ pub fn inserts(project: &Project, channel: Channel) -> &[Insert] {
     match channel {
         Channel::Track(id) => project.track(id).map_or(&[], |t| t.inserts.as_slice()),
         Channel::Master => &project.master.inserts,
+        Channel::Clip(id) => crate::edit::clip(project, id).map_or(&[], |c| c.inserts.as_slice()),
     }
 }
 
@@ -704,8 +728,8 @@ pub fn add_insert(
     effect: &str,
     params: BTreeMap<String, f32>,
 ) -> Option<InsertId> {
-    if let Channel::Track(id) = channel {
-        audio(project, id).ok()?;
+    if !accepts_inserts(project, channel) {
+        return None;
     }
     let id = project.new_insert_id();
     inserts_mut(project, channel)?.push(Insert {
@@ -829,8 +853,8 @@ pub fn add_insert_copy(
     channel: Channel,
     insert: &Insert,
 ) -> Option<InsertId> {
-    if let Channel::Track(id) = channel {
-        audio(project, id).ok()?;
+    if !accepts_inserts(project, channel) {
+        return None;
     }
     let mut copy = insert.clone();
     renew_ids(project, &mut copy);
@@ -866,8 +890,8 @@ pub fn place_insert(
     (to, monitor, index): (Channel, bool, usize),
     copy: bool,
 ) -> Option<InsertId> {
-    if let Channel::Track(t) = to {
-        audio(project, t).ok()?;
+    if !accepts_inserts(project, to) {
+        return None;
     }
     let mut insert = inserts(project, from).iter().find(|i| i.id == id)?.clone();
     // Moving down its own list: the insert's old place no longer counts.
@@ -898,10 +922,7 @@ pub fn place_insert(
             if let Some(l) = lanes_mut(project, from) {
                 l.retain(|l| !ours(l));
             }
-            let track = match to {
-                Channel::Track(t) => Some(t),
-                Channel::Master => None,
-            };
+            let track = to.track(project);
             for m in project.midi_map.iter_mut() {
                 if m.target.is_param_of(id) {
                     m.track = track;

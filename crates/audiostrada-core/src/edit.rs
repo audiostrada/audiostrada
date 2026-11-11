@@ -493,7 +493,10 @@ pub fn trim_end(project: &mut Project, id: ClipId, new_end: u64) {
     let Some(c) = clip(project, id).cloned() else {
         return;
     };
-    let latest = c.start + source_length(project, &c).saturating_sub(c.offset);
+    // A MIDI clip has no source: its end goes as far as asked.
+    let latest = c
+        .start
+        .saturating_add(source_length(project, &c).saturating_sub(c.offset));
     let new_end = new_end.clamp(c.start + MIN_LENGTH, latest.max(c.start + MIN_LENGTH));
     if let Some(m) = clip_mut(project, id) {
         m.length = new_end - m.start;
@@ -1947,6 +1950,14 @@ mod tests {
         );
         trim_end(&mut p, ids[1], 20_001);
         assert_eq!(clips(&p, t)[1].1, MIN_LENGTH);
+    }
+
+    #[test]
+    fn a_midi_clip_is_lengthened_as_far_as_asked() {
+        let (mut p, t, _) = project();
+        let midi = p.add_midi_clip(t, 50_000, 4_000, Vec::new()).unwrap();
+        trim_end(&mut p, midi, 90_000);
+        assert_eq!(clip(&p, midi).unwrap().length, 40_000);
     }
 
     #[test]

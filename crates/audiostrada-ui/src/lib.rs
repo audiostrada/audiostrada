@@ -120,11 +120,12 @@ const LAYOUT_SAVE_INTERVAL: Duration = Duration::from_secs(2);
 const MIDI_PORTS_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Development aid: with `AUDIOSTRADA_SCREENSHOT=<file.ppm>`, saves the window after a few frames
-/// and closes it.
+/// (`AUDIOSTRADA_SCREENSHOT_FRAME`, to leave time for `--control` to set it up) and closes it.
 #[derive(Debug)]
 struct Screenshot {
     path: PathBuf,
     frames: u32,
+    at: u32,
     done: Arc<AtomicBool>,
 }
 
@@ -133,6 +134,10 @@ impl Screenshot {
         std::env::var_os("AUDIOSTRADA_SCREENSHOT").map(|path| Self {
             path: path.into(),
             frames: 0,
+            at: std::env::var("AUDIOSTRADA_SCREENSHOT_FRAME")
+                .ok()
+                .and_then(|f| f.parse().ok())
+                .unwrap_or(SCREENSHOT_FRAME),
             done: Arc::new(AtomicBool::new(false)),
         })
     }
@@ -140,7 +145,7 @@ impl Screenshot {
     /// Returns true once the screenshot is saved and the window should close.
     fn tick(&mut self, ctx: &egui::Context) -> bool {
         self.frames += 1;
-        if self.frames == SCREENSHOT_FRAME {
+        if self.frames == self.at {
             let (path, done) = (self.path.clone(), Arc::clone(&self.done));
             ctx.request_screenshot(move |image| {
                 let mut ppm =
@@ -257,6 +262,7 @@ impl Views {
             || !self.mixer.requests.is_empty()
             || self.timeline.stem_request.is_some()
             || self.mixer.stem_request.is_some()
+            || self.timeline.clip_effects.is_some()
     }
 }
 
@@ -1508,6 +1514,7 @@ impl AudioStradaApp {
             | Action::ToolSplit
             | Action::ToolErase
             | Action::ToolMute
+            | Action::AutomationEditor
             | Action::TallerTracks
             | Action::ShorterTracks
             | Action::Heal
@@ -1537,6 +1544,7 @@ impl AudioStradaApp {
         if self.palette.is_open() || self.preferences.capturing_keys() {
             return Vec::new();
         }
+        self.views.borrow_mut().timeline.take_automation_keys(ctx);
         pressed_actions(ctx, &self.prefs.keymap)
     }
 
@@ -1883,6 +1891,12 @@ impl AudioStradaApp {
         }
         let stem = {
             let mut views = self.views.borrow_mut();
+            if let Some((clip, add)) = views.timeline.clip_effects.take() {
+                let doc = Rc::clone(&views.doc);
+                if let Ok(mut doc) = doc.try_borrow_mut() {
+                    views.mixer.show_clip_effects(&mut doc, clip, add);
+                }
+            }
             actions.append(&mut views.timeline.requests);
             actions.append(&mut views.mixer.requests);
             views

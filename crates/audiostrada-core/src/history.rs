@@ -61,6 +61,7 @@ impl History {
         let before = self.current.clone();
         f(&mut self.current);
         self.current.rebase_midi();
+        self.current.separate_clip_inserts();
         if self.current == before {
             return false;
         }

@@ -47,84 +47,101 @@ impl TimelineView {
                     base,
                 )
             }
-            AutomationTarget::Param { insert, param } => {
-                let unknown = LaneInfo {
-                    name: "?".into(),
-                    min: 0.0,
-                    max: 1.0,
-                    reading: Reading::Share,
-                    log: false,
-                    base: None,
+            AutomationTarget::Param { .. } => self.param_info(
+                doc,
+                (track.id, Channel::Track(track.id)),
+                &track.inserts,
+                target,
+            ),
+        }
+    }
+
+    /// What a lane of an effect's parameter shows, the effect being one of `inserts` (a
+    /// track's or a clip's) on `channel`; plugin parameters are cached under `owner`.
+    pub(super) fn param_info(
+        &mut self,
+        doc: &mut Document,
+        (owner, channel): (TrackId, Channel),
+        inserts: &[audiostrada_core::Insert],
+        target: &AutomationTarget,
+    ) -> LaneInfo {
+        let unknown = LaneInfo {
+            name: "?".into(),
+            min: 0.0,
+            max: 1.0,
+            reading: Reading::Share,
+            log: false,
+            base: None,
+            base_text: None,
+        };
+        let AutomationTarget::Param { insert, param } = target else {
+            return unknown;
+        };
+        let found = audiostrada_core::routing::flatten(inserts)
+            .into_iter()
+            .find(|i| i.id == *insert)
+            .cloned();
+        let Some(ins) = found else {
+            return unknown;
+        };
+        if let Some(info) = audiostrada_dsp::info(&ins.effect) {
+            return info
+                .params
+                .iter()
+                .find(|p| p.id == param)
+                .map_or(unknown, |p| LaneInfo {
+                    name: format!("{}: {}", tr(info.name), tr(p.name)),
+                    min: p.min,
+                    max: p.max,
+                    reading: Reading::Param(p),
+                    log: p.min > 0.0
+                        && p.max / p.min >= 20.0
+                        && matches!(p.unit, "Hz" | "s" | "ms"),
+                    base: Some(ins.params.get(param).copied().unwrap_or(p.default)),
                     base_text: None,
-                };
-                let found = audiostrada_core::routing::flatten(&track.inserts)
-                    .into_iter()
-                    .find(|i| i.id == *insert)
-                    .cloned();
-                let Some(ins) = found else {
-                    return unknown;
-                };
-                if let Some(info) = audiostrada_dsp::info(&ins.effect) {
-                    return info
-                        .params
-                        .iter()
-                        .find(|p| p.id == param)
-                        .map_or(unknown, |p| LaneInfo {
-                            name: format!("{}: {}", tr(info.name), tr(p.name)),
-                            min: p.min,
-                            max: p.max,
-                            reading: Reading::Param(p),
-                            log: p.min > 0.0
-                                && p.max / p.min >= 20.0
-                                && matches!(p.unit, "Hz" | "s" | "ms"),
-                            base: Some(ins.params.get(param).copied().unwrap_or(p.default)),
-                            base_text: None,
-                        });
-                }
-                let key = (track.id, target.clone());
-                let mut info = match self.target_info.get(&key) {
-                    Some(cached) => cached.clone(),
-                    None => {
-                        let name = doc
-                            .player()
-                            .plugins()
-                            .find(&ins.effect)
-                            .map_or_else(|| ins.effect.clone(), |p| p.name.clone());
-                        let info = param
-                            .parse::<u32>()
-                            .ok()
-                            .and_then(|id| {
-                                let plugin =
-                                    doc.player_mut().plugin(Channel::Track(track.id), *insert)?;
-                                plugin.params().into_iter().find(|p| p.id == id)
-                            })
-                            .map_or(
-                                LaneInfo {
-                                    name: format!("{name}: {param}"),
-                                    ..unknown.clone()
-                                },
-                                |p| LaneInfo {
-                                    name: format!("{name}: {}", p.name),
-                                    min: p.min as f32,
-                                    max: p.max as f32,
-                                    ..unknown.clone()
-                                },
-                            );
-                        self.target_info.insert(key, info.clone());
-                        info
-                    }
-                };
-                // The plugin's current value, in its own words when it has them.
-                if let Ok(id) = param.parse::<u32>()
-                    && let Some(plugin) = doc.player_mut().plugin(Channel::Track(track.id), *insert)
-                    && let Some(value) = plugin.param_value(id)
-                {
-                    info.base = Some(value as f32);
-                    info.base_text = plugin.value_text(id, value);
-                }
+                });
+        }
+        let key = (owner, target.clone());
+        let mut info = match self.target_info.get(&key) {
+            Some(cached) => cached.clone(),
+            None => {
+                let name = doc
+                    .player()
+                    .plugins()
+                    .find(&ins.effect)
+                    .map_or_else(|| ins.effect.clone(), |p| p.name.clone());
+                let info = param
+                    .parse::<u32>()
+                    .ok()
+                    .and_then(|id| {
+                        let plugin = doc.player_mut().plugin(channel, *insert)?;
+                        plugin.params().into_iter().find(|p| p.id == id)
+                    })
+                    .map_or(
+                        LaneInfo {
+                            name: format!("{name}: {param}"),
+                            ..unknown.clone()
+                        },
+                        |p| LaneInfo {
+                            name: format!("{name}: {}", p.name),
+                            min: p.min as f32,
+                            max: p.max as f32,
+                            ..unknown.clone()
+                        },
+                    );
+                self.target_info.insert(key, info.clone());
                 info
             }
+        };
+        // The plugin's current value, in its own words when it has them.
+        if let Ok(id) = param.parse::<u32>()
+            && let Some(plugin) = doc.player_mut().plugin(channel, *insert)
+            && let Some(value) = plugin.param_value(id)
+        {
+            info.base = Some(value as f32);
+            info.base_text = plugin.value_text(id, value);
         }
+        info
     }
 
     pub(super) fn draw_headers(
@@ -156,18 +173,35 @@ impl TimelineView {
             );
             self.height_edge(ui, doc, row, track.id);
             let color = crate::theme::track_color(track.color);
+            // Lit from above; the track's color down the left, washing across when selected.
+            let lift = if visuals.dark_mode {
+                Color32::WHITE
+            } else {
+                Color32::BLACK
+            };
+            let fill = super::draw::mix(visuals.panel_fill, lift, 0.035);
+            crate::theme::gradient_rect(&painter, row, visuals.panel_fill, fill);
+            if doc.is_track_selected(track.id) {
+                let strength = if visuals.dark_mode { 0.34 } else { 0.26 };
+                let mut wash = egui::Mesh::default();
+                let near = color.gamma_multiply(strength);
+                let far = color.gamma_multiply(strength * 0.15);
+                wash.colored_vertex(row.left_top(), near);
+                wash.colored_vertex(row.right_top(), far);
+                wash.colored_vertex(row.right_bottom(), far);
+                wash.colored_vertex(row.left_bottom(), near);
+                wash.add_triangle(0, 1, 2);
+                wash.add_triangle(0, 2, 3);
+                painter.add(wash);
+            }
             painter.rect_filled(
-                Rect::from_min_size(row.min, vec2(4.0, row.height() - 1.0)),
-                0.0,
+                Rect::from_min_max(
+                    pos2(row.left() + 1.0, row.top() + 3.0),
+                    pos2(row.left() + 5.0, row.bottom() - 3.0),
+                ),
+                2.0,
                 color,
             );
-            if doc.is_track_selected(track.id) {
-                painter.rect_filled(
-                    row.shrink(1.0),
-                    2.0,
-                    visuals.selection.bg_fill.gamma_multiply(0.15),
-                );
-            }
             // An armed track shows it across its header.
             if track.armed {
                 painter.rect_filled(
@@ -182,13 +216,16 @@ impl TimelineView {
                     StrokeKind::Inside,
                 );
             }
-            painter.line_segment(
-                [
-                    pos2(row.left(), row.bottom()),
-                    pos2(row.right(), row.bottom()),
-                ],
-                Stroke::new(1.0, visuals.widgets.noninteractive.bg_stroke.color),
+            painter.hline(
+                row.x_range(),
+                row.bottom() - 0.5,
+                Stroke::new(
+                    1.0,
+                    Color32::from_black_alpha(if visuals.dark_mode { 120 } else { 40 }),
+                ),
             );
+            // Low rows hold the name and the switches on one line.
+            let compact = row.height() < 52.0;
             let id = track.id;
             let vca = track.kind == TrackKind::Vca;
             // The track's meter at the right, the rest of the header before it.
@@ -202,9 +239,14 @@ impl TimelineView {
                 self.header_meter(ui, doc, id, meter);
                 row.right() - HEADER_METER
             };
-            let mut x = row.left() + 10.0 + depth as f32 * 12.0;
+            let mut x = row.left() + 12.0 + depth as f32 * 12.0;
+            let line_top = if compact {
+                row.center().y - 9.0
+            } else {
+                row.top() + 7.0 + ((row.height() - 56.0) / 2.0).clamp(0.0, 8.0)
+            };
             if routing::has_children(project, id) {
-                let arrow = Rect::from_min_size(pos2(x - 2.0, row.top() + 4.0), vec2(16.0, 18.0));
+                let arrow = Rect::from_min_size(pos2(x - 2.0, line_top), vec2(16.0, 18.0));
                 let text = if track.collapsed { "▸" } else { "▾" };
                 if ui
                     .put(arrow, egui::Button::new(text).frame(false))
@@ -220,8 +262,24 @@ impl TimelineView {
                 }
                 x += 16.0;
             }
+            // Two lines: the name with Mute, Solo and Record at its right, always in the same
+            // column; under it what the track listens to, and its automation. A low row keeps
+            // the first line only.
+            let pad = ((row.height() - 56.0) / 2.0).clamp(0.0, 8.0);
+            let line1 = if compact {
+                row.center().y
+            } else {
+                row.top() + 16.0 + pad
+            };
+            let line2 = line1 + 24.0;
+            let cell = vec2(22.0, 18.0);
+            // The three switches from the right edge: M, S, R.
+            let column = |k: f32, y: f32| {
+                Rect::from_center_size(pos2(right - 17.0 - (2.0 - k) * 24.0, y), cell)
+            };
+            let switches_left = column(0.0, line1).left();
             // The instrument, in the track's color; a click picks another.
-            let icon_rect = Rect::from_min_size(pos2(x, row.top() + 5.0), vec2(17.0, 17.0));
+            let icon_rect = Rect::from_center_size(pos2(x + 8.0, line1), vec2(18.0, 18.0));
             let icon = crate::track_icons::of(project, track);
             let icon_response = ui.interact(
                 icon_rect,
@@ -231,12 +289,12 @@ impl TimelineView {
             let tint = crate::theme::track_color(track.color);
             if icon_response.hovered() {
                 painter.rect_filled(
-                    icon_rect.expand(1.0),
-                    3.0,
+                    icon_rect.expand(2.0),
+                    4.0,
                     ui.visuals().widgets.hovered.bg_fill,
                 );
             }
-            crate::track_icons::paint(ui, icon_rect, icon, tint);
+            crate::track_icons::paint(ui, icon_rect.shrink(1.0), icon, tint);
             let icon_response = icon_response.on_hover_text(crate::trf!(
                 "{name}. Click to choose the icon",
                 name = icon.label()
@@ -248,21 +306,20 @@ impl TimelineView {
                         ui.close();
                     }
                 });
-            x += 21.0;
+            x += 24.0;
             let group = audiostrada_core::groups::group_of(project, id).map(|g| &project.groups[g]);
-            // Up to the automation buttons (and the group tag), cut with "…" beyond.
-            let buttons = if track.show_automation { 56.0 } else { 32.0 };
+            // Up to the switches (and the group tag), cut with "…" beyond.
             let max_width =
-                (right - buttons - x - if group.is_some() { 22.0 } else { 0.0 }).max(20.0);
+                (switches_left - 8.0 - x - if group.is_some() { 20.0 } else { 0.0 }).max(20.0);
             let mut job = egui::text::LayoutJob::simple_singleline(
                 track.name.clone(),
-                crate::theme::strong(13.0),
+                crate::theme::strong(12.5),
                 visuals.strong_text_color(),
             );
             job.wrap = egui::text::TextWrapping::truncate_at_width(max_width);
             let galley = ui.fonts_mut(|f| f.layout_job(job));
             let elided = galley.elided;
-            let name = Rect::from_min_size(pos2(x, row.top() + 6.0), galley.size());
+            let name = Rect::from_min_size(pos2(x, line1 - galley.size().y / 2.0), galley.size());
             let renaming = self.renaming.as_ref().is_some_and(|(t, _)| *t == id);
             if !renaming {
                 painter.galley(name.min, galley, visuals.strong_text_color());
@@ -270,10 +327,8 @@ impl TimelineView {
             if let Some(g) = group {
                 let c = crate::theme::track_color(g.color);
                 let c = if g.active { c } else { c.gamma_multiply(0.4) };
-                let tag = Rect::from_min_size(
-                    pos2(name.right() + 6.0, name.top() + 1.0),
-                    vec2(14.0, 13.0),
-                );
+                let tag =
+                    Rect::from_center_size(pos2(name.right() + 13.0, line1), vec2(14.0, 13.0));
                 painter.rect_filled(tag, 3.0, c);
                 painter.text(
                     tag.center(),
@@ -283,126 +338,212 @@ impl TimelineView {
                     Color32::BLACK,
                 );
             }
-            if row.height() > 54.0 {
-                painter.text(
-                    pos2(x, row.top() + 24.0),
-                    Align2::LEFT_TOP,
-                    if vca {
-                        "VCA"
-                    } else if track.kind == TrackKind::Bus {
-                        tr("BUS")
-                    } else if track.frozen.is_some() {
-                        tr("Frozen")
-                    } else {
-                        track.playlist.as_str()
-                    },
-                    FontId::proportional(10.0),
-                    visuals.weak_text_color(),
-                );
-            }
-            let y = row.bottom() - 26.0;
-            let button = |ui: &mut Ui, x: f32, text: &str, on: bool, on_color: Color32| {
-                let rect = Rect::from_min_size(pos2(row.left() + x, y), vec2(24.0, 20.0));
-                let response = ui.interact(rect, ui.scope_id().with((text, id.0)), Sense::click());
-                crate::theme::paint_letter_toggle(ui, rect, &response, text, on, on_color);
-                let hint = if text == "M" { tr("Mute") } else { tr("Solo") };
-                response.on_hover_text(hint).clicked()
-            };
-            if row.bottom() - 26.0 > header.top() {
-                if button(ui, 10.0, "M", track.mute, crate::theme::MUTE) {
-                    let mute = !track.mute;
-                    let alone = crate::mixer::clutch(ui);
-                    doc.history_mut().edit(tr("Mute"), |p| {
-                        audiostrada_core::groups::maybe_alone(p, alone, |p| {
-                            audiostrada_core::groups::set_switch(
-                                p,
-                                id,
-                                audiostrada_core::groups::Link::Mute,
-                                mute,
-                            )
-                        })
-                    });
-                }
-                if button(ui, 38.0, "S", track.solo, crate::theme::SOLO) {
-                    let solo = !track.solo;
-                    let alone = crate::mixer::clutch(ui);
-                    doc.history_mut().edit(tr("Solo"), |p| {
-                        audiostrada_core::groups::maybe_alone(p, alone, |p| {
-                            audiostrada_core::groups::set_switch(
-                                p,
-                                id,
-                                audiostrada_core::groups::Link::Solo,
-                                solo,
-                            )
-                        })
-                    });
-                }
-                let arm = Rect::from_min_size(pos2(row.left() + 66.0, y), vec2(24.0, 20.0));
-                let plays = track.kind == TrackKind::Audio;
-                let arm_response = plays.then(|| {
+            let plays = track.kind == TrackKind::Audio;
+            if line1 - 9.0 > header.top() {
+                // Mute and Solo.
+                for (k, text, on, on_color, link, label) in [
+                    (
+                        0.0,
+                        "M",
+                        track.mute,
+                        crate::theme::MUTE,
+                        audiostrada_core::groups::Link::Mute,
+                        tr("Mute"),
+                    ),
+                    (
+                        1.0,
+                        "S",
+                        track.solo,
+                        crate::theme::SOLO,
+                        audiostrada_core::groups::Link::Solo,
+                        tr("Solo"),
+                    ),
+                ] {
+                    let rect = column(k, line1);
                     let response =
-                        ui.interact(arm, ui.scope_id().with(("arm", id.0)), Sense::click());
-                    crate::theme::paint_arm_toggle(ui, arm, &response, track.armed);
-                    response.on_hover_text(tr("Record arm"))
-                });
-                if arm_response.is_some_and(|r| r.clicked()) {
-                    let armed = !track.armed;
-                    let alone = crate::mixer::clutch(ui);
-                    doc.history_mut().modify_unrecorded(|p| {
-                        audiostrada_core::groups::maybe_alone(p, alone, |p| {
-                            audiostrada_core::groups::set_switch(
-                                p,
-                                id,
-                                audiostrada_core::groups::Link::Arm,
-                                armed,
-                            )
-                        })
-                    });
-                }
-                let input_label = if track.stereo {
-                    trf!(
-                        "In {first}-{second}",
-                        first = track.input + 1,
-                        second = track.input + 2
-                    )
-                } else {
-                    trf!("In {input}", input = track.input + 1)
-                };
-                if plays {
-                    let mut left = row.left() + 96.0;
-                    // An instrument plays MIDI: no audio input to hear or choose.
-                    let instrument = doc.is_instrument_track(id);
-                    if instrument {
-                        let rect = Rect::from_min_size(pos2(left, y), vec2(56.0, 20.0));
-                        painter.text(
-                            pos2(rect.left() + 4.0, rect.center().y),
-                            Align2::LEFT_CENTER,
-                            tr("MIDI"),
-                            FontId::proportional(11.0),
-                            visuals.weak_text_color(),
-                        );
-                        ui.interact(rect, ui.scope_id().with(("midi-in", id.0)), Sense::hover())
-                            .on_hover_text(tr(
-                                "Plays the MIDI it receives while armed: keyboards and \
-                                 controllers, its instrument's own keyboard or pads",
-                            ));
-                    } else {
-                        let rect = Rect::from_min_size(pos2(left, y), vec2(24.0, 20.0));
-                        crate::mixer::monitor_toggle(ui, rect, doc, track);
-                        left += 28.0;
+                        ui.interact(rect, ui.scope_id().with((text, id.0)), Sense::click());
+                    crate::theme::flat_toggle(ui, rect, &response, text, on, on_color);
+                    if response.on_hover_text(label).clicked() {
+                        let alone = crate::mixer::clutch(ui);
+                        doc.history_mut().edit(label, |p| {
+                            audiostrada_core::groups::maybe_alone(p, alone, |p| {
+                                audiostrada_core::groups::set_switch(p, id, link, !on)
+                            })
+                        });
                     }
-                    // The input where there is room for it (else in the mixer).
-                    let width = (right - left - 4.0).min(140.0);
-                    if width >= 50.0 && !instrument {
-                        let combo_rect = Rect::from_min_size(pos2(left, y), vec2(width, 20.0));
-                        let mut ui_child =
-                            ui.new_child(egui::UiBuilder::new().max_rect(combo_rect));
-                        egui::ComboBox::from_id_salt(("input", id.0))
-                            .width(width - 6.0)
-                            .selected_text(input_label)
-                            .show_ui(&mut ui_child, |ui| {
-                                crate::mixer::input_choices(ui, doc, track)
-                            });
+                }
+                // A bus records nothing: in that place, its freeze, which renders it and its
+                // tracks to play that instead.
+                if track.kind == TrackKind::Bus {
+                    let rect = column(2.0, line1);
+                    let response =
+                        ui.interact(rect, ui.scope_id().with(("freeze", id.0)), Sense::click());
+                    let frozen = track.frozen.is_some();
+                    let ice = Color32::from_rgb(120, 196, 255);
+                    crate::theme::flat_toggle(ui, rect, &response, "", frozen, ice);
+                    let ink = if frozen {
+                        crate::theme::text_on(ice)
+                    } else if response.hovered() {
+                        ice
+                    } else {
+                        visuals.weak_text_color()
+                    };
+                    // A snowflake: three strokes through the center.
+                    for k in 0..3 {
+                        let a = k as f32 * std::f32::consts::PI / 3.0 + std::f32::consts::FRAC_PI_2;
+                        let d = vec2(a.cos(), a.sin()) * 5.5;
+                        ui.painter().line_segment(
+                            [rect.center() - d, rect.center() + d],
+                            Stroke::new(1.4, ink),
+                        );
+                    }
+                    let hint = if frozen {
+                        tr("Frozen: click to unfreeze and hear its tracks and effects live again")
+                    } else {
+                        tr(
+                            "Freeze this bus: render it with its tracks and effects and play that instead, to save processing",
+                        )
+                    };
+                    if response.on_hover_text(hint).clicked() {
+                        if frozen {
+                            doc.unfreeze(id);
+                        } else if let Err(e) = doc.freeze(id) {
+                            doc.notify(trf!("Cannot freeze: {e}", e = e));
+                        }
+                    }
+                }
+                // Record arm, on the tracks that record.
+                if plays {
+                    let rect = column(2.0, line1);
+                    let response =
+                        ui.interact(rect, ui.scope_id().with(("arm", id.0)), Sense::click());
+                    crate::theme::flat_arm(ui, rect, &response, track.armed);
+                    if response.on_hover_text(tr("Record arm")).clicked() {
+                        let armed = !track.armed;
+                        let alone = crate::mixer::clutch(ui);
+                        doc.history_mut().modify_unrecorded(|p| {
+                            audiostrada_core::groups::maybe_alone(p, alone, |p| {
+                                audiostrada_core::groups::set_switch(
+                                    p,
+                                    id,
+                                    audiostrada_core::groups::Link::Arm,
+                                    armed,
+                                )
+                            })
+                        });
+                    }
+                }
+            }
+            if !compact && line2 - 9.0 > header.top() {
+                // The second line, at the right: input monitoring and the automation lanes.
+                let shown = track.show_automation;
+                let a_rect = column(2.0, line2);
+                let response =
+                    ui.interact(a_rect, ui.scope_id().with(("lanes", id.0)), Sense::click());
+                let editing = self.auto_editor.is_some() && doc.is_track_selected(id);
+                crate::theme::flat_toggle(
+                    ui,
+                    a_rect,
+                    &response,
+                    "A",
+                    shown || editing,
+                    visuals.selection.bg_fill,
+                );
+                let response = response.on_hover_text(tr(
+                    "Automation: choose what to automate, and draw it in the large editor",
+                ));
+                egui::Popup::menu(&response).show(|ui| self.automation_menu(ui, doc, track));
+                if shown {
+                    let mut child =
+                        ui.new_child(egui::UiBuilder::new().max_rect(column(1.0, line2)));
+                    child
+                        .menu_button("+", |ui| self.add_lane_menu(ui, doc, project, track))
+                        .response
+                        .on_hover_text(tr("Add an automation lane"));
+                }
+                let instrument = plays && doc.is_instrument_track(id);
+                if plays && !instrument {
+                    crate::mixer::monitor_toggle(ui, column(0.0, line2), doc, track, true);
+                }
+                // At the left, under the name: what the track is, or listens to.
+                let room = Rect::from_min_max(
+                    pos2(x, line2 - 9.0),
+                    pos2(switches_left - 8.0, line2 + 9.0),
+                );
+                let mut weak = visuals.weak_text_color();
+                if doc.is_track_selected(id) {
+                    // Brighter over the track's color wash.
+                    weak = super::draw::mix(weak, visuals.text_color(), 0.5);
+                }
+                if plays && !instrument && track.frozen.is_none() {
+                    // The input: a quiet link, its list a click away.
+                    let label = if track.stereo {
+                        trf!(
+                            "In {first}-{second}",
+                            first = track.input + 1,
+                            second = track.input + 2
+                        )
+                    } else {
+                        trf!("In {input}", input = track.input + 1)
+                    };
+                    let galley = painter.layout_no_wrap(
+                        format!("{label} ▾"),
+                        FontId::proportional(10.5),
+                        weak,
+                    );
+                    let link = Rect::from_min_size(
+                        pos2(room.left(), line2 - galley.size().y / 2.0),
+                        galley.size(),
+                    );
+                    let response = ui
+                        .interact(
+                            link.expand2(vec2(4.0, 3.0)),
+                            ui.scope_id().with(("input", id.0)),
+                            Sense::click(),
+                        )
+                        .on_hover_text(tr("The input this track records and hears"));
+                    if response.hovered() {
+                        painter.rect_filled(
+                            link.expand2(vec2(4.0, 3.0)),
+                            4.0,
+                            ui.visuals().widgets.hovered.bg_fill,
+                        );
+                    }
+                    painter.galley(
+                        link.min,
+                        galley,
+                        if response.hovered() {
+                            visuals.text_color()
+                        } else {
+                            weak
+                        },
+                    );
+                    egui::Popup::menu(&response)
+                        .show(|ui| crate::mixer::input_choices(ui, doc, track));
+                } else {
+                    let (text, hint) = if vca {
+                        ("VCA", "")
+                    } else if track.kind == TrackKind::Bus {
+                        (tr("BUS"), "")
+                    } else if track.frozen.is_some() {
+                        (tr("Frozen"), "")
+                    } else {
+                        (
+                            tr("MIDI"),
+                            tr("Plays the MIDI it receives while armed: keyboards and \
+                                controllers, its instrument's own keyboard or pads"),
+                        )
+                    };
+                    let galley =
+                        painter.layout_no_wrap(text.to_owned(), FontId::proportional(10.5), weak);
+                    let at = Rect::from_min_size(
+                        pos2(room.left(), line2 - galley.size().y / 2.0),
+                        galley.size(),
+                    );
+                    painter.galley(at.min, galley, weak);
+                    if !hint.is_empty() {
+                        ui.interact(at, ui.scope_id().with(("midi-in", id.0)), Sense::hover())
+                            .on_hover_text(hint);
                     }
                 }
             }
@@ -467,32 +608,6 @@ impl TimelineView {
                     hint.to_owned()
                 })
                 .context_menu(|ui| self.header_menu(ui, doc, id));
-            // Automation: show/hide lanes, add a lane, lane headers.
-            let a_rect = Rect::from_min_size(pos2(right - 26.0, row.top() + 4.0), vec2(22.0, 18.0));
-            if row.top() + 4.0 > header.top() {
-                let shown = track.show_automation;
-                let button = egui::Button::new(egui::RichText::new("A").size(11.0)).selected(shown);
-                if ui
-                    .put(a_rect, button)
-                    .on_hover_text(tr("Show automation lanes"))
-                    .clicked()
-                {
-                    doc.history_mut().modify_unrecorded(|p| {
-                        if let Some(t) = p.track_mut(id) {
-                            t.show_automation = !shown;
-                        }
-                    });
-                }
-                if shown {
-                    let plus =
-                        Rect::from_min_size(pos2(right - 50.0, row.top() + 4.0), vec2(22.0, 18.0));
-                    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(plus));
-                    child
-                        .menu_button("+", |ui| self.add_lane_menu(ui, doc, project, track))
-                        .response
-                        .on_hover_text(tr("Add an automation lane"));
-                }
-            }
             if track.show_takes {
                 let used = edit::comp_sources(track);
                 for (k, playlist) in track.takes.iter().enumerate() {
@@ -591,53 +706,90 @@ impl TimelineView {
                     continue;
                 }
                 self.lane_edge(ui, doc, lane_row, (id, li));
+                let lane = &track.automation[li];
+                let target = lane.target.clone();
                 painter.rect_filled(
                     lane_row.shrink2(vec2(0.0, 0.5)),
                     0.0,
-                    visuals.extreme_bg_color,
+                    super::draw::mix(visuals.panel_fill, visuals.extreme_bg_color, 0.55),
                 );
                 painter.rect_filled(
-                    Rect::from_min_size(lane_row.min, vec2(4.0, height)),
-                    0.0,
-                    color.gamma_multiply(0.5),
+                    Rect::from_min_max(
+                        pos2(lane_row.left() + 1.0, lane_row.top() + 3.0),
+                        pos2(lane_row.left() + 5.0, lane_row.bottom() - 3.0),
+                    ),
+                    2.0,
+                    color.gamma_multiply(0.45),
                 );
+                painter.hline(
+                    lane_row.x_range(),
+                    lane_row.bottom() - 0.5,
+                    Stroke::new(
+                        1.0,
+                        Color32::from_black_alpha(if visuals.dark_mode { 110 } else { 36 }),
+                    ),
+                );
+                // As a track's header: the name and what is set at the left, its switches in
+                // the same columns at the right.
                 let info = self.lane_info.get(&(id, li)).cloned();
                 let name = info.as_ref().map_or("?".to_owned(), |i| i.name.clone());
-                painter.text(
-                    pos2(
-                        lane_row.left() + 12.0 + depth as f32 * 12.0,
-                        lane_row.top() + 5.0,
-                    ),
-                    Align2::LEFT_TOP,
-                    name,
-                    FontId::proportional(11.0),
-                    visuals.text_color(),
-                );
-                let lane = &track.automation[li];
-                let y = lane_row.bottom() - 22.0;
-                let on = Rect::from_min_size(pos2(lane_row.left() + 12.0, y), vec2(40.0, 18.0));
-                let toggle = egui::Button::new(
-                    egui::RichText::new(if lane.enabled { "On" } else { "Off" }).size(10.0),
-                )
-                .selected(lane.enabled);
-                if ui
-                    .put(on, toggle)
-                    .on_hover_text(tr("Play this lane"))
-                    .clicked()
-                {
-                    let enabled = !lane.enabled;
-                    doc.history_mut().edit(tr("Automation lane"), |p| {
-                        if let Some(l) = p.track_mut(id).and_then(|t| t.automation.get_mut(li)) {
-                            l.enabled = enabled;
-                        }
-                    });
-                }
-                let hide = Rect::from_min_size(pos2(lane_row.left() + 56.0, y), vec2(58.0, 18.0));
-                if ui
-                    .put(
-                        hide,
-                        egui::Button::new(egui::RichText::new(tr("Hide")).size(10.0)),
+                let middle = lane_row.center().y;
+                let cell = vec2(22.0, 18.0);
+                let column = |k: f32| {
+                    Rect::from_center_size(
+                        pos2(
+                            lane_row.right() - HEADER_METER - 17.0 - (2.0 - k) * 24.0,
+                            middle,
+                        ),
+                        cell,
                     )
+                };
+                let left = lane_row.left() + 24.0 + depth as f32 * 12.0;
+                let room = column(-1.0).left() - 8.0 - left;
+                let mut job = egui::text::LayoutJob::simple_singleline(
+                    name,
+                    crate::theme::strong(11.5),
+                    if lane.enabled {
+                        visuals.text_color()
+                    } else {
+                        visuals.weak_text_color()
+                    },
+                );
+                job.wrap = egui::text::TextWrapping::truncate_at_width(room.max(20.0));
+                let galley = ui.fonts_mut(|f| f.layout_job(job));
+                let set = info.as_ref().and_then(LaneInfo::base_label);
+                let name_top = if set.is_some() {
+                    middle - galley.size().y - 1.0
+                } else {
+                    middle - galley.size().y / 2.0
+                };
+                painter.galley(pos2(left, name_top), galley, visuals.text_color());
+                if let Some(set) = set {
+                    painter.with_clip_rect(lane_row).text(
+                        pos2(left, middle + 2.0),
+                        Align2::LEFT_TOP,
+                        trf!("Set: {value}", value = set),
+                        FontId::proportional(10.0),
+                        visuals.weak_text_color(),
+                    );
+                }
+                // Hide, play, edit, delete.
+                let hide = column(-1.0);
+                let response = ui.interact(
+                    hide,
+                    ui.scope_id().with(("lane-hide", id.0, li)),
+                    Sense::click(),
+                );
+                crate::theme::flat_toggle(
+                    ui,
+                    hide,
+                    &response,
+                    "–",
+                    false,
+                    visuals.selection.bg_fill,
+                );
+                if response
+                    .on_hover_text(tr("Hide this lane; its points stay and still play"))
                     .clicked()
                 {
                     doc.history_mut().modify_unrecorded(|p| {
@@ -646,35 +798,77 @@ impl TimelineView {
                         }
                     });
                 }
-                // The value set on the control, which the lane moves away from.
-                if let Some(set) = info.as_ref().and_then(LaneInfo::base_label) {
-                    let room = Rect::from_min_max(
-                        pos2(lane_row.left() + 120.0, y),
-                        pos2(lane_row.right() - 30.0, y + 18.0),
-                    );
-                    painter.with_clip_rect(room).text(
-                        room.right_center(),
-                        Align2::RIGHT_CENTER,
-                        trf!("Set: {value}", value = set),
-                        FontId::proportional(10.0),
-                        visuals.weak_text_color(),
-                    );
-                }
-                let remove =
-                    Rect::from_min_size(pos2(lane_row.right() - 26.0, y), vec2(22.0, 18.0));
-                if ui
-                    .put(remove, egui::Button::new("✕"))
-                    .on_hover_text(tr("Delete this lane"))
-                    .clicked()
-                {
-                    doc.history_mut().edit(tr("Delete automation lane"), |p| {
-                        if let Some(t) = p.track_mut(id)
-                            && li < t.automation.len()
-                        {
-                            t.automation.remove(li);
+                let on = column(0.0);
+                let response = ui.interact(
+                    on,
+                    ui.scope_id().with(("lane-on", id.0, li)),
+                    Sense::click(),
+                );
+                crate::theme::flat_toggle(ui, on, &response, "On", lane.enabled, theme_play());
+                if response.on_hover_text(tr("Play this lane")).clicked() {
+                    let enabled = !lane.enabled;
+                    doc.history_mut().edit(tr("Automation lane"), |p| {
+                        if let Some(l) = p.track_mut(id).and_then(|t| t.automation.get_mut(li)) {
+                            l.enabled = enabled;
                         }
                     });
                 }
+                let open = column(1.0);
+                let response = ui.interact(
+                    open,
+                    ui.scope_id().with(("lane-edit", id.0, li)),
+                    Sense::click(),
+                );
+                crate::theme::flat_toggle(
+                    ui,
+                    open,
+                    &response,
+                    "✎",
+                    false,
+                    visuals.selection.bg_fill,
+                );
+                if response
+                    .on_hover_text(tr("Draw this automation in the large editor"))
+                    .clicked()
+                {
+                    self.open_auto_editor(doc, id, target.clone());
+                }
+                // Deleting asks first: the points go with the lane.
+                let remove = column(2.0);
+                let response = ui.interact(
+                    remove,
+                    ui.scope_id().with(("lane-delete", id.0, li)),
+                    Sense::click(),
+                );
+                crate::theme::flat_toggle(
+                    ui,
+                    remove,
+                    &response,
+                    "✕",
+                    false,
+                    crate::settings::ERROR,
+                );
+                let points = lane.points.len();
+                let response = response.on_hover_text(tr("Delete this lane"));
+                egui::Popup::menu(&response).show(|ui| {
+                    ui.label(trf!(
+                        "Delete this automation and its {count} point(s)?",
+                        count = points
+                    ));
+                    if ui.button(tr("Delete")).clicked() {
+                        doc.history_mut().edit(tr("Delete automation lane"), |p| {
+                            if let Some(t) = p.track_mut(id)
+                                && li < t.automation.len()
+                            {
+                                t.automation.remove(li);
+                            }
+                        });
+                        ui.close();
+                    }
+                    if ui.button(tr("Cancel")).clicked() {
+                        ui.close();
+                    }
+                });
             }
         }
         // Below the tracks: a click clears the selection, a right-click adds tracks.
@@ -917,6 +1111,147 @@ impl TimelineView {
         project: &Project,
         track: &Track,
     ) {
+        let targets = self.lane_targets(doc, track);
+        let _ = project;
+        egui::ScrollArea::vertical()
+            .max_height(360.0)
+            .show(ui, |ui| {
+                for target in targets {
+                    let existing = track.automation.iter().position(|l| l.target == target);
+                    if existing.is_some_and(|i| track.automation[i].visible) {
+                        continue;
+                    }
+                    let name = self.target_info(doc, track, &target).name;
+                    if ui.button(name).clicked() {
+                        let id = track.id;
+                        doc.history_mut().edit(tr("Add automation lane"), |p| {
+                            if let Some(t) = p.track_mut(id) {
+                                audiostrada_core::automation::lane_mut(t, &target).visible = true;
+                                t.show_automation = true;
+                            }
+                        });
+                        ui.close();
+                    }
+                }
+            });
+    }
+
+    /// The menu of a track's automation button: what it can automate, each opening the large
+    /// editor on it, and the lanes under the track.
+    fn automation_menu(&mut self, ui: &mut Ui, doc: &mut Document, track: &Track) {
+        ui.label(egui::RichText::new(tr("Draw the automation of")).weak());
+        let targets = self.lane_targets(doc, track);
+        egui::ScrollArea::vertical()
+            .max_height(340.0)
+            .show(ui, |ui| {
+                for target in targets {
+                    let name = self.target_info(doc, track, &target).name;
+                    // A dot before what already has a curve.
+                    let drawn = track
+                        .automation
+                        .iter()
+                        .any(|l| l.target == target && !l.points.is_empty());
+                    let label = if drawn { format!("● {name}") } else { name };
+                    if ui.button(label).clicked() {
+                        self.open_auto_editor(doc, track.id, target);
+                        ui.close();
+                    }
+                }
+            });
+        ui.separator();
+        let mut shown = track.show_automation;
+        if ui
+            .checkbox(&mut shown, tr("Lanes under the track"))
+            .changed()
+        {
+            let id = track.id;
+            doc.history_mut().modify_unrecorded(|p| {
+                if let Some(t) = p.track_mut(id) {
+                    t.show_automation = shown;
+                }
+            });
+            ui.close();
+        }
+    }
+
+    /// In the automation editor, the curve a track shows, named on a button that lists the
+    /// others.
+    pub(super) fn lane_chooser(
+        &mut self,
+        ui: &mut Ui,
+        doc: &mut Document,
+        track: &Track,
+        rect: Rect,
+    ) {
+        let visuals = ui.visuals().clone();
+        let current = self.lane_choice(track);
+        let name = self.target_info(doc, track, &current).name;
+        let response = ui
+            .interact(
+                rect,
+                ui.scope_id().with(("lane-choice", track.id.0)),
+                Sense::click(),
+            )
+            .on_hover_text(tr(
+                "The curve shown over this track: click to choose another",
+            ));
+        let color = crate::theme::track_color(track.color);
+        ui.painter().rect_filled(
+            rect,
+            5.0,
+            if response.hovered() {
+                visuals.widgets.hovered.bg_fill
+            } else {
+                visuals.widgets.inactive.bg_fill
+            },
+        );
+        ui.painter().rect_stroke(
+            rect,
+            5.0,
+            Stroke::new(1.0, color.gamma_multiply(0.6)),
+            StrokeKind::Inside,
+        );
+        let mut job = egui::text::LayoutJob::simple_singleline(
+            name,
+            crate::theme::strong(11.5),
+            visuals.strong_text_color(),
+        );
+        job.wrap = egui::text::TextWrapping::truncate_at_width(rect.width() - 24.0);
+        let galley = ui.fonts_mut(|f| f.layout_job(job));
+        ui.painter().galley(
+            pos2(rect.left() + 8.0, rect.center().y - galley.size().y / 2.0),
+            galley,
+            visuals.text_color(),
+        );
+        ui.painter().text(
+            pos2(rect.right() - 9.0, rect.center().y),
+            Align2::CENTER_CENTER,
+            "▾",
+            FontId::proportional(10.0),
+            visuals.weak_text_color(),
+        );
+        egui::Popup::menu(&response).show(|ui| {
+            let targets = self.lane_targets(doc, track);
+            egui::ScrollArea::vertical()
+                .max_height(360.0)
+                .show(ui, |ui| {
+                    for target in targets {
+                        let name = self.target_info(doc, track, &target).name;
+                        if ui.selectable_label(target == current, name).clicked() {
+                            self.lane_choice.insert(track.id, target);
+                            ui.close();
+                        }
+                    }
+                });
+        });
+    }
+
+    /// What a track can automate: its volume, pan and mute, its sends, its effects' parameters.
+    pub(super) fn lane_targets(
+        &mut self,
+        doc: &mut Document,
+        track: &Track,
+    ) -> Vec<AutomationTarget> {
         // A VCA's level moves its tracks' levels: that is what it automates.
         let mut targets = if track.kind == TrackKind::Vca {
             vec![AutomationTarget::Gain]
@@ -957,28 +1292,7 @@ impl TimelineView {
                 );
             }
         }
-        let _ = project;
-        egui::ScrollArea::vertical()
-            .max_height(360.0)
-            .show(ui, |ui| {
-                for target in targets {
-                    let existing = track.automation.iter().position(|l| l.target == target);
-                    if existing.is_some_and(|i| track.automation[i].visible) {
-                        continue;
-                    }
-                    let name = self.target_info(doc, track, &target).name;
-                    if ui.button(name).clicked() {
-                        let id = track.id;
-                        doc.history_mut().edit(tr("Add automation lane"), |p| {
-                            if let Some(t) = p.track_mut(id) {
-                                audiostrada_core::automation::lane_mut(t, &target).visible = true;
-                                t.show_automation = true;
-                            }
-                        });
-                        ui.close();
-                    }
-                }
-            });
+        targets
     }
 }
 
@@ -1198,6 +1512,11 @@ impl TimelineView {
         )
         .on_hover_text(problems.join("\n"));
     }
+}
+
+/// The green of what plays.
+fn theme_play() -> Color32 {
+    crate::theme::PLAY
 }
 
 #[cfg(test)]

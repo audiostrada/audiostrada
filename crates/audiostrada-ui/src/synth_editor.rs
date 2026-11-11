@@ -3623,7 +3623,7 @@ fn octave_name(key: i32) -> String {
 fn track_of(params: &Params) -> Option<audiostrada_core::TrackId> {
     match params.channel {
         Channel::Track(t) => Some(t),
-        Channel::Master => None,
+        Channel::Master | Channel::Clip(_) => None,
     }
 }
 

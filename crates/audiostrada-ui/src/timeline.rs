@@ -24,6 +24,7 @@ use crate::i18n::tr;
 use crate::transport::{EditMode, EditSettings};
 use crate::trf;
 
+mod auto_editor;
 mod automation;
 mod draw;
 mod fades;
@@ -41,12 +42,12 @@ use gestures::*;
 pub use menus::TRACK_COLORS;
 pub use toolbar::Tool;
 
-const HEADER_WIDTH: f32 = 210.0;
+const HEADER_WIDTH: f32 = 240.0;
 const MIN_HEADER_WIDTH: f32 = 150.0;
 const MAX_HEADER_WIDTH: f32 = 420.0;
 /// Width the track meter takes at the right of a header.
 const HEADER_METER: f32 = 12.0;
-const RULER_HEIGHT: f32 = 28.0;
+const RULER_HEIGHT: f32 = 34.0;
 const EDGE_ZONE: f32 = 6.0;
 const FADE_ZONE_HEIGHT: f32 = 12.0;
 /// Height of the name bar at the top of a clip.
@@ -171,6 +172,18 @@ pub struct TimelineView {
     content_height: f32,
     /// Range and name of automation targets whose range comes from a plugin.
     target_info: HashMap<(TrackId, AutomationTarget), headers::LaneInfo>,
+    /// The automation editor, a window over the timeline, while it is open.
+    auto_editor: Option<auto_editor::AutoEditor>,
+    /// Set while the automation editor draws its lanes: its pencil applies there.
+    automation: bool,
+    /// The tool of the automation editor.
+    auto_tool: automation::AutoTool,
+    /// The curve each track shows in the automation editor; its volume until one is chosen.
+    lane_choice: HashMap<TrackId, AutomationTarget>,
+    /// Where the lane gesture or menu under way was started: the timeline or the editor.
+    lane_surface: Option<egui::Id>,
+    /// What the automation tools asked for, done at the next frame.
+    lane_command: Option<automation::LaneCommand>,
     /// Automation points chosen, in one lane.
     chosen: Option<automation::Chosen>,
     /// A gesture on an automation lane.
@@ -191,6 +204,9 @@ pub struct TimelineView {
     pub requests: Vec<Action>,
     /// Track to export, chosen in its header menu.
     pub stem_request: Option<TrackId>,
+    /// Clip whose own effects to show, chosen with its button or its menu, and whether one is
+    /// to be added.
+    pub clip_effects: Option<(ClipId, bool)>,
     /// Time range across tracks, drawn with Shift-drag.
     pub range: Option<Range>,
     clipboard: menus::Clipboard,
@@ -293,6 +309,12 @@ impl TimelineView {
             tops: Vec::new(),
             content_height: 0.0,
             target_info: HashMap::new(),
+            auto_editor: None,
+            automation: false,
+            auto_tool: automation::AutoTool::default(),
+            lane_surface: None,
+            lane_choice: HashMap::new(),
+            lane_command: None,
             chosen: None,
             lane_drag: None,
             value_edit: None,
@@ -303,6 +325,7 @@ impl TimelineView {
             marker_rename: None,
             requests: Vec::new(),
             stem_request: None,
+            clip_effects: None,
             range: None,
             clipboard: menus::Clipboard::default(),
             lane_info: HashMap::new(),
@@ -619,6 +642,11 @@ impl TimelineView {
             Action::ToolSplit => self.tool = Tool::Split,
             Action::ToolErase => self.tool = Tool::Erase,
             Action::ToolMute => self.tool = Tool::Mute,
+            Action::AutomationEditor => {
+                if self.auto_editor.take().is_none() {
+                    self.auto_editor = Some(auto_editor::AutoEditor::at(self.zoom, self.scroll));
+                }
+            }
             Action::ZoomToSelection => self.zoom_to_selection(&doc),
             Action::Fades => self.fades(&mut doc),
             Action::NextTransient | Action::PreviousTransient => {
@@ -863,6 +891,7 @@ impl TimelineView {
 
         doc.update_levels();
         self.toolbar(ui, settings, doc.player().position());
+        self.run_lane_command(&mut doc);
         let settings = &*settings;
         let all = ui.available_rect_before_wrap();
         let (_, background) = ui.allocate_exact_size(all.size(), Sense::hover());
@@ -965,7 +994,39 @@ impl TimelineView {
 
         self.draw_ruler(&painter, ruler, &project, scale, &visuals);
         let lane_painter = painter.with_clip_rect(lanes);
+        // The rows' backgrounds, a shade apart from one to the next, the selected ones lit;
+        // the grid over them, the clips over the grid.
+        for (i, &(index, _)) in self.rows.iter().enumerate() {
+            let track = &project.tracks[index];
+            let top = lanes.top() + self.tops[i] - self.scroll_y;
+            let height = self.heights[i] + takes_height(track) + lanes_height(track);
+            let row =
+                Rect::from_min_max(pos2(lanes.left(), top), pos2(lanes.right(), top + height));
+            if row.bottom() < lanes.top() || row.top() > lanes.bottom() {
+                continue;
+            }
+            lane_painter.rect_filled(
+                row,
+                0.0,
+                row_fill(&visuals, i, doc.is_track_selected(track.id)),
+            );
+            lane_painter.hline(
+                row.x_range(),
+                row.bottom() - 0.5,
+                Stroke::new(
+                    1.0,
+                    Color32::from_black_alpha(if visuals.dark_mode { 90 } else { 30 }),
+                ),
+            );
+        }
         self.draw_grid(&lane_painter, lanes, &project, scale, &visuals);
+        // The ruler's shadow on the lanes.
+        crate::gear::sheen(
+            &lane_painter,
+            Rect::from_min_size(lanes.min, vec2(lanes.width(), 10.0)),
+            Color32::from_black_alpha(if visuals.dark_mode { 70 } else { 24 }),
+            Color32::TRANSPARENT,
+        );
         if let Some((start, end)) = project.looping() {
             let r = Rect::from_x_y_ranges(scale.x(start)..=scale.x(end), lanes.y_range());
             lane_painter.rect_filled(r, 0.0, visuals.selection.bg_fill.gamma_multiply(0.08));
@@ -998,13 +1059,6 @@ impl TimelineView {
             if row.bottom() < lanes.top() || row.top() > lanes.bottom() {
                 continue;
             }
-            let selected_track = doc.is_track_selected(track.id);
-            let lane_fill = if selected_track {
-                visuals.faint_bg_color.gamma_multiply(1.6)
-            } else {
-                visuals.faint_bg_color
-            };
-            lane_painter.rect_filled(row.shrink2(vec2(0.0, 0.5)), 0.0, lane_fill);
             // A folder shows its tracks' clips in small, one thin band each.
             let members = routing::subtree(&project, track.id);
             if track.clips.is_empty() && members.len() > 1 {
@@ -1053,6 +1107,16 @@ impl TimelineView {
                 }
                 if pointer.is_some_and(|p| rect.contains(p) && lanes.contains(p)) {
                     hovered_clip = Some((clip.id, track.id, rect));
+                    // Under the pointer, it lights up a little.
+                    if !selected {
+                        lane_painter.rect_filled(rect, 5.0, Color32::from_white_alpha(6));
+                        lane_painter.rect_stroke(
+                            rect,
+                            5.0,
+                            Stroke::new(1.0, Color32::from_white_alpha(60)),
+                            StrokeKind::Inside,
+                        );
+                    }
                 }
             }
             draw_crossfades(&lane_painter, row, track, scale);
@@ -1141,13 +1205,25 @@ impl TimelineView {
             draw_handles(&lane_painter, rect, clip, self.zoom, true);
         }
 
-        // Playhead.
+        // Playhead: a line with a soft glow, its head in the ruler.
         let x = scale.x(position);
-        if x >= lanes.left() {
-            painter.line_segment(
-                [pos2(x, ruler.top()), pos2(x, full.bottom())],
-                Stroke::new(1.5, Color32::from_rgb(240, 80, 70)),
-            );
+        if x >= lanes.left() && x <= lanes.right() {
+            let red = Color32::from_rgb(255, 78, 66);
+            let span = [pos2(x, ruler.bottom()), pos2(x, full.bottom())];
+            painter.line_segment(span, Stroke::new(5.0, red.gamma_multiply(0.12)));
+            painter.line_segment(span, Stroke::new(1.5, red));
+            let head = ruler.bottom();
+            painter.add(Shape::convex_polygon(
+                vec![
+                    pos2(x - 6.0, head - 9.0),
+                    pos2(x + 6.0, head - 9.0),
+                    pos2(x + 6.0, head - 4.0),
+                    pos2(x, head + 1.0),
+                    pos2(x - 6.0, head - 4.0),
+                ],
+                red,
+                Stroke::new(1.0, Color32::from_black_alpha(90)),
+            ));
         }
 
         if let Some(range) = &self.range {
@@ -1199,6 +1275,12 @@ impl TimelineView {
             magnet::Magnet::new(settings, &project, scale.zoom, doc.player().position(), &[]);
         self.lane_rects.clear();
         self.track_lanes(ui, &mut doc, &project, lanes, scale, &magnet);
+        self.automation_window(ui.ctx(), &mut doc, &project, settings);
+        // The clip selected alone: the rack shows its own effects.
+        doc.set_focused_clip(match self.selection.as_slice() {
+            [one] => Some(*one),
+            _ => None,
+        });
         if band > 0.0 {
             let top = full.top() + RULER_HEIGHT;
             let head = Rect::from_min_max(pos2(full.left(), top), pos2(header.right(), top + band));
@@ -1244,15 +1326,78 @@ impl TimelineView {
                 let Some(info) = self.lane_info.get(&(track.id, li)).cloned() else {
                     continue;
                 };
-                let view = automation::LaneView {
-                    key: automation::LaneKey::Track(track.id, lane.target.clone()),
+                // Shown here, drawn in the editor: a click opens it on this curve.
+                let _ = &info;
+                self.lane_rects.push((
+                    automation::LaneKey::Track(track.id, lane.target.clone()),
                     rect,
-                    clip: lanes,
-                    info: &info,
-                    scale,
-                    magnet,
+                ));
+                let response = ui
+                    .interact(
+                        rect.intersect(lanes),
+                        ui.scope_id().with(("lane-preview", track.id.0, li)),
+                        Sense::click(),
+                    )
+                    .on_hover_cursor(CursorIcon::PointingHand)
+                    .on_hover_text(tr("Click to draw this automation in the large editor"));
+                if response.hovered() {
+                    ui.painter().with_clip_rect(lanes).rect_stroke(
+                        rect.shrink(1.0),
+                        3.0,
+                        Stroke::new(1.0, ui.visuals().selection.bg_fill.gamma_multiply(0.7)),
+                        StrokeKind::Inside,
+                    );
+                }
+                if response.clicked() {
+                    self.open_auto_editor(doc, track.id, lane.target.clone());
+                }
+            }
+            let row_top = lanes.top() + self.tops[i] - self.scroll_y;
+            let row_bottom = row_top + self.heights[i];
+            if row_bottom < lanes.top() || row_top > lanes.bottom() {
+                continue;
+            }
+            // The automation of the clips' own effects, over the clips.
+            let ink = crate::theme::text_on(crate::theme::track_color(track.color));
+            for clip in track.clips.iter().filter(|c| !c.inserts.is_empty()) {
+                let (x0, x1) = (scale.x(clip.start), scale.x(clip.end()));
+                if x1 < lanes.left() || x0 > lanes.right() {
+                    continue;
+                }
+                let body = Rect::from_min_max(
+                    pos2(x0, row_top + NAME_BAR + 2.0),
+                    pos2(x1, row_bottom - 3.0),
+                );
+                if body.height() < 20.0 {
+                    continue;
+                }
+                let origin = clip.start as i64 - clip.offset as i64;
+                let shifted = Scale {
+                    scroll: scale.scroll - origin as f64,
+                    ..scale
                 };
-                self.lane_editor(ui, doc, &view);
+                let area = body.intersect(lanes);
+                let painter = ui.painter().with_clip_rect(area);
+                for lane in clip.automation.iter().filter(|l| l.visible) {
+                    let info = self.param_info(
+                        doc,
+                        (track.id, Channel::Clip(clip.id)),
+                        &clip.inserts,
+                        &lane.target,
+                    );
+                    draw_curve(&painter, body, lane, &info, shifted, ink);
+                    let view = automation::LaneView {
+                        key: automation::LaneKey::Clip(clip.id, lane.target.clone()),
+                        rect: body,
+                        clip: area,
+                        info: &info,
+                        scale,
+                        magnet,
+                        origin,
+                        overlay: true,
+                    };
+                    self.lane_editor(ui, doc, &view);
+                }
             }
         }
     }
@@ -1353,6 +1498,26 @@ fn lane_label(lane: &audiostrada_core::Playlist) -> String {
             None => trf!("Take {n}", n = take.number),
         },
         None => take_name(&lane.name),
+    }
+}
+
+/// A row's background: a shade apart from its neighbours', lit when its track is selected.
+fn row_fill(visuals: &egui::Visuals, row: usize, selected: bool) -> Color32 {
+    let base = visuals.extreme_bg_color;
+    let lift = if visuals.dark_mode {
+        Color32::WHITE
+    } else {
+        Color32::BLACK
+    };
+    let fill = draw::mix(
+        base,
+        lift,
+        if row.is_multiple_of(2) { 0.035 } else { 0.015 },
+    );
+    if selected {
+        draw::mix(fill, visuals.selection.bg_fill, 0.15)
+    } else {
+        fill
     }
 }
 

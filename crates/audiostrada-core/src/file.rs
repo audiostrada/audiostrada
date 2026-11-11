@@ -173,6 +173,7 @@ pub fn from_json(bytes: &[u8]) -> Result<Project, ProjectError> {
     }
     project.repair();
     project.rebase_midi();
+    project.separate_clip_inserts();
     Ok(project)
 }
 

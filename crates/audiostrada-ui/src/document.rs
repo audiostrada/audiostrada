@@ -196,6 +196,8 @@ fn midi_clip(
         notes: Some(std::sync::Arc::new(notes)),
         variations: Vec::new(),
         take: None,
+        inserts: Vec::new(),
+        automation: Vec::new(),
     }
 }
 
@@ -251,6 +253,8 @@ pub struct Document {
     track_selection: Vec<TrackId>,
     /// The master is selected, in place of any track.
     master_selected: bool,
+    /// The clip selected alone in the timeline, whose own effects the rack shows.
+    focused_clip: Option<audiostrada_core::ClipId>,
     /// The plugin scan running in the background, for the windows listing plugins.
     plugin_scan: Option<std::sync::Arc<audiostrada_plugins::scan::Progress>>,
     /// Tempos found in clips, by what they play, and those still being looked for.
@@ -304,6 +308,9 @@ pub(crate) fn lanes_of(project: &Project, channel: Channel) -> &[AutomationLane]
     match channel {
         Channel::Master => &project.master.automation,
         Channel::Track(id) => project.track(id).map_or(&[], |t| t.automation.as_slice()),
+        Channel::Clip(c) => {
+            audiostrada_core::edit::clip(project, c).map_or(&[], |c| c.automation.as_slice())
+        }
     }
 }
 
@@ -316,6 +323,7 @@ pub(crate) fn lane_in<'a>(
     let lanes = match channel {
         Channel::Master => &mut project.master.automation,
         Channel::Track(id) => &mut project.track_mut(id)?.automation,
+        Channel::Clip(_) => return None,
     };
     if let Some(i) = lanes.iter().position(|l| &l.target == target) {
         return lanes.get_mut(i);
@@ -366,6 +374,7 @@ impl Document {
             stream_inputs: 0,
             track_selection: Vec::new(),
             master_selected: false,
+            focused_clip: None,
             plugin_scan: None,
             tempos: HashMap::new(),
             tempo_jobs: HashMap::new(),
@@ -537,6 +546,15 @@ impl Document {
 
     pub fn is_master_selected(&self) -> bool {
         self.master_selected
+    }
+
+    /// The clip selected alone in the timeline.
+    pub fn focused_clip(&self) -> Option<audiostrada_core::ClipId> {
+        self.focused_clip
+    }
+
+    pub fn set_focused_clip(&mut self, clip: Option<audiostrada_core::ClipId>) {
+        self.focused_clip = clip;
     }
 
     /// Reads the track meters, once for every view drawn in the same frame.
@@ -1310,6 +1328,8 @@ impl Document {
             notes: None,
             variations: Vec::new(),
             take: None,
+            inserts: Vec::new(),
+            automation: Vec::new(),
         };
         (source, clip)
     }
@@ -1364,6 +1384,11 @@ impl Document {
                 .project()
                 .track(id)
                 .map_or(AutomationMode::Off, |t| t.automation_mode),
+            // A clip's lanes play as its track's do.
+            Channel::Clip(_) => channel
+                .track(self.project())
+                .and_then(|t| self.project().track(t))
+                .map_or(AutomationMode::Off, |t| t.automation_mode),
         }
     }
 
@@ -1388,7 +1413,13 @@ impl Document {
         if !self.automation_active(channel, target) {
             return None;
         }
-        let position = self.player.position();
+        let mut position = self.player.position();
+        // A clip's lanes count from the start of its content.
+        if let Channel::Clip(c) = channel
+            && let Some(clip) = audiostrada_core::edit::clip(self.project(), c)
+        {
+            position = (position + clip.offset).saturating_sub(clip.start);
+        }
         lanes_of(self.project(), channel)
             .iter()
             .find(|l| &l.target == target)
@@ -1429,7 +1460,9 @@ impl Document {
         let mode = self.automation_mode(channel);
         let playing = self.player.engine().playing();
         let active = self.automation_active(channel, target);
-        if playing && mode.writes() && (mode != AutomationMode::Trim || active) {
+        // A clip's lanes are drawn, not written during playback.
+        let writable = !matches!(channel, Channel::Clip(_));
+        if writable && playing && mode.writes() && (mode != AutomationMode::Trim || active) {
             let now = self.player.position();
             let original = lanes_of(&project, channel)
                 .iter()
@@ -1671,6 +1704,7 @@ impl Document {
             let inserts = match channel {
                 Channel::Master => Some(&mut p.master.inserts),
                 Channel::Track(t) => p.track_mut(t).map(|t| &mut t.inserts),
+                Channel::Clip(c) => audiostrada_core::edit::clip_mut(p, c).map(|c| &mut c.inserts),
             };
             if let Some(i) = inserts.and_then(|i| i.iter_mut().find(|i| i.id == insert)) {
                 match stored {
@@ -1860,10 +1894,7 @@ impl Document {
 
     /// Controller mapped to a control: (channel, controller).
     pub fn mapping(&self, channel: Channel, target: &AutomationTarget) -> Option<(u8, u8)> {
-        let track = match channel {
-            Channel::Master => None,
-            Channel::Track(t) => Some(t),
-        };
+        let track = channel.track(self.project());
         self.project()
             .midi_map
             .iter()
@@ -1872,10 +1903,7 @@ impl Document {
     }
 
     pub fn forget_mapping(&mut self, channel: Channel, target: &AutomationTarget) {
-        let track = match channel {
-            Channel::Master => None,
-            Channel::Track(t) => Some(t),
-        };
+        let track = channel.track(self.project());
         self.history.edit(tr("Forget MIDI mapping"), |p| {
             p.midi_map
                 .retain(|m| !(m.track == track && &m.target == target));
@@ -1929,10 +1957,7 @@ impl Document {
         });
         for (midi_channel, controller, value) in moves {
             if let Some((channel, target, min, max)) = self.learning.take() {
-                let track = match channel {
-                    Channel::Master => None,
-                    Channel::Track(t) => Some(t),
-                };
+                let track = channel.track(self.project());
                 let mapping = audiostrada_core::MidiMapping {
                     channel: midi_channel,
                     controller,
@@ -2085,6 +2110,9 @@ impl Document {
                 let inserts = match channel {
                     Channel::Master => Some(&mut p.master.inserts),
                     Channel::Track(t) => p.track_mut(t).map(|t| &mut t.inserts),
+                    Channel::Clip(c) => {
+                        audiostrada_core::edit::clip_mut(p, c).map(|c| &mut c.inserts)
+                    }
                 };
                 if let Some(insert) = inserts.and_then(|l| l.iter_mut().find(|i| i.id == id)) {
                     insert.state = Some(base64::encode(&state));
@@ -2104,6 +2132,9 @@ impl Document {
                 let inserts = match channel {
                     Channel::Master => Some(&mut p.master.inserts),
                     Channel::Track(t) => p.track_mut(t).map(|t| &mut t.inserts),
+                    Channel::Clip(c) => {
+                        audiostrada_core::edit::clip_mut(p, c).map(|c| &mut c.inserts)
+                    }
                 };
                 if let Some(insert) = inserts.and_then(|l| l.iter_mut().find(|i| i.id == id)) {
                     insert.params.insert(param.to_string(), value as f32);

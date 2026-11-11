@@ -34,6 +34,16 @@ pub struct WaveView {
     pub fit: bool,
 }
 
+/// Bars between two numbered (or emphasized) bars: 1, 2, 4, 8... so that they are at least
+/// `room` pixels apart.
+pub(super) fn bars_apart(bar_px: f64, room: f64) -> u64 {
+    let mut every = 1u64;
+    while bar_px * (every as f64) < room && every < 4096 {
+        every *= 2;
+    }
+    every
+}
+
 /// `a` towards `b` by `t`.
 pub(super) fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
     let m = |x: u8, y: u8| (f32::from(x) + (f32::from(y) - f32::from(x)) * t) as u8;
@@ -41,17 +51,23 @@ pub(super) fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
 }
 
 /// One column of a filled waveform, joined to the previous one when `join`.
-fn strip(mesh: &mut egui::Mesh, join: bool, x: f32, top: f32, bottom: f32, color: Color32) {
+fn strip(
+    mesh: &mut egui::Mesh,
+    join: bool,
+    x: f32,
+    (top, bottom): (f32, f32),
+    (color, foot): (Color32, Color32),
+) {
     if !join {
         // A lone column still shows: a pixel-wide quad.
         let i = mesh.vertices.len() as u32;
-        for p in [
-            pos2(x - 0.5, top),
-            pos2(x - 0.5, bottom),
-            pos2(x + 0.5, top),
-            pos2(x + 0.5, bottom),
+        for (p, c) in [
+            (pos2(x - 0.5, top), color),
+            (pos2(x - 0.5, bottom), foot),
+            (pos2(x + 0.5, top), color),
+            (pos2(x + 0.5, bottom), foot),
         ] {
-            mesh.colored_vertex(p, color);
+            mesh.colored_vertex(p, c);
         }
         mesh.add_triangle(i, i + 1, i + 2);
         mesh.add_triangle(i + 1, i + 3, i + 2);
@@ -59,7 +75,7 @@ fn strip(mesh: &mut egui::Mesh, join: bool, x: f32, top: f32, bottom: f32, color
     }
     let i = mesh.vertices.len() as u32;
     mesh.colored_vertex(pos2(x, top), color);
-    mesh.colored_vertex(pos2(x, bottom), color);
+    mesh.colored_vertex(pos2(x, bottom), foot);
     // The previous column's two last vertices.
     mesh.add_triangle(i - 2, i - 1, i);
     mesh.add_triangle(i - 1, i + 1, i);
@@ -74,7 +90,25 @@ impl TimelineView {
         scale: Scale,
         visuals: &egui::Visuals,
     ) {
-        painter.rect_filled(ruler, 0.0, visuals.panel_fill);
+        let lift = if visuals.dark_mode {
+            Color32::WHITE
+        } else {
+            Color32::BLACK
+        };
+        crate::theme::gradient_rect(
+            painter,
+            ruler,
+            visuals.panel_fill,
+            mix(visuals.panel_fill, lift, 0.05),
+        );
+        painter.hline(
+            ruler.x_range(),
+            ruler.bottom() - 0.5,
+            Stroke::new(
+                1.0,
+                Color32::from_black_alpha(if visuals.dark_mode { 140 } else { 50 }),
+            ),
+        );
         let rate = project.sample_rate;
         let tempo = &project.tempo;
         let first_beat = tempo
@@ -88,11 +122,9 @@ impl TimelineView {
             - tempo.beat_to_sample(first_beat, rate)) as f64
             / scale.zoom;
         let per_bar = tempo.signature_at_beat(first_beat).beats_per_bar();
-        let label_every = if beat_px * per_bar < 40.0 {
-            (40.0 / (beat_px * per_bar)).ceil() * per_bar
-        } else {
-            per_bar
-        };
+        // Bar numbers 1, 2, 4, 8... bars apart, as many as fit.
+        let every = bars_apart(beat_px * per_bar, 44.0);
+        let weak = visuals.weak_text_color();
         let mut beat = first_beat;
         let mut count = 0;
         while beat <= last_beat && count < 4000 {
@@ -100,21 +132,38 @@ impl TimelineView {
             let x = scale.x(tempo.beat_to_sample(beat, rate));
             let bbt = tempo.beat_to_bbt(beat);
             let on_bar = bbt.beat == 1 && bbt.tick == 0;
+            let bar = u64::from(bbt.bar.max(1) - 1);
+            let numbered = on_bar && bar % every == 0;
+            let (h, ink) = if numbered {
+                (ruler.height() - 4.0, weak.gamma_multiply(0.9))
+            } else if on_bar {
+                (9.0, weak.gamma_multiply(0.6))
+            } else {
+                (5.0, weak.gamma_multiply(0.45))
+            };
             if on_bar || beat_px > 6.0 {
-                let h = if on_bar { 12.0 } else { 6.0 };
-                painter.line_segment(
-                    [pos2(x, ruler.bottom() - h), pos2(x, ruler.bottom())],
-                    Stroke::new(1.0, visuals.weak_text_color()),
+                painter.vline(
+                    x,
+                    (ruler.bottom() - h)..=ruler.bottom(),
+                    Stroke::new(1.0, ink),
                 );
             }
-            let bar_index = f64::from(bbt.bar - 1) * per_bar;
-            if on_bar && (bar_index % label_every).abs() < 1e-6 {
+            if numbered {
                 painter.text(
-                    pos2(x + 3.0, ruler.top() + 2.0),
+                    pos2(x + 4.0, ruler.top() + 1.0),
                     Align2::LEFT_TOP,
                     bbt.bar.to_string(),
-                    FontId::monospace(11.0),
+                    crate::theme::strong(11.0),
                     visuals.text_color(),
+                );
+            } else if !on_bar && beat_px > 34.0 {
+                // The beats, when they have room: "5.2".
+                painter.text(
+                    pos2(x + 3.0, ruler.top() + 3.0),
+                    Align2::LEFT_TOP,
+                    format!("{}.{}", bbt.bar, bbt.beat),
+                    FontId::proportional(9.0),
+                    weak.gamma_multiply(0.75),
                 );
             }
             beat += 1.0;
@@ -156,22 +205,36 @@ impl TimelineView {
             if x < ruler.left() || x > ruler.right() {
                 continue;
             }
-            let color = Color32::from_rgb(230, 170, 40);
-            painter.add(Shape::convex_polygon(
-                vec![
-                    pos2(x, ruler.top() + 14.0),
-                    pos2(x + 8.0, ruler.top() + 14.0),
-                    pos2(x, ruler.bottom() - 6.0),
-                ],
-                color,
-                Stroke::NONE,
-            ));
-            painter.text(
-                pos2(x + 10.0, ruler.top() + 13.0),
-                Align2::LEFT_TOP,
-                &marker.name,
+            let color = Color32::from_rgb(240, 178, 48);
+            // A stem down to the ruler's foot, and the name on a tab of the marker's color.
+            painter.vline(
+                x,
+                (ruler.top() + 15.0)..=ruler.bottom(),
+                Stroke::new(1.5, color),
+            );
+            let galley = painter.layout_no_wrap(
+                marker.name.clone(),
                 FontId::proportional(10.0),
+                Color32::from_rgb(40, 26, 0),
+            );
+            let tab = Rect::from_min_size(
+                pos2(x, ruler.top() + 15.0),
+                vec2(galley.size().x + 12.0, 13.0),
+            );
+            painter.rect_filled(
+                tab,
+                egui::CornerRadius {
+                    nw: 0,
+                    ne: 4,
+                    sw: 0,
+                    se: 4,
+                },
                 color,
+            );
+            painter.galley(
+                pos2(tab.left() + 6.0, tab.center().y - galley.size().y / 2.0),
+                galley,
+                Color32::from_rgb(40, 26, 0),
             );
         }
     }
@@ -196,19 +259,59 @@ impl TimelineView {
         let beat_px = (tempo.beat_to_sample(first + 1.0, rate) - tempo.beat_to_sample(first, rate))
             as f64
             / scale.zoom;
+        let per_bar = tempo.signature_at_beat(first).beats_per_bar();
+        let every = bars_apart(beat_px * per_bar, 60.0);
+        let ink = visuals.text_color();
+        let x_of = |beat: f64| scale.x(tempo.beat_to_sample(beat, rate));
         let mut beat = first;
         let mut count = 0;
         while beat <= last && count < 4000 {
             count += 1;
             let bbt = tempo.beat_to_bbt(beat);
             let on_bar = bbt.beat == 1 && bbt.tick == 0;
-            if on_bar || beat_px > 12.0 {
-                let x = scale.x(tempo.beat_to_sample(beat, rate));
-                let alpha = if on_bar { 0.12 } else { 0.05 };
-                painter.line_segment(
-                    [pos2(x, lanes.top()), pos2(x, lanes.bottom())],
-                    Stroke::new(1.0, visuals.text_color().gamma_multiply(alpha)),
+            let x = x_of(beat);
+            if on_bar {
+                let bar = u64::from(bbt.bar.max(1) - 1);
+                let length = tempo.signature_at_beat(beat).beats_per_bar();
+                // Every other group of bars a shade apart, to keep one's place.
+                if (bar / every) % 2 == 1 && bar % every == 0 {
+                    let end = x_of(beat + length * every as f64);
+                    painter.rect_filled(
+                        Rect::from_x_y_ranges(x..=end, lanes.y_range()),
+                        0.0,
+                        ink.gamma_multiply(0.03),
+                    );
+                }
+                if bar % every == 0 {
+                    painter.vline(
+                        x,
+                        lanes.y_range(),
+                        Stroke::new(1.0, ink.gamma_multiply(0.13)),
+                    );
+                } else if beat_px * length > 8.0 {
+                    painter.vline(
+                        x,
+                        lanes.y_range(),
+                        Stroke::new(1.0, ink.gamma_multiply(0.06)),
+                    );
+                }
+            } else if beat_px > 14.0 {
+                painter.vline(
+                    x,
+                    lanes.y_range(),
+                    Stroke::new(1.0, ink.gamma_multiply(0.045)),
                 );
+            }
+            // Sixteenths, faintly, when there is room for them.
+            if beat_px > 64.0 {
+                for k in 1..4 {
+                    let xs = x_of(beat + f64::from(k) * 0.25);
+                    painter.vline(
+                        xs,
+                        lanes.y_range(),
+                        Stroke::new(1.0, ink.gamma_multiply(0.02)),
+                    );
+                }
             }
             beat += 1.0;
         }
@@ -230,38 +333,79 @@ impl TimelineView {
         if clip.muted {
             base = visuals.weak_text_color();
         }
-        // A dark body for the waveform to stand out, lighter when selected.
-        let strength = match (visuals.dark_mode, selected) {
-            (true, false) => 0.2,
-            (true, true) => 0.34,
+        let dark = visuals.dark_mode;
+        let clipped = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
+        // Lifted off the lane by a soft shadow.
+        painter.rect_filled(
+            rect.translate(vec2(0.0, 1.5)),
+            5.0,
+            Color32::from_black_alpha(if dark { 110 } else { 40 }),
+        );
+        // A body in the track's color for the waveform to stand out, lit from above, lighter
+        // when selected.
+        let strength = match (dark, selected) {
+            (true, false) => 0.30,
+            (true, true) => 0.42,
             (false, false) => 0.3,
             (false, true) => 0.45,
         };
         let body = mix(visuals.extreme_bg_color, base, strength);
-        painter.rect_filled(rect, 4.0, body);
-        // A thin name bar in the track color.
+        painter.rect_filled(rect, 5.0, body);
+        crate::gear::sheen(
+            &clipped,
+            rect.shrink2(vec2(1.0, 0.0)),
+            Color32::from_white_alpha(if dark { 14 } else { 30 }),
+            Color32::from_black_alpha(if dark { 70 } else { 6 }),
+        );
+        // The name band in the track color, its top edge catching the light.
         let name_height = NAME_BAR.min(rect.height() / 3.0);
         let bar = Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + name_height));
+        let band = if selected {
+            mix(base, Color32::WHITE, 0.12)
+        } else {
+            base.gamma_multiply(0.82)
+        };
         painter.rect_filled(
             bar,
             egui::CornerRadius {
-                nw: 4,
-                ne: 4,
+                nw: 5,
+                ne: 5,
                 sw: 0,
                 se: 0,
             },
-            base.gamma_multiply(if selected { 1.0 } else { 0.72 }),
+            band,
+        );
+        crate::gear::sheen(
+            &clipped,
+            bar.shrink2(vec2(1.0, 0.0)),
+            Color32::from_white_alpha(46),
+            Color32::TRANSPARENT,
+        );
+        painter.hline(
+            bar.x_range(),
+            bar.bottom(),
+            Stroke::new(1.0, Color32::from_black_alpha(if dark { 70 } else { 30 })),
         );
         let outline = if selected {
-            Stroke::new(1.5, Color32::WHITE)
+            Stroke::new(1.5, mix(base, Color32::WHITE, 0.75))
         } else {
-            Stroke::new(1.0, base.gamma_multiply(0.55))
+            Stroke::new(
+                1.0,
+                mix(base, Color32::BLACK, if dark { 0.35 } else { 0.2 }),
+            )
         };
-        painter.rect_stroke(rect, 4.0, outline, StrokeKind::Inside);
+        painter.rect_stroke(rect, 5.0, outline, StrokeKind::Inside);
+        if selected {
+            painter.rect_stroke(
+                rect.expand(1.5),
+                6.5,
+                Stroke::new(2.0, base.gamma_multiply(0.45)),
+                StrokeKind::Inside,
+            );
+        }
         if clip.muted {
             // Hatched across.
             let hatch = Stroke::new(1.0, visuals.weak_text_color().gamma_multiply(0.35));
-            let clipped = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
             let mut x = rect.left() - rect.height();
             while x < rect.right() {
                 clipped.line_segment(
@@ -278,9 +422,9 @@ impl TimelineView {
         if let Some(notes) = &clip.notes {
             draw_notes(painter, wave_rect, clip, notes, self.zoom, base);
         } else {
-            // On a light theme the track color is too pale over the clip: darker ink.
+            // Light over the dark body; on a light theme the track color is too pale: darker.
             let ink = if visuals.dark_mode {
-                base
+                mix(base, Color32::WHITE, 0.35)
             } else {
                 mix(base, Color32::BLACK, 0.5)
             };
@@ -306,7 +450,11 @@ impl TimelineView {
         }
 
         // Fades.
-        let fade_color = visuals.strong_text_color().gamma_multiply(0.7);
+        let fade_color = if visuals.dark_mode {
+            Color32::from_white_alpha(200)
+        } else {
+            Color32::from_black_alpha(170)
+        };
         let fade = |x0: f32, width: f32, rising: bool, shape: audiostrada_core::FadeShape| {
             let steps = (width / 3.0).clamp(2.0, 48.0) as usize;
             let points: Vec<Pos2> = (0..=steps)
@@ -333,7 +481,7 @@ impl TimelineView {
                 mesh.add_triangle(i, i + 2, i + 3);
             }
             painter.add(Shape::mesh(mesh));
-            painter.add(Shape::line(points, Stroke::new(1.0, fade_color)));
+            painter.add(Shape::line(points, Stroke::new(1.4, fade_color)));
         };
         if clip.fade_in > 0 {
             fade(rect.left(), px(clip.fade_in), true, clip.fade_shape);
@@ -342,17 +490,15 @@ impl TimelineView {
             let width = px(clip.fade_out);
             fade(rect.right() - width, width, false, clip.out_shape());
         }
-        let handle = |x: f32| Rect::from_center_size(pos2(x, rect.top() + 4.0), vec2(6.0, 6.0));
-        painter.rect_filled(
-            handle(rect.left() + px(clip.fade_in) + 3.0),
-            1.0,
-            fade_color,
-        );
-        painter.rect_filled(
-            handle(rect.right() - px(clip.fade_out) - 3.0),
-            1.0,
-            fade_color,
-        );
+        // The fade handles, small dots at the top corners.
+        for x in [
+            rect.left() + px(clip.fade_in) + 4.0,
+            rect.right() - px(clip.fade_out) - 4.0,
+        ] {
+            let at = pos2(x, rect.top() + 4.5);
+            clipped.circle_filled(at, 3.0, Color32::from_black_alpha(90));
+            clipped.circle_filled(at, 2.2, fade_color);
+        }
 
         let mut label = clip.name.clone();
         if (clip.stretch - 1.0).abs() > 1e-6 {
@@ -379,15 +525,41 @@ impl TimelineView {
             label.push_str("  ");
             label.push_str(&"★".repeat(usize::from(take.rating)));
         }
-        painter
-            .with_clip_rect(rect.intersect(painter.clip_rect()))
-            .text(
-                pos2(rect.left() + 10.0, rect.top() + 1.0),
+        let at = pos2(
+            fx_button(rect, clip).map_or(rect.left() + 10.0, |b| b.right() + 5.0),
+            rect.top() + 1.0,
+        );
+        let ink = crate::theme::text_on(band);
+        // Pressed into the band: a faint shadow under light letters.
+        if ink == Color32::WHITE {
+            clipped.text(
+                at + vec2(0.0, 1.0),
                 Align2::LEFT_TOP,
-                label,
+                &label,
                 crate::theme::strong(10.5),
-                crate::theme::text_on(base),
+                Color32::from_black_alpha(110),
             );
+        }
+        clipped.text(at, Align2::LEFT_TOP, label, crate::theme::strong(10.5), ink);
+        // Its effects button: lit when it has effects of its own.
+        if let Some(button) = fx_button(rect, clip) {
+            let painter = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
+            let ink = crate::theme::text_on(band);
+            let text = if clip.inserts.is_empty() {
+                painter.rect_stroke(button, 2.0, Stroke::new(1.0, ink), StrokeKind::Inside);
+                ink
+            } else {
+                painter.rect_filled(button, 2.0, ink);
+                band
+            };
+            painter.text(
+                button.center(),
+                Align2::CENTER_CENTER,
+                "FX",
+                crate::theme::strong(8.5),
+                text,
+            );
+        }
     }
 
     /// The take lanes of a track under it: each take whole, lit in its color where the comp
@@ -557,7 +729,7 @@ impl TimelineView {
                 _ => v.clamp(-1.0, 1.0),
             }
         };
-        let line = Stroke::new(1.0, color.gamma_multiply(0.25));
+        let line = Stroke::new(1.0, color.gamma_multiply(0.12));
         for ch in 0..bands {
             let (base, _) = band(ch);
             painter.hline(visible.x_range(), base, line);
@@ -566,7 +738,7 @@ impl TimelineView {
                 painter.hline(
                     visible.x_range(),
                     edge,
-                    Stroke::new(1.0, color.gamma_multiply(0.45)),
+                    Stroke::new(1.0, color.gamma_multiply(0.18)),
                 );
             }
         }
@@ -620,7 +792,9 @@ impl TimelineView {
                 mix(color, Color32::WHITE, 0.2)
             }
         };
+        // Lit from its line outwards: two halves, bright at the line, fading to the peaks.
         let mut outer = egui::Mesh::default();
+        let mut lower = egui::Mesh::default();
         let mut inner = egui::Mesh::default();
         let mut clipped: Vec<(f32, f32)> = Vec::new();
         for ch in 0..bands {
@@ -688,6 +862,8 @@ impl TimelineView {
                         base + rms * reach,
                     )
                 };
+                // Silence stays a faint line, not a bright one.
+                let quiet = bottom - top < 1.0;
                 let bottom = bottom.max(top + 1.0);
                 let tint = peak_color(p);
                 let (soft, strong) = if light {
@@ -695,14 +871,28 @@ impl TimelineView {
                 } else {
                     (tint.gamma_multiply(0.55), mix(tint, Color32::WHITE, 0.25))
                 };
-                strip(&mut outer, previous.is_some(), x, top, bottom, soft);
+                let (soft, strong) = if quiet {
+                    (soft.gamma_multiply(0.35), Color32::TRANSPARENT)
+                } else {
+                    (soft, strong)
+                };
+                let core = if quiet {
+                    soft
+                } else if light {
+                    mix(tint, Color32::BLACK, 0.25)
+                } else {
+                    mix(tint, Color32::WHITE, 0.3)
+                };
+                let middle = base.clamp(top, bottom);
+                let join = previous.is_some();
+                strip(&mut outer, join, x, (top, middle), (soft, core));
+                strip(&mut lower, join, x, (middle, bottom), (core, soft));
                 strip(
                     &mut inner,
-                    previous.is_some(),
+                    join,
                     x,
-                    rms_top,
-                    rms_bottom.max(rms_top + 0.5),
-                    strong,
+                    (rms_top, rms_bottom.max(rms_top + 0.5)),
+                    (strong.gamma_multiply(0.45), strong.gamma_multiply(0.45)),
                 );
                 previous = Some(i);
                 if p.hi >= CLIP_LEVEL || p.lo <= -CLIP_LEVEL {
@@ -711,6 +901,7 @@ impl TimelineView {
             }
         }
         painter.add(Shape::mesh(outer));
+        painter.add(Shape::mesh(lower));
         painter.add(Shape::mesh(inner));
         for (x, y) in clipped {
             painter.rect_filled(
@@ -722,7 +913,7 @@ impl TimelineView {
     }
 }
 
-/// Curve and points of an automation lane.
+/// An automation lane under its track: its background, its scale, its curve.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn draw_lane(
     painter: &egui::Painter,
@@ -733,36 +924,77 @@ pub(super) fn draw_lane(
     color: Color32,
     visuals: &egui::Visuals,
 ) {
-    let (min, max) = (info.min, info.max);
     painter.rect_filled(rect.shrink2(vec2(0.0, 0.5)), 0.0, visuals.extreme_bg_color);
+    draw_scale(painter, rect, info, visuals);
+    if lane.points.is_empty() {
+        painter.text(
+            pos2(rect.left() + 70.0, rect.center().y),
+            Align2::LEFT_CENTER,
+            tr("Click to draw this automation, or write it during playback"),
+            FontId::proportional(11.0),
+            visuals.weak_text_color(),
+        );
+        return;
+    }
+    draw_curve(painter, rect, lane, info, scale, color);
+}
+
+/// The values a lane's scale names, a few across its range.
+fn scale_marks(info: &super::headers::LaneInfo) -> Vec<f32> {
+    use super::headers::Reading;
+    match info.reading {
+        Reading::Db => vec![12.0, 6.0, 0.0, -6.0, -12.0, -24.0, -60.0],
+        Reading::Pan => vec![-1.0, 0.0, 1.0],
+        Reading::Toggle => vec![0.0, 1.0],
+        _ => [0.0, 0.25, 0.5, 0.75, 1.0]
+            .iter()
+            .map(|f| info.at_share(*f))
+            .collect(),
+    }
+}
+
+/// A lane's scale: faint lines named at the left, and the value set on the control, dashed.
+pub(super) fn draw_scale(
+    painter: &egui::Painter,
+    rect: Rect,
+    info: &super::headers::LaneInfo,
+    visuals: &egui::Visuals,
+) {
     let visible = rect.intersect(painter.clip_rect());
     let weak = visuals.weak_text_color();
-    // The range at the left edge.
     let small = FontId::proportional(9.0);
-    for (v, y, align) in [
-        (max, rect.top() + 2.0, Align2::LEFT_TOP),
-        (min, rect.bottom() - 2.0, Align2::LEFT_BOTTOM),
-    ] {
-        painter.text(
-            pos2(visible.left() + 4.0, y),
-            align,
-            info.text(v),
-            small.clone(),
-            weak.gamma_multiply(0.7),
+    let mut last = f32::NEG_INFINITY;
+    for value in scale_marks(info) {
+        let y = value_y(rect, value, info);
+        painter.hline(
+            visible.x_range(),
+            y,
+            Stroke::new(1.0, weak.gamma_multiply(0.13)),
         );
+        // Named where the names do not run into each other.
+        if (y - last).abs() >= 12.0 {
+            painter.text(
+                pos2(visible.left() + 4.0, y),
+                Align2::LEFT_CENTER,
+                info.text(value),
+                small.clone(),
+                weak.gamma_multiply(0.75),
+            );
+            last = y;
+        }
     }
     // The value set on the control: the line the automation moves away from.
     if let Some(base) = info.base {
         let y = value_y(rect, base, info);
         painter.extend(Shape::dashed_line(
-            &[pos2(visible.left(), y), pos2(visible.right(), y)],
+            &[pos2(visible.left() + 52.0, y), pos2(visible.right(), y)],
             Stroke::new(1.0, weak.gamma_multiply(0.8)),
             5.0,
             4.0,
         ));
         if let Some(set) = info.base_label() {
             let text = crate::trf!("Set: {value}", value = set);
-            let galley = painter.layout_no_wrap(text, small.clone(), weak);
+            let galley = painter.layout_no_wrap(text, small, weak);
             let at = pos2(
                 visible.right() - galley.size().x - 10.0,
                 (y - galley.size().y - 2.0).max(rect.top() + 1.0),
@@ -775,16 +1007,18 @@ pub(super) fn draw_lane(
             painter.galley(at, galley, weak);
         }
     }
-    if lane.points.is_empty() {
-        painter.text(
-            pos2(rect.left() + 60.0, rect.center().y),
-            Align2::LEFT_CENTER,
-            tr("Click to add points, Ctrl+drag to draw them, or write them during playback"),
-            FontId::proportional(11.0),
-            weak,
-        );
-        return;
-    }
+}
+
+/// A lane's curve: lit underneath, fading down, with its points as beads.
+pub(super) fn draw_curve(
+    painter: &egui::Painter,
+    rect: Rect,
+    lane: &audiostrada_core::automation::AutomationLane,
+    info: &super::headers::LaneInfo,
+    scale: Scale,
+    color: Color32,
+) {
+    let visible = rect.intersect(painter.clip_rect());
     let mut line = Vec::new();
     let mut x = visible.left();
     while x <= visible.right() + 2.0 {
@@ -793,14 +1027,40 @@ pub(super) fn draw_lane(
         }
         x += 2.0;
     }
-    painter.add(Shape::line(line, Stroke::new(1.5, color)));
+    // The area under the curve, in its color fading to nothing at the foot of the lane.
+    let foot = rect.bottom();
+    let mut mesh = egui::Mesh::default();
+    for p in &line {
+        let depth = ((foot - p.y) / rect.height().max(1.0)).clamp(0.0, 1.0);
+        mesh.colored_vertex(*p, color.gamma_multiply(0.10 + 0.22 * depth));
+        mesh.colored_vertex(pos2(p.x, foot), color.gamma_multiply(0.02));
+    }
+    for k in 0..line.len().saturating_sub(1) as u32 {
+        let i = k * 2;
+        mesh.add_triangle(i, i + 1, i + 2);
+        mesh.add_triangle(i + 1, i + 3, i + 2);
+    }
+    painter.add(Shape::mesh(mesh));
+    painter.add(Shape::line(
+        line.clone(),
+        Stroke::new(4.5, color.gamma_multiply(0.18)),
+    ));
+    painter.add(Shape::line(line, Stroke::new(1.8, color)));
     for p in &lane.points {
         let px = scale.x(p.time);
-        if px >= visible.left() - 4.0 && px <= visible.right() + 4.0 {
+        if px >= visible.left() - 5.0 && px <= visible.right() + 5.0 {
             let center = pos2(px, value_y(rect, p.value, info));
-            painter.rect_filled(Rect::from_center_size(center, vec2(7.0, 7.0)), 1.0, color);
+            painter.circle_filled(center, 4.5, Color32::from_black_alpha(140));
+            painter.circle_filled(center, 3.6, color);
+            painter.circle_filled(center, 1.5, Color32::WHITE);
         }
     }
+}
+
+/// The effects button of an audio clip, before its name, when the clip has room for it.
+pub(super) fn fx_button(rect: Rect, clip: &audiostrada_core::Clip) -> Option<Rect> {
+    (!clip.is_midi() && rect.width() >= 60.0 && rect.height() >= 18.0)
+        .then(|| Rect::from_min_size(pos2(rect.left() + 12.0, rect.top() + 2.0), vec2(20.0, 11.0)))
 }
 
 /// A value shown by the pointer, above everything.
@@ -964,25 +1224,33 @@ pub(super) fn draw_folder(
     members: &[TrackId],
     scale: Scale,
 ) {
-    let inner = row.shrink2(vec2(0.0, 6.0));
-    let band = (inner.height() / members.len() as f32).clamp(2.0, 10.0);
-    let top = inner.center().y - band * members.len() as f32 / 2.0;
+    let inner = row.shrink2(vec2(0.0, 9.0));
+    let n = members.len() as f32;
+    let gap = if inner.height() / n > 5.0 { 2.0 } else { 1.0 };
+    let band = ((inner.height() - gap * (n - 1.0)) / n).clamp(2.0, 9.0);
+    let top = inner.center().y - (band * n + gap * (n - 1.0)) / 2.0;
     for (k, id) in members.iter().enumerate() {
         let Some(track) = project.track(*id) else {
             continue;
         };
         let color = crate::theme::track_color(track.color);
-        let y = top + k as f32 * band;
+        let y = top + k as f32 * (band + gap);
+        // Its own thin lane, faintly in its color, its clips as blocks along it.
+        painter.rect_filled(
+            Rect::from_x_y_ranges(row.x_range(), y..=y + band),
+            0.0,
+            color.gamma_multiply(0.06),
+        );
         for clip in &track.clips {
             let (a, b) = (scale.x(clip.start), scale.x(clip.end()));
             if b < row.left() || a > row.right() {
                 continue;
             }
-            let r = Rect::from_x_y_ranges(a..=b.max(a + 1.0), y..=y + (band - 1.0).max(1.0));
+            let r = Rect::from_x_y_ranges(a..=b.max(a + 2.0), y..=y + band);
             painter.rect_filled(
                 r,
-                1.0,
-                color.gamma_multiply(if clip.muted { 0.3 } else { 0.75 }),
+                (band / 2.0).min(2.5),
+                color.gamma_multiply(if clip.muted { 0.3 } else { 0.85 }),
             );
         }
     }

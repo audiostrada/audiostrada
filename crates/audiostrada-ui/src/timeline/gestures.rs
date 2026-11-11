@@ -22,6 +22,30 @@ impl TimelineView {
             ui.interact(ruler, ui.scope_id().with("ruler"), Sense::click_and_drag());
         let lanes_response =
             ui.interact(lanes, ui.scope_id().with("lanes"), Sense::click_and_drag());
+        // The effects button of the clip under the pointer, above the clip: a click opens its
+        // effects, a drag goes on to the clip.
+        if let Some((id, _, rect)) = hovered
+            && let Some(clip) = edit::clip(project, id)
+            && let Some(button) = fx_button(rect, clip)
+        {
+            let response = ui.interact(
+                button.intersect(lanes),
+                ui.scope_id().with(("clip-fx", id.0)),
+                Sense::click(),
+            );
+            if response.hovered() {
+                ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+            }
+            let hint = match clip.inserts.len() {
+                0 => tr("Add an effect to this clip"),
+                1 => tr("Open the clip's effect"),
+                _ => tr("Open the clip's effects"),
+            };
+            if response.on_hover_text(hint).clicked() {
+                self.clip_effects = Some((id, false));
+                self.selection = vec![id];
+            }
+        }
         let modifiers = ui.input(|i| i.modifiers);
         let moving = if self.drag.is_some() {
             self.selection.clone()
@@ -887,6 +911,11 @@ impl TimelineView {
                 let at = magnet.snap(scale.sample(pos.x));
                 self.extend_range(project, at, self.row_at(pos.y - lanes.top()));
             }
+            // The upper half of a clip draws ranges: a click there puts the playhead, as on
+            // an empty part.
+            if !extend && upper(pos) {
+                doc.player_mut().locate(magnet.snap(scale.sample(pos.x)));
+            }
             match hovered {
                 _ if extend => {}
                 Some((clip, track, _)) => {
@@ -1000,6 +1029,37 @@ impl TimelineView {
             }
         }
         self.marker_name_field(ui, doc, project, scale, ruler);
+
+        // Over a clip's effects button or its name, what a click does there, not the move.
+        if self.drag.is_none()
+            && let Some(pos) = ui.input(|i| i.pointer.hover_pos())
+            && lanes.contains(pos)
+            && let Some((id, _, rect)) = hovered
+            && let Some(clip) = edit::clip(project, id)
+        {
+            let button = fx_button(rect, clip);
+            let left = button.map_or(rect.left() + 10.0, |b| b.right() + 5.0);
+            let width = ui
+                .painter()
+                .layout_no_wrap(
+                    clip.name.clone(),
+                    crate::theme::strong(10.5),
+                    Color32::WHITE,
+                )
+                .size()
+                .x;
+            let name = Rect::from_min_max(
+                pos2(left, rect.top()),
+                pos2(left + width, rect.top() + NAME_BAR),
+            );
+            if button.is_some_and(|b| b.contains(pos)) {
+                ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+            } else if name.contains(pos)
+                && matches!(zone(pos), Some((DragKind::Move { copy: false }, _)))
+            {
+                ui.ctx().set_cursor_icon(CursorIcon::Default);
+            }
+        }
     }
 
     /// The field renaming a marker over its name: Enter or a click away keeps the name, Escape
@@ -1465,12 +1525,21 @@ mod tests {
         h.frame(vec![Event::PointerMoved(name)]);
         press(&mut h, name, true);
         press(&mut h, name, false);
-        for _ in 0..3 {
+        // The position comes back from the audio thread, later under load.
+        for _ in 0..500 {
+            if h.app.doc.borrow().player().position() == 48_000 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
             h.frame(Vec::new());
         }
         assert_eq!(h.app.doc.borrow().player().position(), 48_000);
 
-        // A double-click opens a field over the name.
+        // A double-click opens a field over the name (apart from the click before, which would
+        // make it a triple click).
+        for _ in 0..40 {
+            h.frame(Vec::new());
+        }
         for _ in 0..2 {
             press(&mut h, name, true);
             press(&mut h, name, false);
@@ -1499,5 +1568,97 @@ mod tests {
         h.frame(Vec::new());
         let moved = marker(&h).position as f64;
         assert!((moved - (48_000.0 + 50.0 * zoom)).abs() <= zoom, "{moved}");
+    }
+
+    #[test]
+    fn a_click_in_a_clip_upper_half_puts_the_playhead_and_its_effects_button_selects_it() {
+        let mut h = Harness::with_song("clip-fx-button");
+        for _ in 0..4 {
+            h.frame(Vec::new());
+        }
+        let audio = |h: &Harness| {
+            let doc = h.app.doc.borrow();
+            doc.project()
+                .tracks
+                .iter()
+                .flat_map(|t| &t.clips)
+                .find(|c| !c.is_midi())
+                .cloned()
+        };
+        for _ in 0..500 {
+            if audio(&h).is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+            h.frame(Vec::new());
+        }
+        let clip = audio(&h).expect("the imported tone");
+        h.app.doc.borrow_mut().history_mut().edit("FX", |p| {
+            routing::add_insert(p, Channel::Clip(clip.id), "eq", Default::default()).unwrap();
+        });
+        // Its track scrolled to the top of the lanes.
+        {
+            let project = h.app.doc.borrow().project().clone();
+            let index = project
+                .tracks
+                .iter()
+                .position(|t| t.clips.iter().any(|c| c.id == clip.id));
+            let mut views = h.app.views.borrow_mut();
+            let t = &mut views.timeline;
+            let row = t.rows.iter().position(|r| Some(r.0) == index).unwrap();
+            t.scroll_y = t.tops[row];
+        }
+        // Over the lanes, the scroll settles within the content.
+        let inside = h.app.views.borrow().timeline.lanes_rect.center();
+        h.frame(vec![Event::PointerMoved(inside)]);
+        h.frame(Vec::new());
+        let (x, top, height) = {
+            let views = h.app.views.borrow();
+            let t = &views.timeline;
+            let project = h.app.doc.borrow().project().clone();
+            let index = project
+                .tracks
+                .iter()
+                .position(|t| t.clips.iter().any(|c| c.id == clip.id));
+            let row = t.rows.iter().position(|r| Some(r.0) == index).unwrap();
+            (
+                t.lanes_rect.left() + ((clip.start as f64 - t.scroll) / t.zoom) as f32,
+                t.lanes_rect.top() + t.tops[row] - t.scroll_y,
+                t.row_height(row),
+            )
+        };
+        // A click in the upper half of the clip, where ranges are drawn, puts the playhead.
+        let zoom = h.app.views.borrow().timeline.zoom;
+        let upper = pos2(
+            x + 200.0,
+            top + 2.0 + NAME_BAR + (height / 2.0 - NAME_BAR) / 2.0,
+        );
+        for _ in 0..40 {
+            h.frame(Vec::new());
+        }
+        h.frame(vec![Event::PointerMoved(upper)]);
+        press(&mut h, upper, true);
+        press(&mut h, upper, false);
+        let expected = (200.0 * zoom) as u64;
+        for _ in 0..500 {
+            if h.app.doc.borrow().player().position().abs_diff(expected) <= zoom as u64 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+            h.frame(Vec::new());
+        }
+        let at = h.app.doc.borrow().player().position();
+        assert!(at.abs_diff(expected) <= zoom as u64, "{at} for {expected}");
+
+        let button = pos2(x + 22.0, top + 7.0);
+        h.frame(vec![Event::PointerMoved(button)]);
+        h.frame(vec![Event::PointerMoved(button)]);
+        press(&mut h, button, true);
+        press(&mut h, button, false);
+        for _ in 0..3 {
+            h.frame(Vec::new());
+        }
+        assert_eq!(h.app.views.borrow().timeline.selection, vec![clip.id]);
+        assert_eq!(h.app.doc.borrow().focused_clip(), Some(clip.id));
     }
 }

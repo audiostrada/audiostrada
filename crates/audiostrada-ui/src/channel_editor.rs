@@ -350,6 +350,7 @@ fn console_button(ui: &mut Ui, params: &mut Params) {
             .show(|ui| match channel {
                 Channel::Track(t) => crate::console_ui::track_menu(ui, params.doc, t),
                 Channel::Master => crate::console_ui::console_menu(ui, params.doc),
+                Channel::Clip(_) => {}
             });
         let character = crate::console_ui::character(params.doc, params.channel);
         ui.label(

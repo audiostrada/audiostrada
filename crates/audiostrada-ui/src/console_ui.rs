@@ -373,6 +373,7 @@ pub fn of_channel(doc: &Document, channel: audiostrada_core::routing::Channel) -
             audiostrada_core::console::of_track(doc.project(), t)
         }
         audiostrada_core::routing::Channel::Master => doc.project().console,
+        audiostrada_core::routing::Channel::Clip(_) => Console::default(),
     }
 }
 

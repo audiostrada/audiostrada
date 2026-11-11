@@ -146,6 +146,8 @@ impl TimelineView {
                 info: &info,
                 scale,
                 magnet,
+                origin: 0,
+                overlay: false,
             };
             self.lane_editor(ui, doc, &view);
             master_lane_edge(ui, doc, name.union(rect), &lane.target);

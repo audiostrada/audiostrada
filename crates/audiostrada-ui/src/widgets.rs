@@ -83,8 +83,31 @@ pub fn fader(
         vec2(4.0, height - 16.0),
     );
     let painter = ui.painter();
-    painter.rect_filled(track, 2.0, p.border);
+    // A groove cut into the strip: dark, shadowed at the top, a light edge at its foot.
+    let groove = track.expand2(vec2(1.0, 3.0));
+    painter.rect_filled(groove, 3.0, theme::mix(p.base, Color32::BLACK, 0.55));
+    painter.rect_stroke(
+        groove,
+        3.0,
+        Stroke::new(1.0, Color32::from_black_alpha(150)),
+        StrokeKind::Inside,
+    );
+    painter.line_segment(
+        [
+            pos2(groove.left() + 1.0, groove.bottom()),
+            pos2(groove.right() - 1.0, groove.bottom()),
+        ],
+        Stroke::new(1.0, Color32::from_white_alpha(26)),
+    );
     let y_of = |db: f32| track.bottom() - fader_position(db) * track.height();
+    // Unity, marked across the groove.
+    painter.line_segment(
+        [
+            pos2(groove.left() - 3.0, y_of(0.0)),
+            pos2(groove.right() + 3.0, y_of(0.0)),
+        ],
+        Stroke::new(1.0, p.weak.gamma_multiply(0.9)),
+    );
     if show_scale {
         // Most useful marks first; a mark too close to one already drawn is left out.
         let mut drawn: Vec<f32> = Vec::new();
@@ -94,9 +117,18 @@ pub fn fader(
                 continue;
             }
             drawn.push(y);
+            // A tick each side: the scale is the fader's and the meter's beside it.
+            let tick = Stroke::new(
+                1.0,
+                p.weak.gamma_multiply(if mark == 0.0 { 0.9 } else { 0.45 }),
+            );
             painter.line_segment(
-                [pos2(track.right() + 5.0, y), pos2(track.right() + 9.0, y)],
-                Stroke::new(1.0, p.weak.gamma_multiply(0.6)),
+                [pos2(track.right() + 6.0, y), pos2(track.right() + 9.0, y)],
+                tick,
+            );
+            painter.line_segment(
+                [pos2(rect.right() + 1.0, y), pos2(rect.right() + 3.0, y)],
+                tick,
             );
             let label = if mark <= -60.0 {
                 "∞".to_owned()
@@ -104,10 +136,14 @@ pub fn fader(
                 format!("{}", mark.abs() as i32)
             };
             painter.text(
-                pos2(rect.right(), y),
+                pos2(rect.right() - 1.0, y),
                 Align2::RIGHT_CENTER,
                 label,
-                FontId::proportional(8.5),
+                if mark == 0.0 {
+                    theme::strong(9.0)
+                } else {
+                    FontId::proportional(8.5)
+                },
                 if mark == 0.0 { p.text } else { p.weak },
             );
         }
@@ -131,7 +167,7 @@ pub fn fader(
     }
     // Cap.
     let y = y_of(value);
-    let cap = Rect::from_center_size(pos2(track.center().x, y), vec2(20.0, 30.0));
+    let cap = Rect::from_center_size(pos2(track.center().x, y), vec2(20.0, 34.0));
     let active = response.dragged() || response.hovered();
     paint_cap(painter, &p, cap, active, false);
     let changed = (value != db).then_some(value);
@@ -163,10 +199,52 @@ fn paint_cap(painter: &egui::Painter, p: &theme::Palette, cap: Rect, active: boo
     );
     match p.look.cap {
         theme::CapStyle::Modern => {
+            // Machined metal: lit from above, grooved for the finger, a bright index line.
             let shade = if active { p.pressed } else { p.hover };
-            theme::gradient_rect(painter, cap.shrink(0.5), shade, shade.gamma_multiply(1.35));
+            painter.rect_filled(cap, radius, shade);
+            let inner = cap.shrink(1.0);
+            let half = if sideways {
+                Rect::from_min_max(inner.min, pos2(inner.center().x, inner.bottom()))
+            } else {
+                Rect::from_min_max(inner.min, pos2(inner.right(), inner.center().y))
+            };
+            if !sideways {
+                crate::gear::sheen(
+                    painter,
+                    half,
+                    Color32::from_white_alpha(if active { 70 } else { 46 }),
+                    Color32::from_white_alpha(6),
+                );
+                crate::gear::sheen(
+                    painter,
+                    Rect::from_min_max(pos2(inner.left(), inner.center().y), inner.max),
+                    Color32::from_black_alpha(10),
+                    Color32::from_black_alpha(70),
+                );
+            }
+            let span = if sideways { cap.width() } else { cap.height() };
+            let step = (span / 11.0).max(2.5);
+            for k in [-4.0, -3.0, -2.0, 2.0, 3.0, 4.0] {
+                let d = k * step;
+                let groove = if sideways {
+                    [
+                        pos2(c.x + d, cap.top() + 3.0),
+                        pos2(c.x + d, cap.bottom() - 3.0),
+                    ]
+                } else {
+                    [
+                        pos2(cap.left() + 3.0, c.y + d),
+                        pos2(cap.right() - 3.0, c.y + d),
+                    ]
+                };
+                painter.line_segment(groove, Stroke::new(1.0, Color32::from_black_alpha(80)));
+            }
             painter.rect_stroke(cap, radius, Stroke::new(1.0, p.border), StrokeKind::Inside);
-            painter.line_segment(index(3.0), Stroke::new(1.5, p.text));
+            painter.line_segment(index(2.0), Stroke::new(2.0, Color32::from_black_alpha(120)));
+            painter.line_segment(
+                index(2.0),
+                Stroke::new(1.2, if active { p.accent } else { p.text }),
+            );
         }
         theme::CapStyle::Classic => {
             // A light console cap with grooves and a black index line.
@@ -257,40 +335,80 @@ pub(crate) fn meter_fraction(db: f32) -> f32 {
     ((db - METER_FLOOR) / (METER_TOP - METER_FLOOR)).clamp(0.0, 1.0)
 }
 
-/// Stereo peak meter with a clip light on top; clicking the light clears it.
+/// Where a level stands along the mixer's meters: on the fader's own law, so that the scale
+/// between them reads for both.
+fn meter_place(db: f32) -> f32 {
+    fader_position(db)
+}
+
+/// Stereo peak meter with a clip light on top; clicking it clears the light. It stands on the
+/// fader's scale, beside it.
 pub fn meter(ui: &mut Ui, state: &mut MeterState, height: f32) -> Response {
-    let (rect, response) = ui.allocate_exact_size(vec2(14.0, height), Sense::click());
+    let (rect, response) = ui.allocate_exact_size(vec2(18.0, height), Sense::click());
     let p = theme::current(ui);
     let painter = ui.painter();
-    let clip = Rect::from_min_size(rect.min, vec2(rect.width(), 5.0));
-    painter.rect_filled(
-        clip,
-        1.0,
-        if state.clipped { theme::RECORD } else { p.base },
+    // The clip light, above the bars: dark at rest, red and glowing once clipped.
+    let clip = Rect::from_min_size(rect.min + vec2(1.0, 0.0), vec2(rect.width() - 2.0, 4.0));
+    if state.clipped {
+        painter.rect_filled(clip.expand(1.5), 3.0, theme::RECORD.gamma_multiply(0.3));
+        painter.rect_filled(clip, 1.5, theme::RECORD);
+    } else {
+        painter.rect_filled(clip, 1.5, theme::mix(p.base, Color32::BLACK, 0.5));
+    }
+    // The bars on the fader's travel: its groove is 8 points in from each end.
+    let bars = Rect::from_min_max(
+        pos2(rect.left() + 1.0, rect.top() + 8.0),
+        pos2(rect.right() - 1.0, rect.bottom() - 8.0),
     );
-    let bars = Rect::from_min_max(pos2(rect.left(), clip.bottom() + 2.0), rect.max);
+    let well = bars.expand2(vec2(1.0, 1.0));
+    painter.rect_filled(well, 2.0, theme::mix(p.base, Color32::BLACK, 0.55));
+    painter.rect_stroke(
+        well,
+        2.0,
+        Stroke::new(1.0, Color32::from_black_alpha(150)),
+        StrokeKind::Outside,
+    );
+    let width = (bars.width() - 2.0) / 2.0;
     for ch in 0..2 {
-        let x = bars.left() + ch as f32 * 7.0;
-        let bar = Rect::from_min_max(pos2(x, bars.top()), pos2(x + 6.0, bars.bottom()));
-        painter.rect_filled(bar, 1.0, p.base);
-        let f = meter_fraction(state.level[ch]);
+        let x = bars.left() + ch as f32 * (width + 2.0);
+        let bar = Rect::from_min_max(pos2(x, bars.top()), pos2(x + width, bars.bottom()));
+        let f = meter_place(state.level[ch]);
         let lit = Rect::from_min_max(pos2(x, bar.bottom() - bar.height() * f), bar.max);
         match p.look.meter {
             theme::MeterStyle::Segments => paint_meter_lights(painter, bar, state.level[ch]),
-            theme::MeterStyle::Glow if f > 0.0 => {
-                let halo = meter_color(state.level[ch]).gamma_multiply(0.22);
-                painter.rect_filled(lit.expand2(vec2(1.5, 2.0)), 3.0, halo);
-                paint_meter_bar(painter, bar, lit);
+            _ if f > 0.0 => {
+                if p.look.meter == theme::MeterStyle::Glow {
+                    let halo = meter_color(state.level[ch]).gamma_multiply(0.22);
+                    painter.rect_filled(lit.expand2(vec2(1.5, 2.0)), 3.0, halo);
+                }
+                paint_meter_bar_on(painter, bar, lit, meter_place);
+                // A gloss down its left side.
+                painter.rect_filled(
+                    Rect::from_min_max(lit.min, pos2(lit.left() + 1.5, lit.bottom())),
+                    0.0,
+                    Color32::from_white_alpha(38),
+                );
             }
-            _ if f > 0.0 => paint_meter_bar(painter, bar, lit),
             _ => {}
         }
-        let hold = meter_fraction(state.hold[ch]);
+        // Fine segments, cut across lit and unlit alike.
+        let mut y = bar.bottom() - 3.0;
+        while y > bar.top() {
+            painter.line_segment(
+                [pos2(bar.left(), y), pos2(bar.right(), y)],
+                Stroke::new(1.0, Color32::from_black_alpha(110)),
+            );
+            y -= 3.0;
+        }
+        let hold = meter_place(state.hold[ch]);
         if hold > 0.0 {
             let y = bar.bottom() - bar.height() * hold;
             painter.line_segment(
-                [pos2(x, y), pos2(x + 6.0, y)],
-                Stroke::new(1.5, meter_color(state.hold[ch])),
+                [pos2(x, y), pos2(x + width, y)],
+                Stroke::new(
+                    1.5,
+                    lerp_color(meter_color(state.hold[ch]), Color32::WHITE, 0.35),
+                ),
             );
         }
     }
@@ -351,7 +469,12 @@ fn meter_color(db: f32) -> Color32 {
 
 /// Green to yellow to red along the full bar, showing only the lit part.
 pub(crate) fn paint_meter_bar(painter: &egui::Painter, bar: Rect, lit: Rect) {
-    let y_of = |db: f32| bar.bottom() - bar.height() * meter_fraction(db);
+    paint_meter_bar_on(painter, bar, lit, meter_fraction);
+}
+
+/// [`paint_meter_bar`] with levels placed along the bar by `place` (0 at its foot, 1 at its top).
+fn paint_meter_bar_on(painter: &egui::Painter, bar: Rect, lit: Rect, place: fn(f32) -> f32) {
+    let y_of = |db: f32| bar.bottom() - bar.height() * place(db);
     let stops = [
         (METER_FLOOR, Color32::from_rgb(40, 150, 90)),
         (-18.0, Color32::from_rgb(80, 200, 120)),
@@ -359,6 +482,7 @@ pub(crate) fn paint_meter_bar(painter: &egui::Painter, bar: Rect, lit: Rect) {
         (-3.0, Color32::from_rgb(240, 170, 60)),
         (0.0, Color32::from_rgb(240, 80, 70)),
         (METER_TOP, Color32::from_rgb(240, 80, 70)),
+        (12.0, Color32::from_rgb(240, 80, 70)),
     ];
     let mut mesh = egui::Mesh::default();
     for w in stops.windows(2) {
@@ -438,16 +562,82 @@ pub fn pan_knob(ui: &mut Ui, value: f32, diameter: f32, wheel: bool) -> (Option<
         v = 0.0;
     }
     let active = response.hovered() || response.dragged();
-    paint_knob(
-        ui.painter(),
-        rect,
-        (v + 1.0) / 2.0,
-        true,
-        p.accent,
-        &p,
-        active,
-    );
+    paint_pan_knob(ui.painter(), rect, v, &p, active);
     ((v != value).then_some(v), response)
+}
+
+/// A pan knob: a groove marked at the center, an arc lit from the center to the side the sound
+/// goes, and a machined cap with its pointer.
+fn paint_pan_knob(painter: &egui::Painter, rect: Rect, pan: f32, p: &theme::Palette, active: bool) {
+    use std::f32::consts::PI;
+    let c = rect.center();
+    let r = rect.width() * 0.5;
+    let angle = |pan: f32| PI * 1.5 + PI * 0.75 * pan.clamp(-1.0, 1.0);
+    let arc = |from: f32, to: f32, radius: f32| -> Vec<Pos2> {
+        let n = ((to - from).abs() / 0.08).ceil().max(1.0) as usize;
+        (0..=n)
+            .map(|i| {
+                let a = from + (to - from) * i as f32 / n as f32;
+                pos2(c.x + radius * a.cos(), c.y + radius * a.sin())
+            })
+            .collect()
+    };
+    let ring = r - 2.5;
+    painter.add(Shape::line(
+        arc(angle(-1.0), angle(1.0), ring),
+        Stroke::new(3.0, p.base),
+    ));
+    // The center, a notch above the groove.
+    let top = angle(0.0);
+    painter.line_segment(
+        [
+            pos2(c.x + (r - 0.5) * top.cos(), c.y + (r - 0.5) * top.sin()),
+            pos2(c.x + (r - 5.0) * top.cos(), c.y + (r - 5.0) * top.sin()),
+        ],
+        Stroke::new(1.0, p.weak.gamma_multiply(0.7)),
+    );
+    let (from, to) = (angle(0.0), angle(pan));
+    if (to - from).abs() > 0.01 {
+        let lit = arc(from.min(to), from.max(to), ring);
+        painter.add(Shape::line(
+            lit.clone(),
+            Stroke::new(6.0, p.accent.gamma_multiply(0.22)),
+        ));
+        painter.add(Shape::line(lit, Stroke::new(3.0, p.accent)));
+    }
+    // The cap: a shadow, a body lit from above, a bright rim on top.
+    let body = r - 7.0;
+    painter.circle_filled(
+        c + vec2(0.0, 1.5),
+        body + 0.5,
+        Color32::from_black_alpha(90),
+    );
+    let face = if active { p.pressed } else { p.hover };
+    painter.circle_filled(c, body, face);
+    crate::gear::glow(
+        painter,
+        c - vec2(0.0, body * 0.35),
+        body * 0.9,
+        Color32::from_white_alpha(if p.dark { 26 } else { 60 }),
+        Color32::TRANSPARENT,
+    );
+    painter.circle_stroke(c, body, Stroke::new(1.0, Color32::from_black_alpha(110)));
+    painter.add(Shape::line(
+        arc(PI * 1.2, PI * 1.8, body - 0.8),
+        Stroke::new(
+            1.0,
+            Color32::from_white_alpha(if p.dark { 40 } else { 120 }),
+        ),
+    ));
+    let a = angle(pan);
+    let tip = pos2(c.x + body * 0.82 * a.cos(), c.y + body * 0.82 * a.sin());
+    painter.line_segment(
+        [
+            pos2(c.x + body * 0.3 * a.cos(), c.y + body * 0.3 * a.sin()),
+            tip,
+        ],
+        Stroke::new(2.0, p.text),
+    );
 }
 
 pub fn knob(

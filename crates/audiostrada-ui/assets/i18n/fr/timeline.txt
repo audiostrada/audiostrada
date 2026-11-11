@@ -901,3 +901,141 @@ Saisir une valeur…
 
 Value of the point
 Valeur du point
+
+Add effects to the clip…
+Ajouter des effets au clip…
+
+Clip effects ({count})…
+Effets du clip ({count})…
+
+Effects of this clip alone, between it and its track, as in the rack
+Effets de ce clip seul, entre lui et sa piste, comme dans le rack
+
+Remove the clip effects
+Retirer les effets du clip
+
+Remove clip effects
+Retirer les effets du clip
+
+Add an effect to this clip
+Ajouter un effet à ce clip
+
+Open the clip's effect
+Ouvrir l'effet du clip
+
+Open the clip's effects
+Ouvrir les effets du clip
+
+Automate the clip effects
+Automatiser les effets du clip
+
+Clip automation
+Automation du clip
+
+
+
+
+
+Selected points: straight lines
+Points sélectionnés : lignes droites
+
+Selected points: smooth curves
+Points sélectionnés : courbes douces
+
+Selected points: steps
+Points sélectionnés : paliers
+
+
+The curve shown over this track: click to choose another
+La courbe affichée sur cette piste : cliquer pour en choisir une autre
+
+
+The input this track records and hears
+L'entrée que cette piste enregistre et écoute
+
+Frozen: click to unfreeze and hear its tracks and effects live again
+Gelé : cliquer pour dégeler et réentendre ses pistes et ses effets en direct
+
+Freeze this bus: render it with its tracks and effects and play that instead, to save processing
+Geler ce bus : le rendre avec ses pistes et ses effets et jouer ce rendu à la place, pour soulager le processeur
+
+Automation
+Automation
+
+Automation: choose what to automate, and draw it in the large editor
+Automation : choisir quoi automatiser, et le dessiner dans le grand éditeur
+
+Draw the automation of
+Dessiner l'automation de
+
+Lanes under the track
+Pistes d'automation sous la piste
+
+Select a track to draw its automation here
+Sélectionnez une piste pour dessiner son automation ici
+
+Show the whole of these tracks
+Afficher ces pistes en entier
+
+
+Automation editor of the selected tracks
+Éditeur d'automation des pistes sélectionnées
+
+Pencil: click places a point, drag draws; drag a point to move it, Alt+drag a segment to bend it
+Crayon : clic pose un point, glisser dessine ; glisser un point le déplace, Alt+glisser un segment le courbe
+
+Selection: click a point or drag a rectangle (Shift adds); drag what is selected to move it
+Sélection : cliquer un point ou glisser un rectangle (Shift ajoute) ; glisser la sélection pour la déplacer
+
+Eraser: click a point or drag over points to remove them
+Gomme : cliquer un point ou glisser sur des points pour les supprimer
+
+Zoom: drag across a span to fill the view with it, click to zoom in, Alt+click to zoom out
+Zoom : glisser sur une zone pour qu'elle remplisse la vue, clic pour zoomer, Alt+clic pour dézoomer
+
+Click to place points, drag to draw
+Cliquer pour poser des points, glisser pour dessiner
+
+Erase automation
+Gommer l'automation
+
+Points snap to the grid, the clips' edges and the markers, as in the timeline
+Les points s'aimantent à la grille, aux bords des clips et aux marqueurs, comme dans la timeline
+
+Click: place a point · Drag: draw · Drag a point: move it (Shift: finely) · Alt+drag a segment: move it · Double-click a point: type its value
+Clic : poser un point · Glisser : dessiner · Glisser un point : le déplacer (Shift : finement) · Alt+glisser un segment : le déplacer · Double-clic sur un point : saisir sa valeur
+
+
+Click a point: remove it · Drag: remove the points passed over
+Clic sur un point : le supprimer · Glisser : supprimer les points survolés
+
+
+Automates
+Automatise
+
+Click a point: select it · Drag: select in a rectangle (Shift adds) · Drag the selection or a segment: move it · Alt+drag a segment: bend it · Delete: remove it
+Clic sur un point : le sélectionner · Glisser : sélectionner au rectangle (Shift ajoute) · Glisser la sélection ou un segment : le déplacer · Alt+glisser un segment : le courber · Suppr : supprimer
+
+Drag across a span: fill the view with it · Click: zoom in · Alt+click or right-click: zoom out · Wheel: move in time
+Glisser sur une zone : elle remplit la vue · Clic : zoomer · Alt+clic ou clic droit : dézoomer · Molette : avancer dans le temps
+
+P: pencil · S: selection · E: eraser · Z: zoom · Esc: close
+P : crayon · S : sélection · E : gomme · Z : zoom · Échap : fermer
+
+Zoom out
+Dézoomer
+
+Hide this lane; its points stay and still play
+Masquer cette piste d'automation ; ses points restent et jouent toujours
+
+Draw this automation in the large editor
+Dessiner cette automation dans le grand éditeur
+
+Delete this automation and its {count} point(s)?
+Supprimer cette automation et ses {count} point(s) ?
+
+Click to draw this automation in the large editor
+Cliquer pour dessiner cette automation dans le grand éditeur
+
+Click to draw this automation, or write it during playback
+Cliquer pour dessiner cette automation, ou l'écrire pendant la lecture

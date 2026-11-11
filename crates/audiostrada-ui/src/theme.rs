@@ -814,38 +814,73 @@ pub fn section(ui: &mut Ui, title: &str) {
     );
 }
 
-/// The record arm button: a red dot, ringed while off, on red once armed.
-pub fn arm_toggle(ui: &mut Ui, size: Vec2, on: bool) -> Response {
-    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
-    paint_arm_toggle(ui, rect, &response, on);
-    response
-}
-
-pub fn paint_arm_toggle(ui: &Ui, rect: Rect, response: &Response, on: bool) {
-    let p = current(ui);
-    let fill = if on {
-        RECORD
+/// A flat switch, as in the track headers: an outlined letter at rest, a tile under the
+/// pointer, filled when on.
+pub fn flat_toggle(ui: &Ui, rect: Rect, response: &Response, text: &str, on: bool, color: Color32) {
+    let visuals = ui.visuals();
+    let ink = if on {
+        ui.painter().rect_filled(rect, 4.0, color);
+        text_on(color)
     } else if response.hovered() {
-        RECORD.gamma_multiply(0.25)
+        ui.painter()
+            .rect_filled(rect, 4.0, visuals.widgets.hovered.bg_fill);
+        visuals.strong_text_color()
     } else {
-        p.surface
-    };
-    ui.painter().rect_filled(rect, 3.0, fill);
-    if !on {
         ui.painter().rect_stroke(
             rect,
-            3.0,
-            Stroke::new(1.0, RECORD.gamma_multiply(0.4)),
+            4.0,
+            Stroke::new(1.0, visuals.weak_text_color().gamma_multiply(0.25)),
             StrokeKind::Inside,
         );
-    }
-    let radius = (rect.height() * 0.24).clamp(3.5, 6.0);
+        visuals.weak_text_color()
+    };
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        text,
+        strong(10.5),
+        ink,
+    );
+}
+
+/// A flat record arm: a ring at rest, a lit red dot when armed.
+pub fn flat_arm(ui: &Ui, rect: Rect, response: &Response, on: bool) {
+    let visuals = ui.visuals();
+    let red = RECORD;
+    let painter = ui.painter();
     if on {
-        ui.painter()
-            .circle_filled(rect.center(), radius, Color32::from_rgb(255, 245, 245));
+        painter.rect_filled(rect, 4.0, red.gamma_multiply(0.22));
+        crate::gear::glow(
+            painter,
+            rect.center(),
+            9.0,
+            red.gamma_multiply(0.5),
+            Color32::TRANSPARENT,
+        );
+        painter.circle_filled(rect.center(), 4.5, red);
     } else {
-        ui.painter()
-            .circle_filled(rect.center(), radius, RECORD.gamma_multiply(0.75));
+        if response.hovered() {
+            painter.rect_filled(rect, 4.0, visuals.widgets.hovered.bg_fill);
+        } else {
+            painter.rect_stroke(
+                rect,
+                4.0,
+                Stroke::new(1.0, visuals.weak_text_color().gamma_multiply(0.25)),
+                StrokeKind::Inside,
+            );
+        }
+        painter.circle_stroke(
+            rect.center(),
+            4.0,
+            Stroke::new(
+                1.5,
+                if response.hovered() {
+                    red
+                } else {
+                    red.gamma_multiply(0.7)
+                },
+            ),
+        );
     }
 }
 
@@ -936,6 +971,7 @@ pub fn paint_monitor_toggle(
     response: &Response,
     mode: audiostrada_core::Monitoring,
     hearing: bool,
+    flat: bool,
 ) {
     use audiostrada_core::Monitoring;
     let p = current(ui);
@@ -943,11 +979,22 @@ pub fn paint_monitor_toggle(
         MONITOR
     } else if response.hovered() {
         p.hover
+    } else if flat {
+        Color32::TRANSPARENT
     } else {
         p.surface
     };
-    ui.painter().rect_filled(rect, 3.0, fill);
-    if !hearing && !p.dark {
+    ui.painter()
+        .rect_filled(rect, if flat { 4.0 } else { 3.0 }, fill);
+    if flat && !hearing && !response.hovered() {
+        // As the track headers' switches: a thin outline at rest.
+        ui.painter().rect_stroke(
+            rect,
+            4.0,
+            Stroke::new(1.0, p.weak.gamma_multiply(0.25)),
+            StrokeKind::Inside,
+        );
+    } else if !hearing && !p.dark {
         ui.painter()
             .rect_stroke(rect, 3.0, Stroke::new(1.0, p.border), StrokeKind::Inside);
     }

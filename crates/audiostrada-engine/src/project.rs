@@ -2,12 +2,14 @@
 //!
 //! Every channel (track or master) is an input gain stage where its sources sum, its insert
 //! chain, then a strip (fader, pan, mute, solo, meter). Tracks feed their folder or the master
-//! and their sends; the master feeds a loudness meter, then hardware outputs 1-2. The routing
-//! edges are recomputed from the project and diffed against the graph.
+//! and their sends; the master feeds a loudness meter, then hardware outputs 1-2. A clip with
+//! effects of its own plays from a player of its own, through its chain, into its track's
+//! input. The routing edges are recomputed from the project and diffed against the graph.
 //!
 //! The model stores timeline positions at the project rate; they are scaled to the engine rate.
 
 use std::borrow::Cow;
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -17,7 +19,7 @@ use audiostrada_core::automation::{AutomationMode, AutomationTarget};
 use audiostrada_core::base64;
 use audiostrada_core::routing::{self, Channel};
 use audiostrada_core::{
-    Insert as InsertModel, InsertId, Monitoring, Project, ProjectPaths, TrackId, TrackKind,
+    ClipId, Insert as InsertModel, InsertId, Monitoring, Project, ProjectPaths, TrackId, TrackKind,
 };
 use audiostrada_dsp::db_to_gain;
 use audiostrada_plugins::PluginInstance;
@@ -287,9 +289,21 @@ struct MidiOutNodes {
     out: LiveMidi,
 }
 
+/// A clip playing apart, through effects of its own, into its track.
+#[derive(Debug)]
+struct ClipChain {
+    channel: ChannelNodes,
+    player: NodeId,
+    player_controls: PlayerControls,
+    /// What the player holds: the model clip, media generation and engine rate.
+    sent: Option<(audiostrada_core::Clip, u64, u32)>,
+}
+
 #[derive(Debug)]
 struct TrackNodes {
     channel: ChannelNodes,
+    /// Clips with effects of their own.
+    clips: HashMap<ClipId, ClipChain>,
     player: NodeId,
     player_controls: PlayerControls,
     /// What the player currently holds: model clips, media generation and engine rate.
@@ -564,6 +578,11 @@ fn automated(project: &Project) -> HashSet<(Channel, AutomationTarget)> {
     {
         for lane in track.automation.iter().filter(active) {
             out.insert((Channel::Track(track.id), lane.target.clone()));
+        }
+        for clip in track.clips.iter().filter(|c| has_effects(c)) {
+            for lane in clip.automation.iter().filter(active) {
+                out.insert((Channel::Clip(clip.id), lane.target.clone()));
+            }
         }
     }
     // The members of an automated VCA: their gain follows its curve.
@@ -1134,7 +1153,7 @@ impl ProjectPlayer {
         m.groups.set(click.group_starts(numerator) as f32);
         if project.sample_rate != self.project_rate {
             self.project_rate = project.sample_rate;
-            self.tracks.values_mut().for_each(|t| t.sent = None);
+            self.tracks.values_mut().for_each(TrackNodes::forget_sent);
         }
         let rate = self.engine.sample_rate();
         let mut topology = false;
@@ -1152,6 +1171,10 @@ impl ProjectPlayer {
                 nodes.channel.controls.set_solo(false);
                 removed_nodes.extend(nodes.channel.nodes());
                 removed_nodes.extend([nodes.player, nodes.monitor]);
+                for chain in nodes.clips.values() {
+                    removed_nodes.extend(chain.channel.nodes());
+                    removed_nodes.push(chain.player);
+                }
                 removed_nodes.extend(nodes.sends.iter().map(|s| s.node));
                 removed_nodes.extend(nodes.midi_out.iter().map(|m| m.node));
                 topology = true;
@@ -1209,6 +1232,7 @@ impl ProjectPlayer {
                     track.id,
                     TrackNodes {
                         channel,
+                        clips: HashMap::new(),
                         player,
                         player_controls,
                         sent: None,
@@ -1444,10 +1468,17 @@ impl ProjectPlayer {
                         notes: None,
                         variations: Vec::new(),
                         take: None,
+                        inserts: Vec::new(),
+                        automation: Vec::new(),
                     })
                     .into_iter()
                     .collect(),
-                None => track.clips.clone(),
+                None => track
+                    .clips
+                    .iter()
+                    .filter(|c| !has_effects(c))
+                    .cloned()
+                    .collect(),
             };
             let key = (model_clips, media.generation(), rate);
             if nodes.sent.as_ref() != Some(&key) {
@@ -1455,23 +1486,101 @@ impl ProjectPlayer {
                     .0
                     .iter()
                     .filter(|c| !c.muted)
-                    .filter_map(|c| {
-                        let data = media.audio(&clip_media(project, paths, c)?)?;
-                        Some(Clip {
-                            start: scale(c.start, self.project_rate, rate),
-                            offset: scale(c.offset, self.project_rate, rate),
-                            length: scale(c.length, self.project_rate, rate),
-                            gain: 10f32.powf(c.gain_db / 20.0),
-                            fade_in: scale(c.fade_in, self.project_rate, rate),
-                            fade_out: scale(c.fade_out, self.project_rate, rate),
-                            fade_shape: c.fade_shape,
-                            fade_out_shape: c.out_shape(),
-                            data: data.clone(),
-                        })
-                    })
+                    .filter_map(|c| engine_clip(project, paths, media, c, self.project_rate, rate))
                     .collect();
                 nodes.player_controls.set_clips(clips);
                 nodes.sent = Some(key);
+            }
+
+            // Clips with effects of their own play apart, through them, into the track.
+            let fx_clips: Vec<&audiostrada_core::Clip> = if track.frozen.is_some() {
+                Vec::new()
+            } else {
+                track.clips.iter().filter(|c| has_effects(c)).collect()
+            };
+            let gone: Vec<ClipId> = nodes
+                .clips
+                .keys()
+                .filter(|id| !fx_clips.iter().any(|c| c.id == **id))
+                .copied()
+                .collect();
+            for id in gone {
+                if let Some(chain) = nodes.clips.remove(&id) {
+                    removed_nodes.extend(chain.channel.nodes());
+                    removed_nodes.push(chain.player);
+                    for slot in chain.channel.inserts {
+                        self.plugins.retire(slot, true);
+                    }
+                    topology = true;
+                }
+            }
+            for clip in fx_clips {
+                let chain = match nodes.clips.entry(clip.id) {
+                    Entry::Occupied(e) => e.into_mut(),
+                    Entry::Vacant(e) => {
+                        let name = format!("{} clip", track.name);
+                        let channel = ChannelNodes::new(
+                            &mut self.engine,
+                            &self.solo,
+                            &self.console_off,
+                            &name,
+                            true,
+                        );
+                        let (player, player_controls) = ClipPlayer::new(Vec::new());
+                        let player = player.with_window(Arc::clone(&nodes.record_window));
+                        let player = self.engine.add_node(&name, player, 0, 2);
+                        topology = true;
+                        e.insert(ClipChain {
+                            channel,
+                            player,
+                            player_controls,
+                            sent: None,
+                        })
+                    }
+                };
+                let inserts = effective(
+                    &clip.inserts,
+                    track.fx_off || project.all_fx_off,
+                    &self.plugins.database,
+                );
+                let channel = Channel::Clip(clip.id);
+                topology |= Self::sync_inserts(
+                    &mut self.engine,
+                    &mut self.plugins,
+                    &mut chain.channel,
+                    &inserts,
+                    &mut removed_nodes,
+                    &|insert, param| {
+                        driven((
+                            channel,
+                            AutomationTarget::Param {
+                                insert,
+                                param: param.to_owned(),
+                            },
+                        ))
+                    },
+                    None,
+                    if is_live(track) {
+                        LowLatency::Fast
+                    } else if live_path.contains(&track.id) {
+                        LowLatency::Bypass
+                    } else {
+                        LowLatency::Keep
+                    },
+                    0,
+                );
+                let key = (clip.clone(), media.generation(), rate);
+                if chain.sent.as_ref() != Some(&key) {
+                    let played = if clip.muted {
+                        None
+                    } else {
+                        engine_clip(project, paths, media, clip, self.project_rate, rate)
+                    };
+                    chain
+                        .player_controls
+                        .set_clips(played.into_iter().collect());
+                    chain.sent = Some(key);
+                }
             }
         }
         if !automated.contains(&(Channel::Master, AutomationTarget::Gain)) {
@@ -1551,6 +1660,12 @@ impl ProjectPlayer {
                 .chain([nodes.player])
                 .chain(nodes.sends.iter().map(|s| s.node))
                 .chain(nodes.midi_out.iter().map(|m| m.node))
+                .chain(
+                    nodes
+                        .clips
+                        .values()
+                        .flat_map(|c| c.channel.nodes().chain([c.player])),
+                )
                 .collect();
             for id in ids {
                 topology |= self.engine.set_live(id, live);
@@ -1622,12 +1737,19 @@ impl ProjectPlayer {
         // From the strips' second pair: sidechain keys into inputs 2 and 3 of their insert, and
         // post-fader sends.
         let mut keys = Vec::new();
-        let channels = std::iter::once((&project.master.inserts, &self.master)).chain(
-            project
-                .tracks
-                .iter()
-                .filter_map(|t| Some((&t.inserts, &self.tracks.get(&t.id)?.channel))),
-        );
+        let channels = std::iter::once((&project.master.inserts, &self.master))
+            .chain(
+                project
+                    .tracks
+                    .iter()
+                    .filter_map(|t| Some((&t.inserts, &self.tracks.get(&t.id)?.channel))),
+            )
+            .chain(project.tracks.iter().flat_map(|t| {
+                let nodes = self.tracks.get(&t.id);
+                t.clips
+                    .iter()
+                    .filter_map(move |c| Some((&c.inserts, &nodes?.clips.get(&c.id)?.channel)))
+            }));
         for (inserts, channel) in channels {
             for insert in routing::flatten(inserts) {
                 let (Some(source), Some(slot)) = (
@@ -1652,6 +1774,13 @@ impl ProjectPlayer {
                 continue;
             };
             chain(&nodes.channel, &mut stereo);
+            for clip in nodes.clips.values() {
+                stereo(clip.player, clip.channel.input);
+                let last = clip
+                    .channel
+                    .wire(&clip.channel.steps, clip.channel.input, &mut stereo);
+                stereo(last, nodes.channel.input);
+            }
             if let Some(m) = &nodes.midi_out {
                 // Silent outputs: keeps the node scheduled with its track.
                 stereo(m.node, nodes.channel.input);
@@ -1857,21 +1986,15 @@ impl ProjectPlayer {
         self.loudness.update();
         for nodes in self.tracks.values_mut() {
             nodes.player_controls.collect();
+            for chain in nodes.clips.values_mut() {
+                chain.player_controls.collect();
+            }
         }
         let mut restarts = Vec::new();
         let mut crashes = Vec::new();
         let mut latency_changed = false;
-        let channels = [
-            (Channel::Master, &mut self.master),
-            (Channel::Master, &mut self.monitor),
-        ]
-        .into_iter()
-        .chain(
-            self.tracks
-                .iter_mut()
-                .map(|(id, t)| (Channel::Track(*id), &mut t.channel)),
-        );
-        for (channel, nodes) in channels {
+        for (channel, nodes) in chains(&mut self.master, &mut self.monitor, &mut self.tracks) {
+            let channel = channel.unwrap_or(Channel::Master);
             for slot in &mut nodes.inserts {
                 let InsertKind::Plugin(plugin) = &mut slot.kind else {
                     continue;
@@ -1927,10 +2050,7 @@ impl ProjectPlayer {
         for (channel, id) in restarts {
             self.reactivate_plugin(channel, id);
         }
-        for nodes in std::iter::once(&mut self.master)
-            .chain(std::iter::once(&mut self.monitor))
-            .chain(self.tracks.values_mut().map(|t| &mut t.channel))
-        {
+        for (_, nodes) in chains(&mut self.master, &mut self.monitor, &mut self.tracks) {
             for slot in &mut nodes.inserts {
                 if let InsertKind::Plugin(plugin) = &mut slot.kind {
                     plugin.flush();
@@ -1957,6 +2077,11 @@ impl ProjectPlayer {
             }
             Channel::Master => Some(&mut self.monitor),
             Channel::Track(t) => self.tracks.get_mut(&t).map(|t| &mut t.channel),
+            Channel::Clip(c) => self
+                .tracks
+                .values_mut()
+                .find_map(|t| t.clips.get_mut(&c))
+                .map(|c| &mut c.channel),
         }
     }
 
@@ -1964,6 +2089,11 @@ impl ProjectPlayer {
         match channel {
             Channel::Master => Some(&mut self.master),
             Channel::Track(id) => self.tracks.get_mut(&id).map(|t| &mut t.channel),
+            Channel::Clip(c) => self
+                .tracks
+                .values_mut()
+                .find_map(|t| t.clips.get_mut(&c))
+                .map(|c| &mut c.channel),
         }
     }
 
@@ -2023,7 +2153,7 @@ impl ProjectPlayer {
                 .and_then(|t| t.vca)
                 .and_then(|v| project.track(v))
                 .map_or(0.0, |v| v.gain_db),
-            Channel::Master => 0.0,
+            Channel::Master | Channel::Clip(_) => 0.0,
         };
         let nodes = match target {
             AutomationTarget::Param { insert, .. } => self.holder_mut(channel, *insert)?,
@@ -2091,6 +2221,12 @@ impl ProjectPlayer {
                         .iter()
                         .map(|t| (Channel::Track(t.id), t.automation.clone())),
                 )
+                .chain(project.tracks.iter().flat_map(|t| {
+                    t.clips
+                        .iter()
+                        .filter(|c| has_effects(c) && !c.automation.is_empty())
+                        .map(|c| (Channel::Clip(c.id), clip_lanes(c)))
+                }))
                 .collect();
         for (channel, track_lanes) in channels {
             let mut mute = false;
@@ -2098,7 +2234,7 @@ impl ProjectPlayer {
                 Channel::Track(id) => project
                     .track(id)
                     .is_some_and(|t| vca_lane(project, t).is_some()),
-                Channel::Master => false,
+                Channel::Master | Channel::Clip(_) => false,
             };
             for lane in track_lanes {
                 if !automated.contains(&(channel, lane.target.clone())) {
@@ -2342,6 +2478,11 @@ impl ProjectPlayer {
                 .tracks
                 .get(&t)
                 .and_then(|t| t.channel.inserts.iter().find(|n| n.id == id)),
+            Channel::Clip(c) => self
+                .tracks
+                .values()
+                .find_map(|t| t.clips.get(&c))
+                .and_then(|c| c.channel.inserts.iter().find(|n| n.id == id)),
         };
         nodes.map_or(0, |n| n.latency)
     }
@@ -2371,7 +2512,9 @@ impl ProjectPlayer {
     pub fn plugin_windows_open(&self) -> bool {
         std::iter::once(&self.master)
             .chain(std::iter::once(&self.monitor))
-            .chain(self.tracks.values().map(|t| &t.channel))
+            .chain(self.tracks.values().flat_map(|t| {
+                std::iter::once(&t.channel).chain(t.clips.values().map(|c| &c.channel))
+            }))
             .flat_map(|n| &n.inserts)
             .any(|slot| matches!(&slot.kind, InsertKind::Plugin(p) if p.instance.gui_open()))
     }
@@ -2379,18 +2522,8 @@ impl ProjectPlayer {
     /// Closes the windows the plugins show themselves; returns those of the tracks and the
     /// master, to open again later.
     pub fn close_plugin_windows(&mut self) -> Vec<(Channel, InsertId)> {
-        let channels = [
-            (Some(Channel::Master), &mut self.master),
-            (None, &mut self.monitor),
-        ]
-        .into_iter()
-        .chain(
-            self.tracks
-                .iter_mut()
-                .map(|(&t, n)| (Some(Channel::Track(t)), &mut n.channel)),
-        );
         let mut closed = Vec::new();
-        for (channel, nodes) in channels {
+        for (channel, nodes) in chains(&mut self.master, &mut self.monitor, &mut self.tracks) {
             for slot in &mut nodes.inserts {
                 if let InsertKind::Plugin(p) = &mut slot.kind
                     && p.instance.gui_open()
@@ -2424,18 +2557,9 @@ impl ProjectPlayer {
 
     /// Current state of every plugin insert, for saving.
     pub fn plugin_states(&mut self) -> Vec<(Channel, InsertId, Vec<u8>)> {
-        let channels = [
-            (Channel::Master, &mut self.master),
-            (Channel::Master, &mut self.monitor),
-        ]
-        .into_iter()
-        .chain(
-            self.tracks
-                .iter_mut()
-                .map(|(id, t)| (Channel::Track(*id), &mut t.channel)),
-        );
         let mut states = Vec::new();
-        for (channel, nodes) in channels {
+        for (channel, nodes) in chains(&mut self.master, &mut self.monitor, &mut self.tracks) {
+            let channel = channel.unwrap_or(Channel::Master);
             for slot in &mut nodes.inserts {
                 if let InsertKind::Plugin(plugin) = &mut slot.kind
                     && let Some(state) = plugin.instance.save_state()
@@ -2451,24 +2575,15 @@ impl ProjectPlayer {
     /// reactivated if the format changed.
     pub fn processor(&mut self, sample_rate: u32, max_frames: usize) -> EngineProcessor {
         if sample_rate != self.engine.sample_rate() {
-            self.tracks.values_mut().for_each(|t| t.sent = None);
+            self.tracks.values_mut().for_each(TrackNodes::forget_sent);
             self.loop_range = None;
         }
         let format = (sample_rate, max_frames.max(1));
         if format != self.plugins.format {
             self.plugins.format = format;
             let mut slots = Vec::new();
-            let channels = [
-                (Channel::Master, &mut self.master),
-                (Channel::Master, &mut self.monitor),
-            ]
-            .into_iter()
-            .chain(
-                self.tracks
-                    .iter_mut()
-                    .map(|(id, t)| (Channel::Track(*id), &mut t.channel)),
-            );
-            for (channel, nodes) in channels {
+            for (channel, nodes) in chains(&mut self.master, &mut self.monitor, &mut self.tracks) {
+                let channel = channel.unwrap_or(Channel::Master);
                 slots.extend(
                     nodes
                         .inserts
@@ -2483,6 +2598,76 @@ impl ProjectPlayer {
         }
         self.engine.processor(sample_rate, max_frames)
     }
+}
+
+/// Every chain of effects with its channel: the master's mix chain, its monitor chain
+/// (without a channel of its own), the tracks' and their clips'.
+fn chains<'a>(
+    master: &'a mut ChannelNodes,
+    monitor: &'a mut ChannelNodes,
+    tracks: &'a mut HashMap<TrackId, TrackNodes>,
+) -> impl Iterator<Item = (Option<Channel>, &'a mut ChannelNodes)> + 'a {
+    [(Some(Channel::Master), master), (None, monitor)]
+        .into_iter()
+        .chain(tracks.iter_mut().flat_map(|(&id, t)| {
+            std::iter::once((Some(Channel::Track(id)), &mut t.channel)).chain(
+                t.clips
+                    .iter_mut()
+                    .map(|(&c, chain)| (Some(Channel::Clip(c)), &mut chain.channel)),
+            )
+        }))
+}
+
+impl TrackNodes {
+    /// Makes the players load their clips again at the next sync.
+    fn forget_sent(&mut self) {
+        self.sent = None;
+        for chain in self.clips.values_mut() {
+            chain.sent = None;
+        }
+    }
+}
+
+/// A clip's automation on the timeline: its times count from the start of its content.
+fn clip_lanes(clip: &audiostrada_core::Clip) -> Vec<audiostrada_core::automation::AutomationLane> {
+    clip.automation
+        .iter()
+        .cloned()
+        .map(|mut lane| {
+            for p in &mut lane.points {
+                p.time = (clip.start + p.time).saturating_sub(clip.offset);
+            }
+            lane
+        })
+        .collect()
+}
+
+/// An audio clip with effects of its own, played apart through them.
+fn has_effects(clip: &audiostrada_core::Clip) -> bool {
+    !clip.inserts.is_empty() && !clip.is_midi()
+}
+
+/// A clip as a player plays it, at the engine's rate; none while its media is not loaded.
+fn engine_clip(
+    project: &Project,
+    paths: Option<&ProjectPaths>,
+    media: &MediaPool,
+    c: &audiostrada_core::Clip,
+    project_rate: u32,
+    rate: u32,
+) -> Option<Clip> {
+    let data = media.audio(&clip_media(project, paths, c)?)?;
+    Some(Clip {
+        start: scale(c.start, project_rate, rate),
+        offset: scale(c.offset, project_rate, rate),
+        length: scale(c.length, project_rate, rate),
+        gain: 10f32.powf(c.gain_db / 20.0),
+        fade_in: scale(c.fade_in, project_rate, rate),
+        fade_out: scale(c.fade_out, project_rate, rate),
+        fade_shape: c.fade_shape,
+        fade_out_shape: c.out_shape(),
+        data: data.clone(),
+    })
 }
 
 /// The inserts as the engine runs them: all bypassed when their channel's effects are off,
@@ -2946,6 +3131,96 @@ mod tests {
         let ducked = level(0.9);
         assert!((quiet - 0.5).abs() < 0.02, "no key: untouched ({quiet})");
         assert!(ducked < 0.2, "kick ducks the bass ({ducked})");
+    }
+
+    #[test]
+    fn a_clip_plays_through_its_own_effects_and_its_neighbour_does_not() {
+        let mut f = fixture("clip-effects", vec![0.5f32; 48_000]);
+        let mut params = std::collections::BTreeMap::new();
+        params.insert("gain".to_owned(), -20.0);
+        f.history.edit("Clip effects", |p| {
+            let t = p.tracks[0].id;
+            let source = p.tracks[0].clips[0].source;
+            p.track_mut(t).unwrap().clips[0].length = 640;
+            let second = p.add_clip(t, source, 640).unwrap();
+            routing::add_insert(p, Channel::Clip(second), "utility", params).unwrap();
+        });
+        f.media.retain(&media_paths(f.history.project(), None));
+        assert!(f.media.wait(Duration::from_secs(10)));
+        let mut processor = f.player.processor(48_000, 64);
+        f.player.sync(f.history.project(), None, &f.media);
+        f.player.engine_mut().play();
+        let out = render(&mut processor, 24);
+        let peak = |block: usize| {
+            out[block * 64..(block + 1) * 64]
+                .iter()
+                .fold(0.0f32, |m, s| m.max(s.abs()))
+        };
+        assert!(
+            (peak(5) - 0.5).abs() < 0.01,
+            "first clip untouched: {}",
+            peak(5)
+        );
+        assert!(
+            (peak(22) - 0.05).abs() < 0.01,
+            "second clip through its own effect: {}",
+            peak(22)
+        );
+        // Without its effect, it plays with the others again.
+        f.history.edit("No clip effects", |p| {
+            let t = p.tracks[0].id;
+            p.track_mut(t).unwrap().clips[1].inserts.clear();
+        });
+        f.player.sync(f.history.project(), None, &f.media);
+        f.player.engine_mut().locate(640);
+        let out = render(&mut processor, 12);
+        let last = out[out.len() - 64..]
+            .iter()
+            .fold(0.0f32, |m, s| m.max(s.abs()));
+        assert!(
+            (last - 0.5).abs() < 0.01,
+            "back on the track's player: {last}"
+        );
+    }
+
+    #[test]
+    fn a_clip_effect_follows_its_automation_from_the_start_of_the_content() {
+        let mut f = fixture("clip-automation", vec![0.5f32; 48_000]);
+        f.history.edit("Clip automation", |p| {
+            let t = p.tracks[0].id;
+            let clip = p.tracks[0].clips[0].id;
+            let gain =
+                routing::add_insert(p, Channel::Clip(clip), "utility", Default::default()).unwrap();
+            let mut lane =
+                audiostrada_core::automation::AutomationLane::new(AutomationTarget::Param {
+                    insert: gain,
+                    param: "gain".into(),
+                });
+            // Content times: the clip starts 320 samples into its audio, at 0.
+            lane.add(320, -20.0, audiostrada_core::automation::CurveShape::Step);
+            lane.add(960, 0.0, audiostrada_core::automation::CurveShape::Step);
+            let c = &mut p.track_mut(t).unwrap().clips[0];
+            c.offset = 320;
+            c.length -= 320;
+            c.automation.push(lane);
+        });
+        f.media.retain(&media_paths(f.history.project(), None));
+        assert!(f.media.wait(Duration::from_secs(10)));
+        let mut processor = f.player.processor(48_000, 64);
+        f.player.sync(f.history.project(), None, &f.media);
+        f.player.engine_mut().play();
+        let out = render(&mut processor, 24);
+        let peak = |block: usize| {
+            out[block * 64..(block + 1) * 64]
+                .iter()
+                .fold(0.0f32, |m, s| m.max(s.abs()))
+        };
+        assert!(
+            (peak(6) - 0.05).abs() < 0.01,
+            "-20 dB at first: {}",
+            peak(6)
+        );
+        assert!((peak(20) - 0.5).abs() < 0.01, "0 dB from 640: {}", peak(20));
     }
 
     #[test]

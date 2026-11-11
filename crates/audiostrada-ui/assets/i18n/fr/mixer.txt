@@ -1385,3 +1385,9 @@ Réglages…
 
 Send of {track}
 Send de {track}
+
+Clip: {name}
+Clip : {name}
+
+Delay this effect adds, compensated
+Latence de cet effet, compensée

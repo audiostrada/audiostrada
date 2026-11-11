@@ -38,7 +38,7 @@ L'effet d'un glisser dépend de l'endroit où il commence sur un clip :
 | Endroit | Glisser fait |
 |---|---|
 | Moitié basse du corps, ou bande du nom | Déplacer ([[Alt]] : copier, aussi vers une autre piste) |
-| Moitié haute du corps | Sélectionner une plage, à travers clips et pistes |
+| Moitié haute du corps | Sélectionner une plage, à travers clips et pistes ; un clic y place la tête de lecture |
 | Bord gauche ou droit | Rogner |
 | Bord droit avec [[Alt]] | Étirer dans le temps, hauteur conservée |
 | Coins hauts | Fondu d'entrée, fondu de sortie |
@@ -117,6 +117,33 @@ piano roll* pour un clip MIDI.
 
 L'**Inspecteur** ([[Alt+4]]) règle les valeurs exactes, dont le pourcentage d'étirement et la
 hauteur au cent près.
+
+## Effets de clip
+
+Un clip peut avoir ses propres effets, comme les effets de prise de Reaper : une reverb sur un
+mot, un filtre sur un break, un EQ sur une seule prise. Le bouton **FX** avant le nom d'un clip
+les ouvre : en contour, le clip n'en a pas et un clic ouvre le navigateur d'effets ; plein, un
+clic ouvre son effet quand il n'en a qu'un. Dans tous les cas, le clip est sélectionné et le
+rack montre sa chaîne, le nom du clip en haut : on y ajoute d'autres effets avec **+**. Le rack
+montre la chaîne de tout clip à effets sélectionné seul ; sélectionnez autre chose pour revoir
+celle de la piste. Le menu du clip propose *Ajouter des effets au clip…* et *Effets du clip
+(n)…*. Les effets s'ajoutent, se réordonnent, se contournent et se règlent comme sur une piste,
+effets intégrés et plugins.
+
+Le clip passe dans ses effets, puis dans sa piste, qui continue dans ses propres effets et son
+fader. Une reverb ou un délai continue de sonner après la fin du clip. *Retirer les effets du
+clip* les enlève tous. Scindé ou dupliqué, un clip emporte une copie de ses effets. Couper les effets
+d'une piste coupe aussi ceux de ses clips. L'export et le gel les entendent ;
+*Consolider* et *Traiter les clips* ne les appliquent pas encore.
+
+*Automatiser les effets du clip* coche les paramètres à automatiser : chacun est dessiné sur le
+clip comme une courbe, plate à la valeur réglée au départ. Ses points et segments s'éditent
+comme dans une piste d'automation (glisser, Shift pour bouger finement, Alt+glisser pour courber,
+clic sur la courbe pour ajouter un point, double-clic pour saisir une valeur) ; ailleurs, le clip
+se déplace et se rogne comme d'habitude. Les courbes comptent depuis le début de l'audio du
+clip : elles suivent le clip quand il bouge et son audio quand il est rogné, et un clip scindé
+garde sa part. Elles jouent comme les pistes d'automation de sa piste, selon son mode
+d'automation.
 
 ## Traiter les clips
 

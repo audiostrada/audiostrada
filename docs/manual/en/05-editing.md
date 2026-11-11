@@ -38,7 +38,7 @@ What a drag does depends on where it starts on a clip:
 | Where | Drag does |
 |---|---|
 | Lower half of the body, or the name bar | Move ([[Alt]]: copy, onto another track too) |
-| Upper half of the body | Select a range, across clips and tracks |
+| Upper half of the body | Select a range, across clips and tracks; a click puts the playhead there |
 | Left or right edge | Trim |
 | Right edge with [[Alt]] | Time stretch, pitch kept |
 | Top corners | Fade in, fade out |
@@ -112,6 +112,31 @@ content, and *Open in piano roll* for a MIDI clip.
 
 The **Inspector** ([[Alt+4]]) sets exact values, including the stretch percentage and the pitch
 to the cent.
+
+## Clip effects
+
+A clip can have effects of its own, as Reaper's take effects: a reverb on one word, a filter on
+a fill, an EQ on a single take. The **FX** button before a clip's name opens them: outlined, the
+clip has none and a click opens the effect browser; filled, a click opens its effect when it has
+one. Either way the clip is selected and the rack shows its chain, the clip's name at the top:
+more effects are added there with **+**. The rack shows the chain of any clip with effects
+selected alone; select something else to see the track's chain again. The clip's menu has *Add
+effects to the clip…* and *Clip effects (n)…*. Effects are added, ordered, bypassed and set as
+on a track, built-in effects and plugins alike.
+
+The clip plays through its effects, then into its track, which goes on through its own
+effects and fader. A reverb or a delay keeps ringing after the end of the clip. *Remove the
+clip effects* takes them all away. Split or duplicated, a clip takes a copy of its effects. Turning a track's
+effects off turns its clips' effects off too. The export and the freeze hear them;
+*Consolidate* and *Process clips* do not apply them yet.
+
+*Automate the clip effects* ticks the parameters to automate: each one is drawn over the clip
+as a curve, flat at the value set to begin with. Its points and segments are edited as in a
+lane (drag, Shift for fine moves, Alt+drag to bend, click on the curve to add a point, double-
+click to type a value); elsewhere the clip is moved and trimmed as usual. The curves are timed
+from the start of the clip's audio: they follow the clip when it moves and its audio when it is
+trimmed, and a split clip keeps its part of them. They play as the track's lanes do, following
+its automation mode.
 
 ## Processing clips
 

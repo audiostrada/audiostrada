@@ -35,6 +35,13 @@ pub fn hear(
     let project = doc.project();
     let (track, name) = match target {
         Channel::Master => (None, "master".to_owned()),
+        Channel::Clip(c) => {
+            let t = audiostrada_core::edit::track_of_clip(project, c).ok_or("no such clip")?;
+            (
+                Some(t),
+                project.track(t).map(|x| x.name.clone()).unwrap_or_default(),
+            )
+        }
         Channel::Track(t) => (
             Some(t),
             project
