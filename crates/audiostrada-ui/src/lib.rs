@@ -323,6 +323,8 @@ pub struct AudioStradaApp {
     last_selected: Option<audiostrada_core::TrackId>,
     /// Modifier keys held in the window with the keyboard focus, and that window.
     held_keys: (Option<egui::ViewportId>, egui::Modifiers),
+    /// The window those keys were lent to with a wheel, to give them back once.
+    lent_keys: Option<egui::ViewportId>,
     /// Messages of the document shown in a corner, with when they came.
     toasts: Vec<(String, Instant)>,
     midi_outputs: Option<audiostrada_midi::devices::MidiOutputs>,
@@ -474,6 +476,7 @@ impl AudioStradaApp {
             quitting: false,
             prefs_applied: false,
             held_keys: (None, egui::Modifiers::NONE),
+            lent_keys: None,
             layout_checked: Instant::now(),
             mac: cfg!(target_os = "macos"),
             screenshot: Screenshot::from_env(),
@@ -3004,8 +3007,28 @@ impl eframe::App for AudioStradaApp {
     /// The keyboard goes to one window only: another one under the pointer gets its wheel
     /// with the modifier keys held there (Ctrl+wheel over the timeline after a move on the
     /// mixer on another screen).
+    ///
+    /// Only a pass with a wheel gets them, and the next one gives them back: an event added
+    /// to every pass made egui repaint the windows without the keyboard nonstop, which held
+    /// back the main window's redraws until eframe ran it logic only, its clicks then kept for
+    /// the next pass and played in the mixer on the other screen.
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         let id = raw_input.viewport_id;
+        if self.lent_keys == Some(id) {
+            let wheel = raw_input
+                .events
+                .iter()
+                .any(|e| matches!(e, egui::Event::MouseWheel { .. }));
+            if raw_input.focused || !wheel {
+                // Lent for a wheel that is over: the window has its own keys again.
+                self.lent_keys = None;
+                if !raw_input.focused {
+                    raw_input
+                        .events
+                        .push(egui::Event::ModifiersChanged(egui::Modifiers::NONE));
+                }
+            }
+        }
         if raw_input.focused {
             let latest = raw_input.events.iter().rev().find_map(|e| match e {
                 egui::Event::ModifiersChanged(m) => Some(*m),
@@ -3024,7 +3047,11 @@ impl eframe::App for AudioStradaApp {
             self.held_keys = (None, egui::Modifiers::NONE);
             return;
         }
-        if holder.is_none() {
+        let wheel = raw_input
+            .events
+            .iter()
+            .any(|e| matches!(e, egui::Event::MouseWheel { .. }));
+        if holder.is_none() || !wheel {
             return;
         }
         for event in &mut raw_input.events {
@@ -3035,6 +3062,7 @@ impl eframe::App for AudioStradaApp {
         raw_input
             .events
             .insert(0, egui::Event::ModifiersChanged(modifiers));
+        self.lent_keys = Some(id);
     }
 
     /// Everything that must go on while the main window is hidden (covered, minimized) and

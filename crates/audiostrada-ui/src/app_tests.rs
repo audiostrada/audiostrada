@@ -201,6 +201,18 @@ fn a_wheel_over_a_window_without_the_keyboard_gets_the_keys_held_in_the_other() 
     assert!(
         matches!(timeline.events[1], egui::Event::MouseWheel { modifiers, .. } if modifiers == ctrl)
     );
+    // Nothing happens over the timeline: nothing is added, else egui would repaint it
+    // nonstop; the keys lent for the wheel are given back, once.
+    let mut idle = input(egui::ViewportId::ROOT, false, Vec::new());
+    hook(&mut idle);
+    assert!(
+        matches!(idle.events[..], [egui::Event::ModifiersChanged(m)] if m.is_none()),
+        "{:?}",
+        idle.events
+    );
+    let mut idle = input(egui::ViewportId::ROOT, false, Vec::new());
+    hook(&mut idle);
+    assert!(idle.events.is_empty(), "{:?}", idle.events);
     // The mixer lost the keyboard: nothing is held any more.
     hook(&mut input(mixer, false, Vec::new()));
     let mut timeline = input(egui::ViewportId::ROOT, false, vec![wheel()]);
