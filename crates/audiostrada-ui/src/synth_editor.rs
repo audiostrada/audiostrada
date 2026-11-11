@@ -39,8 +39,8 @@ pub struct SynthState {
     targets: Vec<(Rect, usize)>,
     /// What the newest note does, read from the meters.
     live: Live,
-    /// The view the window was last sized for: advanced, and with the expert controls.
-    sized: Option<(bool, bool)>,
+    /// The view the window was last sized for.
+    sized: Option<View>,
     /// The ready-made sounds, to tell which one plays, and the one that does.
     sounds: Option<Vec<(u64, Sound)>>,
     sound: Option<Sound>,
@@ -288,8 +288,17 @@ fn mod_knob_sized(
 
 /// A source's pill: dragged onto a knob, it routes the source there.
 fn source_pill(ui: &mut Ui, state: &mut SynthState, source: usize) {
+    source_pill_named(
+        ui,
+        state,
+        source,
+        tr(audiostrada_dsp::synth::SOURCES[source]),
+    );
+}
+
+/// A source's pill under another name than the source's: a macro's.
+fn source_pill_named(ui: &mut Ui, state: &mut SynthState, source: usize, name: &str) {
     let p = theme::current(ui);
-    let name = tr(audiostrada_dsp::synth::SOURCES[source]);
     let color = source_color(source);
     let galley = ui
         .painter()
@@ -392,21 +401,29 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
     state.live = live.clone();
     ui.ctx()
         .data_mut(|d| d.insert_temp(egui::Id::unique("synth-live-mods"), live.mods.clone()));
-    let (advanced, expert) = view_switch(ui, state);
+    let view = view_switch(ui, state);
     // Every row gets the same width, whatever a cell may have pushed out.
     let full = ui.available_width();
     // The ready-made sound these settings are, if any.
     let print = fingerprint(|i, _| params.values.get(i).copied().unwrap_or(0.0));
     let known = state.sounds.get_or_insert_with(known_sounds);
     state.sound = known.iter().find(|s| s.0 == print).map(|s| s.1.clone());
-    if advanced {
-        hero(ui, meters, &live);
-        ui.add_space(GAP);
-        advanced_face(ui, params, state, full, &live, expert);
-    } else {
-        landscape(ui, meters, state);
-        ui.add_space(GAP);
-        simple_face(ui, params, state, full);
+    match view {
+        View::Simple => {
+            landscape(ui, meters, state);
+            ui.add_space(GAP);
+            simple_face(ui, params, state, full);
+        }
+        View::Advanced { expert } => {
+            hero(ui, meters, &live);
+            ui.add_space(GAP);
+            advanced_face(ui, params, state, full, &live, expert);
+        }
+        View::Modulation => {
+            hero(ui, meters, &live);
+            ui.add_space(GAP);
+            modulation_face(ui, params, full);
+        }
     }
     keyboard(ui, params, state);
     drop_source(ui, params, state);
@@ -415,7 +432,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
 
 /// Development aid: with `AUDIOSTRADA_SCREENSHOT_SYNTH` set, opens Strada-Synth's window on the
 /// sound named by `AUDIOSTRADA_SCREENSHOT_SOUND` (in the view of `AUDIOSTRADA_SCREENSHOT_VIEW`:
-/// `advanced` or `expert`) and holds a chord, for a capture of the window from outside.
+/// `advanced`, `expert` or `modulation`) and holds a chord, for a capture of the window from outside.
 pub(crate) mod shot {
     use super::*;
     use std::cell::Cell;
@@ -496,7 +513,11 @@ pub(crate) mod shot {
         if frame == 1 {
             let view = std::env::var("AUDIOSTRADA_SCREENSHOT_VIEW").unwrap_or_default();
             ctx.data_mut(|d| {
-                d.insert_temp(egui::Id::unique("synth-advanced"), !view.is_empty());
+                d.insert_temp(
+                    egui::Id::unique("synth-advanced"),
+                    view == "advanced" || view == "expert",
+                );
+                d.insert_temp(egui::Id::unique("synth-modulation"), view == "modulation");
                 d.insert_temp(egui::Id::unique("synth-expert"), view == "expert");
             });
         }
@@ -506,19 +527,17 @@ pub(crate) mod shot {
     }
 }
 
-/// The routings in use, one line each: source, target, amount, removal.
+/// The routings of the LFOs, the second envelope and the player, one line each: source,
+/// target, amount, removal.
 fn routings(ui: &mut Ui, params: &mut Params) {
     let p = theme::current(ui);
-    let list = routes(params);
+    // The macros' own are with the macros.
+    let list: Vec<_> = routes(params)
+        .into_iter()
+        .filter(|r| r.1 < audiostrada_dsp::synth::FIRST_MACRO)
+        .collect();
     panel(ui, |ui| {
-        title(ui, tr("Modulation"), p.weak);
-        if list.is_empty() {
-            ui.weak(tr(
-                "Drag a colored source (LFO, envelope, macro, velocity...) onto a knob to \
-                 modulate it",
-            ));
-            return;
-        }
+        title(ui, tr("LFOs, envelope and playing"), p.weak);
         // Two per line, each filling its half.
         let pairs: Vec<_> = list.chunks(2).map(<[_]>::to_vec).collect();
         for pair in pairs {
@@ -665,40 +684,58 @@ fn wavetable_file(ui: &mut Ui, params: &mut Params, n: usize) {
     });
 }
 
-/// The switch between the simple view and the advanced one, shared by every synth, and in
-/// the advanced one the switch that shows the expert controls; the window takes the size of
-/// the view chosen. Returns the two.
-fn view_switch(ui: &mut Ui, state: &mut SynthState) -> (bool, bool) {
+/// The views of the synth.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum View {
+    /// The sound, its macros and its effects.
+    Simple,
+    /// Every control; with the ones few sounds need when expert.
+    Advanced { expert: bool },
+    /// The macros and what modulates what.
+    Modulation,
+}
+
+/// The switch between the views, shared by every synth, and in the advanced one the switch
+/// that shows the expert controls; the window takes the size of the view chosen.
+fn view_switch(ui: &mut Ui, state: &mut SynthState) -> View {
     let id = egui::Id::unique("synth-advanced");
     let expert_id = egui::Id::unique("synth-expert");
-    let mut advanced = ui.ctx().data(|d| d.get_temp::<bool>(id)).unwrap_or(false);
-    let mut expert = ui
-        .ctx()
-        .data(|d| d.get_temp::<bool>(expert_id))
-        .unwrap_or(false);
+    let modulation_id = egui::Id::unique("synth-modulation");
+    let flag = |id: egui::Id| ui.ctx().data(|d| d.get_temp::<bool>(id)).unwrap_or(false);
+    let mut expert = flag(expert_id);
+    let mut view = match (flag(modulation_id), flag(id)) {
+        (true, _) => View::Modulation,
+        (false, true) => View::Advanced { expert },
+        (false, false) => View::Simple,
+    };
     ui.horizontal(|ui| {
-        for (on, label, hint) in [
+        for (tab, label, hint) in [
             (
-                false,
+                View::Simple,
                 "Simple",
                 "The sound, its four macros and its effects",
             ),
             (
-                true,
+                View::Advanced { expert },
                 "Advanced",
-                "Every control: oscillators, filter, LFOs, routings...",
+                "Every control: oscillators, filter, envelopes, LFOs, effects",
+            ),
+            (
+                View::Modulation,
+                "Modulation",
+                "The macros, what each one moves, and what else modulates the sound",
             ),
         ] {
             let text = RichText::new(tr(label)).size(12.5);
             if ui
-                .add(egui::Button::selectable(advanced == on, text))
+                .add(egui::Button::selectable(view == tab, text))
                 .on_hover_text(tr(hint))
                 .clicked()
             {
-                advanced = on;
+                view = tab;
             }
         }
-        if advanced {
+        if matches!(view, View::Advanced { .. }) {
             ui.add_space(8.0);
             let response = pill_switch(ui, expert, tr("Expert")).on_hover_text(tr(
                 "Shows the controls few sounds need: fine tuning, FM, sync and ring, key \
@@ -707,18 +744,21 @@ fn view_switch(ui: &mut Ui, state: &mut SynthState) -> (bool, bool) {
             if response.clicked() {
                 expert = !expert;
             }
+            view = View::Advanced { expert };
         }
     });
     ui.ctx().data_mut(|d| {
-        d.insert_temp(id, advanced);
+        d.insert_temp(id, matches!(view, View::Advanced { .. }));
         d.insert_temp(expert_id, expert);
+        d.insert_temp(modulation_id, view == View::Modulation);
     });
-    if state.sized != Some((advanced, expert)) {
-        state.sized = Some((advanced, expert));
-        let height = match (advanced, expert) {
-            (false, _) => SIMPLE_HEIGHT,
-            (true, false) => ADVANCED_HEIGHT,
-            (true, true) => EXPERT_HEIGHT,
+    if state.sized != Some(view) {
+        state.sized = Some(view);
+        let height = match view {
+            View::Simple => SIMPLE_HEIGHT,
+            View::Advanced { expert: false } => ADVANCED_HEIGHT,
+            View::Advanced { expert: true } => EXPERT_HEIGHT,
+            View::Modulation => MODULATION_HEIGHT,
         };
         let width = ui
             .ctx()
@@ -727,13 +767,14 @@ fn view_switch(ui: &mut Ui, state: &mut SynthState) -> (bool, bool) {
             .send_viewport_cmd(egui::ViewportCommand::InnerSize(vec2(width, height)));
     }
     ui.add_space(4.0);
-    (advanced, expert)
+    view
 }
 
 /// Window heights that show each view whole, keyboard included.
 const SIMPLE_HEIGHT: f32 = 720.0;
-const ADVANCED_HEIGHT: f32 = 1010.0;
-const EXPERT_HEIGHT: f32 = 1150.0;
+const ADVANCED_HEIGHT: f32 = 900.0;
+const EXPERT_HEIGHT: f32 = 1040.0;
+const MODULATION_HEIGHT: f32 = 760.0;
 
 /// A switch of the synth, as a pill with its hint.
 fn pill(ui: &mut Ui, params: &mut Params, id: &str, label: &'static str, hint: &'static str) {
@@ -950,33 +991,136 @@ fn advanced_face(
             });
         }),
     });
-    // The macros with their names, what the player does, and the routings.
-    row(ui, full, &[1, 2], 118.0, |ui, c| match c {
-        0 => panel(ui, |ui| {
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width((ui.available_width() - 110.0).max(200.0));
-                    spread(ui, 4, |ui, k| {
-                        source_pill(ui, state, k + 7);
-                        wide_knob(ui, params, &format!("macro{}", k + 1), "", 30.0, p.accent);
-                        ui.spacing_mut().combo_width = 78.0;
-                        let id = format!("macro{}_name", k + 1);
-                        ui.scope(|ui| choice_box(ui, params, &id))
-                            .response
-                            .on_hover_text(tr(
-                                "The macro's name in the simple view; Auto names it after \
-                                 what it moves",
-                            ));
+    // The macros and what the player does, to drag onto a knob: what they move is told and
+    // set in the Modulation view.
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 6.0;
+        ui.label(
+            RichText::new(tr("Drag onto a knob:"))
+                .size(11.0)
+                .color(p.weak),
+        );
+        for k in 0..4 {
+            let name = macro_name(params, k);
+            source_pill_named(ui, state, k + 7, &name);
+        }
+        for source in 4..=6 {
+            source_pill(ui, state, source);
+        }
+    });
+    ui.add_space(GAP);
+}
+
+/// The macros, each with what it moves, then what else modulates the sound.
+fn modulation_face(ui: &mut Ui, params: &mut Params, full: f32) {
+    use audiostrada_dsp::synth::{FIRST_MACRO, SLOTS, TARGETS, reaches};
+    let p = theme::current(ui);
+    let color = source_color(FIRST_MACRO);
+    let list = routes(params);
+    let most = (0..4)
+        .map(|k| list.iter().filter(|r| r.1 == FIRST_MACRO + k).count())
+        .max()
+        .unwrap_or(0);
+    let height = MACRO_KNOB + 96.0 + 26.0 * (most + 1) as f32;
+    let width = ((full - 3.0 * GAP) / 4.0).floor();
+    let top = ui.cursor().min;
+    let mut bottom = top.y + height;
+    for k in 0..4 {
+        let source = FIRST_MACRO + k;
+        let rect = Rect::from_min_size(
+            pos2(top.x + k as f32 * (width + GAP), top.y),
+            vec2(width, height),
+        );
+        let builder = egui::UiBuilder::new()
+            .max_rect(rect)
+            .layout(egui::Layout::top_down(egui::Align::Min));
+        let used = ui
+            .scope_builder(builder, |ui| {
+                panel(ui, |ui| {
+                    ui.vertical_centered(|ui| macro_knob(ui, params, k, color, true));
+                    ui.add_space(6.0);
+                    for &(slot, _, _, _) in list.iter().filter(|r| r.1 == source) {
+                        let n = slot + 1;
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 4.0;
+                            ui.spacing_mut().combo_width = (ui.available_width() - 104.0).max(70.0);
+                            choice_box(ui, params, &format!("mod{n}_target"));
+                            let id = format!("mod{n}_amount");
+                            let mut amount = params.get(&id);
+                            let response = ui.add(
+                                egui::DragValue::new(&mut amount)
+                                    .range(-100.0..=100.0)
+                                    .suffix(" %")
+                                    .speed(0.5),
+                            );
+                            params.set(&id, response.changed().then_some(amount), &response);
+                            if ui.small_button("✕").on_hover_text(tr("Remove")).clicked() {
+                                let response = ui.response();
+                                params.set(&format!("mod{n}_source"), Some(0.0), &response);
+                                params.set(&format!("mod{n}_amount"), Some(0.0), &response);
+                                params.doc.history_mut().end_gesture();
+                            }
+                        });
+                    }
+                    // One more thing for the macro to move.
+                    let mut picked = None;
+                    ui.menu_button(RichText::new(tr("+ Add a target")).size(11.5), |ui| {
+                        egui::ScrollArea::vertical()
+                            .max_height(320.0)
+                            .show(ui, |ui| {
+                                for (t, name) in TARGETS.iter().enumerate().skip(1) {
+                                    let taken = list.iter().any(|r| r.1 == source && r.2 == t);
+                                    if reaches(source, t) && !taken && ui.button(tr(name)).clicked()
+                                    {
+                                        picked = Some(t);
+                                        ui.close();
+                                    }
+                                }
+                            });
                     });
-                });
-                ui.vertical(|ui| {
-                    for source in 4..=6 {
-                        source_pill(ui, state, source);
+                    if let Some(target) = picked {
+                        match (0..SLOTS).find(|k| !list.iter().any(|r| r.0 == *k)) {
+                            Some(free) => {
+                                let response = ui.response();
+                                for (field, v) in [
+                                    ("source", source as f32),
+                                    ("target", target as f32),
+                                    ("amount", 50.0),
+                                ] {
+                                    let id = format!("mod{}_{field}", free + 1);
+                                    params.set(&id, Some(v), &response);
+                                }
+                                params.doc.history_mut().end_gesture();
+                            }
+                            None => params.doc.notify(
+                                tr("Every modulation slot is in use: remove one first").into(),
+                            ),
+                        }
                     }
                 });
+            })
+            .response
+            .rect;
+        bottom = bottom.max(used.bottom());
+    }
+    ui.allocate_rect(
+        Rect::from_min_max(top, pos2(top.x + full, bottom)),
+        Sense::hover(),
+    );
+    ui.add_space(GAP);
+    let others = list.iter().filter(|r| r.1 < FIRST_MACRO).count();
+    row(ui, full, &[3], 64.0, |ui, _| {
+        if others == 0 {
+            panel(ui, |ui| {
+                title(ui, tr("LFOs, envelope and playing"), p.weak);
+                ui.weak(tr(
+                    "In the advanced view, drag a colored source (LFO, envelope, velocity...) \
+                     onto a knob to modulate it",
+                ));
             });
-        }),
-        _ => routings(ui, params),
+        } else {
+            routings(ui, params);
+        }
     });
 }
 
@@ -997,6 +1141,38 @@ fn macro_name(params: &Params, k: usize) -> String {
         )
 }
 
+/// A macro's name over its knob in the modulation view: clicked, the names to choose from.
+fn macro_name_menu(ui: &mut Ui, params: &mut Params, k: usize) {
+    use audiostrada_dsp::synth::MACRO_NAMES;
+    let p = theme::current(ui);
+    let id = format!("macro{}_name", k + 1);
+    let chosen = params.get(&id).round() as usize;
+    let text = RichText::new(macro_name(params, k))
+        .size(14.0)
+        .strong()
+        .color(p.text);
+    let mut picked = None;
+    let response = ui
+        .menu_button(text, |ui| {
+            egui::ScrollArea::vertical()
+                .max_height(320.0)
+                .show(ui, |ui| {
+                    for (i, name) in MACRO_NAMES.iter().enumerate() {
+                        if ui.selectable_label(i == chosen, tr(name)).clicked() {
+                            picked = Some(i as f32);
+                            ui.close();
+                        }
+                    }
+                });
+        })
+        .response
+        .on_hover_text(tr("The macro's name; Auto names it after what it moves"));
+    params.change(&id, picked, &response);
+    if picked.is_some() {
+        params.doc.history_mut().end_gesture();
+    }
+}
+
 /// What a macro moves, by name.
 fn macro_targets(params: &Params, k: usize) -> Vec<&'static str> {
     use audiostrada_dsp::synth::{FIRST_MACRO, TARGETS};
@@ -1008,7 +1184,7 @@ fn macro_targets(params: &Params, k: usize) -> Vec<&'static str> {
 }
 
 /// A macro of the simple view: its name, a large knob in the sound's color, its value.
-fn macro_knob(ui: &mut Ui, params: &mut Params, k: usize, color: Color32) {
+fn macro_knob(ui: &mut Ui, params: &mut Params, k: usize, color: Color32, rename: bool) {
     let p = theme::current(ui);
     let id = format!("macro{}", k + 1);
     let Some(info) = params.param(&id) else {
@@ -1017,7 +1193,11 @@ fn macro_knob(ui: &mut Ui, params: &mut Params, k: usize, color: Color32) {
     let name = macro_name(params, k);
     let moves = macro_targets(params, k);
     let value = params.get(&id);
-    ui.label(RichText::new(&name).size(14.0).strong().color(p.text));
+    if rename {
+        macro_name_menu(ui, params, k);
+    } else {
+        ui.label(RichText::new(&name).size(14.0).strong().color(p.text));
+    }
     ui.add_space(10.0);
     let (changed, response) = crate::widgets::knob(
         ui,
@@ -1060,7 +1240,7 @@ fn macro_knob(ui: &mut Ui, params: &mut Params, k: usize, color: Color32) {
         }
     }
     let hint = if moves.is_empty() {
-        tr("This macro moves nothing yet: in the advanced view, drag it onto a knob").to_owned()
+        tr("This macro moves nothing yet: give it a target in the Modulation view").to_owned()
     } else {
         trf!(
             "{name} moves: {targets}. Right-click to assign a MIDI controller",
@@ -1095,7 +1275,7 @@ fn simple_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full: f
         .max_rect(rect.shrink2(vec2(16.0, 12.0)))
         .layout(egui::Layout::top_down(egui::Align::Min));
     ui.scope_builder(builder, |ui| {
-        spread(ui, 4, |ui, k| macro_knob(ui, params, k, color));
+        spread(ui, 4, |ui, k| macro_knob(ui, params, k, color, false));
         // How to put the macros under the fingers, said once and softly.
         ui.add_space(4.0);
         ui.vertical_centered(|ui| {

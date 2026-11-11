@@ -24,13 +24,16 @@ noise, a filter, two LFOs, an arpeggiator and its own chorus, delay and reverb. 
 - Under them, what every sound has: the **attack** and the **release**, the **chorus**, the
   **delay** and the **reverb**, the **arpeggiator** and the **volume**.
 
-**Advanced** shows the synth itself: oscillators, filter, envelopes, LFOs, effects, and at the
-bottom the macros with the list of what modulates what. Drag a colored source (an LFO, the
-second envelope, a macro, the velocity, the mod wheel) onto a knob to modulate it; a macro
-dragged onto several knobs moves them together, and its name is chosen under its knob. The
-macros and the mod wheel also reach the effects, the envelope's times, the detune and the speed
-and depth of the LFOs. **Expert** adds the controls few sounds need: fine tuning, FM, sync and
-ring, key tracking, drift, the depth of the LFOs and MPE.
+**Advanced** shows the synth itself: oscillators, filter, envelopes, LFOs, arpeggiator and
+effects. Drag a colored source (an LFO, the second envelope, or at the bottom a macro, the
+velocity, the mod wheel, the pressure) onto a knob to modulate it. **Expert** adds the controls
+few sounds need: fine tuning, FM, sync and ring, key tracking, drift, the depth of the LFOs and
+MPE.
+
+**Modulation** shows the four macros, each with what it moves and by how much: click a macro's
+name to choose another, *Add a target* to have it move one more setting. A macro (and the mod
+wheel) also reaches the effects, the envelope's times, the detune and the speed and depth of the
+LFOs. Under the macros, what the LFOs, the second envelope and the playing modulate.
 
 - **Presets** hold some ninety ready-made sounds by family: basses, leads, keys, pads, strings,
   brass, plucks, bells, poly, arpeggios, atmospheres, effects and hip-hop. All play at the same

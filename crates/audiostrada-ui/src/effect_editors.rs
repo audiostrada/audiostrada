@@ -5667,14 +5667,20 @@ mod tests {
             });
             let channel = Channel::Track(doc.project().tracks[0].id);
             let ctx = egui::Context::default();
-            // The synth's advanced view shows all its controls.
+            // The synth shows all its controls in its advanced view with the expert's, then its
+            // macros in the modulation view.
             ctx.data_mut(|d| {
                 d.insert_temp(egui::Id::unique("synth-advanced"), true);
                 d.insert_temp(egui::Id::unique("synth-expert"), true);
             });
             let mut state = EditorState::default();
             SHOWN.with_borrow_mut(Vec::clear);
-            for _ in 0..2 {
+            for frame in 0..4 {
+                if frame == 2 {
+                    ctx.data_mut(|d| {
+                        d.insert_temp(egui::Id::unique("synth-modulation"), true);
+                    });
+                }
                 let input = RawInput {
                     screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1200.0, 1600.0))),
                     ..Default::default()

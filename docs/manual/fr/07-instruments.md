@@ -26,14 +26,17 @@ et réverbe. Il s'ouvre sur sa vue **Simple**, faite pour jouer :
 - En dessous, ce que tout son possède : l'**attaque** et le **relâchement**, le **chorus**, le
   **delay** et la **réverbe**, l'**arpégiateur** et le **volume**.
 
-**Avancé** montre le synthé lui-même : oscillateurs, filtre, enveloppes, LFO, effets, et en bas
-les macros avec la liste de ce qui module quoi. Glissez une source colorée (un LFO, la seconde
-enveloppe, une macro, la vélocité, la molette de modulation) sur un potard pour le moduler ;
-une macro glissée sur plusieurs potards les pilote ensemble, et son nom se choisit sous son
-potard. Les macros et la molette de modulation atteignent aussi les effets, les temps de
-l'enveloppe, le désaccord, la vitesse et la profondeur des LFO. **Expert** ajoute les réglages
-dont peu de sons ont besoin : accord fin, FM, synchro et anneau, suivi du clavier, dérive,
-profondeur des LFO et MPE.
+**Avancé** montre le synthé lui-même : oscillateurs, filtre, enveloppes, LFO, arpégiateur et
+effets. Glissez une source colorée (un LFO, la seconde enveloppe, ou en bas une macro, la
+vélocité, la molette de modulation, la pression) sur un potard pour le moduler. **Expert**
+ajoute les réglages dont peu de sons ont besoin : accord fin, FM, synchro et anneau, suivi du
+clavier, dérive, profondeur des LFO et MPE.
+
+**Modulation** montre les quatre macros, chacune avec ce qu'elle pilote et de combien : cliquez
+sur le nom d'une macro pour en choisir un autre, sur *Ajouter une cible* pour lui faire piloter
+un réglage de plus. Une macro (comme la molette de modulation) atteint aussi les effets, les
+temps de l'enveloppe, le désaccord, la vitesse et la profondeur des LFO. Sous les macros, ce
+que modulent les LFO, la seconde enveloppe et le jeu.
 
 - **Les presets** contiennent environ quatre-vingt-dix sons prêts, par famille : basses, leads,
   claviers, nappes, cordes, cuivres, plucks, cloches, poly, arpèges, ambiances, effets et
