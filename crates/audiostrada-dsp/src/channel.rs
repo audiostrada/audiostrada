@@ -414,8 +414,9 @@ impl Channel {
         // A -12 dBFS signal keeps its level; louder ones round off, softer ones barely rise.
         const REFERENCE: f32 = 0.25;
         let amount = self.values[p::DRIVE_AMOUNT].clamp(0.0, 100.0) / 100.0;
-        let voice = crate::console::voice(self.values[p::CHARACTER].round() as usize);
-        let (push, even) = voice.map_or((1.0, 0.05), |v| (v.drive, v.even));
+        let (push, even) =
+            crate::console::strip_character(self.values[p::CHARACTER].round() as usize)
+                .unwrap_or((1.0, 0.05));
         let g = 1.0 + amount * 2.0 * push;
         let bias = even * amount;
         let offset = (g * bias).tanh();

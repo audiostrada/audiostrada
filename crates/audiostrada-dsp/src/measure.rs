@@ -187,13 +187,23 @@ pub fn measure(
 
 /// Every frequency at every level, in one stream.
 fn tones(process: &mut dyn FnMut(&mut [f32], &mut [f32]), latency: usize) -> Vec<Tone> {
-    let segment = SETTLE + WINDOW;
     let plan: Vec<(f32, f32)> = LEVELS
         .iter()
         .flat_map(|&level| FREQUENCIES.iter().map(move |&freq| (freq, level)))
         .collect();
+    tones_at(process, &plan, latency)
+}
+
+/// The tones of `plan` (frequency, level in dBFS) only, in one stream: what a fit reads, many
+/// times over.
+pub fn tones_at(
+    process: &mut dyn FnMut(&mut [f32], &mut [f32]),
+    plan: &[(f32, f32)],
+    latency: usize,
+) -> Vec<Tone> {
+    let segment = SETTLE + WINDOW;
     let mut input = Vec::with_capacity(plan.len() * segment + latency + WINDOW);
-    for &(freq, level) in &plan {
+    for &(freq, level) in plan {
         input.extend(sine(freq, gain(level), segment));
     }
     input.resize(input.len() + latency + WINDOW, 0.0);

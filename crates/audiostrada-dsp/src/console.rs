@@ -1,10 +1,19 @@
-//! Console color: the input stage of an analog console's channel, or the summing of its buses.
-//! Inspired by the published character of each console family (harmonics, transformer lows,
-//! tone of the top end), not a model of their circuits. Calibrated on the working level: a
-//! signal at -18 dBFS keeps its level, so switching the color on or off compares at equal
-//! loudness.
+//! Console color: the input stage of an analog console's channel, or the summing of its buses,
+//! as a chain of analog stages (`crate::analog`): transformers, amplifiers, a VCA, each console
+//! its own recipe, calibrated on measured plugins of the console it is after (`recipes`).
+//!
+//! The amount pushes the circuit, 12 dB softer at 0 % or harder at 100 %, at an equal level: a
+//! signal at the working level (-18 dBFS) keeps its loudness, so switching the color on or off
+//! compares at equal loudness. Each channel has its own tolerances, from a seed (its track),
+//! and its noise floor when hiss is asked for.
 
+pub mod recipes;
+
+use crate::analog::{
+    ClassA, OpAmp, Stage, Transformer, Variation, Vca, chain::Chain, noise::Noise,
+};
 use crate::biquad::{Biquad, Coefficients, FilterKind};
+pub use recipes::{Reading, Recipe, Target, recipe, targets};
 
 /// The consoles, in the order of the project model; the first colors nothing.
 pub const MODELS: [&str; 5] = [
@@ -15,83 +24,104 @@ pub const MODELS: [&str; 5] = [
     "Nashville",
 ];
 
-/// What makes a console sound like itself, at an amount of 50 %.
-#[derive(Clone, Copy, Debug)]
-pub struct Voice {
-    /// Gain into the saturation (1: about -60 dB of harmonics at the working level).
-    pub drive: f32,
-    /// Asymmetry: even harmonics.
-    pub even: f32,
-    /// Extra drive of the lows, below `split` Hz: a transformer's core.
-    pub low_drive: f32,
-    pub split: f64,
-    /// Frequency and gain of a low shelf, a high shelf and a presence peak.
-    pub low: (f64, f64),
-    pub high: (f64, f64),
-    pub presence: (f64, f64),
-    /// Hiss level, dBFS.
-    pub noise_db: f32,
-}
-
-pub fn voice(model: usize) -> Option<Voice> {
+/// The character a channel strip's drive takes from a console: how hard it pushes and how much
+/// of even harmonics it makes.
+pub fn strip_character(model: usize) -> Option<(f32, f32)> {
     match model {
-        // Transformers: round lows, a soft and silky top.
-        1 => Some(Voice {
-            drive: 1.2,
-            even: 0.08,
-            low_drive: 1.7,
-            split: 160.0,
-            low: (70.0, 0.6),
-            high: (16_000.0, -0.9),
-            presence: (3_000.0, 0.0),
-            noise_db: -86.0,
-        }),
-        // Tight and precise: odd harmonics, a bit of air.
-        2 => Some(Voice {
-            drive: 1.0,
-            even: 0.02,
-            low_drive: 1.0,
-            split: 120.0,
-            low: (40.0, -0.3),
-            high: (11_000.0, 0.6),
-            presence: (3_500.0, 0.2),
-            noise_db: -90.0,
-        }),
-        // Discrete amplifiers: the most harmonics, lows and attack forward.
-        3 => Some(Voice {
-            drive: 1.45,
-            even: 0.1,
-            low_drive: 1.3,
-            split: 140.0,
-            low: (100.0, 0.5),
-            high: (14_000.0, 0.0),
-            presence: (2_500.0, 0.5),
-            noise_db: -88.0,
-        }),
-        // Smooth and warm, very low distortion.
-        4 => Some(Voice {
-            drive: 0.7,
-            even: 0.07,
-            low_drive: 1.2,
-            split: 200.0,
-            low: (220.0, 0.4),
-            high: (12_000.0, -0.6),
-            presence: (3_000.0, 0.0),
-            noise_db: -92.0,
-        }),
+        1 => Some((1.2, 0.08)),
+        2 => Some((1.0, 0.02)),
+        3 => Some((1.45, 0.1)),
+        4 => Some((0.7, 0.07)),
         _ => None,
     }
 }
 
-/// A soft saturation of gain `g` and asymmetry `bias`, of slope 1 at zero: small signals pass
-/// unchanged, louder ones get rounder.
-#[inline]
-pub fn saturate(x: f32, g: f32, bias: f32) -> f32 {
-    if g < 1e-3 {
-        return x;
+/// One side of a console's channel: its stages in order, the ones it has.
+#[derive(Clone, Debug, Default)]
+pub struct Circuit {
+    input: Option<Transformer>,
+    class_a: Option<ClassA>,
+    op_amp: Option<OpAmp>,
+    vca: Option<Vca>,
+    output: Option<Transformer>,
+}
+
+impl Circuit {
+    /// The circuit of `recipe`, its parts off by `v`.
+    pub fn new(recipe: &Recipe, v: Variation, rate: f64) -> Self {
+        // A hotter part saturates sooner.
+        let hotter = 20.0 * v.drive.log10();
+        let iron = |s: crate::analog::transformer::Settings| {
+            Transformer::new(
+                crate::analog::transformer::Settings {
+                    corner_hz: s.corner_hz * f64::from(v.corner),
+                    saturation_dbu: s.saturation_dbu - hotter,
+                    top_hz: s.top_hz * f64::from(v.top),
+                    ..s
+                },
+                rate,
+            )
+        };
+        Self {
+            input: recipe.input.map(iron),
+            class_a: recipe.class_a.map(|s| {
+                ClassA::new(
+                    crate::analog::amplifier::ClassASettings {
+                        headroom_dbu: s.headroom_dbu - hotter,
+                        asymmetry: s.asymmetry * v.asymmetry,
+                        ..s
+                    },
+                    rate,
+                )
+            }),
+            op_amp: recipe
+                .op_amp
+                .map(|(rails, slew)| OpAmp::new(rails, slew, rate)),
+            vca: recipe
+                .vca
+                .map(|(h2, h3)| Vca::new(h2 + 20.0 * v.asymmetry.log10(), h3 + hotter, rate)),
+            output: recipe.output.map(iron),
+        }
     }
-    let offset = (g * bias).tanh();
-    ((g * (x + bias)).tanh() - offset) / (g * (1.0 - offset * offset))
+}
+
+impl Stage for Circuit {
+    fn process(&mut self, mut x: f32) -> f32 {
+        if let Some(s) = &mut self.input {
+            x = s.process(x);
+        }
+        if let Some(s) = &mut self.class_a {
+            x = s.process(x);
+        }
+        if let Some(s) = &mut self.op_amp {
+            x = s.process(x);
+        }
+        if let Some(s) = &mut self.vca {
+            x = s.process(x);
+        }
+        if let Some(s) = &mut self.output {
+            x = s.process(x);
+        }
+        x
+    }
+
+    fn reset(&mut self) {
+        if let Some(s) = &mut self.input {
+            s.reset();
+        }
+        if let Some(s) = &mut self.class_a {
+            s.reset();
+        }
+        if let Some(s) = &mut self.op_amp {
+            s.reset();
+        }
+        if let Some(s) = &mut self.vca {
+            s.reset();
+        }
+        if let Some(s) = &mut self.output {
+            s.reset();
+        }
+    }
 }
 
 /// The coloring of one channel or bus.
@@ -102,154 +132,143 @@ pub struct ConsoleColor {
     amount: f32,
     bus: bool,
     noise: bool,
-    voice: Option<Voice>,
-    /// Drive of the band above and below the split.
-    g: f32,
-    low_g: f32,
-    split: Coefficients,
-    split_state: [Biquad; 2],
-    tone: [Coefficients; 3],
-    tone_state: [[Biquad; 3]; 2],
-    /// DC blocker after the asymmetric saturation, and the crosstalk's high pass.
-    dc: Coefficients,
-    dc_state: [Biquad; 2],
+    seed: Option<u64>,
+    recipe: Option<Recipe>,
+    sides: [Chain<Circuit>; 2],
+    tone: [Coefficients; 2],
+    tone_state: [[Biquad; 2]; 2],
+    /// What leaks from one side of a bus into the other: a highpass, and its gain.
     bleed: Coefficients,
+    bleed_gain: f32,
     bleed_state: [Biquad; 2],
-    seed: u32,
 }
 
 impl ConsoleColor {
     pub fn new(rate: u32) -> Self {
-        let mut color = Self {
-            rate: f64::from(rate.max(1)),
+        let rate = f64::from(rate.max(1));
+        let side = || Chain::new(Circuit::default(), 0.0, None, rate);
+        Self {
+            rate,
             model: 0,
             amount: 0.0,
             bus: false,
             noise: false,
-            voice: None,
-            g: 0.0,
-            low_g: 0.0,
-            split: Coefficients::IDENTITY,
-            split_state: Default::default(),
-            tone: [Coefficients::IDENTITY; 3],
+            seed: None,
+            recipe: None,
+            sides: [side(), side()],
+            tone: [Coefficients::IDENTITY; 2],
             tone_state: Default::default(),
-            dc: Coefficients::IDENTITY,
-            dc_state: Default::default(),
             bleed: Coefficients::IDENTITY,
+            bleed_gain: 0.0,
             bleed_state: Default::default(),
-            seed: 0x9e37_79b9,
-        };
-        color.design();
-        color
+        }
     }
 
     /// The console (index into [`MODELS`]), its amount (0 to 100 %), summing a bus rather than
-    /// a channel's input, and its hiss and crosstalk heard.
-    pub fn set(&mut self, model: usize, amount: f32, bus: bool, noise: bool) {
-        if (model, amount, bus, noise) != (self.model, self.amount, self.bus, self.noise) {
-            let was = self.voice.is_some();
-            (self.model, self.amount, self.bus, self.noise) = (model, amount, bus, noise);
+    /// a channel's input, its hiss and crosstalk heard, and the seed of its tolerances (`None`:
+    /// a perfect channel).
+    pub fn set(&mut self, model: usize, amount: f32, bus: bool, noise: bool, seed: Option<u64>) {
+        let recipe = recipe(model, bus).filter(|_| amount > 0.0);
+        let circuit = (model, bus, noise, seed) != (self.model, self.bus, self.noise, self.seed);
+        if circuit || recipe.is_some() != self.recipe.is_some() {
+            (self.model, self.bus, self.noise, self.seed) = (model, bus, noise, seed);
+            self.amount = amount;
+            self.recipe = recipe;
             self.design();
-            if !was {
-                self.reset();
+            self.reset();
+        } else if amount != self.amount {
+            self.amount = amount;
+            for side in &mut self.sides {
+                side.set_amount(amount);
             }
         }
     }
 
-    /// Changes something.
-    pub fn active(&self) -> bool {
-        self.voice.is_some()
+    /// A console of `recipe` rather than of a model's: what a fit tries.
+    pub fn of_recipe(rate: u32, recipe: Recipe, amount: f32, bus: bool) -> Self {
+        let mut color = Self::new(rate);
+        (color.model, color.amount, color.bus) = (usize::MAX, amount, bus);
+        color.recipe = Some(recipe);
+        color.design();
+        color.reset();
+        color
     }
 
+    /// Changes something.
+    pub fn active(&self) -> bool {
+        self.recipe.is_some()
+    }
+
+    /// Builds the circuits; allocates nothing.
     fn design(&mut self) {
-        self.voice = voice(self.model).filter(|_| self.amount > 0.0);
-        let Some(v) = self.voice else {
+        let Some(r) = self.recipe else {
             return;
         };
         let rate = self.rate;
-        // 50 % is the console as it is, 100 % pushed twice as hard; a bus drives less.
-        let scale = (self.amount / 50.0).clamp(0.0, 2.0);
-        let bus = if self.bus { 0.7 } else { 1.0 };
-        self.g = v.drive * scale * bus;
-        self.low_g = self.g * v.low_drive;
-        self.split = Coefficients::first_order(false, v.split, rate);
-        let tone = f64::from(scale);
+        for (side, chain) in self.sides.iter_mut().enumerate() {
+            let v = self
+                .seed
+                .map_or(Variation::NONE, |s| Variation::of(s, side, 1.0));
+            let seed = self.seed.unwrap_or(0) as u32 ^ (side as u32 + 1).wrapping_mul(0x9e37_79b9);
+            let noise = self.noise.then(|| Noise::new(r.noise, rate, seed));
+            *chain = Chain::new(Circuit::new(&r, v, rate), v.gain_db, noise, rate);
+            chain.set_amount(self.amount);
+        }
         let nyquist = rate * 0.45;
         self.tone = [
-            Coefficients::design(FilterKind::LowShelf, v.low.0, 0.7, v.low.1 * tone, rate),
+            Coefficients::design(FilterKind::LowShelf, r.low.0, 0.7, r.low.1, rate),
             Coefficients::design(
                 FilterKind::HighShelf,
-                v.high.0.min(nyquist),
+                r.high.0.min(nyquist),
                 0.7,
-                v.high.1 * tone,
-                rate,
-            ),
-            Coefficients::design(
-                FilterKind::Peak,
-                v.presence.0.min(nyquist),
-                0.8,
-                v.presence.1 * tone,
+                r.high.1,
                 rate,
             ),
         ];
-        self.dc = Coefficients::first_order(true, 5.0, rate);
-        self.bleed = Coefficients::first_order(true, 1_000.0, rate);
+        // A first-order highpass at 10 kHz is 20 dB down at 1 kHz.
+        self.bleed = Coefficients::first_order(true, 10_000.0, rate);
+        self.bleed_gain = if self.bus && self.noise {
+            crate::db_to_gain(r.crosstalk_db + 20.0)
+        } else {
+            0.0
+        };
     }
 
     pub fn reset(&mut self) {
+        for side in &mut self.sides {
+            side.reset();
+        }
         for s in self
-            .split_state
+            .bleed_state
             .iter_mut()
-            .chain(self.dc_state.iter_mut())
-            .chain(self.bleed_state.iter_mut())
             .chain(self.tone_state.iter_mut().flatten())
         {
             s.reset();
         }
     }
 
-    fn random(&mut self) -> f32 {
-        self.seed ^= self.seed << 13;
-        self.seed ^= self.seed >> 17;
-        self.seed ^= self.seed << 5;
-        self.seed as f32 / u32::MAX as f32 * 2.0 - 1.0
-    }
-
     pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
-        let Some(v) = self.voice else {
+        if self.recipe.is_none() {
             return;
-        };
-        let bias = v.even;
+        }
+        if self.bleed_gain > 0.0 {
+            for (l, r) in left.iter_mut().zip(right.iter_mut()) {
+                let into_l = self.bleed_state[0].process(&self.bleed, f64::from(*r)) as f32;
+                let into_r = self.bleed_state[1].process(&self.bleed, f64::from(*l)) as f32;
+                *l += into_l * self.bleed_gain;
+                *r += into_r * self.bleed_gain;
+            }
+        }
         for (side, buffer) in [&mut *left, &mut *right].into_iter().enumerate() {
+            let chain = &mut self.sides[side];
+            let states = &mut self.tone_state[side];
             for x in buffer.iter_mut() {
-                let input = f64::from(*x);
-                let low = self.split_state[side].process(&self.split, input) as f32;
-                let high = *x - low;
-                let mut y =
-                    f64::from(saturate(low, self.low_g, bias) + saturate(high, self.g, bias * 0.5));
-                y = self.dc_state[side].process(&self.dc, y);
-                for (c, s) in self.tone.iter().zip(self.tone_state[side].iter_mut()) {
+                let mut y = f64::from(chain.process(*x));
+                for (c, s) in self.tone.iter().zip(states.iter_mut()) {
                     y = s.process(c, y);
                 }
                 *x = y as f32;
             }
-        }
-        if !self.noise {
-            return;
-        }
-        let hiss = crate::db_to_gain(v.noise_db) * 1.7;
-        // Summing: a little of each side leaks into the other, mostly the highs.
-        let bleed = if self.bus { 0.006 } else { 0.0 };
-        for (l, r) in left.iter_mut().zip(right.iter_mut()) {
-            let (dry_l, dry_r) = (*l, *r);
-            if bleed > 0.0 {
-                let into_l = self.bleed_state[0].process(&self.bleed, f64::from(dry_r)) as f32;
-                let into_r = self.bleed_state[1].process(&self.bleed, f64::from(dry_l)) as f32;
-                *l += into_l * bleed;
-                *r += into_r * bleed;
-            }
-            *l += self.random() * hiss;
-            *r += self.random() * hiss;
         }
     }
 }
@@ -260,7 +279,7 @@ pub fn harmonics(model: usize, amount: f32, level_db: f32) -> [f32; 5] {
     const RATE: u32 = 48_000;
     const PERIOD: usize = 240;
     let mut color = ConsoleColor::new(RATE);
-    color.set(model, amount, false, false);
+    color.set(model, amount, false, false, None);
     let a = crate::db_to_gain(level_db);
     let tone: Vec<f32> = (0..PERIOD * 40)
         .map(|i| a * (i as f32 * std::f32::consts::TAU / PERIOD as f32).sin())
@@ -285,92 +304,31 @@ pub fn harmonics(model: usize, amount: f32, level_db: f32) -> [f32; 5] {
     out
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::gain_to_db;
-
-    fn sine(freq: f32, db: f32) -> Vec<f32> {
-        let a = crate::db_to_gain(db);
-        (0..48_000)
-            .map(|i| a * (i as f32 * freq * std::f32::consts::TAU / 48_000.0).sin())
-            .collect()
-    }
-
-    fn rms(s: &[f32]) -> f32 {
-        (s.iter().map(|x| x * x).sum::<f32>() / s.len() as f32).sqrt()
-    }
-
-    fn through(model: usize, amount: f32, freq: f32, db: f32) -> (Vec<f32>, Vec<f32>) {
-        let mut color = ConsoleColor::new(48_000);
-        color.set(model, amount, false, false);
-        let input = sine(freq, db);
-        let mut l = input.clone();
-        let mut r = input.clone();
-        for (a, b) in l.chunks_mut(256).zip(r.chunks_mut(256)) {
-            color.process(a, b);
-        }
-        (input, l)
-    }
-
-    #[test]
-    fn clean_or_none_changes_nothing() {
-        for (model, amount) in [(0, 100.0), (1, 0.0)] {
-            let (input, output) = through(model, amount, 440.0, -6.0);
-            assert_eq!(input, output);
+/// What a console measures at `targets`' tones: a reading per target.
+pub fn read(color: &mut ConsoleColor, targets: &[Target]) -> Vec<f32> {
+    let mut plan: Vec<(f32, f32)> = Vec::new();
+    for t in targets {
+        if !plan.contains(&(t.freq, t.level)) {
+            plan.push((t.freq, t.level));
         }
     }
-
-    #[test]
-    fn the_working_level_keeps_its_loudness() {
-        for (model, name) in MODELS.iter().enumerate().skip(1) {
-            for amount in [50.0, 100.0] {
-                let (input, output) = through(model, amount, 1_000.0, -18.0);
-                let change = gain_to_db(rms(&output[24_000..]) / rms(&input[24_000..]));
-                assert!(change.abs() < 0.75, "{name} {amount}: {change}");
+    color.reset();
+    let tones = crate::measure::tones_at(&mut |l, r| color.process(l, r), &plan, 0);
+    targets
+        .iter()
+        .map(|t| {
+            let tone = tones
+                .iter()
+                .find(|x| x.freq == t.freq && x.level == t.level)
+                .expect("a tone of the plan");
+            match t.reading {
+                Reading::Thd => tone.thd_db,
+                Reading::H2 => tone.harmonics[0].unwrap_or(-200.0),
+                Reading::H3 => tone.harmonics[1].unwrap_or(-200.0),
             }
-        }
-    }
-
-    #[test]
-    fn each_console_has_its_fingerprint() {
-        let iron = harmonics(1, 50.0, -12.0);
-        let imperial = harmonics(2, 50.0, -12.0);
-        let discrete = harmonics(3, 50.0, -12.0);
-        let velvet = harmonics(4, 50.0, -12.0);
-        // Transformers: even harmonics; the tight one: odd ones above the even.
-        assert!(iron[0] > imperial[0] + 10.0, "{iron:?} {imperial:?}");
-        assert!(imperial[1] > imperial[0], "{imperial:?}");
-        // The discrete one is the richest, the smooth one the cleanest.
-        let total = |h: [f32; 5]| h.iter().map(|d| 10f32.powf(d / 10.0)).sum::<f32>();
-        assert!(total(discrete) > total(velvet) * 4.0);
-        assert!(total(velvet) < total(imperial));
-        // Within what a console does at the working level: below -30 dB.
-        for h in [iron, imperial, discrete, velvet] {
-            assert!(h.iter().all(|&d| d < -30.0), "{h:?}");
-        }
-        // More amount, more harmonics.
-        assert!(harmonics(1, 100.0, -12.0)[0] > iron[0] + 3.0);
-    }
-
-    #[test]
-    fn hiss_and_crosstalk_only_when_asked() {
-        let mut color = ConsoleColor::new(48_000);
-        color.set(1, 50.0, true, false);
-        let (mut l, mut r) = (vec![0.0f32; 4_800], vec![0.0f32; 4_800]);
-        color.process(&mut l, &mut r);
-        assert!(l.iter().chain(&r).all(|&s| s == 0.0));
-        color.set(1, 50.0, true, true);
-        color.process(&mut l, &mut r);
-        let level = gain_to_db(rms(&l));
-        assert!((-95.0..-80.0).contains(&level), "{level}");
-        // A signal on the left only leaks into the right.
-        let mut quiet = ConsoleColor::new(48_000);
-        quiet.set(2, 50.0, true, true);
-        let mut l = sine(5_000.0, -6.0);
-        let mut r = vec![0.0; l.len()];
-        quiet.process(&mut l, &mut r);
-        let leak = gain_to_db(rms(&r[24_000..]));
-        assert!((-60.0..-35.0).contains(&leak), "{leak}");
-    }
+        })
+        .collect()
 }
+
+#[cfg(test)]
+mod tests;

@@ -41,6 +41,23 @@ pub trait Stage: Send {
     }
 }
 
+/// Stages one after the other.
+impl Stage for Vec<Box<dyn Stage>> {
+    fn process(&mut self, x: f32) -> f32 {
+        self.iter_mut().fold(x, |y, stage| stage.process(y))
+    }
+
+    fn reset(&mut self) {
+        for stage in self {
+            stage.reset();
+        }
+    }
+
+    fn latency(&self) -> f32 {
+        self.iter().map(|s| s.latency()).sum()
+    }
+}
+
 /// Coefficient of a one-pole lowpass at `hz`.
 pub(crate) fn one_pole(hz: f64, rate: f64) -> f64 {
     1.0 - (-std::f64::consts::TAU * hz / rate).exp()

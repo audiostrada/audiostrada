@@ -2,7 +2,7 @@
 //! preamp, or the summing of a bus or of the master).
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use audiostrada_dsp::console::ConsoleColor;
 
@@ -16,6 +16,8 @@ pub struct ConsoleControls {
     amount: SharedParam,
     bus: Arc<AtomicBool>,
     noise: Arc<AtomicBool>,
+    /// The seed of the channel's tolerances: its track.
+    seed: Arc<AtomicU64>,
 }
 
 impl ConsoleControls {
@@ -25,16 +27,18 @@ impl ConsoleControls {
             amount: SharedParam::new(0.0),
             bus: Arc::default(),
             noise: Arc::default(),
+            seed: Arc::default(),
         }
     }
 
-    /// The console (index into `audiostrada_dsp::console::MODELS`), its amount, summing a bus
-    /// and its hiss heard.
-    pub fn set(&self, model: usize, amount: f32, bus: bool, noise: bool) {
+    /// The console (index into `audiostrada_dsp::console::MODELS`), its amount, summing a bus,
+    /// its hiss heard, and the seed of the channel's tolerances.
+    pub fn set(&self, model: usize, amount: f32, bus: bool, noise: bool, seed: u64) {
         self.model.set(model as f32);
         self.amount.set(amount);
         self.bus.store(bus, Ordering::Relaxed);
         self.noise.store(noise, Ordering::Relaxed);
+        self.seed.store(seed, Ordering::Relaxed);
     }
 }
 
@@ -95,6 +99,7 @@ impl Processor for InputStage {
             c.amount.get(),
             c.bus.load(Ordering::Relaxed),
             c.noise.load(Ordering::Relaxed),
+            Some(c.seed.load(Ordering::Relaxed)),
         );
         if self.color.active() && b.output_channels() >= 2 {
             let (left, right) = b.output_pair(0, 1);

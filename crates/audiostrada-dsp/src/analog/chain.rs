@@ -8,8 +8,10 @@ use super::{Stage, one_pole};
 /// Drive of the amount's ends against its middle, dB: 0 % 12 dB softer, 100 % 12 dB harder.
 pub const DRIVE_RANGE_DB: f32 = 12.0;
 
-pub struct Chain {
-    stages: Vec<Box<dyn Stage>>,
+/// `S` is the circuit: a list of boxed stages, or a console's own, which changes without
+/// allocating.
+pub struct Chain<S = Vec<Box<dyn Stage>>> {
+    stages: S,
     /// Gain into the circuit, toward its target without zipper noise.
     drive: f32,
     target: f32,
@@ -19,17 +21,16 @@ pub struct Chain {
     noise: Option<Noise>,
 }
 
-impl std::fmt::Debug for Chain {
+impl<S> std::fmt::Debug for Chain<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Chain")
-            .field("stages", &self.stages.len())
             .field("drive", &self.target)
             .finish_non_exhaustive()
     }
 }
 
-impl Chain {
-    pub fn new(stages: Vec<Box<dyn Stage>>, trim_db: f32, noise: Option<Noise>, rate: f64) -> Self {
+impl<S: Stage> Chain<S> {
+    pub fn new(stages: S, trim_db: f32, noise: Option<Noise>, rate: f64) -> Self {
         Self {
             stages,
             drive: 1.0,
@@ -47,13 +48,10 @@ impl Chain {
     }
 }
 
-impl Stage for Chain {
+impl<S: Stage> Stage for Chain<S> {
     fn process(&mut self, x: f32) -> f32 {
         self.drive += self.smooth * (self.target - self.drive);
-        let mut y = x * self.drive;
-        for stage in &mut self.stages {
-            y = stage.process(y);
-        }
+        let y = self.stages.process(x * self.drive);
         let mut y = y / self.drive * self.trim;
         if let Some(noise) = &mut self.noise {
             y += noise.sample();
@@ -63,13 +61,11 @@ impl Stage for Chain {
 
     fn reset(&mut self) {
         self.drive = self.target;
-        for stage in &mut self.stages {
-            stage.reset();
-        }
+        self.stages.reset();
     }
 
     fn latency(&self) -> f32 {
-        self.stages.iter().map(|s| s.latency()).sum()
+        self.stages.latency()
     }
 }
 
@@ -82,11 +78,12 @@ mod tests {
 
     fn chain(amount: f32, noise: bool) -> Box<dyn Stage> {
         let rate = 48_000.0;
+        let stages: Vec<Box<dyn Stage>> = vec![
+            Box::new(Transformer::new(transformer::Settings::default(), rate)),
+            Box::new(ClassA::new(amplifier::ClassASettings::default(), rate)),
+        ];
         let mut chain = Chain::new(
-            vec![
-                Box::new(Transformer::new(transformer::Settings::default(), rate)),
-                Box::new(ClassA::new(amplifier::ClassASettings::default(), rate)),
-            ],
+            stages,
             0.0,
             noise.then(|| Noise::new(NoiseSettings::default(), rate, 1)),
             rate,
@@ -125,7 +122,7 @@ mod tests {
         for i in 0..9_600 {
             if i == 4_800 {
                 // Set through a fresh chain: the steps of a glide stay small.
-                let mut fresh = Chain::new(Vec::new(), 0.0, None, 48_000.0);
+                let mut fresh: Chain = Chain::new(Vec::new(), 0.0, None, 48_000.0);
                 fresh.set_amount(0.0);
                 fresh.reset();
                 fresh.set_amount(100.0);

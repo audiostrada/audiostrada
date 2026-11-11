@@ -259,7 +259,8 @@ fn card(ui: &mut Ui, model: ConsoleModel, selected: bool, amount: f32) -> egui::
         rect.width() - 18.0,
     );
     painter.galley(pos2(rect.left() + 10.0, below), galley, p.weak);
-    // Harmonics 2 to 6, from -90 dB (nothing) to -30 dB (a full bar).
+    // Harmonics 2 to 6, from -120 dB (nothing) to -50 dB (a full bar): a console at -12 dBFS
+    // measures between -60 and -110 dB.
     let base = rect.bottom() - 40.0;
     if let Some(source) = inspiration(model) {
         let galley = painter.layout(
@@ -281,7 +282,7 @@ fn card(ui: &mut Ui, model: ConsoleModel, selected: bool, amount: f32) -> egui::
         let height = if model == ConsoleModel::Clean {
             1.0
         } else {
-            (((db + 90.0) / 60.0).clamp(0.0, 1.0) * full).max(1.0)
+            (((db + 120.0) / 70.0).clamp(0.0, 1.0) * full).max(1.0)
         };
         painter.rect_filled(
             Rect::from_min_max(pos2(x, base - full), pos2(x + 10.0, base)),

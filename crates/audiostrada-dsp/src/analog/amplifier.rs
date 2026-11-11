@@ -74,10 +74,6 @@ impl Stage for ClassA {
         self.dc = 0.0;
         self.bottom_state.reset();
     }
-
-    fn latency(&self) -> f32 {
-        0.5
-    }
 }
 
 /// An op-amp: clean, then a firm limit at its rails; its output cannot move faster than its

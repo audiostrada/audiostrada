@@ -101,7 +101,13 @@ pub fn one(reference: &Reference) -> anyhow::Result<Fingerprint> {
                 .position(|m| m.eq_ignore_ascii_case(console))
                 .ok_or_else(|| anyhow!("no console '{console}' (one of {})", MODELS.join(", ")))?;
             let mut color = ConsoleColor::new(RATE);
-            color.set(model, reference.amount, reference.bus, reference.noise);
+            color.set(
+                model,
+                reference.amount,
+                reference.bus,
+                reference.noise,
+                None,
+            );
             Ok(measured(&mut |l, r| color.process(l, r), 0))
         }
         (None, Some(id), None) => {

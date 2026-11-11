@@ -1297,6 +1297,7 @@ impl ProjectPlayer {
                 console.amount,
                 bus,
                 project.console_noise,
+                track.id.0,
             );
             nodes.armed = track.armed;
             nodes.monitoring = track.monitor;
@@ -1640,11 +1641,13 @@ impl ProjectPlayer {
             LowLatency::Bypass,
             console_index(project.console),
         );
+        // The master's tolerances: a seed no track has.
         self.master.console.set(
             console_index(project.console),
             project.console.amount,
             true,
             project.console_noise,
+            u64::MAX,
         );
         for node in removed_nodes {
             self.remove_node(node);

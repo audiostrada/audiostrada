@@ -1,6 +1,8 @@
 //! A soft saturation, asymmetric for even harmonics, of slope 1 at rest, with first-order
 //! antiderivative antialiasing: the harmonics it makes above half the sample rate barely fold
-//! back, for the price of half a sample of delay.
+//! back. Only what the curve adds to the signal is antialiased: the signal itself passes as it
+//! is, neither delayed nor dulled in the highs (antialiasing all of it averages two samples, 2 dB
+//! down at 10 kHz).
 
 use super::Stage;
 
@@ -54,19 +56,23 @@ impl Shaper {
         (log_cosh(self.g * (x + self.bias)) / self.g - self.offset * x) / self.slope
     }
 
-    /// The curve at `x` moved by `shift` (a drifting bias), antialiased.
+    /// The curve at `x` moved by `shift` (a drifting bias): the input, plus what the curve adds
+    /// to it, antialiased.
     pub fn shifted(&mut self, x: f32, shift: f32) -> f32 {
         let x = f64::from(x) + f64::from(shift);
         let f = self.antiderivative(x);
         let dx = x - self.x1;
-        let y = if dx.abs() > 1e-5 {
-            (f - self.f1) / dx
+        let mid = 0.5 * (x + self.x1);
+        // The mean of the curve over the step, less the mean of the input over it: what the
+        // curve adds.
+        let added = if dx.abs() > 1e-5 {
+            (f - self.f1) / dx - mid
         } else {
-            self.curve(0.5 * (x + self.x1))
+            self.curve(mid) - mid
         };
         self.x1 = x;
         self.f1 = f;
-        y as f32
+        (x + added) as f32
     }
 }
 
@@ -78,10 +84,6 @@ impl Stage for Shaper {
     fn reset(&mut self) {
         self.x1 = 0.0;
         self.f1 = self.antiderivative(0.0);
-    }
-
-    fn latency(&self) -> f32 {
-        0.5
     }
 }
 
