@@ -5,5 +5,8 @@
 /.claude/worktrees
 /docs/manual/dist
 
+# Console fingerprints: measured on each machine, kept out of the repository.
+measurements/fingerprints/
+
 # The reference plugins: listed on the machine that measures them, never in the repository.
 measurements/references/windows.toml

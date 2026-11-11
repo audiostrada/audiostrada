@@ -139,7 +139,7 @@ pub fn one(reference: &Reference) -> anyhow::Result<Fingerprint> {
             processor.set_offline(true);
             let latency = instance.latency() as usize;
             // The settings go with the first block; the plugin keeps them.
-            let mut pending = changes;
+            let mut pending = changes.clone();
             let print = measured(
                 &mut |l, r| {
                     processor.process(l, r, &pending, &[], &mut |_, _| {});
@@ -148,6 +148,13 @@ pub fn one(reference: &Reference) -> anyhow::Result<Fingerprint> {
                 latency,
             );
             drop(processor);
+            // What the plugin shows for each setting, to check it took the one meant: a VST2
+            // plugin only tells the text of the value it has.
+            for (id, value) in changes {
+                let name = params.iter().find(|p| p.id == id).map_or("", |p| &p.name);
+                let shown = instance.value_text(id, value).unwrap_or_else(|| "?".into());
+                println!("  {}: {name} = {shown}", reference.name);
+            }
             let _ = instance.try_deactivate();
             Ok(print)
         }
