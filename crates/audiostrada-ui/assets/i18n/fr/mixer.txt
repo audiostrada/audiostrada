@@ -1026,8 +1026,17 @@ Boîte à rythme
 Compact
 Compact
 
+Compact mode
+Mode compact
+
+Large mode
+Mode large
+
 Narrow strips: a click opens one full width ({keys})
 Tranches étroites : un clic en ouvre une en pleine largeur ({keys})
+
+Every strip full width ({keys})
+Chaque tranche en pleine largeur ({keys})
 
 {name}. Click to open the strip
 {name}. Cliquer pour ouvrir la tranche

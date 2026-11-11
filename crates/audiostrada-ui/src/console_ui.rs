@@ -105,7 +105,14 @@ pub fn power_switch(ui: &mut Ui, doc: &mut Document) -> egui::Response {
         p.surface
     };
     ui.painter().rect_filled(rect, 4.0, fill);
-    theme::paint_power(ui.painter(), rect.shrink(3.0), theme::power_ink(!off, &p));
+    // Lit in the console's color; the neutral one in the usual green.
+    let model = doc.project().console.model;
+    let ink = if !off && model != ConsoleModel::Clean {
+        color(model)
+    } else {
+        theme::power_ink(!off, &p)
+    };
+    theme::paint_power(ui.painter(), rect.shrink(3.0), ink);
     let response = response.on_hover_text(if off {
         tr("Console colors off: click to hear them again")
     } else {

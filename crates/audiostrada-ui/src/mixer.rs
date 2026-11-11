@@ -2720,69 +2720,144 @@ impl MixerView {
         }
     }
 
+    /// The mixer's bar: its menus at the left, the console in the middle, the strips' width at
+    /// the right.
     fn toolbar(&mut self, ui: &mut Ui) {
         let mut doc = self.doc.borrow_mut();
-        ui.horizontal_wrapped(|ui| {
-            ui.menu_button(tr("Add"), |ui| add_items(ui, &mut self.requests))
+        let height = ui.spacing().interact_size.y + 4.0;
+        let (row, _) =
+            ui.allocate_exact_size(vec2(ui.available_width(), height), egui::Sense::hover());
+        let console = doc.project().console.model;
+        let off = doc.project().console_off;
+        let tint = crate::console_ui::color(console);
+        let zone = |ui: &mut Ui, layout: egui::Layout| {
+            ui.new_child(egui::UiBuilder::new().max_rect(row).layout(layout))
+        };
+        let mut left = zone(ui, egui::Layout::left_to_right(egui::Align::Center));
+        left.menu_button(tr("Add"), |ui| add_items(ui, &mut self.requests))
             .response
             .on_hover_text(tr("Audio, instrument or drum machine tracks, and VCAs"));
-            let label = if doc.project().groups_off {
-                tr("Groups (off)")
-            } else {
-                tr("Groups")
-            };
-            ui.menu_button(label, |ui| groups_menu(ui, &mut doc))
-                .response
-                .on_hover_text(tr(
-                    "Tracks whose level, mute, solo, arm, editing and more move together",
-                ));
-            ui.menu_button(tr("Snapshots"), |ui| snapshots_menu(ui, &mut doc))
-                .response
-                .on_hover_text(tr("Save and recall the console settings"));
-            let importing = doc.importing();
-            if importing > 0 {
-                ui.spinner();
-                ui.weak(trf!("importing {count} file(s)…", count = importing));
-            }
-            // At the right: the compact switch, then the console.
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let console = doc.project().console.model;
-                let mut label = RichText::new(crate::console_ui::button_label(&doc));
-                if console != audiostrada_core::console::ConsoleModel::Clean {
-                    label = label.color(crate::console_ui::color(console));
-                }
-                if doc.project().console_off {
-                    label = label.strikethrough();
-                }
-                // Right to left: the button, then its switch at its left.
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 2.0;
-                    let button = ui.button(label).on_hover_text(tr(
-                        "The character of an analog console on every track, the buses and the master",
-                    ));
-                    // Stays open while its settings change.
-                    egui::Popup::menu(&button)
-                        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                        .show(|ui| crate::console_ui::console_menu(ui, &mut doc));
-                    crate::console_ui::power_switch(ui, &mut doc);
-                });
-                let keys = crate::shortcut_labels(crate::actions::Action::CompactMixer)
-                    .first()
-                    .cloned()
-                    .unwrap_or_default();
-                if ui
-                    .selectable_label(self.compact, tr("Compact"))
-                    .on_hover_text(trf!(
-                        "Narrow strips: a click opens one full width ({keys})",
-                        keys = keys
-                    ))
-                    .clicked()
-                {
-                    self.requests.push(crate::actions::Action::CompactMixer);
-                }
-            });
-        });
+        let label = if doc.project().groups_off {
+            tr("Groups (off)")
+        } else {
+            tr("Groups")
+        };
+        left.menu_button(label, |ui| groups_menu(ui, &mut doc))
+            .response
+            .on_hover_text(tr(
+                "Tracks whose level, mute, solo, arm, editing and more move together",
+            ));
+        left.menu_button(tr("Snapshots"), |ui| snapshots_menu(ui, &mut doc))
+            .response
+            .on_hover_text(tr("Save and recall the console settings"));
+        let importing = doc.importing();
+        if importing > 0 {
+            left.spinner();
+            left.weak(trf!("importing {count} file(s)…", count = importing));
+        }
+        let left_end = left.min_rect().right();
+
+        let mut right = zone(ui, egui::Layout::right_to_left(egui::Align::Center));
+        Self::strips_width_button(&mut right, self.compact, &mut self.requests);
+        let right_start = right.min_rect().left();
+
+        // The console in the middle of the bar, moved aside when the menus need the room.
+        let mut label = RichText::new(crate::console_ui::button_label(&doc)).strong();
+        if console != audiostrada_core::console::ConsoleModel::Clean {
+            label = label.color(tint);
+        }
+        if off {
+            label = label.strikethrough();
+        }
+        let gap = 2.0;
+        let switch = 22.0;
+        let text = egui::WidgetText::from(label.clone()).into_galley(
+            ui,
+            Some(egui::TextWrapMode::Extend),
+            f32::INFINITY,
+            egui::TextStyle::Button,
+        );
+        let width = switch + gap + text.size().x + 2.0 * ui.spacing().button_padding.x;
+        let margin = 12.0;
+        let x = (row.center().x - width / 2.0)
+            .min(right_start - margin - width)
+            .max(left_end + margin);
+        let middle = Rect::from_min_size(pos2(x, row.top()), vec2(width, row.height()));
+        let mut center = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(middle)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        );
+        center.spacing_mut().item_spacing.x = gap;
+        crate::console_ui::power_switch(&mut center, &mut doc);
+        let button = center.button(label).on_hover_text(tr(
+            "The character of an analog console on every track, the buses and the master",
+        ));
+        // Stays open while its settings change.
+        egui::Popup::menu(&button)
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+            .show(|ui| crate::console_ui::console_menu(ui, &mut doc));
         ui.separator();
+    }
+
+    /// The strips' width: a switch of two states, compact or large, the one in use lit. Laid in
+    /// a right-to-left zone: the last added shows at the left.
+    fn strips_width_button(ui: &mut Ui, compact: bool, requests: &mut Vec<crate::actions::Action>) {
+        let p = theme::current(ui);
+        let keys = crate::shortcut_labels(crate::actions::Action::CompactMixer)
+            .first()
+            .cloned()
+            .unwrap_or_default();
+        ui.spacing_mut().item_spacing.x = 0.0;
+        let states = [
+            (
+                false,
+                tr("Large mode"),
+                trf!("Every strip full width ({keys})", keys = keys),
+            ),
+            (
+                true,
+                tr("Compact mode"),
+                trf!(
+                    "Narrow strips: a click opens one full width ({keys})",
+                    keys = keys
+                ),
+            ),
+        ];
+        for (state, label, hint) in states {
+            let on = state == compact;
+            let text = if on {
+                RichText::new(label)
+                    .strong()
+                    .color(theme::text_on(p.accent))
+            } else {
+                RichText::new(label)
+            };
+            // The halves of one control: rounded on their outer side only.
+            let r = 4;
+            let corners = if state {
+                egui::CornerRadius {
+                    nw: r,
+                    sw: r,
+                    ne: 0,
+                    se: 0,
+                }
+            } else {
+                egui::CornerRadius {
+                    nw: 0,
+                    sw: 0,
+                    ne: r,
+                    se: r,
+                }
+            };
+            let mut button = egui::Button::new(text).corner_radius(corners);
+            if on {
+                button = button.fill(p.accent);
+            }
+            if ui.add(button).on_hover_text(hint).clicked() && !on {
+                requests.push(crate::actions::Action::CompactMixer);
+            }
+        }
     }
 
     fn missing_media(&mut self, ui: &mut Ui) {
