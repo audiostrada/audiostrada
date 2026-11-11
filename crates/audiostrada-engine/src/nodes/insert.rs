@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use audiostrada_dsp::Effect;
 
+use crate::nodes::bypass::BypassFade;
 use crate::nodes::levels::{LevelControls, Levels};
 use crate::nodes::{MidiLayer, MidiPlayer};
 use crate::param::SharedParam;
@@ -41,6 +42,7 @@ pub struct Insert {
     /// Copy of the key inputs for the block.
     key: [Vec<f32>; 2],
     levels: Levels,
+    fade: BypassFade,
 }
 
 impl std::fmt::Debug for Insert {
@@ -77,6 +79,7 @@ impl Insert {
                 under: [Vec::new(), Vec::new()],
                 key: [Vec::new(), Vec::new()],
                 levels,
+                fade: BypassFade::new(),
             },
             controls,
         )
@@ -118,6 +121,7 @@ impl Processor for Insert {
         self.key = [vec![0.0; max_frames], vec![0.0; max_frames]];
         self.under = [vec![0.0; max_frames], vec![0.0; max_frames]];
         self.applied.fill(f32::NAN);
+        self.fade.prepare(sample_rate, max_frames);
     }
 
     fn process(&mut self, ctx: &mut ProcessContext<'_>) {
@@ -129,7 +133,8 @@ impl Processor for Insert {
         if b.output_channels() < 2 {
             return;
         }
-        if self.controls.bypass.load(Ordering::Relaxed) {
+        let bypass = self.controls.bypass.load(Ordering::Relaxed);
+        if self.fade.idle(bypass) {
             // A lead bypassed still hands its notes to the instruments layered on it.
             if let Some(midi) = &mut self.midi {
                 midi.collect(ctx.transport, b.frames());
@@ -163,6 +168,10 @@ impl Processor for Insert {
             }
         }
         let (left, right) = b.output_pair(0, 1);
+        if self.fade.waking(bypass) {
+            self.effect.reset();
+        }
+        self.fade.keep(left, right, bypass);
         self.levels.input(left, right);
         // Whatever path the block takes (notes, sidechain, plain): an effect that measures for
         // its window (the channel strip's spectra) does so while the window is open.
@@ -236,6 +245,7 @@ impl Processor for Insert {
             right.fill(0.0);
             self.effect.reset();
         }
+        self.fade.blend(left, right, bypass);
         self.levels.output(left, right);
         if !self.meters.is_empty() {
             self.effect.meters(&mut self.meters);

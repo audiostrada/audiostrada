@@ -41,11 +41,29 @@ impl DelayLine {
     fn clear(&mut self) {
         self.ring.fill(0.0);
     }
+
+    /// Takes over what `old` holds, the latest samples last, so that the sound goes on through
+    /// a new graph; returns how many samples it could fill. Real-time safe.
+    fn take_history(&mut self, old: &DelayLine) -> usize {
+        let (had, len) = (old.ring.len(), self.ring.len());
+        for (j, slot) in self.ring.iter_mut().enumerate() {
+            let age = len - j;
+            *slot = if age <= had {
+                old.ring[(old.pos + had - age) % had]
+            } else {
+                0.0
+            };
+        }
+        self.pos = 0;
+        had.min(len)
+    }
 }
 
 pub(crate) struct Source {
     buffer: *const f32,
     delay: Option<DelayLine>,
+    /// The output it reads, to find it again in the next graph.
+    from: (NodeId, usize),
 }
 
 pub(crate) struct InputChannel {
@@ -80,6 +98,7 @@ impl ScheduledNode {
                     Source {
                         buffer,
                         delay: None,
+                        ..
                     },
                 ] => {
                     out.copy_from_slice(unsafe { std::slice::from_raw_parts(*buffer, frames) });
@@ -133,6 +152,8 @@ pub(crate) struct Schedule {
     pub pending: Box<[AtomicU32]>,
     pub ready: ArrayQueue<usize>,
     pub processor_count: usize,
+    /// Longest latency of the processors new in this graph: they are silent that long.
+    fresh: usize,
     _pool: Vec<Box<[f32]>>,
 }
 
@@ -149,15 +170,38 @@ impl std::fmt::Debug for Schedule {
 }
 
 impl Schedule {
-    /// Moves the processors of nodes kept from `old` into this schedule. Real-time safe.
-    pub fn adopt(&mut self, old: &mut Schedule) {
-        for node in &mut self.nodes {
-            if let Some(previous) = node.previous.take()
+    /// Moves the processors of nodes kept from `old` into this schedule, and the sound held in
+    /// their delay lines. Returns how long the new graph needs before every line is full again,
+    /// in samples. Real-time safe.
+    pub fn adopt(&mut self, old: &mut Schedule) -> usize {
+        let mut warmup = self.fresh;
+        for (i, node) in self.nodes.iter_mut().enumerate() {
+            let previous = node.previous.take().or(if i == self.hardware_output {
+                Some(old.hardware_output)
+            } else {
+                None
+            });
+            if let Some(previous) = previous
                 && let Some(old_node) = old.nodes.get_mut(previous)
             {
                 node.processor = old_node.processor.take();
             }
+            let old_node = previous.and_then(|p| old.nodes.get(p));
+            for (channel, input) in node.inputs.iter_mut().enumerate() {
+                for source in &mut input.sources {
+                    let Some(line) = &mut source.delay else {
+                        continue;
+                    };
+                    let kept = old_node
+                        .and_then(|o| o.inputs.get(channel))
+                        .and_then(|i| i.sources.iter().find(|s| s.from == source.from))
+                        .and_then(|s| s.delay.as_ref())
+                        .map_or(0, |old| line.take_history(old));
+                    warmup = warmup.max(line.ring.len() - kept);
+                }
+            }
         }
+        warmup
     }
 
     /// Takes every processor out, keyed by node, to hand them back to the graph.
@@ -200,9 +244,13 @@ pub(crate) fn compile(
 
     let mut nodes = Vec::with_capacity(order.len());
     let mut deps = Vec::with_capacity(order.len());
+    let mut fresh = 0;
     for (i, id) in order.iter().enumerate() {
         let processor = graph.nodes.get_mut(id).and_then(|s| s.processor.take());
         let spec = &graph.nodes[id];
+        if processor.is_some() {
+            fresh = fresh.max(spec.latency as usize);
+        }
         let inputs: Vec<InputChannel> = (0..spec.inputs)
             .map(|channel| InputChannel {
                 buffer: alloc(&mut pool),
@@ -219,6 +267,7 @@ pub(crate) fn compile(
                         Source {
                             buffer: out_ptrs[s][src_channel].cast_const(),
                             delay: (delay > 0).then(|| DelayLine::new(delay)),
+                            from: (src, src_channel),
                         }
                     })
                     .collect(),
@@ -272,6 +321,7 @@ pub(crate) fn compile(
         deps: deps.into_boxed_slice(),
         ready: ArrayQueue::new(processor_count.max(1)),
         processor_count,
+        fresh,
         nodes,
         hardware_input,
         hardware_output,

@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use audiostrada_plugins::PluginProcessor;
 use audiostrada_rt::{Receiver, Sender, channel};
 
+use crate::nodes::bypass::BypassFade;
 use crate::nodes::levels::{LevelControls, Levels};
 use crate::nodes::{MidiLayer, MidiPlayer};
 use crate::param::SharedParam;
@@ -63,6 +64,7 @@ pub struct PluginNode {
     /// Copy of the key inputs for the block.
     key: [Vec<f32>; 2],
     levels: Levels,
+    fade: BypassFade,
 }
 
 impl std::fmt::Debug for PluginNode {
@@ -100,6 +102,7 @@ impl PluginNode {
                 keyed: Arc::clone(&keyed),
                 key: [Vec::new(), Vec::new()],
                 levels,
+                fade: BypassFade::new(),
             },
             PluginControls {
                 to_plugin,
@@ -152,6 +155,7 @@ impl Processor for PluginNode {
         self.levels.prepare(sample_rate);
         self.under = [vec![0.0; max_frames], vec![0.0; max_frames]];
         self.key = [vec![0.0; max_frames], vec![0.0; max_frames]];
+        self.fade.prepare(sample_rate, max_frames);
     }
 
     fn process(&mut self, ctx: &mut ProcessContext<'_>) {
@@ -190,7 +194,8 @@ impl Processor for PluginNode {
             }
         }
         let (left, right) = b.output_pair(0, 1);
-        if self.bypass.load(Ordering::Relaxed) {
+        let bypass = self.bypass.load(Ordering::Relaxed);
+        if self.fade.idle(bypass) {
             // A lead bypassed still hands its notes to the instruments layered on it.
             if let Some(midi) = &mut self.midi {
                 midi.collect(ctx.transport, left.len());
@@ -201,6 +206,7 @@ impl Processor for PluginNode {
             self.levels.bypassed(left, right);
             return;
         }
+        self.fade.keep(left, right, bypass);
         self.levels.input(left, right);
         let n = left.len();
         let layered = self.layer.is_some() && self.under[0].len() >= n;
@@ -241,6 +247,7 @@ impl Processor for PluginNode {
             left.fill(0.0);
             right.fill(0.0);
         }
+        self.fade.blend(left, right, bypass);
         self.levels.output(left, right);
     }
 

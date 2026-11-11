@@ -391,7 +391,64 @@ impl Engine {
             capture: None,
             tap: None,
             automation: None,
+            declick: Declick::new(sample_rate),
         }
+    }
+}
+
+/// How a live stream takes a new graph without a click: its output fades out, the graph is
+/// swapped in the silence, then the output fades back in.
+struct Declick {
+    /// The graph waiting for the silence.
+    pending: Option<Box<Schedule>>,
+    gain: f32,
+    step: f32,
+    /// Samples kept silent after a swap, while delay lines fill up again.
+    hold: usize,
+    /// Feeding a device: offline renders take a new graph at once.
+    live: bool,
+}
+
+impl Declick {
+    /// Fades of 5 ms.
+    fn new(sample_rate: u32) -> Self {
+        Self {
+            pending: None,
+            gain: 1.0,
+            step: 1.0 / (sample_rate as f32 * 0.005).max(1.0),
+            hold: 0,
+            live: false,
+        }
+    }
+
+    /// Ramps the outputs toward silence while a graph waits, keeps them silent while the new
+    /// one fills its delay lines, then ramps back to full level.
+    fn apply(&mut self, buffers: &mut AudioBuffers<'_>) {
+        let target = if self.pending.is_some() { 0.0 } else { 1.0 };
+        if self.gain == target && self.hold == 0 {
+            return;
+        }
+        let step = if target > self.gain {
+            self.step
+        } else {
+            -self.step
+        };
+        let (start, held) = (self.gain, self.hold);
+        for channel in 0..buffers.output_channels() {
+            let (mut gain, mut hold) = (start, held);
+            for sample in buffers.output(channel) {
+                if hold > 0 {
+                    hold -= 1;
+                } else {
+                    gain = (gain + step).clamp(0.0, 1.0);
+                }
+                *sample *= gain;
+            }
+        }
+        let frames = buffers.frames();
+        let moving = frames.saturating_sub(held);
+        self.hold = held.saturating_sub(frames);
+        self.gain = (start + step * moving as f32).clamp(0.0, 1.0);
     }
 }
 
@@ -407,6 +464,7 @@ pub struct EngineProcessor {
     capture: Option<Box<Capture>>,
     tap: Option<Box<TapWriter>>,
     automation: Option<Box<AutomationSet>>,
+    declick: Declick,
 }
 
 impl std::fmt::Debug for EngineProcessor {
@@ -430,15 +488,35 @@ impl EngineProcessor {
         }
     }
 
+    fn take_schedule(&mut self, mut schedule: Box<Schedule>) {
+        if let Some(mut old) = self.schedule.take() {
+            let warmup = schedule.adopt(&mut old);
+            if self.declick.live {
+                self.declick.hold = warmup;
+            }
+            self.discard(Garbage::Schedule(old));
+        }
+        self.schedule = Some(schedule);
+    }
+
     fn handle_commands(&mut self) {
+        // A graph waiting for the silence holds back the commands sent after it.
+        if self.declick.pending.is_some() {
+            if self.declick.gain > 0.0 {
+                return;
+            }
+            if let Some(schedule) = self.declick.pending.take() {
+                self.take_schedule(schedule);
+            }
+        }
         while let Some(command) = self.commands.try_recv() {
             match command {
-                Command::Schedule(mut schedule) => {
-                    if let Some(mut old) = self.schedule.take() {
-                        schedule.adopt(&mut old);
-                        self.discard(Garbage::Schedule(old));
+                Command::Schedule(schedule) => {
+                    if self.declick.live && self.declick.gain > 0.0 && self.schedule.is_some() {
+                        self.declick.pending = Some(schedule);
+                        return;
                     }
-                    self.schedule = Some(schedule);
+                    self.take_schedule(schedule);
                 }
                 Command::Play => self.transport.playing = true,
                 Command::Stop => self.transport.playing = false,
@@ -534,7 +612,9 @@ impl EngineProcessor {
 
 impl AudioCallback for EngineProcessor {
     fn process(&mut self, buffers: &mut AudioBuffers<'_>, _time: &CallbackTime) {
+        self.declick.live = true;
         self.render(buffers);
+        self.declick.apply(buffers);
         if crate::evaluation::active() {
             let frames = buffers.frames();
             crate::evaluation::apply(
@@ -549,6 +629,7 @@ impl AudioCallback for EngineProcessor {
 
 impl Drop for EngineProcessor {
     fn drop(&mut self) {
+        self.declick.gain = 0.0;
         self.handle_commands();
         if let Some(schedule) = self.schedule.take() {
             let _ = self.garbage.try_send(Garbage::Returned(schedule));

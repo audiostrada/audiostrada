@@ -1,3 +1,4 @@
+mod bypass;
 mod control_room;
 mod gain;
 mod input;

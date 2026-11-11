@@ -2843,6 +2843,60 @@ mod tests {
     }
 
     #[test]
+    fn an_effect_taken_out_while_playing_fades_rather_than_clicks() {
+        use audiostrada_io::{AudioCallback, CallbackTime};
+        let mut f = fixture("declick", vec![0.5; 48_000]);
+        let a = f.history.project().tracks[0].id;
+        let mut insert = None;
+        f.history.edit("Invert", |p| {
+            let settings = [("invert_left".to_owned(), 1.0)].into_iter().collect();
+            insert = routing::add_insert(p, Channel::Track(a), "utility", settings);
+        });
+        f.media.retain(&media_paths(f.history.project(), None));
+        assert!(f.media.wait(Duration::from_secs(10)));
+        f.player.sync(f.history.project(), None, &f.media);
+        let mut processor = f.player.processor(48_000, 64);
+        f.player.engine_mut().play();
+        let time = CallbackTime {
+            position: 0,
+            sample_rate: 48_000,
+        };
+        let mut storage = ChannelBuffers::new(0, 2, 64);
+        let mut out = Vec::new();
+        let mut block = |processor: &mut EngineProcessor, out: &mut Vec<f32>| {
+            processor.process(&mut storage.buffers(64), &time);
+            out.extend_from_slice(&storage.output(0)[..64]);
+        };
+        for _ in 0..40 {
+            block(&mut processor, &mut out);
+        }
+        assert!(
+            out[out.len() - 1] < -0.4,
+            "inverted: {}",
+            out[out.len() - 1]
+        );
+        f.history.edit("Remove", |p| {
+            routing::remove_insert(p, Channel::Track(a), insert.unwrap());
+        });
+        f.player.sync(f.history.project(), None, &f.media);
+        for _ in 0..40 {
+            block(&mut processor, &mut out);
+        }
+        assert!(
+            out[out.len() - 1] > 0.4,
+            "plain again: {}",
+            out[out.len() - 1]
+        );
+        let jump = out
+            .windows(2)
+            .skip(64 * 20)
+            .map(|w| (w[1] - w[0]).abs())
+            .fold(0.0, f32::max);
+        assert!(jump < 0.05, "the largest step between two samples: {jump}");
+        std::fs::remove_dir_all(&f.dir).unwrap();
+    }
+
+    #[test]
     fn live_tracks_play_back_aligned_with_the_rest() {
         for live in [false, true] {
             let [a, b] = clicks(&format!("aligned-{live}"), live, None, 40);
