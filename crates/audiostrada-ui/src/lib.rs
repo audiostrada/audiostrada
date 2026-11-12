@@ -15,6 +15,7 @@ mod dialogs;
 pub mod document;
 mod drum_sequencer;
 mod drums_editor;
+mod editor_frame;
 mod effect_browser;
 mod effect_editors;
 mod effect_frame;
@@ -259,6 +260,15 @@ struct Views {
 }
 
 impl Views {
+    /// The piano roll the keyboard's commands go to: the one clicked last, in the note editor
+    /// or in its panel.
+    fn notes(&mut self) -> Option<&mut piano_roll::PianoRoll> {
+        if self.timeline.note_piano().is_some() {
+            return self.timeline.note_piano();
+        }
+        self.piano.focused.then_some(&mut self.piano)
+    }
+
     /// True when a panel's menus asked the application for something.
     fn has_requests(&self) -> bool {
         !self.timeline.requests.is_empty()
@@ -286,7 +296,7 @@ impl PaneContent for Views {
             Pane::Markers => markers::show(ui, &mut self.doc.borrow_mut()),
             Pane::PianoRoll => {
                 let clip = self.timeline.midi_clip();
-                self.piano.show(ui, &self.edit, clip);
+                self.piano.show(ui, &self.edit, clip.as_slice());
             }
             Pane::Rack => self.mixer.rack(ui),
         }
@@ -1130,7 +1140,9 @@ impl AudioStradaApp {
             }
             Action::Panic => {
                 self.doc.borrow_mut().player_mut().panic();
-                self.views.borrow_mut().piano.release_preview();
+                let mut views = self.views.borrow_mut();
+                views.piano.release_preview();
+                views.timeline.note_piano_any().release_preview();
             }
             Action::GoToStart => self.doc.borrow_mut().player_mut().locate(0),
             Action::GoToEnd => {
@@ -1341,7 +1353,17 @@ impl AudioStradaApp {
             Action::NewMidiClip => {
                 self.views.borrow_mut().timeline.new_midi_clip(None);
             }
-            Action::Quantize => self.views.borrow_mut().piano.quantize(&self.edit),
+            Action::Quantize => {
+                let mut views = self.views.borrow_mut();
+                let views = &mut *views;
+                // The note editor's notes while it is open, else the panel's.
+                let piano = if views.timeline.note_editor_open() {
+                    views.timeline.note_piano_any()
+                } else {
+                    &mut views.piano
+                };
+                piano.quantize(&self.edit);
+            }
             Action::AddTrack | Action::AddStereoTrack => {
                 let mut doc = self.doc.borrow_mut();
                 let at = add_tracks::below_selection(&doc);
@@ -1474,29 +1496,36 @@ impl AudioStradaApp {
                 doc.history_mut().edit(label, |p| p.punch_range = range);
             }
             Action::Delete
-                if self.views.borrow().piano.focused
-                    && self.views.borrow_mut().piano.delete_selected() => {}
-            Action::SelectAll if self.views.borrow().piano.focused => {
-                self.views.borrow_mut().piano.select_all()
+                if self
+                    .views
+                    .borrow_mut()
+                    .notes()
+                    .is_some_and(|p| p.delete_selected()) => {}
+            Action::SelectAll if self.views.borrow_mut().notes().is_some() => {
+                if let Some(p) = self.views.borrow_mut().notes() {
+                    p.select_all();
+                }
             }
-            Action::Copy
-                if self.views.borrow().piano.focused && self.views.borrow_mut().piano.copy() => {}
-            Action::Cut
-                if self.views.borrow().piano.focused && self.views.borrow_mut().piano.cut() => {}
-            Action::Paste if self.views.borrow().piano.focused => {
+            Action::Copy if self.views.borrow_mut().notes().is_some_and(|p| p.copy()) => {}
+            Action::Cut if self.views.borrow_mut().notes().is_some_and(|p| p.cut()) => {}
+            Action::Paste if self.views.borrow_mut().notes().is_some() => {
                 let at = self.doc.borrow().player().position();
-                self.views.borrow_mut().piano.paste(&self.edit, at);
+                if let Some(p) = self.views.borrow_mut().notes() {
+                    p.paste(&self.edit, at);
+                }
             }
             Action::Duplicate
-                if self.views.borrow().piano.focused
-                    && self.views.borrow_mut().piano.duplicate() => {}
+                if self
+                    .views
+                    .borrow_mut()
+                    .notes()
+                    .is_some_and(|p| p.duplicate()) => {}
             Action::NudgeLeft | Action::NudgeRight
-                if self.views.borrow().piano.focused
-                    && self
-                        .views
-                        .borrow_mut()
-                        .piano
-                        .nudge(&self.edit, action == Action::NudgeRight) => {}
+                if self
+                    .views
+                    .borrow_mut()
+                    .notes()
+                    .is_some_and(|p| p.nudge(&self.edit, action == Action::NudgeRight)) => {}
             Action::SelectAll
             | Action::Deselect
             | Action::Copy
@@ -1524,6 +1553,7 @@ impl AudioStradaApp {
             | Action::ToolErase
             | Action::ToolMute
             | Action::AutomationEditor
+            | Action::NoteEditor
             | Action::TallerTracks
             | Action::ShorterTracks
             | Action::Heal
@@ -1553,7 +1583,7 @@ impl AudioStradaApp {
         if self.palette.is_open() || self.preferences.capturing_keys() {
             return Vec::new();
         }
-        self.views.borrow_mut().timeline.take_automation_keys(ctx);
+        self.views.borrow_mut().timeline.take_editor_keys(ctx);
         pressed_actions(ctx, &self.prefs.keymap)
     }
 
@@ -1588,7 +1618,10 @@ impl AudioStradaApp {
             return;
         };
         self.views.borrow_mut().timeline.selection = vec![id];
-        self.reveal(ctx, Pane::PianoRoll);
+        // The note editor, when open, shows it in place of the panel.
+        if !self.views.borrow().timeline.note_editor_open() {
+            self.reveal(ctx, Pane::PianoRoll);
+        }
     }
 
     /// With the mixer in its own window, a newly selected track brings its panel forward among
@@ -3195,10 +3228,16 @@ impl eframe::App for AudioStradaApp {
 
         // A press anywhere takes the shortcuts from the piano roll, unless it lands in it.
         if ctx.input(|i| i.pointer.any_pressed()) {
-            self.views.borrow_mut().piano.focused = false;
+            let mut views = self.views.borrow_mut();
+            views.piano.focused = false;
+            views.timeline.note_piano_any().focused = false;
         }
         let frame = ctx.cumulative_frame_nr();
-        self.views.borrow_mut().piano.release_if_hidden(frame);
+        {
+            let mut views = self.views.borrow_mut();
+            views.piano.release_if_hidden(frame);
+            views.timeline.note_piano_any().release_if_hidden(frame);
+        }
         let mut actions = self.pressed_actions(&ctx);
         let menu_frame = egui::Frame::side_top_panel(&ctx.global_style())
             .inner_margin(egui::Margin::symmetric(6, 3));

@@ -20,7 +20,8 @@ fn roll(notes: Vec<Note>) -> (PianoRoll, Rc<RefCell<Document>>, ClipId) {
     doc.history_mut().replace(p, false);
     let doc = Rc::new(RefCell::new(doc));
     let mut roll = PianoRoll::new(Rc::clone(&doc));
-    roll.clip = Some(clip);
+    roll.clips = vec![clip];
+    roll.active = Some(clip);
     (roll, doc, clip)
 }
 
@@ -72,7 +73,7 @@ fn selected_notes_are_deleted_and_quantized() {
     assert_eq!(keys(&doc, clip), [(24_000, 64)]);
     assert!(roll.selected.is_empty());
     roll.reset();
-    assert!(roll.notes(doc.borrow().project()).is_none());
+    assert!(roll.scene().is_none());
 }
 
 /// Draws the roll for one frame with input events, in the root Ui.
@@ -82,8 +83,8 @@ fn frame(roll: &mut PianoRoll, ctx: &egui::Context, events: Vec<egui::Event>) {
         events,
         ..Default::default()
     };
-    let clip = roll.clip;
-    ctx.run_ui(input, |ui| roll.show(ui, &EditSettings::default(), clip))
+    let clips = roll.clips.clone();
+    ctx.run_ui(input, |ui| roll.show(ui, &EditSettings::default(), &clips))
         .drop_without_applying_deltas();
 }
 
@@ -286,6 +287,7 @@ fn a_rubber_band_past_the_edge_scrolls_and_keeps_its_corner() {
                 ..note(0, 60, 0)
             },
         ],
+        vec![0, 0],
     );
     let f = framed(&mut roll, &ctx);
     let y = f.y(60).unwrap();
@@ -322,6 +324,7 @@ fn every_transform_panel_and_lane_draws_and_applies() {
         roll.pending = Some(Pending {
             transform,
             chosen: (0..base.len()).collect(),
+            owner: vec![0; base.len()],
             base,
         });
         frame(&mut roll, &ctx, vec![]);
@@ -363,4 +366,110 @@ fn the_piano_roll_answers_a_user_trying_everything() {
             frame(&mut roll, &ctx, events);
         }
     }
+}
+
+/// Two tracks, each with a MIDI clip: Keys from 0, Bass from the second bar (96 000).
+fn two_tracks(keys: Vec<Note>, bass: Vec<Note>) -> (PianoRoll, Rc<RefCell<Document>>, [ClipId; 2]) {
+    let mut p = Project::new("t", 48_000);
+    let k = p.add_track("Keys");
+    let b = p.add_track("Bass");
+    let a = p.add_midi_clip(k, 0, 192_000, keys).unwrap();
+    let c = p.add_midi_clip(b, 96_000, 192_000, bass).unwrap();
+    let mut doc = Document::new(AppDirs::default());
+    doc.history_mut().replace(p, false);
+    let doc = Rc::new(RefCell::new(doc));
+    let mut roll = PianoRoll::editor(Rc::clone(&doc));
+    roll.clips = vec![a, c];
+    roll.active = Some(a);
+    (roll, doc, [a, c])
+}
+
+#[test]
+fn notes_of_two_clips_merged_then_split_come_back_the_same() {
+    let keys = vec![note(0, 60, 0), note(24_000, 64, 0)];
+    let bass = vec![note(0, 36, 0)];
+    let (notes, owner) = merge(&[(0, &keys), (96_000, &bass)]);
+    assert_eq!(owner, [0, 0, 1]);
+    assert_eq!(notes[2].start, 96_000, "in project time");
+    assert_eq!(split(&notes, &owner, &[0, 96_000]), [keys, bass]);
+    // Moved before its clip's start, a note stays at it.
+    let early = [Note {
+        start: 50_000,
+        ..note(0, 36, 0)
+    }];
+    assert_eq!(split(&early, &[1], &[0, 96_000])[1][0].start, 0);
+}
+
+#[test]
+fn a_change_run_on_each_part_keeps_every_note_in_its_clip() {
+    let notes = [note(0, 60, 0), note(0, 36, 0), note(1000, 64, 0)];
+    let owner = [0, 1, 0];
+    // A change that adds a note above each chosen one.
+    let changed = per_part(&notes, &owner, &[0, 1], |part, chosen| {
+        let added: Vec<Note> = chosen
+            .iter()
+            .map(|&i| Note {
+                key: part[i].key + 12,
+                ..part[i]
+            })
+            .collect();
+        let first = part.len();
+        part.extend(added);
+        Some((first..part.len()).collect())
+    });
+    assert_eq!(changed.owner, [0, 0, 0, 1, 1]);
+    let keys: Vec<u8> = changed.notes.iter().map(|n| n.key).collect();
+    assert_eq!(keys, [60, 64, 72, 36, 48]);
+    assert_eq!(changed.picked, Some(vec![2, 4]));
+    assert_eq!(changed.moved, [Some(0), Some(3), Some(1)]);
+}
+
+#[test]
+fn editing_the_notes_of_two_clips_is_one_undo_step() {
+    let (mut roll, doc, [a, b]) = two_tracks(vec![note(0, 60, 0)], vec![note(0, 36, 0)]);
+    roll.select_all();
+    roll.transpose(2);
+    assert_eq!(keys(&doc, a), [(0, 62)]);
+    assert_eq!(
+        keys(&doc, b),
+        [(0, 38)],
+        "each note in its own clip, at its own time"
+    );
+    assert_eq!(roll.selected.len(), 2, "the selection follows");
+    doc.borrow_mut().history_mut().undo();
+    assert_eq!(keys(&doc, a), [(0, 60)]);
+    assert_eq!(keys(&doc, b), [(0, 36)]);
+}
+
+#[test]
+fn a_note_added_goes_to_the_active_tracks_clip_there_else_the_active_clip() {
+    let (roll, _doc, [a, b]) = two_tracks(vec![], vec![]);
+    let scene = roll.scene().unwrap();
+    assert_eq!(scene.parts[roll.target(&scene, 10)].clip.id, a);
+    let mut roll = roll;
+    roll.active = Some(b);
+    let scene = roll.scene().unwrap();
+    assert_eq!(scene.parts[roll.target(&scene, 100_000)].clip.id, b);
+    // Before the bass clip, the bass is still the active track: its clip takes it.
+    assert_eq!(scene.parts[roll.target(&scene, 10)].clip.id, b);
+}
+
+#[test]
+fn a_transform_keeps_each_note_in_its_track() {
+    let (mut roll, doc, [a, b]) = two_tracks(
+        vec![note(1000, 60, 0), note(1000, 64, 0)],
+        vec![note(1000, 36, 0)],
+    );
+    let ctx = egui::Context::default();
+    frame(&mut roll, &ctx, vec![]);
+    roll.select_all();
+    roll.instant(tr("Legato"), |n, c| ops::legato(n, c, 0));
+    assert_eq!(notes_of(&doc, a).len(), 2);
+    assert_eq!(notes_of(&doc, b).len(), 1);
+    // Pasted at the bass clip, in the active track's clip there: the keys'.
+    roll.selected = vec![2];
+    assert!(roll.copy());
+    assert!(roll.paste(&EditSettings::default(), 120_000));
+    assert_eq!(notes_of(&doc, a).len(), 3);
+    assert_eq!(notes_of(&doc, b).len(), 1);
 }

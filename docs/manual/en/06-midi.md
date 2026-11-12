@@ -9,6 +9,46 @@ Double-click an empty part of an instrument track, or Track › *New MIDI clip*
 ([[Ctrl+Shift+M]]), to create a clip, then edit it in the **Piano roll** ([[Alt+2]];
 [[Ctrl+P]] puts it in its own window). A clip grows to hold notes pasted past its end.
 
+## The note editor
+
+Double-click a MIDI clip, or View › *Note editor of the selected MIDI clip*, to edit its notes
+in a large window over the timeline; [[Escape]] closes it. It is laid out as the automation
+editor, with the same keys:
+
+- At the top, from the left: the tools (**P** pencil, **S** selection, **B** brush, **C**
+  scissors, **E** eraser) and *Chord*, the chord the pencil and the brush add instead of a note;
+  then what applies to the selected notes (*Transform*, delete), the grids (the snap and its
+  step, the scale), and the view (**Z** zoom, zoom out, frame the notes). The keys are listed at the right.
+- [[F11]] (or the button at the right of the bar, or a double-click on its title) makes the
+  editor fill the main window; [[Escape]] comes back to the window, a second one closes it.
+  [[F]] frames the notes, as it frames the session in the timeline.
+- What the tool in hand does is written over the top of the notes.
+- The zoom tool: drag across a span to fill the view with it, click to zoom in, [[Alt]]+click
+  or right-click to zoom out.
+- Everything else works as in the piano roll below: the keys on the left, the lane under the
+  notes, the wheel and the keyboard commands. Other clips show only once added (below): no
+  ghost notes here.
+
+### Several tracks at once
+
+The note editor shows every MIDI clip selected in the timeline (Ctrl+click or Shift+click to
+select more), on one keyboard, each in its track's colour: the bass under the chords, in the
+same pitch space.
+
+- The list at the left names the tracks. New notes go to the **active** one, marked in the
+  list: click a track there, or a note of it, to make it active. Its notes are drawn in full,
+  those of the other tracks faint, still editable; a selected note is always in full. A note drawn where the active
+  track has a selected clip goes into that clip; elsewhere, its clip grows.
+- Moves, transposition, quantize, transforms, the velocity lane and the keyboard commands act
+  on the selected notes of every track at once; each note stays in its own clip. Everything is
+  one undo step.
+- **+ Add a track** brings in another track's MIDI clips, and its cross takes a track out. The
+  timeline's selection follows.
+- The keys on the left play the active track; a note dragged or added plays its own.
+
+The note editor and the automation editor take turns: opening one closes the other. Both have
+the same bar, keys, full screen and zoom.
+
 ## Tools
 
 Keys [[1]] to [[5]] while the piano roll has the focus:

@@ -6,7 +6,7 @@ use eframe::egui::{self, Color32, Painter, Rect, RichText, Sense, Shape, Stroke,
 
 use super::music::{ChordKind, NOTE_NAMES, SCALES, Scale, Voicing};
 use super::ops::{self, Arpeggio, Strum, Timing};
-use super::{Grid, Pending, PianoRoll, Scene, Tool};
+use super::{Grid, Pending, PianoRoll, Scene, Stamp, Tool};
 use crate::i18n::tr;
 use crate::theme;
 use crate::trf;
@@ -137,6 +137,24 @@ impl Transform {
 }
 
 /// The notes `transform` makes from `base`, and the selection after it.
+/// [`apply`] on each part alone, so that every note stays in its clip.
+pub(super) fn apply_parts(
+    pending: &Pending,
+    timing: Timing,
+    scale: Option<Scale>,
+) -> super::Changed {
+    super::per_part(
+        &pending.base,
+        &pending.owner,
+        &pending.chosen,
+        |notes, chosen| {
+            let (out, selection) = apply(&pending.transform, notes, chosen, timing, scale);
+            *notes = out;
+            Some(selection)
+        },
+    )
+}
+
 pub(super) fn apply(
     transform: &Transform,
     base: &[Note],
@@ -251,6 +269,16 @@ pub(super) fn paint_tool(painter: &Painter, rect: Rect, tool: Tool, color: Color
                     pos2(c.x + s * 0.85, c.y - s * 0.55),
                 ],
                 stroke,
+            );
+        }
+        Tool::Zoom => {
+            painter.circle_stroke(pos2(c.x - s * 0.2, c.y - s * 0.2), s * 0.55, stroke);
+            painter.line_segment(
+                [
+                    pos2(c.x + s * 0.2, c.y + s * 0.2),
+                    pos2(c.x + s * 0.8, c.y + s * 0.8),
+                ],
+                Stroke::new(2.0, color),
             );
         }
         Tool::Erase => {
@@ -374,7 +402,229 @@ impl PianoRoll {
             }
         }
         separator(ui);
-        // Chords stamped by the pencil and the brush.
+        self.stamp_controls(ui);
+        separator(ui);
+        let p = theme::current(ui);
+        if theme::labeled_toggle(
+            ui,
+            theme::Icon::Snap,
+            tr("Snap"),
+            self.snap,
+            p.accent,
+            tr("Notes snap to the grid; hold Ctrl to place freely"),
+        )
+        .clicked()
+        {
+            self.snap = !self.snap;
+        }
+        self.grid_chip(ui);
+        self.scale_chip(ui, scene);
+
+        // On the right: transforms, ghosts, framing.
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            self.fit_button(ui);
+            self.ghosts_button(ui);
+            self.transform_menu(ui, scene);
+        });
+    }
+
+    /// The note editor's bar, laid out as the automation editor's: the tools, what applies to
+    /// the selected notes, the grids of time and pitch, the view. The chord the pencil adds
+    /// sits by the tools.
+    pub(super) fn editor_toolbar(&mut self, ui: &mut Ui, scene: &Scene) {
+        use crate::editor_frame::{self, Glyph, ViewButton, button};
+        use editor_frame::Tool as Shared;
+        let tools = [
+            (
+                Shared::Pencil,
+                tr("Pencil: click adds a note, drag right sets its length; drag a note to move it"),
+            ),
+            (
+                Shared::Select,
+                tr(
+                    "Selection: click a note or drag a rectangle; drag what is selected to move \
+                    it (Alt: copy), an edge to resize it",
+                ),
+            ),
+            (
+                Shared::Brush,
+                tr("Brush: drag to paint a note on each grid step"),
+            ),
+            (
+                Shared::Scissors,
+                tr("Scissors: click a note to cut it there"),
+            ),
+            (
+                Shared::Erase,
+                tr("Eraser: click a note or drag over notes to remove them"),
+            ),
+        ];
+        let current = self.tool.shared();
+        let mut view = None;
+        let picked = editor_frame::tool_bar(ui, editor_frame::NOTES, &tools, current, |ui| {
+            self.chord_chip(ui);
+            editor_frame::separator(ui);
+            self.transform_menu(ui, scene);
+            let some = !self.selected.is_empty();
+            if ui
+                .add_enabled_ui(some, |ui| {
+                    button(ui, Glyph::Delete, false, tr("Delete the selected notes"))
+                })
+                .inner
+                .clicked()
+            {
+                self.delete_selected();
+            }
+            editor_frame::separator(ui);
+            if editor_frame::snap_toggle(
+                ui,
+                self.snap,
+                tr("Notes snap to the grid; hold Ctrl to place freely"),
+            ) {
+                self.snap = !self.snap;
+            }
+            self.grid_chip(ui);
+            self.scale_chip(ui, scene);
+            editor_frame::separator(ui);
+            view = editor_frame::view_buttons(ui, current, tr("Frame the notes"));
+        });
+        if let Some(tool) = picked {
+            self.tool = Tool::of(tool);
+        }
+        match view {
+            Some(ViewButton::ZoomTool) => self.tool = Tool::Zoom,
+            Some(ViewButton::ZoomOut) => self.view.zoom_time(0.5, self.area.width() / 2.0),
+            Some(ViewButton::Fit) => self.fit = true,
+            None => {}
+        }
+    }
+
+    /// The note editor's tracks: the clips edited, the active one marked (a click makes a
+    /// clip active), a cross to take one away, and the other MIDI tracks to add.
+    pub(super) fn parts_list(&mut self, ui: &mut Ui, scene: &Scene, rect: Rect) {
+        let p = theme::current(ui);
+        let painter = ui.painter().with_clip_rect(rect);
+        painter.rect_filled(rect, 0.0, p.panel);
+        let mut ui = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(rect.shrink2(vec2(8.0, 8.0)))
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        let ui = &mut ui;
+        // A click here gives the editor the keyboard, as one on the notes does.
+        if ui.input(|i| i.pointer.any_pressed()) && ui.rect_contains_pointer(rect) {
+            self.focused = true;
+        }
+        ui.label(RichText::new(tr("Tracks")).size(10.5).color(p.weak));
+        ui.add_space(2.0);
+        let project = &scene.project;
+        let several = |track| scene.parts.iter().filter(|q| q.track == track).count() > 1;
+        let mut removed = None;
+        for (k, part) in scene.parts.iter().enumerate() {
+            let name = part
+                .track
+                .and_then(|t| project.track(t))
+                .map_or_else(String::new, |t| t.name.clone());
+            let name = if several(part.track) {
+                format!("{name}: {}", part.clip.name)
+            } else {
+                name
+            };
+            let active = k == scene.active;
+            let (row, response) =
+                ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::click());
+            let fill = if active {
+                p.accent.gamma_multiply(0.22)
+            } else if response.hovered() {
+                p.hover
+            } else {
+                Color32::TRANSPARENT
+            };
+            ui.painter().rect_filled(row, 5.0, fill);
+            ui.painter().rect_filled(
+                Rect::from_min_max(
+                    row.min + vec2(2.0, 5.0),
+                    pos2(row.left() + 6.0, row.bottom() - 5.0),
+                ),
+                2.0,
+                part.color,
+            );
+            let mut job = egui::text::LayoutJob::simple_singleline(
+                name,
+                if active {
+                    theme::strong(12.0)
+                } else {
+                    egui::FontId::proportional(12.0)
+                },
+                p.text,
+            );
+            job.wrap = egui::text::TextWrapping::truncate_at_width(row.width() - 40.0);
+            let galley = ui.fonts_mut(|f| f.layout_job(job));
+            ui.painter().galley(
+                pos2(row.left() + 12.0, row.center().y - galley.size().y / 2.0),
+                galley,
+                p.text,
+            );
+            let cross =
+                Rect::from_center_size(pos2(row.right() - 12.0, row.center().y), vec2(18.0, 18.0));
+            let close = ui
+                .interact(cross, ui.scope_id().with(("part-close", k)), Sense::click())
+                .on_hover_text(tr("Take this track out of the editor"));
+            ui.painter().text(
+                cross.center(),
+                egui::Align2::CENTER_CENTER,
+                "✕",
+                egui::FontId::proportional(11.0),
+                if close.hovered() { p.text } else { p.weak },
+            );
+            if close.clicked() {
+                removed = Some(part.clip.id);
+            } else if response
+                .on_hover_text(tr(
+                    "New notes go to the active track; click to make it active",
+                ))
+                .clicked()
+            {
+                self.active = Some(part.clip.id);
+            }
+        }
+        if let Some(clip) = removed {
+            self.clip_request = Some(self.clips.iter().copied().filter(|&c| c != clip).collect());
+        }
+        // The other tracks with MIDI clips, to add.
+        let others: Vec<(&str, Vec<audiostrada_core::ClipId>)> = project
+            .tracks
+            .iter()
+            .filter_map(|t| {
+                let clips: Vec<_> = t
+                    .clips
+                    .iter()
+                    .filter(|c| c.is_midi() && !self.clips.contains(&c.id))
+                    .map(|c| c.id)
+                    .collect();
+                (!clips.is_empty()).then_some((t.name.as_str(), clips))
+            })
+            .collect();
+        ui.add_space(4.0);
+        ui.add_enabled_ui(!others.is_empty(), |ui| {
+            ui.menu_button(RichText::new(tr("+ Add a track")).size(11.5), |ui| {
+                for (name, clips) in &others {
+                    if ui.button(*name).clicked() {
+                        let mut all = self.clips.clone();
+                        all.extend(clips);
+                        self.clip_request = Some(all);
+                        ui.close();
+                    }
+                }
+            })
+            .response
+            .on_hover_text(tr("Edit the notes of another track here too"))
+        });
+    }
+
+    /// The chords the pencil and the brush stamp: on or off, and which.
+    pub(super) fn stamp_controls(&mut self, ui: &mut Ui) {
         let stamp_hint = tr("Chords: the pencil and the brush add a whole chord instead of a note");
         if glyph_button(ui, self.stamp.on, stamp_hint, |painter, r, c| {
             for (i, dy) in [-0.6f32, 0.0, 0.6].into_iter().enumerate() {
@@ -400,85 +650,46 @@ impl PianoRoll {
                 &label,
                 true,
                 tr("Chord kind, inversion and voicing"),
-                |ui| {
-                    if scale.is_some() {
-                        ui.label(RichText::new(tr("From the scale")).weak().size(10.5));
-                        ui.horizontal(|ui| {
-                            if ui
-                                .selectable_label(
-                                    stamp.kind.is_none() && stamp.size == 3,
-                                    tr("Triads"),
-                                )
-                                .clicked()
-                            {
-                                stamp.kind = None;
-                                stamp.size = 3;
-                            }
-                            if ui
-                                .selectable_label(
-                                    stamp.kind.is_none() && stamp.size == 4,
-                                    tr("Sevenths"),
-                                )
-                                .clicked()
-                            {
-                                stamp.kind = None;
-                                stamp.size = 4;
-                            }
-                        });
-                        ui.separator();
-                    }
-                    ui.label(RichText::new(tr("Chord")).weak().size(10.5));
-                    egui::Grid::new("stamp-kinds")
-                        .spacing([4.0, 4.0])
-                        .show(ui, |ui| {
-                            for (i, kind) in ChordKind::ALL.into_iter().enumerate() {
-                                let name = if kind.symbol().is_empty() {
-                                    "maj"
-                                } else {
-                                    kind.symbol()
-                                };
-                                if ui
-                                    .selectable_label(stamp.kind == Some(kind), name)
-                                    .clicked()
-                                {
-                                    stamp.kind = Some(kind);
-                                }
-                                if i % 6 == 5 {
-                                    ui.end_row();
-                                }
-                            }
-                        });
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new(tr("Inversion")).weak().size(10.5));
-                        for i in 0..4 {
-                            ui.selectable_value(&mut stamp.inversion, i, i.to_string());
-                        }
-                    });
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new(tr("Voicing")).weak().size(10.5));
-                        for v in Voicing::ALL {
-                            ui.selectable_value(&mut stamp.voicing, v, v.name());
-                        }
-                    });
-                },
+                |ui| stamp_menu(ui, stamp, scale),
             );
         }
-        separator(ui);
-        // Snap, then the grid.
-        let p = theme::current(ui);
-        if theme::labeled_toggle(
-            ui,
-            theme::Icon::Snap,
-            tr("Snap"),
-            self.snap,
-            p.accent,
-            tr("Notes snap to the grid; hold Ctrl to place freely"),
-        )
-        .clicked()
-        {
-            self.snap = !self.snap;
-        }
+    }
+
+    /// The note editor's chord chip, next to the tools it changes: off, or the chord the pencil
+    /// and the brush add.
+    pub(super) fn chord_chip(&mut self, ui: &mut Ui) {
+        let scale = self.scale;
+        let label = if self.stamp.on {
+            trf!("Chord: {chord}", chord = self.stamp.label(scale))
+        } else {
+            tr("Chord: off").to_owned()
+        };
+        let adds = !matches!(self.tool, Tool::Slice | Tool::Erase | Tool::Zoom);
+        let stamp = &mut self.stamp;
+        ui.add_enabled_ui(adds, |ui| {
+            chip(
+                ui,
+                &label,
+                stamp.on,
+                tr("Chords: the pencil and the brush add a whole chord instead of a note"),
+                |ui| {
+                    if ui.selectable_label(!stamp.on, tr("Off")).clicked() {
+                        stamp.on = false;
+                        ui.close();
+                    }
+                    ui.separator();
+                    let before = (stamp.kind, stamp.size);
+                    stamp_menu(ui, stamp, scale);
+                    if (stamp.kind, stamp.size) != before {
+                        stamp.on = true;
+                    }
+                },
+            );
+        });
+    }
+
+    /// The grid of the notes, and the snap to it.
+    pub(super) fn grid_chip(&mut self, ui: &mut Ui) {
         let grid = self.grid;
         chip(
             ui,
@@ -496,7 +707,10 @@ impl PianoRoll {
                 ui.checkbox(&mut self.snap, tr("Snap to the grid"));
             },
         );
-        // Scale.
+    }
+
+    /// The scale: shades the keys outside it, can fold the keyboard and keep the notes in it.
+    pub(super) fn scale_chip(&mut self, ui: &mut Ui, scene: &Scene) {
         let scale_label = self
             .scale
             .map_or_else(|| tr("No scale").to_owned(), Scale::name);
@@ -555,45 +769,81 @@ impl PianoRoll {
         self.scale = scale;
         self.fold = fold && scale.is_some();
         self.scale_snap = keep && scale.is_some();
+    }
 
-        // On the right: transforms, ghosts, framing.
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.spacing_mut().item_spacing.x = 4.0;
-            if glyph_button(ui, false, tr("Frame the notes"), |painter, r, c| {
-                let s = Stroke::new(1.5, c);
-                for (a, b) in [(r.left_top(), vec2(1.0, 1.0)), (r.right_top(), vec2(-1.0, 1.0)), (r.left_bottom(), vec2(1.0, -1.0)), (r.right_bottom(), vec2(-1.0, -1.0))] {
-                    painter.line_segment([a, a + vec2(b.x * 5.0, 0.0)], s);
-                    painter.line_segment([a, a + vec2(0.0, b.y * 5.0)], s);
-                }
-            })
-            .clicked()
-            {
-                self.fit = true;
+    /// Frames the notes.
+    pub(super) fn fit_button(&mut self, ui: &mut Ui) {
+        if glyph_button(ui, false, tr("Frame the notes"), |painter, r, c| {
+            let s = Stroke::new(1.5, c);
+            for (a, b) in [
+                (r.left_top(), vec2(1.0, 1.0)),
+                (r.right_top(), vec2(-1.0, 1.0)),
+                (r.left_bottom(), vec2(1.0, -1.0)),
+                (r.right_bottom(), vec2(-1.0, -1.0)),
+            ] {
+                painter.line_segment([a, a + vec2(b.x * 5.0, 0.0)], s);
+                painter.line_segment([a, a + vec2(0.0, b.y * 5.0)], s);
             }
-            if glyph_button(ui, self.ghosts, tr("Ghost notes: the other MIDI clips, faint (double-click one to edit its clip)"), |painter, r, c| {
-                painter.rect_stroke(Rect::from_min_size(r.min, vec2(r.width() * 0.7, r.height() * 0.45)), 2.0, Stroke::new(1.2, c.gamma_multiply(0.6)), egui::StrokeKind::Inside);
-                painter.rect_filled(Rect::from_min_max(pos2(r.left() + r.width() * 0.3, r.top() + r.height() * 0.55), r.max), 2.0, c);
-            })
-            .clicked()
-            {
-                self.ghosts = !self.ghosts;
-            }
-            let step = self.grid.beats().unwrap_or(1.0);
-            let label = RichText::new(format!("{}  ⏷", tr("Transform"))).size(11.5);
-            let response = ui.add(egui::Button::new(label).fill(p.surface).corner_radius(6.0)).on_hover_text(tr(
+        })
+        .clicked()
+        {
+            self.fit = true;
+        }
+    }
+
+    /// The other MIDI clips, faint.
+    pub(super) fn ghosts_button(&mut self, ui: &mut Ui) {
+        if glyph_button(
+            ui,
+            self.ghosts,
+            tr("Ghost notes: the other MIDI clips, faint (double-click one to edit its clip)"),
+            |painter, r, c| {
+                painter.rect_stroke(
+                    Rect::from_min_size(r.min, vec2(r.width() * 0.7, r.height() * 0.45)),
+                    2.0,
+                    Stroke::new(1.2, c.gamma_multiply(0.6)),
+                    egui::StrokeKind::Inside,
+                );
+                painter.rect_filled(
+                    Rect::from_min_max(
+                        pos2(r.left() + r.width() * 0.3, r.top() + r.height() * 0.55),
+                        r.max,
+                    ),
+                    2.0,
+                    c,
+                );
+            },
+        )
+        .clicked()
+        {
+            self.ghosts = !self.ghosts;
+        }
+    }
+
+    /// The transformations of the selected notes (or all), previewed before they apply.
+    pub(super) fn transform_menu(&mut self, ui: &mut Ui, scene: &Scene) {
+        let p = theme::current(ui);
+        let step = self.grid.beats().unwrap_or(1.0);
+        let label = RichText::new(format!("{}  ⏷", tr("Transform"))).size(11.5);
+        let response = ui
+            .add(egui::Button::new(label).fill(p.surface).corner_radius(6.0))
+            .on_hover_text(tr(
                 "Transformations of the selected notes (or all), previewed before they are applied",
             ));
-            egui::Popup::menu(&response).show(|ui| {
-                ui.set_min_width(240.0);
-                for transform in Transform::all(step) {
-                    if ui.button(transform.name()).on_hover_text(transform.help()).clicked() {
-                        self.open_transform(transform, scene);
-                        ui.close();
-                    }
+        egui::Popup::menu(&response).show(|ui| {
+            ui.set_min_width(240.0);
+            for transform in Transform::all(step) {
+                if ui
+                    .button(transform.name())
+                    .on_hover_text(transform.help())
+                    .clicked()
+                {
+                    self.open_transform(transform, scene);
+                    ui.close();
                 }
-                ui.separator();
-                self.instant_items(ui, scene);
-            });
+            }
+            ui.separator();
+            self.instant_items(ui);
         });
     }
 
@@ -601,12 +851,13 @@ impl PianoRoll {
         self.pending = Some(Pending {
             transform,
             base: scene.notes.clone(),
+            owner: scene.owner.clone(),
             chosen: self.chosen(scene.notes.len()),
         });
     }
 
     /// Transformations without settings.
-    fn instant_items(&mut self, ui: &mut Ui, scene: &Scene) {
+    fn instant_items(&mut self, ui: &mut Ui) {
         let scale = self.scale;
         type Change<'a> = &'a dyn Fn(&mut Vec<Note>, &[usize]);
         let items: [(&str, &str, Change); 6] = [
@@ -640,10 +891,7 @@ impl PianoRoll {
         ];
         for (name, help, change) in items {
             if ui.button(name).on_hover_text(help).clicked() {
-                let mut notes = scene.notes.clone();
-                let chosen = self.chosen(notes.len());
-                change(&mut notes, &chosen);
-                self.commit(name, notes);
+                self.instant(name, change);
                 ui.close();
             }
         }
@@ -704,7 +952,7 @@ impl PianoRoll {
                 }
             }
         });
-        self.instant_items(ui, scene);
+        self.instant_items(ui);
         ui.separator();
         ui.menu_button(tr("Channel"), |ui| {
             for c in 0..16u8 {
@@ -716,7 +964,7 @@ impl PianoRoll {
                     for &i in &self.chosen(notes.len()) {
                         notes[i].channel = c;
                     }
-                    self.commit(tr("Note channel"), notes);
+                    self.commit(tr("Note channel"), notes, scene.owner.clone());
                     ui.close();
                 }
             }
@@ -728,11 +976,8 @@ impl PianoRoll {
                 ))
                 .clicked()
             {
-                let mut notes = scene.notes.clone();
-                notes.sort_by_key(|n| (n.start, n.key));
-                audiostrada_core::edit::spread_mpe_channels(&mut notes);
                 self.selected.clear();
-                self.commit(tr("Spread notes over MPE channels"), notes);
+                self.spread_channels(scene);
                 ui.close();
             }
         });
@@ -809,15 +1054,9 @@ impl PianoRoll {
             apply_now = true;
         }
         if apply_now {
-            let (notes, selection) = apply(
-                &pending.transform,
-                &pending.base,
-                &pending.chosen,
-                scene.timing(),
-                self.scale,
-            );
-            self.selected = selection;
-            self.commit(pending.transform.name(), notes);
+            let changed = apply_parts(&pending, scene.timing(), self.scale);
+            self.selected = changed.picked.unwrap_or_default();
+            self.commit(pending.transform.name(), changed.notes, changed.owner);
         } else if !close {
             self.pending = Some(pending);
         }
@@ -1040,6 +1279,64 @@ pub(super) fn detect_scale(notes: &[Note]) -> Option<Scale> {
         }
     }
     best.map(|b| b.2)
+}
+
+/// The chord's kind, inversion and voicing.
+fn stamp_menu(ui: &mut Ui, stamp: &mut Stamp, scale: Option<Scale>) {
+    if scale.is_some() {
+        ui.label(RichText::new(tr("From the scale")).weak().size(10.5));
+        ui.horizontal(|ui| {
+            if ui
+                .selectable_label(stamp.kind.is_none() && stamp.size == 3, tr("Triads"))
+                .clicked()
+            {
+                stamp.kind = None;
+                stamp.size = 3;
+            }
+            if ui
+                .selectable_label(stamp.kind.is_none() && stamp.size == 4, tr("Sevenths"))
+                .clicked()
+            {
+                stamp.kind = None;
+                stamp.size = 4;
+            }
+        });
+        ui.separator();
+    }
+    ui.label(RichText::new(tr("Chord")).weak().size(10.5));
+    egui::Grid::new("stamp-kinds")
+        .spacing([4.0, 4.0])
+        .show(ui, |ui| {
+            for (i, kind) in ChordKind::ALL.into_iter().enumerate() {
+                let name = if kind.symbol().is_empty() {
+                    "maj"
+                } else {
+                    kind.symbol()
+                };
+                if ui
+                    .selectable_label(stamp.kind == Some(kind), name)
+                    .clicked()
+                {
+                    stamp.kind = Some(kind);
+                }
+                if i % 6 == 5 {
+                    ui.end_row();
+                }
+            }
+        });
+    ui.separator();
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(tr("Inversion")).weak().size(10.5));
+        for i in 0..4 {
+            ui.selectable_value(&mut stamp.inversion, i, i.to_string());
+        }
+    });
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(tr("Voicing")).weak().size(10.5));
+        for v in Voicing::ALL {
+            ui.selectable_value(&mut stamp.voicing, v, v.name());
+        }
+    });
 }
 
 #[cfg(test)]

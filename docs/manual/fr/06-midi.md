@@ -10,6 +10,48 @@ Double-cliquez dans un endroit vide d'une piste instrument, ou Piste › *Nouvea
 [[Ctrl+P]] le met dans sa propre fenêtre). Un clip s'agrandit pour accueillir des notes collées
 au-delà de sa fin.
 
+## L'éditeur de notes
+
+Double-cliquez sur un clip MIDI, ou Affichage › *Éditeur de notes du clip MIDI sélectionné*,
+pour éditer ses notes dans une grande fenêtre au-dessus de la timeline ; [[Escape]] la ferme.
+Elle est organisée comme l'éditeur d'automation, avec les mêmes touches :
+
+- En haut, de gauche à droite : les outils (**P** crayon, **S** sélection, **B** pinceau, **C**
+  ciseaux, **E** gomme) et *Accord*, l'accord que le crayon et le pinceau posent au lieu d'une
+  note ; puis ce qui s'applique aux notes sélectionnées (*Transformer*, supprimer), les grilles
+  (le magnétisme et son pas, la gamme), et la vue (**Z** zoom, dézoomer, cadrer les notes). Les
+  touches sont rappelées à droite.
+- [[F11]] (ou le bouton à droite de la barre, ou un double-clic sur son titre) fait remplir à
+  l'éditeur la fenêtre principale ; [[Escape]] revient à la fenêtre, un second la ferme. [[F]]
+  cadre les notes, comme il cadre la session dans la timeline.
+- Ce que fait l'outil en main est écrit en haut des notes.
+- L'outil zoom : glissez sur une zone pour qu'elle remplisse la vue, cliquez pour zoomer,
+  [[Alt]]+clic ou clic droit pour dézoomer.
+- Le reste fonctionne comme dans le piano roll du bas : le clavier à gauche, la lane sous les
+  notes, la molette et les commandes du clavier. Les autres clips n'apparaissent qu'une fois
+  ajoutés (ci-dessous) : pas de notes fantômes ici.
+
+### Plusieurs pistes à la fois
+
+L'éditeur de notes montre tous les clips MIDI sélectionnés dans la timeline (Ctrl+clic ou
+Shift+clic pour en sélectionner d'autres), sur un seul clavier, chacun dans la couleur de sa
+piste : la basse sous les accords, dans les mêmes hauteurs.
+
+- La liste à gauche nomme les pistes. Les nouvelles notes vont dans la piste **active**,
+  marquée dans la liste : cliquez sur une piste de la liste, ou sur une de ses notes, pour la
+  rendre active. Ses notes sont pleinement visibles, celles des autres pistes atténuées mais
+  toujours éditables ; une note sélectionnée est toujours pleinement visible. Une note dessinée là où la piste active a un clip sélectionné va dans ce clip ;
+  ailleurs, son clip s'agrandit.
+- Déplacer, transposer, quantifier, les transformations, la lane de vélocité et les commandes
+  du clavier agissent sur les notes sélectionnées de toutes les pistes à la fois ; chaque note
+  reste dans son clip. Le tout fait une seule étape d'annulation.
+- **+ Ajouter une piste** ajoute les clips MIDI d'une autre piste, et sa croix retire une
+  piste. La sélection de la timeline suit.
+- Le clavier à gauche joue la piste active ; une note glissée ou ajoutée joue la sienne.
+
+L'éditeur de notes et l'éditeur d'automation se relaient : ouvrir l'un ferme l'autre. Les deux
+ont la même barre, les mêmes touches, le même plein écran et le même zoom.
+
 ## Outils
 
 Touches [[1]] à [[5]] quand le piano roll a le focus :

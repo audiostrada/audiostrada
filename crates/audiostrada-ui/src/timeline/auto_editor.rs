@@ -6,13 +6,16 @@ use audiostrada_core::automation::{AutomationLane, AutomationMode, CurveShape};
 use super::automation::{AutoTool, LaneCommand, LaneKey, LaneView};
 use super::toolbar::{Glyph, button, separator};
 use super::*;
+use crate::editor_frame::{self, ViewButton, Zoomed};
+
+/// The tools of the automation editor, in the bar's order.
+const AUTO_TOOLS: [AutoTool; 3] = [AutoTool::Pencil, AutoTool::Select, AutoTool::Erase];
 
 /// The least height of a track's band: past it, the bands scroll.
 const BAND: f32 = 200.0;
 /// Width of the column naming each track and its curve.
 const NAMES: f32 = 176.0;
 const RULER: f32 = 34.0;
-const TOOLS: f32 = 36.0;
 
 /// The editor's own view of time, apart from the timeline's.
 #[derive(Debug)]
@@ -28,6 +31,8 @@ pub(super) struct AutoEditor {
     snap: Option<bool>,
     /// Where the zoom tool's drag began.
     zoom_from: Option<f32>,
+    /// F asked to frame the tracks, done with the bar's button.
+    fit_asked: bool,
 }
 
 impl AutoEditor {
@@ -40,27 +45,25 @@ impl AutoEditor {
             band: BAND,
             snap: None,
             zoom_from: None,
+            fit_asked: false,
         }
     }
 }
 
 impl TimelineView {
-    /// While the editor is open, the plain keys that change its tool, taken before the
+    /// While an editor is open, the plain keys that change its tool, taken before the
     /// shortcuts.
-    pub fn take_automation_keys(&mut self, ctx: &egui::Context) {
-        if self.auto_editor.is_none() || ctx.text_edit_focused() {
+    pub fn take_editor_keys(&mut self, ctx: &egui::Context) {
+        self.take_note_keys(ctx);
+        let Some(editor) = &mut self.auto_editor else {
             return;
+        };
+        editor_frame::keep_escape(ctx, editor_frame::AUTOMATION);
+        if editor_frame::take_view_keys(ctx, editor_frame::AUTOMATION) {
+            editor.fit_asked = true;
         }
-        use super::automation::AutoTool;
-        for (key, tool) in [
-            (egui::Key::P, AutoTool::Pencil),
-            (egui::Key::S, AutoTool::Select),
-            (egui::Key::E, AutoTool::Erase),
-            (egui::Key::Z, AutoTool::Zoom),
-        ] {
-            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, key)) {
-                self.auto_tool = tool;
-            }
+        if let Some(tool) = editor_frame::take_tool_key(ctx, &AUTO_TOOLS) {
+            self.auto_tool = tool;
         }
     }
 
@@ -78,6 +81,7 @@ impl TimelineView {
         if self.auto_editor.is_none() {
             self.auto_editor = Some(AutoEditor::at(self.zoom, self.scroll));
         }
+        self.notes.open = false;
     }
 
     /// The editor's window, while it is open.
@@ -91,8 +95,6 @@ impl TimelineView {
         if self.auto_editor.is_none() {
             return;
         }
-        let screen = ctx.content_rect();
-        let mut open = true;
         // Named after what it edits: "Automation · Lead vocal: Volume".
         let mut title = tr("Automation").to_owned();
         let shown: Vec<&Track> = doc
@@ -111,19 +113,13 @@ impl TimelineView {
         if !names.is_empty() {
             title = format!("{title} · {}", names.join(", "));
         }
-        egui::Window::new(title)
-            .id(egui::Id::unique("automation-editor"))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(vec2(screen.width() * 0.82, screen.height() * 0.62))
-            .default_pos(pos2(
-                screen.left() + screen.width() * 0.09,
-                screen.top() + screen.height() * 0.2,
-            ))
-            .min_size(vec2(560.0, 260.0))
-            .show(ctx, |ui| self.automation_editor(ui, doc, project, settings));
-        if !open || ctx.input(|i| i.key_pressed(egui::Key::Escape)) && self.lane_drag.is_none() {
+        // Not in the middle of a drag.
+        let escape =
+            editor_frame::take_escape(ctx, editor_frame::AUTOMATION) && self.lane_drag.is_none();
+        let open = editor_frame::window(ctx, editor_frame::AUTOMATION, title, escape, |ui| {
+            self.automation_editor(ui, doc, project, settings)
+        });
+        if !open {
             self.auto_editor = None;
         }
     }
@@ -383,52 +379,28 @@ impl TimelineView {
         }
         let painter = ruler_painter;
         // The zoom tool: a span dragged across fills the view, a click zooms in (Alt: out).
-        if self.auto_tool == AutoTool::Zoom {
-            let response = ui.interact(lanes, ui.scope_id().with("zoom"), Sense::click_and_drag());
-            if response.hovered() {
-                ui.ctx().set_cursor_icon(if ui.input(|i| i.modifiers.alt) {
-                    CursorIcon::ZoomOut
-                } else {
-                    CursorIcon::ZoomIn
-                });
-            }
-            // The press is kept: the pointer has let go of it by the time the drag stops.
-            if response.drag_started()
-                && let Some(editor) = &mut self.auto_editor
-            {
-                editor.zoom_from = ui
-                    .input(|i| i.pointer.press_origin())
-                    .or(response.interact_pointer_pos())
-                    .map(|p| p.x);
-            }
-            let from = self.auto_editor.as_ref().and_then(|e| e.zoom_from);
-            if let (Some(a), Some(b)) = (from, response.interact_pointer_pos())
-                && (response.dragged() || response.drag_stopped())
-            {
-                let span = Rect::from_x_y_ranges(a.min(b.x)..=a.max(b.x), lanes.y_range());
-                let accent = visuals.selection.bg_fill;
-                painter.rect_filled(span, 0.0, accent.gamma_multiply(0.18));
-                painter.rect_stroke(span, 0.0, Stroke::new(1.0, accent), StrokeKind::Inside);
-                if response.drag_stopped()
-                    && let Some(editor) = &mut self.auto_editor
-                {
-                    editor.zoom_from = None;
-                    if span.width() > 6.0 {
-                        let (from, to) = (scale.sample(span.left()), scale.sample(span.right()));
-                        editor.zoom = ((to - from) as f64 / f64::from(lanes.width()))
-                            .clamp(MIN_ZOOM, MAX_ZOOM);
-                        editor.scroll = from as f64;
-                    }
+        if self.auto_tool == AutoTool::Zoom
+            && let Some(editor) = &mut self.auto_editor
+        {
+            let asked = editor_frame::zoom_tool(ui, lanes, &painter, &mut editor.zoom_from);
+            match asked {
+                Some(Zoomed::Span(a, b)) => {
+                    let (from, to) = (scale.sample(a), scale.sample(b));
+                    editor.zoom =
+                        ((to - from) as f64 / f64::from(lanes.width())).clamp(MIN_ZOOM, MAX_ZOOM);
+                    editor.scroll = from as f64;
                 }
-            }
-            if (response.clicked() || response.secondary_clicked())
-                && let Some(pos) = response.interact_pointer_pos()
-                && let Some(editor) = &mut self.auto_editor
-            {
-                let out = ui.input(|i| i.modifiers.alt) || response.secondary_clicked();
-                let at = editor.scroll + f64::from(pos.x - lanes.left()) * editor.zoom;
-                editor.zoom = (editor.zoom * if out { 2.0 } else { 0.5 }).clamp(MIN_ZOOM, MAX_ZOOM);
-                editor.scroll = (at - f64::from(pos.x - lanes.left()) * editor.zoom).max(0.0);
+                Some(Zoomed::In(x) | Zoomed::Out(x)) => {
+                    let factor = if matches!(asked, Some(Zoomed::Out(_))) {
+                        2.0
+                    } else {
+                        0.5
+                    };
+                    let anchor = editor.scroll + f64::from(x - lanes.left()) * editor.zoom;
+                    editor.zoom = (editor.zoom * factor).clamp(MIN_ZOOM, MAX_ZOOM);
+                    editor.scroll = (anchor - f64::from(x - lanes.left()) * editor.zoom).max(0.0);
+                }
+                None => {}
             }
         }
         // What the tool in hand does, over the top of the lanes, on as many lines as it takes.
@@ -440,82 +412,49 @@ impl TimelineView {
                 "Click a point: select it · Drag: select in a rectangle (Shift adds) · Drag the selection or a segment: move it · Alt+drag a segment: bend it · Delete: remove it",
             ),
             AutoTool::Erase => tr("Click a point: remove it · Drag: remove the points passed over"),
-            AutoTool::Zoom => tr(
+            AutoTool::Zoom | AutoTool::Brush | AutoTool::Scissors => tr(
                 "Drag across a span: fill the view with it · Click: zoom in · Alt+click or right-click: zoom out · Wheel: move in time",
             ),
         };
-        let p = crate::theme::current(ui);
-        let mut job = egui::text::LayoutJob::simple(
-            help.to_owned(),
-            FontId::proportional(11.5),
-            p.text,
-            (lanes.width() - 60.0).max(120.0),
-        );
-        job.halign = egui::Align::Center;
-        let galley = ui.fonts_mut(|f| f.layout_job(job));
-        let size = galley.rect.size();
-        let pill = Rect::from_center_size(
-            pos2(lanes.center().x, lanes.top() + 26.0 + size.y / 2.0),
-            size + vec2(20.0, 8.0),
-        );
-        painter.rect_filled(
-            pill,
-            6.0,
-            draw::mix(visuals.extreme_bg_color, p.accent, 0.22),
-        );
-        painter.rect_stroke(
-            pill,
-            6.0,
-            Stroke::new(1.0, p.accent.gamma_multiply(0.5)),
-            StrokeKind::Inside,
-        );
-        painter.galley(pos2(pill.center().x, pill.top() + 4.0), galley, p.text);
+        editor_frame::help(ui, &painter, lanes, help);
         // The playhead across the lanes.
         let x = scale.x(doc.player().position());
         if x >= lanes.left() && x <= lanes.right() {
-            painter.vline(
-                x,
-                ruler.bottom()..=lanes.bottom(),
-                Stroke::new(1.5, Color32::from_rgb(255, 78, 66)),
-            );
+            editor_frame::playhead(&painter, x, ruler.bottom(), lanes.bottom());
         }
     }
 
-    /// The editor's tools: pointer and pencil, the shapes of the selected points, and the view.
+    /// The editor's tools: pencil, selection and eraser, the shapes of the selected points, the
+    /// snap, and the view.
     fn editor_tools(&mut self, ui: &mut Ui, project: &Project, tracks: &[&Track]) {
-        let p = crate::theme::current(ui);
-        let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width(), TOOLS), Sense::hover());
-        ui.scope_builder(egui::UiBuilder::new().max_rect(bar), |ui| {
-            ui.spacing_mut().item_spacing.x = 2.0;
-            ui.horizontal_centered(|ui| {
-                for (tool, glyph, text) in [
-                    (
-                        AutoTool::Pencil,
-                        Glyph::Pencil,
-                        tr(
-                            "Pencil: click places a point, drag draws; drag a point to move it, \
-                            Alt+drag a segment to bend it",
-                        ),
-                    ),
-                    (
-                        AutoTool::Select,
-                        Glyph::Smart,
-                        tr(
-                            "Selection: click a point or drag a rectangle (Shift adds); drag \
-                            what is selected to move it",
-                        ),
-                    ),
-                    (
-                        AutoTool::Erase,
-                        Glyph::Eraser,
-                        tr("Eraser: click a point or drag over points to remove them"),
-                    ),
-                ] {
-                    if button(ui, glyph, self.auto_tool == tool, text).clicked() {
-                        self.auto_tool = tool;
-                    }
-                }
-                separator(ui);
+        let tools = [
+            (
+                AutoTool::Pencil,
+                tr(
+                    "Pencil: click places a point, drag draws; drag a point to move it, \
+                    Alt+drag a segment to bend it",
+                ),
+            ),
+            (
+                AutoTool::Select,
+                tr(
+                    "Selection: click a point or drag a rectangle (Shift adds); drag \
+                    what is selected to move it",
+                ),
+            ),
+            (
+                AutoTool::Erase,
+                tr("Eraser: click a point or drag over points to remove them"),
+            ),
+        ];
+        let width = ui.available_width();
+        let mut view = None;
+        let picked = editor_frame::tool_bar(
+            ui,
+            editor_frame::AUTOMATION,
+            &tools,
+            self.auto_tool,
+            |ui| {
                 let some = self.chosen.as_ref().is_some_and(|c| !c.times.is_empty());
                 for (glyph, shape, text) in [
                     (
@@ -554,66 +493,58 @@ impl TimelineView {
                     .as_ref()
                     .and_then(|e| e.snap)
                     .unwrap_or(false);
-                if crate::theme::labeled_toggle(
+                if editor_frame::snap_toggle(
                     ui,
-                    crate::theme::Icon::Snap,
-                    tr("Snap"),
                     snap,
-                    p.accent,
-                    tr("Points snap to the grid, the clips' edges and the markers, as in the timeline"),
-                )
-                .clicked()
-                    && let Some(editor) = &mut self.auto_editor
+                    tr(
+                        "Points snap to the grid, the clips' edges and the markers, as in the timeline",
+                    ),
+                ) && let Some(editor) = &mut self.auto_editor
                 {
                     editor.snap = Some(!snap);
                 }
                 separator(ui);
-                if button(
+                view = editor_frame::view_buttons(
                     ui,
-                    Glyph::ZoomIn,
-                    self.auto_tool == AutoTool::Zoom,
-                    tr("Zoom: drag across a span to fill the view with it, click to zoom in, Alt+click to zoom out"),
-                )
-                .clicked()
-                {
-                    self.auto_tool = AutoTool::Zoom;
-                }
-                if button(ui, Glyph::ZoomOut, false, tr("Zoom out")).clicked()
-                    && let Some(editor) = &mut self.auto_editor
-                {
-                    // Around the middle of the view.
-                    let half = f64::from((bar.width() - NAMES).max(100.0)) / 2.0;
-                    let middle = editor.scroll + half * editor.zoom;
-                    editor.zoom = (editor.zoom * 2.0).clamp(MIN_ZOOM, MAX_ZOOM);
-                    editor.scroll = (middle - half * editor.zoom).max(0.0);
-                }
-                // The whole of the tracks' clips in view.
-                if button(ui, Glyph::Fit, false, tr("Show the whole of these tracks")).clicked()
-                    && let Some(editor) = &mut self.auto_editor
-                {
-                    let end = tracks
-                        .iter()
-                        .flat_map(|t| &t.clips)
-                        .map(|c| c.end())
-                        .max()
-                        .unwrap_or_else(|| project.length())
-                        .max(1);
-                    let width = f64::from((bar.width() - NAMES - 24.0).max(100.0));
-                    editor.zoom = (end as f64 / width).clamp(MIN_ZOOM, MAX_ZOOM);
-                    editor.scroll = 0.0;
-                }
-                // The keys that change the tool, in the room left.
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(8.0);
-                    ui.label(
-                        egui::RichText::new(tr(
-                            "P: pencil · S: selection · E: eraser · Z: zoom · Esc: close",
-                        ))
-                        .size(11.0)
-                        .color(p.weak),
-                    );
-                });
-            });
-        });
+                    self.auto_tool,
+                    tr("Show the whole of these tracks"),
+                );
+            },
+        );
+        if let Some(tool) = picked {
+            self.auto_tool = tool;
+        }
+        if view == Some(ViewButton::ZoomTool) {
+            self.auto_tool = AutoTool::Zoom;
+        }
+        let Some(editor) = &mut self.auto_editor else {
+            return;
+        };
+        if std::mem::take(&mut editor.fit_asked) {
+            view = Some(ViewButton::Fit);
+        }
+        match view {
+            Some(ViewButton::ZoomOut) => {
+                // Around the middle of the view.
+                let half = f64::from((width - NAMES).max(100.0)) / 2.0;
+                let middle = editor.scroll + half * editor.zoom;
+                editor.zoom = (editor.zoom * 2.0).clamp(MIN_ZOOM, MAX_ZOOM);
+                editor.scroll = (middle - half * editor.zoom).max(0.0);
+            }
+            // The whole of the tracks' clips in view.
+            Some(ViewButton::Fit) => {
+                let end = tracks
+                    .iter()
+                    .flat_map(|t| &t.clips)
+                    .map(|c| c.end())
+                    .max()
+                    .unwrap_or_else(|| project.length())
+                    .max(1);
+                let width = f64::from((width - NAMES - 24.0).max(100.0));
+                editor.zoom = (end as f64 / width).clamp(MIN_ZOOM, MAX_ZOOM);
+                editor.scroll = 0.0;
+            }
+            _ => {}
+        }
     }
 }

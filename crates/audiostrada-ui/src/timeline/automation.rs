@@ -70,19 +70,9 @@ impl LaneKey {
     }
 }
 
-/// The tools of the automation editor.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) enum AutoTool {
-    /// A click places a point, a drag draws; points are moved by dragging them.
-    #[default]
-    Pencil,
-    /// Selects only: a click on a point, a rectangle dragged; what is selected moves together.
-    Select,
-    /// Removes the points clicked or dragged over.
-    Erase,
-    /// Drag across a span to fill the view with it; click zooms in, Alt+click out.
-    Zoom,
-}
+/// The tools of the automation editor: the pencil, the selection, the eraser and the zoom of
+/// the editors' tools.
+pub(super) type AutoTool = crate::editor_frame::Tool;
 
 /// What the automation tools of the tool bar do to the chosen points.
 #[derive(Clone, Copy, Debug)]

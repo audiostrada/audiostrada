@@ -1019,9 +1019,6 @@ Clic sur un point : le sélectionner · Glisser : sélectionner au rectangle (Sh
 Drag across a span: fill the view with it · Click: zoom in · Alt+click or right-click: zoom out · Wheel: move in time
 Glisser sur une zone : elle remplit la vue · Clic : zoomer · Alt+clic ou clic droit : dézoomer · Molette : avancer dans le temps
 
-P: pencil · S: selection · E: eraser · Z: zoom · Esc: close
-P : crayon · S : sélection · E : gomme · Z : zoom · Échap : fermer
-
 Hide this lane; its points stay and still play
 Masquer cette piste d'automation ; ses points restent et jouent toujours
 
@@ -1036,3 +1033,43 @@ Cliquer pour dessiner cette automation dans le grand éditeur
 
 Click to draw this automation, or write it during playback
 Cliquer pour dessiner cette automation, ou l'écrire pendant la lecture
+
+{key}: {tool}
+{key} : {tool}
+
+pencil
+crayon
+
+selection
+sélection
+
+brush
+pinceau
+
+scissors
+ciseaux
+
+eraser
+gomme
+
+zoom
+zoom
+
+Notes
+Notes
+
+Note editor of the selected MIDI clip
+Éditeur de notes du clip MIDI sélectionné
+
+Back to the window (F11 or Esc)
+Revenir à la fenêtre (F11 ou Échap)
+
+Full screen: the editor fills the main window (F11)
+Plein écran : l'éditeur remplit la fenêtre principale (F11)
+
+frame
+cadrer
+
+full screen
+plein écran
+

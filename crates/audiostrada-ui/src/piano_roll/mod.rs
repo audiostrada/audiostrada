@@ -23,6 +23,7 @@ use audiostrada_core::{ClipId, ControlPoint, Note, Project, edit};
 use eframe::egui::{self, Rect, Sense, Ui, pos2, vec2};
 
 use crate::document::Document;
+use crate::editor_frame;
 use crate::i18n::tr;
 use crate::transport::EditSettings;
 use crate::trf;
@@ -32,6 +33,8 @@ use ops::{MIN_LENGTH, Timing};
 use view::View;
 
 const KEYS_WIDTH: f32 = 74.0;
+/// Width of the note editor's list of tracks, as the automation editor's names.
+const PARTS_WIDTH: f32 = 176.0;
 const RULER_HEIGHT: f32 = 22.0;
 const CHORDS_HEIGHT: f32 = 18.0;
 const TOOLBAR_HEIGHT: f32 = 34.0;
@@ -52,6 +55,8 @@ pub(super) enum Tool {
     Slice,
     /// Removes the notes it passes over.
     Erase,
+    /// Fills the view with a span dragged across, zooms in at a click (the note editor's).
+    Zoom,
 }
 
 impl Tool {
@@ -70,6 +75,7 @@ impl Tool {
             Tool::Paint => tr("Brush"),
             Tool::Slice => tr("Scissors"),
             Tool::Erase => tr("Eraser"),
+            Tool::Zoom => tr("Zoom"),
         }
     }
 
@@ -83,6 +89,7 @@ impl Tool {
             Tool::Paint => tr("Drag to paint a note on each grid step, up and down too"),
             Tool::Slice => tr("Click a note to cut it there (all the selected ones under it)"),
             Tool::Erase => tr("Click or drag over notes to remove them"),
+            Tool::Zoom => tr("Drag across a span to fill the view with it, click to zoom in"),
         }
     }
 
@@ -93,9 +100,42 @@ impl Tool {
             Tool::Paint => egui::Key::Num3,
             Tool::Slice => egui::Key::Num4,
             Tool::Erase => egui::Key::Num5,
+            Tool::Zoom => egui::Key::Num6,
+        }
+    }
+
+    /// The editors' tool it is, for the note editor's bar and keys.
+    pub(super) fn shared(self) -> editor_frame::Tool {
+        match self {
+            Tool::Pointer => editor_frame::Tool::Select,
+            Tool::Draw => editor_frame::Tool::Pencil,
+            Tool::Paint => editor_frame::Tool::Brush,
+            Tool::Slice => editor_frame::Tool::Scissors,
+            Tool::Erase => editor_frame::Tool::Erase,
+            Tool::Zoom => editor_frame::Tool::Zoom,
+        }
+    }
+
+    pub(super) fn of(tool: editor_frame::Tool) -> Self {
+        match tool {
+            editor_frame::Tool::Select => Tool::Pointer,
+            editor_frame::Tool::Pencil => Tool::Draw,
+            editor_frame::Tool::Brush => Tool::Paint,
+            editor_frame::Tool::Scissors => Tool::Slice,
+            editor_frame::Tool::Erase => Tool::Erase,
+            editor_frame::Tool::Zoom => Tool::Zoom,
         }
     }
 }
+
+/// The note editor's tools, in the bar's order (the zoom with the view's buttons).
+pub(crate) const EDITOR_TOOLS: [editor_frame::Tool; 5] = [
+    editor_frame::Tool::Pencil,
+    editor_frame::Tool::Select,
+    editor_frame::Tool::Brush,
+    editor_frame::Tool::Scissors,
+    editor_frame::Tool::Erase,
+];
 
 /// The piano roll's own grid (finer than the timeline's, triplets too).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -276,14 +316,19 @@ pub(super) struct Drag {
     pub last: egui::Pos2,
     /// Selection when the rubber band started (Shift adds to it).
     pub base: Vec<usize>,
+    /// The part of each original note, and the one the painted notes go to.
+    pub owner: Vec<usize>,
+    pub target: usize,
 }
 
 impl Drag {
-    pub fn new(kind: DragKind, origin: egui::Pos2, original: Vec<Note>) -> Self {
+    pub fn new(kind: DragKind, origin: egui::Pos2, original: Vec<Note>, owner: Vec<usize>) -> Self {
         Self {
             kind,
             origin,
             original,
+            owner,
+            target: 0,
             painted: Vec::new(),
             copy: false,
             grabbed: None,
@@ -298,19 +343,24 @@ impl Drag {
 #[derive(Clone, Debug)]
 pub(super) struct Pending {
     pub transform: panel::Transform,
-    /// The notes before, and those it applies to.
+    /// The notes before, their parts, and those it applies to.
     pub base: Vec<Note>,
+    pub owner: Vec<usize>,
     pub chosen: Vec<usize>,
 }
 
 #[derive(Debug)]
 pub struct PianoRoll {
     doc: Rc<RefCell<Document>>,
-    clip: Option<ClipId>,
+    /// The clips edited together, one part each.
+    clips: Vec<ClipId>,
+    /// The clip new notes go to (and whose controllers the lane shows).
+    active: Option<ClipId>,
     view: View,
     selected: Vec<usize>,
     drag: Option<Drag>,
-    preview: Option<Vec<Note>>,
+    /// Notes being edited, with their parts, shown in place of the clips' until committed.
+    preview: Option<(Vec<Note>, Vec<usize>)>,
     /// Length of the last note drawn or resized, for the next ones.
     last_length: Option<u64>,
     /// Keyboard commands go to the piano roll after a click in it.
@@ -345,17 +395,120 @@ pub struct PianoRoll {
     fit: bool,
     /// Where the notes were drawn at the last frame.
     area: Rect,
+    /// In the note editor: its bar of tools, its keys and its zoom tool.
+    editor: bool,
+    /// Where the zoom tool's drag began.
+    zoom_from: Option<f32>,
+    /// The clips the note editor's list asked to edit, for the timeline's selection.
+    clip_request: Option<Vec<ClipId>>,
+}
+
+/// One of the clips edited together.
+#[derive(Clone, Debug)]
+pub(super) struct Part {
+    pub clip: audiostrada_core::Clip,
+    /// Project time of the clip's content start.
+    pub origin: u64,
+    pub color: egui::Color32,
+    pub track: Option<audiostrada_core::TrackId>,
 }
 
 /// Everything a frame works with, once borrowed.
 pub(super) struct Scene {
     pub project: Project,
+    pub parts: Vec<Part>,
+    /// The part new notes go to.
+    pub active: usize,
+    /// The active part's clip, its content start, color and track.
     pub clip: audiostrada_core::Clip,
-    /// Project time of the clip's content start.
-    pub origin: u64,
-    pub notes: Vec<Note>,
+    pub clip_origin: u64,
     pub color: egui::Color32,
     pub track: Option<audiostrada_core::TrackId>,
+    /// Where the notes' times count from: the project's start, for every part alike.
+    pub origin: u64,
+    /// The notes of every part, in project time, and the part of each.
+    pub notes: Vec<Note>,
+    pub owner: Vec<usize>,
+}
+
+/// The notes of the parts (content start, notes in clip time) as one list in project time,
+/// each with its part.
+pub(super) fn merge(parts: &[(u64, &[Note])]) -> (Vec<Note>, Vec<usize>) {
+    let mut notes = Vec::new();
+    let mut owner = Vec::new();
+    for (k, (origin, part)) in parts.iter().enumerate() {
+        notes.extend(part.iter().map(|n| Note {
+            start: origin + n.start,
+            ..*n
+        }));
+        owner.extend(std::iter::repeat_n(k, part.len()));
+    }
+    (notes, owner)
+}
+
+/// The notes of each part back in its clip's time, sorted as clips keep them; a note moved
+/// before its clip's content start stays at it.
+pub(super) fn split(notes: &[Note], owner: &[usize], origins: &[u64]) -> Vec<Vec<Note>> {
+    let mut parts = vec![Vec::new(); origins.len()];
+    for (n, &k) in notes.iter().zip(owner) {
+        if let (Some(part), Some(&origin)) = (parts.get_mut(k), origins.get(k)) {
+            part.push(Note {
+                start: n.start.saturating_sub(origin),
+                ..*n
+            });
+        }
+    }
+    for part in &mut parts {
+        part.sort_by_key(|n| (n.start, n.key));
+    }
+    parts
+}
+
+/// What [`per_part`] gives back.
+#[derive(Debug, Default, PartialEq)]
+pub(super) struct Changed {
+    /// The notes merged again, and the part of each.
+    pub notes: Vec<Note>,
+    pub owner: Vec<usize>,
+    /// The selection `change` gave back, if it did, as indices into the merged notes.
+    pub picked: Option<Vec<usize>>,
+    /// Where each note given now is, if its part kept as many notes before it.
+    pub moved: Vec<Option<usize>>,
+}
+
+/// Runs `change` on each part's notes alone, with its chosen ones, so that every note stays
+/// in its clip whatever `change` adds, removes or reorders.
+pub(super) fn per_part(
+    notes: &[Note],
+    owner: &[usize],
+    chosen: &[usize],
+    mut change: impl FnMut(&mut Vec<Note>, &[usize]) -> Option<Vec<usize>>,
+) -> Changed {
+    let parts = owner.iter().max().map_or(0, |m| m + 1);
+    let mut out = Changed {
+        moved: vec![None; notes.len()],
+        ..Changed::default()
+    };
+    for k in 0..parts {
+        let index: Vec<usize> = (0..notes.len()).filter(|&i| owner[i] == k).collect();
+        let mut part: Vec<Note> = index.iter().map(|&i| notes[i]).collect();
+        let local: Vec<usize> = chosen
+            .iter()
+            .filter_map(|c| index.iter().position(|i| i == c))
+            .collect();
+        let first = out.notes.len();
+        if let Some(picked) = change(&mut part, &local) {
+            out.picked
+                .get_or_insert_with(Vec::new)
+                .extend(picked.into_iter().map(|i| first + i));
+        }
+        for (j, &i) in index.iter().enumerate() {
+            out.moved[i] = (j < part.len()).then_some(first + j);
+        }
+        out.owner.extend(std::iter::repeat_n(k, part.len()));
+        out.notes.extend(part);
+    }
+    out
 }
 
 impl Scene {
@@ -366,13 +519,19 @@ impl Scene {
             origin: self.origin,
         }
     }
+
+    /// Whether note `i` belongs to another track than the active one, drawn faint.
+    pub fn dimmed(&self, i: usize) -> bool {
+        self.parts.len() > 1 && self.owner.get(i).is_some_and(|&k| k != self.active)
+    }
 }
 
 impl PianoRoll {
     pub fn new(doc: Rc<RefCell<Document>>) -> Self {
         Self {
             doc,
-            clip: None,
+            clips: Vec::new(),
+            active: None,
             view: View::default(),
             selected: Vec::new(),
             drag: None,
@@ -404,7 +563,50 @@ impl PianoRoll {
             hovered: None,
             fit: false,
             area: Rect::NOTHING,
+            editor: false,
+            zoom_from: None,
+            clip_request: None,
         }
+    }
+
+    /// The piano roll of the note editor: the editors' bar, keys and zoom.
+    pub fn editor(doc: Rc<RefCell<Document>>) -> Self {
+        Self {
+            editor: true,
+            tool: Tool::Draw,
+            ..Self::new(doc)
+        }
+    }
+
+    /// Escape may close the editor: nothing dragged, no transform waiting.
+    pub fn lets_escape(&self) -> bool {
+        self.drag.is_none() && self.pending.is_none()
+    }
+
+    /// Drops the transform waiting to be applied; true if there was one.
+    pub fn cancel_transform(&mut self) -> bool {
+        self.pending.take().is_some()
+    }
+
+    /// The clips edited together.
+    #[cfg(test)]
+    pub fn edited_clips(&self) -> &[ClipId] {
+        &self.clips
+    }
+
+    /// The clips to edit the note editor's list asked for, once.
+    pub fn take_clip_request(&mut self) -> Option<Vec<ClipId>> {
+        self.clip_request.take()
+    }
+
+    /// Frames the notes at the next frame.
+    pub fn frame_notes(&mut self) {
+        self.fit = true;
+    }
+
+    /// The tool of the note editor, from its key.
+    pub fn set_tool(&mut self, tool: editor_frame::Tool) {
+        self.tool = Tool::of(tool);
     }
 
     /// Takes back the clipboard of `other`, the view this one replaces.
@@ -413,7 +615,8 @@ impl PianoRoll {
     }
 
     pub fn reset(&mut self) {
-        self.clip = None;
+        self.clips.clear();
+        self.active = None;
         self.selected.clear();
         self.drag = None;
         self.preview = None;
@@ -421,34 +624,98 @@ impl PianoRoll {
         self.focused = false;
     }
 
-    fn notes(&self, project: &Project) -> Option<(u64, Vec<Note>)> {
-        let clip = edit::clip(project, self.clip?)?;
-        let origin = clip.start.saturating_sub(clip.offset);
-        let notes = self
-            .preview
-            .clone()
-            .or_else(|| clip.notes.as_ref().map(|n| (**n).clone()))?;
-        Some((origin, notes))
-    }
-
+    /// The clips edited, the notes of all of them (the preview's while a gesture goes on),
+    /// in project time; `None` without a MIDI clip.
     fn scene(&self) -> Option<Scene> {
         let project = self.doc.borrow().project().clone();
-        let (origin, notes) = self.notes(&project)?;
-        let clip = edit::clip(&project, self.clip?)?.clone();
-        let track = edit::track_of_clip(&project, clip.id);
-        let color = track
-            .and_then(|t| project.track(t))
-            .map_or(egui::Color32::from_rgb(82, 160, 255), |t| {
-                crate::theme::track_color(t.color)
-            });
+        let parts: Vec<Part> = self
+            .clips
+            .iter()
+            .filter_map(|&id| {
+                let clip = edit::clip(&project, id)?;
+                clip.notes.as_ref()?;
+                let track = edit::track_of_clip(&project, id);
+                let color = track
+                    .and_then(|t| project.track(t))
+                    .map_or(egui::Color32::from_rgb(82, 160, 255), |t| {
+                        crate::theme::track_color(t.color)
+                    });
+                Some(Part {
+                    clip: clip.clone(),
+                    origin: clip.start.saturating_sub(clip.offset),
+                    color,
+                    track,
+                })
+            })
+            .collect();
+        let active = self
+            .active
+            .and_then(|a| parts.iter().position(|p| p.clip.id == a))
+            .unwrap_or(0);
+        let first = parts.get(active)?.clone();
+        let (notes, owner) = match &self.preview {
+            Some((notes, owner)) if owner.iter().all(|&k| k < parts.len()) => {
+                (notes.clone(), owner.clone())
+            }
+            _ => {
+                let clips: Vec<(u64, &[Note])> = parts
+                    .iter()
+                    .map(|p| (p.origin, p.clip.notes.as_deref().map_or(&[][..], |n| n)))
+                    .collect();
+                merge(&clips)
+            }
+        };
         Some(Scene {
-            project,
-            clip,
-            origin,
+            active,
+            clip: first.clip,
+            clip_origin: first.origin,
+            color: first.color,
+            track: first.track,
+            origin: 0,
             notes,
-            color,
-            track,
+            owner,
+            parts,
+            project,
         })
+    }
+
+    /// The part a note added at `t` goes to: the edited clip of the active track that holds
+    /// `t`, else the active part.
+    pub(super) fn target(&self, scene: &Scene, t: u64) -> usize {
+        let track = scene.track;
+        scene
+            .parts
+            .iter()
+            .position(|p| p.track == track && p.clip.start <= t && t < p.clip.end())
+            .unwrap_or(scene.active)
+    }
+
+    /// Makes the part of note `i` the active one.
+    pub(super) fn activate(&mut self, scene: &Scene, i: usize) {
+        if let Some(part) = scene.owner.get(i).and_then(|&k| scene.parts.get(k)) {
+            self.active = Some(part.clip.id);
+        }
+    }
+
+    /// Runs `change` on the chosen notes of each part alone (see [`per_part`]) and saves the
+    /// result as one undo step.
+    fn change_parts(
+        &mut self,
+        label: &str,
+        scene: &Scene,
+        chosen: &[usize],
+        change: impl FnMut(&mut Vec<Note>, &[usize]) -> Option<Vec<usize>>,
+    ) {
+        let changed = per_part(&scene.notes, &scene.owner, chosen, change);
+        self.selected = match changed.picked {
+            Some(picked) => picked,
+            None => self
+                .selected
+                .iter()
+                .filter_map(|&i| changed.moved.get(i).copied().flatten())
+                .collect(),
+        };
+        self.commit(label, changed.notes, changed.owner);
     }
 
     /// Channel the controller lane shows: that of the selected notes when they share one.
@@ -464,29 +731,55 @@ impl PianoRoll {
         }
     }
 
-    /// Saves `notes` as one undo step; the selection stays on the same notes once sorted.
-    fn commit(&mut self, label: &str, notes: Vec<Note>) {
-        let Some(id) = self.clip else { return };
-        let chosen: Vec<Note> = self
+    /// Saves `notes` (in project time, `owner` giving the part of each) to their clips as one
+    /// undo step; the selection stays on the same notes once sorted.
+    pub(super) fn commit(&mut self, label: &str, notes: Vec<Note>, owner: Vec<usize>) {
+        let project = self.doc.borrow().project().clone();
+        let parts: Vec<(ClipId, u64)> = self
+            .clips
+            .iter()
+            .filter_map(|&id| {
+                let clip = edit::clip(&project, id)?;
+                clip.notes.as_ref()?;
+                Some((id, clip.start.saturating_sub(clip.offset)))
+            })
+            .collect();
+        if parts.is_empty() {
+            return;
+        }
+        let origins: Vec<u64> = parts.iter().map(|p| p.1).collect();
+        let chosen: Vec<(Note, usize)> = self
             .selected
             .iter()
-            .filter_map(|&i| notes.get(i).copied())
+            .filter_map(|&i| Some((*notes.get(i)?, *owner.get(i)?)))
             .collect();
-        let mut sorted = notes.clone();
-        sorted.sort_by_key(|n| (n.start, n.key));
-        let mut taken = vec![false; sorted.len()];
+        let split = split(&notes, &owner, &origins);
+        // The notes as the next frame merges them, to find the selection there.
+        let views: Vec<(u64, &[Note])> = origins
+            .iter()
+            .zip(&split)
+            .map(|(&o, n)| (o, n.as_slice()))
+            .collect();
+        let (next, next_owner) = merge(&views);
+        let mut taken = vec![false; next.len()];
         self.selected = chosen
             .iter()
-            .filter_map(|c| {
-                let i = (0..sorted.len()).find(|&i| !taken[i] && sorted[i] == *c)?;
+            .filter_map(|(c, k)| {
+                // Where it lands once kept in its clip.
+                let start = c.start.max(origins[*k]);
+                let i = (0..next.len()).find(|&i| {
+                    !taken[i] && next_owner[i] == *k && next[i] == Note { start, ..*c }
+                })?;
                 taken[i] = true;
                 Some(i)
             })
             .collect();
         self.preview = None;
         self.doc.borrow_mut().history_mut().edit(label, |p| {
-            edit::set_notes(p, id, notes);
-            edit::fit_clip_to_notes(p, id);
+            for ((id, _), notes) in parts.iter().zip(split) {
+                edit::set_notes(p, *id, notes);
+                edit::fit_clip_to_notes(p, *id);
+            }
         });
     }
 
@@ -534,14 +827,13 @@ impl PianoRoll {
 
     /// Copies the selected notes; false if none is.
     pub fn copy(&mut self) -> bool {
-        let project = self.doc.borrow().project().clone();
-        let Some((_, notes)) = self.notes(&project) else {
+        let Some(scene) = self.scene() else {
             return false;
         };
         let mut copied: Vec<Note> = self
             .selected
             .iter()
-            .filter_map(|&i| notes.get(i).copied())
+            .filter_map(|&i| scene.notes.get(i).copied())
             .collect();
         let Some(first) = copied.iter().map(|n| n.start).min() else {
             return false;
@@ -557,74 +849,78 @@ impl PianoRoll {
         self.copy() && self.delete_selected()
     }
 
-    /// Pastes the copied notes at `at` (project samples, snapped), selected; false if nothing
-    /// was copied.
+    /// Pastes the copied notes at `at` (project samples, snapped), selected, in the part that
+    /// takes new notes there; false if nothing was copied.
     pub fn paste(&mut self, _settings: &EditSettings, at: u64) -> bool {
-        let project = self.doc.borrow().project().clone();
-        let Some((origin, mut notes)) = self.notes(&project) else {
+        let Some(scene) = self.scene() else {
             return false;
         };
         if self.clipboard.is_empty() {
             return false;
         }
-        let at = self.snap(&project, at, false).max(origin) - origin;
+        let at = self.snap(&scene.project, at, false);
+        let target = self.target(&scene, at);
+        let (mut notes, mut owner) = (scene.notes, scene.owner);
         let first = notes.len();
         notes.extend(self.clipboard.iter().map(|n| Note {
             start: n.start + at,
             ..*n
         }));
+        owner.resize(notes.len(), target);
         self.selected = (first..notes.len()).collect();
-        self.commit(tr("Paste notes"), notes);
+        self.commit(tr("Paste notes"), notes, owner);
         true
     }
 
-    /// Copies the selected notes right after themselves, a whole number of beats later.
+    /// Copies the selected notes right after themselves, a whole number of beats later, each
+    /// in its own clip.
     pub fn duplicate(&mut self) -> bool {
-        let project = self.doc.borrow().project().clone();
-        let Some((origin, mut notes)) = self.notes(&project) else {
+        let Some(scene) = self.scene() else {
             return false;
         };
-        let chosen: Vec<Note> = self
+        let chosen: Vec<(Note, usize)> = self
             .selected
             .iter()
-            .filter_map(|&i| notes.get(i).copied())
+            .filter_map(|&i| Some((*scene.notes.get(i)?, *scene.owner.get(i)?)))
             .collect();
         let (Some(start), Some(end)) = (
-            chosen.iter().map(|n| n.start).min(),
-            chosen.iter().map(|n| n.start + n.length).max(),
+            chosen.iter().map(|(n, _)| n.start).min(),
+            chosen.iter().map(|(n, _)| n.start + n.length).max(),
         ) else {
             return false;
         };
-        let (rate, tempo) = (project.sample_rate, &project.tempo);
-        let from = tempo.sample_to_beat(origin + start, rate);
-        let span = (tempo.sample_to_beat(origin + end, rate) - from)
-            .ceil()
-            .max(1.0);
-        let shift = tempo.beat_to_sample(from + span, rate) - (origin + start);
+        let (rate, tempo) = (scene.project.sample_rate, &scene.project.tempo);
+        let from = tempo.sample_to_beat(start, rate);
+        let span = (tempo.sample_to_beat(end, rate) - from).ceil().max(1.0);
+        let shift = tempo.beat_to_sample(from + span, rate) - start;
+        let (mut notes, mut owner) = (scene.notes.clone(), scene.owner.clone());
         let first = notes.len();
-        notes.extend(chosen.iter().map(|n| Note {
-            start: n.start + shift,
-            ..*n
-        }));
+        for (n, k) in &chosen {
+            notes.push(Note {
+                start: n.start + shift,
+                ..*n
+            });
+            owner.push(*k);
+        }
         self.selected = (first..notes.len()).collect();
-        self.commit(tr("Duplicate notes"), notes);
+        self.commit(tr("Duplicate notes"), notes, owner);
         true
     }
 
     /// Moves the selected notes by a grid step; false if none is selected.
     pub fn nudge(&mut self, _settings: &EditSettings, later: bool) -> bool {
-        let project = self.doc.borrow().project().clone();
-        let Some((origin, mut notes)) = self.notes(&project) else {
+        let Some(scene) = self.scene() else {
             return false;
         };
         if self.selected.is_empty() {
             return false;
         }
+        let (mut notes, owner) = (scene.notes, scene.owner);
         let step = self
             .selected
             .first()
             .and_then(|&i| notes.get(i))
-            .map_or(MIN_LENGTH, |n| self.step(&project, origin + n.start));
+            .map_or(MIN_LENGTH, |n| self.step(&scene.project, n.start));
         for &i in &self.selected {
             if let Some(n) = notes.get_mut(i) {
                 n.start = if later {
@@ -634,20 +930,20 @@ impl PianoRoll {
                 };
             }
         }
-        self.commit(tr("Nudge notes"), notes);
+        self.commit(tr("Nudge notes"), notes, owner);
         true
     }
 
     /// Moves the selected notes up or down by semitones (by scale steps when notes are kept in
     /// the scale).
     pub fn transpose(&mut self, semitones: i32) {
-        let project = self.doc.borrow().project().clone();
-        let Some((_, mut notes)) = self.notes(&project) else {
+        let Some(scene) = self.scene() else {
             return;
         };
         if self.selected.is_empty() {
             return;
         }
+        let (mut notes, owner) = (scene.notes, scene.owner);
         for &i in &self.selected {
             if let Some(n) = notes.get_mut(i) {
                 n.key = match self.scale {
@@ -658,18 +954,34 @@ impl PianoRoll {
                 };
             }
         }
-        self.commit(tr("Transpose notes"), notes);
+        self.commit(tr("Transpose notes"), notes, owner);
     }
 
-    /// Applies `change` to the selected notes, or all, as one undo step.
-    fn instant(&mut self, label: &str, change: impl FnOnce(&mut Vec<Note>, &[usize])) {
-        let project = self.doc.borrow().project().clone();
-        let Some((_, mut notes)) = self.notes(&project) else {
+    /// Applies `change` to the selected notes, or all, of each part alone, as one undo step.
+    fn instant(&mut self, label: &str, mut change: impl FnMut(&mut Vec<Note>, &[usize])) {
+        let Some(scene) = self.scene() else {
             return;
         };
-        let chosen = self.chosen(notes.len());
-        change(&mut notes, &chosen);
-        self.commit(label, notes);
+        let chosen = self.chosen(scene.notes.len());
+        self.change_parts(label, &scene, &chosen, |notes, chosen| {
+            change(notes, chosen);
+            None
+        });
+    }
+
+    /// Gives the overlapping notes of each part their own MIDI channel (MPE).
+    pub(super) fn spread_channels(&mut self, scene: &Scene) {
+        let all: Vec<usize> = (0..scene.notes.len()).collect();
+        self.change_parts(
+            tr("Spread notes over MPE channels"),
+            scene,
+            &all,
+            |notes, _| {
+                notes.sort_by_key(|n| (n.start, n.key));
+                edit::spread_mpe_channels(notes);
+                None
+            },
+        );
     }
 
     /// Deletes the selected notes; false if nothing was selected.
@@ -677,40 +989,37 @@ impl PianoRoll {
         if self.selected.is_empty() {
             return false;
         }
-        let project = self.doc.borrow().project().clone();
-        let Some((_, notes)) = self.notes(&project) else {
+        let Some(scene) = self.scene() else {
             return false;
         };
-        let mask = self.mask(notes.len());
-        let kept: Vec<Note> = notes
+        let mask = self.mask(scene.notes.len());
+        let (notes, owner): (Vec<Note>, Vec<usize>) = scene
+            .notes
             .iter()
+            .zip(&scene.owner)
             .enumerate()
             .filter(|(i, _)| !mask[*i])
-            .map(|(_, n)| *n)
-            .collect();
+            .map(|(_, (n, k))| (*n, *k))
+            .unzip();
         self.selected.clear();
-        self.commit(tr("Delete notes"), kept);
+        self.commit(tr("Delete notes"), notes, owner);
         true
     }
 
     pub fn select_all(&mut self) {
-        let project = self.doc.borrow().project().clone();
-        if let Some((_, notes)) = self.notes(&project) {
-            self.selected = (0..notes.len()).collect();
+        if let Some(scene) = self.scene() {
+            self.selected = (0..scene.notes.len()).collect();
         }
     }
 
     /// Quantizes the selected notes, or all of them, to the piano roll's grid.
     pub fn quantize(&mut self, _settings: &EditSettings) {
         let project = self.doc.borrow().project().clone();
-        let Some((origin, _)) = self.notes(&project) else {
-            return;
-        };
         let step = self.grid.beats().unwrap_or(4.0);
         let timing = Timing {
             tempo: &project.tempo,
             rate: project.sample_rate,
-            origin,
+            origin: 0,
         };
         let q = ops::Quantize {
             step,
@@ -739,14 +1048,20 @@ impl PianoRoll {
         }
     }
 
-    pub fn show(&mut self, ui: &mut Ui, _settings: &EditSettings, clip: Option<ClipId>) {
+    /// Draws the notes of `clips` (the MIDI ones), edited together.
+    pub fn show(&mut self, ui: &mut Ui, _settings: &EditSettings, clips: &[ClipId]) {
         self.drawn = ui.ctx().cumulative_frame_nr();
-        if clip != self.clip && self.drag.is_none() {
-            self.clip = clip;
+        if clips != self.clips.as_slice() && self.drag.is_none() {
+            // A clip added or taken away keeps the view; another set frames its notes.
+            let kept = clips.iter().any(|c| self.clips.contains(c));
+            self.clips = clips.to_vec();
             self.selected.clear();
             self.preview = None;
             self.pending = None;
-            self.fit = true;
+            self.fit |= !kept;
+            if self.active.is_none_or(|a| !clips.contains(&a)) {
+                self.active = clips.last().copied();
+            }
         }
         let Some(mut scene) = self.scene() else {
             ui.centered_and_justified(|ui| {
@@ -756,23 +1071,27 @@ impl PianoRoll {
         };
         let p = crate::theme::current(ui);
 
-        let (bar, _) =
-            ui.allocate_exact_size(vec2(ui.available_width(), TOOLBAR_HEIGHT), Sense::hover());
-        self.toolbar(ui, bar, &scene);
+        if self.editor {
+            self.editor_toolbar(ui, &scene);
+        } else {
+            let (bar, _) =
+                ui.allocate_exact_size(vec2(ui.available_width(), TOOLBAR_HEIGHT), Sense::hover());
+            self.toolbar(ui, bar, &scene);
+        }
         if let Some(pending) = &self.pending {
-            let (notes, selection) = panel::apply(
-                &pending.transform,
-                &pending.base,
-                &pending.chosen,
-                scene.timing(),
-                self.scale,
-            );
-            let _ = selection;
-            scene.notes = notes;
+            let changed = panel::apply_parts(pending, scene.timing(), self.scale);
+            scene.notes = changed.notes;
+            scene.owner = changed.owner;
         }
 
-        let full = ui.available_rect_before_wrap();
+        let mut full = ui.available_rect_before_wrap();
         ui.allocate_rect(full, Sense::hover());
+        // The note editor's tracks at the left, as the automation editor's names.
+        if self.editor {
+            let list = Rect::from_min_max(full.min, pos2(full.left() + PARTS_WIDTH, full.bottom()));
+            self.parts_list(ui, &scene, list);
+            full.min.x = list.right() + 1.0;
+        }
         let lane_height = self.lane_height.min(full.height() * 0.3).max(48.0);
         let lanes_top = full.bottom() - lane_height;
         let chords = Rect::from_min_max(
@@ -826,7 +1145,7 @@ impl PianoRoll {
         let painter = ui.painter().with_clip_rect(full);
         painter.rect_filled(full, 0.0, p.base);
         self.draw_grid(ui, &scene, area);
-        if self.ghosts {
+        if self.ghosts && !self.editor {
             self.draw_ghosts(ui, &scene, area);
         }
         self.draw_notes(ui, &scene, area);
@@ -836,7 +1155,9 @@ impl PianoRoll {
         self.keyboard(ui, &scene, keys, area);
         self.splitter(ui, splitter, full);
         self.lane(ui, &mut scene, lane_head, lane, area);
-        if self.pending.is_none() {
+        if self.tool == Tool::Zoom {
+            self.zoom_tool(ui, area);
+        } else if self.pending.is_none() {
             self.interact(ui, &scene, area);
         } else {
             ui.interact(
@@ -850,6 +1171,10 @@ impl PianoRoll {
             &scene,
             Rect::from_min_max(ruler.min, pos2(area.right(), full.bottom())),
         );
+        if self.editor && self.pending.is_none() {
+            let painter = ui.painter().with_clip_rect(area);
+            editor_frame::help(ui, &painter, area, self.editor_help());
+        }
         self.transform_panel(ui, &scene, area);
         self.shortcuts(ui);
         self.sound(ui, &scene, keys, area);
@@ -903,8 +1228,8 @@ impl PianoRoll {
             (low, high)
         };
         self.view.fit(
-            scene.clip.start,
-            scene.clip.end(),
+            scene.parts.iter().map(|p| p.clip.start).min().unwrap_or(0),
+            scene.parts.iter().map(|p| p.clip.end()).max().unwrap_or(0),
             low,
             high,
             area.width(),
@@ -972,14 +1297,53 @@ impl PianoRoll {
         }
     }
 
+    /// The zoom tool over the notes: a span dragged across fills the view, a click zooms in
+    /// (Alt or right-click: out).
+    fn zoom_tool(&mut self, ui: &mut Ui, area: Rect) {
+        let painter = ui.painter().with_clip_rect(area);
+        let asked = editor_frame::zoom_tool(ui, area, &painter, &mut self.zoom_from);
+        match asked {
+            Some(editor_frame::Zoomed::Span(a, b)) => {
+                let frame = self.frame(area);
+                let (from, to) = (frame.t(a), frame.t(b));
+                self.view.zoom = (to.saturating_sub(from) as f64 / f64::from(area.width()))
+                    .clamp(view::MIN_ZOOM, view::MAX_ZOOM);
+                self.view.scroll = from as f64;
+            }
+            Some(editor_frame::Zoomed::In(x)) => self.view.zoom_time(2.0, x - area.left()),
+            Some(editor_frame::Zoomed::Out(x)) => self.view.zoom_time(0.5, x - area.left()),
+            None => {}
+        }
+    }
+
+    /// What the tool in hand does, on the note editor's pill.
+    fn editor_help(&self) -> &'static str {
+        match self.tool {
+            Tool::Draw => tr(
+                "Click: add a note · Drag right: set its length · Drag a note: move it · Drag an edge: resize it · Ctrl: place freely",
+            ),
+            Tool::Pointer => tr(
+                "Click a note: select it · Drag: select in a rectangle · Drag a note: move it (Alt: copy) · Drag an edge: resize it · Double-click: add a note",
+            ),
+            Tool::Paint => tr("Drag: paint a note on each grid step, up and down too"),
+            Tool::Slice => tr("Click a note: cut it there (the selected ones under it too)"),
+            Tool::Erase => tr("Click a note: remove it · Drag: remove the notes passed over"),
+            Tool::Zoom => tr(
+                "Drag across a span: fill the view with it · Click: zoom in · Alt+click or right-click: zoom out · Shift+wheel: move in time",
+            ),
+        }
+    }
+
     /// Tools by number keys; up and down transpose the selection, by an octave with Shift.
     fn shortcuts(&mut self, ui: &Ui) {
         if !self.focused || ui.ctx().text_edit_focused() {
             return;
         }
+        // The note editor's tools answer to the editors' letters, taken before.
         let tool = ui.input_mut(|i| {
             Tool::ALL
                 .into_iter()
+                .filter(|_| !self.editor)
                 .find(|t| i.consume_key(egui::Modifiers::NONE, t.key()))
         });
         if let Some(tool) = tool {
@@ -1038,7 +1402,7 @@ impl PianoRoll {
                 Some(DragKind::Move | DragKind::Draw) => self
                     .selected
                     .first()
-                    .and_then(|&i| self.preview.as_ref()?.get(i))
+                    .and_then(|&i| self.preview.as_ref()?.0.get(i))
                     .map(|n| n.key),
                 Some(DragKind::Paint) => self
                     .drag
@@ -1053,7 +1417,14 @@ impl PianoRoll {
             if let Some((t, k)) = self.sounding.take() {
                 doc.player().play_key(t, [0x80, k, 0]);
             }
-            if let (Some(k), Some(t)) = (wanted, scene.track) {
+            // A note of another part plays on its own track.
+            let track = self
+                .selected
+                .first()
+                .filter(|_| self.drag.is_some() || self.added.is_some())
+                .and_then(|&i| scene.parts.get(*scene.owner.get(i)?))
+                .map_or(scene.track, |p| p.track);
+            if let (Some(k), Some(t)) = (wanted, track) {
                 doc.player().play_key(t, [0x90, k, 100]);
                 self.sounding = Some((t, k));
             }

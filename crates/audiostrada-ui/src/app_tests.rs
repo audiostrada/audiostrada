@@ -671,3 +671,104 @@ fn projects_save_open_in_tabs_and_close() {
     h.act(Action::CloseTab);
     h.answer_dialogs();
 }
+
+#[test]
+fn the_note_editor_opens_on_the_selected_midi_clip_goes_full_screen_and_closes_with_escape() {
+    let mut h = Harness::with_song("note-editor");
+    h.frame(Vec::new());
+    let clip = {
+        let doc = h.app.doc.borrow();
+        let keys = doc
+            .project()
+            .tracks
+            .iter()
+            .find(|t| t.name == "Keys")
+            .unwrap();
+        keys.clips[0].id
+    };
+    h.app.views.borrow_mut().timeline.selection = vec![clip];
+    h.act(Action::NoteEditor);
+    assert!(h.app.views.borrow().timeline.note_editor_open());
+    let key = |key| Event::Key {
+        key,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    // Every tool of its bar, by its key, draws.
+    for k in [
+        egui::Key::S,
+        egui::Key::B,
+        egui::Key::C,
+        egui::Key::E,
+        egui::Key::Z,
+        egui::Key::P,
+    ] {
+        h.frame(vec![key(k)]);
+        h.frame(Vec::new());
+    }
+    // Only one editor at a time: the automation editor takes its place.
+    h.act(Action::AutomationEditor);
+    assert!(!h.app.views.borrow().timeline.note_editor_open());
+    h.act(Action::AutomationEditor);
+    h.act(Action::NoteEditor);
+    assert!(h.app.views.borrow().timeline.note_editor_open());
+    // F11 fills the main window with it; Escape comes back to the window, then closes it.
+    let full = |h: &Harness| crate::editor_frame::full_screen(&h.ctx, crate::editor_frame::NOTES);
+    h.frame(vec![key(egui::Key::F11)]);
+    h.frame(Vec::new());
+    assert!(full(&h));
+    h.frame(vec![key(egui::Key::Escape)]);
+    h.frame(Vec::new());
+    assert!(!full(&h));
+    assert!(h.app.views.borrow().timeline.note_editor_open());
+    h.frame(vec![key(egui::Key::Escape)]);
+    h.frame(Vec::new());
+    assert!(!h.app.views.borrow().timeline.note_editor_open());
+    let notes = h
+        .app
+        .doc
+        .borrow()
+        .project()
+        .tracks
+        .iter()
+        .find(|t| t.name == "Keys")
+        .unwrap()
+        .clips[0]
+        .notes
+        .as_ref()
+        .map_or(0, |n| n.len());
+    assert_eq!(notes, 3, "nothing changed by looking");
+}
+
+#[test]
+fn the_note_editor_edits_the_midi_clips_of_several_tracks_together() {
+    let mut h = Harness::with_song("note-editor-tracks");
+    h.frame(Vec::new());
+    let clips: Vec<audiostrada_core::ClipId> = {
+        let doc = h.app.doc.borrow();
+        ["Keys", "Drums"]
+            .iter()
+            .map(|name| {
+                let track = doc
+                    .project()
+                    .tracks
+                    .iter()
+                    .find(|t| &t.name == name)
+                    .unwrap();
+                track.clips[0].id
+            })
+            .collect()
+    };
+    h.app.views.borrow_mut().timeline.selection = clips.clone();
+    h.act(Action::NoteEditor);
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    let mut views = h.app.views.borrow_mut();
+    assert_eq!(
+        views.timeline.note_piano_any().edited_clips(),
+        clips.as_slice()
+    );
+}

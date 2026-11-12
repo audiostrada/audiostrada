@@ -40,6 +40,9 @@ pub(super) fn note_fill(color: Color32, velocity: u8, selected: bool) -> Color32
     }
 }
 
+/// The opacity of the notes of the tracks other than the active one.
+pub(super) const FAINT: f32 = 0.4;
+
 impl PianoRoll {
     pub(super) fn frame(&self, area: Rect) -> Frame {
         Frame {
@@ -83,7 +86,10 @@ impl PianoRoll {
             .flat_map(|t| t.clips.iter())
             .find_map(|clip| {
                 let notes = clip.notes.as_ref()?;
-                if clip.id == scene.clip.id || t < clip.start || t >= clip.end() {
+                if scene.parts.iter().any(|p| p.clip.id == clip.id)
+                    || t < clip.start
+                    || t >= clip.end()
+                {
                     return None;
                 }
                 let origin = clip.start.saturating_sub(clip.offset);
@@ -162,19 +168,38 @@ impl PianoRoll {
             );
             beat += step;
         }
-        // Outside the clip.
+        // Outside the clips, and each clip faintly in its color when there are several.
         let shade = Color32::from_black_alpha(if p.dark { 80 } else { 30 });
-        let (start, end) = (frame.x(scene.clip.start), frame.x(scene.clip.end()));
-        painter.rect_filled(
-            Rect::from_min_max(area.min, pos2(start, area.bottom())),
-            0.0,
-            shade,
-        );
-        painter.rect_filled(
-            Rect::from_min_max(pos2(end, area.top()), area.max),
-            0.0,
-            shade,
-        );
+        let mut spans: Vec<(u64, u64)> = scene
+            .parts
+            .iter()
+            .map(|p| (p.clip.start, p.clip.end()))
+            .collect();
+        spans.sort_unstable();
+        let mut from = area.left();
+        for (a, b) in spans {
+            let (a, b) = (frame.x(a), frame.x(b));
+            if a > from {
+                painter.rect_filled(Rect::from_x_y_ranges(from..=a, area.y_range()), 0.0, shade);
+            }
+            from = from.max(b);
+        }
+        if from < area.right() {
+            painter.rect_filled(
+                Rect::from_x_y_ranges(from..=area.right(), area.y_range()),
+                0.0,
+                shade,
+            );
+        }
+        if scene.parts.len() > 1 {
+            for part in &scene.parts {
+                let band = Rect::from_x_y_ranges(
+                    frame.x(part.clip.start)..=frame.x(part.clip.end()),
+                    area.y_range(),
+                );
+                painter.rect_filled(band, 0.0, part.color.gamma_multiply(0.03));
+            }
+        }
         if let Some((a, b)) = scene.project.looping() {
             let band = Rect::from_x_y_ranges(frame.x(a)..=frame.x(b), area.y_range());
             painter.rect_filled(band, 0.0, p.accent.gamma_multiply(0.035));
@@ -190,7 +215,10 @@ impl PianoRoll {
             let color = crate::theme::track_color(track.color);
             for clip in &track.clips {
                 let Some(notes) = &clip.notes else { continue };
-                if clip.id == scene.clip.id || clip.end() < t0 || clip.start > t1 {
+                if scene.parts.iter().any(|p| p.clip.id == clip.id)
+                    || clip.end() < t0
+                    || clip.start > t1
+                {
                     continue;
                 }
                 let origin = clip.start.saturating_sub(clip.offset);
@@ -225,26 +253,25 @@ impl PianoRoll {
             Lane::Expression(c) => Some(c),
             _ => None,
         };
-        let controls = scene
-            .clip
-            .controls
-            .as_deref()
-            .map(Vec::as_slice)
-            .unwrap_or(&[]);
         let pointer = ui.input(|i| i.pointer.hover_pos());
         let hovered = pointer
             .and_then(|pos| self.hit(scene, area, pos))
             .filter(|_| self.drag.is_none());
-        // Unselected first, so that the selection is on top.
+        // Other tracks first, then the unselected: the selection is on top.
         let mut order: Vec<usize> = (0..scene.notes.len()).collect();
         let mask = self.mask(scene.notes.len());
-        order.sort_by_key(|&i| mask[i]);
+        order.sort_by_key(|&i| (mask[i], !scene.dimmed(i)));
         for i in order {
             let n = &scene.notes[i];
             let (a, b) = (scene.origin + n.start, scene.origin + n.start + n.length);
             if b < t0 || a > t1 {
                 continue;
             }
+            let faint = if scene.dimmed(i) && !mask[i] {
+                FAINT
+            } else {
+                1.0
+            };
             let Some(r) = frame.note_rect(a, b, n.key) else {
                 continue;
             };
@@ -252,10 +279,13 @@ impl PianoRoll {
                 continue;
             }
             let selected = mask[i];
-            let mut fill = note_fill(scene.color, n.velocity, selected);
+            let part = scene.owner.get(i).and_then(|&k| scene.parts.get(k));
+            let color = part.map_or(scene.color, |p| p.color);
+            let mut fill = note_fill(color, n.velocity, selected);
             if n.muted {
-                fill = theme::mix(p.surface, scene.color, 0.15).gamma_multiply(0.7);
+                fill = theme::mix(p.surface, color, 0.15).gamma_multiply(0.7);
             }
+            fill = fill.gamma_multiply(faint);
             let radius = (r.height() * 0.3).min(4.0);
             painter.rect_filled(r, radius, fill);
             // A thin highlight on top: the note reads as a solid object.
@@ -265,7 +295,7 @@ impl PianoRoll {
                         pos2(r.left() + radius, r.top() + 1.0),
                         pos2(r.right() - radius, r.top() + 1.0),
                     ],
-                    Stroke::new(1.0, Color32::WHITE.gamma_multiply(0.18)),
+                    Stroke::new(1.0, Color32::WHITE.gamma_multiply(0.18 * faint)),
                 );
             }
             let outline = if selected {
@@ -273,7 +303,7 @@ impl PianoRoll {
             } else if hovered.is_some_and(|(h, _)| h == i) {
                 Stroke::new(1.0, p.text.gamma_multiply(0.9))
             } else {
-                Stroke::new(1.0, Color32::BLACK.gamma_multiply(0.45))
+                Stroke::new(1.0, Color32::BLACK.gamma_multiply(0.45 * faint))
             };
             if n.probability < 100 || n.muted {
                 let corners = [
@@ -302,12 +332,16 @@ impl PianoRoll {
                     Stroke::new(2.5, Color32::WHITE),
                 );
             }
-            if let Some(controller) = expression {
-                draw_expression(&painter, r, n, controller, controls, scene.origin, &frame);
+            if let Some(controller) = expression
+                && let Some(part) = part
+            {
+                let controls = part.clip.controls.as_deref().map_or(&[][..], Vec::as_slice);
+                draw_expression(&painter, r, n, controller, controls, part.origin, &frame);
             }
             // The note's name, and its chance when it may not play.
             if r.height() >= 9.0 && r.width() > 24.0 {
-                let ink = theme::text_on(fill).gamma_multiply(if n.muted { 0.5 } else { 0.85 });
+                let ink =
+                    theme::text_on(fill).gamma_multiply(if n.muted { 0.5 } else { 0.85 } * faint);
                 let size = (r.height() * 0.62).clamp(8.0, 11.5);
                 let mut label = key_name(n.key);
                 if n.probability < 100 && r.width() > 60.0 {
@@ -703,15 +737,16 @@ impl PianoRoll {
                         )
                         .max(origin);
                     let length = self.last_length.unwrap_or_else(|| self.step(project, at));
+                    let color = scene.parts[self.target(scene, at)].color;
                     for n in self.stamp(at - origin, length, frame.key(pos.y), 100) {
                         if let Some(r) =
                             frame.note_rect(origin + n.start, origin + n.start + n.length, n.key)
                         {
-                            painter.rect_filled(r, 3.0, scene.color.gamma_multiply(0.25));
+                            painter.rect_filled(r, 3.0, color.gamma_multiply(0.25));
                             painter.rect_stroke(
                                 r,
                                 3.0,
-                                Stroke::new(1.0, scene.color.gamma_multiply(0.8)),
+                                Stroke::new(1.0, color.gamma_multiply(0.8)),
                                 StrokeKind::Inside,
                             );
                         }
@@ -753,7 +788,12 @@ impl PianoRoll {
         {
             let under = self.hit(scene, area, pos);
             let frame = self.frame(area);
-            let mut drag = Drag::new(DragKind::Select { anchor: pos }, pos, notes.clone());
+            let mut drag = Drag::new(
+                DragKind::Select { anchor: pos },
+                pos,
+                notes.clone(),
+                scene.owner.clone(),
+            );
             match (self.tool, under) {
                 (Tool::Pointer | Tool::Draw, Some((i, part)))
                 | (Tool::Paint, Some((i, part @ (Part::Start | Part::End)))) => {
@@ -763,6 +803,7 @@ impl PianoRoll {
                         }
                         self.selected.push(i);
                     }
+                    self.activate(scene, i);
                     drag.grabbed = notes.get(i).copied();
                     drag.kind = match part {
                         Part::End => DragKind::Resize,
@@ -771,12 +812,12 @@ impl PianoRoll {
                             if modifiers.alt {
                                 // Alt-drag moves copies and leaves the notes where they are.
                                 let first = drag.original.len();
-                                let copies: Vec<Note> = self
-                                    .selected
-                                    .iter()
-                                    .filter_map(|&i| notes.get(i).copied())
-                                    .collect();
-                                drag.original.extend(copies);
+                                for &i in &self.selected {
+                                    if let (Some(n), Some(k)) = (notes.get(i), scene.owner.get(i)) {
+                                        drag.original.push(*n);
+                                        drag.owner.push(*k);
+                                    }
+                                }
                                 self.selected = (first..drag.original.len()).collect();
                                 drag.copy = true;
                             }
@@ -797,11 +838,15 @@ impl PianoRoll {
                     let length = self.step(project, at);
                     let velocity = self.new_velocity(notes);
                     drag.painted = self.stamp(at - origin, length, frame.key(pos.y), velocity);
+                    drag.target = self.target(scene, at);
                     drag.kind = DragKind::Draw;
                 }
-                (Tool::Paint, _) => drag.kind = DragKind::Paint,
+                (Tool::Paint, _) => {
+                    drag.target = self.target(scene, frame.t(pos.x));
+                    drag.kind = DragKind::Paint;
+                }
                 (Tool::Erase, _) => drag.kind = DragKind::Erase,
-                (Tool::Slice, _) => drag.kind = DragKind::Select { anchor: pos },
+                (Tool::Slice | Tool::Zoom, _) => drag.kind = DragKind::Select { anchor: pos },
                 (Tool::Pointer, None) => {
                     if modifiers.shift {
                         drag.base = self.selected.clone();
@@ -853,12 +898,13 @@ impl PianoRoll {
                     } else {
                         vec![i]
                     };
-                    let mut edited = notes.clone();
-                    let added = ops::slice(&mut edited, &targets, at);
-                    self.selected = targets.into_iter().chain(added).collect();
-                    self.commit(tr("Slice notes"), edited);
+                    self.change_parts(tr("Slice notes"), scene, &targets, |notes, local| {
+                        let added = ops::slice(notes, local, at);
+                        Some(local.iter().copied().chain(added).collect())
+                    });
                 }
                 (_, Some((i, _))) => {
+                    self.activate(scene, i);
                     if modifiers.shift || modifiers.command {
                         if let Some(k) = self.selected.iter().position(|&s| s == i) {
                             self.selected.remove(k);
@@ -886,8 +932,7 @@ impl PianoRoll {
                     self.selected = vec![i];
                     self.delete_selected();
                 }
-                None => match self
-                    .ghosts
+                None => match (self.ghosts && !self.editor)
                     .then(|| self.ghost_at(scene, area, pos))
                     .flatten()
                 {
@@ -921,11 +966,12 @@ impl PianoRoll {
             .max(scene.origin);
         let length = self.last_length.unwrap_or_else(|| self.step(project, at));
         let velocity = self.new_velocity(&scene.notes);
-        let mut edited = scene.notes.clone();
+        let (mut edited, mut owner) = (scene.notes.clone(), scene.owner.clone());
         let first = edited.len();
         let stamped = self.stamp(at - scene.origin, length, frame.key(pos.y), velocity);
         let key = stamped.first().map_or(60, |n| n.key);
         edited.extend(stamped);
+        owner.resize(edited.len(), self.target(scene, at));
         self.selected = (first..edited.len()).collect();
         self.added = Some((key, ui.input(|i| i.time) + AUDITION));
         self.commit(
@@ -935,6 +981,7 @@ impl PianoRoll {
                 tr("Add note")
             },
             edited,
+            owner,
         );
     }
 
@@ -1080,7 +1127,19 @@ impl PianoRoll {
             DragKind::Values { .. } | DragKind::Value { .. } => {}
         }
         if !matches!(drag.kind, DragKind::Select { .. }) {
-            self.preview = Some(edited);
+            // The parts of the notes: the originals', the painted ones in the target's.
+            let mut owner: Vec<usize> = match drag.kind {
+                DragKind::Erase => drag
+                    .owner
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| !drag.erased.contains(i))
+                    .map(|(_, &k)| k)
+                    .collect(),
+                _ => drag.owner.clone(),
+            };
+            owner.resize(edited.len(), drag.target);
+            self.preview = Some((edited, owner));
         }
         // Past an edge the view follows, faster the further the pointer goes; what was grabbed
         // stays under it.
@@ -1113,7 +1172,7 @@ impl PianoRoll {
 
     /// Ends a drag on the notes: one undo step.
     fn finish(&mut self, drag: Drag) {
-        let Some(edited) = self.preview.take() else {
+        let Some((edited, owner)) = self.preview.take() else {
             return;
         };
         if matches!(drag.kind, DragKind::Resize | DragKind::Draw)
@@ -1135,7 +1194,7 @@ impl PianoRoll {
         if edited == drag.original && !drag.copy {
             return;
         }
-        self.commit(label, edited);
+        self.commit(label, edited, owner);
     }
 }
 
@@ -1164,13 +1223,15 @@ fn draw_expression(
     origin: u64,
     frame: &Frame,
 ) {
+    // The note in its clip's time, as the controllers are.
+    let start = n.start.saturating_sub(origin);
     let points: Vec<Pos2> = controls
         .iter()
         .filter(|c| {
             c.controller == controller
                 && c.channel == n.channel
-                && c.time >= n.start
-                && c.time <= n.start + n.length
+                && c.time >= start
+                && c.time <= start + n.length
         })
         .map(|c| {
             pos2(

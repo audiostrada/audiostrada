@@ -33,8 +33,9 @@ mod headers;
 mod magnet;
 mod master;
 mod menus;
+mod note_editor;
 mod processing;
-mod toolbar;
+pub(crate) mod toolbar;
 mod view;
 use draw::*;
 pub use draw::{WaveScale, WaveView};
@@ -174,6 +175,8 @@ pub struct TimelineView {
     target_info: HashMap<(TrackId, AutomationTarget), headers::LaneInfo>,
     /// The automation editor, a window over the timeline, while it is open.
     auto_editor: Option<auto_editor::AutoEditor>,
+    /// The note editor, the other window over the timeline.
+    notes: note_editor::NoteEditor,
     /// Set while the automation editor draws its lanes: its pencil applies there.
     automation: bool,
     /// The tool of the automation editor.
@@ -290,8 +293,10 @@ impl Scale {
 
 impl TimelineView {
     pub fn new(doc: Rc<RefCell<Document>>) -> Self {
+        let notes = note_editor::NoteEditor::new(Rc::clone(&doc));
         Self {
             doc,
+            notes,
             zoom: 400.0,
             scroll: 0.0,
             scroll_y: 0.0,
@@ -486,6 +491,7 @@ impl TimelineView {
     }
 
     pub fn reset(&mut self) {
+        self.notes.piano.reset();
         self.selection.clear();
         self.drag = None;
         self.preview = None;
@@ -538,6 +544,16 @@ impl TimelineView {
         self.rows
             .get(target)
             .map_or(0, |r| r.0 as isize - index as isize)
+    }
+
+    /// The selected MIDI clips, in the order they were selected: the note editor's.
+    pub fn midi_clips(&self) -> Vec<ClipId> {
+        let doc = self.doc.borrow();
+        self.selection
+            .iter()
+            .copied()
+            .filter(|&c| edit::clip(doc.project(), c).is_some_and(|c| c.is_midi()))
+            .collect()
     }
 
     /// The selected MIDI clip shown in the piano roll (the last one selected).
@@ -645,8 +661,10 @@ impl TimelineView {
             Action::AutomationEditor => {
                 if self.auto_editor.take().is_none() {
                     self.auto_editor = Some(auto_editor::AutoEditor::at(self.zoom, self.scroll));
+                    self.notes.open = false;
                 }
             }
+            Action::NoteEditor => self.toggle_note_editor(),
             Action::ZoomToSelection => self.zoom_to_selection(&doc),
             Action::Fades => self.fades(&mut doc),
             Action::NextTransient | Action::PreviousTransient => {
@@ -857,6 +875,11 @@ impl TimelineView {
     }
 
     pub fn show(&mut self, ui: &mut Ui, settings: &mut EditSettings) {
+        self.show_timeline(ui, settings);
+        self.note_window(ui.ctx(), settings);
+    }
+
+    fn show_timeline(&mut self, ui: &mut Ui, settings: &mut EditSettings) {
         if let Some(at) = self.pending_midi.take() {
             self.new_midi_clip(Some(at));
         }

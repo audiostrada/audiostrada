@@ -79,8 +79,10 @@ enum Command {
 }
 
 #[derive(Clone, Copy, PartialEq)]
-pub(super) enum Glyph {
+pub(crate) enum Glyph {
     Pencil,
+    Brush,
+    FullScreen,
     Linear,
     Smooth,
     Step,
@@ -167,7 +169,7 @@ fn command_hint(command: Command, glyph: Glyph) -> String {
 }
 
 /// A square button with a glyph; `on` marks the chosen tool.
-pub(super) fn button(ui: &mut Ui, glyph: Glyph, on: bool, text: &str) -> egui::Response {
+pub(crate) fn button(ui: &mut Ui, glyph: Glyph, on: bool, text: &str) -> egui::Response {
     let p = theme::current(ui);
     let (rect, response) = ui.allocate_exact_size(BUTTON, Sense::click());
     let fill = if on {
@@ -191,7 +193,7 @@ pub(super) fn button(ui: &mut Ui, glyph: Glyph, on: bool, text: &str) -> egui::R
     response.on_hover_text(text)
 }
 
-pub(super) fn separator(ui: &mut Ui) {
+pub(crate) fn separator(ui: &mut Ui) {
     let p = theme::current(ui);
     ui.add_space(4.0);
     let (rect, _) = ui.allocate_exact_size(vec2(1.0, 18.0), Sense::hover());
@@ -749,6 +751,14 @@ fn paint(painter: &Painter, rect: Rect, glyph: Glyph, color: Color32) {
             arrow(c, pos2(c.x - 0.75 * s, c.y));
             arrow(c, pos2(c.x + 0.75 * s, c.y));
         }
+        Glyph::FullScreen => {
+            // Four corners pointing out.
+            for (x, y) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+                let corner = pos2(c.x + x * s, c.y + y * 0.8 * s);
+                painter.line_segment([corner, corner - vec2(x * 0.5 * s, 0.0)], stroke);
+                painter.line_segment([corner, corner - vec2(0.0, y * 0.45 * s)], stroke);
+            }
+        }
         Glyph::Shorter | Glyph::Taller => {
             // Rows of tracks: three low ones, or two tall ones.
             let rows = if matches!(glyph, Glyph::Shorter) {
@@ -857,6 +867,16 @@ fn paint(painter: &Painter, rect: Rect, glyph: Glyph, color: Color32) {
                     stroke,
                 );
             }
+        }
+        Glyph::Brush => {
+            painter.line_segment(
+                [
+                    pos2(c.x + 0.8 * s, c.y - 0.8 * s),
+                    pos2(c.x - 0.05 * s, c.y + 0.05 * s),
+                ],
+                Stroke::new(2.0, color),
+            );
+            painter.circle_filled(pos2(c.x - 0.35 * s, c.y + 0.4 * s), 0.42 * s, color);
         }
         Glyph::Scissors => {
             for x in [-1.0, 1.0] {

@@ -129,9 +129,7 @@ impl PianoRoll {
                     ))
                     .clicked()
                 {
-                    let mut notes = scene.notes.clone();
-                    edit::spread_mpe_channels(&mut notes);
-                    self.commit(tr("Spread notes over MPE channels"), notes);
+                    self.spread_channels(scene);
                 }
             }
         }
@@ -148,7 +146,7 @@ impl PianoRoll {
         let (t0, t1) = (frame.t(rect.left()), frame.t(rect.right()));
         let mut order: Vec<usize> = (0..scene.notes.len()).collect();
         let mask = self.mask(scene.notes.len());
-        order.sort_by_key(|&i| mask[i]);
+        order.sort_by_key(|&i| (mask[i], !scene.dimmed(i)));
         let hovered = self.hovered;
         for i in order {
             let n = &scene.notes[i];
@@ -159,8 +157,9 @@ impl PianoRoll {
             let selected = mask[i];
             let x = frame.x(a);
             let y = y_of(value_of(lane, n));
+            let part = scene.owner.get(i).and_then(|&k| scene.parts.get(k));
             let color = super::canvas::note_fill(
-                scene.color,
+                part.map_or(scene.color, |p| p.color),
                 if lane == Lane::Velocity {
                     n.velocity
                 } else {
@@ -170,6 +169,11 @@ impl PianoRoll {
             );
             let color = if n.muted {
                 p.weak.gamma_multiply(0.5)
+            } else {
+                color
+            };
+            let color = if scene.dimmed(i) && !selected {
+                color.gamma_multiply(super::canvas::FAINT)
             } else {
                 color
             };
@@ -249,7 +253,12 @@ impl PianoRoll {
                     line: modifiers.shift,
                 },
             };
-            self.drag = Some(Drag::new(kind, pos, scene.notes.clone()));
+            self.drag = Some(Drag::new(
+                kind,
+                pos,
+                scene.notes.clone(),
+                scene.owner.clone(),
+            ));
         }
         if response.dragged()
             && let Some(pos) = pointer
@@ -259,7 +268,7 @@ impl PianoRoll {
                 DragKind::Values { line: false } => self
                     .preview
                     .clone()
-                    .unwrap_or_else(|| drag.original.clone()),
+                    .map_or_else(|| drag.original.clone(), |p| p.0),
                 _ => drag.original.clone(),
             };
             let only_selected = !self.selected.is_empty();
@@ -314,7 +323,7 @@ impl PianoRoll {
                 _ => {}
             }
             drag.last = pos;
-            self.preview = Some(edited.clone());
+            self.preview = Some((edited.clone(), drag.owner.clone()));
             scene.notes = edited;
             self.drag = Some(drag);
         }
@@ -334,16 +343,16 @@ impl PianoRoll {
         {
             let mut edited = scene.notes.clone();
             set_value(lane, &mut edited[i], v_of(pos.y));
-            self.commit(lane.name(), edited);
+            self.commit(lane.name(), edited, scene.owner.clone());
         }
         response.context_menu(|ui| self.values_menu(ui, scene));
     }
 
     fn finish_lane(&mut self, drag: Drag) {
-        if let Some(edited) = self.preview.take()
+        if let Some((edited, owner)) = self.preview.take()
             && edited != drag.original
         {
-            self.commit(self.lane.name(), edited);
+            self.commit(self.lane.name(), edited, owner);
         }
     }
 
@@ -355,7 +364,7 @@ impl PianoRoll {
             if ui.button(label).clicked() {
                 let mut notes = scene.notes.clone();
                 f(&mut notes);
-                this.commit(lane.name(), notes);
+                this.commit(lane.name(), notes, scene.owner.clone());
                 ui.close();
             }
         };
@@ -438,10 +447,17 @@ impl PianoRoll {
             return;
         }
         let channel = note.map_or_else(|| self.lane_channel(&scene.notes), |n| n.channel);
-        let span = note.map(|n| (n.start, n.start + n.length));
+        // The note in its clip's time, as the controllers are.
+        let origin = scene.clip_origin;
+        let span = note.map(|n| {
+            (
+                n.start.saturating_sub(origin),
+                (n.start + n.length).saturating_sub(origin),
+            )
+        });
         if let Some((a, b)) = span {
             let band = Rect::from_x_y_ranges(
-                frame.x(scene.origin + a)..=frame.x(scene.origin + b),
+                frame.x(scene.clip_origin + a)..=frame.x(scene.clip_origin + b),
                 rect.y_range(),
             );
             painter.rect_filled(band, 0.0, scene.color.gamma_multiply(0.12));
@@ -469,11 +485,11 @@ impl PianoRoll {
         let color = scene.color;
         let mut shape: Vec<Pos2> = Vec::new();
         for (i, c) in mine.iter().enumerate() {
-            let x = frame.x(scene.origin + c.time);
+            let x = frame.x(scene.clip_origin + c.time);
             let y = y_of(c.value);
             let next = mine
                 .get(i + 1)
-                .map_or(rect.right(), |n| frame.x(scene.origin + n.time));
+                .map_or(rect.right(), |n| frame.x(scene.clip_origin + n.time));
             shape.push(pos2(x, y));
             shape.push(pos2(next, y));
         }
@@ -484,7 +500,7 @@ impl PianoRoll {
             painter.add(Shape::line(shape.clone(), Stroke::new(2.0, color)));
             for c in &mine {
                 painter.circle_filled(
-                    pos2(frame.x(scene.origin + c.time), y_of(c.value)),
+                    pos2(frame.x(scene.clip_origin + c.time), y_of(c.value)),
                     3.0,
                     color,
                 );
@@ -498,7 +514,7 @@ impl PianoRoll {
         let modifiers = ui.input(|i| i.modifiers);
         let pointer = response.interact_pointer_pos();
         let clip_time = |x: f32| -> u64 {
-            let t = frame.t(x).saturating_sub(scene.origin);
+            let t = frame.t(x).saturating_sub(scene.clip_origin);
             match span {
                 Some((a, b)) => t.clamp(a, b),
                 None => t,
@@ -514,6 +530,7 @@ impl PianoRoll {
                 },
                 pos,
                 Vec::new(),
+                Vec::new(),
             ));
         }
         if response.dragged()
@@ -525,7 +542,10 @@ impl PianoRoll {
                 .is_some_and(|d| d.kind == DragKind::Values { line: true });
             let start = self.drag.as_ref().map_or(pos, |d| d.origin);
             let step = self
-                .step(&scene.project, scene.origin + clip_time(start.x.min(pos.x)))
+                .step(
+                    &scene.project,
+                    scene.clip_origin + clip_time(start.x.min(pos.x)),
+                )
                 .max(2)
                 / 2;
             if let Some((drawn, last)) = &mut self.drawing {
@@ -582,7 +602,7 @@ impl PianoRoll {
         if response.drag_stopped() {
             self.drag = None;
             if let Some((drawn, _)) = self.drawing.take()
-                && let Some(id) = self.clip
+                && let Some(id) = Some(scene.clip.id)
             {
                 self.doc
                     .borrow_mut()
@@ -594,13 +614,13 @@ impl PianoRoll {
             points.iter().position(|c| {
                 c.controller == controller
                     && c.channel == channel
-                    && (frame.x(scene.origin + c.time) - pos.x).abs() < 6.0
+                    && (frame.x(scene.clip_origin + c.time) - pos.x).abs() < 6.0
                     && (y_of(c.value) - pos.y).abs() < 8.0
             })
         };
         if response.double_clicked()
             && let Some(i) = pointer.and_then(nearest)
-            && let Some(id) = self.clip
+            && let Some(id) = Some(scene.clip.id)
         {
             let mut edited = points.clone();
             edited.remove(i);
@@ -612,11 +632,11 @@ impl PianoRoll {
                 });
         } else if response.clicked()
             && let Some(pos) = pointer
-            && let Some(id) = self.clip
+            && let Some(id) = Some(scene.clip.id)
         {
             let t = self
-                .snap(&scene.project, scene.origin + clip_time(pos.x), false)
-                .saturating_sub(scene.origin);
+                .snap(&scene.project, scene.clip_origin + clip_time(pos.x), false)
+                .saturating_sub(scene.clip_origin);
             let t = span.map_or(t, |(a, b)| t.clamp(a, b));
             let mut edited = points.clone();
             edited.retain(|c| c.controller != controller || c.channel != channel || c.time != t);

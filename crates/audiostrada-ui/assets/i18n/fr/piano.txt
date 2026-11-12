@@ -348,3 +348,64 @@ Sans gamme : accords majeurs. Choisir une gamme pour des accords qui s'accordent
 
 Notes snap to the grid; hold Ctrl to place freely
 Les notes s'aimantent à la grille ; maintenir Ctrl pour les placer librement
+
+Drag across a span to fill the view with it, click to zoom in
+Glisser sur une zone pour qu'elle remplisse la vue, cliquer pour zoomer
+
+Click: add a note · Drag right: set its length · Drag a note: move it · Drag an edge: resize it · Ctrl: place freely
+Clic : ajouter une note · Glisser vers la droite : régler sa durée · Glisser une note : la déplacer · Glisser un bord : la redimensionner · Ctrl : placer librement
+
+Click a note: select it · Drag: select in a rectangle · Drag a note: move it (Alt: copy) · Drag an edge: resize it · Double-click: add a note
+Clic sur une note : la sélectionner · Glisser : sélectionner dans un rectangle · Glisser une note : la déplacer (Alt : copier) · Glisser un bord : la redimensionner · Double-clic : ajouter une note
+
+Drag: paint a note on each grid step, up and down too
+Glisser : peindre une note à chaque pas de la grille, vers le haut et le bas aussi
+
+Click a note: cut it there (the selected ones under it too)
+Clic sur une note : la couper là (les notes sélectionnées dessous aussi)
+
+Click a note: remove it · Drag: remove the notes passed over
+Clic sur une note : la supprimer · Glisser : supprimer les notes survolées
+
+Drag across a span: fill the view with it · Click: zoom in · Alt+click or right-click: zoom out · Shift+wheel: move in time
+Glisser sur une zone : elle remplit la vue · Clic : zoomer · Alt+clic ou clic droit : dézoomer · Shift+molette : avancer dans le temps
+
+Pencil: click adds a note, drag right sets its length; drag a note to move it
+Crayon : un clic ajoute une note, glisser vers la droite règle sa durée ; glisser une note la déplace
+
+Selection: click a note or drag a rectangle; drag what is selected to move it (Alt: copy), an edge to resize it
+Sélection : cliquer une note ou glisser un rectangle ; glisser la sélection pour la déplacer (Alt : copier), un bord pour la redimensionner
+
+Brush: drag to paint a note on each grid step
+Pinceau : glisser pour peindre une note à chaque pas de la grille
+
+Scissors: click a note to cut it there
+Ciseaux : cliquer une note pour la couper là
+
+Eraser: click a note or drag over notes to remove them
+Gomme : cliquer une note ou glisser sur des notes pour les supprimer
+
+Delete the selected notes
+Supprimer les notes sélectionnées
+
+Tracks
+Pistes
+
++ Add a track
++ Ajouter une piste
+
+Take this track out of the editor
+Retirer cette piste de l'éditeur
+
+New notes go to the active track; click to make it active
+Les nouvelles notes vont dans la piste active ; cliquer pour la rendre active
+
+Edit the notes of another track here too
+Éditer ici aussi les notes d'une autre piste
+
+Chord: {chord}
+Accord : {chord}
+
+Chord: off
+Accord : aucun
+
