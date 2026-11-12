@@ -6532,3 +6532,12 @@ LFO, enveloppe et jeu
 
 In the advanced view, drag a colored source (LFO, envelope, velocity...) onto a knob to modulate it
 Dans la vue avancée, glissez une source colorée (LFO, enveloppe, vélocité...) sur un potard pour le moduler
+
+Bass: Trap sub
+Basse : Sub trap
+
+Bell: Soft
+Cloche : Douce
+
+Same octave
+Même octave

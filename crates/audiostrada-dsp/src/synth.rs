@@ -46,7 +46,7 @@ pub const INFO: EffectInfo = EffectInfo {
 
 pub const WAVES: [&str; 5] = ["Saw", "Square", "Sine", "Triangle", "Wavetable"];
 pub const WAVETABLE: u32 = 4;
-pub const SUB_OCTAVES: [&str; 2] = ["-1 octave", "-2 octaves"];
+pub const SUB_OCTAVES: [&str; 3] = ["-1 octave", "-2 octaves", "Same octave"];
 pub const MODES: [&str; 3] = ["Poly", "Mono", "Legato"];
 pub const FILTERS: [&str; 6] = [
     "Low-pass 12 dB",
@@ -793,6 +793,9 @@ impl Random {
 pub struct Synth {
     rate: f32,
     values: [f32; COUNT],
+    /// The settings as heard: those that turn glide to their values over a few milliseconds,
+    /// so that a knob turned never steps.
+    heard: [f32; COUNT],
     voices: [Voice; VOICES],
     channels: [ChannelState; 16],
     clock: u64,
@@ -897,6 +900,10 @@ impl Effects {
         if self.1[k] == value {
             return;
         }
+        // One that comes back in starts clean, not on what it held when it was left.
+        if self.1[k] <= 0.0 {
+            self.0[k].reset();
+        }
         self.1[k] = value;
         let id = ["chorus", "delay", "reverb"][k];
         if let Some(i) =
@@ -912,6 +919,7 @@ impl Default for Synth {
         Self {
             rate: 48_000.0,
             values: PARAMS.map(|p| p.default),
+            heard: PARAMS.map(|p| p.default),
             voices: [Voice::default(); VOICES],
             channels: [ChannelState::default(); 16],
             clock: 0,
@@ -941,10 +949,66 @@ fn routes_fm(v: &[f32; COUNT]) -> bool {
     })
 }
 
+/// Samples rendered with the same settings, and how long a setting takes to reach a new value.
+const STRETCH: usize = 32;
+const SETTLE_MS: f32 = 12.0;
+
+/// Whether a setting glides to a new value: those that are amounts, not choices, switches,
+/// counts or the times of the envelopes.
+const fn glides(index: usize) -> bool {
+    let info = &PARAMS[index];
+    if info.toggle || !info.choices.is_empty() {
+        return false;
+    }
+    !matches!(
+        index,
+        p::ATTACK
+            | p::DECAY
+            | p::RELEASE
+            | p::BEND_RANGE
+            | p::OSC1_OCTAVE
+            | p::OSC1_SEMI
+            | p::OSC1_VOICES
+            | p::OSC2_OCTAVE
+            | p::OSC2_SEMI
+            | p::OSC2_VOICES
+            | p::GLIDE
+            | p::ARP_OCTAVES
+            | p::ARP_GATE
+    ) && !(index >= p::ENV2 && index < p::ENV2 + 4)
+}
+
 impl Synth {
+    /// Moves what is heard of the settings toward their values, for the next `frames`.
+    fn glide_settings(&mut self, frames: usize) {
+        let k = 1.0 - (-(frames as f32) * 1000.0 / (SETTLE_MS * self.rate)).exp();
+        for i in 0..COUNT {
+            let (to, now) = (self.values[i], self.heard[i]);
+            if to == now {
+                continue;
+            }
+            if !glides(i) {
+                self.heard[i] = to;
+                continue;
+            }
+            let range = (PARAMS[i].max - PARAMS[i].min).abs().max(1e-6);
+            // The cutoff glides in pitch, as it is heard.
+            let next = if i == p::CUTOFF && now > 0.0 && to > 0.0 {
+                now * (to / now).powf(k)
+            } else {
+                now + (to - now) * k
+            };
+            self.heard[i] = if (to - next).abs() < range * 1e-4 {
+                to
+            } else {
+                next
+            };
+        }
+    }
+
     /// What the macros and the mod wheel add to the targets of the whole instrument.
     fn global(&self) -> [f32; TARGETS.len()] {
-        let v = &self.values;
+        let v = &self.heard;
         let mut g = [0.0f32; TARGETS.len()];
         let mut wheel = None;
         for k in 0..SLOTS {
@@ -979,12 +1043,12 @@ impl Synth {
             (p::DELAY, target::DELAY),
             (p::REVERB, target::REVERB),
         ]
-        .map(|(mix, to)| (self.values[mix] + g[to] * 100.0).clamp(0.0, 100.0))
+        .map(|(mix, to)| (self.heard[mix] + g[to] * 100.0).clamp(0.0, 100.0))
     }
 
     /// The voices, into `left` and `right`.
     fn render(&mut self, left: &mut [f32], right: &mut [f32]) {
-        let v = self.values;
+        let v = self.heard;
         let g = self.global();
         let per_ms = 1000.0 / self.rate;
         // A macro stretches a time a hundredfold (decay and release thirtyfold) at full amount.
@@ -1040,7 +1104,11 @@ impl Synth {
         // Oscillator 2 runs even unheard while it shapes oscillator 1.
         let drives = fm > 0.0 || sync || ring > 0.0 || routes_fm(&v);
         let sub_level = v[p::SUB_LEVEL] / 100.0;
-        let sub_ratio = if v[p::SUB_OCTAVE] >= 0.5 { 0.25 } else { 0.5 };
+        let sub_ratio = match v[p::SUB_OCTAVE].round() as i32 {
+            1 => 0.25,
+            2 => 1.0,
+            _ => 0.5,
+        };
         let noise = v[p::NOISE] / 100.0;
         let spread = v[p::SPREAD] / 100.0;
         let drift = v[p::DRIFT] / 100.0;
@@ -1076,10 +1144,10 @@ impl Synth {
         let lfos: [(usize, f32); 2] = std::array::from_fn(|l| {
             let base = p::LFO + l * p::LFO_FIELDS;
             let shape = (v[base].round().max(0.0) as usize).min(SHAPES.len() - 1);
-            // A macro speeds an LFO up to eightfold, a synced one by whole doublings.
+            // A macro speeds an LFO up to eightfold.
             let faster = g[target::LFO_RATE + l] * 3.0;
             let hz = if v[base + 2] >= 0.5 {
-                2f32.powf(faster.round()) / synced_seconds(v[base + 3], self.bpm).max(0.01)
+                2f32.powf(faster) / synced_seconds(v[base + 3], self.bpm).max(0.01)
             } else {
                 v[base + 1] * 2f32.powf(faster)
             };
@@ -1270,13 +1338,16 @@ impl Synth {
                 }
                 let sub_level = (sub_level + m[target::SUB]).clamp(0.0, 2.0);
                 let noise = (noise + m[target::NOISE]).clamp(0.0, 2.0);
-                if sub_level > 0.0 {
+                // The sub stays a pure sine: it joins the oscillators after the filter and
+                // its drive, which would only blur it.
+                let sub_now = if sub_level > 0.0 {
                     let dt = note_dt * sub_ratio;
                     let s = (voice.sub * std::f32::consts::TAU).sin() * sub_level;
                     voice.sub = (voice.sub + dt).fract();
-                    out[0] += s;
-                    out[1] += s;
-                }
+                    s
+                } else {
+                    0.0
+                };
                 if noise > 0.0 {
                     out[0] += random.next() * noise * 0.5;
                     out[1] += random.next() * noise * 0.5;
@@ -1296,7 +1367,8 @@ impl Synth {
                 voice.cutoff = fc;
                 for (side, x) in out.into_iter().enumerate() {
                     let state = &mut voice.filter[side];
-                    let y = filter(state, kind, x, fc, self.rate, resonance, drive) * amp;
+                    let y =
+                        (filter(state, kind, x, fc, self.rate, resonance, drive) + sub_now) * amp;
                     let y = if y.is_finite() {
                         y
                     } else {
@@ -1595,6 +1667,7 @@ impl Effect for Synth {
         self.rate = sample_rate as f32;
         self.voices = [Voice::default(); VOICES];
         self.held_count = 0;
+        self.heard = self.values;
         for effect in &mut self.effects.0 {
             effect.prepare(sample_rate, max_frames);
         }
@@ -1679,18 +1752,27 @@ impl Effect for Synth {
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
-        if self.values[p::ARP] >= 0.5 {
-            self.arpeggiate(left, right);
-        } else {
-            self.render(left, right);
-        }
-        // The effects, only those turned up, by their knob or by a macro.
-        let mixes = self.mixes();
-        for (k, mix) in mixes.into_iter().enumerate() {
-            self.effects.mix(k, mix);
-            if mix > 0.0 {
-                self.effects.0[k].process(left, right);
+        // By short stretches, the settings gliding from one to the next: a knob turned (or a
+        // macro, which moves several at once) is never heard stepping.
+        let mut at = 0;
+        while at < left.len() {
+            let n = STRETCH.min(left.len() - at);
+            let (l, r) = (&mut left[at..at + n], &mut right[at..at + n]);
+            self.glide_settings(n);
+            if self.values[p::ARP] >= 0.5 {
+                self.arpeggiate(l, r);
+            } else {
+                self.render(l, r);
             }
+            // The effects, only those turned up, by their knob or by a macro.
+            let mixes = self.mixes();
+            for (k, mix) in mixes.into_iter().enumerate() {
+                self.effects.mix(k, mix);
+                if mix > 0.0 {
+                    self.effects.0[k].process(l, r);
+                }
+            }
+            at += n;
         }
     }
 
@@ -1756,6 +1838,7 @@ impl Effect for Synth {
         }
         self.channels = [ChannelState::default(); 16];
         self.held_count = 0;
+        self.heard = self.values;
         for effect in &mut self.effects.0 {
             effect.reset();
         }
@@ -2335,5 +2418,46 @@ mod tests {
         };
         assert!(by_macro(0.0) < 1e-6);
         assert!((by_macro(100.0) - full).abs() < 0.05);
+    }
+
+    #[test]
+    fn a_knob_turned_while_a_note_plays_never_steps() {
+        // The largest jump from one sample to the next once a setting changes at a block's
+        // edge: the wave's own slope, not a step.
+        let jump = |index: usize, to: f32, settings: &[(usize, f32)]| {
+            let mut s = synth(settings);
+            s.midi(&MidiEvent::note_on(0, 0, 57, 100));
+            let (before, _) = stereo(&mut s, 40);
+            s.set_param(index, to);
+            let (after, _) = stereo(&mut s, 8);
+            let slope = |x: &[f32]| {
+                x.windows(2)
+                    .map(|w| (w[1] - w[0]).abs())
+                    .fold(0.0f32, f32::max)
+            };
+            let seam = (after[0] - before[before.len() - 1]).abs();
+            (seam.max(slope(&after[..512])), slope(&before[4800..]))
+        };
+        // The volume up by 12 dB: the wave grows, it does not jump.
+        let (turned, steady) = jump(p::VOLUME, 0.0, &[(p::VOLUME, -12.0)]);
+        assert!(turned < steady * 4.5, "{turned} against {steady}");
+        // A macro opening the filter of a saw by five octaves at once.
+        let macro_cutoff = [
+            [(p::WAVE, 0.0), (p::CUTOFF, 300.0), (p::RESONANCE, 60.0)].as_slice(),
+            &route(0, FIRST_MACRO, target::CUTOFF, 100.0),
+        ]
+        .concat();
+        let (turned, _) = jump(p::MACROS, 100.0, &macro_cutoff);
+        let (open, _) = jump(
+            p::MACROS,
+            100.0,
+            &[macro_cutoff.as_slice(), &[(p::MACROS, 100.0)]].concat(),
+        );
+        assert!(turned < open * 1.5, "{turned} against {open}");
+        // What is heard does reach the value.
+        let mut s = synth(&[]);
+        s.set_param(p::VOLUME, 0.0);
+        stereo(&mut s, 40);
+        assert_eq!(s.heard[p::VOLUME], 0.0);
     }
 }
