@@ -39,8 +39,11 @@ pub struct SynthState {
     targets: Vec<(Rect, usize)>,
     /// What the newest note does, read from the meters.
     live: Live,
-    /// The view the window was last sized for.
-    sized: Option<View>,
+    /// The picture of the sound in the simple view: the one chosen by a click (else the
+    /// family's), the one before that click, and whether it has the whole window.
+    picture: Option<Picture>,
+    picture_before: Option<Picture>,
+    immersive: bool,
     /// The ready-made sounds, to tell which one plays, and the one that does.
     sounds: Option<Vec<(u64, Sound)>>,
     sound: Option<Sound>,
@@ -89,7 +92,9 @@ impl Default for SynthState {
             dragging: None,
             targets: Vec::new(),
             live: Live::default(),
-            sized: None,
+            picture: None,
+            picture_before: None,
+            immersive: false,
             sounds: None,
             sound: None,
             ridges: std::collections::VecDeque::new(),
@@ -401,7 +406,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
     state.live = live.clone();
     ui.ctx()
         .data_mut(|d| d.insert_temp(egui::Id::unique("synth-live-mods"), live.mods.clone()));
-    let view = view_switch(ui, state);
+    let (view, expert) = view_switch(ui);
     // Every row gets the same width, whatever a cell may have pushed out.
     let full = ui.available_width();
     // The ready-made sound these settings are, if any.
@@ -409,20 +414,32 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
     let known = state.sounds.get_or_insert_with(known_sounds);
     state.sound = known.iter().find(|s| s.0 == print).map(|s| s.1.clone());
     match view {
+        View::Simple if state.immersive => {
+            // The picture alone, over the keyboard.
+            let height = (ui.available_height() - KEYBOARD_HEIGHT - 44.0).max(PICTURE_HEIGHT);
+            picture(ui, meters, state, height);
+            ui.add_space(GAP);
+        }
         View::Simple => {
-            landscape(ui, meters, state);
+            picture(ui, meters, state, PICTURE_HEIGHT);
             ui.add_space(GAP);
             simple_face(ui, params, state, full);
         }
-        View::Advanced { expert } => {
+        View::Macros => {
             hero(ui, meters, &live);
             ui.add_space(GAP);
-            advanced_face(ui, params, state, full, &live, expert);
+            macros_face(ui, params, full);
         }
-        View::Modulation => {
+        _ => {
             hero(ui, meters, &live);
             ui.add_space(GAP);
-            modulation_face(ui, params, full);
+            match view {
+                View::Oscillators => oscillators_face(ui, params, state, full, expert),
+                View::Filter => filter_face(ui, params, state, full, &live, expert),
+                View::Modulation => lfos_face(ui, params, state, full, expert),
+                _ => effects_face(ui, params, state, full),
+            }
+            sources_line(ui, params, state);
         }
     }
     keyboard(ui, params, state);
@@ -432,7 +449,8 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
 
 /// Development aid: with `AUDIOSTRADA_SCREENSHOT_SYNTH` set, opens Strada-Synth's window on the
 /// sound named by `AUDIOSTRADA_SCREENSHOT_SOUND` (in the view of `AUDIOSTRADA_SCREENSHOT_VIEW`:
-/// `advanced`, `expert` or `modulation`) and holds a chord, for a capture of the window from outside.
+/// `oscillators`, `filter`, `modulation`, `effects` or `macros`, with the expert controls when
+/// `AUDIOSTRADA_SCREENSHOT_EXPERT` is set) and holds a chord, for a capture of the window from outside.
 pub(crate) mod shot {
     use super::*;
     use std::cell::Cell;
@@ -512,13 +530,21 @@ pub(crate) mod shot {
         };
         if frame == 1 {
             let view = std::env::var("AUDIOSTRADA_SCREENSHOT_VIEW").unwrap_or_default();
+            let at = [
+                "",
+                "oscillators",
+                "filter",
+                "modulation",
+                "effects",
+                "macros",
+            ]
+            .iter()
+            .position(|v| *v == view)
+            .unwrap_or(0);
+            let expert = std::env::var_os("AUDIOSTRADA_SCREENSHOT_EXPERT").is_some();
             ctx.data_mut(|d| {
-                d.insert_temp(
-                    egui::Id::unique("synth-advanced"),
-                    view == "advanced" || view == "expert",
-                );
-                d.insert_temp(egui::Id::unique("synth-modulation"), view == "modulation");
-                d.insert_temp(egui::Id::unique("synth-expert"), view == "expert");
+                d.insert_temp(View::id(), at);
+                d.insert_temp(View::expert_id(), expert);
             });
         }
         if frame == 20 {
@@ -684,48 +710,86 @@ fn wavetable_file(ui: &mut Ui, params: &mut Params, n: usize) {
     });
 }
 
-/// The views of the synth.
+/// The views of the synth: the first to play it, the next four its controls by what they do,
+/// the last its macros.
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum View {
-    /// The sound, its macros and its effects.
+pub(crate) enum View {
     Simple,
-    /// Every control; with the ones few sounds need when expert.
-    Advanced { expert: bool },
-    /// The macros and what modulates what.
+    Oscillators,
+    Filter,
     Modulation,
+    Effects,
+    Macros,
 }
 
-/// The switch between the views, shared by every synth, and in the advanced one the switch
-/// that shows the expert controls; the window takes the size of the view chosen.
-fn view_switch(ui: &mut Ui, state: &mut SynthState) -> View {
-    let id = egui::Id::unique("synth-advanced");
-    let expert_id = egui::Id::unique("synth-expert");
-    let modulation_id = egui::Id::unique("synth-modulation");
-    let flag = |id: egui::Id| ui.ctx().data(|d| d.get_temp::<bool>(id)).unwrap_or(false);
-    let mut expert = flag(expert_id);
-    let mut view = match (flag(modulation_id), flag(id)) {
-        (true, _) => View::Modulation,
-        (false, true) => View::Advanced { expert },
-        (false, false) => View::Simple,
-    };
-    ui.horizontal(|ui| {
-        for (tab, label, hint) in [
-            (
-                View::Simple,
-                "Simple",
-                "The sound, its four macros and its effects",
+impl View {
+    const ALL: [View; 6] = [
+        View::Simple,
+        View::Oscillators,
+        View::Filter,
+        View::Modulation,
+        View::Effects,
+        View::Macros,
+    ];
+
+    /// Where the view chosen is kept, for every synth: its place in [`View::ALL`].
+    pub(crate) fn id() -> egui::Id {
+        egui::Id::unique("synth-view")
+    }
+
+    /// Where the expert controls' switch is kept.
+    pub(crate) fn expert_id() -> egui::Id {
+        egui::Id::unique("synth-expert")
+    }
+
+    fn name(self) -> (&'static str, &'static str) {
+        match self {
+            View::Simple => ("Simple", "The sound, its macros and its effects"),
+            View::Oscillators => (
+                "Oscillators",
+                "The two oscillators, their wavetables, the sub and the noise",
             ),
-            (
-                View::Advanced { expert },
-                "Advanced",
-                "Every control: oscillators, filter, envelopes, LFOs, effects",
+            View::Filter => (
+                "Filter and envelope",
+                "The filter, the envelope, how the notes follow each other and the output",
             ),
-            (
-                View::Modulation,
+            View::Modulation => (
                 "Modulation",
-                "The macros, what each one moves, and what else modulates the sound",
+                "The LFOs, the second envelope, and what they and the playing modulate",
             ),
-        ] {
+            View::Effects => (
+                "Arpeggiator and effects",
+                "The arpeggiator, the chorus, the delay and the reverb",
+            ),
+            View::Macros => (
+                "Macros",
+                "The four macros of the simple view: their names and what each one moves",
+            ),
+        }
+    }
+
+    /// The views of the synth's controls, where sources are dragged onto knobs and the
+    /// expert controls show.
+    fn controls(self) -> bool {
+        !matches!(self, View::Simple | View::Macros)
+    }
+}
+
+/// The switch between the views, and in those of the controls the switch that shows the
+/// expert ones. Returns the view and whether the expert's controls show.
+fn view_switch(ui: &mut Ui) -> (View, bool) {
+    let at = ui
+        .ctx()
+        .data(|d| d.get_temp::<usize>(View::id()))
+        .unwrap_or(0);
+    let mut view = View::ALL[at.min(View::ALL.len() - 1)];
+    let mut expert = ui
+        .ctx()
+        .data(|d| d.get_temp::<bool>(View::expert_id()))
+        .unwrap_or(false);
+    ui.horizontal(|ui| {
+        for tab in View::ALL {
+            let (label, hint) = tab.name();
             let text = RichText::new(tr(label)).size(12.5);
             if ui
                 .add(egui::Button::selectable(view == tab, text))
@@ -734,8 +798,12 @@ fn view_switch(ui: &mut Ui, state: &mut SynthState) -> View {
             {
                 view = tab;
             }
+            // The simple view and the macros stand apart from the controls.
+            if matches!(tab, View::Simple | View::Effects) {
+                ui.add_space(10.0);
+            }
         }
-        if matches!(view, View::Advanced { .. }) {
+        if view.controls() {
             ui.add_space(8.0);
             let response = pill_switch(ui, expert, tr("Expert")).on_hover_text(tr(
                 "Shows the controls few sounds need: fine tuning, FM, sync and ring, key \
@@ -744,37 +812,16 @@ fn view_switch(ui: &mut Ui, state: &mut SynthState) -> View {
             if response.clicked() {
                 expert = !expert;
             }
-            view = View::Advanced { expert };
         }
     });
     ui.ctx().data_mut(|d| {
-        d.insert_temp(id, matches!(view, View::Advanced { .. }));
-        d.insert_temp(expert_id, expert);
-        d.insert_temp(modulation_id, view == View::Modulation);
+        let at = View::ALL.iter().position(|v| *v == view).unwrap_or(0);
+        d.insert_temp(View::id(), at);
+        d.insert_temp(View::expert_id(), expert);
     });
-    if state.sized != Some(view) {
-        state.sized = Some(view);
-        let height = match view {
-            View::Simple => SIMPLE_HEIGHT,
-            View::Advanced { expert: false } => ADVANCED_HEIGHT,
-            View::Advanced { expert: true } => EXPERT_HEIGHT,
-            View::Modulation => MODULATION_HEIGHT,
-        };
-        let width = ui
-            .ctx()
-            .input(|i| i.viewport().inner_rect.map_or(1180.0, |r| r.width()));
-        ui.ctx()
-            .send_viewport_cmd(egui::ViewportCommand::InnerSize(vec2(width, height)));
-    }
     ui.add_space(4.0);
-    view
+    (view, expert)
 }
-
-/// Window heights that show each view whole, keyboard included.
-const SIMPLE_HEIGHT: f32 = 720.0;
-const ADVANCED_HEIGHT: f32 = 900.0;
-const EXPERT_HEIGHT: f32 = 1040.0;
-const MODULATION_HEIGHT: f32 = 760.0;
 
 /// A switch of the synth, as a pill with its hint.
 fn pill(ui: &mut Ui, params: &mut Params, id: &str, label: &'static str, hint: &'static str) {
@@ -790,8 +837,59 @@ fn pill(ui: &mut Ui, params: &mut Params, id: &str, label: &'static str, hint: &
 const ARP_HINT: &str = "Plays the held keys one after the other, in time";
 const HOLD_HINT: &str = "Keeps playing once the keys are up, until the next chord";
 
-/// Every control; the ones few sounds need only when `expert`.
-fn advanced_face(
+/// The oscillators, the sub and the noise, then the wavetables; for the expert, fine tuning
+/// and oscillator 2 shaping oscillator 1.
+fn oscillators_face(
+    ui: &mut Ui,
+    params: &mut Params,
+    state: &mut SynthState,
+    full: f32,
+    expert: bool,
+) {
+    let p = theme::current(ui);
+    row(ui, full, &[1, 1, 1], 112.0, |ui, c| match c {
+        0 | 1 => oscillator(ui, params, state, c + 1, !expert),
+        _ => panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                title(ui, tr("Sub and noise"), p.weak);
+                ui.spacing_mut().combo_width = 96.0;
+                choice_box(ui, params, "sub_octave");
+            });
+            ui.add_space(4.0);
+            spread(ui, 2, |ui, k| {
+                let (id, name) = [("sub_level", tr("Sub")), ("noise", tr("Noise"))][k];
+                mod_knob(ui, params, state, id, name);
+            });
+        }),
+    });
+    row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
+        0 | 1 => screen(ui, |ui| wavetable_half(ui, params, state, c + 1)),
+        _ if expert => panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                title(ui, tr("Osc 2 → Osc 1"), p.weak);
+                pill(
+                    ui,
+                    params,
+                    "sync",
+                    "Sync",
+                    "Oscillator 1 starts its cycle again with oscillator 2: tune oscillator \
+                     1 higher, or sweep its pitch, for the tearing sync sound",
+                );
+            });
+            ui.add_space(6.0);
+            spread(ui, 2, |ui, k| {
+                let (id, name) = [("fm", tr("FM")), ("ring", tr("Ring"))][k];
+                mod_knob(ui, params, state, id, name);
+            });
+        }),
+        _ => screen(ui, |ui| {
+            ui.add(egui::Label::new(RichText::new(tr(ABOUT_WAVETABLES)).weak().size(11.0)).wrap());
+        }),
+    });
+}
+
+/// The filter and the envelope, then how the notes follow each other and the output.
+fn filter_face(
     ui: &mut Ui,
     params: &mut Params,
     state: &mut SynthState,
@@ -800,52 +898,6 @@ fn advanced_face(
     expert: bool,
 ) {
     let p = theme::current(ui);
-    // Three columns kept from row to row: the two oscillators' width, then a narrow one.
-    row(ui, full, &[1, 1, 1], 112.0, |ui, c| match c {
-        0 | 1 => oscillator(ui, params, state, c + 1, !expert),
-        _ => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Sub and noise"), p.weak);
-                segmented(ui, params, "sub_octave", &[]);
-            });
-            spread(ui, 2, |ui, k| {
-                let (id, name) = [("sub_level", tr("Sub")), ("noise", tr("Noise"))][k];
-                mod_knob(ui, params, state, id, name);
-            });
-        }),
-    });
-    // A wavetable chosen on an oscillator brings its panel; the expert sees them always,
-    // with oscillator 2 shaping oscillator 1.
-    let tables = ["wave", "osc2_wave"]
-        .map(|w| params.get(w).round() as u32 == audiostrada_dsp::synth::WAVETABLE);
-    if expert || tables.contains(&true) {
-        row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
-            0 | 1 => screen(ui, |ui| wavetable_half(ui, params, state, c + 1)),
-            _ if expert => panel(ui, |ui| {
-                ui.horizontal(|ui| {
-                    title(ui, tr("Osc 2 → Osc 1"), p.weak);
-                    pill(
-                        ui,
-                        params,
-                        "sync",
-                        "Sync",
-                        "Oscillator 1 starts its cycle again with oscillator 2: tune oscillator \
-                         1 higher, or sweep its pitch, for the tearing sync sound",
-                    );
-                });
-                ui.add_space(6.0);
-                spread(ui, 2, |ui, k| {
-                    let (id, name) = [("fm", tr("FM")), ("ring", tr("Ring"))][k];
-                    mod_knob(ui, params, state, id, name);
-                });
-            }),
-            _ => screen(ui, |ui| {
-                ui.add(
-                    egui::Label::new(RichText::new(tr(ABOUT_WAVETABLES)).weak().size(11.0)).wrap(),
-                );
-            }),
-        });
-    }
     row(ui, full, &[1, 1, 1], 128.0, |ui, c| match c {
         0 => panel(ui, |ui| {
             ui.horizontal(|ui| {
@@ -883,6 +935,16 @@ fn advanced_face(
             });
         }),
         _ => panel(ui, |ui| {
+            title(ui, tr("Output"), p.weak);
+            ui.add_space(6.0);
+            spread(ui, 2, |ui, k| {
+                let (id, name) = [("volume", tr("Volume")), ("velocity", tr("Velocity"))][k];
+                mod_knob(ui, params, state, id, name);
+            });
+        }),
+    });
+    row(ui, full, &[2, 1], 100.0, |ui, c| match c {
+        0 => panel(ui, |ui| {
             ui.horizontal(|ui| {
                 title(ui, tr("Voice"), p.weak);
                 segmented(
@@ -896,19 +958,44 @@ fn advanced_face(
                     ],
                 )
             });
-            ui.add_space(6.0);
             let shown = if expert { 3 } else { 1 };
-            spread(ui, shown, |ui, k| {
-                let (id, name) = [
-                    ("glide", tr("Glide")),
-                    ("spread", tr("Stereo")),
-                    ("drift", tr("Drift")),
-                ][k];
-                mod_knob(ui, params, state, id, name);
+            ui.horizontal(|ui| {
+                for k in 0..shown {
+                    let (id, name) = [
+                        ("glide", tr("Glide")),
+                        ("spread", tr("Stereo")),
+                        ("drift", tr("Drift")),
+                    ][k];
+                    mod_knob(ui, params, state, id, name);
+                    ui.add_space(18.0);
+                }
             });
         }),
+        _ if expert => panel(ui, |ui| {
+            ui.horizontal(|ui| {
+                title(ui, tr("Controller"), p.weak);
+                pill(
+                    ui,
+                    params,
+                    "mpe",
+                    "MPE",
+                    "For MPE controllers (Roli Seaboard, LinnStrument, Osmose...), which \
+                     send each note on its own MIDI channel: bend, pressure and slide then \
+                     shape every note on its own. Leave it off for an ordinary keyboard.",
+                );
+            });
+            spread(ui, 1, |ui, _| {
+                mod_knob(ui, params, state, "bend_range", tr("Bend"));
+            });
+        }),
+        _ => {}
     });
-    // What modulates: the two LFOs and the second envelope.
+}
+
+/// What modulates: the two LFOs and the second envelope, then what they and the playing
+/// move.
+fn lfos_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full: f32, expert: bool) {
+    let p = theme::current(ui);
     row(ui, full, &[1, 1, 1], 100.0, |ui, c| match c {
         0 | 1 => lfo(ui, params, state, c + 1, expert),
         _ => panel(ui, |ui| {
@@ -931,26 +1018,15 @@ fn advanced_face(
             });
         }),
     });
-    // The arpeggiator, the effects and the output.
-    row(ui, full, &[1, 1, 1], 100.0, |ui, c| match c {
-        0 => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Arpeggiator"), p.weak);
-                pill(ui, params, "arp", "On", ARP_HINT);
-                pill(ui, params, "arp_hold", "Hold", HOLD_HINT);
-            });
-            spread(ui, 4, |ui, k| {
-                let (id, name) = [
-                    ("arp_mode", tr("Order")),
-                    ("arp_note", tr("Rate")),
-                    ("arp_octaves", tr("Range")),
-                    ("arp_gate", tr("Gate")),
-                ][k];
-                ui.spacing_mut().combo_width = 80.0;
-                wide_knob(ui, params, id, name, 38.0, p.accent);
-            });
-        }),
-        1 => panel(ui, |ui| {
+    row(ui, full, &[3], 64.0, |ui, _| routings(ui, params));
+}
+
+/// The arpeggiator and the effects after the voices.
+fn effects_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full: f32) {
+    let p = theme::current(ui);
+    row(ui, full, &[1, 2], 104.0, |ui, c| match c {
+        0 => panel(ui, |ui| arpeggiator(ui, params, p.accent)),
+        _ => panel(ui, |ui| {
             title(ui, tr("Effects"), p.weak);
             spread(ui, 6, |ui, k| {
                 let (id, name) = [
@@ -961,38 +1037,37 @@ fn advanced_face(
                     ("fx_reverb", tr("Reverb")),
                     ("fx_reverb_decay", tr("Decay")),
                 ][k];
-                ui.spacing_mut().combo_width = 56.0;
-                mod_knob_sized(ui, params, state, id, name, 34.0);
-            });
-        }),
-        _ => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Output"), p.weak);
-                if expert {
-                    pill(
-                        ui,
-                        params,
-                        "mpe",
-                        "MPE",
-                        "For MPE controllers (Roli Seaboard, LinnStrument, Osmose...), which \
-                         send each note on its own MIDI channel: bend, pressure and slide then \
-                         shape every note on its own. Leave it off for an ordinary keyboard.",
-                    );
-                }
-            });
-            let shown = if expert { 3 } else { 2 };
-            spread(ui, shown, |ui, k| {
-                let (id, name) = [
-                    ("volume", tr("Volume")),
-                    ("velocity", tr("Velocity")),
-                    ("bend_range", tr("Bend")),
-                ][k];
+                ui.spacing_mut().combo_width = 72.0;
                 mod_knob(ui, params, state, id, name);
             });
         }),
     });
-    // The macros and what the player does, to drag onto a knob: what they move is told and
-    // set in the Modulation view.
+}
+
+/// The arpeggiator: its switches, then the order, the rate, the range and the gate.
+fn arpeggiator(ui: &mut Ui, params: &mut Params, color: Color32) {
+    let p = theme::current(ui);
+    ui.horizontal(|ui| {
+        title(ui, tr("Arpeggiator"), p.weak);
+        pill(ui, params, "arp", "On", ARP_HINT);
+        pill(ui, params, "arp_hold", "Hold", HOLD_HINT);
+    });
+    spread(ui, 4, |ui, k| {
+        let (id, name) = [
+            ("arp_mode", tr("Order")),
+            ("arp_note", tr("Rate")),
+            ("arp_octaves", tr("Range")),
+            ("arp_gate", tr("Gate")),
+        ][k];
+        ui.spacing_mut().combo_width = 80.0;
+        wide_knob(ui, params, id, name, 38.0, color);
+    });
+}
+
+/// Every source, to drag onto a knob of the view: what each one moves is told and set in the
+/// Modulation and Macros views.
+fn sources_line(ui: &mut Ui, params: &Params, state: &mut SynthState) {
+    let p = theme::current(ui);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
         ui.label(
@@ -1000,6 +1075,9 @@ fn advanced_face(
                 .size(11.0)
                 .color(p.weak),
         );
+        for source in 1..=3 {
+            source_pill(ui, state, source);
+        }
         for k in 0..4 {
             let name = macro_name(params, k);
             source_pill_named(ui, state, k + 7, &name);
@@ -1011,10 +1089,9 @@ fn advanced_face(
     ui.add_space(GAP);
 }
 
-/// The macros, each with what it moves, then what else modulates the sound.
-fn modulation_face(ui: &mut Ui, params: &mut Params, full: f32) {
+/// The macros, each with its name and what it moves.
+fn macros_face(ui: &mut Ui, params: &mut Params, full: f32) {
     use audiostrada_dsp::synth::{FIRST_MACRO, SLOTS, TARGETS, reaches};
-    let p = theme::current(ui);
     let color = source_color(FIRST_MACRO);
     let list = routes(params);
     let most = (0..4)
@@ -1037,7 +1114,7 @@ fn modulation_face(ui: &mut Ui, params: &mut Params, full: f32) {
         let used = ui
             .scope_builder(builder, |ui| {
                 panel(ui, |ui| {
-                    ui.vertical_centered(|ui| macro_knob(ui, params, k, color, true));
+                    ui.vertical_centered(|ui| macro_knob(ui, params, k, color, MACRO_KNOB, true));
                     ui.add_space(6.0);
                     for &(slot, _, _, _) in list.iter().filter(|r| r.1 == source) {
                         let n = slot + 1;
@@ -1108,20 +1185,6 @@ fn modulation_face(ui: &mut Ui, params: &mut Params, full: f32) {
         Sense::hover(),
     );
     ui.add_space(GAP);
-    let others = list.iter().filter(|r| r.1 < FIRST_MACRO).count();
-    row(ui, full, &[3], 64.0, |ui, _| {
-        if others == 0 {
-            panel(ui, |ui| {
-                title(ui, tr("LFOs, envelope and playing"), p.weak);
-                ui.weak(tr(
-                    "In the advanced view, drag a colored source (LFO, envelope, velocity...) \
-                     onto a knob to modulate it",
-                ));
-            });
-        } else {
-            routings(ui, params);
-        }
-    });
 }
 
 /// What a macro is called: the name chosen for it, else what it moves first.
@@ -1141,7 +1204,7 @@ fn macro_name(params: &Params, k: usize) -> String {
         )
 }
 
-/// A macro's name over its knob in the modulation view: clicked, the names to choose from.
+/// A macro's name over its knob in the macros' view: clicked, the names to choose from.
 fn macro_name_menu(ui: &mut Ui, params: &mut Params, k: usize) {
     use audiostrada_dsp::synth::MACRO_NAMES;
     let p = theme::current(ui);
@@ -1183,8 +1246,9 @@ fn macro_targets(params: &Params, k: usize) -> Vec<&'static str> {
         .collect()
 }
 
-/// A macro of the simple view: its name, a large knob in the sound's color, its value.
-fn macro_knob(ui: &mut Ui, params: &mut Params, k: usize, color: Color32, rename: bool) {
+/// A macro: its name (a menu to choose it where `rename`), a large knob in `color` with its
+/// ring, its value.
+fn macro_knob(ui: &mut Ui, params: &mut Params, k: usize, color: Color32, size: f32, rename: bool) {
     let p = theme::current(ui);
     let id = format!("macro{}", k + 1);
     let Some(info) = params.param(&id) else {
@@ -1204,43 +1268,23 @@ fn macro_knob(ui: &mut Ui, params: &mut Params, k: usize, color: Color32, rename
         to_unit(info, value),
         (0.0, 1.0),
         0.0,
-        MACRO_KNOB,
+        size,
         false,
         if moves.is_empty() { p.weak } else { color },
     );
     let changed = changed.map(|t| from_unit(info, t));
     let shown = changed.unwrap_or(value);
-    // Around the knob, a ring in the sound's color filling up with the macro.
     if !moves.is_empty() {
-        let sweep = 0.75 * std::f32::consts::TAU;
-        let start = std::f32::consts::FRAC_PI_2 + (std::f32::consts::TAU - sweep) / 2.0;
-        let center = response.rect.center();
-        let radius = MACRO_KNOB / 2.0 + 7.0;
-        let arc = |to: f32| -> Vec<Pos2> {
-            let steps = 48;
-            (0..=steps)
-                .map(|i| {
-                    let a = start + sweep * to * i as f32 / steps as f32;
-                    center + radius * vec2(a.cos(), a.sin())
-                })
-                .collect()
-        };
-        let painter = ui.painter();
-        painter.add(Shape::line(
-            arc(1.0),
-            Stroke::new(3.0, theme::mix(p.base, color, 0.22)),
-        ));
-        let turned = to_unit(info, shown);
-        if turned > 0.004 {
-            painter.add(Shape::line(
-                arc(turned),
-                Stroke::new(7.0, color.gamma_multiply(0.18)),
-            ));
-            painter.add(Shape::line(arc(turned), Stroke::new(3.0, color)));
-        }
+        ring(
+            ui,
+            response.rect.center(),
+            size,
+            to_unit(info, shown),
+            color,
+        );
     }
     let hint = if moves.is_empty() {
-        tr("This macro moves nothing yet: give it a target in the Modulation view").to_owned()
+        tr("This macro moves nothing yet: give it a target in the Macros view").to_owned()
     } else {
         trf!(
             "{name} moves: {targets}. Right-click to assign a MIDI controller",
@@ -1262,8 +1306,85 @@ fn macro_knob(ui: &mut Ui, params: &mut Params, k: usize, color: Color32, rename
 /// Diameter of the macros of the simple view.
 const MACRO_KNOB: f32 = 68.0;
 
-/// The sound and what plays it best: its four macros, large, then the envelope's two ends,
-/// the effects and the volume.
+/// A setting of the sound itself among the macros of the simple view: a smaller knob, with
+/// the same ring.
+fn plain_knob(ui: &mut Ui, params: &mut Params, id: &str, label: &str, color: Color32) {
+    let p = theme::current(ui);
+    let Some(info) = params.param(id) else {
+        return;
+    };
+    let value = params.get(id);
+    ui.add_space(MACRO_KNOB - SIDE_KNOB);
+    ui.label(RichText::new(label).size(12.5).strong().color(p.text));
+    ui.add_space(8.0);
+    let (changed, response) = crate::widgets::knob(
+        ui,
+        to_unit(info, value),
+        (0.0, 1.0),
+        to_unit(info, info.default),
+        SIDE_KNOB,
+        false,
+        color,
+    );
+    let changed = changed.map(|t| from_unit(info, t));
+    let shown = changed.unwrap_or(value);
+    ring(
+        ui,
+        response.rect.center(),
+        SIDE_KNOB,
+        to_unit(info, shown),
+        color,
+    );
+    let response = response.on_hover_text(trf!(
+        "{name}: {value}. Right-click to assign a MIDI controller",
+        name = tr(info.name),
+        value = format!("{shown:.0} %")
+    ));
+    params.set(id, changed, &response);
+    ui.add_space(8.0);
+    ui.label(
+        RichText::new(format!("{shown:.0} %"))
+            .monospace()
+            .size(11.0)
+            .color(p.weak),
+    );
+}
+
+/// Diameter of the sub's and the noise's knobs beside the macros.
+const SIDE_KNOB: f32 = 50.0;
+
+/// Around a large knob of `diameter`, a ring in `color` filled up to `turned` (0 to 1).
+fn ring(ui: &Ui, center: Pos2, diameter: f32, turned: f32, color: Color32) {
+    let p = theme::current(ui);
+    let sweep = 0.75 * std::f32::consts::TAU;
+    let start = std::f32::consts::FRAC_PI_2 + (std::f32::consts::TAU - sweep) / 2.0;
+    let radius = diameter / 2.0 + 7.0;
+    let arc = |to: f32| -> Vec<Pos2> {
+        let steps = 48;
+        (0..=steps)
+            .map(|i| {
+                let a = start + sweep * to * i as f32 / steps as f32;
+                center + radius * vec2(a.cos(), a.sin())
+            })
+            .collect()
+    };
+    let painter = ui.painter();
+    painter.add(Shape::line(
+        arc(1.0),
+        Stroke::new(3.0, theme::mix(p.base, color, 0.22)),
+    ));
+    if turned > 0.004 {
+        painter.add(Shape::line(
+            arc(turned),
+            Stroke::new(7.0, color.gamma_multiply(0.18)),
+        ));
+        painter.add(Shape::line(arc(turned), Stroke::new(3.0, color)));
+    }
+}
+
+/// The sound and what plays it best: its four macros, large, with the sub and the noise
+/// beside them, then the effects, the arpeggiator, and the glide of a sound that plays one
+/// note at a time or the release of one that plays chords.
 fn simple_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full: f32) {
     let p = theme::current(ui);
     let color = state.sound.as_ref().map_or(p.accent, |s| s.color);
@@ -1271,37 +1392,51 @@ fn simple_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full: f
     let height = MACRO_KNOB + 104.0;
     let rect = Rect::from_min_size(top, vec2(full, height));
     ui.painter().rect_filled(rect, 10.0, p.base);
-    let builder = egui::UiBuilder::new()
-        .max_rect(rect.shrink2(vec2(16.0, 12.0)))
-        .layout(egui::Layout::top_down(egui::Align::Min));
-    ui.scope_builder(builder, |ui| {
-        spread(ui, 4, |ui, k| macro_knob(ui, params, k, color, false));
-        // How to put the macros under the fingers, said once and softly.
-        ui.add_space(4.0);
-        ui.vertical_centered(|ui| {
-            ui.label(
-                RichText::new(tr(
-                    "Right-click a knob to assign it to a MIDI controller, or to automate it",
-                ))
-                .size(10.5)
-                .color(theme::mix(p.weak, p.base, 0.35)),
-            );
+    let inner = rect.shrink2(vec2(16.0, 12.0));
+    // The macros over two thirds, the sub and the noise over the last one, a line between.
+    let split = inner.left() + inner.width() * 0.7;
+    let cell = |ui: &mut Ui, area: Rect, add: &mut dyn FnMut(&mut Ui)| {
+        let builder = egui::UiBuilder::new()
+            .max_rect(area)
+            .layout(egui::Layout::top_down(egui::Align::Min));
+        ui.scope_builder(builder, |ui| add(ui));
+    };
+    let macros = Rect::from_min_max(inner.min, pos2(split - 12.0, inner.bottom() - 18.0));
+    cell(ui, macros, &mut |ui| {
+        spread(ui, 4, |ui, k| {
+            macro_knob(ui, params, k, color, MACRO_KNOB, false)
         });
     });
+    ui.painter().line_segment(
+        [
+            pos2(split, inner.top() + 8.0),
+            pos2(split, inner.bottom() - 26.0),
+        ],
+        Stroke::new(1.0, theme::mix(p.base, p.weak, 0.25)),
+    );
+    let sides = Rect::from_min_max(
+        pos2(split + 12.0, inner.top()),
+        pos2(inner.right(), inner.bottom() - 18.0),
+    );
+    cell(ui, sides, &mut |ui| {
+        spread(ui, 2, |ui, k| {
+            let (id, name) = [("sub_level", tr("Sub")), ("noise", tr("Noise"))][k];
+            plain_knob(ui, params, id, name, color);
+        });
+    });
+    // How to put the knobs under the fingers, said once and softly.
+    ui.painter().text(
+        pos2(inner.center().x, inner.bottom() - 4.0),
+        Align2::CENTER_BOTTOM,
+        tr("Right-click a knob to assign it to a MIDI controller, or to automate it"),
+        FontId::proportional(10.5),
+        theme::mix(p.weak, p.base, 0.35),
+    );
     ui.allocate_rect(rect, Sense::hover());
     ui.add_space(GAP);
-    row(ui, full, &[1, 1, 1], 96.0, |ui, c| match c {
-        0 => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Envelope"), p.weak);
-                let width = ui.available_width();
-                envelope(ui, params, vec2(width, 22.0), state.live.envelope);
-            });
-            spread(ui, 2, |ui, k| {
-                let (id, name) = [("attack", tr("Attack")), ("release", tr("Release"))][k];
-                wide_knob(ui, params, id, name, 38.0, color);
-            });
-        }),
+    let mono = params.get("mode") >= 0.5;
+    row(ui, full, &[1, 1, 1], 100.0, |ui, c| match c {
+        0 => panel(ui, |ui| arpeggiator(ui, params, color)),
         1 => panel(ui, |ui| {
             title(ui, tr("Effects"), p.weak);
             ui.add_space(4.0);
@@ -1315,13 +1450,16 @@ fn simple_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full: f
             });
         }),
         _ => panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                title(ui, tr("Arpeggiator"), p.weak);
-                pill(ui, params, "arp", "On", ARP_HINT);
-                pill(ui, params, "arp_hold", "Hold", HOLD_HINT);
-            });
-            spread(ui, 1, |ui, _| {
-                wide_knob(ui, params, "volume", tr("Volume"), 38.0, color);
+            title(ui, tr("Playing"), p.weak);
+            ui.add_space(4.0);
+            spread(ui, 2, |ui, k| {
+                // One note at a time slides to the next; chords ring on.
+                let (id, name) = match (k, mono) {
+                    (0, true) => ("glide", tr("Glide")),
+                    (0, false) => ("release", tr("Release")),
+                    _ => ("volume", tr("Volume")),
+                };
+                wide_knob(ui, params, id, name, 38.0, color);
             });
         }),
     });
@@ -1332,23 +1470,32 @@ fn simple_face(ui: &mut Ui, params: &mut Params, state: &mut SynthState, full: f
 struct Sound {
     category: String,
     name: String,
+    /// Its family's place in the list, and its color.
+    family: usize,
     color: Color32,
 }
 
 /// What the simple view lets the player change: a sound stays itself whatever they are.
-const PLAYED: [&str; 12] = [
+const PLAYED: [&str; 19] = [
     "macro1",
     "macro2",
     "macro3",
     "macro4",
+    "sub_level",
+    "noise",
     "volume",
     "attack",
     "release",
+    "glide",
     "fx_chorus",
     "fx_delay",
     "fx_reverb",
     "arp",
     "arp_hold",
+    "arp_mode",
+    "arp_note",
+    "arp_octaves",
+    "arp_gate",
 ];
 
 /// A color for each family of sounds, in the order the families come in the list.
@@ -1405,6 +1552,7 @@ fn known_sounds() -> Vec<(u64, Sound)> {
                 Sound {
                     category,
                     name,
+                    family,
                     color,
                 },
             ))
@@ -1412,20 +1560,72 @@ fn known_sounds() -> Vec<(u64, Sound)> {
         .collect()
 }
 
-/// Lines of the landscape, how many points each, and how often one is added.
+/// Height of the sound's picture in the simple view.
+const PICTURE_HEIGHT: f32 = 210.0;
+
+/// Lines of the wave kept, how many points each, and how often one is added.
 const RIDGES: usize = 30;
 const RIDGE_POINTS: usize = 128;
 const RIDGE_EVERY: f64 = 0.035;
 
-/// The top of the simple view: the sound as a landscape, each line a moment of its wave, the
-/// newest in front in the sound's color and the older ones receding behind; over it the
-/// sound's family and name, and the voices playing.
-fn landscape(ui: &mut Ui, meters: &[f32], state: &mut SynthState) {
+/// How the sound is drawn in the simple view.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Picture {
+    /// A landscape, each line a moment of the wave, receding: pads, strings, atmospheres.
+    Landscape,
+    /// Rings spreading from the middle, each one a moment of the wave: bells, plucks, keys.
+    Rings,
+    /// The wave as a ribbon and its echoes: basses, leads, brass.
+    Ribbon,
+}
+
+impl Picture {
+    const ALL: [Picture; 3] = [Picture::Landscape, Picture::Rings, Picture::Ribbon];
+
+    /// The picture that suits a family of sounds, by its place in the list.
+    fn of_family(family: usize) -> Self {
+        match family {
+            0 | 1 | 5 | 11 => Picture::Ribbon,
+            2 | 6 | 7 | 9 => Picture::Rings,
+            _ => Picture::Landscape,
+        }
+    }
+}
+
+/// The color of a line of the picture `depth` back (0 the newest, 1 the oldest): the sound's
+/// color fading into the distance, or in full window every color in turn.
+fn picture_color(color: Color32, depth: f32, time: f64, vivid: bool) -> Color32 {
+    if vivid {
+        let hue = (depth * 0.7 + time as f32 * 0.06).fract();
+        egui::ecolor::Hsva::new(hue, 0.8, 1.0, 1.0).into()
+    } else {
+        theme::mix(color, Color32::from_rgb(70, 60, 150), depth.sqrt())
+    }
+}
+
+/// The top of the simple view: the sound drawn by its wave in the sound's color, with its
+/// family and name and the voices playing. A click draws it another way, a double click
+/// gives it the whole window.
+fn picture(ui: &mut Ui, meters: &[f32], state: &mut SynthState, height: f32) {
     use audiostrada_dsp::synth::meter;
     let p = theme::current(ui);
     let color = state.sound.as_ref().map_or(p.accent, |s| s.color);
     let width = ui.available_width();
-    let (rect, _) = ui.allocate_exact_size(vec2(width, 210.0), Sense::hover());
+    let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::click());
+    let response = response.on_hover_text(tr(
+        "Click for another picture of the sound, double-click to give it the whole window",
+    ));
+    if response.double_clicked() {
+        state.immersive = !state.immersive;
+        // The first click of the two changed the picture: back to it.
+        state.picture = state.picture_before;
+    } else if response.clicked() {
+        let family = state.sound.as_ref().map_or(usize::MAX, |s| s.family);
+        let now = state.picture.unwrap_or_else(|| Picture::of_family(family));
+        let at = Picture::ALL.iter().position(|k| *k == now).unwrap_or(0);
+        state.picture_before = state.picture;
+        state.picture = Some(Picture::ALL[(at + 1) % Picture::ALL.len()]);
+    }
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 12.0, SCREEN);
     // A new line of the wave every few hundredths of a second.
@@ -1456,61 +1656,17 @@ fn landscape(ui: &mut Ui, meters: &[f32], state: &mut SynthState) {
         state.ridges.push_front(line);
         state.ridges.truncate(RIDGES);
     }
-    let lively = state.ridges.iter().any(|r| !r.is_empty());
-    if lively {
+    if state.ridges.iter().any(|r| !r.is_empty()) || state.immersive {
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_secs_f64(RIDGE_EVERY));
     }
-    let far = Color32::from_rgb(70, 60, 150);
-    let field = rect.shrink2(vec2(24.0, 0.0));
-    // From the back to the front, each line hiding what lies behind it.
-    for (i, line) in state.ridges.iter().enumerate().rev() {
-        let depth = i as f32 / (RIDGES - 1) as f32;
-        let base = rect.bottom() - 30.0 - depth.powf(0.85) * rect.height() * 0.5;
-        let inset = depth * field.width() * 0.14;
-        let (left, right) = (field.left() + inset, field.right() - inset);
-        let reach = rect.height() * 0.3 * (1.0 - 0.5 * depth);
-        let near = 1.0 - depth;
-        let tint = theme::mix(color, far, depth.sqrt());
-        let stroke = theme::mix(SCREEN, tint, 0.25 + 0.75 * near * near);
-        // The ends rest on the ground: the wave rises in the middle of the field.
-        let window = |k: usize| {
-            let t = k as f32 / (RIDGE_POINTS - 1) as f32;
-            (std::f32::consts::PI * t).sin().powf(0.7)
-        };
-        let points: Vec<Pos2> = (0..RIDGE_POINTS)
-            .map(|k| {
-                let t = k as f32 / (RIDGE_POINTS - 1) as f32;
-                let s = line.get(k).copied().unwrap_or(0.0).clamp(-1.2, 1.2);
-                pos2(left + t * (right - left), base - s * window(k) * reach)
-            })
-            .collect();
-        // The ground under the line, lit near the line where the wave stands.
-        let mut mesh = egui::Mesh::default();
-        for (k, point) in points.iter().enumerate() {
-            let lit = if line.is_empty() {
-                0.0
-            } else {
-                0.2 * near * window(k)
-            };
-            mesh.colored_vertex(*point, theme::mix(SCREEN, tint, lit));
-            mesh.colored_vertex(pos2(point.x, base + reach), SCREEN);
-        }
-        for k in 0..points.len() as u32 - 1 {
-            mesh.add_triangle(2 * k, 2 * k + 1, 2 * k + 2);
-            mesh.add_triangle(2 * k + 1, 2 * k + 3, 2 * k + 2);
-        }
-        painter.add(Shape::mesh(mesh));
-        if i == 0 && !line.is_empty() {
-            for (width, alpha) in [(8.0, 0.07), (4.0, 0.18)] {
-                painter.add(Shape::line(
-                    points.clone(),
-                    Stroke::new(width, color.gamma_multiply(alpha)),
-                ));
-            }
-        }
-        let width = if i == 0 { 1.8 } else { 1.0 };
-        painter.add(Shape::line(points, Stroke::new(width, stroke)));
+    let family = state.sound.as_ref().map_or(usize::MAX, |s| s.family);
+    let kind = state.picture.unwrap_or_else(|| Picture::of_family(family));
+    let vivid = state.immersive;
+    match kind {
+        Picture::Landscape => landscape(&painter, rect, &state.ridges, color, now, vivid),
+        Picture::Rings => rings(&painter, rect, &state.ridges, color, now, vivid),
+        Picture::Ribbon => ribbon(&painter, rect, &state.ridges, color, now, vivid),
     }
     // The sound's family and name.
     let at = rect.min + vec2(18.0, 14.0);
@@ -1559,6 +1715,180 @@ fn landscape(ui: &mut Ui, meters: &[f32], state: &mut SynthState) {
             } else {
                 Color32::from_rgb(40, 52, 66)
             },
+        );
+    }
+}
+
+type Ridges = std::collections::VecDeque<Vec<f32>>;
+
+/// The wave's lines as a landscape: the newest in front, the older ones receding behind, each
+/// hiding what lies behind it.
+fn landscape(
+    painter: &egui::Painter,
+    rect: Rect,
+    ridges: &Ridges,
+    color: Color32,
+    time: f64,
+    vivid: bool,
+) {
+    let field = rect.shrink2(vec2(24.0, 0.0));
+    for (i, line) in ridges.iter().enumerate().rev() {
+        let depth = i as f32 / (RIDGES - 1) as f32;
+        let base = rect.bottom() - 30.0 - depth.powf(0.85) * rect.height() * 0.5;
+        let inset = depth * field.width() * 0.14;
+        let (left, right) = (field.left() + inset, field.right() - inset);
+        let reach = rect.height() * 0.3 * (1.0 - 0.5 * depth);
+        let near = 1.0 - depth;
+        let tint = picture_color(color, depth, time, vivid);
+        let stroke = theme::mix(SCREEN, tint, 0.25 + 0.75 * near * near);
+        // The ends rest on the ground: the wave rises in the middle of the field.
+        let window = |k: usize| {
+            let t = k as f32 / (RIDGE_POINTS - 1) as f32;
+            (std::f32::consts::PI * t).sin().powf(0.7)
+        };
+        let points: Vec<Pos2> = (0..RIDGE_POINTS)
+            .map(|k| {
+                let t = k as f32 / (RIDGE_POINTS - 1) as f32;
+                let s = line.get(k).copied().unwrap_or(0.0).clamp(-1.2, 1.2);
+                pos2(left + t * (right - left), base - s * window(k) * reach)
+            })
+            .collect();
+        // The ground under the line, lit near the line where the wave stands.
+        let mut mesh = egui::Mesh::default();
+        for (k, point) in points.iter().enumerate() {
+            let lit = if line.is_empty() {
+                0.0
+            } else {
+                0.2 * near * window(k)
+            };
+            mesh.colored_vertex(*point, theme::mix(SCREEN, tint, lit));
+            mesh.colored_vertex(pos2(point.x, base + reach), SCREEN);
+        }
+        for k in 0..points.len() as u32 - 1 {
+            mesh.add_triangle(2 * k, 2 * k + 1, 2 * k + 2);
+            mesh.add_triangle(2 * k + 1, 2 * k + 3, 2 * k + 2);
+        }
+        painter.add(Shape::mesh(mesh));
+        if i == 0 && !line.is_empty() {
+            for (width, alpha) in [(8.0, 0.07), (4.0, 0.18)] {
+                painter.add(Shape::line(
+                    points.clone(),
+                    Stroke::new(width, tint.gamma_multiply(alpha)),
+                ));
+            }
+        }
+        let width = if i == 0 { 1.8 } else { 1.0 };
+        painter.add(Shape::line(points, Stroke::new(width, stroke)));
+    }
+}
+
+/// The wave's lines as rings spreading from the middle, the newest the smallest and the
+/// brightest: what a struck sound does to still water.
+fn rings(
+    painter: &egui::Painter,
+    rect: Rect,
+    ridges: &Ridges,
+    color: Color32,
+    time: f64,
+    vivid: bool,
+) {
+    let center = rect.center() + vec2(0.0, 8.0);
+    // Wider than high, as the screen is.
+    let (across, up) = (rect.width() * 0.46, rect.height() * 0.44);
+    for (i, line) in ridges.iter().enumerate().rev() {
+        let depth = i as f32 / (RIDGES - 1) as f32;
+        let near = 1.0 - depth;
+        let size = 0.08 + 0.92 * depth.powf(0.8);
+        let tint = picture_color(color, depth, time, vivid);
+        let stroke = theme::mix(SCREEN, tint, 0.12 + 0.88 * near * near);
+        let swell = 0.22 * (0.35 + 0.65 * near);
+        let points: Vec<Pos2> = (0..=RIDGE_POINTS)
+            .map(|k| {
+                let k = k % RIDGE_POINTS;
+                let t = k as f32 / RIDGE_POINTS as f32;
+                // The wave's two ends meet: each fades into the other around the ring.
+                let s = line.get(k).copied().unwrap_or(0.0);
+                let other = line.get(RIDGE_POINTS - 1 - k).copied().unwrap_or(0.0);
+                let blend = (0.5 - (t - 0.5).abs()) * 2.0;
+                let s = (s * blend.min(1.0) + other * (1.0 - blend.min(1.0))).clamp(-1.2, 1.2);
+                let a = t * std::f32::consts::TAU - std::f32::consts::FRAC_PI_2;
+                let r = size + s * swell;
+                center + vec2(a.cos() * r * across, a.sin() * r * up)
+            })
+            .collect();
+        if i == 0 && !line.is_empty() {
+            painter.add(Shape::line(
+                points.clone(),
+                Stroke::new(6.0, tint.gamma_multiply(0.15)),
+            ));
+        }
+        let width = if i == 0 { 1.8 } else { 1.0 };
+        painter.add(Shape::line(points, Stroke::new(width, stroke)));
+    }
+}
+
+/// The wave as a ribbon across the screen, mirrored about its middle, its last moments
+/// spreading behind it as echoes.
+fn ribbon(
+    painter: &egui::Painter,
+    rect: Rect,
+    ridges: &Ridges,
+    color: Color32,
+    time: f64,
+    vivid: bool,
+) {
+    const ECHOES: usize = 10;
+    let field = rect.shrink2(vec2(24.0, 0.0));
+    let middle = rect.center().y + 10.0;
+    for (i, line) in ridges.iter().enumerate().take(ECHOES).rev() {
+        if line.is_empty() {
+            continue;
+        }
+        let depth = i as f32 / (ECHOES - 1) as f32;
+        let near = 1.0 - depth;
+        let tint = picture_color(color, depth, time, vivid);
+        let reach = rect.height() * 0.36 * (1.0 + 0.35 * depth);
+        let window = |k: usize| {
+            let t = k as f32 / (RIDGE_POINTS - 1) as f32;
+            (std::f32::consts::PI * t).sin().powf(0.5)
+        };
+        let at = |k: usize, side: f32| {
+            let t = k as f32 / (RIDGE_POINTS - 1) as f32;
+            let s = line.get(k).copied().unwrap_or(0.0).clamp(-1.2, 1.2);
+            pos2(
+                field.left() + t * field.width(),
+                middle - side * s * window(k) * reach,
+            )
+        };
+        // Between the wave and its mirror, light that thins out with the echoes.
+        let mut mesh = egui::Mesh::default();
+        let fill = tint.gamma_multiply(0.05 + 0.2 * near * near);
+        for k in 0..RIDGE_POINTS {
+            mesh.colored_vertex(at(k, 1.0), fill);
+            mesh.colored_vertex(at(k, -1.0), fill);
+        }
+        for k in 0..RIDGE_POINTS as u32 - 1 {
+            mesh.add_triangle(2 * k, 2 * k + 1, 2 * k + 2);
+            mesh.add_triangle(2 * k + 1, 2 * k + 3, 2 * k + 2);
+        }
+        painter.add(Shape::mesh(mesh));
+        let stroke = theme::mix(SCREEN, tint, 0.15 + 0.85 * near * near);
+        for side in [1.0, -1.0] {
+            let points: Vec<Pos2> = (0..RIDGE_POINTS).map(|k| at(k, side)).collect();
+            if i == 0 {
+                painter.add(Shape::line(
+                    points.clone(),
+                    Stroke::new(6.0, tint.gamma_multiply(0.14)),
+                ));
+            }
+            let width = if i == 0 { 1.8 } else { 1.0 };
+            painter.add(Shape::line(points, Stroke::new(width, stroke)));
+        }
+    }
+    if ridges.front().is_none_or(Vec::is_empty) {
+        painter.line_segment(
+            [pos2(field.left(), middle), pos2(field.right(), middle)],
+            Stroke::new(1.5, color.gamma_multiply(0.5)),
         );
     }
 }
@@ -2596,7 +2926,8 @@ mod tests {
         let channel = Channel::Track(doc.project().tracks[0].id);
         let info = audiostrada_dsp::info("synth").unwrap();
         let ctx = egui::Context::default();
-        ctx.data_mut(|d| d.insert_temp(egui::Id::unique("synth-advanced"), true));
+        // The filter's view, where the cutoff is.
+        ctx.data_mut(|d| d.insert_temp(View::id(), 2usize));
         let mut state = SynthState::default();
         let frame = |doc: &mut Document, state: &mut SynthState, events: Vec<Event>| {
             let input = RawInput {

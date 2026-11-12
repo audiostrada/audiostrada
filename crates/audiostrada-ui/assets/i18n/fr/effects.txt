@@ -6541,3 +6541,42 @@ Cloche : Douce
 
 Same octave
 Même octave
+
+The sound, its macros and its effects
+Le son, ses macros et ses effets
+
+Oscillators
+Oscillateurs
+
+The two oscillators, their wavetables, the sub and the noise
+Les deux oscillateurs, leurs tables d'ondes, le sub et le bruit
+
+Filter and envelope
+Filtre et enveloppe
+
+The filter, the envelope, how the notes follow each other and the output
+Le filtre, l'enveloppe, l'enchaînement des notes et la sortie
+
+The LFOs, the second envelope, and what they and the playing modulate
+Les LFO, la seconde enveloppe, et ce qu'ils modulent avec le jeu
+
+Arpeggiator and effects
+Arpégiateur et effets
+
+The arpeggiator, the chorus, the delay and the reverb
+L'arpégiateur, le chorus, le delay et la réverbe
+
+The four macros of the simple view: their names and what each one moves
+Les quatre macros de la vue simple : leur nom et ce que chacune pilote
+
+Controller
+Contrôleur
+
+This macro moves nothing yet: give it a target in the Macros view
+Cette macro ne pilote encore rien : donnez-lui une cible dans la vue Macros
+
+{name}: {value}. Right-click to assign a MIDI controller
+{name} : {value}. Clic droit pour assigner un contrôleur MIDI
+
+Click for another picture of the sound, double-click to give it the whole window
+Cliquez pour une autre image du son, double-cliquez pour lui donner toute la fenêtre

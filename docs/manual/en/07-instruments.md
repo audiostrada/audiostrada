@@ -15,28 +15,35 @@ A polyphonic synthesizer: two oscillators with unison and wavetables, a sub osci
 noise, a filter, two LFOs, an arpeggiator and its own chorus, delay and reverb. It opens on its
 **Simple** view, made for playing:
 
-- **The sound** shows at the top, as a landscape drawn by its wave in the color of its family
-  (basses, leads, keys, pads...). Choose another one in the presets, or step through them with
-  the Left and Right arrows.
+- **The sound** shows at the top, drawn by its wave in the color of its family: a landscape for
+  pads and strings, rings for bells and plucks, a ribbon for basses and leads. Click the picture
+  for another one, double-click to give it the whole window, in every color. Choose another
+  sound in the presets, or step through them with the Left and Right arrows.
 - **Four macros**, each named after what it does to this sound (*Brightness*, *Motion*,
-  *Space*...): one knob moves several settings at once, so a quarter turn is plainly heard.
-  Right-click a macro to assign it to a knob of your MIDI controller, or to automate it.
-- Under them, what every sound has: the **attack** and the **release**, the **chorus**, the
-  **delay** and the **reverb**, the **arpeggiator** and the **volume**.
+  *Space*...): one knob moves several settings at once, so a quarter turn is plainly heard. A
+  macro at zero means none of what it names: a sound that comes with some vibrato or some
+  reverb opens with that macro already turned up.
+- **Sub** and **Noise** beside them add the sub oscillator (a pure sine under the sound) and
+  noise (breath, air).
+- Right-click any of these knobs to assign it to a knob of your MIDI controller, or to
+  automate it.
+- Under them: the **arpeggiator** (on, hold, order, rate, range and gate), the **chorus**, the
+  **delay** and the **reverb**, then the **glide** of a sound that plays one note at a time or
+  the **release** of one that plays chords, and the **volume**.
 
-**Advanced** shows the synth itself: oscillators, filter, envelopes, LFOs, arpeggiator and
-effects. Drag a colored source (an LFO, the second envelope, or at the bottom a macro, the
-velocity, the mod wheel, the pressure) onto a knob to modulate it. **Expert** adds the controls
-few sounds need: fine tuning, FM, sync and ring, key tracking, drift, the depth of the LFOs and
-MPE.
+Four views show the synth itself, a few panels each: **Oscillators** (with the wavetables, the
+sub and the noise), **Filter and envelope**, **Modulation** (the LFOs, the second envelope and
+the list of what they modulate) and **Arpeggiator and effects**. At the bottom of each, the
+sources (LFOs, second envelope, macros, velocity, mod wheel, pressure): drag one onto a knob to
+modulate it. **Expert** adds the controls few sounds need: fine tuning, FM, sync and ring, key
+tracking, drift, the depth of the LFOs and MPE.
 
-**Modulation** shows the four macros, each with what it moves and by how much: click a macro's
-name to choose another, *Add a target* to have it move one more setting. A macro (and the mod
-wheel) also reaches the effects, the envelope's times, the detune and the speed and depth of the
-LFOs. Under the macros, what the LFOs, the second envelope and the playing modulate.
+**Macros** shows the four macros, each with what it moves and by how much: click a macro's name
+to choose another, *Add a target* to have it move one more setting. A macro (and the mod wheel)
+also reaches the effects, the envelope's times, the detune and the speed and depth of the LFOs.
 
-- **Presets** hold some ninety ready-made sounds by family: basses, leads, keys, pads, strings,
-  brass, plucks, bells, poly, arpeggios, atmospheres, effects and hip-hop. All play at the same
+- **Presets** hold some eighty-five ready-made sounds by family: basses, leads, keys, pads,
+  strings, brass, plucks, bells, poly, arpeggios, atmospheres and effects. All play at the same
   level.
 - **The keyboard** plays the synth without arming the track: click or drag across the keys
   (lower on a key plays louder), or turn on *Computer keyboard* to play with the letters: A S D F

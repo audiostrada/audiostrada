@@ -982,7 +982,7 @@ impl Synth {
     /// Moves what is heard of the settings toward their values, for the next `frames`.
     fn glide_settings(&mut self, frames: usize) {
         let k = 1.0 - (-(frames as f32) * 1000.0 / (SETTLE_MS * self.rate)).exp();
-        for i in 0..COUNT {
+        for (i, info) in PARAMS.iter().enumerate() {
             let (to, now) = (self.values[i], self.heard[i]);
             if to == now {
                 continue;
@@ -991,7 +991,7 @@ impl Synth {
                 self.heard[i] = to;
                 continue;
             }
-            let range = (PARAMS[i].max - PARAMS[i].min).abs().max(1e-6);
+            let range = (info.max - info.min).abs().max(1e-6);
             // The cutoff glides in pitch, as it is heard.
             let next = if i == p::CUTOFF && now > 0.0 && to > 0.0 {
                 now * (to / now).powf(k)

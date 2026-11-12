@@ -16,31 +16,39 @@ Un synthétiseur polyphonique : deux oscillateurs avec unisson et tables d'ondes
 sous-oscillateur et du bruit, un filtre, deux LFO, un arpégiateur et ses propres chorus, delay
 et réverbe. Il s'ouvre sur sa vue **Simple**, faite pour jouer :
 
-- **Le son** s'affiche en haut, comme un paysage dessiné par son onde, dans la couleur de sa
-  famille (basses, leads, claviers, nappes...). Choisissez-en un autre dans les presets, ou
-  passez de l'un à l'autre avec les flèches gauche et droite.
+- **Le son** s'affiche en haut, dessiné par son onde dans la couleur de sa famille : un paysage
+  pour les nappes et les cordes, des anneaux pour les cloches et les plucks, un ruban pour les
+  basses et les leads. Cliquez sur l'image pour en voir une autre, double-cliquez pour lui
+  donner toute la fenêtre, dans toutes les couleurs. Choisissez un autre son dans les presets,
+  ou passez de l'un à l'autre avec les flèches gauche et droite.
 - **Quatre macros**, chacune nommée d'après ce qu'elle fait à ce son (*Brillance*, *Mouvement*,
   *Espace*...) : un potard pilote plusieurs réglages à la fois, si bien qu'un quart de tour
-  s'entend nettement. Clic droit sur une macro pour l'assigner à un potard de votre contrôleur
-  MIDI, ou l'automatiser.
-- En dessous, ce que tout son possède : l'**attaque** et le **relâchement**, le **chorus**, le
-  **delay** et la **réverbe**, l'**arpégiateur** et le **volume**.
+  s'entend nettement. Une macro à zéro signifie rien de ce qu'elle nomme : un son qui vient
+  avec du vibrato ou de la réverbe s'ouvre avec cette macro déjà tournée.
+- **Sub** et **Bruit**, à côté, ajoutent le sous-oscillateur (une sinusoïde pure sous le son) et
+  du bruit (souffle, air).
+- Clic droit sur l'un de ces potards pour l'assigner à un potard de votre contrôleur MIDI, ou
+  l'automatiser.
+- En dessous : l'**arpégiateur** (marche, maintien, ordre, vitesse, étendue et durée des
+  notes), le **chorus**, le **delay** et la **réverbe**, puis le **glissement** d'un son qui
+  joue une note à la fois ou le **relâchement** d'un son qui joue des accords, et le **volume**.
 
-**Avancé** montre le synthé lui-même : oscillateurs, filtre, enveloppes, LFO, arpégiateur et
-effets. Glissez une source colorée (un LFO, la seconde enveloppe, ou en bas une macro, la
-vélocité, la molette de modulation, la pression) sur un potard pour le moduler. **Expert**
-ajoute les réglages dont peu de sons ont besoin : accord fin, FM, synchro et anneau, suivi du
-clavier, dérive, profondeur des LFO et MPE.
+Quatre vues montrent le synthé lui-même, quelques panneaux chacune : **Oscillateurs** (avec les
+tables d'ondes, le sub et le bruit), **Filtre et enveloppe**, **Modulation** (les LFO, la
+seconde enveloppe et la liste de ce qu'ils modulent) et **Arpégiateur et effets**. En bas de
+chacune, les sources (LFO, seconde enveloppe, macros, vélocité, molette de modulation,
+pression) : glissez-en une sur un potard pour le moduler. **Expert** ajoute les réglages dont
+peu de sons ont besoin : accord fin, FM, synchro et anneau, suivi du clavier, dérive,
+profondeur des LFO et MPE.
 
-**Modulation** montre les quatre macros, chacune avec ce qu'elle pilote et de combien : cliquez
-sur le nom d'une macro pour en choisir un autre, sur *Ajouter une cible* pour lui faire piloter
-un réglage de plus. Une macro (comme la molette de modulation) atteint aussi les effets, les
-temps de l'enveloppe, le désaccord, la vitesse et la profondeur des LFO. Sous les macros, ce
-que modulent les LFO, la seconde enveloppe et le jeu.
+**Macros** montre les quatre macros, chacune avec ce qu'elle pilote et de combien : cliquez sur
+le nom d'une macro pour en choisir un autre, sur *Ajouter une cible* pour lui faire piloter un
+réglage de plus. Une macro (comme la molette de modulation) atteint aussi les effets, les temps
+de l'enveloppe, le désaccord, la vitesse et la profondeur des LFO.
 
-- **Les presets** contiennent environ quatre-vingt-dix sons prêts, par famille : basses, leads,
-  claviers, nappes, cordes, cuivres, plucks, cloches, poly, arpèges, ambiances, effets et
-  hip-hop. Tous jouent au même niveau.
+- **Les presets** contiennent environ quatre-vingt-cinq sons prêts, par famille : basses, leads,
+  claviers, nappes, cordes, cuivres, plucks, cloches, poly, arpèges, ambiances et effets. Tous
+  jouent au même niveau.
 - **Le clavier** joue le synthé sans armer la piste : cliquez ou glissez sur les touches (plus bas
   sur une touche joue plus fort), ou activez *Clavier de l'ordinateur* pour jouer avec les
   lettres : la rangée du milieu pour les touches blanches, celle du dessus pour les noires, deux
