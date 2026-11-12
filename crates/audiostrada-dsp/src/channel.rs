@@ -679,16 +679,16 @@ mod tests {
     fn auto_gain_brings_the_output_back_to_the_input_level() {
         let mut channel = Channel::default();
         channel.prepare(48_000, 480);
-        // The EQ lifts everything by 12 dB with both shelves.
+        // The low shelf, at its highest, lifts a 100 Hz tone (a period per block) by 12 dB.
         for (i, v) in [
             (p::EQ, 1.0),
+            (p::EQ_FIRST, 400.0),
             (p::EQ_FIRST + 1, 12.0),
-            (p::EQ_LAST, 12.0),
             (p::AUTO_GAIN, 1.0),
         ] {
             channel.set_param(i, v);
         }
-        let tone = sine(440.0, 0.1);
+        let tone = sine(100.0, 0.1);
         let level = |s: &[f32]| (s.iter().map(|x| x * x).sum::<f32>() / s.len() as f32).sqrt();
         let mut last = 0.0;
         for _ in 0..400 {
@@ -708,7 +708,8 @@ mod tests {
             assert!(now < previous * 1.5, "{previous} then {now}");
             previous = now;
         }
-        assert!(gain_to_db(previous / level(&tone[..480])) > 10.0);
+        let back = gain_to_db(previous / level(&tone[..480]));
+        assert!(back > 10.0, "the boost comes back to {back} dB only");
     }
 
     #[test]

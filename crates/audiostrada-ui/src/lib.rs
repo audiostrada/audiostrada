@@ -33,6 +33,7 @@ mod listening;
 mod markers;
 mod mb_editor;
 mod metronome_window;
+mod midi_learn;
 mod midi_tools;
 mod mix_tools;
 mod mixer;

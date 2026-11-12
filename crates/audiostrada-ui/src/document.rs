@@ -1921,8 +1921,55 @@ impl Document {
             .push(tr("MIDI learn: move a controller").into());
     }
 
+    /// The kind of effect and the parameter an effect's control stands for: what a controller
+    /// learned on it turns in every project.
+    fn kind_of(&self, channel: Channel, target: &AutomationTarget) -> Option<(String, String)> {
+        let AutomationTarget::Param { insert, param } = target else {
+            return None;
+        };
+        audiostrada_core::routing::find_insert(self.project(), channel, *insert)
+            .map(|i| (i.effect.clone(), param.clone()))
+    }
+
+    /// The effects of a kind the player plays: on the armed tracks, else on the tracks
+    /// selected (the master's when it is selected).
+    fn played_inserts(&self, effect: &str) -> Vec<(Channel, audiostrada_core::InsertId)> {
+        let project = self.project();
+        let of = |channel: Channel, inserts: &[audiostrada_core::Insert]| {
+            inserts
+                .iter()
+                .filter(|i| i.effect == effect)
+                .map(|i| (channel, i.id))
+                .collect::<Vec<_>>()
+        };
+        let armed: Vec<_> = project
+            .tracks
+            .iter()
+            .filter(|t| t.armed)
+            .flat_map(|t| of(Channel::Track(t.id), &t.inserts))
+            .collect();
+        if !armed.is_empty() {
+            return armed;
+        }
+        let mut selected: Vec<_> = self
+            .track_selection
+            .iter()
+            .filter_map(|&id| project.track(id))
+            .flat_map(|t| of(Channel::Track(t.id), &t.inserts))
+            .collect();
+        if self.master_selected {
+            selected.extend(of(Channel::Master, &project.master.inserts));
+        }
+        selected
+    }
+
     /// Controller mapped to a control: (channel, controller).
     pub fn mapping(&self, channel: Channel, target: &AutomationTarget) -> Option<(u8, u8)> {
+        if let Some((effect, param)) = self.kind_of(channel, target)
+            && let Some(learned) = crate::midi_learn::with(|s| s.of(&effect, &param))
+        {
+            return Some(learned);
+        }
         let track = channel.track(self.project());
         self.project()
             .midi_map
@@ -1932,6 +1979,9 @@ impl Document {
     }
 
     pub fn forget_mapping(&mut self, channel: Channel, target: &AutomationTarget) {
+        if let Some((effect, param)) = self.kind_of(channel, target) {
+            crate::midi_learn::change(|s| s.forget(&effect, &param));
+        }
         let track = channel.track(self.project());
         self.history.edit(tr("Forget MIDI mapping"), |p| {
             p.midi_map
@@ -2029,21 +2079,49 @@ impl Document {
             let pressed = self.press(midi_channel, controller, value);
             if let Some((channel, target, min, max)) = self.learning.take() {
                 let track = channel.track(self.project());
-                let mapping = audiostrada_core::MidiMapping {
-                    channel: midi_channel,
-                    controller,
-                    track,
-                    target: target.clone(),
-                    min,
-                    max,
+                // An effect's parameter is learned for every project, by the kind of effect;
+                // the mixer's controls (faders, pans, sends) for this project.
+                let kind = self.kind_of(channel, &target);
+                let project_has = |m: &audiostrada_core::MidiMapping| {
+                    (m.channel == midi_channel && m.controller == controller)
+                        || (m.track == track && m.target == target)
                 };
-                self.history.edit(tr("MIDI learn"), |p| {
-                    p.midi_map
-                        .retain(|m| !(m.channel == midi_channel && m.controller == controller));
-                    p.midi_map
-                        .retain(|m| !(m.track == track && m.target == target));
-                    p.midi_map.push(mapping);
-                });
+                match kind {
+                    Some((effect, param)) => {
+                        crate::midi_learn::change(|s| {
+                            s.learn(crate::midi_learn::Learned {
+                                channel: midi_channel,
+                                controller,
+                                effect,
+                                param,
+                                min,
+                                max,
+                            });
+                        });
+                        if self.project().midi_map.iter().any(project_has) {
+                            self.history.edit(tr("MIDI learn"), |p| {
+                                p.midi_map.retain(|m| !project_has(m));
+                            });
+                        }
+                    }
+                    None => {
+                        crate::midi_learn::change(|s| {
+                            s.forget_controller(midi_channel, controller)
+                        });
+                        let mapping = audiostrada_core::MidiMapping {
+                            channel: midi_channel,
+                            controller,
+                            track,
+                            target: target.clone(),
+                            min,
+                            max,
+                        };
+                        self.history.edit(tr("MIDI learn"), |p| {
+                            p.midi_map.retain(|m| !project_has(m));
+                            p.midi_map.push(mapping);
+                        });
+                    }
+                }
                 self.messages.push(trf!(
                     "Mapped controller {controller} (channel {channel})",
                     controller = controller,
@@ -2058,8 +2136,29 @@ impl Document {
                 .filter(|m| m.channel == midi_channel && m.controller == controller)
                 .cloned()
                 .collect();
-            if mapped.is_empty() {
+            let learned = crate::midi_learn::with(|s| s.turned_by(midi_channel, controller));
+            if mapped.is_empty() && learned.is_empty() {
                 self.play_synth_controller(controller, value);
+            }
+            // What was learned for every project turns its parameter on the effects of that
+            // kind the player plays.
+            for l in learned {
+                for (channel, insert) in self.played_inserts(&l.effect) {
+                    if let Some(step) = PresetStep::of_param(&l.param) {
+                        if pressed {
+                            self.preset_steps.push((channel, insert, step));
+                        }
+                        continue;
+                    }
+                    let target = AutomationTarget::Param {
+                        insert,
+                        param: l.param.clone(),
+                    };
+                    let v = l.min + (l.max - l.min) * f32::from(value) / 127.0;
+                    if !self.automation_gesture(channel, &target, Some(v)) {
+                        self.set_static(channel, &target, v);
+                    }
+                }
             }
             for m in mapped {
                 let channel = m.track.map_or(Channel::Master, Channel::Track);
@@ -2772,6 +2871,59 @@ mod tests {
         assert!((peak("Quiet.flac") - 0.125).abs() < 0.01);
         assert!(doc.render_queue().is_err(), "empty queue");
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A controller learned on an effect's parameter turns it in the next project too, on the
+    /// effect of that kind of the armed track.
+    #[test]
+    fn a_controller_learned_on_an_effect_turns_it_in_every_project() {
+        let project = |name: &str| {
+            let mut doc = Document::new(AppDirs::default());
+            let mut insert = None;
+            doc.history_mut().edit(name, |p| {
+                let t = p.add_track(name);
+                insert = audiostrada_core::routing::add_insert(
+                    p,
+                    Channel::Track(t),
+                    "synth",
+                    Default::default(),
+                );
+                p.track_mut(t).unwrap().armed = true;
+            });
+            let channel = Channel::Track(doc.project().tracks[0].id);
+            (doc, channel, insert.unwrap())
+        };
+        let turn = |doc: &mut Document, data: [u8; 3]| {
+            let mut processor = doc.processor(48_000, 64);
+            let mut storage = audiostrada_io::ChannelBuffers::new(0, 2, 64);
+            doc.player().live_midi().push(data, 0);
+            processor.render(&mut storage.buffers(64));
+            doc.update();
+        };
+        let (mut first, channel, insert) = project("Keys");
+        let macro1 = AutomationTarget::Param {
+            insert,
+            param: "macro1".into(),
+        };
+        first.learn(channel, macro1.clone(), 0.0, 100.0);
+        turn(&mut first, [0xB0, 21, 10]);
+        assert!(
+            first.project().midi_map.is_empty(),
+            "kept for every project"
+        );
+        let (mut second, channel, insert) = project("Lead");
+        let macro1 = AutomationTarget::Param {
+            insert,
+            param: "macro1".into(),
+        };
+        assert_eq!(second.mapping(channel, &macro1), Some((0, 21)));
+        turn(&mut second, [0xB0, 21, 127]);
+        assert_eq!(
+            second.project().tracks[0].inserts[0].params.get("macro1"),
+            Some(&100.0)
+        );
+        second.forget_mapping(channel, &macro1);
+        assert_eq!(second.mapping(channel, &macro1), None);
     }
 
     #[test]

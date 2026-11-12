@@ -86,6 +86,11 @@ un paramètre d'effet › *Apprentissage MIDI*, puis bougez une commande de votr
 Un contrôleur appris ne fait que ce pour quoi il a été appris. Les flèches des presets d'un effet
 apprennent un bouton de la même façon.
 
+Un contrôleur appris sur un paramètre d'effet est gardé pour tous les projets, par type d'effet :
+appris sur la première macro de Strada-Synth, il tourne la première macro du Strada-Synth des
+pistes armées (sinon des pistes sélectionnées), dans n'importe quel projet. Ceux des faders, des
+panoramiques et des sends du mixeur appartiennent au projet.
+
 **Les changements de programme** envoyés par un clavier (ses boutons de presets) choisissent le
 preset de l'instrument intégré des pistes armées : le programme 1 est le premier preset de son
 menu.
