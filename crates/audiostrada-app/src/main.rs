@@ -5,6 +5,7 @@ mod logging;
 mod measure;
 mod plugins;
 mod prefs;
+mod preset_report;
 
 use std::cell::RefCell;
 use std::process::ExitCode;
@@ -66,6 +67,7 @@ fn main() -> ExitCode {
         Command::Measure(args) => measure_command(args),
         Command::MeasureReport { files, output } => measure::report(&files, &output),
         Command::PluginParams(query) => measure::plugin_params(&query),
+        Command::MeasurePresets(args) => preset_report::run(&args),
         Command::License(cli::LicenseCommand::Keygen) => license::keygen(),
         Command::License(cli::LicenseCommand::Check { file, key }) => license::check(&file, &key),
         Command::License(cli::LicenseCommand::Issue {

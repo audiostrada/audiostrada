@@ -154,6 +154,23 @@ fn cutter(name: &str, values: &[(&str, f32)], steps: &str) -> Preset {
     preset
 }
 
+/// The factory presets of a built-in effect, by name: the parameters each one sets.
+pub fn factory_presets(effect: &str) -> Vec<(String, BTreeMap<String, f32>)> {
+    builtin_or_instrument(effect)
+        .into_iter()
+        .map(|p| (p.name, p.params))
+        .collect()
+}
+
+fn builtin_or_instrument(effect: &str) -> Vec<Preset> {
+    match effect {
+        "synth" => crate::synth_presets::factory(),
+        "drums" => crate::drums_editor::factory(),
+        "trigger" => crate::trigger_editor::factory(),
+        _ => builtin(effect),
+    }
+}
+
 /// Starting points for the built-in effects; parameters not listed keep their defaults.
 /// Names read "Role: character", the role being the source, the bus or the job; each list
 /// opens with the effect's defaults.

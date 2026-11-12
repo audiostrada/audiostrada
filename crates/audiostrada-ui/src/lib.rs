@@ -109,6 +109,7 @@ use crate::layout::{PaneContent, Workspace};
 use crate::mixer::MixerView;
 use crate::palette::CommandPalette;
 use crate::preferences::PreferencesWindow;
+pub use crate::presets::factory_presets;
 pub use crate::settings::{AudioSettingsPanel, SettingsChange};
 use crate::timeline::TimelineView;
 use crate::transport::{EditMode, EditSettings};

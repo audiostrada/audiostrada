@@ -169,7 +169,7 @@ pub fn one(reference: &Reference) -> anyhow::Result<Fingerprint> {
 }
 
 /// The installed plugin of key or name `query`, loaded in this process.
-fn load_plugin(query: &str) -> anyhow::Result<Box<dyn PluginInstance>> {
+pub(crate) fn load_plugin(query: &str) -> anyhow::Result<Box<dyn PluginInstance>> {
     let database = crate::audio::plugin_database(&crate::prefs::Prefs::load().ui, false);
     let lower = query.to_lowercase();
     let descriptor = database
