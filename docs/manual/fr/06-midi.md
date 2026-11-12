@@ -83,4 +83,9 @@ mode MPE, le CC 74 façonne plutôt chaque note).
 
 **Apprentissage MIDI** : clic droit sur un fader, un bouton de panoramique, un niveau de send ou
 un paramètre d'effet › *Apprentissage MIDI*, puis bougez une commande de votre contrôleur MIDI.
-Un contrôleur appris ne fait que ce pour quoi il a été appris.
+Un contrôleur appris ne fait que ce pour quoi il a été appris. Les flèches des presets d'un effet
+apprennent un bouton de la même façon.
+
+**Les changements de programme** envoyés par un clavier (ses boutons de presets) choisissent le
+preset de l'instrument intégré des pistes armées : le programme 1 est le premier preset de son
+menu.

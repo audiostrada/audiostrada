@@ -76,4 +76,7 @@ each note instead).
 
 **MIDI learn**: right-click a fader, pan knob, send level or effect parameter › *MIDI learn*,
 then move a control on your MIDI controller. A learned controller does only what it was learned
-for.
+for. The arrows of an effect's presets learn a button the same way.
+
+**Program changes** sent by a keyboard (its preset buttons) choose the preset of the built-in
+instrument of the armed tracks: program 1 is the first preset of its menu.

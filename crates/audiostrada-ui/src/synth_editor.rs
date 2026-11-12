@@ -44,6 +44,9 @@ pub struct SynthState {
     picture: Option<Picture>,
     picture_before: Option<Picture>,
     immersive: bool,
+    /// The height of what lay under the top screen (the picture or the scope) at the last
+    /// frame: in a window that does not follow its content, the screen takes the rest.
+    below: f32,
     /// The ready-made sounds, to tell which one plays, and the one that does.
     sounds: Option<Vec<(u64, Sound)>>,
     sound: Option<Sound>,
@@ -95,6 +98,7 @@ impl Default for SynthState {
             picture: None,
             picture_before: None,
             immersive: false,
+            below: 0.0,
             sounds: None,
             sound: None,
             ridges: std::collections::VecDeque::new(),
@@ -406,43 +410,61 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
     state.live = live.clone();
     ui.ctx()
         .data_mut(|d| d.insert_temp(egui::Id::unique("synth-live-mods"), live.mods.clone()));
-    let (view, expert) = view_switch(ui);
+    let (view, expert) = view_switch(ui, params);
     // Every row gets the same width, whatever a cell may have pushed out.
     let full = ui.available_width();
     // The ready-made sound these settings are, if any.
     let print = fingerprint(|i, _| params.values.get(i).copied().unwrap_or(0.0));
     let known = state.sounds.get_or_insert_with(known_sounds);
     state.sound = known.iter().find(|s| s.0 == print).map(|s| s.1.clone());
+    // A maximized window, or the picture given the whole window, keeps its height: the screen
+    // at the top takes what the controls leave.
+    let maximized = ui.ctx().input(|i| {
+        let v = i.viewport();
+        v.maximized == Some(true) || v.fullscreen == Some(true)
+    });
+    let immersive = state.immersive && view == View::Simple;
+    let fill = maximized || immersive;
+    if fill {
+        crate::mixer::keep_height(ui.ctx());
+    }
+    let screen_height = |ui: &Ui, natural: f32, below: f32| {
+        if fill {
+            (ui.available_height() - below - 1.0).max(natural).floor()
+        } else {
+            natural
+        }
+    };
+    // Where the screen starts and how high it is: what lies under it is measured from there.
+    let top = ui.cursor().min.y;
+    let screen;
     match view {
-        View::Simple if state.immersive => {
-            // The picture alone, over the keyboard.
-            let height = (ui.available_height() - KEYBOARD_HEIGHT - 44.0).max(PICTURE_HEIGHT);
-            picture(ui, meters, state, height);
-            ui.add_space(GAP);
-        }
         View::Simple => {
-            picture(ui, meters, state, PICTURE_HEIGHT);
+            screen = screen_height(ui, PICTURE_HEIGHT, state.below);
+            picture(ui, meters, state, screen);
             ui.add_space(GAP);
-            simple_face(ui, params, state, full);
-        }
-        View::Macros => {
-            hero(ui, meters, &live);
-            ui.add_space(GAP);
-            macros_face(ui, params, full);
+            if !immersive {
+                simple_face(ui, params, state, full);
+            }
         }
         _ => {
-            hero(ui, meters, &live);
+            screen = screen_height(ui, HERO_HEIGHT, state.below);
+            hero(ui, meters, &live, screen);
             ui.add_space(GAP);
             match view {
                 View::Oscillators => oscillators_face(ui, params, state, full, expert),
                 View::Filter => filter_face(ui, params, state, full, &live, expert),
                 View::Modulation => lfos_face(ui, params, state, full, expert),
-                _ => effects_face(ui, params, state, full),
+                View::Effects => effects_face(ui, params, state, full),
+                _ => macros_face(ui, params, full),
             }
-            sources_line(ui, params, state);
+            if view.controls() {
+                sources_line(ui, params, state);
+            }
         }
     }
     keyboard(ui, params, state);
+    state.below = ui.min_rect().bottom() - top - screen;
     drop_source(ui, params, state);
     shot::tick(ui, params);
 }
@@ -775,9 +797,90 @@ impl View {
     }
 }
 
+/// The track's record arm, at the right of the views: armed, the track plays what the MIDI
+/// keyboard sends and records it.
+fn arm_switch(ui: &mut Ui, params: &mut Params) {
+    let Some(track) = track_of(params) else {
+        return;
+    };
+    let Some(armed) = params.doc.project().track(track).map(|t| t.armed) else {
+        return;
+    };
+    let p = theme::current(ui);
+    let red = theme::RECORD;
+    let label = if armed {
+        tr("Track armed")
+    } else {
+        tr("Arm the track")
+    };
+    let font = FontId::proportional(12.0);
+    let galley = ui.painter().layout_no_wrap(label.to_owned(), font, p.text);
+    let size = vec2(galley.size().x + 40.0, 26.0);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    let painter = ui.painter();
+    let hovered = response.hovered();
+    let fill = match (armed, hovered) {
+        (true, _) => red.gamma_multiply(if hovered { 0.3 } else { 0.22 }),
+        (false, true) => p.hover,
+        (false, false) => p.surface,
+    };
+    painter.rect_filled(rect, 13.0, fill);
+    painter.rect_stroke(
+        rect,
+        13.0,
+        Stroke::new(1.0, if armed { red } else { p.border }),
+        egui::StrokeKind::Inside,
+    );
+    let dot = pos2(rect.left() + 15.0, rect.center().y);
+    if armed {
+        crate::gear::glow(
+            painter,
+            dot,
+            9.0,
+            red.gamma_multiply(0.5),
+            Color32::TRANSPARENT,
+        );
+        painter.circle_filled(dot, 5.0, red);
+    } else {
+        painter.circle_stroke(
+            dot,
+            4.5,
+            Stroke::new(
+                1.5,
+                if hovered {
+                    red
+                } else {
+                    red.gamma_multiply(0.7)
+                },
+            ),
+        );
+    }
+    painter.galley(
+        pos2(rect.left() + 27.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        if armed { p.text } else { p.weak },
+    );
+    let response = response
+        .on_hover_text(tr(
+            "Armed, the track plays what your MIDI keyboard sends, and records it",
+        ))
+        .on_hover_cursor(egui::CursorIcon::PointingHand);
+    if response.clicked() {
+        // Arming is not an edit of the song, as with the R buttons.
+        params.doc.history_mut().modify_unrecorded(|p| {
+            audiostrada_core::groups::set_switch(
+                p,
+                track,
+                audiostrada_core::groups::Link::Arm,
+                !armed,
+            );
+        });
+    }
+}
+
 /// The switch between the views, and in those of the controls the switch that shows the
 /// expert ones. Returns the view and whether the expert's controls show.
-fn view_switch(ui: &mut Ui) -> (View, bool) {
+fn view_switch(ui: &mut Ui, params: &mut Params) -> (View, bool) {
     let at = ui
         .ctx()
         .data(|d| d.get_temp::<usize>(View::id()))
@@ -813,6 +916,9 @@ fn view_switch(ui: &mut Ui) -> (View, bool) {
                 expert = !expert;
             }
         }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            arm_switch(ui, params);
+        });
     });
     ui.ctx().data_mut(|d| {
         let at = View::ALL.iter().position(|v| *v == view).unwrap_or(0);
@@ -1560,6 +1666,9 @@ fn known_sounds() -> Vec<(u64, Sound)> {
         .collect()
 }
 
+/// Height of the scope over the controls' views.
+const HERO_HEIGHT: f32 = 70.0;
+
 /// Height of the sound's picture in the simple view.
 const PICTURE_HEIGHT: f32 = 210.0;
 
@@ -2210,11 +2319,11 @@ fn lfo_view(ui: &mut Ui, params: &mut Params, l: usize, phase: f32) {
 }
 
 /// The top of the synth: the sound as an oscilloscope, glowing, and the voices playing.
-fn hero(ui: &mut Ui, meters: &[f32], live: &Live) {
+fn hero(ui: &mut Ui, meters: &[f32], live: &Live, height: f32) {
     use audiostrada_dsp::synth::meter;
     let p = theme::current(ui);
     let width = ui.available_width();
-    let (rect, _) = ui.allocate_exact_size(vec2(width, 70.0), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
     let painter = ui.painter_at(rect);
     // A deep screen whatever the theme, as on hardware.
     let screen = SCREEN;
@@ -2910,6 +3019,63 @@ mod tests {
         assert_eq!(black, [61, 63, 66, 68, 70]);
         assert_eq!(octave_name(48), "C3");
         assert_eq!(octave_name(60), "C4");
+    }
+
+    /// The picture given the whole window fills its height, whatever the window's: the window
+    /// is asked to keep its height rather than to follow the content, and the arm switch
+    /// arms the track.
+    #[test]
+    fn the_picture_fills_the_window_it_is_given() {
+        use crate::document::{AppDirs, Document};
+        use audiostrada_core::routing::{self, Channel};
+        use eframe::egui::RawInput;
+        let mut doc = Document::new(AppDirs::default());
+        let mut insert = None;
+        doc.history_mut().edit("Setup", |p| {
+            let t = p.add_track("A");
+            insert = routing::add_insert(p, Channel::Track(t), "synth", Default::default());
+        });
+        let channel = Channel::Track(doc.project().tracks[0].id);
+        let info = audiostrada_dsp::info("synth").unwrap();
+        let ctx = egui::Context::default();
+        let mut state = SynthState {
+            immersive: true,
+            ..Default::default()
+        };
+        for height in [700.0, 1000.0, 1000.0, 1000.0, 820.0, 820.0, 820.0] {
+            let input = RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1200.0, height))),
+                ..Default::default()
+            };
+            let mut bottom = 0.0;
+            ctx.run_ui(input, |ui| {
+                let mut params = Params {
+                    values: info.params.iter().map(|p| p.default).collect(),
+                    doc: &mut doc,
+                    channel,
+                    insert: insert.unwrap(),
+                    info,
+                };
+                show(ui, &mut params, &[], &mut state);
+                bottom = ui.min_rect().bottom();
+            })
+            .drop_without_applying_deltas();
+            let kept = ctx
+                .data_mut(|d| {
+                    d.remove_temp::<bool>(egui::Id::unique((
+                        "fit-keep-height",
+                        egui::ViewportId::ROOT,
+                    )))
+                })
+                .unwrap_or(false);
+            assert!(kept, "the window keeps its height");
+            if height > 700.0 && state.below > 0.0 {
+                assert!(
+                    (height - 24.0..=height).contains(&bottom),
+                    "{bottom} in a window of {height}"
+                );
+            }
+        }
     }
 
     #[test]

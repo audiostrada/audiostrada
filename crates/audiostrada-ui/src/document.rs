@@ -225,6 +225,29 @@ fn engine_config() -> EngineConfig {
 /// A clip's sound as far as its tempo goes: its file, offset, length and stretch.
 type TempoKey = (PathBuf, u64, u64, u64);
 
+/// What MIDI asks of an insert's presets.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PresetStep {
+    Next,
+    Previous,
+    /// The preset at this place in the menu, from 0 (a program change).
+    Number(u8),
+}
+
+impl PresetStep {
+    /// The names a MIDI mapping gives the presets' arrows, as parameters of the insert.
+    pub const NEXT: &str = "@preset-next";
+    pub const PREVIOUS: &str = "@preset-previous";
+
+    fn of_param(param: &str) -> Option<Self> {
+        match param {
+            Self::NEXT => Some(Self::Next),
+            Self::PREVIOUS => Some(Self::Previous),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Document {
     history: History,
@@ -264,6 +287,11 @@ pub struct Document {
     /// Control waiting for a MIDI controller (MIDI learn): target and value range.
     learning: Option<(Channel, AutomationTarget, f32, f32)>,
     controllers: LiveReader,
+    /// The last value of each controller (channel, number) and when it came, to tell a
+    /// button pressed from one held.
+    pressed: HashMap<(u8, u8), (u8, std::time::Instant)>,
+    /// Preset changes asked by MIDI, for the windows to make: channel, insert, which.
+    preset_steps: Vec<(Channel, audiostrada_core::InsertId, PresetStep)>,
     /// Archive being written, to its file.
     archiving: Option<std::thread::JoinHandle<Result<PathBuf, String>>>,
     /// The reference file measured, and its integrated loudness.
@@ -381,6 +409,8 @@ impl Document {
             render_queue: Vec::new(),
             learning: None,
             controllers: audiostrada_midi::live::LiveMidi::default().reader(),
+            pressed: HashMap::new(),
+            preset_steps: Vec::new(),
             archiving: None,
             reference_lufs: None,
             levels: HashMap::new(),
@@ -1945,16 +1975,58 @@ impl Document {
             });
     }
 
+    /// The preset changes MIDI asked for since the last call.
+    pub fn take_preset_steps(&mut self) -> Vec<(Channel, audiostrada_core::InsertId, PresetStep)> {
+        std::mem::take(&mut self.preset_steps)
+    }
+
+    /// A controller's value, and whether it presses a button: it rises past the middle, or
+    /// comes high again after a pause (buttons that send only their pressed value).
+    fn press(&mut self, midi_channel: u8, controller: u8, value: u8) -> bool {
+        let now = std::time::Instant::now();
+        let last = self
+            .pressed
+            .insert((midi_channel, controller), (value, now));
+        value >= 64
+            && last.is_none_or(|(before, at)| {
+                before < 64 || now.duration_since(at) > std::time::Duration::from_millis(250)
+            })
+    }
+
+    /// A program change: the built-in instruments of the armed tracks take that preset.
+    fn program_change(&mut self, program: u8) {
+        let steps: Vec<_> = self
+            .project()
+            .tracks
+            .iter()
+            .filter(|t| t.armed)
+            .filter_map(|t| {
+                let first = t.inserts.first()?;
+                audiostrada_dsp::info(&first.effect)
+                    .is_some_and(|i| i.instrument)
+                    .then_some((Channel::Track(t.id), first.id, PresetStep::Number(program)))
+            })
+            .collect();
+        self.preset_steps.extend(steps);
+    }
+
     /// Applies MIDI controllers to their mapped controls, or maps one when learning.
     fn poll_controllers(&mut self) {
         let mut moves = Vec::new();
+        let mut programs = Vec::new();
         self.controllers.drain(|data, _| {
             let event = audiostrada_midi::MidiEvent { time: 0, data };
             if let Some((controller, value)) = event.as_control() {
                 moves.push((event.channel(), controller, value));
+            } else if data[0] & 0xF0 == 0xC0 {
+                programs.push(data[1] & 0x7F);
             }
         });
+        for program in programs {
+            self.program_change(program);
+        }
         for (midi_channel, controller, value) in moves {
+            let pressed = self.press(midi_channel, controller, value);
             if let Some((channel, target, min, max)) = self.learning.take() {
                 let track = channel.track(self.project());
                 let mapping = audiostrada_core::MidiMapping {
@@ -1991,6 +2063,15 @@ impl Document {
             }
             for m in mapped {
                 let channel = m.track.map_or(Channel::Master, Channel::Track);
+                // A button stepping an insert's presets.
+                if let AutomationTarget::Param { insert, param } = &m.target
+                    && let Some(step) = PresetStep::of_param(param)
+                {
+                    if pressed {
+                        self.preset_steps.push((channel, *insert, step));
+                    }
+                    continue;
+                }
                 let v = m.min + (m.max - m.min) * f32::from(value) / 127.0;
                 if !self.automation_gesture(channel, &m.target, Some(v)) {
                     self.set_static(channel, &m.target, v);
@@ -2691,6 +2772,61 @@ mod tests {
         assert!((peak("Quiet.flac") - 0.125).abs() < 0.01);
         assert!(doc.render_queue().is_err(), "empty queue");
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_learnt_button_and_a_program_change_step_the_presets() {
+        let mut doc = Document::new(AppDirs::default());
+        let mut insert = None;
+        doc.history_mut().edit("Keys", |p| {
+            let t = p.add_track("Keys");
+            insert = audiostrada_core::routing::add_insert(
+                p,
+                Channel::Track(t),
+                "synth",
+                Default::default(),
+            );
+            p.track_mut(t).unwrap().armed = true;
+        });
+        let (t, insert) = (doc.project().tracks[0].id, insert.unwrap());
+        let channel = Channel::Track(t);
+        let mut processor = doc.processor(48_000, 64);
+        let mut storage = audiostrada_io::ChannelBuffers::new(0, 2, 64);
+        let live = doc.player().live_midi();
+        let mut run = |doc: &mut Document| {
+            processor.render(&mut storage.buffers(64));
+            doc.update();
+        };
+        let next = AutomationTarget::Param {
+            insert,
+            param: PresetStep::NEXT.to_owned(),
+        };
+        doc.learn(channel, next.clone(), 0.0, 1.0);
+        live.push([0xB0, 20, 127], 0);
+        run(&mut doc);
+        assert_eq!(doc.mapping(channel, &next), Some((0, 20)));
+        assert!(doc.take_preset_steps().is_empty(), "learning steps nothing");
+        // Pressed and let go, then pressed again: two steps, and nothing set as a value.
+        for value in [0, 127, 0, 127] {
+            live.push([0xB0, 20, value], 0);
+            run(&mut doc);
+        }
+        assert_eq!(
+            doc.take_preset_steps(),
+            [(channel, insert, PresetStep::Next); 2]
+        );
+        assert!(
+            !doc.project().tracks[0].inserts[0]
+                .params
+                .contains_key(PresetStep::NEXT)
+        );
+        // A program change picks the preset of the armed instrument.
+        live.push([0xC0, 5, 0], 0);
+        run(&mut doc);
+        assert_eq!(
+            doc.take_preset_steps(),
+            [(channel, insert, PresetStep::Number(5))]
+        );
     }
 
     #[test]

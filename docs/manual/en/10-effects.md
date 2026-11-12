@@ -8,7 +8,8 @@ through them family by family; the parameter tables give each control's range an
 
 - **Presets**: the bar at the top of an effect's window shows the preset loaded, with a dot when
   its settings changed since. The arrows beside it, or [[Left]] and [[Right]], step through the
-  presets. Click its name for the preset panel: a search, the categories, your favorites, the
+  presets; right-click an arrow › *MIDI learn* and press a button of your MIDI controller to
+  step them from there, window open or not. Click its name for the preset panel: a search, the categories, your favorites, the
   factory presets and yours apart. Browsing it with the pointer or [[Up]] and [[Down]] lets you
   hear each preset; [[Enter]] keeps it, [[Escape]] goes back to the settings before.
   Right-click one of yours to rename or delete it. The star adds the preset to your favorites,

@@ -641,6 +641,13 @@ fn forget_window(ctx: &egui::Context, places: egui::Id, id: egui::ViewportId) {
     });
 }
 
+/// Asks the editor window being drawn to keep its height this frame: its content fills the
+/// height it has rather than setting it.
+pub(crate) fn keep_height(ctx: &egui::Context) {
+    let id = ctx.viewport_id();
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique(("fit-keep-height", id)), true));
+}
+
 /// What an editor window gives its content: the keys it took for it, and the body under
 /// the bars.
 struct Fit {
@@ -735,7 +742,15 @@ fn editor_window(
         let opened = egui::Id::unique(("fit-opened", id));
         let frame = ctx.cumulative_frame_nr();
         let first = ctx.data_mut(|d| *d.get_temp_mut_or_insert_with(opened, || frame));
-        if let Some((content, room)) = content.filter(|_| frame >= first + 2) {
+        let keep_height = ctx
+            .data_mut(|d| d.remove_temp::<bool>(egui::Id::unique(("fit-keep-height", id))))
+            .unwrap_or(false);
+        // A maximized window is the screen's: its content follows it, not the other way.
+        let maximized = ctx.input(|i| {
+            let v = i.viewport();
+            v.maximized == Some(true) || v.fullscreen == Some(true)
+        });
+        if let Some((content, room)) = content.filter(|_| frame >= first + 2 && !maximized) {
             let (inner, monitor) = ctx.input(|i| {
                 let v = i.viewport();
                 (
@@ -758,6 +773,9 @@ fn editor_window(
             ctx.data_mut(|d| d.insert_temp(seen, (room.x, content.x, tracking)));
             if tracking && wanted.x > inner.x {
                 wanted.x = inner.x;
+            }
+            if keep_height {
+                wanted.y = inner.y;
             }
             let wanted = egui::vec2(
                 wanted.x.round().min(monitor.x - 40.0),
@@ -2694,6 +2712,13 @@ impl MixerView {
             return;
         };
         let project = doc.project().clone();
+        // Presets asked by MIDI, whether their windows are open or not.
+        for (channel, id, step) in doc.take_preset_steps() {
+            if let Some(insert) = routing::find_insert(&project, channel, id) {
+                let state = self.editor_states.entry(id).or_default();
+                effect_frame::step_preset(&mut doc, channel, insert, &mut state.frame, step);
+            }
+        }
         self.insert_editors(ctx, &mut doc, &project);
         self.send_settings_window(ctx, &mut doc, &project);
         if let Some(((channel, monitor), key, name)) =

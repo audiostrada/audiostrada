@@ -6580,3 +6580,18 @@ Cette macro ne pilote encore rien : donnez-lui une cible dans la vue Macros
 
 Click for another picture of the sound, double-click to give it the whole window
 Cliquez pour une autre image du son, double-cliquez pour lui donner toute la fenêtre
+
+Track armed
+Piste armée
+
+Arm the track
+Armer la piste
+
+Armed, the track plays what your MIDI keyboard sends, and records it
+Armée, la piste joue ce qu'envoie votre clavier MIDI, et l'enregistre
+
+Previous preset. Right-click to assign a MIDI button
+Preset précédent. Clic droit pour assigner un bouton MIDI
+
+Next preset. Right-click to assign a MIDI button
+Preset suivant. Clic droit pour assigner un bouton MIDI

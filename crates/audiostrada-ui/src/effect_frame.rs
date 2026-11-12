@@ -12,7 +12,7 @@ use eframe::egui::{
     Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2,
 };
 
-use crate::document::Document;
+use crate::document::{Document, PresetStep};
 use crate::effect_editors::{menu_order, preset_category};
 use crate::i18n::tr;
 use crate::presets::Preset;
@@ -674,6 +674,38 @@ fn load(
     state.loaded = Some(settings.params);
 }
 
+/// Loads the preset a MIDI controller asked for, the window open or not: the next or the
+/// previous one in the menu's order, or the one at a place in it.
+pub fn step_preset(
+    doc: &mut Document,
+    channel: Channel,
+    insert: &Insert,
+    state: &mut FrameState,
+    step: PresetStep,
+) {
+    let list = state.presets(&insert.effect);
+    let order = menu_order(&list);
+    let n = order.len();
+    if n == 0 {
+        return;
+    }
+    let at = state
+        .preset
+        .as_ref()
+        .and_then(|name| list.iter().position(|q| &q.name == name))
+        .and_then(|i| order.iter().position(|&j| j == i));
+    let k = match (step, at) {
+        (PresetStep::Number(k), _) => usize::from(k),
+        (PresetStep::Next, Some(k)) => (k + 1) % n,
+        (PresetStep::Previous, Some(k)) => (k + n - 1) % n,
+        (PresetStep::Next, None) => 0,
+        (PresetStep::Previous, None) => n - 1,
+    };
+    if let Some(preset) = order.get(k).and_then(|&i| list.get(i)) {
+        load(doc, channel, insert.id, state, preset);
+    }
+}
+
 /// "Category › name" or the name, with its category apart.
 fn split_name(name: &str) -> (Option<String>, String) {
     match preset_category(name) {
@@ -973,8 +1005,20 @@ fn top_bar(
         }
     };
     for (rect, forward, glyph, hint, name) in [
-        (prev, false, Glyph::Left, tr("Previous preset"), "prev"),
-        (next, true, Glyph::Right, tr("Next preset"), "next"),
+        (
+            prev,
+            false,
+            Glyph::Left,
+            tr("Previous preset. Right-click to assign a MIDI button"),
+            "prev",
+        ),
+        (
+            next,
+            true,
+            Glyph::Right,
+            tr("Next preset. Right-click to assign a MIDI button"),
+            "next",
+        ),
     ] {
         let response = button(&dimmed, rect, id.with(name), any);
         let mut ink = dimmed.painter().clone();
@@ -988,9 +1032,21 @@ fn top_bar(
             glyph,
             p.text,
         );
-        if response.on_hover_text(hint).clicked() {
+        let response = response.on_hover_text(hint);
+        if response.clicked() {
             chosen = step(forward);
         }
+        // A button of a MIDI controller steps the presets as this arrow does.
+        let target = audiostrada_core::automation::AutomationTarget::Param {
+            insert: insert.id,
+            param: if forward {
+                PresetStep::NEXT
+            } else {
+                PresetStep::PREVIOUS
+            }
+            .to_owned(),
+        };
+        crate::mixer::learn_menu(&response, doc, channel, &target, (0.0, 1.0));
     }
     // The field: category, name, a dot when changed since it was loaded.
     let open = state.panel.is_some();
@@ -2307,5 +2363,44 @@ pub(crate) fn sidechain_menu(ui: &mut Ui, doc: &mut Document, channel: Channel, 
                 i.sidechain = source;
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::AppDirs;
+
+    #[test]
+    fn midi_steps_the_presets_in_the_menus_order_without_the_window() {
+        let mut doc = Document::new(AppDirs::default());
+        let mut id = None;
+        doc.history_mut().edit("Keys", |p| {
+            let t = p.add_track("Keys");
+            id = routing::add_insert(p, Channel::Track(t), "synth", Default::default());
+        });
+        let channel = Channel::Track(doc.project().tracks[0].id);
+        let insert = |doc: &Document| {
+            routing::find_insert(doc.project(), channel, id.unwrap())
+                .unwrap()
+                .clone()
+        };
+        let list = crate::presets::list(None, "synth");
+        let order = menu_order(&list);
+        let mut state = FrameState::default();
+        let mut step = |doc: &mut Document, step: PresetStep| {
+            let i = insert(doc);
+            step_preset(doc, channel, &i, &mut state, step);
+            state.preset.clone().unwrap()
+        };
+        assert_eq!(step(&mut doc, PresetStep::Next), list[order[0]].name);
+        assert_eq!(step(&mut doc, PresetStep::Next), list[order[1]].name);
+        assert_eq!(step(&mut doc, PresetStep::Previous), list[order[0]].name);
+        assert_eq!(
+            step(&mut doc, PresetStep::Previous),
+            list[order[order.len() - 1]].name
+        );
+        assert_eq!(step(&mut doc, PresetStep::Number(3)), list[order[3]].name);
+        assert_eq!(insert(&doc).params, list[order[3]].params);
     }
 }
