@@ -6521,8 +6521,14 @@ Tous les réglages : oscillateurs, filtre, enveloppes, LFO, effets
 The macros, what each one moves, and what else modulates the sound
 Les macros, ce que chacune pilote, et ce qui module le son par ailleurs
 
-Drag onto a knob:
-À glisser sur un potard :
+Modulate by
+Moduler par
+
+Click to modulate this control
+Cliquez pour moduler ce réglage
+
+Click to stop this modulation
+Cliquez pour arrêter cette modulation
 
 + Add a target
 + Ajouter une cible

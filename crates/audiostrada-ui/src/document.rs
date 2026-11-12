@@ -225,17 +225,46 @@ fn engine_config() -> EngineConfig {
 /// A clip's sound as far as its tempo goes: its file, offset, length and stretch.
 type TempoKey = (PathBuf, u64, u64, u64);
 
-/// The value a controller at `value` (0 to 127) gives a control of `min` to `max`: along the
-/// knob's own curve for a built-in effect's parameter (times and frequencies on a logarithmic
-/// scale), so that the controller turns as the knob does.
-fn turned(effect: Option<&str>, param: &str, min: f32, max: f32, value: u8) -> f32 {
-    let t = f32::from(value) / 127.0;
+/// The value a controller gives a control of `min` to `max` that is at `now`: moved by as much
+/// as the controller turned since its last message (`delta`, in 127ths), so that an endless
+/// encoder never makes it jump; `None` at its first message, which only tells where it is.
+/// Without a value to start from, the control goes where the controller is (`value`, 0 to
+/// 127). Along the knob's own curve for a built-in effect's parameter (times and frequencies
+/// on a logarithmic scale), so that the controller turns as the knob does.
+fn turned(
+    (effect, param): (Option<&str>, &str),
+    (min, max): (f32, f32),
+    now: Option<f32>,
+    value: u8,
+    delta: Option<i16>,
+) -> Option<f32> {
+    use crate::effect_editors::{from_unit, to_unit};
     let info = effect
         .and_then(audiostrada_dsp::info)
-        .and_then(|i| i.params.iter().find(|p| p.id == param));
-    match info {
-        Some(p) if p.min == min && p.max == max => crate::effect_editors::from_unit(p, t),
-        _ => min + (max - min) * t,
+        .and_then(|i| i.params.iter().find(|p| p.id == param))
+        .filter(|p| p.min == min && p.max == max);
+    let unit = |v: f32| {
+        let t = match info {
+            Some(p) => to_unit(p, v),
+            None if max != min => (v - min) / (max - min),
+            None => 0.0,
+        };
+        if t.is_finite() {
+            t.clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    };
+    let value_at = |t: f32| match info {
+        Some(p) => from_unit(p, t),
+        None => min + (max - min) * t,
+    };
+    match (now, delta) {
+        (Some(now), Some(delta)) => Some(value_at(
+            (unit(now) + f32::from(delta) / 127.0).clamp(0.0, 1.0),
+        )),
+        (Some(_), None) => None,
+        (None, _) => Some(value_at(f32::from(value) / 127.0)),
     }
 }
 
@@ -2090,6 +2119,8 @@ impl Document {
             self.program_change(program);
         }
         for (midi_channel, controller, value) in moves {
+            let before = self.pressed.get(&(midi_channel, controller)).map(|p| p.0);
+            let delta = before.map(|b| i16::from(value) - i16::from(b));
             let pressed = self.press(midi_channel, controller, value);
             if let Some((channel, target, min, max)) = self.learning.take() {
                 let track = channel.track(self.project());
@@ -2152,7 +2183,7 @@ impl Document {
                 .collect();
             let learned = crate::midi_learn::with(|s| s.turned_by(midi_channel, controller));
             if mapped.is_empty() && learned.is_empty() {
-                self.play_synth_controller(controller, value);
+                self.play_synth_controller(controller, value, delta);
             }
             // What was learned for every project turns its parameter on the effects of that
             // kind the player plays.
@@ -2168,7 +2199,12 @@ impl Document {
                         insert,
                         param: l.param.clone(),
                     };
-                    let v = turned(Some(&l.effect), &l.param, l.min, l.max, value);
+                    let now = self.control_value(channel, &target);
+                    let range = (l.min, l.max);
+                    let Some(v) = turned((Some(&l.effect), &l.param), range, now, value, delta)
+                    else {
+                        continue;
+                    };
                     if !self.automation_gesture(channel, &target, Some(v)) {
                         self.set_static(channel, &target, v);
                     }
@@ -2185,6 +2221,12 @@ impl Document {
                     }
                     continue;
                 }
+                // A button switches as it is pressed and let go.
+                let now = match m.target {
+                    AutomationTarget::Mute => None,
+                    _ => self.control_value(channel, &m.target),
+                };
+                let range = (m.min, m.max);
                 let v = match &m.target {
                     AutomationTarget::Param { insert, param } => {
                         let effect = audiostrada_core::routing::find_insert(
@@ -2193,9 +2235,12 @@ impl Document {
                             *insert,
                         )
                         .map(|i| i.effect.clone());
-                        turned(effect.as_deref(), param, m.min, m.max, value)
+                        turned((effect.as_deref(), param), range, now, value, delta)
                     }
-                    _ => turned(None, "", m.min, m.max, value),
+                    _ => turned((None, ""), range, now, value, delta),
+                };
+                let Some(v) = v else {
+                    continue;
                 };
                 if !self.automation_gesture(channel, &m.target, Some(v)) {
                     self.set_static(channel, &m.target, v);
@@ -2206,7 +2251,7 @@ impl Document {
 
     /// A keyboard's standard sound controllers on the built-in synth of the armed tracks, when
     /// no control was mapped to them.
-    fn play_synth_controller(&mut self, controller: u8, value: u8) {
+    fn play_synth_controller(&mut self, controller: u8, value: u8, delta: Option<i16>) {
         let Some(&(_, id)) = SYNTH_CONTROLLERS.iter().find(|(cc, _)| *cc == controller) else {
             return;
         };
@@ -2214,13 +2259,6 @@ impl Document {
             audiostrada_dsp::info("synth").and_then(|i| i.params.iter().find(|p| p.id == id))
         else {
             return;
-        };
-        let t = f32::from(value) / 127.0;
-        // As the knob turns: times and frequencies on a logarithmic scale.
-        let v = if matches!(param.unit, "Hz" | "ms") && param.min > 0.0 {
-            param.min * (param.max / param.min).powf(t)
-        } else {
-            param.min + t * (param.max - param.min)
         };
         let synths: Vec<(TrackId, audiostrada_core::InsertId)> = self
             .project()
@@ -2241,9 +2279,44 @@ impl Document {
                 insert,
                 param: id.to_owned(),
             };
+            let now = self.control_value(channel, &target);
+            let range = (param.min, param.max);
+            let Some(v) = turned((Some("synth"), id), range, now, value, delta) else {
+                continue;
+            };
             if !self.automation_gesture(channel, &target, Some(v)) {
                 self.set_static(channel, &target, v);
             }
+        }
+    }
+
+    /// What a control is at now: its automation where it plays, else its own value.
+    fn control_value(&self, channel: Channel, target: &AutomationTarget) -> Option<f32> {
+        if let Some(v) = self.automation_value(channel, target) {
+            return Some(v);
+        }
+        let project = self.project();
+        match (channel, target) {
+            (Channel::Master, AutomationTarget::Gain) => Some(project.master.gain_db),
+            (Channel::Track(t), AutomationTarget::Gain) => project.track(t).map(|t| t.gain_db),
+            (Channel::Track(t), AutomationTarget::Pan) => project.track(t).map(|t| t.pan),
+            (Channel::Track(t), AutomationTarget::Send(to)) => project
+                .track(t)?
+                .sends
+                .iter()
+                .find(|s| s.target == *to)
+                .map(|s| s.gain_db),
+            (_, AutomationTarget::Param { insert, param }) => {
+                let insert = audiostrada_core::routing::find_insert(project, channel, *insert)?;
+                insert.params.get(param.as_str()).copied().or_else(|| {
+                    let info = audiostrada_dsp::info(&insert.effect)?;
+                    info.params
+                        .iter()
+                        .find(|p| p.id == param)
+                        .map(|p| p.default)
+                })
+            }
+            _ => None,
         }
     }
 
@@ -2942,6 +3015,13 @@ mod tests {
             param: "macro1".into(),
         };
         assert_eq!(second.mapping(channel, &macro1), Some((0, 21)));
+        // The first message tells where the controller is, the next moves the macro by as
+        // much as it turned.
+        turn(&mut second, [0xB0, 21, 0]);
+        assert_eq!(
+            second.project().tracks[0].inserts[0].params.get("macro1"),
+            None
+        );
         turn(&mut second, [0xB0, 21, 127]);
         assert_eq!(
             second.project().tracks[0].inserts[0].params.get("macro1"),
@@ -2949,19 +3029,48 @@ mod tests {
         );
         second.forget_mapping(channel, &macro1);
         assert_eq!(second.mapping(channel, &macro1), None);
-        // A time turns along the knob's curve: a controller barely up is barely a millisecond,
-        // halfway the middle of the knob.
+        // A time turns along the knob's curve: down to the bottom, then a step up is barely a
+        // millisecond, half a turn the middle of the knob.
         let release = AutomationTarget::Param {
             insert,
             param: "release".into(),
         };
         second.learn(channel, release, 1.0, 8000.0);
+        turn(&mut second, [0xB0, 22, 127]);
         turn(&mut second, [0xB0, 22, 0]);
         let release_now = |doc: &Document| doc.project().tracks[0].inserts[0].params["release"];
+        assert_eq!(release_now(&second), 1.0);
         turn(&mut second, [0xB0, 22, 1]);
         assert!(release_now(&second) < 1.2, "{}", release_now(&second));
         turn(&mut second, [0xB0, 22, 64]);
         assert!((80.0..100.0).contains(&release_now(&second)));
+    }
+
+    #[test]
+    fn an_endless_encoder_moves_a_control_from_its_value_without_a_jump() {
+        let mut doc = Document::new(AppDirs::default());
+        doc.history_mut().edit("Keys", |p| {
+            let t = p.add_track("Keys");
+            p.track_mut(t).unwrap().gain_db = -30.0;
+        });
+        let t = doc.project().tracks[0].id;
+        let mut processor = doc.processor(48_000, 64);
+        let mut storage = audiostrada_io::ChannelBuffers::new(0, 2, 64);
+        let live = doc.player().live_midi();
+        let mut turn = |doc: &mut Document, value: u8| {
+            live.push([0xB0, 7, value], 0);
+            processor.render(&mut storage.buffers(64));
+            doc.update();
+        };
+        doc.learn(Channel::Track(t), AutomationTarget::Gain, -60.0, 12.0);
+        turn(&mut doc, 100);
+        // The encoder was left far from the fader: it moves the fader by its own turn.
+        turn(&mut doc, 101);
+        let gain = doc.project().tracks[0].gain_db;
+        assert!((gain - (-30.0 + 72.0 / 127.0)).abs() < 1e-3, "{gain}");
+        turn(&mut doc, 91);
+        let gain = doc.project().tracks[0].gain_db;
+        assert!((gain - (-30.0 - 9.0 * 72.0 / 127.0)).abs() < 1e-3, "{gain}");
     }
 
     #[test]
@@ -3181,10 +3290,17 @@ mod tests {
         assert_eq!(param(&doc, "cutoff"), None, "not armed");
         doc.history_mut()
             .edit("Arm", |p| p.track_mut(t).unwrap().armed = true);
-        turn(&mut doc, 74, 127);
-        assert_eq!(param(&doc, "cutoff"), Some(18_000.0));
+        // From where the knob was, as much as it turns.
         turn(&mut doc, 74, 0);
         assert_eq!(param(&doc, "cutoff"), Some(40.0));
+        turn(&mut doc, 74, 127);
+        assert_eq!(param(&doc, "cutoff"), Some(18_000.0));
+        turn(&mut doc, 71, 0);
+        assert_eq!(
+            param(&doc, "resonance"),
+            None,
+            "a first message moves nothing"
+        );
         turn(&mut doc, 71, 127);
         assert_eq!(param(&doc, "resonance"), Some(95.0));
         // A controller mapped by MIDI learn does only what it was mapped to.

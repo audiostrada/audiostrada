@@ -14,7 +14,7 @@ use eframe::egui::{
 
 use crate::document::Document;
 use crate::i18n::tr;
-use crate::mixer::{automated_control, learn_menu};
+use crate::mixer::{automated_control, learn_menu_with};
 use crate::theme;
 use crate::trf;
 use crate::widgets;
@@ -69,6 +69,17 @@ impl Params<'_> {
 
     /// Applies a control's change and ends the gesture when it is released.
     pub fn set(&mut self, id: &str, changed: Option<f32>, response: &Response) {
+        self.set_with(id, changed, response, |_| {});
+    }
+
+    /// `set`, with `more` items in the control's right-click menu.
+    pub(crate) fn set_with(
+        &mut self,
+        id: &str,
+        changed: Option<f32>,
+        response: &Response,
+        more: impl FnOnce(&mut Ui),
+    ) {
         let Some(param) = self.param(id) else {
             return;
         };
@@ -77,12 +88,13 @@ impl Params<'_> {
             insert: self.insert,
             param: id.to_owned(),
         };
-        learn_menu(
+        learn_menu_with(
             response,
             self.doc,
             self.channel,
             &lane,
             (param.min, param.max),
+            more,
         );
     }
 
@@ -336,6 +348,14 @@ pub fn choice_box(ui: &mut Ui, params: &mut Params, id: &str) {
         ui.horizontal(|ui| segmented(ui, params, id, &[]));
         return;
     }
+    choice_list(ui, params, id);
+}
+
+/// A drop-down list of the choices, however few: for a narrow place.
+pub(crate) fn choice_list(ui: &mut Ui, params: &mut Params, id: &str) {
+    let Some(p) = params.param(id) else {
+        return;
+    };
     let value = params.get(id);
     let mut chosen = None;
     let response = egui::ComboBox::from_id_salt(("choice", params.insert.0, id))
@@ -376,7 +396,7 @@ pub(crate) fn named_knob(
     size: f32,
     tint: Color32,
 ) {
-    knob_with(ui, params, (id, label), size, tint, false);
+    knob_with(ui, params, (id, label), size, tint, false, |_| {});
 }
 
 /// A knob as wide as its label and its longest value, which stay on one line.
@@ -388,7 +408,19 @@ pub(crate) fn wide_knob(
     size: f32,
     tint: Color32,
 ) {
-    knob_with(ui, params, (id, label), size, tint, true);
+    knob_with(ui, params, (id, label), size, tint, true, |_| {});
+}
+
+/// `wide_knob`, with `more` items in its right-click menu.
+pub(crate) fn wide_knob_with(
+    ui: &mut Ui,
+    params: &mut Params,
+    (id, label): (&str, &str),
+    size: f32,
+    tint: Color32,
+    more: impl FnOnce(&mut Ui),
+) {
+    knob_with(ui, params, (id, label), size, tint, true, more);
 }
 
 fn knob_with(
@@ -398,6 +430,7 @@ fn knob_with(
     size: f32,
     tint: Color32,
     wide: bool,
+    more: impl FnOnce(&mut Ui),
 ) {
     let Some(p) = params.param(id) else {
         return;
@@ -458,7 +491,7 @@ fn knob_with(
             name = tr(p.name),
             value = format_value(p, shown)
         ));
-        params.set(id, changed, &response);
+        params.set_with(id, changed, &response, more);
         let mut text =
             egui::Label::new(RichText::new(format_value(p, shown)).monospace().size(11.0));
         if wide {

@@ -92,6 +92,11 @@ pistes armées (sinon des pistes sélectionnées), dans n'importe quel projet. C
 panoramiques et des sends du mixeur appartiennent au projet. Un contrôleur tourne un temps ou une
 fréquence comme son potard, finement en bas de sa course.
 
+Un contrôleur déplace un réglage d'autant qu'il tourne, à partir de la valeur du réglage : un
+potard sans fin, ou un potard resté ailleurs après un changement de preset, ne le fait jamais
+sauter. Son premier message indique seulement où il se trouve. Un potard ou un fader à butées
+se recale après un aller-retour complet.
+
 **Les changements de programme** envoyés par un clavier (ses boutons de presets) choisissent le
 preset de l'instrument intégré des pistes armées : le programme 1 est le premier preset de son
 menu.

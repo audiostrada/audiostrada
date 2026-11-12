@@ -2381,7 +2381,19 @@ pub(crate) fn learn_menu(
     doc: &mut Document,
     channel: Channel,
     target: &AutomationTarget,
+    range: (f32, f32),
+) {
+    learn_menu_with(response, doc, channel, target, range, |_| {});
+}
+
+/// The same menu, with `more` items after the MIDI ones.
+pub(crate) fn learn_menu_with(
+    response: &Response,
+    doc: &mut Document,
+    channel: Channel,
+    target: &AutomationTarget,
     (min, max): (f32, f32),
+    more: impl FnOnce(&mut Ui),
 ) {
     // Its own popup id: egui gives a context menu the one of a drop-down list on the same
     // widget, which would close the list as soon as it opens.
@@ -2405,6 +2417,7 @@ pub(crate) fn learn_menu(
                 doc.forget_mapping(channel, target);
                 ui.close();
             }
+            more(ui);
         });
 }
 

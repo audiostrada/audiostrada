@@ -39,9 +39,11 @@ la place que laissent les réglages.
 
 Quatre vues montrent le synthé lui-même, quelques panneaux chacune : **Oscillateurs** (avec les
 tables d'ondes, le sub et le bruit), **Filtre et enveloppe**, **Modulation** (les LFO, la
-seconde enveloppe et la liste de ce qu'ils modulent) et **Arpégiateur et effets**. En bas de
-chacune, les sources (LFO, seconde enveloppe, macros, vélocité, molette de modulation,
-pression) : glissez-en une sur un potard pour le moduler. **Expert** ajoute les réglages dont
+seconde enveloppe et la liste de ce qu'ils modulent) et **Arpégiateur et effets**. Un clic
+droit sur un potard, puis *Moduler par*, lui fait suivre un LFO, la seconde enveloppe, une
+macro, la vélocité, la molette de modulation ou la pression ; choisissez à nouveau une source
+cochée pour l'arrêter. Dans **Modulation**, vous pouvez aussi glisser le nom d'un LFO ou de la
+seconde enveloppe sur un potard. **Expert** ajoute les réglages dont
 peu de sons ont besoin : accord fin, FM, synchro et anneau, suivi du clavier, dérive,
 profondeur des LFO et MPE.
 

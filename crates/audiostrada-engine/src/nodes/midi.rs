@@ -147,6 +147,8 @@ pub struct MidiPlayer {
     active: [u128; 16],
     /// Notes held live (MIDI input, the editors' keyboards) per channel.
     held: [u128; 16],
+    /// Keys of the MIDI input pressed while armed: their release still comes once disarmed.
+    input_held: [u128; 16],
     expected: Option<u64>,
     was_playing: bool,
     events: Vec<MidiEvent>,
@@ -182,6 +184,7 @@ impl MidiPlayer {
                 keys: keys.reader(),
                 active: [0; 16],
                 held: [0; 16],
+                input_held: [0; 16],
                 expected: None,
                 was_playing: false,
                 events: Vec::with_capacity(MAX_EVENTS),
@@ -335,11 +338,25 @@ impl MidiPlayer {
                 n += 1;
             }
         };
-        if self.armed.load(Ordering::Relaxed) {
-            self.live.drain(|data, _| take(data));
-        } else {
-            self.live.drain(|_, _| {});
-        }
+        let armed = self.armed.load(Ordering::Relaxed);
+        let input_held = &mut self.input_held;
+        self.live.drain(|data, _| {
+            let event = MidiEvent { time: 0, data };
+            let (channel, bit) = (usize::from(event.channel()), |key: u8| 1u128 << key);
+            if let Some((key, _)) = event.as_note_on() {
+                if armed {
+                    input_held[channel] |= bit(key);
+                    take(data);
+                }
+            } else if let Some(key) = event.as_note_off() {
+                if armed || input_held[channel] & bit(key) != 0 {
+                    input_held[channel] &= !bit(key);
+                    take(data);
+                }
+            } else if armed {
+                take(data);
+            }
+        });
         self.keys.drain(|data, _| take(data));
         for event in &incoming[..n] {
             let channel = usize::from(event.channel());
@@ -557,5 +574,22 @@ mod tests {
             events.iter().map(|e| (e.time, e.data)).collect::<Vec<_>>(),
             vec![(436, [0xB0, 7, 0])]
         );
+    }
+
+    #[test]
+    fn a_key_held_when_the_track_is_disarmed_is_still_released() {
+        let live = audiostrada_midi::live::LiveMidi::default();
+        let (mut player, controls) = MidiPlayer::new(live.reader());
+        controls.armed.store(true, Ordering::Relaxed);
+        live.push([0x90, 60, 100], 0);
+        player.collect(&transport(0, false), 64);
+        controls.armed.store(false, Ordering::Relaxed);
+        // Disarmed: new keys and controllers stay out, the held key's release comes in.
+        live.push([0x90, 64, 100], 0);
+        live.push([0xB0, 1, 90], 0);
+        live.push([0x80, 64, 0], 0);
+        live.push([0x80, 60, 0], 0);
+        let events = player.collect(&transport(64, false), 64).to_vec();
+        assert_eq!(events, vec![MidiEvent::note_off(0, 0, 60)]);
     }
 }

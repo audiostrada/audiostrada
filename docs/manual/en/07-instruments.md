@@ -36,9 +36,10 @@ view, maximized or not: the picture or the scope at the top takes the room the c
 
 Four views show the synth itself, a few panels each: **Oscillators** (with the wavetables, the
 sub and the noise), **Filter and envelope**, **Modulation** (the LFOs, the second envelope and
-the list of what they modulate) and **Arpeggiator and effects**. At the bottom of each, the
-sources (LFOs, second envelope, macros, velocity, mod wheel, pressure): drag one onto a knob to
-modulate it. **Expert** adds the controls few sounds need: fine tuning, FM, sync and ring, key
+the list of what they modulate) and **Arpeggiator and effects**. Right-click a knob, then
+*Modulate by*, to have an LFO, the second envelope, a macro, the velocity, the mod wheel or the
+pressure move it; choose a ticked source again to stop it. In **Modulation**, you can also drag
+an LFO's or the second envelope's name onto a knob. **Expert** adds the controls few sounds need: fine tuning, FM, sync and ring, key
 tracking, drift, the depth of the LFOs and MPE.
 
 **Macros** shows the four macros, each with what it moves and by how much: click a macro's name

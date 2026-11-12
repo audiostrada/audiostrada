@@ -584,6 +584,8 @@ enum Stage {
 struct Voice {
     key: u8,
     channel: u8,
+    /// The key's velocity as played, and the gain it gives.
+    struck: u8,
     velocity: f32,
     /// Where the pitch is going, and where it is (glide), in semitones from A4.
     target: f32,
@@ -616,6 +618,7 @@ impl Default for Voice {
         Self {
             key: 0,
             channel: 0,
+            struck: 0,
             velocity: 0.0,
             target: 0.0,
             note: 0.0,
@@ -1453,6 +1456,38 @@ impl Synth {
         }
     }
 
+    /// The arpeggiator turned on over held keys: they become its notes, in the order played,
+    /// and their voices end, as their keys going up now reach the arpeggiator only.
+    fn arp_take_held(&mut self) {
+        let mut keys = [(0u8, 0u8, 0u8, 0u64); 16];
+        let mut n = 0;
+        if self.mode() > 0 {
+            // The newest key first.
+            for (i, &(c, k, vel)) in self.held[..self.held_count].iter().enumerate() {
+                keys[n] = (c, k, vel, u64::MAX - i as u64);
+                n += 1;
+            }
+            self.held_count = 0;
+        } else {
+            for v in &self.voices {
+                let down = matches!(v.stage, Stage::Attack | Stage::Decay | Stage::Sustain);
+                if down && n < keys.len() {
+                    keys[n] = (v.channel, v.key, v.struck, v.age);
+                    n += 1;
+                }
+            }
+        }
+        for v in &mut self.voices {
+            if v.stage != Stage::Idle {
+                v.stage = Stage::Release;
+            }
+        }
+        keys[..n].sort_unstable_by_key(|k| k.3);
+        for &(c, k, vel, _) in &keys[..n] {
+            self.arp_press(c, k, vel);
+        }
+    }
+
     /// Ends the arpeggio and its note.
     fn stop_arp(&mut self) {
         if let Some((channel, key)) = self.arp.sounding.take() {
@@ -1600,6 +1635,7 @@ impl Synth {
         let sounding = v.stage != Stage::Idle;
         v.key = key;
         v.channel = channel;
+        v.struck = velocity;
         v.velocity = 1.0 - sensitivity + sensitivity * f32::from(velocity) / 127.0;
         v.target = f32::from(key) - 69.0;
         // Glide from the note that was playing; else start on the note.
@@ -1703,8 +1739,12 @@ impl Effect for Synth {
     }
 
     fn set_param(&mut self, index: usize, value: f32) {
+        let arp_was_on = self.values[p::ARP] >= 0.5;
         if let Some(v) = self.values.get_mut(index) {
             *v = value;
+        }
+        if index == p::ARP && value >= 0.5 && !arp_was_on {
+            self.arp_take_held();
         }
         if index == p::TABLES || index == p::TABLES + 2 {
             self.choose_table((index - p::TABLES) / 2);
@@ -2531,5 +2571,31 @@ mod tests {
         stereo(&mut s, 10);
         assert!(!sounding(&mut s), "all notes off ends the arpeggio");
         assert_eq!(s.arp.count, 0);
+    }
+
+    #[test]
+    fn the_arpeggiator_turned_on_over_a_held_chord_lets_it_go_with_the_keys() {
+        let sounding = |s: &mut Synth| {
+            let (l, _) = stereo(s, 100);
+            l.iter().map(|x| x * x).sum::<f32>() > 1e-3
+        };
+        // Chords, then one note at a time.
+        for mode in [0.0, 1.0] {
+            let mut s = synth(&[(p::MODE, mode), (p::RELEASE, 5.0)]);
+            s.set_tempo(120.0);
+            for key in [60, 64, 67] {
+                s.midi(&MidiEvent::note_on(0, 0, key, 100));
+            }
+            stereo(&mut s, 10);
+            s.set_param(p::ARP, 1.0);
+            assert_eq!(s.arp.count, 3, "the held keys are the arpeggio's");
+            assert_eq!(s.arp.notes[0].1, 60, "in the order played");
+            assert!(sounding(&mut s), "it plays them");
+            for key in [60, 64, 67] {
+                s.midi(&MidiEvent::note_off(0, 0, key));
+            }
+            stereo(&mut s, 10);
+            assert!(!sounding(&mut s), "keys up, silence");
+        }
     }
 }

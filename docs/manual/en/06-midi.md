@@ -84,5 +84,10 @@ tracks (else of the tracks selected) in any project. Those of the mixer's faders
 belong to the project. A controller turns a time or a frequency as its knob does, finely at the
 bottom of its travel.
 
+A controller moves a control by as much as it turns, from the value the control has: an
+endless encoder, or a knob left elsewhere by another preset, never makes it jump. Its first
+message only tells where it is. A knob or a fader that has stops catches up after one full
+sweep.
+
 **Program changes** sent by a keyboard (its preset buttons) choose the preset of the built-in
 instrument of the armed tracks: program 1 is the first preset of its menu.

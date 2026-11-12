@@ -8,7 +8,8 @@ use eframe::egui::{
 };
 
 use crate::effect_editors::{
-    Params, choice_box, from_unit, pill_switch, segmented, to_unit, wide_knob,
+    Params, choice_box, choice_list, from_unit, pill_switch, segmented, to_unit, wide_knob,
+    wide_knob_with,
 };
 use crate::i18n::tr;
 use crate::theme;
@@ -228,8 +229,8 @@ fn routes(params: &Params) -> Vec<(usize, usize, usize, f32)> {
         .collect()
 }
 
-/// A knob that takes modulation: dropped sources land on it, its routings show as colored arcs
-/// around it.
+/// A knob that takes modulation: dropped sources land on it, its right-click menu routes a
+/// source to it, its routings show as colored arcs around it.
 fn mod_knob(ui: &mut Ui, params: &mut Params, state: &mut SynthState, id: &str, name: &str) {
     mod_knob_sized(ui, params, state, id, name, 38.0);
 }
@@ -243,13 +244,23 @@ fn mod_knob_sized(
     size: f32,
 ) {
     let accent = theme::current(ui).accent;
-    let rect = ui
-        .scope(|ui| wide_knob(ui, params, id, name, size, accent))
-        .response
-        .rect;
     let Some(target) = target_of(id) else {
+        wide_knob(ui, params, id, name, size, accent);
         return;
     };
+    let sources = modulate_sources(params, target);
+    let mut picked = None;
+    let rect = ui
+        .scope(|ui| {
+            wide_knob_with(ui, params, (id, name), size, accent, |ui| {
+                modulate_menu(ui, &sources, target, &mut picked);
+            });
+        })
+        .response
+        .rect;
+    if let Some(source) = picked {
+        toggle_route(ui, params, source, target);
+    }
     state.targets.push((rect, target));
     // The knob sits under its name: the arcs go around it.
     let center = pos2(rect.center().x, rect.top() + 17.0 + size / 2.0);
@@ -370,6 +381,75 @@ fn drop_source(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
     let Some(&(_, target)) = state.targets.iter().find(|(r, _)| r.contains(at)) else {
         return;
     };
+    add_route(ui, params, source, target);
+}
+
+/// Every source, in the order of their colors, named as shown, and whether it already
+/// modulates the target.
+fn modulate_sources(params: &Params, target: usize) -> Vec<(usize, String, bool)> {
+    let existing = routes(params);
+    let name = |source: usize| match source {
+        7..=10 => macro_name(params, source - 7),
+        _ => tr(audiostrada_dsp::synth::SOURCES[source]).to_owned(),
+    };
+    [1, 2, 3, 7, 8, 9, 10, 4, 5, 6]
+        .into_iter()
+        .map(|s| {
+            let routed = existing.iter().any(|&(_, rs, t, _)| rs == s && t == target);
+            (s, name(s), routed)
+        })
+        .collect()
+}
+
+/// "Modulate by" in a knob's right-click menu: the source picked, if any.
+fn modulate_menu(
+    ui: &mut Ui,
+    sources: &[(usize, String, bool)],
+    target: usize,
+    picked: &mut Option<usize>,
+) {
+    ui.separator();
+    ui.menu_button(tr("Modulate by"), |ui| {
+        for (source, name, routed) in sources {
+            let reaches = audiostrada_dsp::synth::reaches(*source, target);
+            let button = egui::Button::new(name.as_str()).selected(*routed);
+            let response = ui
+                .add_enabled(reaches, button)
+                .on_disabled_hover_text(tr(
+                    "Only the macros and the mod wheel move this control: it is the whole \
+                    instrument's, not each note's",
+                ))
+                .on_hover_text(if *routed {
+                    tr("Click to stop this modulation")
+                } else {
+                    tr("Click to modulate this control")
+                });
+            if response.clicked() {
+                *picked = Some(*source);
+                ui.close();
+            }
+        }
+    });
+}
+
+/// Routes the source to the target, or removes that routing if there is one.
+fn toggle_route(ui: &Ui, params: &mut Params, source: usize, target: usize) {
+    let existing = routes(params);
+    let Some(&(k, _, _, _)) = existing
+        .iter()
+        .find(|&&(_, s, t, _)| s == source && t == target)
+    else {
+        add_route(ui, params, source, target);
+        return;
+    };
+    let response = ui.response();
+    params.set(&format!("mod{}_source", k + 1), Some(0.0), &response);
+    params.set(&format!("mod{}_amount", k + 1), Some(0.0), &response);
+    params.doc.history_mut().end_gesture();
+}
+
+/// A new routing of the source to the target, at half its range, in the first free slot.
+fn add_route(ui: &Ui, params: &mut Params, source: usize, target: usize) {
     if !audiostrada_dsp::synth::reaches(source, target) {
         params.doc.notify(
             tr(
@@ -457,9 +537,6 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
                 View::Modulation => lfos_face(ui, params, state, full, expert),
                 View::Effects => effects_face(ui, params, state, full),
                 _ => macros_face(ui, params, full),
-            }
-            if view.controls() {
-                sources_line(ui, params, state);
             }
         }
     }
@@ -790,8 +867,7 @@ impl View {
         }
     }
 
-    /// The views of the synth's controls, where sources are dragged onto knobs and the
-    /// expert controls show.
+    /// The views of the synth's controls, where the expert controls show.
     fn controls(self) -> bool {
         !matches!(self, View::Simple | View::Macros)
     }
@@ -999,7 +1075,7 @@ fn oscillators_face(
             ui.horizontal(|ui| {
                 title(ui, tr("Sub and noise"), p.weak);
                 ui.spacing_mut().combo_width = 96.0;
-                choice_box(ui, params, "sub_octave");
+                choice_list(ui, params, "sub_octave");
             });
             ui.add_space(4.0);
             spread(ui, 2, |ui, k| {
@@ -1208,31 +1284,6 @@ fn arpeggiator(ui: &mut Ui, params: &mut Params, color: Color32) {
         ui.spacing_mut().combo_width = 80.0;
         wide_knob(ui, params, id, name, 38.0, color);
     });
-}
-
-/// Every source, to drag onto a knob of the view: what each one moves is told and set in the
-/// Modulation and Macros views.
-fn sources_line(ui: &mut Ui, params: &Params, state: &mut SynthState) {
-    let p = theme::current(ui);
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 6.0;
-        ui.label(
-            RichText::new(tr("Drag onto a knob:"))
-                .size(11.0)
-                .color(p.weak),
-        );
-        for source in 1..=3 {
-            source_pill(ui, state, source);
-        }
-        for k in 0..4 {
-            let name = macro_name(params, k);
-            source_pill_named(ui, state, k + 7, &name);
-        }
-        for source in 4..=6 {
-            source_pill(ui, state, source);
-        }
-    });
-    ui.add_space(GAP);
 }
 
 /// The macros, each with its name and what it moves.
@@ -3127,11 +3178,14 @@ mod tests {
         }
     }
 
-    #[test]
-    fn a_source_dropped_on_a_knob_routes_to_it() {
+    /// A project with one track playing Strada-Synth.
+    fn synth_doc() -> (
+        crate::document::Document,
+        audiostrada_core::routing::Channel,
+        audiostrada_core::InsertId,
+    ) {
         use crate::document::{AppDirs, Document};
         use audiostrada_core::routing::{self, Channel};
-        use eframe::egui::{Event, Modifiers, PointerButton, RawInput};
         let mut doc = Document::new(AppDirs::default());
         let mut insert = None;
         doc.history_mut().edit("Setup", |p| {
@@ -3139,43 +3193,66 @@ mod tests {
             insert = routing::add_insert(p, Channel::Track(t), "synth", Default::default());
         });
         let channel = Channel::Track(doc.project().tracks[0].id);
+        (doc, channel, insert.unwrap())
+    }
+
+    /// One frame of the synth's parameters, as the project holds them.
+    fn with_params(
+        ctx: &egui::Context,
+        (doc, channel, insert): &mut (
+            crate::document::Document,
+            audiostrada_core::routing::Channel,
+            audiostrada_core::InsertId,
+        ),
+        events: Vec<egui::Event>,
+        mut f: impl FnMut(&mut Ui, &mut Params),
+    ) {
         let info = audiostrada_dsp::info("synth").unwrap();
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 1100.0))),
+            events,
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| {
+            let values = info
+                .params
+                .iter()
+                .map(|p| {
+                    doc.project().tracks[0].inserts[0]
+                        .params
+                        .get(p.id)
+                        .copied()
+                        .unwrap_or(p.default)
+                })
+                .collect();
+            let mut params = Params {
+                values,
+                doc: &mut *doc,
+                channel: *channel,
+                insert: *insert,
+                info,
+            };
+            f(ui, &mut params);
+        })
+        .drop_without_applying_deltas();
+    }
+
+    #[test]
+    fn a_source_dropped_on_a_knob_routes_to_it() {
+        use eframe::egui::{Event, Modifiers, PointerButton};
+        let mut synth = synth_doc();
         let ctx = egui::Context::default();
         // The filter's view, where the cutoff is.
         ctx.data_mut(|d| d.insert_temp(View::id(), 2usize));
         let mut state = SynthState::default();
-        let frame = |doc: &mut Document, state: &mut SynthState, events: Vec<Event>| {
-            let input = RawInput {
-                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 1100.0))),
-                events,
-                ..Default::default()
-            };
-            ctx.run_ui(input, |ui| {
-                let values = info
-                    .params
-                    .iter()
-                    .map(|p| {
-                        doc.project().tracks[0].inserts[0]
-                            .params
-                            .get(p.id)
-                            .copied()
-                            .unwrap_or(p.default)
-                    })
-                    .collect();
-                let mut params = Params {
-                    values,
-                    doc: &mut *doc,
-                    channel,
-                    insert: insert.unwrap(),
-                    info,
-                };
-                show(ui, &mut params, &[], state);
-            })
-            .drop_without_applying_deltas();
+        let mut frame = |events: Vec<Event>, state: &mut SynthState| {
+            with_params(&ctx, &mut synth, events, |ui, params| {
+                show(ui, params, &[], state);
+            });
         };
         // Two frames: the second lays the view out in the room the first measured.
-        frame(&mut doc, &mut state, vec![]);
-        frame(&mut doc, &mut state, vec![]);
+        frame(vec![], &mut state);
+        frame(vec![], &mut state);
         let cutoff = state
             .targets
             .iter()
@@ -3190,12 +3267,8 @@ mod tests {
             pressed: false,
             modifiers: Modifiers::NONE,
         };
-        frame(
-            &mut doc,
-            &mut state,
-            vec![Event::PointerMoved(cutoff), release],
-        );
-        let params = &doc.project().tracks[0].inserts[0].params;
+        frame(vec![Event::PointerMoved(cutoff), release], &mut state);
+        let params = &synth.0.project().tracks[0].inserts[0].params;
         assert_eq!(params.get("mod1_source"), Some(&1.0));
         assert_eq!(
             params.get("mod1_target"),
@@ -3203,5 +3276,40 @@ mod tests {
         );
         assert_eq!(params.get("mod1_amount"), Some(&50.0));
         assert!(state.dragging.is_none());
+    }
+
+    #[test]
+    fn modulate_by_routes_a_source_to_the_knob_and_a_second_pick_stops_it() {
+        use audiostrada_dsp::synth::target::CUTOFF;
+        let mut synth = synth_doc();
+        let ctx = egui::Context::default();
+        let routed = |synth: &mut _| {
+            let mut found = Vec::new();
+            with_params(&ctx, synth, vec![], |_, params| {
+                found = modulate_sources(params, CUTOFF)
+                    .into_iter()
+                    .filter(|s| s.2)
+                    .map(|s| s.0)
+                    .collect();
+            });
+            found
+        };
+        assert!(routed(&mut synth).is_empty());
+        // The second macro, then the mod wheel, picked in the cutoff's menu.
+        for source in [8, 5] {
+            with_params(&ctx, &mut synth, vec![], |ui, params| {
+                toggle_route(ui, params, source, CUTOFF);
+            });
+        }
+        assert_eq!(routed(&mut synth), vec![8, 5]);
+        let params = &synth.0.project().tracks[0].inserts[0].params;
+        let wheel = (1..=audiostrada_dsp::synth::SLOTS)
+            .find(|n| params.get(&format!("mod{n}_source")) == Some(&5.0))
+            .unwrap();
+        assert_eq!(params.get(&format!("mod{wheel}_amount")), Some(&50.0));
+        with_params(&ctx, &mut synth, vec![], |ui, params| {
+            toggle_route(ui, params, 8, CUTOFF);
+        });
+        assert_eq!(routed(&mut synth), vec![5]);
     }
 }
