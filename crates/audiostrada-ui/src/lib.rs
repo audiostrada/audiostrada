@@ -46,6 +46,7 @@ mod pitch_editor;
 mod plots;
 mod plugin_categories;
 mod preferences;
+mod prepare_window;
 mod presets;
 mod recording;
 mod reference_window;
@@ -316,6 +317,7 @@ pub struct AudioStradaApp {
     edit: EditSettings,
     palette: CommandPalette,
     export: export_window::ExportWindow,
+    prepare: prepare_window::PrepareWindow,
     /// Panels shown in their own windows.
     detached: Vec<Pane>,
     midi_inputs: Option<audiostrada_midi::devices::MidiInputs>,
@@ -455,6 +457,7 @@ impl AudioStradaApp {
             edit: EditSettings::default(),
             palette: CommandPalette::default(),
             export: export_window::ExportWindow::default(),
+            prepare: prepare_window::PrepareWindow::default(),
             detached,
             midi_inputs: None,
             play_start: 0,
@@ -1200,6 +1203,24 @@ impl AudioStradaApp {
             Action::Assistants => self.assistants_window.open(),
             Action::AddVca => mixer::add_vca(&mut self.doc.borrow_mut()),
             Action::AddBus => mixer::add_bus(&mut self.doc.borrow_mut()),
+            Action::CleanUpTracks | Action::BringOutTracks | Action::PrepareTracks => {
+                let mode = match action {
+                    Action::CleanUpTracks => prepare_window::Mode::Clean,
+                    Action::BringOutTracks => prepare_window::Mode::BringOut,
+                    _ => prepare_window::Mode::Both,
+                };
+                let tracks = self.doc.borrow().selected_tracks().to_vec();
+                prepare_window::request(ctx, &tracks, mode);
+            }
+            Action::RemovePreparation => {
+                let mut doc = self.doc.borrow_mut();
+                let tracks = doc.selected_tracks().to_vec();
+                doc.history_mut().edit(tr("Remove the preparation"), |p| {
+                    for t in tracks {
+                        audiostrada_core::prepare::unprepare(p, t);
+                    }
+                });
+            }
             Action::RouteToNewBus => {
                 let mut doc = self.doc.borrow_mut();
                 let project = doc.project();
@@ -2402,6 +2423,16 @@ impl AudioStradaApp {
                 ] {
                     item(ui, &mut chosen, action, None, true);
                 }
+                ui.menu_button(tr("Prepare the track"), |ui| {
+                    for action in [
+                        Action::CleanUpTracks,
+                        Action::BringOutTracks,
+                        Action::PrepareTracks,
+                        Action::RemovePreparation,
+                    ] {
+                        item(ui, &mut chosen, action, None, true);
+                    }
+                });
                 for action in [Action::MuteTracks, Action::SoloTracks, Action::ArmTracks] {
                     item(ui, &mut chosen, action, None, true);
                 }
@@ -3276,6 +3307,9 @@ impl eframe::App for AudioStradaApp {
             ));
             crate::metronome_window::show(ui.ctx(), &mut doc);
             versions_window::show(ui.ctx(), &mut doc);
+            if self.prepare.show(ui.ctx(), &mut doc) {
+                actions.push(Action::PlayPause);
+            }
             reference_window::show(ui.ctx(), &mut doc);
             crate::blind_test::show(ui.ctx(), &mut doc);
         });

@@ -182,6 +182,47 @@ avec ses poignées et les indicateurs, la console, le gain d'entrée et la polar
 puis les modules dans l'ordre où ils jouent ; glissez un module par sa poignée pour le déplacer.
 Voir *Effets* pour ses paramètres.
 
+## Préparer une piste
+
+La baguette dans l'en-tête du **Channel Strip** d'une tranche prépare la piste, ou toutes les
+pistes sélectionnées : un clic la nettoie et la fait ressortir, un clic droit (ou le clic droit
+sur la piste, ou Piste › *Préparer la piste*) choisit l'un des deux ou retire la préparation.
+**Tout préparer**, en haut du mixer, le fait pour toutes les pistes d'un coup (pas les bus) :
+dans la fenêtre, coupez les pistes à laisser comme elles sont.
+
+- **Nettoyer** : un passe-haut sous l'énergie utile (et un passe-bas pour la basse, la grosse
+  caisse et les guitares saturées), des coupes aux résonances qui ressortent, les plosives et
+  les sifflantes d'une voix retenues (un de-esser est aussi proposé sur les overheads et le
+  charleston), et un gate sur la grosse caisse et les toms quand il y a de la repisse entre les
+  coups. Une piste avec de longs silences reçoit plutôt la suggestion de les supprimer.
+- **Faire ressortir** : les gestes qu'un ingénieur fait sur cet instrument, sur l'EQ du Channel
+  Strip (poids, boue, clic sur une grosse caisse ; boue, présence, air sur une voix…), chacun
+  placé là où la piste l'a et dosé selon ce qu'elle en a ; un compresseur (toujours sur une
+  grosse caisse, une caisse claire et une basse, sinon quand le niveau varie beaucoup) ; et, si
+  vous le cochez, un suivi du volume écrit en automation de la sortie du Channel Strip (à 6 dB
+  près).
+- **Les deux**, et **Retirer ce qui a été préparé**.
+
+AudioStrada rend la piste seule, telle qu'elle arrive à son Channel Strip, et devine
+l'instrument d'après le nom de la piste, son instrument ou son son (voix d'homme ou de femme
+d'après sa hauteur) ; changez-le après *L'instrument est* et la proposition suit. L'image montre
+le spectre mesuré et ce que la proposition en fait, chaque geste marqué ; les deux cartes
+listent les étapes, chacune avec son interrupteur et son dosage (50 % est ce qui est proposé ;
+double-clic pour y revenir). **Intensité** (léger, normal, appuyé) règle jusqu'où tout cela
+va.
+
+Tant que la fenêtre est ouverte, la proposition s'entend : *Écouter* joue la session, **Avant**
+et **Après** comparent la piste comme elle était et la piste préparée, et **Même niveau** amène
+la piste préparée au volume qu'elle avait, pour que « plus fort » ne passe pas pour « mieux ».
+*Appliquer* écrit le tout en une seule étape d'annulation, ce gain gardé sur la sortie des
+effets ; *Annuler* laisse la piste comme elle était.
+
+Les réglages sont ceux du Channel Strip, plus un Strada-EQ après lui pour les résonances et les
+plosives (avec des bandes dynamiques quand elles vont et viennent) et un Strada-DeEss. Préparer
+à nouveau remplace ce qui a été fait ; la baguette reste allumée sur une piste préparée. Ce sont
+des points de départ, posés par des règles tirées de la pratique du mixage, à ajuster à
+l'oreille.
+
 ## Instantanés
 
 Les **Instantanés** enregistrent l'état de la console et le rappellent, pour comparer deux mix.

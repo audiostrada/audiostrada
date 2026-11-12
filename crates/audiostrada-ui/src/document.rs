@@ -33,7 +33,7 @@ mod reference;
 pub use groove::{Band, GrooveMoves, GrooveScan, GrooveSettings, Grooved};
 pub use processing::{Found, HitScan, StripSettings};
 
-pub use export::{ExportRange, ExportSettings, Normalize, Process};
+pub use export::{ExportRange, ExportSettings, Measuring, Normalize, Process};
 
 const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(30);
 

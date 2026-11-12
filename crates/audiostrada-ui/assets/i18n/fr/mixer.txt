@@ -1403,3 +1403,295 @@ Latence de cet effet, compensée
 
 Auto gain: the output keeps the loudness of the input, whatever the modules add or take; the Output knob trims it
 Gain automatique : la sortie garde le volume de l'entrée, quoi que les modules ajoutent ou retirent ; le bouton Sortie l'ajuste
+
+Clean up
+Nettoyer
+
+Bring out
+Faire ressortir
+
+Clean up and bring out
+Nettoyer et faire ressortir
+
+The track is silent
+La piste est silencieuse
+
+Prepare the track
+Préparer la piste
+
+High pass {low}, low pass {high}
+Passe-haut {low}, passe-bas {high}
+
+High pass {low}
+Passe-haut {low}
+
+Low pass {high}
+Passe-bas {high}
+
+Gate at {threshold} dB
+Gate à {threshold} dB
+
+Strip silence (Edit menu)
+Supprimer les silences (menu Édition)
+
+{percent} % of silence: does better than a gate
+{percent} % de silence : mieux qu'un gate
+
+from the track's name
+d'après le nom de la piste
+
+from its instrument
+d'après son instrument
+
+from its sound: check it
+d'après le son : à vérifier
+
+Clean up…
+Nettoyer…
+
+Bring out…
+Faire ressortir…
+
+The instrument's colour, an even level
+La couleur de l'instrument, un niveau régulier
+
+Both…
+Les deux…
+
+Clean up, then bring out
+Nettoyer, puis faire ressortir
+
+Remove the preparation
+Retirer ce qui a été préparé
+
+cleaned up and brought out
+nettoyée et ressortie
+
+cleaned up
+nettoyée
+
+brought out
+ressortie
+
+Prepare {count} tracks
+Préparer {count} pistes
+
+Prepare “{name}”
+Préparer « {name} »
+
+The analysis failed
+L'analyse a échoué
+
+The track plays nothing
+La piste ne joue rien
+
+Clean up the selected tracks…
+Nettoyer les pistes sélectionnées…
+
+Bring out the selected tracks…
+Faire ressortir les pistes sélectionnées…
+
+Clean up and bring out the selected tracks…
+Nettoyer et faire ressortir les pistes sélectionnées…
+
+Remove the preparation of the selected tracks
+Retirer la préparation des pistes sélectionnées
+
+{count} tracks
+{count} pistes
+
+Close without keeping anything
+Fermer sans rien garder
+
+The instrument is
+L'instrument est
+
+How far the preparation goes, for every track here
+Jusqu'où va la préparation, pour toutes les pistes ici
+
+Pause
+Pause
+
+Plays the session: solo the track to hear it alone
+Joue la session : mettez la piste en solo pour l'entendre seule
+
+Before
+Avant
+
+After
+Après
+
+What is heard: the track as it was, or prepared as proposed here
+Ce qu'on entend : la piste comme elle était, ou préparée comme proposé ici
+
+Same level
+Même niveau
+
+Listening to the track…
+Écoute de la piste…
+
+Nothing useful beyond, {slope}
+Rien d'utile au-delà, {slope}
+
+Resonance at {freq}: {gain} dB
+Résonance à {freq} : {gain} dB
+
+Strada-EQ, dynamic: only while it stands out
+Strada-EQ, dynamique : seulement quand elle ressort
+
+Strada-EQ, fixed: it is always there
+Strada-EQ, fixe : elle est toujours là
+
+Plosives: {gain} dB under {freq}
+Plosives : {gain} dB sous {freq}
+
+Strada-EQ, dynamic: only on the bursts of P and B
+Strada-EQ, dynamique : seulement sur les « p » et les « b »
+
+De-esser from {freq}: up to -{range} dB
+De-esser dès {freq} : jusqu'à -{range} dB
+
+Strada-DeEss, on the S and T sounds heard
+Strada-DeEss, sur les « s » et les « t » entendus
+
+Strada-DeEss: to try on harsh cymbals
+Strada-DeEss : à essayer sur des cymbales agressives
+
+Bleed between the hits
+Repisse entre les coups
+
+bell
+cloche
+
+shelf
+plateau
+
+{purpose}: {gain} dB at {freq}
+{purpose} : {gain} dB à {freq}
+
+Channel strip EQ, {band}, {shape}
+EQ du Channel Strip, {band}, {shape}
+
+Compressor {ratio}:1, about -{reduction} dB
+Compresseur {ratio}:1, environ -{reduction} dB
+
+Threshold {threshold} dB, attack {attack} ms, release {release} ms
+Seuil {threshold} dB, attaque {attack} ms, relâchement {release} ms
+
+Level riding, within 6 dB
+Suivi du volume, à 6 dB près
+
+Written as automation of the strip's output, editable
+Écrit en automation de la sortie du Channel Strip, modifiable
+
+Nothing to do here: it is fine as it is.
+Rien à faire ici : c'est bien comme ça.
+
+Measured
+Mesuré
+
+Prepared
+Préparé
+
+Useless lows, resonances, plosives and sibilance, bleed
+Grave inutile, résonances, plosives et sifflantes, repisse
+
+A male voice
+Une voix d'homme
+
+A female voice
+Une voix de femme
+
+A kick drum
+Une grosse caisse
+
+A snare drum
+Une caisse claire
+
+A set of toms
+Des toms
+
+A hi-hat
+Un charleston
+
+The overheads
+Des overheads
+
+A drum kit
+Une batterie
+
+A bass
+Une basse
+
+An electric guitar
+Une guitare électrique
+
+An acoustic guitar
+Une guitare acoustique
+
+A piano or keys
+Un piano ou des claviers
+
+A synth
+Un synthé
+
+A string section
+Des cordes
+
+Brass or winds
+Des cuivres ou des vents
+
+Something else
+Autre chose
+
+Gentle
+Léger
+
+Bold
+Appuyé
+
+Bleed
+Repisse
+
+Boxiness
+Son de boîte
+
+Clang
+Ferraille
+
+Crack
+Claquement
+
+Fizz
+Grésillement
+
+Harshness
+Dureté
+
+Mud
+Boue
+
+Weight
+Poids
+
+Off, this track is left as it is
+Coupé, cette piste reste comme elle est
+
+How much of it: {percent} % (50 % is what is proposed)
+Le dosage : {percent} % (50 % est ce qui est proposé)
+
+Prepare the track: clean it up, bring it out (right-click for more)
+Préparer la piste : la nettoyer, la faire ressortir (clic droit pour plus)
+
+Prepared as: {instrument}, {what}. Click to redo it, right-click to remove it
+Préparée comme : {instrument}, {what}. Cliquer pour refaire, clic droit pour retirer
+
+Prepare all
+Tout préparer
+
+Cleans up and brings out every track (not the buses): each one is listened to, then you hear the proposal and leave out the tracks you want
+Nettoie et fait ressortir toutes les pistes (pas les bus) : chacune est écoutée, puis vous entendez la proposition et écartez les pistes que vous voulez
+
+Brings the prepared track to the loudness it had, measured on its loudest 20 seconds: before and after compare at equal level, and Apply keeps that gain on the channel strip's output
+Amène la piste préparée au volume qu'elle avait, mesuré sur ses 20 secondes les plus fortes : avant et après se comparent à niveau égal, et Appliquer garde ce gain sur la sortie du Channel Strip
+
