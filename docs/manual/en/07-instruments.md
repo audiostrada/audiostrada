@@ -14,7 +14,8 @@ first one. Drum tracks start with Strada-Drums and take layers the same way.
 A polyphonic synthesizer: two oscillators with unison and wavetables, a sub oscillator and
 noise, a filter, two LFOs, an arpeggiator and its own chorus, delay and reverb. It opens on its
 **Simple** view, made for playing. At the right of its views, *Arm the track* arms the track
-for your MIDI keyboard without going back to the mixer. A maximized window keeps its size, its
+for your MIDI keyboard without going back to the mixer, and *Panic* ends every note, a held
+arpeggio's too. A maximized window keeps its size, its
 picture or scope taking the room left.
 
 - **The sound** shows at the top, drawn by its wave in the color of its family: a landscape for

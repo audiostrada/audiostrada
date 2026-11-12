@@ -820,8 +820,9 @@ pub struct Synth {
 /// The arpeggiator's state: the notes it plays, where it is, and the note sounding.
 #[derive(Clone, Copy, Debug, Default)]
 struct Arp {
-    /// Channel, key and velocity, in the order played.
+    /// Channel, key and velocity, in the order played, and whether each key is still down.
     notes: [(u8, u8, u8); 16],
+    down: [bool; 16],
     count: usize,
     /// Keys still down: with hold, the notes stay once they are all up.
     pressed: usize,
@@ -1405,27 +1406,50 @@ impl Synth {
             arp.next = 0.0;
         }
         arp.pressed += 1;
-        let known = arp.notes[..arp.count]
+        match arp.notes[..arp.count]
             .iter()
-            .any(|n| n.0 == channel && n.1 == key);
-        if !known && arp.count < arp.notes.len() {
-            arp.notes[arp.count] = (channel, key, velocity);
-            arp.count += 1;
+            .position(|n| n.0 == channel && n.1 == key)
+        {
+            Some(i) => arp.down[i] = true,
+            None if arp.count < arp.notes.len() => {
+                arp.notes[arp.count] = (channel, key, velocity);
+                arp.down[arp.count] = true;
+                arp.count += 1;
+            }
+            None => {}
         }
     }
 
     fn arp_release(&mut self, channel: u8, key: u8) {
         let arp = &mut self.arp;
         arp.pressed = arp.pressed.saturating_sub(1);
-        if self.values[p::ARP_HOLD] >= 0.5 {
-            return;
-        }
         if let Some(i) = arp.notes[..arp.count]
             .iter()
             .position(|n| n.0 == channel && n.1 == key)
         {
-            arp.notes.copy_within(i + 1..arp.count, i);
-            arp.count -= 1;
+            arp.down[i] = false;
+        }
+        if self.values[p::ARP_HOLD] < 0.5 {
+            self.arp_let_go();
+        }
+    }
+
+    /// Drops the notes whose keys are up: hold off, the arpeggio plays only the keys held, and
+    /// stops with the last one.
+    fn arp_let_go(&mut self) {
+        let arp = &mut self.arp;
+        let mut kept = 0;
+        for i in 0..arp.count {
+            if arp.down[i] {
+                arp.notes[kept] = arp.notes[i];
+                arp.down[kept] = true;
+                kept += 1;
+            }
+        }
+        arp.count = kept;
+        arp.pressed = kept;
+        if kept == 0 {
+            self.stop_arp();
         }
     }
 
@@ -1689,6 +1713,10 @@ impl Effect for Synth {
         if index == p::ARP && value < 0.5 {
             self.stop_arp();
         }
+        // Hold let go: the notes of keys already up end.
+        if index == p::ARP_HOLD && value < 0.5 {
+            self.arp_let_go();
+        }
     }
 
     fn load(&mut self, slot: &str, file: crate::FileData) -> Result<String, String> {
@@ -1727,6 +1755,8 @@ impl Effect for Synth {
             .as_control()
             .is_some_and(|(cc, _)| cc == 120 || cc == 123)
         {
+            // All notes off ends the arpeggio too, held or not: it would play on.
+            self.stop_arp();
             for v in &mut self.voices {
                 v.stage = if event.data[1] == 120 {
                     Stage::Idle
@@ -2459,5 +2489,47 @@ mod tests {
         s.set_param(p::VOLUME, 0.0);
         stereo(&mut s, 40);
         assert_eq!(s.heard[p::VOLUME], 0.0);
+    }
+
+    #[test]
+    fn hold_let_go_or_all_notes_off_ends_a_held_arpeggio() {
+        // Heard over half a second: two steps of the arpeggio at least.
+        let sounding = |s: &mut Synth| {
+            let (l, _) = stereo(s, 100);
+            l.iter().map(|x| x * x).sum::<f32>() > 1e-3
+        };
+        let held = |s: &mut Synth| {
+            s.set_tempo(120.0);
+            for key in [60, 64, 67] {
+                s.midi(&MidiEvent::note_on(0, 0, key, 100));
+            }
+            for key in [60, 64, 67] {
+                s.midi(&MidiEvent::note_off(0, 0, key));
+            }
+            assert!(sounding(s), "held, it plays on");
+        };
+        // Hold turned off once the keys are up: silence.
+        let mut s = synth(&[(p::ARP, 1.0), (p::ARP_HOLD, 1.0), (p::RELEASE, 5.0)]);
+        held(&mut s);
+        s.set_param(p::ARP_HOLD, 0.0);
+        stereo(&mut s, 10);
+        assert!(!sounding(&mut s), "hold off, the arpeggio stops");
+        // A key still down when hold goes off keeps playing alone.
+        let mut s = synth(&[(p::ARP, 1.0), (p::ARP_HOLD, 1.0)]);
+        held(&mut s);
+        s.midi(&MidiEvent::note_on(0, 0, 72, 100));
+        s.set_param(p::ARP_HOLD, 0.0);
+        assert_eq!(s.arp.count, 1);
+        assert_eq!(s.arp.notes[0].1, 72);
+        // All notes off (the panic) stops it whatever hold says.
+        let mut s = synth(&[(p::ARP, 1.0), (p::ARP_HOLD, 1.0), (p::RELEASE, 5.0)]);
+        held(&mut s);
+        s.midi(&MidiEvent {
+            time: 0,
+            data: [0xB0, 123, 0],
+        });
+        stereo(&mut s, 10);
+        assert!(!sounding(&mut s), "all notes off ends the arpeggio");
+        assert_eq!(s.arp.count, 0);
     }
 }

@@ -6595,3 +6595,6 @@ Preset précédent. Clic droit pour assigner un bouton MIDI
 
 Next preset. Right-click to assign a MIDI button
 Preset suivant. Clic droit pour assigner un bouton MIDI
+
+Every note off, the held arpeggio's too, on every instrument
+Coupe toutes les notes, celles de l'arpège maintenu aussi, sur tous les instruments

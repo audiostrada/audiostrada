@@ -797,6 +797,44 @@ impl View {
     }
 }
 
+/// Every note off, the arpeggio's held ones too: what the transport's Panic does, at hand.
+fn panic_button(ui: &mut Ui, params: &mut Params) {
+    let p = theme::current(ui);
+    let label = tr("Panic");
+    let font = FontId::proportional(12.0);
+    let galley = ui.painter().layout_no_wrap(label.to_owned(), font, p.text);
+    let size = vec2(galley.size().x + 24.0, 26.0);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    let fill = if response.is_pointer_button_down_on() {
+        p.pressed
+    } else if response.hovered() {
+        p.hover
+    } else {
+        p.surface
+    };
+    let painter = ui.painter();
+    painter.rect_filled(rect, 13.0, fill);
+    painter.rect_stroke(
+        rect,
+        13.0,
+        Stroke::new(1.0, p.border),
+        egui::StrokeKind::Inside,
+    );
+    painter.galley(
+        rect.center() - galley.size() / 2.0,
+        galley,
+        if response.hovered() { p.text } else { p.weak },
+    );
+    let response = response
+        .on_hover_text(tr(
+            "Every note off, the held arpeggio's too, on every instrument",
+        ))
+        .on_hover_cursor(egui::CursorIcon::PointingHand);
+    if response.clicked() {
+        params.doc.player_mut().panic();
+    }
+}
+
 /// The track's record arm, at the right of the views: armed, the track plays what the MIDI
 /// keyboard sends and records it.
 fn arm_switch(ui: &mut Ui, params: &mut Params) {
@@ -918,6 +956,8 @@ fn view_switch(ui: &mut Ui, params: &mut Params) -> (View, bool) {
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             arm_switch(ui, params);
+            ui.add_space(4.0);
+            panic_button(ui, params);
         });
     });
     ui.ctx().data_mut(|d| {
