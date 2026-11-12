@@ -6604,3 +6604,669 @@ Preset suivant. Clic droit pour assigner un bouton MIDI
 
 Every note off, the held arpeggio's too, on every instrument
 Coupe toutes les notes, celles de l'arpège maintenu aussi, sur tous les instruments
+
+Vocal: backing, tucked in
+Voix : chœurs, en retrait
+
+Vocal: voice-over, podcast
+Voix : voix off, podcast
+
+Drums: kick punch
+Batterie : grosse caisse, punch
+
+Drums: snare crack
+Batterie : caisse claire claquante
+
+Drums: toms, full and clear
+Batterie : toms, pleins et nets
+
+Drums: overheads, open
+Batterie : overheads, ouverts
+
+Drums: bus, glue and weight
+Batterie : bus, cohésion et poids
+
+Bass: pick, rock grit
+Basse : médiator, grain rock
+
+Bass: sub, clean and deep
+Basse : sub, propre et profond
+
+Guitar: clean, sparkle
+Guitare : son clair, scintillant
+
+Guitar: acoustic, strummed
+Guitare : acoustique, grattée
+
+Guitar: acoustic, fingerpicked
+Guitare : acoustique, en arpèges
+
+Keys: piano, clear
+Claviers : piano, clair
+
+Keys: electric piano, warm
+Claviers : piano électrique, chaud
+
+Keys: synth, make room
+Claviers : synthé, faire de la place
+
+Vocal: backing, sit behind
+Voix : chœurs, derrière la voix
+
+Drums: kick deep sub
+Batterie : grosse caisse, sub profond
+
+Drums: overheads, cymbal air
+Batterie : overheads, air des cymbales
+
+Drums: bus, weight and air
+Batterie : bus, poids et air
+
+Bass: sub weight
+Basse : poids dans le sub
+
+Bass: heard on small speakers
+Basse : audible sur petites enceintes
+
+Guitar: tame the fizz
+Guitare : calmer le grésillement
+
+Guitar: acoustic, sparkle
+Guitare : acoustique, brillance
+
+Guitar: acoustic, less boom
+Guitare : acoustique, moins de boum
+
+Keys: piano, clarity
+Claviers : piano, clarté
+
+Keys: synth, make room for the vocal
+Claviers : synthé, faire de la place à la voix
+
+Keys: pad, soft and dark
+Claviers : nappe, douce et sombre
+
+Master: gentle smile
+Master : léger sourire
+
+Master: clear the low mids
+Master : nettoyer le bas-médium
+
+Fix: harsh 3 kHz, only when loud
+Correction : 3 kHz agressif, seulement quand c'est fort
+
+FX: next room
+Effet : pièce d'à côté
+
+Vocal: voice-over, steady
+Voix : voix off, stable
+
+Drums: toms, full
+Batterie : toms, pleins
+
+Drums: overheads, tamed
+Batterie : overheads, maîtrisés
+
+Drums: room, all buttons
+Batterie : room, all buttons
+
+Bass: slap tamer
+Basse : slap dompté
+
+Guitar: funk snap
+Guitare : claquant funk
+
+Guitar: acoustic, even strumming
+Guitare : acoustique, grattage régulier
+
+Guitar: acoustic, fingerpicking
+Guitare : acoustique, arpèges
+
+Keys: piano, gentle
+Claviers : piano, en douceur
+
+Keys: piano, pop upfront
+Claviers : piano, pop en avant
+
+Keys: electric piano, even
+Claviers : piano électrique, régulier
+
+Bus: drum glue
+Bus : batterie, cohésion
+
+Bus: drum smash
+Bus : batterie écrasée
+
+Bus: mix glue
+Bus : mix, cohésion
+
+Bus: mix, light touch
+Bus : mix, touche légère
+
+Bus: vocals together
+Bus : voix soudées
+
+Sidechain: bass under the kick
+Sidechain : basse sous la grosse caisse
+
+Sidechain: slow breathing
+Sidechain : respiration lente
+
+Drums: tight ambience
+Batterie : ambiance serrée
+
+Drums: snare, bright plate
+Batterie : caisse claire, plaque brillante
+
+Keys: piano hall
+Claviers : salle pour piano
+
+Keys: electric piano, soft room
+Claviers : piano électrique, pièce douce
+
+Guitar: acoustic, wood room
+Guitare : acoustique, pièce boisée
+
+Pads: strings, concert hall
+Nappes : cordes, salle de concert
+
+Pads: endless shimmer
+Nappes : shimmer sans fin
+
+Guitar: wide solo, 1/4 and offset
+Guitare : solo large, noire et décalage
+
+Synth: lead, analog 1/8
+Synthé : lead, analogique à la croche
+
+FX: drums, 1/16 ping-pong
+Effet : batterie, ping-pong à la double croche
+
+FX: dub, runaway tape
+Effet : dub, bande qui s'emballe
+
+FX: stereo widener 25 ms
+Effet : élargisseur stéréo 25 ms
+
+FX: worn tape slap
+Effet : slapback de bande usée
+
+Drums: kick, tight
+Batterie : grosse caisse, serrée
+
+Drums: snare, bleed control
+Batterie : caisse claire, contrôle de la repisse
+
+Drums: toms, hits only
+Batterie : toms, frappes seules
+
+Drums: bus, tight
+Batterie : bus, serré
+
+Drums: 80s gated reverb
+Batterie : réverbe gated années 80
+
+Vocal: silence between phrases
+Voix : silence entre les phrases
+
+Vocal: voice-over, room noise
+Voix : voix off, bruit de la pièce
+
+Guitar: tight palm mutes
+Guitare : palm mutes serrés
+
+Guitar: amp hum between riffs
+Guitare : ronflette d'ampli entre les riffs
+
+Ducker: bass under the kick
+Ducker : basse sous la grosse caisse
+
+Ducker: reverb under the vocal
+Ducker : réverbe sous la voix
+
+Fix: headphone bleed
+Correction : repisse du casque
+
+Fix: hiss between notes
+Correction : souffle entre les notes
+
+Track: vocal, peak catcher
+Piste : voix, capture des crêtes
+
+Track: bass, even level
+Piste : basse, niveau régulier
+
+Track: acoustic guitar, strum peaks
+Piste : guitare acoustique, crêtes du grattage
+
+Drums: bus, peak shave
+Batterie : bus, crêtes rabotées
+
+Drums: kick, clipper-style
+Batterie : grosse caisse, façon clipper
+
+Drums: snare, shaved crack
+Batterie : caisse claire, claquement raboté
+
+Vocal: tube sheen
+Voix : éclat de lampe
+
+Drums: snare bite
+Batterie : caisse claire, mordant
+
+Keys: electric piano bark
+Claviers : piano électrique qui aboie
+
+Keys: organ grind
+Claviers : orgue qui grince
+
+Bus: mix, tape warmth
+Bus : mix, chaleur de bande
+
+Bus: mix, transformer weight
+Bus : mix, poids de transformateur
+
+Bus: drums, tube glow
+Bus : batterie, lueur de lampe
+
+Lo-fi: transistor radio
+Lo-fi : radio à transistors
+
+Lo-fi: dying battery
+Lo-fi : pile à plat
+
+Vocal: backing, wide
+Voix : chœurs, larges
+
+Vocal: dreamy double
+Voix : doublage rêveur
+
+Guitar: acoustic, 12-string
+Guitare : acoustique, 12 cordes
+
+Guitar: slow shimmer
+Guitare : chatoiement lent
+
+Guitar: bass, fretless shimmer
+Guitare : basse, fretless chatoyante
+
+Keys: organ, slow rotor
+Claviers : orgue, rotor lent
+
+Keys: piano, honky-tonk
+Claviers : piano, bastringue
+
+Synth: string ensemble
+Synthé : ensemble de cordes
+
+Master: gentle glue
+Master : cohésion douce
+
+Master: tame harshness
+Master : adoucir les aigus durs
+
+Master: tight low end
+Master : grave resserré
+
+Master: bring out details
+Master : faire ressortir les détails
+
+Master: broadcast, loud and even
+Master : diffusion, fort et homogène
+
+Bus: mix, clear the mud
+Bus : mix, nettoyer le bas-médium
+
+Bus: drum punch
+Bus : batterie, punch
+
+Track: vocal, control
+Piste : voix, contrôle
+
+Track: vocal, de-ess and smooth
+Piste : voix, désessage et douceur
+
+Track: bass, even
+Piste : basse, homogène
+
+Track: guitars, smooth
+Piste : guitares, douceur
+
+OTT: synth, bright and dense
+OTT : synthé, brillant et dense
+
+OTT: drums, explosive
+OTT : batterie, explosive
+
+Guitar: acoustic, twin takes
+Guitare : acoustique, deux prises
+
+Synth: lead, fat unison
+Synthé : lead, unisson épais
+
+Synth: bass, wide tops
+Synthé : basse, aigus larges
+
+FX: drunken double
+Effet : doublage ivre
+
+FX: crowd of four
+Effet : foule de quatre
+
+Loud: punchy pop
+Fort : pop percutante
+
+Loud: dense rock
+Fort : rock dense
+
+Loud: EDM maximum
+Fort : EDM au maximum
+
+Bus: drums, peak control
+Bus : batterie, contrôle des crêtes
+
+Bus: instruments, firm
+Bus : instruments, fermes
+
+Bus: vocals, upfront
+Bus : voix, en avant
+
+Mastering: round 15 ips
+Mastering : rond 15 ips
+
+Bass: tight 30 ips
+Basse : serrée 30 ips
+
+Vocal: pushed hard
+Voix : poussée fort
+
+Instrument: guitars, glue 15 ips
+Instrument : guitares, cohésion 15 ips
+
+Instrument: keys, warm wobble
+Instrument : claviers, ondulation chaude
+
+Instrument: acoustic guitar, soft top
+Instrument : guitare acoustique, aigus doux
+
+Guitar: bass, slow flange
+Guitare : basse, flanger lent
+
+Vocal: soft doubling
+Voix : doublage doux
+
+Vocal: robot tube
+Voix : tube de robot
+
+Synth: pad, wide motion
+Synthé : nappe, mouvement large
+
+Synth: hollow drain
+Synthé : siphon creux
+
+Drums: hi-hats, swirl
+Batterie : charleston, tourbillon
+
+Drums: bus, through-zero
+Batterie : bus, through zero
+
+Drums: snare, tape flange
+Batterie : caisse claire, flanger de bande
+
+Keys: clav funk
+Claviers : clavinet funk
+
+Synth: pad, slow 12-stage
+Synthé : nappe, 12 étages lent
+
+Synth: resonant 1 bar
+Synthé : résonant sur 1 mesure
+
+FX: vocal, subtle movement
+Effet : voix, mouvement léger
+
+FX: drums, breakbeat sweep
+Effet : batterie, balayage breakbeat
+
+FX: hi-hats, jet stream
+Effet : charleston, souffle de jet
+
+FX: whole mix, slow notch
+Effet : mix entier, creux lent
+
+Master: gentle widen
+Master : élargissement léger
+
+Master: focus the center
+Master : recentrer
+
+Bus: drums, wide overheads
+Bus : batterie, overheads élargis
+
+Bus: guitars, wide doubles
+Bus : guitares, doublages élargis
+
+Bus: pads, super wide
+Bus : nappes, très larges
+
+Bus: backing vocals, spread
+Bus : chœurs, étalés
+
+Fix: mono source, stereoize
+Correction : source mono, rendre stéréo
+
+Fix: bass, mono lows
+Correction : basse, graves en mono
+
+Fix: check in mono
+Correction : vérifier en mono
+
+Drums: snare, fat sustain
+Batterie : caisse claire, sustain épais
+
+Drums: toms, shorter ring
+Batterie : toms, résonance raccourcie
+
+Drums: bus, tight and punchy
+Batterie : bus, serré et percutant
+
+Drums: bus, more room
+Batterie : bus, plus de pièce
+
+Guitar: acoustic, pick attack
+Guitare : acoustique, attaque du médiator
+
+Guitar: funk bite
+Guitare : mordant funk
+
+Guitar: softer strumming
+Guitare : grattage plus doux
+
+Bass: longer notes
+Basse : notes plus longues
+
+Bass: slap, tamed
+Basse : slap maîtrisé
+
+Keys: piano, more hammer
+Claviers : piano, plus de marteau
+
+Keys: piano, softer touch
+Claviers : piano, toucher plus doux
+
+Keys: plucks pop out
+Claviers : notes pincées qui ressortent
+
+Fix: less room
+Correction : moins de pièce
+
+Fix: clicky kick, tamed
+Correction : grosse caisse qui claque, adoucie
+
+Vocal: female, standard
+Voix : féminine, standard
+
+Vocal: female, bright and harsh
+Voix : féminine, brillante et dure
+
+Vocal: male, standard
+Voix : masculine, standard
+
+Vocal: male, gentle
+Voix : masculine, en douceur
+
+Vocal: backing, strong
+Voix : chœurs, appuyé
+
+Voice-over: podcast, close mic
+Voix off : podcast, micro proche
+
+Voice-over: audiobook, gentle
+Voix off : livre audio, en douceur
+
+Instrument: cymbals, harsh
+Instrument : cymbales agressives
+
+Instrument: hi-hat bleed
+Instrument : repisse du charleston
+
+Instrument: acoustic guitar, string squeaks
+Instrument : guitare acoustique, couinements de cordes
+
+Drums: kick, low end trick
+Batterie : grosse caisse, astuce du grave
+
+Drums: snare snap
+Batterie : caisse claire, claque
+
+Drums: bus, weight and silk
+Batterie : bus, poids et soie
+
+Bass: round and warm
+Basse : ronde et chaude
+
+Bass: tight low end
+Basse : grave resserré
+
+Vocal: body and air
+Voix : corps et air
+
+Vocal: smooth top
+Voix : aigus adoucis
+
+Guitar: electric, bite 3 kHz
+Guitare : électrique, mordant à 3 kHz
+
+Guitar: electric, dark and fat
+Guitare : électrique, sombre et épaisse
+
+Master: warm and dark
+Master : chaud et sombre
+
+Master: tube glue
+Master : cohésion à lampes
+
+Master: low end trick and air
+Master : astuce du grave et air
+
+Sweep: slow low-pass, 2 bars
+Balayage : passe-bas lent, 2 mesures
+
+Sweep: high-pass, 1 bar
+Balayage : passe-haut, 1 mesure
+
+Sweep: stereo band-pass drift
+Balayage : dérive stéréo en passe-bande
+
+Sweep: random steps 1/16
+Balayage : paliers aléatoires à la double croche
+
+Transition: narrow band, far away
+Transition : bande étroite, au loin
+
+Rhythm: 1/16 filter gate
+Rythme : filtre haché à la double croche
+
+Rhythm: wobble 1/8
+Rythme : wobble à la croche
+
+Rhythm: pump 1/4
+Rythme : pompage à la noire
+
+Rhythm: high-pass chop 1/8
+Rythme : passe-haut haché à la croche
+
+Envelope: guitar auto-wah
+Enveloppe : auto-wah de guitare
+
+Envelope: bass funk
+Enveloppe : basse funk
+
+Envelope: keys quack
+Enveloppe : claviers qui couinent
+
+Envelope: drums, ducking highs
+Enveloppe : batterie, aigus qui s'effacent
+
+Tone: radio voice
+Timbre : voix de radio
+
+Tone: next room
+Timbre : pièce d'à côté
+
+Tone: warm low-pass
+Timbre : passe-bas chaud
+
+Tone: thin and distant
+Timbre : mince et lointain
+
+DJ: mids only
+DJ : médiums seuls
+
+Gain: -12 dB before a hot plugin
+Gain : -12 dB avant un plugin trop chaud
+
+Width: mono check
+Largeur : vérification mono
+
+Clean: warm jazz
+Clair : jazz chaud
+
+Crunch: tweed bite
+Crunch : mordant tweed
+
+Crunch: boutique edge
+Crunch : boutique à la limite
+
+Lead: liquid
+Lead : liquide
+
+Lead: fuzz rock
+Lead : fuzz rock
+
+High gain: modern rhythm
+High gain : rythmique moderne
+
+High gain: thrash scoop
+High gain : thrash creusé
+
+Bass: flip-top, round
+Basse : flip-top, ronde
+
+Bass: driven rock
+Basse : rock saturé
+
+Octave: vocal, octave below, blended
+Octave : voix, octave en dessous, mélangée
+
+Octave: bass, sub octave
+Octave : basse, sous-octave
+
+Harmony: fourth below
+Harmonie : quarte en dessous
+
+FX: demon and child
+Effet : démon et enfant
+
+FX: micro-shift widener
+Effet : élargisseur par micro-décalage
