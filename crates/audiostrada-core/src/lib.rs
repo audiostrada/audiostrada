@@ -10,6 +10,7 @@ pub mod groups;
 pub mod history;
 pub mod legacy;
 pub mod model;
+pub mod prepare;
 pub mod routing;
 pub mod scratch;
 pub mod section;
@@ -20,7 +21,7 @@ pub use file::{ProjectError, ProjectPaths};
 pub use history::History;
 pub use model::{
     Branch, ClickSound, Clip, ClipId, ControlPoint, FadeShape, Frozen, Insert, InsertId, Marker,
-    MarkerId, Master, MetronomeSettings, MidiMapping, Monitoring, Note, Playlist, Project,
-    RecordSource, ReferenceTrack, Source, SourceId, TakeInfo, Track, TrackId, TrackKind, TrackSend,
-    parse_variant, variant_path,
+    MarkerId, Master, MetronomeSettings, MidiMapping, Monitoring, Note, Playlist, Prepared,
+    Project, RecordSource, ReferenceTrack, Source, SourceId, TakeInfo, Track, TrackId, TrackKind,
+    TrackSend, parse_variant, variant_path,
 };

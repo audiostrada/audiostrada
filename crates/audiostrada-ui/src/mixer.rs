@@ -2788,6 +2788,7 @@ impl MixerView {
         left.menu_button(tr("Snapshots"), |ui| snapshots_menu(ui, &mut doc))
             .response
             .on_hover_text(tr("Save and recall the console settings"));
+        crate::prepare_window::all_button(&mut left, &doc);
         let importing = doc.importing();
         if importing > 0 {
             left.spinner();
@@ -5246,6 +5247,9 @@ impl MixerView {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.add_space(2.0);
                 self.console_dot(ui, doc, channel);
+                if let Channel::Track(t) = channel {
+                    crate::prepare_window::wand(ui, doc, t);
+                }
             });
         });
         ui.horizontal(|ui| {

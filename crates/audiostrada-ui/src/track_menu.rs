@@ -131,6 +131,7 @@ pub fn show(ui: &mut Ui, doc: &mut Document, id: TrackId) -> Vec<Request> {
             &track.name,
         );
     }
+    crate::prepare_window::menu(ui, doc, &tracks);
     ui.separator();
     if ui.button(tr("Add a track above")).clicked() {
         crate::add_tracks::add_one(doc, false, Some((id, false)));

@@ -173,6 +173,44 @@ and drive. Its window shows the EQ curve with its handles and the meter bridge, 
 track's input gain and polarity, then the modules in the order they play; drag a module by its
 grip to reorder it. See *Effects* for its parameters.
 
+## Preparing a track
+
+The wand in the header of a strip's **Channel strip** prepares the track, or every selected
+track: a click cleans it up and brings it out, a right-click (or the track's right-click menu, or
+Track › *Prepare the track*) chooses one of the two or removes the preparation. **Prepare all**,
+at the top of the mixer, does it for every track at once (not the buses): in the window, switch
+off the tracks to leave as they are.
+
+- **Clean up**: a high pass under the energy that counts (and a low pass for the bass, the kick
+  and distorted guitars), cuts at the resonances that stand out, the plosives and the sibilance
+  of a voice held down (a de-esser is also offered on overheads and hi-hats), and a gate on the
+  kick and toms when there is bleed between the hits. A track with long silences gets the
+  suggestion to strip them instead.
+- **Bring out**: the moves an engineer makes on that instrument, on the channel strip's EQ
+  (weight, mud, click on a kick; mud, presence, air on a voice...), each placed where the track
+  has it and dosed on how much it has; a compressor (always on a kick, a snare and a bass, else
+  when the level moves a lot); and, if you tick it, a riding of the level written as automation
+  of the strip's output (within 6 dB).
+- **Both**, and **Remove the preparation**.
+
+AudioStrada renders the track alone, as it reaches its channel strip, and guesses the
+instrument from the track's name, its instrument or its sound (a man's or a woman's voice by
+its pitch); change it after *The instrument is* and the proposal follows. The picture shows the
+spectrum measured and what the proposal makes of it, with each move marked; the two cards list
+the steps, each with its switch and its amount (50 % is what is proposed; double-click to come
+back to it). **Strength** (gentle, normal, bold) sets how far it all goes.
+
+While the window is open the proposal is heard: *Listen* plays the session, **Before** and
+**After** compare the track as it was with the prepared one, and **Same level** brings the
+prepared track to the loudness it had, so that louder does not pass for better. *Apply* writes
+everything in one undo step, with that gain kept on the effects' outputs; *Cancel* leaves the
+track as it was.
+
+The settings are those of the channel strip, plus a Strada-EQ after it for the resonances and
+the plosives (its bands dynamic when they come and go) and a Strada-DeEss. Preparing again
+replaces what was done; the wand stays lit on a prepared track. These are starting points, set
+by rules from mixing practice, to adjust by ear.
+
 ## Snapshots
 
 **Snapshots** save the state of the console and recall it, to compare two mixes.

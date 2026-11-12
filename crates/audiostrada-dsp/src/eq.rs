@@ -561,6 +561,8 @@ pub struct Equalizer {
     /// Spectra of the output and the input, reported as meters.
     analyzer: crate::analyzer::Analyzer,
     input_analyzer: crate::analyzer::Analyzer,
+    /// Its window is open: the spectra are worth computing.
+    watched: bool,
 }
 
 impl Default for Equalizer {
@@ -577,6 +579,7 @@ impl Default for Equalizer {
             audition_state: [Biquad::default(); 2],
             analyzer: crate::analyzer::Analyzer::default(),
             input_analyzer: crate::analyzer::Analyzer::default(),
+            watched: true,
         }
     }
 }
@@ -725,7 +728,9 @@ impl Effect for Equalizer {
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         let n = left.len().min(right.len());
-        self.input_analyzer.process(left, right);
+        if self.watched {
+            self.input_analyzer.process(left, right);
+        }
         let mut start = 0;
         while start < n {
             let end = (start + SUB_BLOCK).min(n);
@@ -781,7 +786,13 @@ impl Effect for Equalizer {
             }
             start = end;
         }
-        self.analyzer.process(left, right);
+        if self.watched {
+            self.analyzer.process(left, right);
+        }
+    }
+
+    fn set_watched(&mut self, watched: bool) {
+        self.watched = watched;
     }
 
     fn reset(&mut self) {

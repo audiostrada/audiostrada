@@ -671,3 +671,44 @@ fn projects_save_open_in_tabs_and_close() {
     h.act(Action::CloseTab);
     h.answer_dialogs();
 }
+
+#[test]
+fn preparing_a_track_measures_it_then_sets_its_strip_in_one_undo_step() {
+    let mut h = Harness::with_song("prepare");
+    let keys = {
+        let mut doc = h.app.doc.borrow_mut();
+        let keys = doc
+            .project()
+            .tracks
+            .iter()
+            .find(|t| t.name == "Keys")
+            .map(|t| t.id)
+            .unwrap();
+        doc.select_track(keys, crate::document::SelectMode::Only);
+        keys
+    };
+    h.act(Action::PrepareTracks);
+    for _ in 0..2000 {
+        if h.app.prepare.ready() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        h.frame(Vec::new());
+    }
+    assert!(h.app.prepare.ready(), "the track is measured");
+    let mut doc = h.app.doc.borrow_mut();
+    h.app.prepare.apply_now(&mut doc);
+    let track = doc.project().track(keys).unwrap();
+    let done = track.prepared.clone().expect("prepared");
+    assert_eq!(done.instrument, "keys", "from the track's name");
+    assert!(done.cleaned && done.brought_out);
+    assert!(
+        audiostrada_core::routing::strip(doc.project(), Channel::Track(keys)).is_some(),
+        "its channel strip carries the settings"
+    );
+    doc.history_mut().undo();
+    assert!(
+        doc.project().track(keys).unwrap().prepared.is_none(),
+        "one undo step"
+    );
+}

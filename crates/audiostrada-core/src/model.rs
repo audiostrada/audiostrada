@@ -483,6 +483,24 @@ pub struct Track {
     /// The track whose processed takes this one receives.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub printed_from: Option<TrackId>,
+    /// What *Prepare the track* did, to show it and to undo it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prepared: Option<Prepared>,
+}
+
+/// The preparation of a track: the instrument it was prepared as, what was done, the effects
+/// it added after the channel strip, and the gain it added to the strip's output.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Prepared {
+    pub instrument: String,
+    #[serde(default)]
+    pub cleaned: bool,
+    #[serde(default)]
+    pub brought_out: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inserts: Vec<InsertId>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub strip_gain: f32,
 }
 
 pub(crate) fn one() -> f32 {
@@ -1207,6 +1225,7 @@ impl Project {
             height: 1.0,
             record_source: RecordSource::Raw,
             printed_from: None,
+            prepared: None,
         }));
         id
     }

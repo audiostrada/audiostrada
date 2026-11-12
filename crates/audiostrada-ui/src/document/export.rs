@@ -235,6 +235,37 @@ pub(super) struct Exporting {
     freeze: bool,
 }
 
+/// Rendered audio: left, right, rate.
+pub type Audio = (Vec<f32>, Vec<f32>, u32);
+
+/// A track rendered on its own thread to be measured: (left, right, rate) once done.
+#[derive(Debug)]
+pub struct Measuring {
+    player: audiostrada_engine::project::ProjectPlayer,
+    progress: Arc<AtomicU32>,
+    handle: Option<JoinHandle<Audio>>,
+}
+
+impl Measuring {
+    pub fn progress(&self) -> f32 {
+        f32::from_bits(self.progress.load(Ordering::Relaxed))
+    }
+
+    /// Keeps the render's plugins going; the audio once it is rendered.
+    pub fn poll(&mut self) -> Option<Result<Audio, String>> {
+        self.player.update();
+        if !self.handle.as_ref()?.is_finished() {
+            return None;
+        }
+        let handle = self.handle.take()?;
+        Some(
+            handle
+                .join()
+                .map_err(|_| tr("The analysis failed").to_owned()),
+        )
+    }
+}
+
 /// A render running on its own thread, at full speed, then written to its file.
 #[derive(Debug)]
 struct Rendering {
@@ -422,6 +453,53 @@ impl Document {
             left.clone()
         };
         Ok((left, right, audio.sample_rate()))
+    }
+
+    /// Starts rendering `track` alone as it reaches its channel strip (its instrument kept,
+    /// its effects left out), on its own thread, to be prepared.
+    pub fn start_source_render(&mut self, track: TrackId) -> Result<Measuring, String> {
+        let mut project = isolate(self.project(), track).ok_or("no such track")?;
+        let keep = usize::from(self.is_instrument_track(track));
+        if let Some(t) = project.tracks.iter_mut().find(|t| t.id == track) {
+            let t = Arc::make_mut(t);
+            t.inserts.truncate(keep);
+            t.automation.clear();
+        }
+        let end = project.length();
+        if end == 0 {
+            return Err(tr("The track plays nothing").into());
+        }
+        let render = OfflineRender::new(
+            &project,
+            self.paths.as_ref(),
+            &self.media,
+            self.player.plugins().clone(),
+            0,
+            end,
+            0.0,
+        )
+        .measured_only();
+        let (player, mut render) = render.split();
+        let progress = Arc::new(AtomicU32::new(0));
+        let shared = Arc::clone(&progress);
+        let handle = std::thread::spawn(move || {
+            while !render.render(SLICE_FRAMES) {
+                shared.store(render.progress().to_bits(), Ordering::Relaxed);
+            }
+            let audio = render.finish().audio;
+            let left = audio.channel(0).to_vec();
+            let right = if audio.channels() > 1 {
+                audio.channel(1).to_vec()
+            } else {
+                left.clone()
+            };
+            (left, right, audio.sample_rate())
+        });
+        Ok(Measuring {
+            player,
+            progress,
+            handle: Some(handle),
+        })
     }
 
     pub fn start_export(&mut self, settings: ExportSettings, target: &Path) -> Result<(), String> {
