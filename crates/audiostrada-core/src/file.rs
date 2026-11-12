@@ -15,7 +15,7 @@ use crate::model::{Project, SourceId};
 pub const EXTENSION: &str = "strada";
 const FORMAT: &str = "audiostrada-project";
 /// Version written by this build. Older files are migrated on load.
-pub const VERSION: u32 = 3;
+pub const VERSION: u32 = 4;
 const AUDIO_DIR: &str = "Audio Files";
 const PEAKS_DIR: &str = "Peaks";
 const VERSIONS_DIR: &str = "Versions";
@@ -184,7 +184,7 @@ fn migrate(value: Value, version: u32) -> Result<Value, ProjectError> {
         0 => Err(ProjectError::Format("invalid version 0".into())),
         1 => migrate(crate::legacy::v1_to_v2(value), 2),
         // Folders become buses once the project is read (`legacy::folders_to_buses`).
-        2 => Ok(value),
+        2 | 3 => Ok(crate::legacy::keep_original_correctors(value)),
         v => Err(ProjectError::Format(format!(
             "no migration from version {v}"
         ))),

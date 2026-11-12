@@ -259,6 +259,67 @@ pub fn upgrade_amp_rigs(value: &mut Value) {
     }
 }
 
+/// Formats 2 and 3 to 4: Strada-Correct got a new engine, chosen by its `mode`. The
+/// correctors of older projects keep the one they were set with (`mode` 2, "Original"), in
+/// their inserts and in the console snapshots holding their values, so that these projects
+/// sound as they did.
+pub(crate) fn keep_original_correctors(mut value: Value) -> Value {
+    const ORIGINAL: f64 = 2.0;
+    fn keep(value: &mut Value) {
+        if let Some(Value::Object(params)) = value.get_mut("params") {
+            params
+                .entry("mode")
+                .or_insert_with(|| Value::from(ORIGINAL));
+        }
+    }
+    /// The ids of the correctors, their own parameters set on the way.
+    fn correctors(value: &mut Value, ids: &mut BTreeSet<String>) {
+        match value {
+            Value::Object(map) => {
+                for child in map.values_mut() {
+                    correctors(child, ids);
+                }
+                if map.get("effect").and_then(Value::as_str) == Some("pitch_correct") {
+                    if let Some(id) = map.get("id") {
+                        ids.insert(id.to_string());
+                    }
+                    // An insert never set has no parameters yet: it gets the one.
+                    map.entry("params")
+                        .or_insert_with(|| Value::Object(Default::default()));
+                    let mut object = Value::Object(std::mem::take(map));
+                    keep(&mut object);
+                    if let Value::Object(kept) = object {
+                        *map = kept;
+                    }
+                }
+            }
+            Value::Array(items) => items.iter_mut().for_each(|v| correctors(v, ids)),
+            _ => {}
+        }
+    }
+    /// Snapshot values of those correctors.
+    fn snapshots(value: &mut Value, ids: &BTreeSet<String>) {
+        match value {
+            Value::Object(map) => {
+                for (key, child) in map.iter_mut() {
+                    if ids.contains(key) || ids.contains(&format!("\"{key}\"")) {
+                        keep(child);
+                    }
+                    snapshots(child, ids);
+                }
+            }
+            Value::Array(items) => items.iter_mut().for_each(|v| snapshots(v, ids)),
+            _ => {}
+        }
+    }
+    let mut ids = BTreeSet::new();
+    correctors(&mut value, &mut ids);
+    if !ids.is_empty() {
+        snapshots(&mut value, &ids);
+    }
+    value
+}
+
 /// Groups that followed a folder: a bus's tracks are now edited each on its own.
 pub fn drop_folder_groups(value: &mut Value) {
     if let Some(groups) = value
@@ -394,6 +455,42 @@ mod tests {
         );
         let groups: Vec<&str> = p.groups.iter().map(|g| g.name.as_str()).collect();
         assert_eq!(groups, ["Mine"], "the group that followed a folder is gone");
+    }
+
+    #[test]
+    fn correctors_of_older_projects_keep_their_original_engine() {
+        let file = serde_json::json!({
+            "format": "audiostrada-project",
+            "version": 3,
+            "project": {
+                "tracks": [{
+                    "inserts": [
+                        {"id": 7, "effect": "pitch_correct", "params": {"speed": 10.0}},
+                        {"id": 8, "effect": "pitch_correct", "params": {}},
+                        {"id": 9, "effect": "eq", "params": {"output": 1.0}},
+                    ],
+                }],
+                "master": {"inserts": []},
+                "snapshots": [{"inserts": {
+                    "7": {"params": {"speed": 40.0}},
+                    "9": {"params": {"output": 2.0}},
+                }}],
+            },
+        });
+        let v = keep_original_correctors(file);
+        let inserts = &v["project"]["tracks"][0]["inserts"];
+        assert_eq!(inserts[0]["params"]["mode"], 2.0);
+        assert_eq!(inserts[0]["params"]["speed"], 10.0);
+        assert_eq!(inserts[1]["params"]["mode"], 2.0);
+        assert!(inserts[2]["params"].get("mode").is_none());
+        let snapshot = &v["project"]["snapshots"][0]["inserts"];
+        assert_eq!(snapshot["7"]["params"]["mode"], 2.0);
+        assert!(snapshot["9"]["params"].get("mode").is_none());
+        // A mode chosen since is kept.
+        let again = keep_original_correctors(serde_json::json!({
+            "inserts": [{"id": 1, "effect": "pitch_correct", "params": {"mode": 1.0}}],
+        }));
+        assert_eq!(again["inserts"][0]["params"]["mode"], 1.0);
     }
 
     #[test]

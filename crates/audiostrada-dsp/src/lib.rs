@@ -13,6 +13,7 @@ pub mod chorus;
 pub mod compressor;
 pub mod console;
 pub mod convolver;
+mod correct;
 pub mod deesser;
 pub mod delay;
 pub mod doubler;

@@ -1,18 +1,31 @@
-//! Pitch Correct: follows the pitch of a voice (YIN on a decimated copy, refined at full rate,
-//! every 5 ms), picks the nearest note of the chosen scale and moves the voice there with
-//! TD-PSOLA, grains of two periods laid one output period apart, which keeps the formants.
-//! The retune speed glides the correction, humanize corrects the note's center only, and a
-//! note already within the tolerance is left as sung. The scale can be one of its own (notes
-//! picked on a keyboard).
+//! Pitch Correct: follows the pitch of a voice, picks the nearest note of the chosen scale and
+//! moves the voice there with TD-PSOLA, grains of two periods laid one output period apart,
+//! which keeps the formants. The retune speed glides the correction, humanize corrects the
+//! note's center only, and a note already within the tolerance is left as sung. The scale can
+//! be one of its own (notes picked on a keyboard). The staircase mode puts every note flat on
+//! its target at once, for the stepped voice of the first automatic corrections.
+//!
+//! The engine is in [`crate::correct`]. The one this effect started with ([`Original`]: YIN's
+//! first dip every 5 ms, marks a period apart, the correction of the latest reading) is kept
+//! for the projects made with it.
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
+use crate::correct::{Corrector, Settings};
 use crate::{Effect, EffectInfo, ParamInfo, choice, param, time_coefficient};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "pitch_correct",
     name: "Strada-Correct",
     params: &PARAMS,
-    meters: &["Input pitch", "Output pitch", "Target note", "Clarity"],
+    meters: &[
+        "Input pitch",
+        "Output pitch",
+        "Target note",
+        "Clarity",
+        "Key heard",
+        "Scale heard",
+        "Key certainty",
+    ],
     instrument: false,
     files: &[],
     category: "Utility",
@@ -83,7 +96,24 @@ pub const SCALE_NAMES: [&str; 9] = [
 ];
 pub const CUSTOM: usize = 8;
 
-const PARAMS: [ParamInfo; 8] = [
+/// How the voice is corrected. Projects saved before the modes existed are given the
+/// original one when they are read.
+pub const MODES: [&str; 3] = ["Natural", "Staircase", "Original"];
+pub const MODE_HINTS: [&str; 3] = [
+    "Follows the settings below, from a light touch to a tight correction",
+    "Every note flat on its target at once: the stepped, synthetic voice",
+    "The first engine of this effect, for the projects made with it",
+];
+pub const NATURAL: usize = 0;
+pub const STAIRCASE: usize = 1;
+pub const ORIGINAL: usize = 2;
+/// Index of the mode among the parameters.
+const MODE: usize = 8;
+/// Meters of the key heard: its root (-1 without one), its scale as an index of
+/// [`SCALE_NAMES`], and how sure it is (0 to 1).
+pub const KEY_METER: usize = 4;
+
+const PARAMS: [ParamInfo; 9] = [
     choice("key", "Key", &NOTE_NAMES, 0.0),
     choice("scale", "Scale", &SCALE_NAMES, 0.0),
     param("speed", "Retune speed", 0.0, 400.0, 25.0, "ms"),
@@ -92,6 +122,7 @@ const PARAMS: [ParamInfo; 8] = [
     param("transpose", "Transpose", -12.0, 12.0, 0.0, "st"),
     param("notes", "Custom notes", 0.0, 4095.0, 4095.0, ""),
     param("tolerance", "Tolerance", 0.0, 50.0, 0.0, "cents"),
+    choice("mode", "Mode", &MODES, 0.0),
 ];
 
 const LOWEST_HZ: f32 = 70.0;
@@ -137,8 +168,9 @@ struct Mark {
     voiced: bool,
 }
 
+/// The engine the effect started with.
 #[derive(Debug)]
-pub struct PitchCorrect {
+struct Original {
     rate: f32,
     values: [f32; 8],
     /// Detection: one sample in `factor`, low-passed first.
@@ -175,11 +207,11 @@ pub struct PitchCorrect {
     clarity: f32,
 }
 
-impl Default for PitchCorrect {
+impl Default for Original {
     fn default() -> Self {
         let mut p = Self {
             rate: 0.0,
-            values: PARAMS.map(|p| p.default),
+            values: std::array::from_fn(|i| PARAMS[i].default),
             factor: 1,
             lowpass: [Coefficients::IDENTITY; 2],
             filters: [Biquad::default(); 2],
@@ -215,7 +247,7 @@ impl Default for PitchCorrect {
     }
 }
 
-impl PitchCorrect {
+impl Original {
     fn allocate(&mut self, rate: f32) {
         self.rate = rate;
         self.factor = ((rate / DETECTION_HZ).round() as usize).max(1);
@@ -479,21 +511,7 @@ fn cubic(x: &[f32], mask: usize, at: f64) -> f32 {
     ((c3 * t + c2) * t + c1) * t + y1
 }
 
-impl Effect for PitchCorrect {
-    fn prepare(&mut self, sample_rate: u32, _max_frames: usize) {
-        if sample_rate as f32 != self.rate {
-            self.allocate(sample_rate as f32);
-        } else {
-            self.reset();
-        }
-    }
-
-    fn set_param(&mut self, index: usize, value: f32) {
-        if let Some(v) = self.values.get_mut(index) {
-            *v = value;
-        }
-    }
-
+impl Original {
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (l, r) in left.iter_mut().zip(right.iter_mut()) {
             let slot = self.written as usize & self.mask;
@@ -542,10 +560,6 @@ impl Effect for PitchCorrect {
         self.clarity = 0.0;
     }
 
-    fn latency(&self) -> u32 {
-        self.latency as u32
-    }
-
     fn meters(&self, out: &mut [f32]) {
         let voiced = self.run > 0;
         let values = if voiced {
@@ -560,6 +574,121 @@ impl Effect for PitchCorrect {
         };
         for (o, v) in out.iter_mut().zip(values) {
             *o = v;
+        }
+    }
+}
+
+/// The corrector: the engine of the mode chosen, the other one at rest.
+#[derive(Debug)]
+pub struct PitchCorrect {
+    values: [f32; 9],
+    engine: Corrector,
+    original: Original,
+    /// The mode of the last block, to start the one switched to from nothing.
+    mode: usize,
+}
+
+impl Default for PitchCorrect {
+    fn default() -> Self {
+        Self {
+            values: PARAMS.map(|p| p.default),
+            engine: Corrector::new(48_000.0),
+            original: Original::default(),
+            mode: NATURAL,
+        }
+    }
+}
+
+impl PitchCorrect {
+    fn mode(&self) -> usize {
+        (self.values[MODE].round().max(0.0) as usize).min(MODES.len() - 1)
+    }
+
+    fn settings(&self) -> Settings {
+        let [
+            key,
+            scale,
+            speed,
+            humanize,
+            amount,
+            transpose,
+            notes,
+            tolerance,
+            _,
+        ] = self.values;
+        Settings {
+            key: key.round() as i32,
+            scale: scale.round().max(0.0) as usize,
+            notes: notes.round().max(0.0) as u32,
+            speed,
+            humanize,
+            amount,
+            transpose,
+            tolerance,
+            staircase: self.mode() == STAIRCASE,
+        }
+    }
+}
+
+impl Effect for PitchCorrect {
+    fn prepare(&mut self, sample_rate: u32, _max_frames: usize) {
+        let rate = sample_rate as f32;
+        if rate != self.original.rate {
+            self.original.allocate(rate);
+        } else {
+            self.original.reset();
+        }
+        if rate != self.engine.rate() {
+            self.engine.allocate(rate);
+        } else {
+            self.engine.reset();
+        }
+        self.mode = self.mode();
+    }
+
+    fn set_param(&mut self, index: usize, value: f32) {
+        if let Some(v) = self.values.get_mut(index) {
+            *v = value;
+        }
+        if let Some(v) = self.original.values.get_mut(index) {
+            *v = value;
+        }
+    }
+
+    fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+        let mode = self.mode();
+        if (mode == ORIGINAL) != (self.mode == ORIGINAL) {
+            self.original.reset();
+            self.engine.reset();
+        }
+        self.mode = mode;
+        if mode == ORIGINAL {
+            self.original.process(left, right);
+        } else {
+            let settings = self.settings();
+            self.engine.process(left, right, &settings);
+        }
+    }
+
+    fn reset(&mut self) {
+        self.original.reset();
+        self.engine.reset();
+    }
+
+    /// The same in every mode.
+    fn latency(&self) -> u32 {
+        self.engine.latency() as u32
+    }
+
+    fn meters(&self, out: &mut [f32]) {
+        if self.mode == ORIGINAL {
+            out.fill(0.0);
+            if let Some(key) = out.get_mut(KEY_METER) {
+                *key = -1.0;
+            }
+            self.original.meters(out);
+        } else {
+            self.engine.meters(out);
         }
     }
 }
@@ -724,6 +853,199 @@ mod tests {
         let out = run(&mut p, &voice(|_| 440.0, 0.3));
         assert!(out.iter().all(|s| s.is_finite()));
     }
+
+    /// The settings by their place in the table.
+    const SPEED: usize = 2;
+    const TRANSPOSE: usize = 5;
+
+    /// A voice as a microphone hears it: the breath loud in its upper harmonics, around
+    /// 2 kHz, `breath` times a full-scale noise.
+    fn breathy(hz: f32, seconds: f32, breath: f32) -> Vec<f32> {
+        let mut noise = 777u32;
+        let band = Coefficients::design(FilterKind::BandPass, 2000.0, 1.5, 0.0, f64::from(RATE));
+        let mut filter = Biquad::default();
+        voice(|_| hz, seconds)
+            .into_iter()
+            .map(|s| {
+                noise = noise.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                let white = (noise >> 8) as f32 / (1u32 << 23) as f32 - 1.0;
+                s + breath * filter.process(&band, f64::from(white)) as f32
+            })
+            .collect()
+    }
+
+    /// The meters after each block of `input`, from the block `skip` on.
+    fn follow(p: &mut PitchCorrect, input: &[f32], skip: usize) -> Vec<[f32; 7]> {
+        let mut seen = Vec::new();
+        for (i, block) in input.chunks(256).enumerate() {
+            let (mut l, mut r) = (block.to_vec(), block.to_vec());
+            p.process(&mut l, &mut r);
+            let mut meters = [0.0; 7];
+            p.meters(&mut meters);
+            if i >= skip {
+                seen.push(meters);
+            }
+        }
+        seen
+    }
+
+    /// The pitch of each stretch of 4096 samples of `x`, as notes.
+    fn pitches(x: &[f32]) -> Vec<f32> {
+        let mut difference = vec![0.0; 2048];
+        x.chunks_exact(4096)
+            .filter_map(|w| crate::tuner::detect(w, RATE, &mut difference))
+            .map(|found| to_note(found.0))
+            .collect()
+    }
+
+    #[test]
+    fn reads_the_pitch_of_a_voice_within_a_cent() {
+        for hz in [82.4f32, 146.8, 261.6, 440.0, 880.0] {
+            // The phase kept in double precision: the tone is on its pitch to the cent.
+            let input: Vec<f32> = (0..(0.6 * RATE) as usize)
+                .map(|i| {
+                    let t = (f64::from(hz) * i as f64 / f64::from(RATE)).fract() as f32;
+                    let t = t * std::f32::consts::TAU;
+                    0.3 * t.sin() + 0.15 * (2.0 * t).sin() + 0.08 * (3.0 * t).sin()
+                })
+                .collect();
+            let mut p = corrector(&[]);
+            for meters in follow(&mut p, &input, 40) {
+                let cents = 100.0 * (meters[0] - to_note(hz));
+                assert!(cents.abs() < 1.0, "{hz} Hz read {cents} cents off");
+            }
+        }
+    }
+
+    #[test]
+    fn follows_a_voice_under_its_breath_where_the_original_engine_loses_it() {
+        // A3 sung 30 cents sharp, the breath 6 dB under the voice.
+        let input = breathy(to_hz(57.3), 2.0, 0.8);
+        let on_the_note = |mode: usize| {
+            let mut p = corrector(&[(SPEED, 0.0), (MODE, mode as f32)]);
+            let seen = follow(&mut p, &input, 40);
+            let held = seen
+                .iter()
+                .filter(|m| m[0] > 0.0 && (m[1] - 57.0).abs() < 0.05)
+                .count();
+            held as f32 / seen.len() as f32
+        };
+        let (new, original) = (on_the_note(NATURAL), on_the_note(ORIGINAL));
+        assert!(new > 0.8, "the new engine holds the note {new} of the time");
+        assert!(original < 0.2, "the original one did {original}");
+    }
+
+    #[test]
+    fn the_staircase_flattens_a_vibrato_the_original_engine_let_through() {
+        // 80 cents of vibrato from end to end around an A3 sung 20 cents sharp.
+        let vibrato = |t: f32| to_hz(57.2 + 0.4 * (t * 5.5 * std::f32::consts::TAU).sin());
+        let input = voice(vibrato, 2.0);
+        let swing = |settings: &[(usize, f32)]| {
+            let out = run(&mut corrector(settings), &input);
+            let heard = pitches(&out[24_000..]);
+            let (low, high) = heard
+                .iter()
+                .fold((f32::MAX, f32::MIN), |(lo, hi), n| (lo.min(*n), hi.max(*n)));
+            (low, high)
+        };
+        let (low, high) = swing(&[(MODE, STAIRCASE as f32)]);
+        assert!(low > 56.95 && high < 57.05, "the staircase: {low}..{high}");
+        let (low, high) = swing(&[(SPEED, 0.0), (MODE, ORIGINAL as f32)]);
+        assert!(high - low > 0.4, "the original engine: {low}..{high}");
+    }
+
+    #[test]
+    fn the_staircase_reaches_a_new_note_within_30_ms() {
+        // Legato from an A3 to a C4, each a little off.
+        let sung = |t: f32| to_hz(if t < 0.5 { 57.25 } else { 59.8 });
+        let mut p = corrector(&[(MODE, STAIRCASE as f32)]);
+        let seen = follow(&mut p, &voice(sung, 1.0), 0);
+        let block = 256.0 / RATE;
+        let before = seen
+            .iter()
+            .rposition(|m| m[2] == 57.0)
+            .expect("the first note is followed");
+        let after = seen
+            .iter()
+            .position(|m| m[2] == 60.0 && (m[1] - 60.0).abs() < 0.1)
+            .expect("the second note is reached");
+        let seconds = (after as f32 - before as f32) * block;
+        assert!(seconds < 0.03, "{seconds} s from one note to the next");
+        // And every reading after it is on the note.
+        for m in &seen[after..] {
+            assert!((m[1] - 60.0).abs() < 0.02, "{m:?}");
+        }
+    }
+
+    #[test]
+    fn a_change_of_note_leaves_no_click() {
+        // A melody of half steps sung legato, moved to the staircase: the output bends no
+        // more sharply from a sample to the next than the voice itself does.
+        let melody = |t: f32| to_hz(57.3 + ((t / 0.25).floor() % 3.0) * 1.1);
+        let input = voice(melody, 2.0);
+        let sharpest = |x: &[f32]| {
+            x.windows(3)
+                .map(|w| (w[0] - 2.0 * w[1] + w[2]).abs())
+                .fold(0.0, f32::max)
+        };
+        for mode in [NATURAL, STAIRCASE] {
+            let mut p = corrector(&[(SPEED, 0.0), (MODE, mode as f32)]);
+            let out = run(&mut p, &input);
+            let (dry, wet) = (sharpest(&input[4800..]), sharpest(&out[4800..]));
+            assert!(wet < 1.25 * dry, "mode {mode}: {wet} against {dry}");
+            let level = 20.0 * (rms(&out[24_000..]) / rms(&input[24_000..])).log10();
+            assert!(level.abs() < 0.5, "mode {mode}: {level} dB");
+        }
+    }
+
+    #[test]
+    fn the_key_of_what_is_sung_is_heard() {
+        // "Frère Jacques" and so on in D major, a quarter of a second a note.
+        let tune = [
+            0, 2, 4, 0, 0, 2, 4, 0, 4, 5, 7, 7, 4, 5, 7, 7, 9, 7, 5, 4, 0, 0,
+        ];
+        let sung = move |t: f32| to_hz(62.0 + tune[(t / 0.25) as usize % tune.len()] as f32);
+        let mut p = corrector(&[]);
+        let mut meters = [0.0; 7];
+        p.meters(&mut meters);
+        assert_eq!(meters[KEY_METER], -1.0, "nothing heard yet");
+        let seen = follow(&mut p, &voice(sung, 6.0), 0);
+        let last = seen.last().unwrap();
+        assert_eq!(
+            (last[KEY_METER], last[KEY_METER + 1]),
+            (2.0, 1.0),
+            "D major"
+        );
+        assert!(last[KEY_METER + 2] > 0.6, "{last:?}");
+        // The key outlives a stop of the transport.
+        p.reset();
+        p.meters(&mut meters);
+        assert_eq!(meters[KEY_METER], 2.0);
+    }
+
+    #[test]
+    fn the_original_engine_sounds_as_it_did() {
+        // What it gave before the modes existed, for the projects that keep it.
+        let input = voice(|t| to_hz(57.3 + 2.0 * t), 0.5);
+        let mut p = corrector(&[(SPEED, 10.0), (TRANSPOSE, 2.0), (MODE, ORIGINAL as f32)]);
+        let out = run(&mut p, &input);
+        let sum: f64 = out.iter().map(|s| f64::from(s.abs())).sum();
+        let probes = [out[6000], out[12_000], out[18_000], out[23_999]];
+        assert!(
+            (sum - ORIGINAL_SUM).abs() < 1e-2 * ORIGINAL_SUM.max(1.0),
+            "{sum}"
+        );
+        for (got, expected) in probes.iter().zip(ORIGINAL_PROBES) {
+            assert!((got - expected).abs() < 1e-3, "{probes:?}");
+        }
+        assert_eq!(
+            p.latency(),
+            corrector(&[]).latency(),
+            "the modes share a latency"
+        );
+    }
+    const ORIGINAL_SUM: f64 = 4347.552_928;
+    const ORIGINAL_PROBES: [f32; 4] = [0.251_958_9, -0.011_172_57, -0.260_529_94, -0.048_771_17];
 
     #[test]
     fn a_note_within_the_tolerance_is_left_as_sung() {
