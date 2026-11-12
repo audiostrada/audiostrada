@@ -33,49 +33,65 @@ pub struct Args {
     pub source: Option<String>,
     /// Parameters of the plugin (or of the one effect given), by name or id.
     pub set: Vec<(String, f64)>,
+    /// Presets to measure in place of the factory ones: a JSON file, by effect, of
+    /// `[name, {parameter: value}]` pairs.
+    pub presets: Option<PathBuf>,
+    /// Print the factory presets as such a file instead of measuring.
+    pub dump: bool,
 }
 
 type Stereo = (Vec<f32>, Vec<f32>);
+/// Presets by name: the parameters each one sets.
+type Presets = Vec<(String, BTreeMap<String, f32>)>;
+/// Processes a block that starts at a frame.
+type Process<'a> = &'a mut dyn FnMut(&mut [f32], &mut [f32], usize);
 
-/// The sound a preset is made for, from the role its name opens with.
+/// The sound a preset is made for: what the role its name opens with says, else what the
+/// rest of the name says ("Bus: drum glue").
 fn source_of(effect: &str, preset: &str) -> &'static str {
     let role = preset.split(':').next().unwrap_or("").to_lowercase();
-    let has = |words: &[&str]| words.iter().any(|w| role.contains(w));
-    if has(&["backing"]) {
-        "backing"
-    } else if has(&["vocal", "voice", "voix", "podcast"]) {
-        "vocal"
-    } else if has(&["kick"]) {
-        "kick"
-    } else if has(&["snare"]) {
-        "snare"
-    } else if has(&["tom"]) {
-        "toms"
-    } else if has(&["overhead", "cymbal", "hi-hat"]) {
-        "overheads"
-    } else if has(&["drum", "room", "parallel"]) {
-        "drums"
-    } else if has(&["bass"]) {
-        "bass"
-    } else if has(&["acoustic"]) {
-        "acoustic"
-    } else if has(&["guitar"]) {
-        if matches!(effect, "amp_rig" | "drive") {
-            "guitar_di"
+    let whole = preset.to_lowercase();
+    let by_words = |text: &str| -> Option<&'static str> {
+        let has = |words: &[&str]| words.iter().any(|w| text.contains(w));
+        Some(if has(&["backing"]) {
+            "backing"
+        } else if has(&["vocal", "voice", "voix", "podcast"]) {
+            "vocal"
+        } else if has(&["kick"]) {
+            "kick"
+        } else if has(&["snare"]) {
+            "snare"
+        } else if has(&["tom"]) {
+            "toms"
+        } else if has(&["overhead", "cymbal", "hi-hat"]) {
+            "overheads"
+        } else if has(&["drum", "room", "parallel"]) {
+            "drums"
+        } else if has(&["bass"]) {
+            "bass"
+        } else if has(&["acoustic"]) {
+            "acoustic"
+        } else if has(&["guitar"]) {
+            if matches!(effect, "amp_rig" | "drive") {
+                "guitar_di"
+            } else {
+                "guitar"
+            }
+        } else if has(&["pad", "string", "ambient"]) {
+            "pad"
+        } else if has(&["key", "piano", "synth", "organ"]) {
+            "keys"
         } else {
-            "guitar"
-        }
-    } else if has(&["pad", "string", "ambient"]) {
-        "pad"
-    } else if has(&["key", "piano", "synth", "lead"]) {
-        "keys"
-    } else if matches!(effect, "amp_rig") {
-        "guitar_di"
-    } else if matches!(effect, "pitch_correct" | "deesser" | "doubler") {
-        "vocal"
-    } else {
-        "mix"
-    }
+            return None;
+        })
+    };
+    by_words(&role)
+        .or_else(|| by_words(&whole))
+        .unwrap_or(match effect {
+            "amp_rig" => "guitar_di",
+            "pitch_correct" | "deesser" | "doubler" => "vocal",
+            _ => "mix",
+        })
 }
 
 /// Sounds by name, read from the folder once; `keys` and `pad` are played by Strada-Synth
@@ -140,7 +156,7 @@ fn synth(sound: &str, held: bool) -> anyhow::Result<Stereo> {
             let chord = chords[(step / 4) % 4];
             let before = chords[((step + 15) / 4) % 4];
             if held {
-                if step % 4 == 0 {
+                if step.is_multiple_of(4) {
                     for key in before {
                         fx.midi(&MidiEvent::note_off(0, 0, key));
                     }
@@ -152,7 +168,11 @@ fn synth(sound: &str, held: bool) -> anyhow::Result<Stereo> {
                 for key in before.iter().chain(&chord) {
                     fx.midi(&MidiEvent::note_off(0, 0, *key));
                 }
-                let keys: &[u8] = if step % 2 == 0 { &chord } else { &chord[1..] };
+                let keys: &[u8] = if step.is_multiple_of(2) {
+                    &chord
+                } else {
+                    &chord[1..]
+                };
                 for key in keys {
                     fx.midi(&MidiEvent::note_on(0, 0, *key, 80 + (step % 3) as u8 * 15));
                 }
@@ -182,17 +202,12 @@ fn set_params(fx: &mut dyn Effect, info: &EffectInfo, values: &BTreeMap<String, 
 /// What ran: the sound it gave, with its tail, and what its meters showed.
 struct Run {
     out: Stereo,
-    /// Lowest and highest value of each named meter.
-    meters: Vec<(String, f32, f32)>,
+    /// Lowest, highest and mean value of each named meter.
+    meters: Vec<(String, f32, f32, f32)>,
 }
 
 /// Plays `input` then silence through `process`, taking the latency back.
-fn play(
-    input: &Stereo,
-    latency: usize,
-    tail: usize,
-    process: &mut dyn FnMut(&mut [f32], &mut [f32], usize),
-) -> Stereo {
+fn play(input: &Stereo, latency: usize, tail: usize, process: Process) -> Stereo {
     let total = input.0.len() + tail + latency;
     let mut left = input.0.clone();
     let mut right = input.1.clone();
@@ -224,7 +239,7 @@ fn run_effect(
     fx.set_watched(true);
     let latency = fx.latency() as usize;
     let mut shown = vec![0.0f32; info.meters.len()];
-    let mut ranges = vec![(f32::MAX, f32::MIN); info.meters.len()];
+    let mut ranges = vec![(f32::MAX, f32::MIN, 0.0f64, 0usize); info.meters.len()];
     let (mut kl, mut kr) = (vec![0.0f32; BLOCK], vec![0.0f32; BLOCK]);
     let out = play(input, latency, tail, &mut |l, r, at| {
         fx.set_tempo(BPM);
@@ -241,16 +256,37 @@ fn run_effect(
         if at < input.0.len() {
             fx.meters(&mut shown);
             for (range, v) in ranges.iter_mut().zip(&shown) {
-                *range = (range.0.min(*v), range.1.max(*v));
+                *range = (
+                    range.0.min(*v),
+                    range.1.max(*v),
+                    range.2 + f64::from(*v),
+                    range.3 + 1,
+                );
             }
         }
     });
+    // The multiband compressor's meters have no names: its bands' gains are what to read.
+    let band_gain = |i: usize| {
+        let first = audiostrada_dsp::multiband::GAINS;
+        (id == "mb_comp" && (first..first + 4).contains(&i)).then(|| format!("B{}", i - first + 1))
+    };
     let meters = info
         .meters
         .iter()
         .zip(ranges)
-        .filter(|(name, _)| !name.is_empty())
-        .map(|(name, (lo, hi))| ((*name).to_owned(), lo, hi))
+        .enumerate()
+        .filter_map(|(i, (name, range))| {
+            let name = if name.is_empty() {
+                band_gain(i)?
+            } else {
+                (*name).to_owned()
+            };
+            Some((name, range))
+        })
+        .map(|(name, (lo, hi, sum, n))| {
+            let mean = (sum / n.max(1) as f64) as f32;
+            (name, lo, hi, mean)
+        })
         .collect();
     Ok(Run { out, meters })
 }
@@ -489,7 +525,7 @@ fn row(name: &str, source: &str, input: &Stereo, run: &Run, tone_in: &Stereo, to
     let meters: Vec<String> = run
         .meters
         .iter()
-        .map(|(name, lo, hi)| format!("{name} {lo:.1}..{hi:.1}"))
+        .map(|(name, lo, hi, mean)| format!("{name} {lo:.1}..{hi:.1}~{mean:.1}"))
         .collect();
     println!(
         "{:<38} {:<9} {:>6.1} {:>+6.1} {:>6.1} {:>+5.1} {:>5.2} {:>5.0} | {} | {:>5.2} | tone: {:>+5.1} {:>5.1} {:>5.2} {:>5.1} {:>5.0} {:>+5.0} {:>5.0} | {}",
@@ -526,6 +562,15 @@ fn write(folder: &Path, name: &str, sound: &Stereo) -> anyhow::Result<()> {
 }
 
 pub fn run(args: &Args) -> anyhow::Result<()> {
+    if args.dump {
+        let all: BTreeMap<&str, Presets> = audiostrada_dsp::EFFECTS
+            .iter()
+            .filter(|info| args.effects.is_empty() || args.effects.iter().any(|e| e == info.id))
+            .map(|info| (info.id, audiostrada_ui::factory_presets(info.id)))
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&all)?);
+        return Ok(());
+    }
     let mut sources = Sources {
         folder: args.audio.clone(),
         loaded: BTreeMap::new(),
@@ -549,13 +594,24 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
         return Ok(());
     }
     let kick = sources.get("kick").ok().cloned();
+    let voice = sources.get("vocal").ok().cloned();
+    let given: Option<BTreeMap<String, Presets>> = match &args.presets {
+        Some(path) => {
+            let text = std::fs::read_to_string(path).with_context(|| path.display().to_string())?;
+            Some(serde_json::from_str(&text).with_context(|| path.display().to_string())?)
+        }
+        None => None,
+    };
     for info in audiostrada_dsp::EFFECTS {
         if info.instrument
             || !(args.effects.is_empty() || args.effects.iter().any(|e| e == info.id))
         {
             continue;
         }
-        let mut presets = audiostrada_ui::factory_presets(info.id);
+        let mut presets = match &given {
+            Some(given) => given.get(info.id).cloned().unwrap_or_default(),
+            None => audiostrada_ui::factory_presets(info.id),
+        };
         if !args.set.is_empty() {
             let values = args
                 .set
@@ -590,10 +646,17 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
                 Ok(input) => input.clone(),
                 Err(_) => sources.get("mix")?.clone(),
             };
-            // A preset listening to another track hears the kick.
-            let keyed = values.get("sc_external").is_some_and(|v| *v >= 0.5)
-                || name.to_lowercase().contains("sidechain");
-            let key = if keyed { kick.as_ref() } else { None };
+            // A preset listening to another track hears the kick, or the voice it names.
+            let lower = name.to_lowercase();
+            let ducker = info.id == "gate" && values.get("mode").is_some_and(|m| *m >= 1.5);
+            let keyed = ducker || lower.contains("sidechain");
+            let key = if !keyed {
+                None
+            } else if lower.contains("voice") || lower.contains("vocal") {
+                voice.as_ref()
+            } else {
+                kick.as_ref()
+            };
             let run = run_effect(info.id, info, &values, &input, key, tail)?;
             let tone_out = run_effect(info.id, info, &values, &tone_in, None, 0)?.out;
             row(&name, &source, &input, &run, &tone_in, &tone_out);
