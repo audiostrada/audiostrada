@@ -58,10 +58,12 @@ impl Params<'_> {
         if let (Some(v), Some(i)) = (changed, self.index(id)) {
             self.values[i] = v;
         }
+        // One undo step for a whole gesture, even one moving several parameters (a point of
+        // the EQ dragged): releasing the control ends it.
         automated_control(self.doc, channel, &lane, changed, response, |doc, value| {
             doc.history_mut().edit_merged(
                 &format!("{} {}", tr(name), tr(param.name)),
-                &format!("insert:{}:{id}", insert.0),
+                &format!("insert:{}", insert.0),
                 |p| routing::set_insert_param(p, channel, insert, id, value),
             );
         });
@@ -1590,7 +1592,7 @@ fn tuner(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
             p.weak,
         );
     }
-    ui.ctx().request_repaint();
+    crate::animate(ui.ctx());
     ui.add_space(8.0);
     let accent = p.accent;
     ui.horizontal_top(|ui| {
@@ -1741,7 +1743,7 @@ fn pitch_correct(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut E
             p.weak,
         );
     }
-    ui.ctx().request_repaint();
+    crate::animate(ui.ctx());
     ui.add_space(8.0);
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
@@ -2633,7 +2635,7 @@ pub(crate) fn vu_meter(
     glass.add_triangle(0, 1, 2);
     glass.add_triangle(0, 2, 3);
     painter.add(Shape::mesh(glass));
-    ui.ctx().request_repaint();
+    crate::animate(ui.ctx());
 }
 
 // ---------------------------------------------------------------- New effects
@@ -2773,7 +2775,7 @@ fn modulation(ui: &mut Ui, params: &mut Params) {
         FontId::proportional(10.0),
         theme::SOLO,
     );
-    ui.ctx().request_repaint();
+    crate::animate(ui.ctx());
     ui.add_space(8.0);
     let accent = p.accent;
     let knob = |ui: &mut Ui, params: &mut Params, id: &str| {
@@ -3073,7 +3075,7 @@ fn imager(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
     });
     ui.add_space(6.0);
     correlation_bar(ui, correlation);
-    ui.ctx().request_repaint();
+    crate::animate(ui.ctx());
     ui.add_space(8.0);
     knob_sections(
         ui,
@@ -3351,7 +3353,7 @@ fn transient(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Edito
             p.weak,
         );
     });
-    ui.ctx().request_repaint();
+    crate::animate(ui.ctx());
     ui.add_space(8.0);
     knob_sections(
         ui,
@@ -4129,7 +4131,7 @@ fn filter(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
         20.0 * gain.log10()
     };
     response_plot(ui, 170.0, 36.0, curve, p.accent, Some(cutoff));
-    ui.ctx().request_repaint();
+    crate::animate(ui.ctx());
     ui.add_space(8.0);
     let accent = p.accent;
     // Short names inside their section.
@@ -5506,6 +5508,60 @@ pub(crate) fn drive_for_test(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_drag_moving_two_parameters_is_one_undo_step() {
+        use crate::document::{AppDirs, Document};
+        use egui::{Event, Modifiers, PointerButton, RawInput};
+        let mut doc = Document::new(AppDirs::default());
+        let mut insert = None;
+        doc.history_mut().edit("Setup", |p| {
+            let t = p.add_track("A");
+            insert = routing::add_insert(p, Channel::Track(t), "synth", Default::default());
+        });
+        let channel = Channel::Track(doc.project().tracks[0].id);
+        let info = audiostrada_dsp::info("synth").unwrap();
+        let ctx = egui::Context::default();
+        let button = |pos, pressed| Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        let at = |x: f32| pos2(50.0 + x, 50.0);
+        let mut frames = vec![vec![Event::PointerMoved(at(0.0)), button(at(0.0), true)]];
+        frames.extend((1..6).map(|k| vec![Event::PointerMoved(at(10.0 * k as f32))]));
+        frames.push(vec![button(at(50.0), false)]);
+        for (k, events) in frames.into_iter().enumerate() {
+            let input = RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))),
+                events,
+                ..Default::default()
+            };
+            ctx.run_ui(input, |ui| {
+                let rect = Rect::from_min_size(Pos2::ZERO, vec2(200.0, 200.0));
+                let response = ui.allocate_rect(rect, Sense::drag());
+                let mut params = Params {
+                    values: info.params.iter().map(|p| p.default).collect(),
+                    doc: &mut doc,
+                    channel,
+                    insert: insert.unwrap(),
+                    info,
+                };
+                // A point of a curve: its frequency and its gain move together.
+                params.change("cutoff", Some(1000.0 + 100.0 * k as f32), &response);
+                params.change("resonance", Some(10.0 + k as f32), &response);
+            })
+            .drop_without_applying_deltas();
+        }
+        doc.history_mut().undo();
+        assert!(
+            doc.project().tracks[0].inserts[0].params.is_empty(),
+            "{:?}",
+            doc.project().tracks[0].inserts[0].params
+        );
+        assert_eq!(doc.history().undo_label(), Some("Setup"));
+    }
 
     #[test]
     fn knob_positions_round_trip_every_parameter() {

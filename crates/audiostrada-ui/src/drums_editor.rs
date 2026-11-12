@@ -1400,7 +1400,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DrumsS
         }
     }
     if meters.iter().any(|m| *m > 0.0) || state.held.is_some() {
-        ui.ctx().request_repaint();
+        crate::animate(ui.ctx());
     }
 }
 

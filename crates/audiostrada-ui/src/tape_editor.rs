@@ -99,7 +99,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut TapeSt
         );
     });
     if sounding || state.spin > 0.002 {
-        ui.ctx().request_repaint();
+        crate::animate(ui.ctx());
     } else {
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_millis(100));

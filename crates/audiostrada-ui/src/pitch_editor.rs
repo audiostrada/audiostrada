@@ -336,7 +336,7 @@ pub fn doubler(ui: &mut Ui, params: &mut Params) {
             46.0,
         );
     });
-    ui.ctx().request_repaint();
+    crate::animate(ui.ctx());
 }
 
 /// The stereo field from above: the dry sound in front, each double at its side and as far

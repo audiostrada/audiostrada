@@ -226,7 +226,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut Trigge
         );
     });
     add_dialog(ui, params, state);
-    ui.ctx().request_repaint();
+    crate::animate(ui.ctx());
 }
 
 /// While the switch is on, the sound stays tuned to the track's drum, again whenever the

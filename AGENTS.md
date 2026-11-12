@@ -169,6 +169,19 @@ thread) and `WindowFromPoint` tell where input really goes.
 Windowing code differs on each system and each part sits behind `cfg`. A change for one
 system must not alter the others. The Linux behavior (X11, and Wayland run in X11 mode) and
 the macOS behavior were tuned by hand; keep them unless they are tested on those systems.
+Windowing changes have broken another system almost every time, so:
+
+- **Windowing is wider than it looks**: viewports and their builders (`floating_builder`,
+  `editor_window`, `detached_windows`), window levels, ownership, focus, positions and sizes
+  (the fit of an editor to its content), and redraw scheduling (`request_repaint`,
+  `animate`, the refresh rates in `lib.rs`).
+- **Gate by system.** A fix for a bug seen on one system changes only that system: behind
+  `cfg(...)` or `cfg!(...)`, the other branch keeping exactly what was there. Prefer `cfg!` in
+  shared code so that every branch compiles on every system.
+- **Shared changes only when tested everywhere.** Changing what every system does needs a test
+  on Linux, Windows and macOS (the two-screen scenario above). Without that, gate it.
+- **Say what was tested.** Before proposing a windowing change, list which systems it reaches;
+  after it, tell the user which ones were tried and which still need trying.
 
 ### Windows (implemented)
 
@@ -208,6 +221,9 @@ the macOS behavior were tuned by hand; keep them unless they are tested on those
   twice a second at most, and clicking the plugin's slot still brings the window to the front
   (activation is not refused).
 - **Plugin windows in AudioStrada's process** (sandbox off) are owned by the main window.
+- **Redraws:** a window redrawn nonstop holds back the main window's redraws (its clicks kept
+  for later, the timeline frozen). Editors that move on their own call `animate`, which
+  redraws at the main window's rate on Windows; `raw_input_hook` avoids the same with lent keys.
 - **Test:** `floating_windows_are_owned_by_the_panel_under_them` in `window.rs` checks the
   ownership rules on real Win32 windows.
 

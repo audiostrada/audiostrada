@@ -2558,7 +2558,7 @@ fn oscillator_view(ui: &mut Ui, params: &mut Params, wave: &str, voices: &str, l
         ));
     }
     if n > 1 {
-        ui.ctx().request_repaint();
+        crate::animate(ui.ctx());
     }
 }
 
@@ -3075,7 +3075,7 @@ fn keyboard(ui: &mut Ui, params: &mut Params, state: &mut SynthState) {
         }
     }
     if state.mouse.is_some() || !state.computer.is_empty() {
-        ctx.request_repaint();
+        crate::animate(&ctx);
     }
 }
 

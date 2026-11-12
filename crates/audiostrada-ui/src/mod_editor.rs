@@ -80,7 +80,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
             list.iter().map(|(t, v)| (*t, v.clone())).collect();
         modules(ui, params, &list, ACCENT, 46.0);
     });
-    ui.ctx().request_repaint();
+    crate::animate(ui.ctx());
 }
 
 /// The modes, each a tab with its hint.

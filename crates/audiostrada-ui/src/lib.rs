@@ -2976,6 +2976,17 @@ fn uncover_main(ctx: &egui::Context) {
     }
 }
 
+/// Redraws a window that moves on its own (meters, scopes, a held key). On Windows at the
+/// main window's rate: an editor redrawn nonstop on another screen held back the main
+/// window's redraws, the timeline frozen while it played. Elsewhere at every frame, as before.
+pub(crate) fn animate(ctx: &egui::Context) {
+    if cfg!(windows) {
+        ctx.request_repaint_after(REFRESH);
+    } else {
+        ctx.request_repaint();
+    }
+}
+
 /// Level of AudioStrada's windows besides the main one. macOS and Windows keep them above it
 /// themselves while AudioStrada is in use (see [`keep_windows_above`]). Elsewhere the browser
 /// floats, an editor floats while the main window, its own or the one drawing it has the
