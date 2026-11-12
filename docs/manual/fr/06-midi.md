@@ -89,7 +89,8 @@ apprennent un bouton de la même façon.
 Un contrôleur appris sur un paramètre d'effet est gardé pour tous les projets, par type d'effet :
 appris sur la première macro de Strada-Synth, il tourne la première macro du Strada-Synth des
 pistes armées (sinon des pistes sélectionnées), dans n'importe quel projet. Ceux des faders, des
-panoramiques et des sends du mixeur appartiennent au projet.
+panoramiques et des sends du mixeur appartiennent au projet. Un contrôleur tourne un temps ou une
+fréquence comme son potard, finement en bas de sa course.
 
 **Les changements de programme** envoyés par un clavier (ses boutons de presets) choisissent le
 preset de l'instrument intégré des pistes armées : le programme 1 est le premier preset de son

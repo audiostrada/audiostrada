@@ -81,7 +81,8 @@ for. The arrows of an effect's presets learn a button the same way.
 A controller learned on an effect's parameter is kept for every project, by the kind of effect:
 learned on Strada-Synth's first macro, it turns the first macro of the Strada-Synth of the armed
 tracks (else of the tracks selected) in any project. Those of the mixer's faders, pans and sends
-belong to the project.
+belong to the project. A controller turns a time or a frequency as its knob does, finely at the
+bottom of its travel.
 
 **Program changes** sent by a keyboard (its preset buttons) choose the preset of the built-in
 instrument of the armed tracks: program 1 is the first preset of its menu.

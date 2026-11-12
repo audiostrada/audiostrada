@@ -225,6 +225,20 @@ fn engine_config() -> EngineConfig {
 /// A clip's sound as far as its tempo goes: its file, offset, length and stretch.
 type TempoKey = (PathBuf, u64, u64, u64);
 
+/// The value a controller at `value` (0 to 127) gives a control of `min` to `max`: along the
+/// knob's own curve for a built-in effect's parameter (times and frequencies on a logarithmic
+/// scale), so that the controller turns as the knob does.
+fn turned(effect: Option<&str>, param: &str, min: f32, max: f32, value: u8) -> f32 {
+    let t = f32::from(value) / 127.0;
+    let info = effect
+        .and_then(audiostrada_dsp::info)
+        .and_then(|i| i.params.iter().find(|p| p.id == param));
+    match info {
+        Some(p) if p.min == min && p.max == max => crate::effect_editors::from_unit(p, t),
+        _ => min + (max - min) * t,
+    }
+}
+
 /// What MIDI asks of an insert's presets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PresetStep {
@@ -2154,7 +2168,7 @@ impl Document {
                         insert,
                         param: l.param.clone(),
                     };
-                    let v = l.min + (l.max - l.min) * f32::from(value) / 127.0;
+                    let v = turned(Some(&l.effect), &l.param, l.min, l.max, value);
                     if !self.automation_gesture(channel, &target, Some(v)) {
                         self.set_static(channel, &target, v);
                     }
@@ -2171,7 +2185,18 @@ impl Document {
                     }
                     continue;
                 }
-                let v = m.min + (m.max - m.min) * f32::from(value) / 127.0;
+                let v = match &m.target {
+                    AutomationTarget::Param { insert, param } => {
+                        let effect = audiostrada_core::routing::find_insert(
+                            self.project(),
+                            channel,
+                            *insert,
+                        )
+                        .map(|i| i.effect.clone());
+                        turned(effect.as_deref(), param, m.min, m.max, value)
+                    }
+                    _ => turned(None, "", m.min, m.max, value),
+                };
                 if !self.automation_gesture(channel, &m.target, Some(v)) {
                     self.set_static(channel, &m.target, v);
                 }
@@ -2924,6 +2949,19 @@ mod tests {
         );
         second.forget_mapping(channel, &macro1);
         assert_eq!(second.mapping(channel, &macro1), None);
+        // A time turns along the knob's curve: a controller barely up is barely a millisecond,
+        // halfway the middle of the knob.
+        let release = AutomationTarget::Param {
+            insert,
+            param: "release".into(),
+        };
+        second.learn(channel, release, 1.0, 8000.0);
+        turn(&mut second, [0xB0, 22, 0]);
+        let release_now = |doc: &Document| doc.project().tracks[0].inserts[0].params["release"];
+        turn(&mut second, [0xB0, 22, 1]);
+        assert!(release_now(&second) < 1.2, "{}", release_now(&second));
+        turn(&mut second, [0xB0, 22, 64]);
+        assert!((80.0..100.0).contains(&release_now(&second)));
     }
 
     #[test]

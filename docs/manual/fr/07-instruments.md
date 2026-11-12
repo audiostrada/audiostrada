@@ -16,8 +16,9 @@ Un synthétiseur polyphonique : deux oscillateurs avec unisson et tables d'ondes
 sous-oscillateur et du bruit, un filtre, deux LFO, un arpégiateur et ses propres chorus, delay
 et réverbe. Il s'ouvre sur sa vue **Simple**, faite pour jouer. À droite de ses vues, *Armer
 la piste* arme la piste pour votre clavier MIDI sans repasser par le mixeur, et *Panique* coupe
-toutes les notes, celles d'un arpège maintenu aussi. Une fenêtre
-maximisée garde sa taille, son image ou son oscilloscope prenant la place restante.
+toutes les notes, celles d'un arpège maintenu aussi. La fenêtre
+garde sa hauteur d'une vue à l'autre, maximisée ou non : l'image ou l'oscilloscope du haut prend
+la place que laissent les réglages.
 
 - **Le son** s'affiche en haut, dessiné par son onde dans la couleur de sa famille : un paysage
   pour les nappes et les cordes, des anneaux pour les cloches et les plucks, un ruban pour les

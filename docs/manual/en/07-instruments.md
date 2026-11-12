@@ -15,8 +15,8 @@ A polyphonic synthesizer: two oscillators with unison and wavetables, a sub osci
 noise, a filter, two LFOs, an arpeggiator and its own chorus, delay and reverb. It opens on its
 **Simple** view, made for playing. At the right of its views, *Arm the track* arms the track
 for your MIDI keyboard without going back to the mixer, and *Panic* ends every note, a held
-arpeggio's too. A maximized window keeps its size, its
-picture or scope taking the room left.
+arpeggio's too. The window keeps its height from view to
+view, maximized or not: the picture or the scope at the top takes the room the controls leave.
 
 - **The sound** shows at the top, drawn by its wave in the color of its family: a landscape for
   pads and strings, rings for bells and plucks, a ribbon for basses and leads. Click the picture

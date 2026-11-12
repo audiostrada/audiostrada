@@ -47,6 +47,7 @@ pub struct SynthState {
     /// The height of what lay under the top screen (the picture or the scope) at the last
     /// frame: in a window that does not follow its content, the screen takes the rest.
     below: f32,
+    below_view: Option<(View, bool)>,
     /// The ready-made sounds, to tell which one plays, and the one that does.
     sounds: Option<Vec<(u64, Sound)>>,
     sound: Option<Sound>,
@@ -99,6 +100,7 @@ impl Default for SynthState {
             picture_before: None,
             immersive: false,
             below: 0.0,
+            below_view: None,
             sounds: None,
             sound: None,
             ridges: std::collections::VecDeque::new(),
@@ -417,22 +419,20 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
     let print = fingerprint(|i, _| params.values.get(i).copied().unwrap_or(0.0));
     let known = state.sounds.get_or_insert_with(known_sounds);
     state.sound = known.iter().find(|s| s.0 == print).map(|s| s.1.clone());
-    // A maximized window, or the picture given the whole window, keeps its height: the screen
-    // at the top takes what the controls leave.
-    let maximized = ui.ctx().input(|i| {
-        let v = i.viewport();
-        v.maximized == Some(true) || v.fullscreen == Some(true)
-    });
+    // The window keeps its height from view to view, maximized or not: the screen at the top
+    // (the picture or the scope) takes what the controls leave, down to a small one.
+    crate::mixer::keep_height(ui.ctx());
     let immersive = state.immersive && view == View::Simple;
-    let fill = maximized || immersive;
-    if fill {
-        crate::mixer::keep_height(ui.ctx());
+    if state.below_view != Some((view, immersive)) {
+        // What lay under the screen in another view says nothing of this one's.
+        state.below_view = Some((view, immersive));
+        state.below = 0.0;
     }
-    let screen_height = |ui: &Ui, natural: f32, below: f32| {
-        if fill {
-            (ui.available_height() - below - 1.0).max(natural).floor()
+    let screen_height = |ui: &Ui, smallest: f32, below: f32| {
+        if below > 0.0 {
+            (ui.available_height() - below - 1.0).max(smallest).floor()
         } else {
-            natural
+            smallest
         }
     };
     // Where the screen starts and how high it is: what lies under it is measured from there.
@@ -440,7 +440,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
     let screen;
     match view {
         View::Simple => {
-            screen = screen_height(ui, PICTURE_HEIGHT, state.below);
+            screen = screen_height(ui, SMALLEST_PICTURE, state.below);
             picture(ui, meters, state, screen);
             ui.add_space(GAP);
             if !immersive {
@@ -448,7 +448,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut SynthS
             }
         }
         _ => {
-            screen = screen_height(ui, HERO_HEIGHT, state.below);
+            screen = screen_height(ui, SMALLEST_SCOPE, state.below);
             hero(ui, meters, &live, screen);
             ui.add_space(GAP);
             match view {
@@ -1706,11 +1706,10 @@ fn known_sounds() -> Vec<(u64, Sound)> {
         .collect()
 }
 
-/// Height of the scope over the controls' views.
-const HERO_HEIGHT: f32 = 70.0;
-
-/// Height of the sound's picture in the simple view.
-const PICTURE_HEIGHT: f32 = 210.0;
+/// The smallest the scope over the controls' views and the picture of the simple view get,
+/// in a window too low for them to take more.
+const SMALLEST_SCOPE: f32 = 56.0;
+const SMALLEST_PICTURE: f32 = 120.0;
 
 /// Lines of the wave kept, how many points each, and how often one is added.
 const RIDGES: usize = 30;
@@ -3061,9 +3060,8 @@ mod tests {
         assert_eq!(octave_name(60), "C4");
     }
 
-    /// The picture given the whole window fills its height, whatever the window's: the window
-    /// is asked to keep its height rather than to follow the content, and the arm switch
-    /// arms the track.
+    /// The window keeps its height and the picture (given the whole window or not) fills what
+    /// the controls leave, whatever that height.
     #[test]
     fn the_picture_fills_the_window_it_is_given() {
         use crate::document::{AppDirs, Document};
@@ -3078,11 +3076,19 @@ mod tests {
         let channel = Channel::Track(doc.project().tracks[0].id);
         let info = audiostrada_dsp::info("synth").unwrap();
         let ctx = egui::Context::default();
-        let mut state = SynthState {
-            immersive: true,
-            ..Default::default()
-        };
-        for height in [700.0, 1000.0, 1000.0, 1000.0, 820.0, 820.0, 820.0] {
+        let mut state = SynthState::default();
+        let mut before = None;
+        for (height, immersive) in [
+            (700.0, true),
+            (1000.0, true),
+            (1000.0, true),
+            (820.0, true),
+            (820.0, true),
+            (900.0, false),
+            (900.0, false),
+            (900.0, false),
+        ] {
+            state.immersive = immersive;
             let input = RawInput {
                 screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1200.0, height))),
                 ..Default::default()
@@ -3109,7 +3115,10 @@ mod tests {
                 })
                 .unwrap_or(false);
             assert!(kept, "the window keeps its height");
-            if height > 700.0 && state.below > 0.0 {
+            // Once a frame has measured the same view in the same window.
+            let settled = before == Some((height, immersive));
+            before = Some((height, immersive));
+            if settled {
                 assert!(
                     (height - 24.0..=height).contains(&bottom),
                     "{bottom} in a window of {height}"
@@ -3164,6 +3173,8 @@ mod tests {
             })
             .drop_without_applying_deltas();
         };
+        // Two frames: the second lays the view out in the room the first measured.
+        frame(&mut doc, &mut state, vec![]);
         frame(&mut doc, &mut state, vec![]);
         let cutoff = state
             .targets
