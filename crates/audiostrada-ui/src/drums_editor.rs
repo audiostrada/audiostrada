@@ -81,7 +81,7 @@ fn kit(name: &str, character: f32, values: &[(&str, f32)]) -> crate::presets::Pr
 /// Ready-made kits: the two classic machines, then by style.
 pub(crate) fn factory() -> Vec<crate::presets::Preset> {
     vec![
-        kit(tr("808: Classic"), 0.0, &[("volume", -7.1)]),
+        kit(tr("808: Classic"), 0.0, &[("volume", -7.6)]),
         kit(
             tr("808: Boom"),
             0.0,
@@ -802,7 +802,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
                 ("room", 20.0),
                 ("room_size", 85.0),
                 ("high", 2.0),
-                ("volume", -10.1),
+                ("volume", -10.6),
             ],
         ),
         kit(

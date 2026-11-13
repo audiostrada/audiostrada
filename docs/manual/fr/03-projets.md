@@ -12,7 +12,9 @@ Un projet est un dossier qui contient :
 
 Fichier › Nouveau projet, Ouvrir, Enregistrer ([[Ctrl+S]]) et *Enregistrer sous*. AudioStrada
 enregistre aussi tout seul ; après un plantage, il propose de récupérer le travail non
-enregistré au démarrage suivant.
+enregistré au démarrage suivant, en disant il y a combien de temps il a été sauvegardé :
+*Récupérer* l'ouvre, *Abandonner* le supprime, et fermer la fenêtre le garde pour la fois
+suivante.
 
 ## Annulation et versions
 
@@ -20,8 +22,9 @@ Tout s'annule ([[Ctrl+Z]]) et se rétablit ([[Ctrl+Shift+Z]] ou [[Ctrl+Y]]), aut
 que la session en contient.
 
 Chaque enregistrement garde le fichier qu'il remplace dans le dossier `Versions` du projet (les
-30 derniers). Fichier › *Versions du projet…* les liste et en restaure un en une seule étape,
-que [[Ctrl+Z]] annule.
+30 derniers). Fichier › *Versions du projet…* les liste, avec leur âge, leur nombre de pistes et
+leur durée : cliquez sur l'une, puis *Restaurer* (ou double-cliquez dessus). Restaurer est une
+seule étape, que [[Ctrl+Z]] annule.
 
 ## Importer de l'audio
 

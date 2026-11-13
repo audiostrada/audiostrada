@@ -12,6 +12,7 @@ use audiostrada_core::{History, InsertId, Project, Track, TrackId, TrackKind};
 use audiostrada_io::tools::gain_to_db;
 use eframe::egui::{self, Align, Color32, Layout, Rect, Response, RichText, Sense, Ui, pos2, vec2};
 
+use crate::dialog;
 use crate::dialogs;
 use crate::document::Document;
 use crate::effect_editors;
@@ -530,46 +531,88 @@ pub(crate) fn save_chain_dialog(ctx: &egui::Context, doc: &mut Document) {
     if dialog.viewport != ctx.viewport_id() {
         return;
     }
-    let mut done = false;
-    let modal = egui::Modal::new(egui::Id::unique("save-chain-modal")).show(ctx, |ui| {
-        ui.set_width(320.0);
-        ui.heading(tr("Save effects as a chain"));
-        ui.weak(trf!("{count} effect(s)", count = dialog.inserts.len()));
-        ui.add_space(6.0);
-        let field = ui.add(
-            egui::TextEdit::singleline(&mut dialog.name)
-                .hint_text(tr("Chain name"))
-                .desired_width(f32::INFINITY),
-        );
-        if !dialog.focused {
-            field.request_focus();
-            dialog.focused = true;
-        }
-        let enter = field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-        let named = !dialog.name.trim().is_empty();
-        ui.add_space(8.0);
-        ui.horizontal(|ui| {
-            if ui
-                .add_enabled(named, egui::Button::new(tr("Save")))
-                .clicked()
-                || (enter && named)
-            {
-                let result = crate::chains::root()
-                    .ok_or_else(|| tr("no configuration folder").to_owned())
-                    .and_then(|root| crate::chains::save(&root, &dialog.name, &dialog.inserts));
-                match result {
-                    Ok(()) => doc.notify(trf!("Chain \"{name}\" saved", name = dialog.name.trim())),
-                    Err(e) => doc.notify(trf!("Cannot save the chain: {e}", e = e)),
+    // The user's chains, read once, to tell when a name replaces one.
+    let existing_id = id.with("existing");
+    let existing = ctx
+        .data(|d| d.get_temp::<Vec<String>>(existing_id))
+        .unwrap_or_else(|| {
+            let names: Vec<String> = crate::chains::list(crate::chains::root().as_deref())
+                .into_iter()
+                .filter(|c| !c.factory)
+                .map(|c| c.name.to_lowercase())
+                .collect();
+            ctx.data_mut(|d| d.insert_temp(existing_id, names.clone()));
+            names
+        });
+    let names: Vec<String> = dialog
+        .inserts
+        .iter()
+        .map(|i| effect_name(doc, &i.effect))
+        .collect();
+    let (mut open, mut save, mut cancel) = (true, false, false);
+    dialog::Dialog::new("save-chain", tr("Save effects as a chain"))
+        .detail(tr(
+            "To add the same effects, with their settings, to any track",
+        ))
+        .width(460.0)
+        .modal()
+        .show(ctx, &mut open, |ui, part| {
+            let named = !dialog.name.trim().is_empty();
+            match part {
+                dialog::Part::Body => {
+                    dialog::section(ui, tr("Name"), |ui| {
+                        let field = ui.add(
+                            egui::TextEdit::singleline(&mut dialog.name)
+                                .hint_text(tr("Chain name"))
+                                .margin(vec2(8.0, 6.0))
+                                .desired_width(f32::INFINITY),
+                        );
+                        if !dialog.focused {
+                            field.request_focus();
+                            dialog.focused = true;
+                        }
+                        save |= field.lost_focus()
+                            && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                            && named;
+                        let lower = dialog.name.trim().to_lowercase();
+                        if named && existing.contains(&lower) {
+                            ui.colored_label(
+                                WARN,
+                                tr("A chain of this name exists: saving replaces it."),
+                            );
+                        }
+                    });
+                    dialog::section(ui, &trf!("{count} effect(s)", count = names.len()), |ui| {
+                        dialog::well(ui, |ui| {
+                            for (k, name) in names.iter().enumerate() {
+                                ui.label(format!("{}. {name}", k + 1));
+                            }
+                        });
+                        dialog::hint(ui, tr("Then add it to any track from + insert › Chains."));
+                    });
                 }
-                done = true;
-            }
-            if ui.button(tr("Cancel")).clicked() {
-                done = true;
+                dialog::Part::Actions => {
+                    dialog::buttons(ui, |ui| {
+                        save |= dialog::primary(ui, tr("Save"), named).clicked() && named;
+                        cancel = dialog::secondary(ui, tr("Cancel")).clicked();
+                    });
+                }
             }
         });
-    });
-    if done || modal.should_close() {
-        ctx.data_mut(|d| d.remove::<ChainDialog>(id));
+    if save {
+        let result = crate::chains::root()
+            .ok_or_else(|| tr("no configuration folder").to_owned())
+            .and_then(|root| crate::chains::save(&root, &dialog.name, &dialog.inserts));
+        match result {
+            Ok(()) => doc.notify(trf!("Chain \"{name}\" saved", name = dialog.name.trim())),
+            Err(e) => doc.notify(trf!("Cannot save the chain: {e}", e = e)),
+        }
+    }
+    if save || cancel || !open {
+        ctx.data_mut(|d| {
+            d.remove::<ChainDialog>(id);
+            d.remove::<Vec<String>>(existing_id);
+        });
     } else {
         ctx.data_mut(|d| d.insert_temp(id, dialog));
     }
@@ -1983,7 +2026,6 @@ fn send_settings(
                 }
             });
         });
-    ui.add_space(10.0);
     let edit = |doc: &mut Document, label: &str, f: &dyn Fn(&mut audiostrada_core::TrackSend)| {
         doc.history_mut().edit(label, |p| {
             if let Some(s) = p
@@ -1994,12 +2036,8 @@ fn send_settings(
             }
         });
     };
-    egui::Grid::new(("send-settings", id.0, target.0))
-        .num_columns(2)
-        .min_col_width(90.0)
-        .spacing([16.0, 12.0])
-        .show(ui, |ui| {
-            ui.label(RichText::new(tr("Destination")).strong());
+    dialog::section(ui, tr("Route"), |ui| {
+        dialog::field(ui, tr("Destination"), |ui| {
             let sends = project
                 .track(id)
                 .map(|t| t.sends.clone())
@@ -2029,8 +2067,28 @@ fn send_settings(
                         }
                     }
                 });
-            ui.end_row();
-            ui.label(RichText::new(tr("Level")).strong());
+        });
+        dialog::field(ui, tr("Position"), |ui| {
+            let mut pre = send.pre_fader;
+            let choices = [
+                (true, tr("Pre-fader"), true),
+                (false, tr("Post-fader"), true),
+            ];
+            if dialog::segmented(ui, &mut pre, &choices) {
+                edit(doc, tr("Send position"), &|s| s.pre_fader = pre);
+            }
+        });
+        dialog::hint(
+            ui,
+            if send.pre_fader {
+                tr("The level does not follow the fader")
+            } else {
+                tr("The level follows the fader")
+            },
+        );
+    });
+    dialog::section(ui, tr("Level"), |ui| {
+        dialog::field(ui, tr("Level"), |ui| {
             let mut db = send.gain_db;
             let response = ui.add(
                 egui::Slider::new(&mut db, FADER_MIN_DB..=FADER_MAX_DB)
@@ -2045,51 +2103,13 @@ fn send_settings(
                 );
             }
             end_gesture(doc.history_mut(), &response);
-            ui.end_row();
-            ui.label(RichText::new(tr("Position")).strong());
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                for (pre, text, hint) in [
-                    (
-                        true,
-                        tr("Pre-fader"),
-                        tr("The level does not follow the fader"),
-                    ),
-                    (false, tr("Post-fader"), tr("The level follows the fader")),
-                ] {
-                    let on = send.pre_fader == pre;
-                    let mut button = egui::Button::new(if on {
-                        RichText::new(text).strong().color(theme::text_on(p.accent))
-                    } else {
-                        RichText::new(text)
-                    })
-                    .min_size(vec2(96.0, 24.0));
-                    if on {
-                        button = button.fill(p.accent);
-                    }
-                    if ui.add(button).on_hover_text(hint).clicked() && !on {
-                        edit(doc, tr("Send position"), &|s| s.pre_fader = pre);
-                    }
-                }
-            });
-            ui.end_row();
-            ui.label(RichText::new(tr("Mute")).strong());
+        });
+        dialog::field(ui, tr("Mute"), |ui| {
             let mut mute = send.mute;
             if ui.checkbox(&mut mute, tr("Muted")).changed() {
                 edit(doc, tr("Mute send"), &|s| s.mute = mute);
             }
-            ui.end_row();
         });
-    ui.add_space(12.0);
-    ui.separator();
-    ui.horizontal(|ui| {
-        if ui
-            .button(RichText::new(tr("Remove the send")).color(ERROR))
-            .clicked()
-        {
-            doc.history_mut()
-                .edit(tr("Remove send"), |p| routing::remove_send(p, id, target));
-        }
     });
     result
 }
@@ -2755,12 +2775,29 @@ impl MixerView {
         }
         drop(doc);
         if let Some(error) = self.error.clone() {
-            egui::Modal::new(egui::Id::unique("routing-error")).show(ctx, |ui| {
-                ui.label(&error);
-                if ui.button("OK").clicked() {
-                    self.error = None;
-                }
-            });
+            let mut open = true;
+            let mut ok = false;
+            dialog::Dialog::new("routing-error", tr("Cannot do this"))
+                .detail(tr("The mixer was left as it was"))
+                .width(440.0)
+                .modal()
+                .show(ctx, &mut open, |ui, part| match part {
+                    dialog::Part::Body => {
+                        let mut text = error.clone();
+                        if let Some(first) = text.get(..1) {
+                            text = first.to_uppercase() + &text[1..];
+                        }
+                        ui.label(RichText::new(text).size(13.5));
+                    }
+                    dialog::Part::Actions => {
+                        dialog::buttons(ui, |ui| {
+                            ok = dialog::primary(ui, tr("OK"), true).clicked();
+                        });
+                    }
+                });
+            if ok || !open {
+                self.error = None;
+            }
         }
     }
 
@@ -3459,20 +3496,40 @@ impl MixerView {
             self.send_window = None;
             return;
         };
-        let mut open = true;
-        egui::Window::new(trf!("Send of {track}", track = from.name))
-            .id(egui::Id::unique("send-settings"))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .default_width(340.0)
-            .show(ctx, |ui| match send_settings(ui, doc, project, id, &send) {
-                Ok(Some(new)) => self.send_window = Some((id, new)),
-                Ok(None) => {}
-                Err(e) => self.error = Some(e),
-            })
-            .and_then(|r| r.inner);
-        if !open {
+        let to = project.track(target).map_or("?", |t| t.name.as_str());
+        let title = trf!("Send of {track}", track = from.name);
+        let (mut open, mut close, mut remove) = (true, false, false);
+        let (mut retarget, mut error) = (None, None);
+        dialog::Dialog::new("send-settings", &title)
+            .detail(trf!(
+                "Part of the signal of {track}, sent to {target}",
+                track = from.name,
+                target = to
+            ))
+            .width(500.0)
+            .show(ctx, &mut open, |ui, part| match part {
+                dialog::Part::Body => match send_settings(ui, doc, project, id, &send) {
+                    Ok(new) => retarget = retarget.or(new),
+                    Err(e) => error = Some(e),
+                },
+                dialog::Part::Actions => {
+                    remove = dialog::secondary(ui, tr("Remove the send")).clicked();
+                    dialog::buttons(ui, |ui| {
+                        close = dialog::secondary(ui, tr("Close")).clicked();
+                    });
+                }
+            });
+        if let Some(new) = retarget {
+            self.send_window = Some((id, new));
+        }
+        if error.is_some() {
+            self.error = error;
+        }
+        if remove {
+            doc.history_mut()
+                .edit(tr("Remove send"), |p| routing::remove_send(p, id, target));
+        }
+        if !open || close || remove {
             self.send_window = None;
         }
     }

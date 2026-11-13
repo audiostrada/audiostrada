@@ -2,7 +2,12 @@
 
 View › *Preferences…* ([[Ctrl+,]]) lists its pages at the left: Appearance and General; Audio,
 MIDI and Recording; Keyboard shortcuts and Plugins. Each page groups its settings on cards, the
-name and what it does at the left, the control at the right.
+name and what it does at the left, the control at the right. Changes apply at once and are kept;
+*Done* closes the window.
+
+*Find a setting*, at the top of the list, keeps only the pages holding what you type, with the
+settings found under each; a click (or [[Enter]] for the first) opens the page. Typed there, a
+command's name opens the keyboard shortcuts already searched.
 
 ![Preferences](img/prefs.webp)
 
@@ -48,7 +53,10 @@ Input monitoring of the armed tracks (always, or automatic), and the recording l
 ## Keyboard shortcuts
 
 Pick a preset (**AudioStrada**, **Pro Tools**, **Logic**, **Reaper**) and change any shortcut:
-click *Change*, press the new keys ([[Escape]] cancels). The search finds a command by name.
+click *Change*, press the new keys ([[Escape]] cancels); *Add* gives a command one more shortcut,
+*Clear* removes its keys, *Reset* gives back those of the preset. The commands are grouped as in
+the menus, their keys drawn as keys. The search finds a command by name. *Reset all shortcuts*
+gives every command back the keys of the preset.
 
 ## Plugins
 

@@ -12,13 +12,14 @@ ces coupures.
 
 ## Saisir une licence
 
-Aide › *Licence…* montre l'état d'AudioStrada :
+Aide › *Licence…* montre l'état de cet exemplaire : évaluation, ou la licence avec sa formule,
+son titulaire et jusqu'à quand les mises à jour sont incluses.
 
-- *Acheter une licence* ouvre la boutique sur audiostrada.com.
 - *Saisir une licence* : collez la licence, ou *Ouvrir un fichier…*, puis *Activer*.
+- *Acheter une licence* ouvre la boutique sur audiostrada.com.
 - *Retrouver ma licence* et *Gérer mon abonnement* ouvrent votre compte sur audiostrada.com, pour
   récupérer la licence, changer l'abonnement ou le résilier.
-- *Retirer la licence* l'enlève de cet ordinateur.
+- *Retirer la licence*, en bas à gauche, l'enlève de cet ordinateur après confirmation.
 
 | Licence | Pour |
 |---|---|

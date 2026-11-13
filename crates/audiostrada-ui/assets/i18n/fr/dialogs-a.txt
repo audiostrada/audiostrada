@@ -1,0 +1,166 @@
+# Windows reworked (a).
+
+A chain of this name exists: saving replaces it.
+Une chaîne de ce nom existe : l'enregistrer la remplace.
+
+A finished song to compare your mix with; never exported
+Un morceau fini auquel comparer votre mix ; jamais exporté
+
+A song in the style you aim at, well mixed and mastered: WAV, FLAC or MP3.
+Un morceau dans le style que vous visez, bien mixé et masterisé : WAV, FLAC ou MP3.
+
+Also with the REF button of the transport bar
+Aussi avec le bouton REF de la barre de transport
+
+Back to the mix
+Revenir au mix
+
+Back to the settings of a new project, the click kept on or off
+Revenir aux réglages d'un nouveau projet, le clic restant activé ou non
+
+Beat
+Temps
+
+Cannot do this
+Impossible de faire cela
+
+Change the time signature in the transport bar.
+Changez la métrique dans la barre de transport.
+
+Choose a song…
+Choisir un morceau…
+
+Choose a version in the list first
+Choisissez d'abord une version dans la liste
+
+Choose another…
+En choisir un autre…
+
+Clicks
+Clics
+
+Clicks on the beat of {beats}/{unit}, the time signature at the playhead; never exported
+Un clic sur chaque temps en {beats}/{unit}, la métrique à la tête de lecture ; jamais exporté
+
+Default settings
+Réglages par défaut
+
+Dotted quarters
+Noires pointées
+
+Double-click to restore it
+Double-cliquer pour la restaurer
+
+Each save keeps the file it replaces (the last 30), in the project's Versions folder. Restoring is one step: Ctrl+Z brings back the project as it is now.
+Chaque enregistrement garde le fichier qu'il remplace (les 30 derniers), dans le dossier Versions du projet. Restaurer est une seule étape : Ctrl+Z ramène le projet tel qu'il est maintenant.
+
+Eighths
+Croches
+
+First beat
+Premier temps
+
+Hear the reference
+Écouter la référence
+
+In {beats}/{unit}, dotted quarters give {count} beats per bar.
+En {beats}/{unit}, les noires pointées donnent {count} temps par mesure.
+
+Match the level
+Égaliser le niveau
+
+Measuring…
+Mesure en cours…
+
+Nothing to compare
+Rien à comparer
+
+Part of the signal of {track}, sent to {target}
+Une part du signal de {track}, envoyée vers {target}
+
+Play the reference as loud as the mix
+Jouer la référence aussi fort que le mix
+
+Play the song to measure the mix.
+Lancez la lecture pour mesurer le mix.
+
+Restore version {number}
+Restaurer la version {number}
+
+Result
+Résultat
+
+Round {round} of {rounds} · {right} right
+Essai {round} sur {rounds} · {right} juste(s)
+
+Route
+Trajet
+
+Saved versions
+Versions enregistrées
+
+Song
+Morceau
+
+Test finished
+Test terminé
+
+The click is off
+Le clic est désactivé
+
+The count-in clicks bars before recording starts; the pre-roll plays bars of the song before the count-in, counted from the punch-in when there is one.
+Le décompte clique des mesures avant que l'enregistrement commence ; le pré-roll joue des mesures du morceau avant le décompte, comptées depuis le punch-in s'il y en a un.
+
+The mixer was left as it was
+Le mixer est resté tel quel
+
+The reference and the mix are about as loud.
+La référence et le mix sont à peu près aussi forts.
+
+The reference is {db} dB louder than the mix.
+La référence est {db} dB plus forte que le mix.
+
+The reference is {db} dB softer than the mix.
+La référence est {db} dB moins forte que le mix.
+
+The reference plays at its own level.
+La référence joue à son propre niveau.
+
+The reference plays {gain} dB, so you compare the sound and not the level.
+La référence joue à {gain} dB, pour comparer le son et non le niveau.
+
+Then add it to any track from + insert › Chains.
+Ajoutez-la ensuite à n'importe quelle piste depuis + insert › Chaînes.
+
+To add the same effects, with their settings, to any track
+Pour ajouter les mêmes effets, avec leurs réglages, à n'importe quelle piste
+
+Version {number} restored
+Version {number} restaurée
+
+Whether you hear the consoles or only believe it: {rounds} rounds of A, B and X
+Entendez-vous les consoles ou le croyez-vous seulement : {rounds} essais de A, B et X
+
+You hear the mix
+Vous entendez le mix
+
+You hear the reference
+Vous entendez la référence
+
+Your mix
+Votre mix
+
+count-in {bars}
+décompte {bars}
+
+while recording
+pendant l'enregistrement
+
+{count} per beat
+{count} par temps
+
+{count} versions kept
+{count} versions gardées
+
+{project}: the file as it was at each save
+{project} : le fichier tel qu'il était à chaque enregistrement

@@ -4,7 +4,10 @@
 
 ## Exporter le mix
 
-Fichier › Exporter ([[Ctrl+Shift+E]]) ouvre la fenêtre d'export :
+Fichier › Exporter ([[Ctrl+Shift+E]]) ouvre la fenêtre d'export. Les **Réglages tout prêts** la
+remplissent en un clic : *Streaming* (WAV 24 bits à -14 LUFS), *CD* (WAV 16 bits, 44,1 kHz, avec
+dither, crêtes à -1 dBFS), *Mastering* (WAV 32 bits flottant, sans traitement) et *Stems* (un
+fichier par piste). Puis :
 
 | Réglage | Choix |
 |---|---|
@@ -16,7 +19,8 @@ Fichier › Exporter ([[Ctrl+Shift+E]]) ouvre la fenêtre d'export :
 | **Traîne** | des secondes ajoutées après la fin, pour les réverbérations et les delays |
 | **Stems** | un fichier par piste, en solo, en plus ou à la place du mix |
 
-Les exports vont plus vite que le temps réel, en arrière-plan. Le métronome et les effets d'écoute
+La barre du bas résume ce qui sera écrit (format, fréquence, durée, nombre de fichiers) avant
+*Exporter…*. Les exports vont plus vite que le temps réel, en arrière-plan. Le métronome et les effets d'écoute
 ne sont jamais exportés.
 
 ## File de rendu

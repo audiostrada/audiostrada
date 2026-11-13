@@ -1888,6 +1888,27 @@ fn start_tone3000(ctx: &egui::Context, state: &mut RigState, target: Option<Pick
     }
 }
 
+/// The download under way, the last error and the last news, above the content.
+fn status(ui: &mut Ui, state: &RigState) {
+    if let Some((session, _, _)) = &state.session {
+        let text = match session.status() {
+            Status::Waiting => tr("TONE3000: finish in your browser…").to_owned(),
+            Status::Downloading(what) => what,
+            _ => String::new(),
+        };
+        ui.horizontal(|ui| {
+            ui.spinner();
+            ui.label(text);
+        });
+    }
+    if let Some(message) = &state.message {
+        ui.colored_label(theme::RECORD, message);
+    }
+    if let Some(info) = &state.info {
+        ui.colored_label(theme::current(ui).accent, info);
+    }
+}
+
 fn picker(ui: &mut Ui, params: &mut Params, state: &mut RigState) {
     let Some(target) = state.picker else {
         return;
@@ -1897,67 +1918,73 @@ fn picker(ui: &mut Ui, params: &mut Params, state: &mut RigState) {
     let mut chosen: Option<(PathBuf, bool)> = None;
     let mut picked_model = None;
     let place = target.place();
-    let modal =
-        egui::Modal::new(egui::Id::unique(("rig-picker", params.insert.0))).show(&ctx, |ui| {
-            ui.set_width(860.0);
-            ui.set_height(540.0);
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new(match place {
-                        Place::Amp => tr("Choose an amp"),
-                        Place::Pedalboard => tr("Choose an effect capture"),
-                        Place::Cab => tr("Choose a cabinet impulse"),
-                    })
-                    .font(theme::strong(15.0)),
-                );
-                ui.add_space(12.0);
+    let (title, detail) = match place {
+        Place::Amp => (
+            tr("Choose an amp"),
+            tr("A built-in amp, or the NAM capture of a real one from your library"),
+        ),
+        Place::Pedalboard => (
+            tr("Choose an effect capture"),
+            tr("A NAM capture of a pedal from your library, for the next free slot"),
+        ),
+        Place::Cab => (
+            tr("Choose a cabinet impulse"),
+            tr("An impulse response of a miked cabinet from your library"),
+        ),
+    };
+    let mut close = false;
+    crate::dialog::Dialog::new("rig-picker", title)
+        .detail(detail)
+        .width(900.0)
+        .modal()
+        .show(&ctx, &mut open, |ui, part| match part {
+            crate::dialog::Part::Body => {
+                ui.set_height(470.0);
                 if place != Place::Amp {
                     state.tab = Tab::Library;
                 } else {
-                    ui.selectable_value(&mut state.tab, Tab::BuiltIn, tr("Built-in"));
+                    crate::dialog::segmented(
+                        ui,
+                        &mut state.tab,
+                        &[
+                            (Tab::BuiltIn, tr("Built-in"), true),
+                            (Tab::Library, tr("My library"), true),
+                        ],
+                    );
                 }
-                ui.selectable_value(&mut state.tab, Tab::Library, tr("My library"));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button(tr("Close")).clicked() {
-                        open = false;
+                status(ui, state);
+                if state.tab == Tab::BuiltIn {
+                    let current = params.get("amp").round() as usize;
+                    if let Some(model) = builtin_list(ui, current) {
+                        picked_model = Some(model);
                     }
-                    if ui.button(tr("Browse TONE3000…")).clicked() {
+                } else {
+                    chosen = library(ui, state, place);
+                }
+            }
+            crate::dialog::Part::Actions => {
+                let weak = theme::current(ui).weak;
+                ui.label(
+                    RichText::new(tr("Click a card to load it"))
+                        .size(11.5)
+                        .color(weak),
+                );
+                crate::dialog::buttons(ui, |ui| {
+                    close = crate::dialog::secondary(ui, tr("Close")).clicked();
+                    if crate::dialog::secondary(ui, tr("Browse TONE3000…"))
+                        .on_hover_text(tr("Free captures shared by players, downloaded here"))
+                        .clicked()
+                    {
                         state.browser = Some(Browse {
                             kind: Kind::of(place),
                             list: List::Trending,
                         });
-                        open = false;
+                        close = true;
                     }
                 });
-            });
-            if let Some((session, _, _)) = &state.session {
-                let text = match session.status() {
-                    Status::Waiting => tr("TONE3000: finish in your browser…").to_owned(),
-                    Status::Downloading(what) => what,
-                    _ => String::new(),
-                };
-                ui.horizontal(|ui| {
-                    ui.spinner();
-                    ui.label(text);
-                });
             }
-            if let Some(message) = &state.message {
-                ui.colored_label(theme::RECORD, message);
-            }
-            if let Some(info) = &state.info {
-                ui.colored_label(theme::current(ui).accent, info);
-            }
-            ui.separator();
-            if state.tab == Tab::BuiltIn {
-                let current = params.get("amp").round() as usize;
-                if let Some(model) = builtin_list(ui, current) {
-                    picked_model = Some(model);
-                }
-                return;
-            }
-            chosen = library(ui, state, place);
         });
-    if modal.should_close() {
+    if close {
         open = false;
     }
     if let Some((path, full_rig)) = chosen {
@@ -2258,155 +2285,153 @@ fn browser(ui: &mut Ui, params: &mut Params, state: &mut RigState) {
     let p = theme::current(ui);
     let mut open = true;
     let mut picked: Option<Tone> = None;
+    let mut close = false;
     let signed_in = crate::tone3000::signed_in();
-    let modal =
-        egui::Modal::new(egui::Id::unique(("tone3000-browser", params.insert.0))).show(&ctx, |ui| {
-            ui.set_width(980.0);
-            ui.set_height(640.0);
-            // The header: the service, the account, the search on the site, closing.
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("TONE3000").font(theme::strong(20.0)).color(p.accent));
-                ui.add_space(6.0);
-                ui.label(
-                    RichText::new(tr("Free amp, effect and cabinet captures"))
-                        .size(12.0)
-                        .color(p.weak),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .add(egui::Button::new(RichText::new("✕").size(14.0)).frame(false))
-                        .on_hover_text(tr("Close"))
-                        .clicked()
-                    {
-                        open = false;
+    crate::dialog::Dialog::new("tone3000-browser", "TONE3000")
+        .detail(tr("Free amp, effect and cabinet captures"))
+        .width(1000.0)
+        .modal()
+        .show(&ctx, &mut open, |ui, part| match part {
+            crate::dialog::Part::Body => {
+                ui.set_height(540.0);
+                status(ui, state);
+                if !signed_in {
+                    sign_in_card(ui, &ctx, state);
+                    return;
+                }
+                ui.horizontal_top(|ui| {
+                    // The sidebar: what to look for, and in which list.
+                    ui.vertical(|ui| {
+                        ui.set_width(170.0);
+                        ui.label(
+                            RichText::new(tr("Gear").to_uppercase())
+                                .size(10.5)
+                                .strong()
+                                .color(p.weak),
+                        );
+                        for kind in Kind::ALL {
+                            if side_item(ui, browse.kind == kind, kind.name()) {
+                                browse.kind = kind;
+                            }
+                        }
+                        ui.add_space(10.0);
+                        ui.label(
+                            RichText::new(tr("Lists").to_uppercase())
+                                .size(10.5)
+                                .strong()
+                                .color(p.weak),
+                        );
+                        for list in List::ALL {
+                            if side_item(ui, browse.list == list, list.name()) {
+                                browse.list = list;
+                            }
+                        }
+                    });
+                    ui.separator();
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut state.search)
+                                    .hint_text(tr("Filter this list by name or creator…"))
+                                    .desired_width(ui.available_width() - 90.0),
+                            );
+                            if ui
+                                .button(tr("Refresh"))
+                                .on_hover_text(tr("Load this list again from TONE3000"))
+                                .clicked()
+                            {
+                                state.feeds.remove(&(browse.kind, browse.list));
+                            }
+                        });
+                        ui.add_space(6.0);
+                        let filter = state.search.to_lowercase();
+                        let feed = state.feeds.entry((browse.kind, browse.list)).or_default();
+                        feed.poll(&ctx, browse.kind, browse.list);
+                        if feed.tones.is_empty() && !feed.done {
+                            feed.more(browse.kind, browse.list);
+                        }
+                        egui::ScrollArea::vertical()
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                let width = ui.available_width();
+                                let columns = ((width / 230.0).floor() as usize).max(1);
+                                let card_width =
+                                    (width - 10.0 * (columns - 1) as f32) / columns as f32;
+                                let shown: Vec<&Tone> = feed
+                                    .tones
+                                    .iter()
+                                    .filter(|t| {
+                                        filter.is_empty()
+                                            || t.title.to_lowercase().contains(&filter)
+                                            || t.creator.to_lowercase().contains(&filter)
+                                    })
+                                    .collect();
+                                for row in shown.chunks(columns) {
+                                    ui.horizontal(|ui| {
+                                        ui.spacing_mut().item_spacing.x = 10.0;
+                                        for tone in row {
+                                            if tone_card(ui, tone, card_width, browse.kind) {
+                                                picked = Some((*tone).clone());
+                                            }
+                                        }
+                                    });
+                                    ui.add_space(10.0);
+                                }
+                                if let Some(e) = &feed.error {
+                                    ui.colored_label(theme::RECORD, e);
+                                } else if feed.pending.is_some() {
+                                    ui.horizontal(|ui| {
+                                        ui.spinner();
+                                        ui.label(tr("Loading…"));
+                                    });
+                                } else if feed.done && shown.is_empty() {
+                                    ui.weak(tr("Nothing in this list."));
+                                } else if !feed.done {
+                                    // Reaching the end of the list loads the next page.
+                                    let end =
+                                        ui.allocate_response(vec2(width, 20.0), Sense::hover());
+                                    if ui.is_rect_visible(end.rect) {
+                                        feed.more(browse.kind, browse.list);
+                                    }
+                                }
+                            });
+                    });
+                });
+            }
+            crate::dialog::Part::Actions => {
+                if signed_in {
+                    let user = state.user.get_or_insert_with(crate::tone3000::user);
+                    if let Some(Ok(user)) = ready(&ctx, user) {
+                        avatar(ui, user.avatar.as_deref(), 22.0);
+                        ui.label(&user.name);
                     }
-                    ui.add_space(6.0);
-                    if ui
-                        .button(tr("Search all of TONE3000…"))
-                        .on_hover_text(tr("Search the whole catalog in your browser; the tone you pick is downloaded and loaded here"))
+                    if ui.small_button(tr("Sign out")).clicked() {
+                        crate::tone3000::sign_out();
+                        state.feeds.clear();
+                        state.user = None;
+                    }
+                    let weak = theme::current(ui).weak;
+                    ui.label(
+                        RichText::new(tr("A click on a tone downloads it and loads it"))
+                            .size(11.5)
+                            .color(weak),
+                    );
+                }
+                crate::dialog::buttons(ui, |ui| {
+                    close = crate::dialog::secondary(ui, tr("Close")).clicked();
+                    if crate::dialog::secondary(ui, tr("Search all of TONE3000…"))
+                        .on_hover_text(tr(
+                            "Search the whole catalog in your browser; the tone you pick is \
+                             downloaded and loaded here",
+                        ))
                         .clicked()
                     {
                         start_tone3000(&ctx, state, None);
                     }
-                    if signed_in {
-                        if ui.small_button(tr("Sign out")).clicked() {
-                            crate::tone3000::sign_out();
-                            state.feeds.clear();
-                            state.user = None;
-                        }
-                        let user = state.user.get_or_insert_with(crate::tone3000::user);
-                        if let Some(Ok(user)) = ready(&ctx, user) {
-                            ui.label(&user.name);
-                            avatar(ui, user.avatar.as_deref(), 22.0);
-                        }
-                    }
-                });
-            });
-            if let Some((session, _, _)) = &state.session {
-                let text = match session.status() {
-                    Status::Waiting => tr("TONE3000: finish in your browser…").to_owned(),
-                    Status::Downloading(what) => what,
-                    _ => String::new(),
-                };
-                ui.horizontal(|ui| {
-                    ui.spinner();
-                    ui.label(text);
                 });
             }
-            if let Some(message) = &state.message {
-                ui.colored_label(theme::RECORD, message);
-            }
-            if let Some(info) = &state.info {
-                ui.colored_label(p.accent, info);
-            }
-            ui.add_space(4.0);
-            if !signed_in {
-                sign_in_card(ui, &ctx, state);
-                return;
-            }
-            ui.horizontal_top(|ui| {
-                // The sidebar: what to look for, and in which list.
-                ui.vertical(|ui| {
-                    ui.set_width(170.0);
-                    ui.label(RichText::new(tr("Gear")).size(11.0).color(p.weak));
-                    for kind in Kind::ALL {
-                        if side_item(ui, browse.kind == kind, kind.name()) {
-                            browse.kind = kind;
-                        }
-                    }
-                    ui.add_space(10.0);
-                    ui.label(RichText::new(tr("Lists")).size(11.0).color(p.weak));
-                    for list in List::ALL {
-                        if side_item(ui, browse.list == list, list.name()) {
-                            browse.list = list;
-                        }
-                    }
-                    ui.add_space(10.0);
-                    if ui.small_button(tr("Refresh")).clicked() {
-                        state.feeds.remove(&(browse.kind, browse.list));
-                    }
-                });
-                ui.separator();
-                ui.vertical(|ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut state.search)
-                            .hint_text(tr("Filter this list by name or creator…"))
-                            .desired_width(f32::INFINITY),
-                    );
-                    ui.add_space(6.0);
-                    let filter = state.search.to_lowercase();
-                    let feed = state.feeds.entry((browse.kind, browse.list)).or_default();
-                    feed.poll(&ctx, browse.kind, browse.list);
-                    if feed.tones.is_empty() && !feed.done {
-                        feed.more(browse.kind, browse.list);
-                    }
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            let width = ui.available_width();
-                            let columns = ((width / 230.0).floor() as usize).max(1);
-                            let card_width = (width - 10.0 * (columns - 1) as f32) / columns as f32;
-                            let shown: Vec<&Tone> = feed
-                                .tones
-                                .iter()
-                                .filter(|t| {
-                                    filter.is_empty()
-                                        || t.title.to_lowercase().contains(&filter)
-                                        || t.creator.to_lowercase().contains(&filter)
-                                })
-                                .collect();
-                            for row in shown.chunks(columns) {
-                                ui.horizontal(|ui| {
-                                    ui.spacing_mut().item_spacing.x = 10.0;
-                                    for tone in row {
-                                        if tone_card(ui, tone, card_width, browse.kind) {
-                                            picked = Some((*tone).clone());
-                                        }
-                                    }
-                                });
-                                ui.add_space(10.0);
-                            }
-                            if let Some(e) = &feed.error {
-                                ui.colored_label(theme::RECORD, e);
-                            } else if feed.pending.is_some() {
-                                ui.horizontal(|ui| {
-                                    ui.spinner();
-                                    ui.label(tr("Loading…"));
-                                });
-                            } else if feed.done && shown.is_empty() {
-                                ui.weak(tr("Nothing in this list."));
-                            } else if !feed.done {
-                                // Reaching the end of the list loads the next page.
-                                let end = ui.allocate_response(vec2(width, 20.0), Sense::hover());
-                                if ui.is_rect_visible(end.rect) {
-                                    feed.more(browse.kind, browse.list);
-                                }
-                            }
-                        });
-                });
-            });
         });
-    if modal.should_close() {
+    if close {
         open = false;
     }
     if let Some(tone) = picked {

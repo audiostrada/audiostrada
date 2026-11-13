@@ -1,10 +1,12 @@
 //! Command palette: type a few letters, run any action.
 
-use eframe::egui::{self, Key, RichText};
+use eframe::egui::{self, FontId, Key};
 
 use crate::actions::Action;
+use crate::dialog;
 use crate::i18n::tr;
 use crate::keymap::Keymap;
+use crate::theme;
 
 /// Score of `query` against `text`: every query character must appear in order. Matches at
 /// word starts and consecutive runs score higher. `None` when it does not match.
@@ -29,11 +31,30 @@ pub fn fuzzy_score(query: &str, text: &str) -> Option<i32> {
     Some(score)
 }
 
+/// Where the characters of `query` are found in `text`, as [`fuzzy_score`] finds them.
+fn positions(query: &str, text: &str) -> Vec<usize> {
+    let text: Vec<char> = text.to_lowercase().chars().collect();
+    let mut out = Vec::new();
+    let mut pos = 0;
+    for q in query.to_lowercase().chars().filter(|c| !c.is_whitespace()) {
+        let Some(found) = (pos..text.len()).find(|&i| text[i] == q) else {
+            return Vec::new();
+        };
+        out.push(found);
+        pos = found + 1;
+    }
+    out
+}
+
+/// The commands run last, shown first.
+const RECENT: usize = 5;
+
 #[derive(Debug, Default)]
 pub struct CommandPalette {
     open: bool,
     query: String,
     selected: usize,
+    recent: Vec<Action>,
 }
 
 impl CommandPalette {
@@ -47,7 +68,18 @@ impl CommandPalette {
         self.open
     }
 
+    /// The commands matching what is typed, the best first; with nothing typed, the recent
+    /// ones then all of them by category.
     fn matches(&self) -> Vec<Action> {
+        if self.query.trim().is_empty() {
+            let mut rest: Vec<Action> = Action::ALL
+                .iter()
+                .copied()
+                .filter(|a| !self.recent.contains(a))
+                .collect();
+            rest.sort_by_key(|a| (tr(a.category()), a.label()));
+            return self.recent.iter().copied().chain(rest).collect();
+        }
         let mut scored: Vec<(i32, Action)> = Action::ALL
             .iter()
             .filter_map(|&a| {
@@ -89,50 +121,188 @@ impl CommandPalette {
             self.selected = self.selected.saturating_sub(1);
         }
         let mut chosen = enter.then(|| matches.get(self.selected).copied()).flatten();
-        egui::Modal::new(egui::Id::unique("command-palette")).show(ctx, |ui| {
-            ui.set_width(520.0);
-            let edit = ui.add(
-                egui::TextEdit::singleline(&mut self.query)
-                    .hint_text(tr("Type a command…"))
-                    .desired_width(f32::INFINITY),
-            );
-            edit.request_focus();
-            if edit.changed() {
-                self.selected = 0;
-            }
-            ui.separator();
-            egui::ScrollArea::vertical()
-                .max_height(320.0)
-                .show(ui, |ui| {
-                    for (i, action) in matches.iter().enumerate().take(40) {
-                        ui.horizontal(|ui| {
-                            ui.set_min_width(ui.available_width());
-                            let response = ui.selectable_label(i == self.selected, action.label());
-                            ui.weak(tr(action.category()));
-                            if i == self.selected {
-                                response.scroll_to_me(None);
-                            }
-                            if response.clicked() {
-                                chosen = Some(*action);
-                            }
-                            if let Some(label) = keymap.label(*action, mac) {
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| ui.label(RichText::new(label).monospace().weak()),
+        let mut open = true;
+        let typed = !self.query.trim().is_empty();
+        let recent = if typed { 0 } else { self.recent.len() };
+        dialog::Dialog::new("command-palette", tr("Commands"))
+            .detail(tr(
+                "Every command of AudioStrada: type a few letters of its name",
+            ))
+            .width(620.0)
+            .modal()
+            .show(ctx, &mut open, |ui, part| match part {
+                dialog::Part::Body => {
+                    let edit = ui.add(
+                        egui::TextEdit::singleline(&mut self.query)
+                            .hint_text(tr("Type a command…"))
+                            .font(FontId::proportional(16.0))
+                            .margin(egui::vec2(10.0, 8.0))
+                            .desired_width(f32::INFINITY),
+                    );
+                    edit.request_focus();
+                    if edit.changed() {
+                        self.selected = 0;
+                    }
+                    ui.add_space(4.0);
+                    egui::ScrollArea::vertical()
+                        .max_height(380.0)
+                        .min_scrolled_height(380.0)
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            ui.spacing_mut().item_spacing.y = 2.0;
+                            let mut category = "";
+                            for (i, &action) in matches.iter().enumerate().take(400) {
+                                // Grouped when nothing is typed: the recent ones, then by
+                                // category.
+                                if !typed {
+                                    let group = if i < recent {
+                                        tr("Recent")
+                                    } else {
+                                        tr(action.category())
+                                    };
+                                    if group != category {
+                                        category = group;
+                                        ui.add_space(if i == 0 { 0.0 } else { 6.0 });
+                                        dialog::hint(ui, &group.to_uppercase());
+                                    }
+                                }
+                                let response = row(
+                                    ui,
+                                    action,
+                                    i == self.selected,
+                                    &self.query,
+                                    typed,
+                                    keymap.label(action, mac),
                                 );
+                                if i == self.selected && (up || down) {
+                                    response.scroll_to_me(None);
+                                }
+                                if response.hovered()
+                                    && ui.input(|i| i.pointer.delta() != egui::Vec2::ZERO)
+                                {
+                                    self.selected = i;
+                                }
+                                if response.clicked() {
+                                    chosen = Some(action);
+                                }
+                            }
+                            if matches.is_empty() {
+                                ui.add_space(30.0);
+                                ui.vertical_centered(|ui| {
+                                    dialog::hint(ui, tr("No matching command"));
+                                });
                             }
                         });
-                    }
-                    if matches.is_empty() {
-                        ui.weak(tr("No matching command"));
-                    }
-                });
-        });
-        if chosen.is_some() {
+                }
+                dialog::Part::Actions => {
+                    let p = theme::current(ui);
+                    let (rect, _) =
+                        ui.allocate_exact_size(ui.available_size(), egui::Sense::hover());
+                    let painter = ui.painter();
+                    crate::effect_frame::key_hints(
+                        painter,
+                        &p,
+                        rect.left_center(),
+                        &[
+                            (&["↑", "↓"], tr("Choose")),
+                            (&["Enter"], tr("Run")),
+                            (&["Esc"], tr("Close")),
+                        ],
+                    );
+                    painter.text(
+                        rect.right_center(),
+                        egui::Align2::RIGHT_CENTER,
+                        crate::trf!("{count} commands", count = matches.len()),
+                        FontId::proportional(11.5),
+                        p.weak,
+                    );
+                }
+            });
+        if !open {
             self.open = false;
+        }
+        if let Some(action) = chosen {
+            self.open = false;
+            self.recent.retain(|a| *a != action);
+            self.recent.insert(0, action);
+            self.recent.truncate(RECENT);
         }
         chosen
     }
+}
+
+/// A command of the list: its name with the letters typed lit, its category when searching,
+/// its shortcut as key caps.
+fn row(
+    ui: &mut egui::Ui,
+    action: Action,
+    selected: bool,
+    query: &str,
+    typed: bool,
+    keys: Option<String>,
+) -> egui::Response {
+    let p = theme::current(ui);
+    let (rect, response) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), 30.0), egui::Sense::click());
+    let painter = ui.painter_at(rect);
+    if selected {
+        painter.rect_filled(rect, 5.0, theme::mix(p.surface, p.accent, 0.35));
+        painter.rect_filled(
+            egui::Rect::from_min_size(rect.min, egui::vec2(3.0, rect.height())),
+            1.5,
+            p.accent,
+        );
+    } else if response.hovered() {
+        painter.rect_filled(rect, 5.0, p.hover);
+    }
+    let label = action.label();
+    let lit = if typed {
+        positions(query, label)
+    } else {
+        Vec::new()
+    };
+    let mut job = egui::text::LayoutJob::default();
+    for (k, c) in label.chars().enumerate() {
+        let on = lit.contains(&k);
+        job.append(
+            &c.to_string(),
+            0.0,
+            egui::TextFormat {
+                font_id: FontId::proportional(13.5),
+                color: if on { p.accent } else { p.text },
+                underline: if on {
+                    egui::Stroke::new(1.0, p.accent)
+                } else {
+                    egui::Stroke::NONE
+                },
+                ..Default::default()
+            },
+        );
+    }
+    let galley = painter.layout_job(job);
+    let text = egui::pos2(rect.left() + 12.0, rect.center().y - galley.size().y / 2.0);
+    let width = galley.size().x;
+    painter.galley(text, galley, p.text);
+    if typed {
+        painter.text(
+            egui::pos2(text.x + width + 10.0, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            tr(action.category()),
+            FontId::proportional(11.5),
+            p.weak,
+        );
+    }
+    if let Some(keys) = keys {
+        let caps: Vec<&str> = keys.split('+').collect();
+        let total = crate::effect_frame::key_hints_width(&painter, &p, &[(&caps, "")]);
+        crate::effect_frame::key_hints(
+            &painter,
+            &p,
+            egui::pos2(rect.right() - total - 8.0, rect.center().y),
+            &[(&caps, "")],
+        );
+    }
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 #[cfg(test)]

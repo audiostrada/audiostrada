@@ -12,13 +12,14 @@ the dropouts.
 
 ## Entering a licence
 
-Help › *License…* shows the state of AudioStrada:
+Help › *License…* shows the state of this copy: evaluation, or the licence with its plan, its
+holder and until when updates are included.
 
-- *Buy a license* opens the shop on audiostrada.com.
 - *Enter a license*: paste the licence, or *Open a file…*, then *Activate*.
+- *Buy a license* opens the shop on audiostrada.com.
 - *Find my license* and *Manage my subscription* open your account on audiostrada.com, to get
   the licence again, change the subscription or cancel it.
-- *Remove the license* takes it off this computer.
+- *Remove the license*, at the bottom left, takes it off this computer once confirmed.
 
 | Licence | For |
 |---|---|

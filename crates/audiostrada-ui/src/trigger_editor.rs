@@ -726,77 +726,100 @@ fn add_dialog(ui: &Ui, params: &mut Params, state: &mut TriggerState) {
         return;
     };
     let (mut cancel, mut add) = (false, false);
-    egui::Modal::new(egui::Id::unique("trigger-add-sound")).show(ui.ctx(), |ui| {
-        ui.set_width(420.0);
-        ui.label(RichText::new(tr("Add a sound")).strong().size(16.0));
-        ui.add_space(8.0);
-        egui::Grid::new("trigger-add-grid")
-            .num_columns(2)
-            .spacing([12.0, 10.0])
-            .show(ui, |ui| {
-                ui.label(tr("Name"));
-                ui.add(
-                    egui::TextEdit::singleline(&mut draft.name)
-                        .hint_text(tr("My kick"))
-                        .desired_width(260.0),
-                );
-                ui.end_row();
-                ui.label(tr("Drum"));
-                ui.horizontal(|ui| {
-                    ui.selectable_value(&mut draft.kind, 0, tr("Kick"));
-                    ui.selectable_value(&mut draft.kind, 1, tr("Snare"));
-                });
-                ui.end_row();
-                ui.label(tr("File"));
-                ui.horizontal(|ui| {
-                    let open = ui.button(tr("Choose a file…")).clicked();
-                    if let Some(file) =
-                        crate::dialogs::ask(ui.ctx(), "trigger-own-file", open, || {
-                            rfd::FileDialog::new()
-                                .add_filter(tr("Audio"), SLOTS[0].extensions)
-                                .pick_file()
-                        })
-                    {
-                        if draft.name.trim().is_empty()
-                            && let Some(stem) = file.file_stem()
+    let mut open = true;
+    let accent = theme::current(ui).accent;
+    crate::dialog::Dialog::new("trigger-add-sound", tr("Add a sound"))
+        .detail(tr(
+            "A sound of your own: a file with one hit, named as you like",
+        ))
+        .width(540.0)
+        .modal()
+        .show(ui.ctx(), &mut open, |ui, part| match part {
+            crate::dialog::Part::Body => {
+                crate::dialog::section(ui, tr("Sound file"), |ui| {
+                    crate::dialog::field(ui, tr("File"), |ui| {
+                        let open = ui.button(tr("Choose a file…")).clicked();
+                        if let Some(file) =
+                            crate::dialogs::ask(ui.ctx(), "trigger-own-file", open, || {
+                                rfd::FileDialog::new()
+                                    .add_filter(tr("Audio"), SLOTS[0].extensions)
+                                    .pick_file()
+                            })
                         {
-                            draft.name = stem.to_string_lossy().into_owned();
+                            if draft.name.trim().is_empty()
+                                && let Some(stem) = file.file_stem()
+                            {
+                                draft.name = stem.to_string_lossy().into_owned();
+                            }
+                            draft.path = Some(file);
                         }
-                        draft.path = Some(file);
-                    }
-                    match &draft.path {
-                        Some(path) => {
-                            let name = path
-                                .file_name()
-                                .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-                            ui.label(name).on_hover_text(path.display().to_string());
-                            if ui.button(tr("Listen")).clicked() {
-                                play_file(params, path);
+                        match &draft.path {
+                            Some(path) => {
+                                let name = path
+                                    .file_name()
+                                    .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+                                ui.label(name).on_hover_text(path.display().to_string());
+                            }
+                            None => {
+                                ui.weak(tr("No file yet"));
                             }
                         }
-                        None => {
-                            ui.weak(tr("No file yet"));
-                        }
+                    });
+                    if let Some(path) = draft.path.clone() {
+                        crate::dialog::well(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let (rect, _) = ui.allocate_exact_size(
+                                    vec2(ui.available_width() - 90.0, 44.0),
+                                    Sense::hover(),
+                                );
+                                waveform(ui.painter(), rect, &file_shape(&path), accent);
+                                if ui.button(tr("Listen")).clicked() {
+                                    play_file(params, &path);
+                                }
+                            });
+                        });
                     }
+                    crate::dialog::hint(
+                        ui,
+                        tr(
+                            "One hit per file. The silence before it is taken off and its level \
+                            follows the track's hits. WAV, FLAC, AIFF, OGG or MP3.",
+                        ),
+                    );
                 });
-                ui.end_row();
-            });
-        ui.add_space(8.0);
-        ui.weak(tr(
-            "One hit per file. The silence before it is taken off and its level follows the \
-             track's hits. WAV, FLAC, AIFF, OGG or MP3.",
-        ));
-        theme::footer(ui, |ui| {
-            let ready = draft.path.is_some() && !draft.name.trim().is_empty();
-            if theme::primary_button_enabled(ui, ready, tr("Add")).clicked() {
-                add = true;
+                crate::dialog::section(ui, tr("In the list"), |ui| {
+                    crate::dialog::field(ui, tr("Name"), |ui| {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut draft.name)
+                                .hint_text(tr("My kick"))
+                                .desired_width(260.0),
+                        );
+                    });
+                    crate::dialog::field(ui, tr("Drum"), |ui| {
+                        crate::dialog::segmented(
+                            ui,
+                            &mut draft.kind,
+                            &[(0, tr("Kick"), true), (1, tr("Snare"), true)],
+                        );
+                    });
+                    crate::dialog::hint(
+                        ui,
+                        tr(
+                            "It joins the sounds of this drum, for every project, and replaces \
+                            the one of this track now.",
+                        ),
+                    );
+                });
             }
-            if ui.button(tr("Cancel")).clicked() {
-                cancel = true;
+            crate::dialog::Part::Actions => {
+                crate::dialog::buttons(ui, |ui| {
+                    let ready = draft.path.is_some() && !draft.name.trim().is_empty();
+                    add = crate::dialog::primary(ui, tr("Add"), ready).clicked() && ready;
+                    cancel = crate::dialog::secondary(ui, tr("Cancel")).clicked();
+                });
             }
         });
-    });
-    if cancel || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+    if cancel || !open {
         state.draft = None;
         return;
     }

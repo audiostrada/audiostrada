@@ -6,6 +6,7 @@ use audiostrada_plugins::Format;
 use audiostrada_plugins::scan::{Database, Progress};
 
 use crate::actions::Action;
+use crate::dialog;
 use crate::host::AudioHost;
 use crate::i18n::tr;
 use crate::keymap::{Keymap, Preset, Shortcut};
@@ -86,6 +87,8 @@ pub struct PreferencesWindow {
     open: bool,
     tab: Tab,
     search: String,
+    /// What is typed in the sidebar to find a setting.
+    find: String,
     recording: Option<Action>,
     notice: Option<String>,
     midi_ports: Option<Vec<String>>,
@@ -105,9 +108,95 @@ pub struct PrefsOutcome {
     pub midi_changed: bool,
 }
 
-/// Width of the sidebar, and of the names of the settings on a page.
-const SIDEBAR: f32 = 212.0;
-const NAMES: f32 = 230.0;
+/// Width of the sidebar, of the names of the settings on a page, and height of the body.
+const SIDEBAR: f32 = 210.0;
+const NAMES: f32 = 220.0;
+const BODY: f32 = 560.0;
+
+impl Tab {
+    /// The settings of the page, by name, for the search of the sidebar.
+    fn settings(self) -> Vec<&'static str> {
+        match self {
+            Tab::Appearance => vec![
+                "Theme",
+                "Custom theme",
+                "Language",
+                "Interface scale",
+                "Master",
+                "Mixer",
+                "Compact mixer",
+                "Timeline",
+                "Master track in the timeline",
+                "Transport",
+            ],
+            Tab::General => {
+                let mut names = vec!["Play key"];
+                if wayland() {
+                    names.push("Several screens");
+                }
+                if audiostrada_license::OFFICIAL {
+                    names.push("New versions");
+                }
+                names
+            }
+            Tab::Audio => vec![
+                "Backend",
+                "Input",
+                "Output",
+                "Sample rate",
+                "Buffer size",
+                "Channels",
+                "System check",
+            ],
+            Tab::Recording => vec![
+                "Input monitoring",
+                "Armed tracks",
+                "Takes",
+                "Recording latency offset",
+            ],
+            Tab::Midi => vec!["Inputs", "MIDI learn"],
+            Tab::Keyboard => vec!["Preset"],
+            Tab::Plugins => vec![
+                "Third-party plugins",
+                "Sandbox",
+                "Scan",
+                "Standard folders",
+                "Additional folders",
+            ],
+        }
+    }
+
+    /// What `query` finds on the page: the settings named so, and for the shortcuts the number
+    /// of commands; `None` when nothing.
+    fn finds(self, query: &str) -> Option<(Vec<&'static str>, usize)> {
+        let query = query.trim().to_lowercase();
+        let has = |key: &'static str| {
+            tr(key).to_lowercase().contains(&query) || key.to_lowercase().contains(&query)
+        };
+        let names: Vec<&'static str> = self.settings().into_iter().filter(|k| has(k)).collect();
+        let commands = if self == Tab::Keyboard {
+            Action::ALL
+                .iter()
+                .filter(|a| command_matches(**a, &query))
+                .count()
+        } else {
+            0
+        };
+        let titled = tr(self.title()).to_lowercase().contains(&query);
+        (titled || !names.is_empty() || commands > 0).then_some((names, commands))
+    }
+}
+
+/// Whether `query` finds a command, by its shown or English name.
+fn command_matches(action: Action, query: &str) -> bool {
+    let shown = format!("{} {}", tr(action.category()), action.label());
+    let english = format!("{} {}", action.category(), action.name());
+    fuzzy_score(query, &shown).is_some() || fuzzy_score(query, &english).is_some()
+}
+
+fn wayland() -> bool {
+    cfg!(target_os = "linux") && std::env::var_os("WAYLAND_DISPLAY").is_some()
+}
 
 impl PreferencesWindow {
     pub fn open(&mut self) {
@@ -152,53 +241,50 @@ impl PreferencesWindow {
         if let Some(action) = self.recording {
             self.capture(ctx, prefs, action, &mut outcome);
         }
-        let mut open = self.open;
-        let frame = egui::Frame::window(&ctx.global_style()).inner_margin(0);
-        egui::Window::new(tr("Preferences"))
-            .id(egui::Id::unique("preferences"))
-            .open(&mut open)
-            .frame(frame)
-            // The title keeps its margins: the frame has none so the sidebar reaches its edges.
-            .title_frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(16, 10)))
-            .default_size([900.0, 640.0])
-            .min_size([760.0, 480.0])
-            .collapsible(false)
-            .show(ctx, |ui| {
-                let height = ui.available_height().max(480.0);
-                ui.horizontal_top(|ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    self.sidebar(ui, height);
-                    ui.vertical(|ui| {
-                        ui.set_min_height(height);
-                        egui::Frame::new()
-                            .inner_margin(egui::Margin {
-                                left: 28,
-                                right: 20,
-                                top: 22,
-                                bottom: 12,
-                            })
-                            .show(ui, |ui| {
-                                ui.spacing_mut().item_spacing.x = 8.0;
-                                page_header(ui, self.tab);
-                                egui::ScrollArea::vertical()
-                                    .auto_shrink([false, false])
-                                    .show(ui, |ui| {
-                                        ui.set_max_width(ui.available_width() - 8.0);
-                                        self.page(
-                                            ui,
-                                            prefs,
-                                            audio,
-                                            host,
-                                            mac,
-                                            plugins,
-                                            &mut outcome,
-                                        );
-                                    });
-                            });
+        let mut open = true;
+        let mut done = false;
+        dialog::Dialog::new("preferences", tr("Preferences"))
+            .detail(tr(
+                "How AudioStrada looks, sounds and works, for every project",
+            ))
+            .width(1000.0)
+            .show(ctx, &mut open, |ui, part| match part {
+                dialog::Part::Body => {
+                    ui.horizontal_top(|ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
+                        self.sidebar(ui);
+                        ui.add_space(24.0);
+                        ui.vertical(|ui| {
+                            ui.set_height(BODY);
+                            ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
+                            page_header(ui, self.tab);
+                            egui::ScrollArea::vertical()
+                                .id_salt(("preferences-page", self.tab as u8))
+                                .auto_shrink([false, false])
+                                .show(ui, |ui| {
+                                    ui.set_max_width(ui.available_width() - 12.0);
+                                    self.page(ui, prefs, audio, host, mac, plugins, &mut outcome);
+                                });
+                        });
                     });
-                });
+                }
+                dialog::Part::Actions => {
+                    let weak = theme::current(ui).weak;
+                    ui.label(
+                        RichText::new(format!(
+                            "AudioStrada {}  ·  {}",
+                            env!("CARGO_PKG_VERSION"),
+                            tr("Changes apply at once and are kept.")
+                        ))
+                        .size(11.5)
+                        .color(weak),
+                    );
+                    dialog::buttons(ui, |ui| {
+                        done = dialog::primary(ui, tr("Done"), true).clicked();
+                    });
+                }
             });
-        self.open = open;
+        self.open = open && !done;
         outcome.ui_changed |= self.custom_dialog(ctx, prefs);
         outcome
     }
@@ -225,79 +311,144 @@ impl PreferencesWindow {
         }
     }
 
-    /// The pages, each with its colored tile, as in a system's settings.
-    fn sidebar(&mut self, ui: &mut egui::Ui, height: f32) {
+    /// The search, then the pages, each with its colored tile; while searching, only the pages
+    /// holding what is typed, with the settings found.
+    fn sidebar(&mut self, ui: &mut egui::Ui) {
         let p = theme::current(ui);
-        let (rect, _) = ui.allocate_exact_size(vec2(SIDEBAR, height), Sense::hover());
-        let radius = (p.look.radius + 2).min(10);
-        ui.painter().rect_filled(
-            rect,
-            egui::CornerRadius {
-                sw: radius,
-                ..Default::default()
-            },
-            theme::mix(p.panel, p.base, if p.dark { 0.45 } else { 0.25 }),
-        );
-        ui.painter().vline(
-            rect.right() - 0.5,
-            rect.y_range(),
-            Stroke::new(1.0, theme::mix(p.border, p.panel, 0.4)),
-        );
-        let mut y = rect.top() + 16.0;
-        for tab in Tab::ALL {
-            if tab.starts_group() {
-                y += 12.0;
-            }
-            let item = Rect::from_min_size(pos2(rect.left() + 10.0, y), vec2(SIDEBAR - 20.0, 34.0));
-            let response = ui.interact(
-                item,
-                ui.scope_id().with(("prefs-tab", tab as u8)),
-                Sense::click(),
-            );
-            let selected = self.tab == tab;
-            let fill = if selected {
-                Some(p.accent.gamma_multiply(if p.dark { 0.28 } else { 0.18 }))
-            } else if response.hovered() {
-                Some(p.hover)
-            } else {
-                None
-            };
-            if let Some(fill) = fill {
-                ui.painter().rect_filled(item, 7.0, fill);
-            }
-            let tile =
-                Rect::from_center_size(pos2(item.left() + 19.0, item.center().y), vec2(24.0, 24.0));
-            ui.painter().rect_filled(tile, 6.0, tab.color());
-            tab_icon(ui.painter(), tile.shrink(5.0), tab);
-            let font = if selected {
-                theme::strong(13.0)
-            } else {
-                egui::FontId::proportional(13.0)
-            };
-            ui.painter().text(
-                pos2(tile.right() + 11.0, item.center().y),
-                egui::Align2::LEFT_CENTER,
-                tab.title(),
-                font,
-                p.text,
-            );
-            if response
-                .on_hover_cursor(egui::CursorIcon::PointingHand)
-                .clicked()
-                && !selected
+        egui::Frame::new()
+            .fill(theme::mix(
+                p.panel,
+                p.base,
+                if p.dark { 0.45 } else { 0.25 },
+            ))
+            .stroke(Stroke::new(1.0, theme::mix(p.border, p.panel, 0.4)))
+            .corner_radius((p.look.radius + 2).min(10))
+            .inner_margin(8.0)
+            .show(ui, |ui| {
+                ui.set_width(SIDEBAR - 16.0);
+                ui.set_height(BODY - 16.0);
+                ui.vertical(|ui| self.sidebar_items(ui));
+            });
+    }
+
+    fn sidebar_items(&mut self, ui: &mut egui::Ui) {
+        let p = theme::current(ui);
+        {
             {
-                self.tab = tab;
-                self.recording = None;
+                ui.spacing_mut().item_spacing.y = 4.0;
+                let search = ui.add(
+                    egui::TextEdit::singleline(&mut self.find)
+                        .hint_text(tr("Find a setting"))
+                        .margin(vec2(8.0, 6.0))
+                        .desired_width(f32::INFINITY),
+                );
+                let entered = search.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+                ui.add_space(6.0);
+                let searching = !self.find.trim().is_empty();
+                let mut first = None;
+                for tab in Tab::ALL {
+                    let found = if searching {
+                        match tab.finds(&self.find) {
+                            Some(found) => Some(found),
+                            None => continue,
+                        }
+                    } else {
+                        None
+                    };
+                    first = first.or(Some(tab));
+                    if tab.starts_group() && !searching {
+                        ui.add_space(10.0);
+                    }
+                    if self.tab_item(ui, tab) {
+                        self.go(tab, searching);
+                    }
+                    let Some((names, commands)) = found else {
+                        continue;
+                    };
+                    let mut lines: Vec<String> = names.iter().map(|k| tr(k).to_owned()).collect();
+                    if commands > 0 {
+                        lines.push(trf!("{count} commands", count = commands));
+                    }
+                    for line in lines {
+                        let (rect, response) = ui
+                            .allocate_exact_size(vec2(ui.available_width(), 20.0), Sense::click());
+                        let color = if response.hovered() { p.text } else { p.weak };
+                        ui.painter().text(
+                            pos2(rect.left() + 46.0, rect.center().y),
+                            egui::Align2::LEFT_CENTER,
+                            line,
+                            egui::FontId::proportional(12.0),
+                            color,
+                        );
+                        if response
+                            .on_hover_cursor(egui::CursorIcon::PointingHand)
+                            .clicked()
+                        {
+                            self.go(tab, true);
+                        }
+                    }
+                }
+                if searching && first.is_none() {
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new(tr("No setting matches."))
+                            .size(12.0)
+                            .color(p.weak),
+                    );
+                }
+                if entered && let Some(tab) = first {
+                    self.go(tab, true);
+                }
             }
-            y += 38.0;
         }
+    }
+
+    /// Shows `tab`; from a search, the shortcuts page keeps what was typed.
+    fn go(&mut self, tab: Tab, searching: bool) {
+        if tab == Tab::Keyboard && searching {
+            self.search = self.find.trim().to_owned();
+        }
+        if self.tab != tab {
+            self.tab = tab;
+            self.recording = None;
+        }
+    }
+
+    /// One page in the sidebar; true when clicked.
+    fn tab_item(&self, ui: &mut egui::Ui, tab: Tab) -> bool {
+        let p = theme::current(ui);
+        let (item, response) =
+            ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::click());
+        let selected = self.tab == tab;
+        let fill = if selected {
+            Some(p.accent.gamma_multiply(if p.dark { 0.28 } else { 0.18 }))
+        } else if response.hovered() {
+            Some(p.hover)
+        } else {
+            None
+        };
+        if let Some(fill) = fill {
+            ui.painter().rect_filled(item, 7.0, fill);
+        }
+        let tile =
+            Rect::from_center_size(pos2(item.left() + 19.0, item.center().y), vec2(24.0, 24.0));
+        ui.painter().rect_filled(tile, 6.0, tab.color());
+        tab_icon(ui.painter(), tile.shrink(5.0), tab);
+        let font = if selected {
+            theme::strong(13.0)
+        } else {
+            egui::FontId::proportional(13.0)
+        };
         ui.painter().text(
-            pos2(rect.left() + 20.0, rect.bottom() - 16.0),
-            egui::Align2::LEFT_BOTTOM,
-            format!("AudioStrada {}", env!("CARGO_PKG_VERSION")),
-            egui::FontId::proportional(11.0),
-            p.weak,
+            pos2(tile.right() + 11.0, item.center().y),
+            egui::Align2::LEFT_CENTER,
+            tab.title(),
+            font,
+            p.text,
         );
+        response
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .clicked()
     }
 
     fn appearance(&mut self, ui: &mut egui::Ui, prefs: &mut UiPrefs) -> bool {
@@ -388,10 +539,13 @@ impl PreferencesWindow {
                 tr("Master"),
                 Some(tr("Where the master strip sits in the mixer.")),
                 |ui| {
-                    changed |= segmented(
+                    changed |= dialog::segmented(
                         ui,
                         &mut prefs.master_left,
-                        &[(true, tr("At the left")), (false, tr("At the right"))],
+                        &[
+                            (true, tr("At the left"), true),
+                            (false, tr("At the right"), true),
+                        ],
                     );
                 },
             );
@@ -429,10 +583,13 @@ impl PreferencesWindow {
                 Some(tr("Where the transport bar sits, and its size.")),
                 |ui| {
                     ui.horizontal(|ui| {
-                        changed |= segmented(
+                        changed |= dialog::segmented(
                             ui,
                             &mut prefs.transport_bottom,
-                            &[(false, tr("At the top")), (true, tr("At the bottom"))],
+                            &[
+                                (false, tr("At the top"), true),
+                                (true, tr("At the bottom"), true),
+                            ],
                         );
                         ui.add_space(12.0);
                         changed |= ui
@@ -451,56 +608,47 @@ impl PreferencesWindow {
             return false;
         }
         let mut changed = false;
+        let mut open = true;
         let mut done = false;
-        let p = theme::current_for(ctx);
-        let frame = egui::Frame::window(&ctx.global_style())
-            .inner_margin(egui::Margin::same(24))
-            .corner_radius((p.look.radius + 4).min(12));
-        let modal = egui::Modal::new(egui::Id::unique("custom-theme"))
-            .frame(frame)
-            .show(ctx, |ui| {
-                ui.set_width(640.0);
-                ui.label(RichText::new(tr("Custom theme")).font(theme::strong(18.0)));
-                ui.label(
-                    RichText::new(tr(
-                        "Choose a background, an accent and a contrast: every other color \
-                         follows, and nothing can become unreadable.",
-                    ))
-                    .color(p.weak),
-                );
-                ui.add_space(16.0);
-                ui.horizontal_top(|ui| {
-                    ui.vertical(|ui| {
-                        ui.set_width(150.0);
-                        let palette = prefs.custom.palette();
-                        theme_card(ui, tr("Preview"), palette, false);
-                        ui.add_space(10.0);
-                        swatches(ui, &palette);
+        dialog::Dialog::new("custom-theme", tr("Custom theme"))
+            .detail(tr("Your own colors, kept readable whatever you choose."))
+            .width(660.0)
+            .modal()
+            .show(ctx, &mut open, |ui, part| match part {
+                dialog::Part::Body => {
+                    dialog::hint(
+                        ui,
+                        tr(
+                            "Choose a background, an accent and a contrast: every other color \
+                            follows, and nothing can become unreadable.",
+                        ),
+                    );
+                    ui.add_space(6.0);
+                    ui.horizontal_top(|ui| {
+                        ui.vertical(|ui| {
+                            ui.set_width(150.0);
+                            dialog::section(ui, tr("Preview"), |ui| {
+                                let palette = prefs.custom.palette();
+                                theme_card(ui, tr("Custom"), palette, false);
+                                ui.add_space(6.0);
+                                swatches(ui, &palette);
+                            });
+                        });
+                        ui.add_space(20.0);
+                        ui.vertical(|ui| {
+                            dialog::section(ui, tr("Colors and shapes"), |ui| {
+                                changed |= custom_form(ui, &mut prefs.custom);
+                            });
+                        });
                     });
-                    ui.add_space(20.0);
-                    ui.vertical(|ui| {
-                        changed |= custom_form(ui, &mut prefs.custom);
+                }
+                dialog::Part::Actions => {
+                    dialog::buttons(ui, |ui| {
+                        done = dialog::primary(ui, tr("Done"), true).clicked();
                     });
-                });
-                ui.add_space(16.0);
-                ui.separator();
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let done_button = egui::Button::new(
-                            RichText::new(tr("Done"))
-                                .strong()
-                                .color(theme::text_on(p.accent)),
-                        )
-                        .fill(p.accent)
-                        .min_size(vec2(96.0, 28.0));
-                        if ui.add(done_button).clicked() {
-                            done = true;
-                        }
-                    });
-                });
+                }
             });
-        if done || modal.should_close() {
+        if done || !open {
             self.custom_open = false;
         }
         if changed {
@@ -600,8 +748,8 @@ impl PreferencesWindow {
     fn keyboard(&mut self, ui: &mut egui::Ui, prefs: &mut UiPrefs, mac: bool) -> bool {
         let mut changed = false;
         ui.horizontal(|ui| {
-            ui.label(RichText::new(tr("Preset")).strong());
             let current = prefs.keymap.preset;
+            ui.label(RichText::new(tr("Preset")).strong());
             egui::ComboBox::from_id_salt("keymap-preset")
                 .width(140.0)
                 .selected_text(current.name())
@@ -621,81 +769,145 @@ impl PreferencesWindow {
                         }
                     }
                 });
-            ui.add_space(16.0);
-            ui.add(
-                egui::TextEdit::singleline(&mut self.search)
-                    .hint_text(tr("Search a command"))
-                    .desired_width(260.0),
-            );
+            if ui
+                .button(tr("Reset all shortcuts"))
+                .on_hover_text(tr("Every command gets back the keys of the preset"))
+                .clicked()
+            {
+                prefs.keymap = Keymap::preset(current);
+                self.recording = None;
+                self.notice = Some(trf!(
+                    "Shortcuts reset to the {preset} preset.",
+                    preset = current.name()
+                ));
+                changed = true;
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.search)
+                        .hint_text(tr("Search a command"))
+                        .desired_width(220.0),
+                );
+            });
         });
         if let Some(notice) = &self.notice {
-            ui.add_space(4.0);
             ui.colored_label(WARN, notice);
         }
-        ui.add_space(12.0);
-        card(ui, None, |ui| {
-            egui::Grid::new("shortcuts")
-                .num_columns(4)
-                .striped(true)
-                .spacing([16.0, 4.0])
-                .show(ui, |ui| {
-                    for &action in Action::ALL {
-                        let category = tr(action.category());
-                        let shown = format!("{category} {}", action.label());
-                        let english = format!("{} {}", action.category(), action.name());
-                        if fuzzy_score(&self.search, &shown).is_none()
-                            && fuzzy_score(&self.search, &english).is_none()
-                        {
-                            continue;
-                        }
-                        ui.label(RichText::new(category).weak());
-                        ui.label(action.label());
-                        let labels: Vec<String> = prefs
-                            .keymap
-                            .shortcuts_for(action)
-                            .map(|s| s.label(mac))
-                            .collect();
-                        if self.recording == Some(action) {
-                            ui.colored_label(WARN, tr("Press a key… (Esc cancels)"));
-                        } else {
-                            ui.monospace(if labels.is_empty() {
-                                "—".to_owned()
-                            } else {
-                                labels.join(", ")
-                            });
-                        }
-                        ui.horizontal(|ui| {
-                            if ui.small_button(tr("Change")).clicked() {
-                                prefs.keymap.clear(action);
-                                self.recording = Some(action);
-                                changed = true;
+        ui.add_space(6.0);
+        // The commands found, by category in the order of the menus.
+        let query = self.search.trim().to_owned();
+        let mut groups: Vec<(&'static str, Vec<Action>)> = Vec::new();
+        for &action in Action::ALL {
+            if !query.is_empty() && !command_matches(action, &query) {
+                continue;
+            }
+            match groups.iter_mut().find(|(c, _)| *c == action.category()) {
+                Some((_, actions)) => actions.push(action),
+                None => groups.push((action.category(), vec![action])),
+            }
+        }
+        if groups.is_empty() {
+            hint(ui, tr("No command matches."));
+        }
+        let p = theme::current(ui);
+        for (category, actions) in groups {
+            card(ui, Some(tr(category)), |ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+                for action in actions {
+                    ui.horizontal(|ui| {
+                        let name = ui
+                            .allocate_ui_with_layout(
+                                vec2(250.0, 26.0),
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    ui.set_min_size(vec2(250.0, 26.0));
+                                    ui.add(egui::Label::new(action.label()).truncate());
+                                },
+                            )
+                            .response
+                            .rect;
+                        let keys = egui::UiBuilder::new()
+                            .max_rect(Rect::from_min_size(
+                                pos2(name.right() + 8.0, name.top()),
+                                vec2(170.0, 26.0),
+                            ))
+                            .layout(egui::Layout::left_to_right(egui::Align::Center));
+                        ui.scope_builder(keys, |ui| {
+                            ui.set_clip_rect(ui.max_rect().intersect(ui.clip_rect()));
+                            if self.recording == Some(action) {
+                                ui.colored_label(WARN, tr("Press a key… (Esc cancels)"));
+                                return;
                             }
-                            if ui.small_button(tr("Add")).clicked() {
-                                self.recording = Some(action);
+                            let keys: Vec<String> = prefs
+                                .keymap
+                                .shortcuts_for(action)
+                                .map(|s| s.label(mac))
+                                .collect();
+                            if keys.is_empty() {
+                                ui.label(RichText::new(tr("No shortcut")).color(p.weak));
+                            }
+                            for key in keys {
+                                key_chip(ui, &key);
+                            }
+                        });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.small_button(tr("Reset")).clicked() {
+                                prefs.keymap.reset(action);
+                                changed = true;
                             }
                             if ui.small_button(tr("Clear")).clicked() {
                                 prefs.keymap.clear(action);
                                 changed = true;
                             }
-                            if ui.small_button(tr("Reset")).clicked() {
-                                prefs.keymap.reset(action);
+                            if ui.small_button(tr("Add")).clicked() {
+                                self.recording = Some(action);
+                            }
+                            if ui.small_button(tr("Change")).clicked() {
+                                prefs.keymap.clear(action);
+                                self.recording = Some(action);
                                 changed = true;
                             }
                         });
-                        ui.end_row();
-                    }
-                });
-        });
+                    });
+                }
+            });
+        }
         changed
     }
+}
+
+/// A shortcut, drawn as a key.
+fn key_chip(ui: &mut egui::Ui, text: &str) {
+    let p = theme::current(ui);
+    let font = egui::FontId::monospace(12.0);
+    let width = ui
+        .painter()
+        .layout_no_wrap(text.to_owned(), font.clone(), p.text)
+        .size()
+        .x;
+    let (rect, _) = ui.allocate_exact_size(vec2(width + 14.0, 22.0), Sense::hover());
+    ui.painter().rect(
+        rect,
+        4.0,
+        p.base,
+        Stroke::new(1.0, theme::mix(p.border, p.text, 0.15)),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        text,
+        font,
+        p.text,
+    );
 }
 
 /// The title of a page and what it holds.
 fn page_header(ui: &mut egui::Ui, tab: Tab) {
     let p = theme::current(ui);
-    ui.label(RichText::new(tab.title()).font(theme::strong(22.0)));
+    ui.label(RichText::new(tab.title()).font(theme::strong(20.0)));
     ui.label(RichText::new(tab.subtitle()).color(p.weak));
-    ui.add_space(18.0);
+    ui.add_space(10.0);
 }
 
 /// A group of settings on a card, its title above it.
@@ -708,7 +920,6 @@ fn card(ui: &mut egui::Ui, title: Option<&str>, add: impl FnOnce(&mut egui::Ui))
                 .strong()
                 .color(p.weak),
         );
-        ui.add_space(4.0);
     }
     let (fill, edge) = theme::card(&p);
     let edge = if p.dark {
@@ -720,13 +931,13 @@ fn card(ui: &mut egui::Ui, title: Option<&str>, add: impl FnOnce(&mut egui::Ui))
         .fill(fill)
         .stroke(edge)
         .corner_radius(10.0)
-        .inner_margin(egui::Margin::symmetric(18, 14))
+        .inner_margin(egui::Margin::symmetric(16, 12))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.spacing_mut().item_spacing.y = 6.0;
             add(ui);
         });
-    ui.add_space(18.0);
+    ui.add_space(12.0);
 }
 
 /// One setting: its name and what it does at the left, its control at the right.
@@ -768,32 +979,6 @@ fn divider(ui: &mut egui::Ui) {
 /// A note under the cards.
 fn hint(ui: &mut egui::Ui, text: &str) {
     ui.label(RichText::new(text).small().color(theme::current(ui).weak));
-}
-
-/// Choices side by side, as one control; the chosen one lit in the accent.
-fn segmented<T: PartialEq + Copy>(ui: &mut egui::Ui, value: &mut T, options: &[(T, &str)]) -> bool {
-    let p = theme::current(ui);
-    let mut changed = false;
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 2.0;
-        for &(option, name) in options {
-            let on = *value == option;
-            let text = if on {
-                RichText::new(name).strong().color(theme::text_on(p.accent))
-            } else {
-                RichText::new(name)
-            };
-            let mut button = egui::Button::new(text).min_size(vec2(64.0, 24.0));
-            if on {
-                button = button.fill(p.accent);
-            }
-            if ui.add(button).clicked() && !on {
-                *value = option;
-                changed = true;
-            }
-        }
-    });
-    changed
 }
 
 /// The settings of the custom theme, aligned in two columns.
@@ -851,23 +1036,23 @@ fn custom_form(ui: &mut egui::Ui, custom: &mut crate::ui_prefs::CustomTheme) -> 
                 .changed();
             ui.end_row();
             ui.label(RichText::new(tr("Meters")).strong());
-            changed |= segmented(
+            changed |= dialog::segmented(
                 ui,
                 &mut custom.meter,
                 &[
-                    (MeterStyle::Gradient, tr("Gradient")),
-                    (MeterStyle::Segments, tr("Lights")),
-                    (MeterStyle::Glow, tr("Glow")),
+                    (MeterStyle::Gradient, tr("Gradient"), true),
+                    (MeterStyle::Segments, tr("Lights"), true),
+                    (MeterStyle::Glow, tr("Glow"), true),
                 ],
             );
             ui.end_row();
             ui.label(RichText::new(tr("Fader caps")).strong());
-            changed |= segmented(
+            changed |= dialog::segmented(
                 ui,
                 &mut custom.cap,
                 &[
-                    (CapStyle::Modern, tr("Flat")),
-                    (CapStyle::Classic, tr("Ridged")),
+                    (CapStyle::Modern, tr("Flat"), true),
+                    (CapStyle::Classic, tr("Ridged"), true),
                 ],
             );
             ui.end_row();
@@ -1033,7 +1218,7 @@ fn general(ui: &mut egui::Ui, prefs: &mut UiPrefs) -> bool {
             },
         );
     });
-    if cfg!(target_os = "linux") && std::env::var_os("WAYLAND_DISPLAY").is_some() {
+    if wayland() {
         card(ui, Some(tr("Windows")), |ui| {
             row(
                 ui,

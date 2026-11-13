@@ -11,6 +11,7 @@ mod channel_editor;
 mod clip_tools;
 mod console_ui;
 pub mod control;
+mod dialog;
 mod dialogs;
 pub mod document;
 mod drum_rhythms;
@@ -873,20 +874,35 @@ impl AudioStradaApp {
             return;
         }
         let mut answer = None;
-        egui::Modal::new(egui::Id::unique("ask-updates")).show(ctx, |ui| {
-            ui.set_width(380.0);
-            ui.heading(tr("New versions"));
-            ui.add_space(4.0);
-            ui.label(tr("AudioStrada can check once a day whether a new version is out. It only downloads a short version file from the web site: nothing about you or your projects is sent."));
-            theme::footer(ui, |ui| {
-                if theme::primary_button(ui, tr("Check once a day")).clicked() {
-                    answer = Some(true);
+        let mut open = true;
+        dialog::Dialog::new("ask-updates", tr("New versions"))
+            .detail(tr("Hear when a new version of AudioStrada is out"))
+            .width(460.0)
+            .modal()
+            .show(ctx, &mut open, |ui, part| match part {
+                dialog::Part::Body => {
+                    ui.label(tr(
+                        "AudioStrada can check once a day whether a new version is out. It only \
+                         downloads a short version file from the web site: nothing about you or \
+                         your projects is sent.",
+                    ));
+                    dialog::hint(ui, tr("You can change this later in Preferences, General."));
                 }
-                if ui.button(tr("Never")).clicked() {
-                    answer = Some(false);
+                dialog::Part::Actions => {
+                    dialog::buttons(ui, |ui| {
+                        if dialog::primary(ui, tr("Check once a day"), true).clicked() {
+                            answer = Some(true);
+                        }
+                        if dialog::secondary(ui, tr("Never")).clicked() {
+                            answer = Some(false);
+                        }
+                    });
                 }
             });
-        });
+        // Closed without an answer: nothing is checked, until chosen in the preferences.
+        if !open {
+            answer = answer.or(Some(false));
+        }
         if let Some(answer) = answer {
             self.prefs.check_updates = Some(answer);
             self.ui_changed();
@@ -1149,11 +1165,15 @@ impl AudioStradaApp {
                 views.piano.release_preview();
                 views.timeline.note_piano_any().release_preview();
             }
-            Action::GoToStart => self.doc.borrow_mut().player_mut().locate(0),
+            Action::GoToStart => {
+                self.doc.borrow_mut().player_mut().locate(0);
+                self.views.borrow_mut().timeline.reveal = true;
+            }
             Action::GoToEnd => {
                 let mut doc = self.doc.borrow_mut();
                 let end = doc.project().length();
                 doc.player_mut().locate(end);
+                self.views.borrow_mut().timeline.reveal = true;
             }
             Action::ToggleMetronome => {
                 self.doc
@@ -2731,26 +2751,40 @@ impl AudioStradaApp {
         if let Some(pending) = self.pending.clone() {
             let title = self.doc.borrow().title();
             let mut choice = None;
-            egui::Modal::new(egui::Id::unique("unsaved")).show(ctx, |ui| {
-                ui.set_width(380.0);
-                ui.heading(tr("Unsaved changes"));
-                ui.add_space(4.0);
-                ui.label(trf!(
-                    "Save the changes to \"{project}\" first?",
-                    project = title.trim_end_matches(" *")
-                ));
-                theme::footer(ui, |ui| {
-                    if theme::primary_button(ui, tr("Save")).clicked() {
-                        choice = Some(0);
+            let mut open = true;
+            let project = title.trim_end_matches(" *").to_owned();
+            dialog::Dialog::new("unsaved", tr("Unsaved changes"))
+                .detail(project.clone())
+                .width(460.0)
+                .modal()
+                .show(ctx, &mut open, |ui, part| match part {
+                    dialog::Part::Body => {
+                        ui.label(trf!(
+                            "Save the changes to \"{project}\" first?",
+                            project = project.as_str()
+                        ));
+                        dialog::hint(
+                            ui,
+                            tr("Without saving, the changes made since the last save are lost."),
+                        );
                     }
-                    if ui.button(tr("Cancel")).clicked() {
-                        choice = Some(2);
-                    }
-                    if ui.button(tr("Don't save")).clicked() {
-                        choice = Some(1);
+                    dialog::Part::Actions => {
+                        if dialog::secondary(ui, tr("Don't save")).clicked() {
+                            choice = Some(1);
+                        }
+                        dialog::buttons(ui, |ui| {
+                            if dialog::primary(ui, tr("Save"), true).clicked() {
+                                choice = Some(0);
+                            }
+                            if dialog::secondary(ui, tr("Cancel")).clicked() {
+                                choice = Some(2);
+                            }
+                        });
                     }
                 });
-            });
+            if !open {
+                choice = choice.or(Some(2));
+            }
             match choice {
                 Some(0) => {
                     self.pending = None;
@@ -2770,33 +2804,62 @@ impl AudioStradaApp {
 
         if let Some(offer) = self.recovery.clone() {
             let mut choice = None;
-            egui::Modal::new(egui::Id::unique("recovery")).show(ctx, |ui| {
-                ui.set_max_width(460.0);
-                ui.heading(tr("Recover unsaved work?"));
-                ui.add_space(4.0);
-                let what = offer.project.as_ref().map_or_else(
-                    || tr("an untitled project").to_owned(),
-                    |p| {
-                        format!(
-                            "\"{}\"",
-                            p.file_stem().unwrap_or_default().to_string_lossy()
-                        )
-                    },
-                );
-                ui.label(trf!(
-                    "AudioStrada has an autosave of {what} with changes that were never saved, \
-                     probably because it closed unexpectedly.",
-                    what = what
-                ));
-                theme::footer(ui, |ui| {
-                    if theme::primary_button(ui, tr("Recover")).clicked() {
-                        choice = Some(true);
+            let mut open = true;
+            let what = offer.project.as_ref().map_or_else(
+                || tr("an untitled project").to_owned(),
+                |p| {
+                    format!(
+                        "\"{}\"",
+                        p.file_stem().unwrap_or_default().to_string_lossy()
+                    )
+                },
+            );
+            let saved = std::fs::metadata(&offer.autosave)
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.elapsed().ok())
+                .map(|d| match d.as_secs() {
+                    s if s < 60 => trf!("{n} s ago", n = s),
+                    s if s < 3600 => trf!("{n} min ago", n = s / 60),
+                    s if s < 86_400 => trf!("{n} h ago", n = s / 3600),
+                    s => trf!("{n} days ago", n = s / 86_400),
+                });
+            dialog::Dialog::new("recovery", tr("Recover unsaved work?"))
+                .detail(tr("Changes kept by the autosave"))
+                .width(500.0)
+                .modal()
+                .show(ctx, &mut open, |ui, part| match part {
+                    dialog::Part::Body => {
+                        ui.label(trf!(
+                            "AudioStrada has an autosave of {what} with changes that were never \
+                             saved, probably because it closed unexpectedly.",
+                            what = what.as_str()
+                        ));
+                        if let Some(saved) = &saved {
+                            dialog::field(ui, tr("Autosaved"), |ui| ui.label(saved.as_str()));
+                        }
+                        dialog::hint(
+                            ui,
+                            tr(
+                                "Discard deletes the autosave. Closing this window keeps it, to \
+                                decide the next time the project opens.",
+                            ),
+                        );
                     }
-                    if ui.button(tr("Discard")).clicked() {
-                        choice = Some(false);
+                    dialog::Part::Actions => {
+                        if dialog::secondary(ui, tr("Discard")).clicked() {
+                            choice = Some(false);
+                        }
+                        dialog::buttons(ui, |ui| {
+                            if dialog::primary(ui, tr("Recover"), true).clicked() {
+                                choice = Some(true);
+                            }
+                        });
                     }
                 });
-            });
+            if !open && choice.is_none() {
+                self.recovery = None;
+            }
             if let Some(recover) = choice {
                 self.recovery = None;
                 if recover {
@@ -2818,89 +2881,101 @@ impl AudioStradaApp {
         }
 
         if self.about {
-            egui::Modal::new(egui::Id::unique("about")).show(ctx, |ui| {
-                ui.set_width(340.0);
-                ui.vertical_centered(|ui| {
-                    let font = theme::strong(26.0);
-                    let name = ui
-                        .painter()
-                        .layout_no_wrap("AudioStrada".into(), font.clone(), egui::Color32::WHITE)
-                        .size();
-                    let mark = egui::vec2(name.y * 1.1, name.y);
-                    let gap = 10.0;
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = gap;
-                        ui.add_space(
-                            ((ui.available_width() - mark.x - gap - name.x) / 2.0).max(0.0),
-                        );
-                        let (rect, _) = ui.allocate_exact_size(mark, egui::Sense::hover());
-                        paint_logo(ui.painter(), rect);
-                        ui.label(egui::RichText::new("AudioStrada").font(font));
-                    });
-                    ui.weak(concat!("Version ", env!("CARGO_PKG_VERSION")));
-                    ui.add_space(6.0);
-                    ui.label(tr("A free digital audio workstation, written in Rust."));
-                    ui.weak(tr("GNU General Public License, version 3"));
-                    ui.add_space(6.0);
-                    match &self.license {
-                        audiostrada_license::Status::Unofficial => {
-                            ui.weak(tr("Unofficial build, compiled from source"));
+            let mut open = true;
+            let mut close = false;
+            let version = env!("CARGO_PKG_VERSION");
+            dialog::Dialog::new("about", "AudioStrada")
+                .detail(tr("A free digital audio workstation, written in Rust."))
+                .width(600.0)
+                .modal()
+                .show(ctx, &mut open, |ui, part| match part {
+                    dialog::Part::Body => {
+                        dialog::section(ui, tr("This copy"), |ui| {
+                            dialog::field(ui, tr("Version"), |ui| ui.label(version));
+                            dialog::field(ui, tr("License"), |ui| {
+                                ui.label(tr("GNU General Public License, version 3"))
+                            });
+                            dialog::field(ui, tr("Build"), |ui| match &self.license {
+                                audiostrada_license::Status::Unofficial => {
+                                    ui.label(tr("Unofficial build, compiled from source"));
+                                }
+                                audiostrada_license::Status::Evaluation => {
+                                    ui.colored_label(theme::RECORD, tr("Evaluation"));
+                                }
+                                audiostrada_license::Status::Licensed(license)
+                                | audiostrada_license::Status::Lapsed(license) => {
+                                    ui.label(trf!(
+                                        "{plan} of {name}",
+                                        plan = license_window::plan_name(license.plan),
+                                        name = license.name
+                                    ));
+                                }
+                            });
+                        });
+                        dialog::section(ui, tr("Credits"), |ui| {
+                            dialog::well(ui, |ui| {
+                                ui.spacing_mut().item_spacing.y = 3.0;
+                                for (k, (title, lines)) in CREDITS.iter().enumerate() {
+                                    if k > 0 {
+                                        ui.add_space(6.0);
+                                    }
+                                    ui.label(egui::RichText::new(tr(title)).strong());
+                                    for line in *lines {
+                                        ui.weak(*line);
+                                    }
+                                }
+                            });
+                        });
+                    }
+                    dialog::Part::Actions => {
+                        if dialog::secondary(ui, tr("Source code")).clicked() {
+                            let link = audiostrada_license::link("source");
+                            ctx.open_url(egui::OpenUrl::new_tab(link));
                         }
-                        audiostrada_license::Status::Evaluation => {
-                            ui.colored_label(theme::RECORD, tr("Evaluation"));
-                        }
-                        audiostrada_license::Status::Licensed(license)
-                        | audiostrada_license::Status::Lapsed(license) => {
-                            ui.label(trf!(
-                                "{plan} of {name}",
-                                plan = license_window::plan_name(license.plan),
-                                name = license.name
+                        if dialog::secondary(ui, tr("Copy the version"))
+                            .on_hover_text(tr("For a bug report: the version and the system"))
+                            .clicked()
+                        {
+                            ctx.copy_text(format!(
+                                "AudioStrada {version} ({} {})",
+                                std::env::consts::OS,
+                                std::env::consts::ARCH
                             ));
                         }
-                    }
-                    if ui.link(tr("Source code")).clicked() {
-                        ctx.open_url(egui::OpenUrl::new_tab(audiostrada_license::link("source")));
-                    }
-                    ui.add_space(6.0);
-                    ui.collapsing(tr("Credits"), |ui| {
-                        ui.label(egui::RichText::new(tr("Strada-Trigger drum samples")).strong());
-                        for line in [
-                            "Karoryfer Samples: Unruly, Big Rusty and Swirly Drums (CC0 1.0)",
-                            "SM Drums: Scott McLean, Tod Stillwell, Suleiman Ali",
-                            "DrumGizmo team: MuldjordKit and DRSKit (CC BY 4.0)",
-                        ] {
-                            ui.weak(line);
-                        }
-                        ui.add_space(4.0);
-                        ui.label(egui::RichText::new(tr("Strada-Amp captures and cabinets")).strong());
-                        for line in [
-                            "Neural Amp Modeler community captures (GPL v3): Tim R, Phillipe P, George B, Sascha S, Roman A",
-                            "Guitarix cabinet impulse responses (GPL v2 or later)",
-                        ] {
-                            ui.weak(line);
-                        }
-                    });
-                });
-                theme::footer(ui, |ui| {
-                    if theme::primary_button(ui, tr("OK")).clicked() {
-                        self.about = false;
+                        dialog::buttons(ui, |ui| {
+                            close = dialog::primary(ui, tr("Close"), true).clicked();
+                        });
                     }
                 });
-            });
+            if close || !open {
+                self.about = false;
+            }
         }
 
         if let Some(error) = self.error.clone() {
-            egui::Modal::new(egui::Id::unique("error")).show(ctx, |ui| {
-                ui.set_max_width(460.0);
-                ui.heading(egui::RichText::new(tr("Error")).color(theme::RECORD));
-                ui.add_space(4.0);
-                ui.label(&error);
-                theme::footer(ui, |ui| {
-                    if theme::primary_button(ui, tr("OK")).clicked() {
-                        self.error = None;
+            let mut open = true;
+            let mut close = false;
+            dialog::Dialog::new("error", tr("Error"))
+                .detail(tr("AudioStrada could not do what was asked"))
+                .color(theme::RECORD)
+                .width(500.0)
+                .modal()
+                .show(ctx, &mut open, |ui, part| match part {
+                    dialog::Part::Body => {
+                        ui.label(&error);
+                    }
+                    dialog::Part::Actions => {
+                        if dialog::secondary(ui, tr("Copy the message")).clicked() {
+                            ctx.copy_text(error.clone());
+                        }
+                        dialog::buttons(ui, |ui| {
+                            close = dialog::primary(ui, tr("OK"), true).clicked();
+                        });
                     }
                 });
-            });
+            if close || !open {
+                self.error = None;
+            }
         }
     }
 
@@ -2915,6 +2990,26 @@ impl AudioStradaApp {
         }
     }
 }
+
+/// Whose sounds AudioStrada ships, shown in About.
+const CREDITS: [(&str, &[&str]); 2] = [
+    (
+        "Strada-Trigger drum samples",
+        &[
+            "Karoryfer Samples: Unruly, Big Rusty and Swirly Drums (CC0 1.0)",
+            "SM Drums: Scott McLean, Tod Stillwell, Suleiman Ali",
+            "DrumGizmo team: MuldjordKit and DRSKit (CC BY 4.0)",
+        ],
+    ),
+    (
+        "Strada-Amp captures and cabinets",
+        &[
+            "Neural Amp Modeler community captures (GPL v3): Tim R, Phillipe P, George B, \
+             Sascha S, Roman A",
+            "Guitarix cabinet impulse responses (GPL v2 or later)",
+        ],
+    ),
+];
 
 /// Plugin windows stay above AudioStrada's main window where the system allows it (X11, Windows);
 /// a Wayland window cannot parent the plugins' X11 windows.
@@ -3455,6 +3550,13 @@ impl eframe::App for AudioStradaApp {
         }
         self.watch_layout();
         uncover_main(&ctx);
+        // Screenshots of a window: the command opening it, run once the main window is up.
+        if self.screenshot.as_ref().is_some_and(|s| s.frames == 5)
+            && let Ok(name) = std::env::var("AUDIOSTRADA_SCREENSHOT_ACTION")
+            && let Some(&action) = Action::ALL.iter().find(|a| format!("{a:?}") == name)
+        {
+            self.run(&ctx, action);
+        }
         if let Some(screenshot) = &mut self.screenshot
             && screenshot.tick(&ctx)
         {

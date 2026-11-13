@@ -934,17 +934,11 @@ Mises à jour incluses jusqu'au {date}.
 Updates ended
 Mises à jour terminées
 
-Your updates ended on {date}: this version runs in evaluation mode. Versions released before keep working.
-Vos mises à jour se sont terminées le {date} : cette version tourne en mode évaluation. Les versions sorties avant continuent de fonctionner.
-
 Evaluation
 Évaluation
 
 Every feature works, export included. After 20 minutes, the sound drops out for a moment every 10 minutes. A license removes the dropouts and pays for the development.
 Tout fonctionne, export compris. Après 20 minutes, le son se coupe un instant toutes les 10 minutes. Une licence supprime ces coupures et finance le développement.
-
-{plan} of {name} ({email}).
-{plan} au nom de {name} ({email}).
 
 Personal license
 Licence personnelle
@@ -1147,9 +1141,6 @@ Autoriser les assistants IA à piloter AudioStrada
 An AI assistant can hear, look at and change the open project: it measures the mix, finds what masks what, sets equalizers and levels. Every change it makes can be undone.
 Un assistant IA peut écouter, regarder et modifier le projet ouvert : il mesure le mix, trouve ce qui en masque quoi, règle les égaliseurs et les niveaux. Chacune de ses modifications s'annule.
 
-Another assistant that speaks MCP:
-Un autre assistant compatible MCP :
-
 AudioStrada answers only programs of this computer and this user. What the assistant reads (names, measurements, pictures) goes to its provider, like anything you ask it.
 AudioStrada ne répond qu'aux programmes de cet ordinateur et de cet utilisateur. Ce que l'assistant lit (noms, mesures, images) part chez son fournisseur, comme tout ce que vous lui demandez.
 
@@ -1290,12 +1281,6 @@ Récupérer les prises
 
 {count} take(s) of a recording cut short were put back on their tracks.
 {count} prise(s) d'un enregistrement interrompu ont été remises sur leurs pistes.
-
-Bars of the song played before recording starts, counted from the punch-in when there is one
-Mesures du morceau jouées avant le début de l'enregistrement, comptées depuis le punch-in s'il y en a un
-
-Pre-roll before the count-in
-Pré-roll avant le décompte
 
 Count-in
 Décompte

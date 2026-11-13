@@ -351,9 +351,6 @@ Consolidation impossible: {error}
 Beat Detective
 Beat Detective
 
-{count} track(s): hits are looked for on all of them together, so the microphones of a kit are cut at the same places.
-{count} piste(s): les attaques sont cherchées sur toutes à la fois, pour que les micros d'une batterie soient coupés aux mêmes endroits.
-
 Sensitivity
 Sensibilité
 
@@ -363,17 +360,11 @@ Sensibilité
 Looking for the hits…
 Recherche des attaques…
 
-Separate at the hits
-Séparer aux attaques
-
 Cut the clips where the hits start
 Couper les clips au début des attaques
 
 Strength
 Intensité
-
-Separate and conform to the grid ({grid})
-Séparer et caler sur la grille ({grid})
 
 Cut at the hits and move each slice toward the nearest grid line, joining the slices with short crossfades
 Couper aux attaques et rapprocher chaque tranche de la ligne de grille la plus proche, en les raccordant par de courts fondus enchaînés
@@ -399,32 +390,17 @@ Garder
 The sound
 Le son
 
-Remove the silences
-Retirer les silences
-
 The silences
 Les silences
 
-Remove the sound, keep the room noise
-Retirer le son, garder le bruit de la pièce
-
 Both, cut
 Les deux, coupés
-
-Only cut the clips where the silences start and end
-Seulement couper les clips au début et à la fin des silences
-
-{clips} clip(s): {pieces} part(s) with sound. The darkened parts go.
-{clips} clip(s): {pieces} partie(s) avec du son. Les parties assombries disparaissent.
 
 Strip
 Retirer
 
 Process Clips
 Traiter les clips
-
-Renders {count} clip(s) through the process and puts the result in their place (undo restores them).
-Calcule {count} clip(s) avec le traitement et met le résultat à leur place (annuler les rétablit).
 
 Process
 Traitement
@@ -440,9 +416,6 @@ Crête
 
 Plays the clips backwards.
 Lit les clips à l'envers.
-
-Keep the tail (what rings after the clip)
-Garder la queue (ce qui résonne après le clip)
 
 Render
 Calculer le rendu
@@ -562,9 +535,6 @@ How far a hit may be from the one it follows; farther ones stay
 
 In the clips: each hit goes from the grey line to the colored one.
 Dans les clips : chaque attaque va du trait gris au trait coloré.
-
-Moves the hits of {count} track(s) onto those of another one, stretching the audio between them. The tracks move together, cut at the same places, so their phase is kept (a DI and its amp, several microphones).
-Cale les attaques de {count} piste(s) sur celles d'une autre, en étirant l'audio entre elles. Les pistes bougent ensemble, coupées aux mêmes endroits, donc leur phase est gardée (une DI et son ampli, plusieurs micros).
 
 Stretch the tracks into a new playlist; the current one stays as an alternate
 Étirer les pistes dans une nouvelle playlist ; l'actuelle reste en alternative
@@ -1073,3 +1043,12 @@ cadrer
 full screen
 plein écran
 
+
+Master track
+Piste master
+
+Every track at its smallest height, as Alt and the wheel would; a second click gives them their height back
+Toutes les pistes à leur hauteur minimale, comme avec Alt et la molette ; un second clic leur rend leur hauteur
+
+Shows or hides the master's track and its automation
+Affiche ou masque la piste du master et son automation

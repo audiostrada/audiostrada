@@ -24,8 +24,8 @@ through them family by family; the parameter tables give each control's range an
   key from another track.
 - **Bypass**, at the right of the bar, is lit amber while the effect is bypassed.
 - **Effect chains** keep a whole list of effects with their settings: right-click an effect (or
-  use the track menu) › *Save effects as a chain*, then add it to any track from *+ insert* ›
-  *Chains*. Factory chains: Vocal, Drum bus, Acoustic guitar, Master for streaming.
+  use the track menu) › *Save effects as a chain* (its window lists the effects saved and warns
+  when the name replaces a chain of yours), then add it to any track from *+ insert* › *Chains*. Factory chains: Vocal, Drum bus, Acoustic guitar, Master for streaming.
 
 Effect windows are windows of their own, which can go to another screen; clicking an insert
 again brings its window to the front.

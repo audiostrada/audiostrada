@@ -4,7 +4,9 @@
 
 ## Exporting the mix
 
-File › Export ([[Ctrl+Shift+E]]) opens the export window:
+File › Export ([[Ctrl+Shift+E]]) opens the export window. **Ready-made settings** fill it in
+one click: *Streaming* (WAV 24-bit at -14 LUFS), *CD* (WAV 16-bit, 44.1 kHz, dithered, peaks at
+-1 dBFS), *Mastering* (WAV 32-bit float, untouched) and *Stems* (one file per track). Then:
 
 | Setting | Choices |
 |---|---|
@@ -16,7 +18,8 @@ File › Export ([[Ctrl+Shift+E]]) opens the export window:
 | **Tail** | seconds added after the end, for reverbs and delays |
 | **Stems** | one file per track, soloed, besides or instead of the mix |
 
-Exports run faster than real time, in the background. The metronome and the monitoring effects
+The bar at the bottom sums up what will be written (format, rate, length, number of files)
+before *Export…*. Exports run faster than real time, in the background. The metronome and the monitoring effects
 are never exported.
 
 ## Render queue

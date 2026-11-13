@@ -96,8 +96,9 @@ chains split the signal into branches of their own and mix them back.
   the buses first, and *New effect bus* makes one fed by the send. The send is added to every
   selected track; tick *Cut the output to the master* first for tracks heard only through the
   send. Each send is a button like an insert, with its level (and PRE before the fader): a click
-  opens its settings window (destination, level, pre or post fader, mute), the wheel sets its
-  level. Drag a send to reorder it, or onto another strip to copy it there ([[Alt]]: move it).
+  opens its settings window (destination, pre or post fader, level, mute, *Remove the send*), the
+  wheel sets its level. Drag a send to reorder it, or onto another strip to copy it there
+  ([[Alt]]: move it).
 - **VCA**: the track's right-click menu chooses the VCA that controls it; a **V** under the fader
   shows it.
 
@@ -157,7 +158,8 @@ to compare.
 
 **Blind test › Start…** tells whether you hear the consoles rather than believe it: A is the mix
 through its consoles, B without them, X one of the two drawn at random. Play the song, listen to
-A, B and X as often as you like, then say which one X is. After ten rounds, the window tells how
+A, B and X as often as you like, then say which one X is (*X is A* or *X is B*); a row of dots
+shows the rounds answered, right or wrong. After ten rounds, the window tells how
 often guessing would do as well: 9 right out of 10 happens about once in a hundred tests by
 chance. The test changes nothing in the project; closing its window gives the consoles back.
 
@@ -291,4 +293,5 @@ by rules from mixing practice, to adjust by ear.
 - **REF** beside it (also in the transport bar, [[Alt+R]]) compares the mix with a finished song
   (Transport › *Reference track…* to choose it). Click it to hear the reference instead of the
   mix, at the same place in the song and, by default, at the mix's loudness, so that you compare
-  the sound and not the level. It is never exported.
+  the sound and not the level. Its window shows the loudness of both and by how many dB they
+  differ. It is never exported.

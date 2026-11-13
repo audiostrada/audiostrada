@@ -57,9 +57,10 @@ les effets mis en bypass. Désactivez-le pour mixer.
 ## Métronome
 
 Le bouton du métronome ([[K]]) clique sur chaque temps pendant la lecture. Clic droit dessus, ou
-[[Shift+K]], pour sa fenêtre : volume, son, clics par temps, accents, groupes pour les mesures
-asymétriques (7/8 en 2+2+3), clic seulement en enregistrement, et un décompte jusqu'à quatre
-mesures. Le clic n'est jamais exporté.
+[[Shift+K]], pour sa fenêtre : une image de la mesure montre ce qu'on entendra, puis volume, son,
+clics par temps, accents, groupes pour les mesures asymétriques (7/8 en 2+2+3), clic seulement en
+enregistrement, un décompte et un pré-roll jusqu'à quatre mesures. *Réglages par défaut* rend
+ceux d'un nouveau projet. Le clic n'est jamais exporté.
 
 ## Punch et enregistrement en boucle
 

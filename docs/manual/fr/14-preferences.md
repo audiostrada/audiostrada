@@ -2,7 +2,12 @@
 
 Affichage › *Préférences…* ([[Ctrl+,]]) liste ses pages à gauche : Apparence et Général ; Audio,
 MIDI et Enregistrement ; Raccourcis clavier et Plugins. Chaque page regroupe ses réglages sur des
-cartes, le nom et ce qu'il fait à gauche, le réglage à droite.
+cartes, le nom et ce qu'il fait à gauche, le réglage à droite. Les changements s'appliquent tout
+de suite et sont conservés ; *Terminé* ferme la fenêtre.
+
+*Chercher un réglage*, en haut de la liste, ne garde que les pages qui contiennent ce que vous
+tapez, avec les réglages trouvés sous chacune ; un clic (ou [[Enter]] pour la première) ouvre la
+page. Tapé là, le nom d'une commande ouvre les raccourcis clavier déjà filtrés.
 
 ![Préférences](img/prefs.webp)
 
@@ -51,7 +56,10 @@ d'enregistrement.
 
 Choisissez un jeu de raccourcis (**AudioStrada**, **Pro Tools**, **Logic**, **Reaper**) et
 changez n'importe quel raccourci : cliquez sur *Changer*, appuyez sur les nouvelles touches
-([[Escape]] annule). La recherche trouve une commande par son nom.
+([[Escape]] annule) ; *Ajouter* donne un raccourci de plus à une commande, *Effacer* retire ses
+touches, *Réinit.* lui rend celles du jeu. Les commandes sont groupées comme dans les menus, leurs
+touches dessinées comme des touches. La recherche trouve une commande par son nom.
+*Réinitialiser tous les raccourcis* rend à chaque commande les touches du jeu.
 
 ## Plugins
 

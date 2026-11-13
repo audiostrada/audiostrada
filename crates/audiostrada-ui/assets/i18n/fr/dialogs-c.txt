@@ -1,0 +1,127 @@
+# Windows reworked (c).
+
+How AudioStrada looks, sounds and works, for every project
+L'apparence, le son et le fonctionnement d'AudioStrada, pour tous les projets
+
+Changes apply at once and are kept.
+Les changements s'appliquent tout de suite et sont conservés.
+
+Find a setting
+Chercher un réglage
+
+No setting matches.
+Aucun réglage ne correspond.
+
+Colors and shapes
+Couleurs et formes
+
+Reset all shortcuts
+Réinitialiser tous les raccourcis
+
+Every command gets back the keys of the preset
+Chaque commande retrouve les touches du preset
+
+No command matches.
+Aucune commande ne correspond.
+
+No shortcut
+Aucun raccourci
+
+Built from source: nothing to unlock
+Compilé depuis le code source : rien à débloquer
+
+Evaluation: every feature works, with short dropouts
+Évaluation : tout fonctionne, avec de courtes coupures
+
+Licensed: thank you for supporting AudioStrada
+Sous licence : merci de soutenir AudioStrada
+
+Updates ended: this version runs in evaluation mode
+Mises à jour terminées : cette version fonctionne en mode évaluation
+
+This copy
+Cet exemplaire
+
+These open the AudioStrada web site.
+Ces boutons ouvrent le site d'AudioStrada.
+
+Remove the license from this computer?
+Retirer la licence de cet ordinateur ?
+
+Keep it
+La garder
+
+This copy goes back to evaluation; the license can be entered again later
+Cet exemplaire repasse en évaluation ; la licence pourra être saisie à nouveau plus tard
+
+Check the license and unlock this copy
+Vérifier la licence et débloquer cet exemplaire
+
+Licensed to
+Au nom de
+
+Ended on {date}
+Terminées le {date}
+
+Versions released before your updates ended keep working without dropouts. Renew to unlock this one.
+Les versions sorties avant la fin de vos mises à jour fonctionnent toujours sans coupures. Renouvelez pour débloquer celle-ci.
+
+Claude, Cursor, Gemini and others, working on the open project
+Claude, Cursor, Gemini et d'autres, au travail sur le projet ouvert
+
+Access
+Accès
+
+Check again
+Vérifier à nouveau
+
+Look again for the assistants of this computer
+Chercher à nouveau les assistants de cet ordinateur
+
+Control
+Pilotage
+
+Other assistants
+Autres assistants
+
+For an assistant that speaks MCP and is not listed above.
+Pour un assistant compatible MCP qui n'est pas dans la liste ci-dessus.
+
+Hear when a new version of AudioStrada is out
+Être prévenu quand une nouvelle version d'AudioStrada sort
+
+You can change this later in Preferences, General.
+Vous pourrez changer d'avis dans Préférences, Général.
+
+Without saving, the changes made since the last save are lost.
+Sans enregistrer, les changements faits depuis le dernier enregistrement sont perdus.
+
+{n} days ago
+il y a {n} jours
+
+Changes kept by the autosave
+Des changements gardés par la sauvegarde automatique
+
+Autosaved
+Sauvegardé
+
+Discard deletes the autosave. Closing this window keeps it, to decide the next time the project opens.
+Abandonner supprime la sauvegarde automatique. Fermer cette fenêtre la garde, pour décider à la prochaine ouverture du projet.
+
+Version
+Version
+
+Build
+Compilation
+
+Copy the version
+Copier la version
+
+For a bug report: the version and the system
+Pour signaler un bug : la version et le système
+
+AudioStrada could not do what was asked
+AudioStrada n'a pas pu faire ce qui était demandé
+
+Copy the message
+Copier le message

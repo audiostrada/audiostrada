@@ -796,24 +796,6 @@ pub fn primary_button_enabled(ui: &mut Ui, enabled: bool, text: &str) -> Respons
     ui.add_enabled(enabled, button)
 }
 
-/// The bottom of a window: a line, then buttons from the right (the main one first).
-pub fn footer(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
-    ui.add_space(6.0);
-    ui.separator();
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), add);
-}
-
-/// A small heading over a group of settings.
-pub fn section(ui: &mut Ui, title: &str) {
-    ui.add_space(6.0);
-    ui.label(
-        egui::RichText::new(title.to_uppercase())
-            .size(10.5)
-            .strong()
-            .color(current(ui).weak),
-    );
-}
-
 /// A flat switch, as in the track headers: an outlined letter at rest, a tile under the
 /// pointer, filled when on.
 pub fn flat_toggle(ui: &Ui, rect: Rect, response: &Response, text: &str, on: bool, color: Color32) {

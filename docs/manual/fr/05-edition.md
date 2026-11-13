@@ -150,24 +150,29 @@ d'automation.
 Par le menu Édition, ou par un clic droit sur des clips ou une plage :
 
 - **Supprimer les silences** ([[Ctrl+U]]) : une fenêtre règle le seuil, le silence le plus court
-  et ce qui est gardé avant et après le son ; la timeline assombrit ce qui va partir. Gardez le
-  son, les silences, ou coupez seulement aux silences.
+  et ce qui est gardé avant et après le son, ou prend des réglages tout prêts (Général, Chant,
+  Voix parlée, Toms) ; la timeline assombrit ce qui va partir, et le bas de la fenêtre compte les
+  parties gardées et les secondes de silence. Gardez le son, les silences, ou coupez seulement
+  aux silences.
 - **Recoller** ([[Ctrl+H]]) réunit en un seul les clips coupés dans le même audio quand ils sont
   encore à leur place.
 - **Consolider** ([[Ctrl+Shift+C]]) rend les clips sélectionnés (ou la plage) de chaque piste en
   un seul nouveau fichier, avec volume, fondus, étirement et hauteur appliqués.
 - **Traiter les clips…** ([[Alt+P]]) rend des clips à travers un effet intégré, les inverse ou
-  les normalise, en nouveaux fichiers. Les originaux restent dans le projet ; [[Ctrl+Z]] revient
-  en arrière.
+  les normalise, en nouveaux fichiers. La fenêtre dit ce que fait le traitement ; *Valeurs par
+  défaut* remet les réglages d'un effet. Les originaux restent dans le projet ; [[Ctrl+Z]]
+  revient en arrière.
 - **Beat Detective…** ([[Alt+B]]), avec une plage sur des pistes de batterie, trouve les coups,
   affichés en lignes rouges, sur toutes les pistes sélectionnées ensemble, pour que les micros
-  d'une batterie soient coupés aux mêmes endroits. *Séparer aux attaques* coupe les clips ;
-  l'autre choix déplace aussi chaque tranche vers la grille, selon la force choisie, avec de
-  courts fondus enchaînés.
+  d'une batterie soient coupés aux mêmes endroits. *Couper seulement* coupe les clips ; *Caler*
+  déplace aussi chaque tranche vers la grille choisie dans la fenêtre (celle de la barre
+  d'outils au départ), selon l'intensité choisie, avec de courts fondus enchaînés.
 - **Groove…** ([[Alt+G]]) cale les coups de certaines pistes (une basse, des guitares, des
   claviers) sur ceux d'une référence (la batterie), en étirant l'audio entre eux. Les pistes
   traitées ensemble sont coupées aux mêmes endroits pour garder leur phase ; chacune reçoit le
-  résultat dans une nouvelle playlist. En dessous de 100 %, une part du jeu d'origine reste.
+  résultat dans une nouvelle playlist. *Serré*, *Naturel* et *Souple* règlent d'un coup la
+  tolérance et l'intensité ; en dessous de 100 %, une part du jeu d'origine reste.
+  *Pré-écouter* fait entendre les pistes calées pendant les réglages.
 
 ## Pistes
 
@@ -179,7 +184,10 @@ supprimer, déplacer, geler, bounce sur une nouvelle piste, exporter la piste se
 playlist, automation.
 
 - Piste › *Ajouter une piste audio* ([[Ctrl+Shift+T]]) ajoute une piste sous la sélection,
-  *Ajouter des pistes audio…* ([[Ctrl+Shift+N]]) plusieurs d'un coup.
+  *Ajouter des pistes audio…* ([[Ctrl+Shift+N]]) plusieurs d'un coup : autant que voulu,
+  nommées et numérotées, ou un ensemble tout prêt (une batterie, une guitare ou une basse en DI
+  et ampli, du chant). Les nouvelles pistes peuvent prendre les entrées l'une après l'autre et
+  être prêtes à enregistrer.
 - [[Ctrl+Up]] et [[Ctrl+Down]] sélectionnent la piste précédente ou suivante, [[Alt+Up]] et
   [[Alt+Down]] la déplacent.
 - Avec deux pistes sélectionnées, *Convertir en piste stéréo* en fait une seule (« Overhead L »
@@ -194,14 +202,17 @@ playlist, automation.
   nouveau revient à la vue précédente.
 - **Hauteur des pistes** : tirez le bord bas de l'en-tête d'une piste (un double-clic rend la
   hauteur par défaut), ou [[Alt]]+molette et [[Ctrl+Shift+Up]] / [[Ctrl+Shift+Down]] pour toutes
-  les pistes.
+  les pistes. **Compact**, au-dessus des en-têtes de pistes, ramène toutes les pistes à leur
+  hauteur minimale ; un second clic leur rend leur hauteur. **Piste master** à côté affiche ou
+  masque la piste du master.
 - **Vue d'ensemble** : la bande sous les pistes montre toute la chanson en miniature, la partie
   visible encadrée. Glissez le cadre pour défiler, ses bords pour zoomer, double-cliquez pour tout
   voir.
 - **Transitoires** : [[Tab]] et [[Shift+Tab]] amènent la tête de lecture au coup suivant ou
   précédent des clips de la piste sélectionnée.
 - **Marqueurs** : [[M]] ajoute un marqueur à la tête de lecture ; [[.]] et [[,]] passent d'un
-  marqueur à l'autre. Clic droit sur la règle ou sur un endroit vide d'une piste pour *Ajouter un
+  marqueur à l'autre. Quand la tête de lecture saute (au début, à la fin, à un marqueur), la vue
+  la suit. Clic droit sur la règle ou sur un endroit vide d'une piste pour *Ajouter un
   marqueur ici*. Cliquez sur un marqueur, son drapeau ou son nom, pour y placer la tête de
   lecture ; glissez-le pour le déplacer ; double-cliquez dessus pour le renommer (Entrée garde le
   nom, Échap annule).

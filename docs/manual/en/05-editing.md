@@ -143,22 +143,25 @@ its automation mode.
 From the Edit menu, or by right-clicking clips or a range:
 
 - **Strip silence** ([[Ctrl+U]]): a window sets the threshold, the shortest silence and what is
-  kept before and after the sound; the timeline darkens what will go. Keep the sound, the
-  silences, or only cut at the silences.
+  kept before and after the sound, or takes ready-made settings (General, Vocals, Speech, Toms);
+  the timeline darkens what will go, and the bottom of the window counts the parts kept and the
+  seconds of silence. Keep the sound, the silences, or only cut at the silences.
 - **Heal** ([[Ctrl+H]]) joins clips cut from the same audio back into one when they still sit
   in place.
 - **Consolidate** ([[Ctrl+Shift+C]]) renders the selected clips (or the range) of each track into
   a single new file, with volume, fades, stretch and pitch applied.
 - **Process clips…** ([[Alt+P]]) renders clips through a built-in effect, reverses them or
-  normalizes them, as new files. The originals stay in the project; [[Ctrl+Z]] goes back.
+  normalizes them, as new files. The window says what the process does; *Defaults* puts an
+  effect's settings back. The originals stay in the project; [[Ctrl+Z]] goes back.
 - **Beat Detective…** ([[Alt+B]]), with a range over drum tracks, finds the hits, shown as red
   lines, on all the selected tracks together, so that the microphones of a kit are cut at the
-  same places. *Separate at the hits* cuts the clips; *Separate and conform to the grid* also
-  moves each slice toward the grid by the chosen strength, with short crossfades.
+  same places. *Separate only* cuts the clips; *Conform* also moves each slice toward the grid
+  chosen in the window (the toolbar's at first) by the chosen strength, with short crossfades.
 - **Groove…** ([[Alt+G]]) moves the hits of some tracks (a bass, guitars, keys) onto those of a
   reference (the drums) by stretching the audio between them. Tracks grooved together are cut at
-  the same places so that their phase is kept; each gets the result as a new playlist. Below
-  100 %, some of the feel of the take stays.
+  the same places so that their phase is kept; each gets the result as a new playlist. *Tight*,
+  *Natural* and *Loose* set the tolerance and the strength at once; below 100 %, some of the
+  feel of the take stays. *Pre-listen* plays the tracks grooved while you adjust.
 
 ## Tracks
 
@@ -169,7 +172,9 @@ The **track header menu** holds: rename, colour, *Stereo track*, duplicate, dele
 freeze, bounce to a new track, export the track alone, new playlist, automation.
 
 - Track › *Add audio track* ([[Ctrl+Shift+T]]) adds a track below the selection, *Add audio
-  tracks…* ([[Ctrl+Shift+N]]) several at once.
+  tracks…* ([[Ctrl+Shift+N]]) several at once: as many as you like, named and numbered, or a
+  ready-made set (a drum kit, a guitar or a bass DI and amp, vocals). The new tracks can take
+  the inputs one after the other and be ready to record.
 - [[Ctrl+Up]] and [[Ctrl+Down]] select the previous or next track, [[Alt+Up]] and [[Alt+Down]]
   move it.
 - With two tracks selected, *Convert to a stereo track* makes one of them ("Overhead L" and
@@ -184,11 +189,14 @@ freeze, bounce to a new track, export the track alone, new playlist, automation.
   back to the previous view.
 - **Track height**: drag the bottom edge of a track's header (double-click it for the default
   height), or [[Alt]]+wheel and [[Ctrl+Shift+Up]] / [[Ctrl+Shift+Down]] for every track.
+  **Compact**, over the track headers, brings every track to its smallest height; a second click
+  gives them their height back. **Master track** beside it shows or hides the master's track.
 - **Overview**: the strip under the tracks shows the whole song in miniature with the visible
   part framed. Drag the frame to scroll, drag its edges to zoom, double-click to fit.
 - **Transients**: [[Tab]] and [[Shift+Tab]] take the playhead to the next or previous hit of the
   selected track's clips.
-- **Markers**: [[M]] adds a marker at the playhead; [[.]] and [[,]] jump between markers.
+- **Markers**: [[M]] adds a marker at the playhead; [[.]] and [[,]] jump between markers. When
+  the playhead jumps (to the start, the end or a marker), the view follows it.
   Right-click the ruler or an empty part of a track for *Add marker here*. Click a marker, its
   flag or its name, to put the playhead on it; drag it to move it; double-click it to rename
   it (Enter keeps the name, Escape cancels).

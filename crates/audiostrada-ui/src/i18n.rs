@@ -50,6 +50,10 @@ const FRENCH_FILES: &[&str] = &[
     include_str!("../assets/i18n/fr/messages.txt"),
     include_str!("../assets/i18n/fr/piano.txt"),
     include_str!("../assets/i18n/fr/drums.txt"),
+    include_str!("../assets/i18n/fr/dialogs.txt"),
+    include_str!("../assets/i18n/fr/dialogs-a.txt"),
+    include_str!("../assets/i18n/fr/dialogs-b.txt"),
+    include_str!("../assets/i18n/fr/dialogs-c.txt"),
 ];
 
 static FRENCH_CATALOG: LazyLock<HashMap<&'static str, &'static str>> =

@@ -52,9 +52,10 @@ actuel.
 
 ## Palette de commandes
 
-[[Ctrl+Shift+P]] ouvre une recherche sur toutes les commandes. Tapez quelques lettres, puis
-[[Enter]]. La palette affiche le raccourci de chaque commande : c'est le plus rapide pour les
-apprendre.
+[[Ctrl+Shift+P]] ouvre une recherche sur toutes les commandes. Tapez quelques lettres (elles
+s'allument dans les noms trouvés), choisissez avec les flèches, puis [[Enter]]. Sans rien taper,
+les dernières commandes lancées viennent en tête, puis toutes par catégorie. La palette affiche le
+raccourci de chaque commande : c'est le plus rapide pour les apprendre.
 
 ## Plein écran
 

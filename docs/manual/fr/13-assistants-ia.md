@@ -14,7 +14,9 @@ Desktop, Claude Code, Cursor ou Gemini CLI en un clic, et redémarrez l'assistan
 assistant, copiez sa configuration depuis la fenêtre. Le bouton robot passe au vert quand les
 assistants peuvent piloter AudioStrada.
 
-La fenêtre liste les derniers outils appelés par les assistants. Le réglage reste actif d'une
+Si un assistant a été installé pendant que la fenêtre était ouverte, *Vérifier à nouveau* le
+cherche. Le bas de la fenêtre dit si les assistants peuvent se connecter, et sur quel port. La
+fenêtre liste les derniers outils appelés par les assistants. Le réglage reste actif d'une
 session à l'autre. Un assistant démarré avant AudioStrada, ou pendant un redémarrage
 d'AudioStrada, se reconnecte à sa requête suivante.
 

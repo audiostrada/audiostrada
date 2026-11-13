@@ -49,8 +49,10 @@ tab, [[Ctrl+W]] closes the current one.
 
 ## Command palette
 
-[[Ctrl+Shift+P]] opens a search over every command. Type a few letters, then [[Enter]]. The
-palette shows each command's shortcut: it is the quickest way to learn them.
+[[Ctrl+Shift+P]] opens a search over every command. Type a few letters (they are lit in the
+names found), choose with the arrows, then [[Enter]]. With nothing typed, the commands run last
+come first, then all of them by category. The palette shows each command's shortcut: it is the
+quickest way to learn them.
 
 ## Full screen
 

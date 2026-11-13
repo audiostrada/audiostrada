@@ -5,8 +5,9 @@
 //! What is heard is switched in the player only: nothing goes into the project or its history,
 //! and closing the window gives the consoles back to the project.
 
-use eframe::egui::{self, Align2, RichText, vec2};
+use eframe::egui::{self, RichText};
 
+use crate::dialog;
 use crate::document::Document;
 use crate::i18n::tr;
 use crate::theme;
@@ -30,8 +31,8 @@ struct Test {
     /// X is B, the mix without its consoles.
     x_is_b: bool,
     hearing: Hearing,
-    /// The answer of the round before: right or not, shown once answered.
-    last: Option<bool>,
+    /// Each round answered: right or not.
+    answers: [Option<bool>; ROUNDS],
 }
 
 impl Test {
@@ -41,8 +42,26 @@ impl Test {
             right: 0,
             x_is_b: coin(),
             hearing: Hearing::X,
-            last: None,
+            answers: [None; ROUNDS],
         }
+    }
+
+    /// The answer of the round before, shown once answered.
+    fn last(&self) -> Option<bool> {
+        self.round.checked_sub(1).and_then(|r| self.answers[r])
+    }
+
+    /// Answers that X is B or not, and draws the next X, heard straight away.
+    fn answer(&mut self, is_b: bool) {
+        if self.done() {
+            return;
+        }
+        let right = is_b == self.x_is_b;
+        self.answers[self.round] = Some(right);
+        self.right += usize::from(right);
+        self.round += 1;
+        self.x_is_b = coin();
+        self.hearing = Hearing::X;
     }
 
     fn done(&self) -> bool {
@@ -104,6 +123,14 @@ fn colored(doc: &Document) -> bool {
             .any(|t| t.console.is_some_and(|c| c.colors()))
 }
 
+/// What the actions band asked for.
+#[derive(Default)]
+struct Asked {
+    answer: Option<bool>,
+    again: bool,
+    close: bool,
+}
+
 pub fn show(ctx: &egui::Context, doc: &mut Document) {
     let mut open = ctx.data(|d| d.get_temp::<bool>(open_id())).unwrap_or(false);
     if !open {
@@ -112,15 +139,64 @@ pub fn show(ctx: &egui::Context, doc: &mut Document) {
     let mut test = ctx
         .data(|d| d.get_temp::<Test>(test_id()))
         .unwrap_or_else(Test::new);
-    egui::Window::new(tr("Console blind test"))
-        .id(egui::Id::unique("blind-test-frame"))
-        .open(&mut open)
-        .collapsible(false)
-        .resizable(false)
-        .default_width(400.0)
-        .pivot(Align2::CENTER_TOP)
-        .default_pos(ctx.content_rect().center_top() + vec2(0.0, 90.0))
-        .show(ctx, |ui| contents(ui, doc, &mut test));
+    let ready = colored(doc);
+    let mut asked = Asked::default();
+    dialog::Dialog::new("blind-test", tr("Console blind test"))
+        .detail(trf!(
+            "Whether you hear the consoles or only believe it: {rounds} rounds of A, B and X",
+            rounds = ROUNDS
+        ))
+        .width(520.0)
+        .show(ctx, &mut open, |ui, part| match part {
+            dialog::Part::Body if !ready => {
+                dialog::section(ui, tr("Nothing to compare"), |ui| {
+                    ui.label(tr(
+                        "No console colors the mix: choose one in the Console menu first.",
+                    ));
+                });
+            }
+            dialog::Part::Body if test.done() => results(ui, &test),
+            dialog::Part::Body => contents(ui, &mut test),
+            dialog::Part::Actions => {
+                let weak = theme::current(ui).weak;
+                if ready {
+                    let text = if test.done() {
+                        tr("Test finished").to_owned()
+                    } else {
+                        trf!(
+                            "Round {round} of {rounds} · {right} right",
+                            round = test.round + 1,
+                            rounds = ROUNDS,
+                            right = test.right
+                        )
+                    };
+                    ui.label(RichText::new(text).size(11.5).color(weak));
+                }
+                dialog::buttons(ui, |ui| {
+                    if !ready {
+                        asked.close = dialog::secondary(ui, tr("Close")).clicked();
+                    } else if test.done() {
+                        asked.again = dialog::primary(ui, tr("Again"), true).clicked();
+                        asked.close = dialog::secondary(ui, tr("Close")).clicked();
+                    } else {
+                        // B given first: it lands at the right, A at its left.
+                        if dialog::primary(ui, tr("X is B"), true).clicked() {
+                            asked.answer = Some(true);
+                        }
+                        if dialog::primary(ui, tr("X is A"), true).clicked() {
+                            asked.answer = Some(false);
+                        }
+                    }
+                });
+            }
+        });
+    if let Some(is_b) = asked.answer {
+        test.answer(is_b);
+    }
+    if asked.again {
+        test = Test::new();
+    }
+    let open = open && !asked.close;
     let project_off = doc.project().console_off;
     if open {
         let off = colored(doc).then(|| test.off());
@@ -132,104 +208,112 @@ pub fn show(ctx: &egui::Context, doc: &mut Document) {
     ctx.data_mut(|d| d.insert_temp(open_id(), open));
 }
 
-fn contents(ui: &mut egui::Ui, doc: &Document, test: &mut Test) {
+fn contents(ui: &mut egui::Ui, test: &mut Test) {
     let p = theme::current(ui);
-    ui.weak(tr(
-        "A is the mix through its consoles, B the mix without them, X one of the two. Play the \
-         song, listen to A, B and X as often as you like, then say which one X is.",
-    ));
-    ui.separator();
-    if !colored(doc) {
-        ui.label(tr(
-            "No console colors the mix: choose one in the Console menu first.",
-        ));
-        return;
-    }
-    if test.done() {
-        results(ui, test);
-        return;
-    }
-    ui.label(trf!(
-        "Round {round} of {rounds}",
-        round = test.round + 1,
-        rounds = ROUNDS
-    ));
-    ui.add_space(6.0);
-    ui.horizontal(|ui| {
-        let big = |text: &str| RichText::new(text).size(18.0).strong();
-        for (hearing, label) in [(Hearing::A, "A"), (Hearing::B, "B"), (Hearing::X, "X")] {
-            if ui
-                .add_sized(
-                    [80.0, 40.0],
-                    egui::Button::new(big(label)).selected(test.hearing == hearing),
-                )
-                .clicked()
-            {
-                test.hearing = hearing;
+    dialog::section(
+        ui,
+        &trf!(
+            "Round {round} of {rounds}",
+            round = test.round + 1,
+            rounds = ROUNDS
+        ),
+        |ui| {
+            rounds(ui, test);
+            match test.last() {
+                Some(true) => {
+                    ui.colored_label(p.accent, tr("Right."));
+                }
+                Some(false) => {
+                    ui.label(RichText::new(tr("Wrong.")).color(p.weak));
+                }
+                None => {}
             }
-        }
+        },
+    );
+    dialog::section(ui, tr("Listen"), |ui| {
+        ui.horizontal(|ui| {
+            let big = |text: &str| RichText::new(text).size(20.0).strong();
+            for (hearing, label) in [(Hearing::A, "A"), (Hearing::B, "B"), (Hearing::X, "X")] {
+                if ui
+                    .add_sized(
+                        [96.0, 48.0],
+                        egui::Button::new(big(label)).selected(test.hearing == hearing),
+                    )
+                    .clicked()
+                {
+                    test.hearing = hearing;
+                }
+            }
+        });
+        dialog::hint(
+            ui,
+            tr(
+                "A is the mix through its consoles, B the mix without them, X one of the two. \
+                Play the song, listen to A, B and X as often as you like, then say which one \
+                X is.",
+            ),
+        );
+        dialog::hint(
+            ui,
+            tr("A and B are at the same level: the consoles keep the working level (-18 dBFS)."),
+        );
     });
-    ui.add_space(8.0);
-    ui.horizontal(|ui| {
-        let mut answer = None;
-        if theme::primary_button(ui, tr("X is A")).clicked() {
-            answer = Some(false);
-        }
-        if theme::primary_button(ui, tr("X is B")).clicked() {
-            answer = Some(true);
-        }
-        if let Some(is_b) = answer {
-            let right = is_b == test.x_is_b;
-            test.right += usize::from(right);
-            test.round += 1;
-            test.last = Some(right);
-            // A new X, heard straight away.
-            test.x_is_b = coin();
-            test.hearing = Hearing::X;
-        }
-    });
-    if let Some(right) = test.last {
-        ui.add_space(4.0);
-        if right {
-            ui.colored_label(p.accent, tr("Right."));
-        } else {
-            ui.weak(tr("Wrong."));
-        }
-    }
-    ui.add_space(4.0);
-    ui.weak(tr(
-        "A and B are at the same level: the consoles keep the working level (-18 dBFS).",
-    ));
 }
 
-fn results(ui: &mut egui::Ui, test: &mut Test) {
+/// The rounds as dots: lit when right, hollow when wrong, outlined for the one to answer.
+fn rounds(ui: &mut egui::Ui, test: &Test) {
+    let p = theme::current(ui);
+    let (rect, _) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), 22.0), egui::Sense::hover());
+    let painter = ui.painter();
+    for (k, answer) in test.answers.iter().enumerate() {
+        let center = egui::pos2(rect.left() + 9.0 + k as f32 * 24.0, rect.center().y);
+        match answer {
+            Some(true) => {
+                painter.circle_filled(center, 7.0, p.accent);
+            }
+            Some(false) => {
+                painter.circle_stroke(center, 6.5, egui::Stroke::new(1.5, theme::RECORD));
+            }
+            None if k == test.round => {
+                painter.circle_stroke(center, 6.5, egui::Stroke::new(1.5, p.text));
+            }
+            None => {
+                painter.circle_filled(center, 3.0, p.border);
+            }
+        }
+    }
+}
+
+fn results(ui: &mut egui::Ui, test: &Test) {
     let p = theme::current(ui);
     let chance = chance(test.right, ROUNDS) * 100.0;
-    ui.label(
-        RichText::new(trf!(
-            "{right} right out of {rounds}",
-            right = test.right,
-            rounds = ROUNDS
-        ))
-        .size(16.0)
-        .strong(),
-    );
-    let odds = trf!(
-        "By guessing, {chance} % of tests do as well.",
-        chance = format!("{chance:.1}")
-    );
-    if chance <= 5.0 {
-        ui.colored_label(p.accent, tr("You hear the consoles."));
-    } else {
-        ui.label(tr(
-            "Not told apart for sure: at this level and amount, the color is subtle.",
-        ));
-    }
-    ui.weak(odds);
-    ui.add_space(8.0);
-    if theme::primary_button(ui, tr("Again")).clicked() {
-        *test = Test::new();
-    }
+    dialog::section(ui, tr("Result"), |ui| {
+        ui.label(
+            RichText::new(trf!(
+                "{right} right out of {rounds}",
+                right = test.right,
+                rounds = ROUNDS
+            ))
+            .size(18.0)
+            .strong(),
+        );
+        rounds(ui, test);
+        if chance <= 5.0 {
+            ui.colored_label(p.accent, tr("You hear the consoles."));
+        } else {
+            ui.label(tr(
+                "Not told apart for sure: at this level and amount, the color is subtle.",
+            ));
+        }
+        dialog::hint(
+            ui,
+            &trf!(
+                "By guessing, {chance} % of tests do as well.",
+                chance = format!("{chance:.1}")
+            ),
+        );
+    });
 }
 
 #[cfg(test)]

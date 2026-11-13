@@ -99,8 +99,9 @@ clic. Les chaînes parallèles séparent le signal en branches et les remélange
   le send. Le send s'ajoute à toutes les pistes sélectionnées ; cochez d'abord *Couper la sortie
   vers le master* pour les pistes qu'on n'entend que par le send. Chaque send est un bouton comme
   un insert, avec son niveau (et PRÉ avant le fader) : un clic ouvre sa fenêtre de réglages
-  (destination, niveau, pré ou post fader, muet), la molette règle son niveau. Glissez un send pour
-  le réordonner, ou sur une autre tranche pour l'y copier ([[Alt]] : le déplacer).
+  (destination, pré ou post fader, niveau, muet, *Supprimer le send*), la molette règle son
+  niveau. Glissez un send pour le réordonner, ou sur une autre tranche pour l'y copier ([[Alt]] :
+  le déplacer).
 - **VCA** : le clic droit de la piste choisit le VCA qui la pilote ; un **V** sous le fader le
   signale.
 
@@ -163,7 +164,8 @@ marche/arrêt à côté du menu coupe toutes les couleurs au même niveau, pour 
 
 **Test en aveugle › Lancer…** dit si vous entendez les consoles ou si vous croyez les entendre :
 A est le mix avec ses consoles, B sans elles, X l'un des deux tiré au hasard. Lancez la lecture,
-écoutez A, B et X autant de fois que vous voulez, puis dites lequel est X. Après dix essais, la
+écoutez A, B et X autant de fois que vous voulez, puis dites lequel est X (*X est A* ou *X est
+B*) ; une rangée de points montre les essais répondus, justes ou non. Après dix essais, la
 fenêtre dit combien de fois le hasard ferait aussi bien : 9 justes sur 10 n'arrivent au hasard
 qu'environ une fois sur cent. Le test ne change rien au projet ; fermer sa fenêtre rend les
 consoles.
@@ -309,4 +311,5 @@ Les **Instantanés** enregistrent l'état de la console et le rappellent, pour c
 - **REF** à côté (aussi dans la barre de transport, [[Alt+R]]) compare le mix à une chanson finie
   (Transport › *Piste de référence…* pour la choisir). Cliquez dessus pour entendre la référence à
   la place du mix, au même endroit de la chanson et, par défaut, à la sonie du mix, pour comparer
-  le son et non le niveau. Elle n'est jamais exportée.
+  le son et non le niveau. Sa fenêtre montre la sonie des deux et de combien de dB elles
+  diffèrent. Elle n'est jamais exportée.

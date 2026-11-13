@@ -11,7 +11,9 @@ A project is a folder that contains:
 - a cache of waveform pictures, rebuilt when missing.
 
 File › New, Open, Save ([[Ctrl+S]]) and *Save as*. AudioStrada also saves on its own; after a
-crash, it offers to recover the unsaved work at the next start.
+crash, it offers to recover the unsaved work at the next start, saying how long ago it was
+saved: *Recover* opens it, *Discard* deletes it, and closing the window keeps it for the next
+time.
 
 ## Undo and versions
 
@@ -19,7 +21,8 @@ Everything can be undone ([[Ctrl+Z]]) and redone ([[Ctrl+Shift+Z]] or [[Ctrl+Y]]
 back as the session holds.
 
 Each save keeps the file it replaces in the project's `Versions` folder (the last 30). File ›
-*Project versions…* lists them and restores one in a single step that [[Ctrl+Z]] takes back.
+*Project versions…* lists them, with their age, number of tracks and length: click one, then
+*Restore* (or double-click it). Restoring is a single step that [[Ctrl+Z]] takes back.
 
 ## Importing audio
 

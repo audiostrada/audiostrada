@@ -1,8 +1,9 @@
 //! The License window: what this copy may do, entering a license, links to the store.
 
-use audiostrada_license::{License, Status};
-use eframe::egui::{self, Align2, RichText, vec2};
+use audiostrada_license::Status;
+use eframe::egui::{self, RichText};
 
+use crate::dialog;
 use crate::i18n::tr;
 use crate::theme;
 use crate::trf;
@@ -12,12 +13,15 @@ pub struct LicenseWindow {
     open: bool,
     text: String,
     error: Option<String>,
+    /// Removing the license was asked: the actions band asks to confirm.
+    removing: bool,
 }
 
 impl LicenseWindow {
     pub fn open(&mut self) {
         self.open = true;
         self.error = None;
+        self.removing = false;
     }
 
     /// Takes a license dropped on the window or opened from a file.
@@ -44,129 +48,178 @@ impl LicenseWindow {
             return;
         }
         let mut open = true;
-        egui::Window::new(tr("License"))
-            .id(egui::Id::unique("license-window"))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .default_width(460.0)
-            .pivot(Align2::CENTER_TOP)
-            .default_pos(ctx.content_rect().center_top() + vec2(0.0, 90.0))
-            .show(ctx, |ui| {
-                ui.spacing_mut().item_spacing.y = 6.0;
-                summary(ui, status);
-                if matches!(status, Status::Unofficial) {
-                    return;
-                }
-                theme::section(ui, tr("Enter a license"));
-                ui.weak(tr(
-                    "Paste the license from the purchase email, or drop the file on AudioStrada.",
-                ));
-                ui.add(
-                    egui::TextEdit::multiline(&mut self.text)
-                        .font(egui::TextStyle::Monospace)
-                        .desired_rows(5)
-                        .desired_width(f32::INFINITY)
-                        .hint_text("-----BEGIN AUDIOSTRADA LICENSE-----"),
-                );
-                if let Some(error) = &self.error {
-                    ui.colored_label(theme::RECORD, error);
-                }
-                ui.horizontal(|ui| {
-                    let open = ui.button(tr("Open a file…")).clicked();
-                    if let Some(path) = crate::dialogs::ask(ui.ctx(), "license", open, || {
-                        rfd::FileDialog::new().pick_file()
-                    }) {
-                        match std::fs::read_to_string(&path) {
-                            Ok(text) => {
-                                self.text = text;
-                                self.install(status);
+        let mut close = false;
+        let mut activate = false;
+        let mut remove = false;
+        let unofficial = matches!(status, Status::Unofficial);
+        let detail = match status {
+            Status::Unofficial => tr("Built from source: nothing to unlock"),
+            Status::Evaluation => tr("Evaluation: every feature works, with short dropouts"),
+            Status::Licensed(_) => tr("Licensed: thank you for supporting AudioStrada"),
+            Status::Lapsed(_) => tr("Updates ended: this version runs in evaluation mode"),
+        };
+        dialog::Dialog::new("license", tr("License"))
+            .detail(detail)
+            .width(540.0)
+            .show(ctx, &mut open, |ui, part| match part {
+                dialog::Part::Body => {
+                    dialog::section(ui, tr("This copy"), |ui| summary(ui, status));
+                    if unofficial {
+                        return;
+                    }
+                    dialog::section(ui, tr("Enter a license"), |ui| {
+                        dialog::hint(
+                            ui,
+                            tr(
+                                "Paste the license from the purchase email, or drop the file on \
+                                AudioStrada.",
+                            ),
+                        );
+                        ui.add(
+                            egui::TextEdit::multiline(&mut self.text)
+                                .font(egui::TextStyle::Monospace)
+                                .desired_rows(5)
+                                .desired_width(f32::INFINITY)
+                                .hint_text("-----BEGIN AUDIOSTRADA LICENSE-----"),
+                        );
+                        if let Some(error) = &self.error {
+                            ui.colored_label(theme::RECORD, error);
+                        }
+                        let pick = ui.button(tr("Open a file…")).clicked();
+                        if let Some(path) = crate::dialogs::ask(ui.ctx(), "license", pick, || {
+                            rfd::FileDialog::new().pick_file()
+                        }) {
+                            match std::fs::read_to_string(&path) {
+                                Ok(text) => {
+                                    self.text = text;
+                                    self.install(status);
+                                }
+                                Err(e) => self.error = Some(e.to_string()),
                             }
-                            Err(e) => self.error = Some(e.to_string()),
                         }
+                    });
+                    dialog::section(ui, tr("Subscription"), |ui| {
+                        ui.horizontal_wrapped(|ui| {
+                            for (text, page) in [
+                                (tr("Buy a license"), "buy"),
+                                (tr("Manage my subscription"), "account"),
+                                (tr("Find my license"), "recover"),
+                            ] {
+                                if ui.button(text).clicked() {
+                                    ui.ctx().open_url(egui::OpenUrl::new_tab(
+                                        audiostrada_license::link(page),
+                                    ));
+                                }
+                            }
+                        });
+                        dialog::hint(ui, tr("These open the AudioStrada web site."));
+                    });
+                }
+                dialog::Part::Actions => {
+                    if self.removing {
+                        let weak = theme::current(ui).weak;
+                        ui.label(
+                            RichText::new(tr("Remove the license from this computer?"))
+                                .size(11.5)
+                                .color(weak),
+                        );
+                        dialog::buttons(ui, |ui| {
+                            remove = dialog::primary(ui, tr("Remove"), true).clicked();
+                            if dialog::secondary(ui, tr("Keep it")).clicked() {
+                                self.removing = false;
+                            }
+                        });
+                        return;
                     }
-                    if theme::primary_button_enabled(
-                        ui,
-                        !self.text.trim().is_empty(),
-                        tr("Activate"),
-                    )
-                    .clicked()
+                    if status.license().is_some()
+                        && dialog::secondary(ui, tr("Remove the license"))
+                            .on_hover_text(tr(
+                                "This copy goes back to evaluation; the license can be entered \
+                                 again later",
+                            ))
+                            .clicked()
                     {
-                        self.install(status);
+                        self.removing = true;
                     }
-                });
-                theme::section(ui, tr("Subscription"));
-                ui.horizontal_wrapped(|ui| {
-                    let link = |ui: &mut egui::Ui, text: &str, page: &str| {
-                        if ui.link(text).clicked() {
-                            ui.ctx()
-                                .open_url(egui::OpenUrl::new_tab(audiostrada_license::link(page)));
+                    dialog::buttons(ui, |ui| {
+                        if unofficial {
+                            close = dialog::primary(ui, tr("Close"), true).clicked();
+                            return;
                         }
-                    };
-                    link(ui, tr("Buy a license"), "buy");
-                    link(ui, tr("Manage my subscription"), "account");
-                    link(ui, tr("Find my license"), "recover");
-                });
-                if status.license().is_some() {
-                    theme::footer(ui, |ui| {
-                        if ui.button(tr("Remove the license")).clicked() {
-                            let _ = audiostrada_license::remove();
-                            *status = audiostrada_license::status(None);
-                            audiostrada_engine::evaluation::set_active(status.evaluation());
-                        }
+                        let ready = !self.text.trim().is_empty();
+                        activate = dialog::primary(ui, tr("Activate"), ready)
+                            .on_hover_text(tr("Check the license and unlock this copy"))
+                            .clicked()
+                            && ready;
+                        close = dialog::secondary(ui, tr("Close")).clicked();
                     });
                 }
             });
-        self.open = open;
+        if activate {
+            self.install(status);
+        }
+        if remove {
+            let _ = audiostrada_license::remove();
+            *status = audiostrada_license::status(None);
+            audiostrada_engine::evaluation::set_active(status.evaluation());
+            self.removing = false;
+        }
+        self.open = open && !close;
     }
 }
 
+/// What this copy may do: the state in its color, then the license's details.
 fn summary(ui: &mut egui::Ui, status: &Status) {
-    let (title, detail) = match status {
-        Status::Unofficial => (
-            tr("Built from source"),
-            tr("Nothing to unlock: every feature works, with no time limit.").to_owned(),
-        ),
-        Status::Licensed(license) if license.is_lifetime() => (
-            tr("Licensed for life"),
-            holder(license) + "\n" + tr("Every update included, for life."),
-        ),
-        Status::Licensed(license) => (
-            tr("Licensed"),
-            holder(license)
-                + "\n"
-                + &trf!("Updates included until {date}.", date = license.updates_until),
-        ),
-        Status::Lapsed(license) => (
-            tr("Updates ended"),
-            holder(license)
-                + "\n"
-                + &trf!(
-                    "Your updates ended on {date}: this version runs in evaluation mode. Versions released before keep working.",
-                    date = license.updates_until
-                ),
-        ),
-        Status::Evaluation => (
-            tr("Evaluation"),
-            tr("Every feature works, export included. After 20 minutes, the sound drops out for a moment every 10 minutes. A license removes the dropouts and pays for the development.").to_owned(),
-        ),
+    let p = theme::current(ui);
+    let (title, color) = match status {
+        Status::Unofficial => (tr("Built from source"), p.accent),
+        Status::Licensed(license) if license.is_lifetime() => (tr("Licensed for life"), p.accent),
+        Status::Licensed(_) => (tr("Licensed"), p.accent),
+        Status::Lapsed(_) => (tr("Updates ended"), theme::RECORD),
+        Status::Evaluation => (tr("Evaluation"), theme::RECORD),
     };
-    let color = if status.evaluation() {
-        theme::RECORD
-    } else {
-        theme::current(ui).accent
-    };
-    ui.label(RichText::new(title).font(theme::strong(18.0)).color(color));
-    ui.label(detail);
-}
-
-fn holder(license: &License) -> String {
-    trf!(
-        "{plan} of {name} ({email}).",
-        plan = plan_name(license.plan),
-        name = license.name,
-        email = license.email
-    )
+    dialog::well(ui, |ui| {
+        ui.label(RichText::new(title).font(theme::strong(17.0)).color(color));
+        match status {
+            Status::Unofficial => {
+                ui.label(tr(
+                    "Nothing to unlock: every feature works, with no time limit.",
+                ));
+            }
+            Status::Evaluation => {
+                ui.label(tr("Every feature works, export included. After 20 minutes, the sound drops out for a moment every 10 minutes. A license removes the dropouts and pays for the development."));
+            }
+            Status::Licensed(license) | Status::Lapsed(license) => {
+                ui.add_space(4.0);
+                dialog::field(ui, tr("License"), |ui| ui.label(plan_name(license.plan)));
+                dialog::field(ui, tr("Licensed to"), |ui| {
+                    ui.label(format!("{} ({})", license.name, license.email))
+                });
+                dialog::field(ui, tr("Updates"), |ui| {
+                    let text = match status {
+                        Status::Licensed(_) if license.is_lifetime() => {
+                            tr("Every update included, for life.").to_owned()
+                        }
+                        Status::Licensed(_) => trf!(
+                            "Updates included until {date}.",
+                            date = license.updates_until
+                        ),
+                        _ => trf!("Ended on {date}", date = license.updates_until),
+                    };
+                    ui.label(text)
+                });
+                if matches!(status, Status::Lapsed(_)) {
+                    dialog::hint(
+                        ui,
+                        tr(
+                            "Versions released before your updates ended keep working without \
+                            dropouts. Renew to unlock this one.",
+                        ),
+                    );
+                }
+            }
+        }
+    });
 }
 
 pub fn plan_name(plan: audiostrada_license::Plan) -> &'static str {
@@ -192,7 +245,7 @@ fn error_text(error: &audiostrada_license::LicenseError) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use audiostrada_license::Plan;
+    use audiostrada_license::{License, Plan};
 
     fn license(until: &str, plan: Plan) -> License {
         License {

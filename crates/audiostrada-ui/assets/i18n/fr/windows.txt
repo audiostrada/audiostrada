@@ -153,9 +153,6 @@ Accents
 Accent the first beat of the bar
 Accentuer le premier temps de la mesure
 
-Beat in dotted quarters (6/8, 9/8, 12/8: 2, 3 or 4 beats per bar)
-Battre à la noire pointée (6/8, 9/8, 12/8: 2, 3 ou 4 temps par mesure)
-
 Groups
 Groupes
 
@@ -171,17 +168,11 @@ Les groupes doivent totaliser {beats} temps, la mesure en {beats}/{unit}.
 Groups accent the first beat of each group, for odd meters (7/8 as 2+2+3).
 Les groupes accentuent le premier temps de chacun, pour les mesures asymétriques (7/8 en 2+2+3).
 
-When
-Quand
-
 Playing and recording
 En lecture et en enregistrement
 
 Only while recording
 Seulement en enregistrement
-
-Count-in before recording
-Décompte avant l'enregistrement
 
 1 bar
 1 mesure
@@ -191,9 +182,6 @@ Décompte avant l'enregistrement
 
 4 bars
 4 mesures
-
-Time signature at the playhead: {beats}/{unit} (change it in the transport bar).
-Métrique à la tête de lecture: {beats}/{unit} (à changer dans la barre de transport).
 
 just now
 à l'instant
@@ -213,9 +201,6 @@ il y a {days} jours
 Project versions
 Versions du projet
 
-Each save keeps the file it replaces (the last 30). Restoring one is a single step: Ctrl+Z comes back.
-Chaque enregistrement garde le fichier qu'il remplace (les 30 derniers). En restaurer un est une seule étape: Ctrl+Z revient en arrière.
-
 Save the project once to start keeping versions.
 Enregistrez le projet une première fois pour commencer à garder des versions.
 
@@ -234,12 +219,6 @@ Impossible de restaurer cette version: {error}
 Reference track
 Piste de référence
 
-A finished song to compare your mix with: heard instead of the mix, at the same place in the song, never exported.
-Un morceau fini auquel comparer votre mix: entendu à la place du mix, au même endroit du morceau, jamais exporté.
-
-No reference
-Aucune référence
-
 Choose…
 Choisir…
 
@@ -248,18 +227,6 @@ Référence
 
 Integrated since the meters were reset, else short-term
 Intégrée depuis la remise à zéro des vu-mètres, sinon à court terme
-
-Match the mix's loudness
-Aligner sur la loudness du mix
-
-Plays the reference as loud as the mix, so you compare the sound and not the level
-Joue la référence aussi fort que le mix, pour comparer le son et non le niveau
-
-The reference plays {gain} dB
-La référence est jouée à {gain} dB
-
-You hear the reference.
-Vous entendez la référence.
 
 Parent folder
 Dossier parent

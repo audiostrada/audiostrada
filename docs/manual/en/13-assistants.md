@@ -14,7 +14,9 @@ Code, Cursor or Gemini CLI with one click, and restart the assistant. For anothe
 copy its configuration from the window. The robot button turns green while assistants may drive
 AudioStrada.
 
-The window lists the last tools assistants called. The setting stays on from one session to the
+If an assistant was installed while the window was open, *Check again* looks for it. The bottom
+of the window says whether assistants may connect, and on which port. The window lists the last
+tools assistants called. The setting stays on from one session to the
 next. An assistant started before AudioStrada, or across a restart of AudioStrada, reconnects at
 its next request.
 

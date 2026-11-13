@@ -1,0 +1,235 @@
+# Windows reworked (b).
+
+A miked kit: one track per microphone, the overheads and the room in stereo
+Une batterie repiquée : une piste par micro, les overheads et la pièce en stéréo
+
+Tom 1
+Tom 1
+
+Tom 2
+Tom 2
+
+Overheads
+Overheads
+
+Guitar
+Guitare
+
+The direct signal and the miked amp, recorded together
+Le signal direct et l'ampli repiqué, enregistrés ensemble
+
+Guitar DI
+Guitare DI
+
+Guitar amp
+Guitare ampli
+
+Bass DI
+Basse DI
+
+Bass amp
+Basse ampli
+
+A lead vocal, its double and a harmony
+Un chant lead, son doublage et une harmonie
+
+Lead vocal
+Chant lead
+
+Double
+Doublage
+
+Harmony
+Harmonie
+
+Empty tracks to record on, or to drop audio files on
+Des pistes vides où enregistrer, ou déposer des fichiers audio
+
+{count} mono track(s)
+{count} piste(s) mono
+
+{count} stereo track(s)
+{count} piste(s) stéréo
+
+{mono} mono and {stereo} stereo tracks
+{mono} pistes mono et {stereo} stéréo
+
+Your own
+Les vôtres
+
+Named {names}
+Nommées {names}
+
+One after the other, from
+L'une après l'autre, à partir de
+
+{first} to {last}
+{first} à {last}
+
+{range}: the audio device has {count} inputs
+{range} : l'interface audio a {count} entrées
+
+All on In 1; each can be changed later
+Toutes sur Ent. 1 ; chacune peut être changée ensuite
+
+Ready to record
+Prêtes à enregistrer
+
+Look
+Apparence
+
+A built-in amp, or the NAM capture of a real one from your library
+Un ampli intégré, ou la capture NAM d'un vrai ampli de votre bibliothèque
+
+A NAM capture of a pedal from your library, for the next free slot
+La capture NAM d'une pédale de votre bibliothèque, pour le prochain emplacement libre
+
+An impulse response of a miked cabinet from your library
+La réponse impulsionnelle d'un baffle repiqué, de votre bibliothèque
+
+Click a card to load it
+Cliquez sur une carte pour la charger
+
+Free captures shared by players, downloaded here
+Des captures gratuites partagées par des musiciens, téléchargées ici
+
+Load this list again from TONE3000
+Recharger cette liste depuis TONE3000
+
+A click on a tone downloads it and loads it
+Un clic sur un son le télécharge et le charge
+
+Moves the hits of these tracks onto those of another one, stretching the audio between them. The tracks move together, cut at the same places, so their phase is kept (a DI and its amp, several microphones).
+Déplace les attaques de ces pistes sur celles d'une autre, en étirant l'audio entre elles. Les pistes bougent ensemble, coupées aux mêmes endroits, donc leur phase est gardée (une DI et son ampli, plusieurs micros).
+
+Feel
+Jeu
+
+Higher finds softer hits, in both
+Plus haut trouve les attaques plus douces, des deux côtés
+
+What moves
+Ce qui bouge
+
+Hits
+Attaques
+
+Higher finds softer hits
+Plus haut trouve les attaques plus douces
+
+Hits are looked for on all the tracks together, so the microphones of a kit are cut at the same places.
+Les attaques sont cherchées sur toutes les pistes ensemble : les micros d'une batterie sont coupés aux mêmes endroits.
+
+Each slice moves toward the nearest grid line, the slices joined with short crossfades. Below 100 %, some of the feel stays.
+Chaque tranche va vers la ligne de grille la plus proche, les tranches reliées par de courts fondus enchaînés. En dessous de 100 %, une part du jeu reste.
+
+Conform
+Caler
+
+Separate only
+Couper seulement
+
+Silence
+Silence
+
+Quieter than this counts as silence
+Plus bas que ce niveau, c'est du silence
+
+Shorter gaps stay, so words and notes hold together
+Les blancs plus courts restent : les mots et les notes tiennent ensemble
+
+Margins
+Marges
+
+Kept around each sound, for its attack and what rings after it
+Gardées autour de chaque son, pour son attaque et ce qui résonne après
+
+Removes the silences. The darkened parts of the clips go.
+Retire les silences. Les parties assombries des clips disparaissent.
+
+Removes the sound, keeps the room noise. The darkened parts of the clips go.
+Retire le son, garde le bruit de la pièce. Les parties assombries des clips disparaissent.
+
+Only cuts the clips where the silences start and end, at the red lines.
+Coupe seulement les clips où les silences commencent et finissent, aux lignes rouges.
+
+{pieces} part(s) with sound · {silence} s of silence
+{pieces} partie(s) avec du son · {silence} s de silence
+
+Looking for the silences…
+Recherche des silences…
+
+Remove the sound
+Retirer le son
+
+Brings the loudest peak of each clip to a level.
+Amène la crête la plus forte de chaque clip à un niveau.
+
+Settings
+Réglages
+
+Keep what rings after the clip
+Garder ce qui résonne après le clip
+
+For reverbs and delays: the clip grows by their tail.
+Pour les réverbes et les délais : le clip s'allonge de leur traîne.
+
+{count} clip(s) replaced by the result; undo restores them
+{count} clip(s) remplacé(s) par le résultat ; annuler les rétablit
+
+Defaults
+Valeurs par défaut
+
+Back to the effect's default settings
+Revenir aux réglages par défaut de l'effet
+
+Takes off what is clearly silent, with short margins
+Retire ce qui est clairement silencieux, avec des marges courtes
+
+Takes off the noise between the phrases, keeps the breaths before them
+Retire le bruit entre les phrases, garde les respirations avant elles
+
+Keeps the words whole, takes off the long pauses
+Garde les mots entiers, retire les longues pauses
+
+Toms
+Toms
+
+Keeps each hit and its ring, takes off the other drums heard between them
+Garde chaque frappe et sa résonance, retire les autres fûts entendus entre elles
+
+Tight
+Serré
+
+Every hit near one of the reference lands on it
+Chaque attaque proche d'une de la référence tombe dessus
+
+Most of the way, some of the feel of the take stays
+La plus grande partie du chemin : une part du jeu de la prise reste
+
+Loose
+Souple
+
+Only the hits close to the reference, half of the way
+Seulement les attaques proches de la référence, à moitié du chemin
+
+{names} and {more} more
+{names} et {more} autres
+
+{tracks}, from {start} to {end}
+{tracks}, de {start} à {end}
+
+{count} clip(s) on {tracks}
+{count} clip(s) sur {tracks}
+
+A sound of your own: a file with one hit, named as you like
+Un son à vous : un fichier avec une seule frappe, nommé comme vous voulez
+
+Sound file
+Fichier du son
+
+In the list
+Dans la liste
+
+It joins the sounds of this drum, for every project, and replaces the one of this track now.
+Il rejoint les sons de ce fût, pour tous les projets, et remplace dès maintenant celui de cette piste.

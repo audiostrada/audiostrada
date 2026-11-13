@@ -1026,14 +1026,68 @@ impl TimelineView {
         ));
     }
 
-    pub(super) fn header_edge(&mut self, ui: &mut Ui, full: Rect, header: Rect) {
-        let edge =
-            Rect::from_x_y_ranges(header.right() - 5.0..=header.right() + 1.0, full.y_range());
-        let response = ui.interact(
-            edge,
-            ui.scope_id().with("header-edge"),
-            Sense::click_and_drag(),
+    /// The corner over the headers: *Compact*, which brings the tracks to their smallest height
+    /// and back, and the master track shown or not.
+    pub(super) fn corner(&mut self, ui: &mut Ui, corner: Rect) {
+        let compact = self.compact_from.is_some();
+        let master = self.show_master;
+        let mut toggle_compact = false;
+        ui.scope_builder(
+            egui::UiBuilder::new()
+                .max_rect(corner.shrink2(egui::vec2(8.0, 6.0)))
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            |ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                if ui
+                    .add(
+                        egui::Button::new(egui::RichText::new(tr("Compact")).size(11.5))
+                            .selected(compact),
+                    )
+                    .on_hover_text(tr(
+                        "Every track at its smallest height, as Alt and the wheel would; a second \
+                         click gives them their height back",
+                    ))
+                    .clicked()
+                {
+                    toggle_compact = true;
+                }
+                if ui
+                    .add(
+                        egui::Button::new(egui::RichText::new(tr("Master track")).size(11.5))
+                            .selected(master),
+                    )
+                    .on_hover_text(tr("Shows or hides the master's track and its automation"))
+                    .clicked()
+                {
+                    self.requests.push(Action::MasterTrack);
+                }
+            },
         );
+        if toggle_compact {
+            match self.compact_from.take() {
+                Some(height) => self.set_track_height(height, None),
+                None => {
+                    self.compact_from = Some(self.track_height);
+                    self.set_track_height(super::MIN_TRACK_HEIGHT, None);
+                }
+            }
+        }
+    }
+
+    pub(super) fn header_edge(&mut self, ui: &mut Ui, full: Rect, header: Rect) {
+        let edge = Rect::from_x_y_ranges(header.right() - 6.0..=header.right(), full.y_range());
+        let id = ui.scope_id().with("header-edge");
+        // Only from the headers' side: the start of a clip just right of it stays to grab.
+        let ours = ui.ctx().is_being_dragged(id)
+            || ui
+                .input(|i| i.pointer.hover_pos())
+                .is_some_and(|p| p.x < header.right());
+        let sense = if ours {
+            Sense::click_and_drag()
+        } else {
+            Sense::hover()
+        };
+        let response = ui.interact(edge, id, sense);
         if response.hovered() || response.dragged() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
             ui.painter().line_segment(

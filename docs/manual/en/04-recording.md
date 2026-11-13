@@ -55,9 +55,10 @@ bypassed effects struck through. Turn it off to mix.
 ## Metronome
 
 The metronome button ([[K]]) clicks on every beat while playing. Right-click it, or
-[[Shift+K]], for its window: volume, sound, clicks per beat, accents, groups for odd meters (7/8
-as 2+2+3), clicking only while recording, and a count-in of up to four bars. The click is never
-exported.
+[[Shift+K]], for its window: a picture of the bar shows what will be heard, then volume, sound,
+clicks per beat, accents, groups for odd meters (7/8 as 2+2+3), clicking only while recording, a
+count-in and a pre-roll of up to four bars. *Default settings* brings back those of a new
+project. The click is never exported.
 
 ## Punch and loop recording
 

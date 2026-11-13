@@ -1,0 +1,81 @@
+# The application's windows and dialogs.
+CD
+CD
+
+Choose
+Choisir
+
+Choose the mix, the stems or both.
+Choisissez le mix, les stems ou les deux.
+
+Choose where, then render now
+Choisir où, puis rendre maintenant
+
+Commands
+Commandes
+
+Every command of AudioStrada: type a few letters of its name
+Toutes les commandes d'AudioStrada : tapez quelques lettres de son nom
+
+From and to
+Du début à la fin
+
+Mastering
+Mastering
+
+One WAV 24-bit file per track, untouched, for a remix or a mix elsewhere
+Un fichier WAV 24 bits par piste, sans traitement, pour un remix ou un mix ailleurs
+
+One file of the whole mix
+Un fichier de tout le mix
+
+One file per track, soloed
+Un fichier par piste, en solo
+
+Peaks at
+Crêtes à
+
+Ready-made settings
+Réglages tout prêts
+
+Rendered after the end, for reverb and delay tails
+Rendue après la fin, pour les queues de réverbe et de delay
+
+Rendering
+Rendu
+
+Run
+Lancer
+
+Set a loop range first to export only a part.
+Définissez d'abord une boucle pour n'exporter qu'une partie.
+
+Softens the last bits when they are cut: on for 16 and 24 bits
+Adoucit les derniers bits quand ils sont coupés : activé en 16 et 24 bits
+
+Stems
+Stems
+
+Streaming
+Streaming
+
+The mix
+Le mix
+
+WAV 16-bit, 44.1 kHz, dithered, peaks at -1 dBFS
+WAV 16 bits, 44,1 kHz, avec dither, crêtes à -1 dBFS
+
+WAV 24-bit at -14 LUFS: Spotify, Apple Music, YouTube
+WAV 24 bits à -14 LUFS : Spotify, Apple Music, YouTube
+
+WAV 32-bit float, untouched: for a mastering engineer
+WAV 32 bits flottant, sans traitement : pour un ingénieur de mastering
+
+Your own settings
+Vos propres réglages
+
+{count} commands
+{count} commandes
+
+{project}: the mix and the stems to files
+{project} : le mix et les stems en fichiers

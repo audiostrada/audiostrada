@@ -1,8 +1,9 @@
 //! Reference track window: the song to compare with, its loudness against the mix's, and the
 //! switch between hearing the mix and the reference.
 
-use eframe::egui::{self, Align2, RichText, vec2};
+use eframe::egui::{self, RichText};
 
+use crate::dialog;
 use crate::dialogs;
 use crate::document::Document;
 use crate::i18n::tr;
@@ -32,107 +33,170 @@ fn lufs(value: Option<f64>) -> String {
     value.map_or_else(|| "-".to_owned(), |v| format!("{v:.1} LUFS"))
 }
 
+/// How much louder or softer the reference is than the mix.
+fn difference(mix: f64, reference: f64) -> String {
+    let delta = reference - mix;
+    if delta.abs() < 0.5 {
+        tr("The reference and the mix are about as loud.").to_owned()
+    } else if delta > 0.0 {
+        trf!(
+            "The reference is {db} dB louder than the mix.",
+            db = format!("{delta:.1}")
+        )
+    } else {
+        trf!(
+            "The reference is {db} dB softer than the mix.",
+            db = format!("{:.1}", -delta)
+        )
+    }
+}
+
+/// What the window's buttons asked for.
+#[derive(Default)]
+struct Asked {
+    choose: bool,
+    remove: bool,
+    listen: Option<bool>,
+    matched: Option<bool>,
+}
+
 pub fn show(ctx: &egui::Context, doc: &mut Document) {
     let mut open = ctx.data(|d| d.get_temp::<bool>(open_id())).unwrap_or(false);
     if !open {
         return;
     }
-    egui::Window::new(tr("Reference track"))
-        .id(egui::Id::unique("reference-window-frame"))
-        .open(&mut open)
-        .collapsible(false)
-        .resizable(false)
-        .default_width(420.0)
-        .pivot(Align2::CENTER_TOP)
-        .default_pos(ctx.content_rect().center_top() + vec2(0.0, 90.0))
-        .show(ctx, |ui| {
-            let p = theme::current(ui);
-            ui.weak(tr(
-                "A finished song to compare your mix with: heard instead of the mix, at the \
-                 same place in the song, never exported.",
-            ));
-            ui.separator();
-            let reference = doc.project().reference.clone();
-            ui.horizontal(|ui| {
-                let name = reference.as_ref().map_or_else(
-                    || tr("No reference").to_owned(),
-                    |r| {
-                        r.path
-                            .file_name()
-                            .map_or_else(String::new, |n| n.to_string_lossy().into_owned())
-                    },
-                );
-                ui.label(RichText::new(name).strong());
-                let open = ui.button(tr("Choose…")).clicked();
-                if let Some(file) =
-                    dialogs::ask(ui.ctx(), "reference", open, dialogs::pick_audio_file)
-                {
-                    doc.set_reference(Some(&file));
+    let reference = doc.project().reference.clone();
+    let listening = doc.player().reference_listening();
+    let mut asked = Asked::default();
+    dialog::Dialog::new("reference", tr("Reference track"))
+        .detail(tr(
+            "A finished song to compare your mix with; never exported",
+        ))
+        .width(500.0)
+        .show(ctx, &mut open, |ui, part| match part {
+            dialog::Part::Body => body(ui, doc, reference.as_ref(), &mut asked),
+            dialog::Part::Actions => {
+                let p = theme::current(ui);
+                if reference.is_some() {
+                    let (text, color) = if listening {
+                        (tr("You hear the reference"), p.accent)
+                    } else {
+                        (tr("You hear the mix"), p.weak)
+                    };
+                    ui.label(RichText::new(text).size(11.5).strong().color(color));
                 }
-                if reference.is_some() && ui.button(tr("Remove")).clicked() {
-                    doc.set_reference(None);
-                }
-            });
-            let Some(reference) = reference else {
-                return;
-            };
-            ui.add_space(6.0);
-            egui::Grid::new("reference-loudness")
-                .num_columns(2)
-                .spacing([16.0, 4.0])
-                .show(ui, |ui| {
-                    ui.label(tr("Reference"));
-                    ui.monospace(lufs(doc.reference_loudness()));
-                    ui.end_row();
-                    ui.label(tr("Mix"));
-                    ui.monospace(lufs(doc.mix_loudness())).on_hover_text(tr(
-                        "Integrated since the meters were reset, else short-term",
-                    ));
-                    ui.end_row();
+                dialog::buttons(ui, |ui| match &reference {
+                    None => {
+                        asked.choose |= dialog::primary(ui, tr("Choose a song…"), true).clicked();
+                    }
+                    Some(_) => {
+                        let text = if listening {
+                            tr("Back to the mix")
+                        } else {
+                            tr("Hear the reference")
+                        };
+                        if dialog::primary(ui, text, true)
+                            .on_hover_text(tr("Also with the REF button of the transport bar"))
+                            .clicked()
+                        {
+                            asked.listen = Some(!listening);
+                        }
+                    }
                 });
-            let mut matched = reference.matched;
-            if ui
-                .checkbox(&mut matched, tr("Match the mix's loudness"))
-                .on_hover_text(tr(
-                    "Plays the reference as loud as the mix, so you compare the sound and \
-                     not the level",
-                ))
-                .changed()
-            {
-                doc.set_reference_matched(matched);
-            }
-            if matched {
-                ui.weak(trf!(
-                    "The reference plays {gain} dB",
-                    gain = format!("{:+.1}", doc.reference_gain())
-                ));
-            }
-            ui.add_space(8.0);
-            let listening = doc.player().reference_listening();
-            ui.horizontal(|ui| {
-                let big = |text: &str| RichText::new(text).size(15.0).strong();
-                if ui
-                    .add_sized(
-                        [120.0, 34.0],
-                        egui::Button::new(big(tr("Mix"))).selected(!listening),
-                    )
-                    .clicked()
-                {
-                    doc.player_mut().set_reference_listening(false);
-                }
-                if ui
-                    .add_sized(
-                        [120.0, 34.0],
-                        egui::Button::new(big(tr("Reference"))).selected(listening),
-                    )
-                    .clicked()
-                {
-                    doc.player_mut().set_reference_listening(true);
-                }
-            });
-            if listening {
-                ui.colored_label(p.accent, tr("You hear the reference."));
             }
         });
+    if let Some(file) = dialogs::ask(ctx, "reference", asked.choose, dialogs::pick_audio_file) {
+        doc.set_reference(Some(&file));
+    }
+    if asked.remove {
+        doc.set_reference(None);
+    }
+    if let Some(matched) = asked.matched {
+        doc.set_reference_matched(matched);
+    }
+    if let Some(on) = asked.listen {
+        doc.player_mut().set_reference_listening(on);
+    }
     ctx.data_mut(|d| d.insert_temp(open_id(), open));
+}
+
+fn body(
+    ui: &mut egui::Ui,
+    doc: &Document,
+    reference: Option<&audiostrada_core::ReferenceTrack>,
+    asked: &mut Asked,
+) {
+    let p = theme::current(ui);
+    dialog::section(ui, tr("Song"), |ui| {
+        dialog::field(ui, tr("File"), |ui| {
+            let name = reference.map_or_else(
+                || tr("None").to_owned(),
+                |r| {
+                    r.path
+                        .file_name()
+                        .map_or_else(String::new, |n| n.to_string_lossy().into_owned())
+                },
+            );
+            let text = RichText::new(name).strong();
+            let text = if reference.is_some() {
+                text
+            } else {
+                text.color(p.weak)
+            };
+            let label = ui.add(egui::Label::new(text).truncate());
+            if let Some(r) = reference {
+                label.on_hover_text(r.path.display().to_string());
+            }
+        });
+        if reference.is_some() {
+            dialog::field(ui, "", |ui| {
+                asked.choose |= ui.button(tr("Choose another…")).clicked();
+                asked.remove |= ui.button(tr("Remove")).clicked();
+            });
+        }
+        if reference.is_none() {
+            dialog::hint(
+                ui,
+                tr("A song in the style you aim at, well mixed and mastered: WAV, FLAC or MP3."),
+            );
+        }
+    });
+    let Some(reference) = reference else {
+        return;
+    };
+    dialog::section(ui, tr("Loudness"), |ui| {
+        let (theirs, ours) = (doc.reference_loudness(), doc.mix_loudness());
+        dialog::field(ui, tr("Reference"), |ui| {
+            let text = theirs.map_or_else(|| tr("Measuring…").to_owned(), |v| lufs(Some(v)));
+            ui.monospace(text);
+        });
+        dialog::field(ui, tr("Your mix"), |ui| {
+            ui.monospace(lufs(ours)).on_hover_text(tr(
+                "Integrated since the meters were reset, else short-term",
+            ));
+        });
+        match (ours, theirs) {
+            (Some(mix), Some(theirs)) => dialog::hint(ui, &difference(mix, theirs)),
+            (None, _) => dialog::hint(ui, tr("Play the song to measure the mix.")),
+            _ => {}
+        }
+        dialog::field(ui, tr("Match the level"), |ui| {
+            let mut matched = reference.matched;
+            if ui
+                .checkbox(&mut matched, tr("Play the reference as loud as the mix"))
+                .changed()
+            {
+                asked.matched = Some(matched);
+            }
+        });
+        let hint = if reference.matched {
+            trf!(
+                "The reference plays {gain} dB, so you compare the sound and not the level.",
+                gain = format!("{:+.1}", doc.reference_gain())
+            )
+        } else {
+            tr("The reference plays at its own level.").to_owned()
+        };
+        dialog::hint(ui, &hint);
+    });
 }

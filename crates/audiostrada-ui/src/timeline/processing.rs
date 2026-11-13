@@ -11,6 +11,7 @@ use audiostrada_core::{ClipId, TrackId};
 use eframe::egui::{self, Color32, Painter, Rect, RichText, Ui};
 
 use super::TimelineView;
+use crate::dialog;
 use crate::document::{
     Band, Document, Found, GrooveMoves, GrooveScan, GrooveSettings, Grooved, HitScan, Process,
     StripSettings,
@@ -56,6 +57,8 @@ pub(super) struct BeatWindow {
     scan: Option<HitScan>,
     hits: Vec<u64>,
     found_for: Option<f32>,
+    /// The grid conformed to: the toolbar's when the window opens.
+    grid: Option<crate::transport::Grid>,
 }
 
 /// The stretching of the grooved tracks, until their files are written.
@@ -313,6 +316,7 @@ impl TimelineView {
             scan: None,
             hits: Vec::new(),
             found_for: None,
+            grid: None,
         });
     }
 
@@ -572,6 +576,7 @@ impl TimelineView {
                 (t.id, name)
             })
             .collect();
+        let detail = span_detail(project, &window.tracks, window.start, window.end);
         let ready = window.scan.is_some();
         let busy = window.applying.as_ref().is_some_and(|a| a.1.is_none());
         let previewing = window.applying.as_ref().is_some_and(|a| a.1.is_some());
@@ -579,129 +584,150 @@ impl TimelineView {
         let mut rescan = false;
         let mut apply = false;
         let sr = project.sample_rate.max(1) as f32;
-        egui::Window::new(tr("Groove"))
-            .id(egui::Id::unique("groove"))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .default_width(420.0)
-            .show(ctx, |ui| {
-                ui.weak(trf!(
-                    "Moves the hits of {count} track(s) onto those of another one, \
-                     stretching the audio between them. The tracks move together, cut at the \
-                     same places, so their phase is kept (a DI and its amp, several \
-                     microphones).",
-                    count = window.tracks.len()
-                ));
-                ui.add_space(4.0);
-                egui::Grid::new("groove-settings")
-                    .num_columns(2)
-                    .spacing([10.0, 6.0])
-                    .show(ui, |ui| {
-                        ui.label(tr("Follow"));
-                        let current = choices
-                            .iter()
-                            .find(|c| Some(c.0) == window.reference)
-                            .map_or_else(|| tr("Choose…").to_owned(), |c| c.1.clone());
-                        egui::ComboBox::from_id_salt("groove-reference")
-                            .selected_text(current)
-                            .width(240.0)
-                            .show_ui(ui, |ui| {
-                                for (id, name) in &choices {
-                                    if ui
-                                        .selectable_label(window.reference == Some(*id), name)
-                                        .clicked()
-                                    {
-                                        window.reference = Some(*id);
-                                        rescan = true;
+        dialog::Dialog::new("groove", tr("Groove"))
+            .detail(detail)
+            .width(560.0)
+            .show(ctx, &mut open, |ui, part| match part {
+                dialog::Part::Body => {
+                    ui.spacing_mut().slider_width = 220.0;
+                    dialog::hint(
+                        ui,
+                        tr("Moves the hits of these tracks onto those of another one, \
+                            stretching the audio between them. The tracks move together, cut \
+                            at the same places, so their phase is kept (a DI and its amp, \
+                            several microphones)."),
+                    );
+                    dialog::section(ui, tr("Reference"), |ui| {
+                        dialog::field(ui, tr("Follow"), |ui| {
+                            let current = choices
+                                .iter()
+                                .find(|c| Some(c.0) == window.reference)
+                                .map_or_else(|| tr("Choose…").to_owned(), |c| c.1.clone());
+                            egui::ComboBox::from_id_salt("groove-reference")
+                                .selected_text(current)
+                                .width(260.0)
+                                .show_ui(ui, |ui| {
+                                    for (id, name) in &choices {
+                                        if ui
+                                            .selectable_label(window.reference == Some(*id), name)
+                                            .clicked()
+                                        {
+                                            window.reference = Some(*id);
+                                            rescan = true;
+                                        }
                                     }
-                                }
-                            });
-                        ui.end_row();
-                        ui.label(tr("Hits to follow"));
-                        ui.horizontal(|ui| {
-                            for band in Band::ALL {
-                                ui.selectable_value(
-                                    &mut window.settings.band,
-                                    band,
-                                    tr(band.name()),
-                                );
-                            }
+                                });
                         });
-                        ui.end_row();
-                        ui.label(tr("Sensitivity"));
-                        ui.add(
-                            egui::Slider::new(&mut window.settings.sensitivity, 0.0..=1.0)
-                                .show_value(false),
+                        dialog::field(ui, tr("Hits to follow"), |ui| {
+                            let bands: Vec<(Band, &str, bool)> =
+                                Band::ALL.iter().map(|&b| (b, tr(b.name()), true)).collect();
+                            dialog::segmented(ui, &mut window.settings.band, &bands);
+                        });
+                    });
+                    dialog::section(ui, tr("Feel"), |ui| {
+                        let mut chosen = feel_of(&window.settings);
+                        let names: Vec<(Option<usize>, &str, bool)> = FEELS
+                            .iter()
+                            .enumerate()
+                            .map(|(k, f)| (Some(k), tr(f.0), true))
+                            .collect();
+                        if dialog::segmented(ui, &mut chosen, &names)
+                            && let Some(k) = chosen
+                        {
+                            (window.settings.tolerance_ms, window.settings.strength) =
+                                (FEELS[k].2, FEELS[k].3);
+                        }
+                        dialog::hint(
+                            ui,
+                            feel_of(&window.settings)
+                                .map_or(tr("Your own settings"), |k| tr(FEELS[k].1)),
                         );
-                        ui.end_row();
-                        ui.label(tr("Tolerance"));
-                        ui.add(
-                            egui::Slider::new(&mut window.settings.tolerance_ms, 10.0..=120.0)
+                        dialog::field(ui, tr("Sensitivity"), |ui| {
+                            ui.add(
+                                egui::Slider::new(&mut window.settings.sensitivity, 0.0..=1.0)
+                                    .custom_formatter(|v, _| format!("{:.0} %", v * 100.0)),
+                            )
+                            .on_hover_text(tr("Higher finds softer hits, in both"));
+                        });
+                        dialog::field(ui, tr("Tolerance"), |ui| {
+                            ui.add(
+                                egui::Slider::new(
+                                    &mut window.settings.tolerance_ms,
+                                    10.0..=120.0,
+                                )
                                 .suffix(" ms")
                                 .integer(),
-                        )
-                        .on_hover_text(tr(
-                            "How far a hit may be from the one it follows; farther ones stay",
-                        ));
-                        ui.end_row();
-                        ui.label(tr("Strength"));
-                        ui.add(
-                            egui::Slider::new(&mut window.settings.strength, 0.0..=1.0)
-                                .custom_formatter(|v, _| format!("{:.0} %", v * 100.0)),
-                        )
-                        .on_hover_text(tr("Below 100 %, some of the feel of the take stays"));
-                        ui.end_row();
+                            );
+                        });
+                        dialog::hint(
+                            ui,
+                            tr("How far a hit may be from the one it follows; farther ones stay"),
+                        );
+                        dialog::field(ui, tr("Strength"), |ui| {
+                            ui.add(
+                                egui::Slider::new(&mut window.settings.strength, 0.0..=1.0)
+                                    .custom_formatter(|v, _| format!("{:.0} %", v * 100.0)),
+                            );
+                        });
+                        dialog::hint(ui, tr("Below 100 %, some of the feel of the take stays"));
                     });
-                ui.separator();
-                if let Some(error) = &window.error {
-                    ui.colored_label(crate::settings::ERROR, error);
-                } else if ready {
-                    let moves = &window.moves;
-                    ui.label(trf!(
-                        "{moved} of the {hits} hits of the tracks move, by {largest} ms at most \
-                         ({reference} hits in the reference)",
-                        moved = moves.moved(),
-                        hits = moves.hits,
-                        reference = moves.reference_hits,
-                        largest = format!("{:.0}", moves.largest() as f32 / sr * 1000.0)
-                    ));
-                    ui.weak(tr(
-                        "In the clips: each hit goes from the grey line to the colored one.",
-                    ));
-                } else {
-                    ui.horizontal(|ui| {
-                        ui.spinner();
-                        ui.label(tr("Looking for the hits…"));
+                    dialog::section(ui, tr("What moves"), |ui| {
+                        dialog::well(ui, |ui| {
+                            if let Some(error) = &window.error {
+                                ui.colored_label(crate::settings::ERROR, error);
+                            } else if ready {
+                                let moves = &window.moves;
+                                ui.label(trf!(
+                                    "{moved} of the {hits} hits of the tracks move, by \
+                                     {largest} ms at most ({reference} hits in the reference)",
+                                    moved = moves.moved(),
+                                    hits = moves.hits,
+                                    reference = moves.reference_hits,
+                                    largest =
+                                        format!("{:.0}", moves.largest() as f32 / sr * 1000.0)
+                                ));
+                            } else {
+                                ui.horizontal(|ui| {
+                                    ui.spinner();
+                                    ui.label(tr("Looking for the hits…"));
+                                });
+                            }
+                        });
+                        dialog::hint(
+                            ui,
+                            tr("In the clips: each hit goes from the grey line to the colored one."),
+                        );
                     });
                 }
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    let can = ready && !busy && window.moves.moved() > 0;
-                    if theme::primary_button_enabled(ui, can, tr("Groove"))
-                        .on_hover_text(tr(
-                            "Stretch the tracks into a new playlist; the current one stays as \
-                             an alternate",
-                        ))
-                        .clicked()
-                    {
-                        apply = true;
+                dialog::Part::Actions => {
+                    let status = if busy {
+                        Some(tr("Stretching…"))
+                    } else if previewing {
+                        Some(tr("Preparing the pre-listen…"))
+                    } else {
+                        None
+                    };
+                    if let Some(status) = status {
+                        ui.spinner();
+                        summary(ui, status);
+                    } else if window.preview.is_some() {
+                        summary(ui, tr("You hear the grooved tracks"));
                     }
-                    ui.toggle_value(&mut window.listen, tr("Pre-listen"))
-                        .on_hover_text(tr(
+                    dialog::buttons(ui, |ui| {
+                        let can = ready && !busy && window.moves.moved() > 0;
+                        apply = dialog::primary(ui, tr("Groove"), can)
+                            .on_hover_text(tr(
+                                "Stretch the tracks into a new playlist; the current one stays \
+                                 as an alternate",
+                            ))
+                            .clicked()
+                            && can;
+                        toggle(ui, &mut window.listen, tr("Pre-listen")).on_hover_text(tr(
                             "Hear the tracks grooved while you adjust; nothing stays until you \
                              press Groove",
                         ));
-                    if busy {
-                        ui.spinner();
-                        ui.label(tr("Stretching…"));
-                    } else if previewing {
-                        ui.spinner();
-                        ui.label(tr("Preparing the pre-listen…"));
-                    } else if window.preview.is_some() {
-                        ui.weak(tr("You hear the grooved tracks"));
-                    }
-                });
+                    });
+                }
             });
         // The analysis and the result start from the tracks as they were.
         if rescan {
@@ -745,64 +771,91 @@ impl TimelineView {
             window.hits = scan.hits(window.sensitivity);
             window.found_for = Some(window.sensitivity);
         }
+        let grid = *window.grid.get_or_insert(grid);
         let ready = window.scan.is_some();
+        let detail = span_detail(doc.project(), &window.tracks, window.start, window.end);
         let mut open = true;
         let mut action = None;
-        egui::Window::new(tr("Beat Detective"))
-            .id(egui::Id::unique("beat-detective"))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .default_width(380.0)
-            .show(ctx, |ui| {
-                ui.weak(trf!(
-                    "{count} track(s): hits are looked for on all of them together, so the \
-                     microphones of a kit are cut at the same places.",
-                    count = window.tracks.len()
-                ));
-                ui.add(
-                    egui::Slider::new(&mut window.sensitivity, 0.0..=1.0)
-                        .text(tr("Sensitivity"))
-                        .show_value(false),
-                );
-                if ready {
-                    ui.label(trf!(
-                        "{count} hit(s), marked in red",
-                        count = window.hits.len()
-                    ));
-                } else {
-                    ui.horizontal(|ui| {
-                        ui.spinner();
-                        ui.label(tr("Looking for the hits…"));
+        dialog::Dialog::new("beat-detective", tr("Beat Detective"))
+            .detail(detail)
+            .width(520.0)
+            .show(ctx, &mut open, |ui, part| match part {
+                dialog::Part::Body => {
+                    ui.spacing_mut().slider_width = 200.0;
+                    dialog::section(ui, tr("Hits"), |ui| {
+                        dialog::field(ui, tr("Sensitivity"), |ui| {
+                            ui.add(
+                                egui::Slider::new(&mut window.sensitivity, 0.0..=1.0)
+                                    .custom_formatter(|v, _| format!("{:.0} %", v * 100.0)),
+                            )
+                            .on_hover_text(tr("Higher finds softer hits"));
+                        });
+                        dialog::field(ui, tr("Result"), |ui| {
+                            if ready {
+                                ui.label(
+                                    RichText::new(trf!(
+                                        "{count} hit(s), marked in red",
+                                        count = window.hits.len()
+                                    ))
+                                    .strong(),
+                                );
+                            } else {
+                                ui.spinner();
+                                ui.label(tr("Looking for the hits…"));
+                            }
+                        });
+                        dialog::hint(
+                            ui,
+                            tr("Hits are looked for on all the tracks together, so the \
+                                microphones of a kit are cut at the same places."),
+                        );
+                    });
+                    dialog::section(ui, tr("Conform to the grid"), |ui| {
+                        dialog::field(ui, tr("Grid"), |ui| {
+                            let choices: Vec<(crate::transport::Grid, &str, bool)> =
+                                crate::transport::Grid::ALL
+                                    .iter()
+                                    .map(|&g| (g, g.name(), true))
+                                    .collect();
+                            let mut chosen = grid;
+                            if dialog::segmented(ui, &mut chosen, &choices) {
+                                window.grid = Some(chosen);
+                            }
+                        });
+                        dialog::field(ui, tr("Strength"), |ui| {
+                            ui.add(
+                                egui::Slider::new(&mut window.strength, 0.0..=1.0)
+                                    .custom_formatter(|v, _| format!("{:.0} %", v * 100.0)),
+                            );
+                        });
+                        dialog::hint(
+                            ui,
+                            tr("Each slice moves toward the nearest grid line, the slices \
+                                joined with short crossfades. Below 100 %, some of the feel \
+                                stays."),
+                        );
                     });
                 }
-                ui.separator();
-                if ui
-                    .add_enabled(ready, egui::Button::new(tr("Separate at the hits")))
-                    .on_hover_text(tr("Cut the clips where the hits start"))
-                    .clicked()
-                {
-                    action = Some(None);
-                }
-                ui.horizontal(|ui| {
-                    ui.add(
-                        egui::Slider::new(&mut window.strength, 0.0..=1.0)
-                            .text(tr("Strength"))
-                            .custom_formatter(|v, _| format!("{:.0} %", v * 100.0)),
-                    );
-                });
-                let conform = trf!(
-                    "Separate and conform to the grid ({grid})",
-                    grid = grid.name()
-                );
-                if theme::primary_button_enabled(ui, ready, &conform)
-                    .on_hover_text(tr(
-                        "Cut at the hits and move each slice toward the nearest grid line, \
-                         joining the slices with short crossfades",
-                    ))
-                    .clicked()
-                {
-                    action = Some(Some((grid.beats(), window.strength)));
+                dialog::Part::Actions => {
+                    dialog::buttons(ui, |ui| {
+                        if dialog::primary(ui, tr("Conform"), ready)
+                            .on_hover_text(tr(
+                                "Cut at the hits and move each slice toward the nearest grid \
+                                 line, joining the slices with short crossfades",
+                            ))
+                            .clicked()
+                            && ready
+                        {
+                            action = Some(Some((grid.beats(), window.strength)));
+                        }
+                        if dialog::secondary(ui, tr("Separate only"))
+                            .on_hover_text(tr("Cut the clips where the hits start"))
+                            .clicked()
+                            && ready
+                        {
+                            action = Some(None);
+                        }
+                    });
                 }
             });
         if let Some(conform) = action {
@@ -847,82 +900,146 @@ impl TimelineView {
             window.pending = Some((window.settings, receive));
         }
         let ready = window.found_for == Some(window.settings);
+        let project = doc.project();
+        let detail = clips_detail(project, &window.clips);
+        let rate = project.sample_rate.max(1) as f32;
+        let total: u64 = window
+            .clips
+            .iter()
+            .filter_map(|id| edit::clip(project, *id))
+            .map(|c| c.length)
+            .sum();
         let mut open = true;
-        let mut apply = false;
-        egui::Window::new(tr("Strip Silence"))
-            .id(egui::Id::unique("strip-silence"))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .default_width(380.0)
-            .show(ctx, |ui| {
-                let s = &mut window.settings;
-                egui::Grid::new("strip")
-                    .num_columns(2)
-                    .spacing([12.0, 8.0])
-                    .show(ui, |ui| {
-                        ui.label(tr("Threshold"));
-                        ui.add(egui::Slider::new(&mut s.threshold_db, -96.0..=0.0).suffix(" dB"));
-                        ui.end_row();
-                        ui.label(tr("Shortest silence"));
-                        ui.add(
-                            egui::Slider::new(&mut s.min_silence_ms, 0.0..=2000.0)
-                                .logarithmic(true)
-                                .suffix(" ms"),
-                        );
-                        ui.end_row();
-                        ui.label(tr("Keep before"));
-                        ui.add(egui::Slider::new(&mut s.pad_before_ms, 0.0..=500.0).suffix(" ms"));
-                        ui.end_row();
-                        ui.label(tr("Keep after"));
-                        ui.add(egui::Slider::new(&mut s.pad_after_ms, 0.0..=2000.0).suffix(" ms"));
-                        ui.end_row();
-                        ui.label(tr("Keep"));
-                        ui.horizontal(|ui| {
-                            ui.selectable_value(
-                                &mut window.mode,
-                                StripMode::Strip,
-                                tr("The sound"),
-                            )
-                            .on_hover_text(tr("Remove the silences"));
-                            ui.selectable_value(
-                                &mut window.mode,
-                                StripMode::Extract,
-                                tr("The silences"),
-                            )
-                            .on_hover_text(tr("Remove the sound, keep the room noise"));
-                            ui.selectable_value(
-                                &mut window.mode,
-                                StripMode::Separate,
-                                tr("Both, cut"),
-                            )
-                            .on_hover_text(tr(
-                                "Only cut the clips where the silences start and end",
-                            ));
-                        });
-                        ui.end_row();
+        let (mut apply, mut cancel) = (false, false);
+        dialog::Dialog::new("strip-silence", tr("Strip Silence"))
+            .detail(detail)
+            .width(540.0)
+            .show(ctx, &mut open, |ui, part| match part {
+                dialog::Part::Body => {
+                    ui.spacing_mut().slider_width = 200.0;
+                    let s = &mut window.settings;
+                    dialog::section(ui, tr("Ready-made settings"), |ui| {
+                        let mut chosen = STRIP_PRESETS.iter().position(|p| p.2 == *s);
+                        let names: Vec<(Option<usize>, &str, bool)> = STRIP_PRESETS
+                            .iter()
+                            .enumerate()
+                            .map(|(k, p)| (Some(k), tr(p.0), true))
+                            .collect();
+                        if dialog::segmented(ui, &mut chosen, &names)
+                            && let Some(k) = chosen
+                        {
+                            *s = STRIP_PRESETS[k].2;
+                        }
+                        let hint = STRIP_PRESETS
+                            .iter()
+                            .find(|p| p.2 == *s)
+                            .map_or(tr("Your own settings"), |p| tr(p.1));
+                        dialog::hint(ui, hint);
                     });
-                let pieces: usize = window.found.iter().map(|(_, r)| r.len()).sum();
-                ui.weak(trf!(
-                    "{clips} clip(s): {pieces} part(s) with sound. The darkened parts go.",
-                    clips = window.clips.len(),
-                    pieces = pieces
-                ));
-                ui.horizontal(|ui| {
-                    if theme::primary_button_enabled(ui, ready, tr("Strip")).clicked() {
-                        apply = true;
-                    }
-                    if !ready {
+                    dialog::section(ui, tr("Silence"), |ui| {
+                        dialog::field(ui, tr("Threshold"), |ui| {
+                            ui.add(
+                                egui::Slider::new(&mut s.threshold_db, -96.0..=0.0).suffix(" dB"),
+                            );
+                        });
+                        dialog::hint(ui, tr("Quieter than this counts as silence"));
+                        dialog::field(ui, tr("Shortest silence"), |ui| {
+                            ui.add(
+                                egui::Slider::new(&mut s.min_silence_ms, 0.0..=2000.0)
+                                    .logarithmic(true)
+                                    .suffix(" ms"),
+                            );
+                        });
+                        dialog::hint(
+                            ui,
+                            tr("Shorter gaps stay, so words and notes hold together"),
+                        );
+                    });
+                    dialog::section(ui, tr("Margins"), |ui| {
+                        dialog::field(ui, tr("Keep before"), |ui| {
+                            ui.add(
+                                egui::Slider::new(&mut s.pad_before_ms, 0.0..=500.0).suffix(" ms"),
+                            );
+                        });
+                        dialog::field(ui, tr("Keep after"), |ui| {
+                            ui.add(
+                                egui::Slider::new(&mut s.pad_after_ms, 0.0..=2000.0).suffix(" ms"),
+                            );
+                        });
+                        dialog::hint(
+                            ui,
+                            tr("Kept around each sound, for its attack and what rings after it"),
+                        );
+                    });
+                    dialog::section(ui, tr("Result"), |ui| {
+                        dialog::field(ui, tr("Keep"), |ui| {
+                            dialog::segmented(
+                                ui,
+                                &mut window.mode,
+                                &[
+                                    (StripMode::Strip, tr("The sound"), true),
+                                    (StripMode::Extract, tr("The silences"), true),
+                                    (StripMode::Separate, tr("Both, cut"), true),
+                                ],
+                            );
+                        });
+                        dialog::hint(
+                            ui,
+                            match window.mode {
+                                StripMode::Strip => {
+                                    tr("Removes the silences. The darkened parts of the clips go.")
+                                }
+                                StripMode::Extract => {
+                                    tr("Removes the sound, keeps the room noise. The darkened \
+                                     parts of the clips go.")
+                                }
+                                StripMode::Separate => {
+                                    tr("Only cuts the clips where the silences start and end, at \
+                                     the red lines.")
+                                }
+                            },
+                        );
+                    });
+                }
+                dialog::Part::Actions => {
+                    if ready {
+                        let pieces: usize = window.found.iter().map(|(_, r)| r.len()).sum();
+                        let sound: u64 = window
+                            .found
+                            .iter()
+                            .flat_map(|(_, r)| r.iter())
+                            .map(|(a, b)| b.saturating_sub(*a))
+                            .sum();
+                        let silence = total.saturating_sub(sound) as f32 / rate;
+                        summary(
+                            ui,
+                            &trf!(
+                                "{pieces} part(s) with sound · {silence} s of silence",
+                                pieces = pieces,
+                                silence = format!("{silence:.1}")
+                            ),
+                        );
+                    } else {
                         ui.spinner();
+                        summary(ui, tr("Looking for the silences…"));
                     }
-                });
+                    dialog::buttons(ui, |ui| {
+                        let text = match window.mode {
+                            StripMode::Strip => tr("Strip"),
+                            StripMode::Extract => tr("Remove the sound"),
+                            StripMode::Separate => tr("Cut"),
+                        };
+                        apply = dialog::primary(ui, text, ready).clicked() && ready;
+                        cancel = dialog::secondary(ui, tr("Cancel")).clicked();
+                    });
+                }
             });
         if apply {
             let left = doc.strip_silence(&window.found, window.mode);
             self.selection = left;
             open = false;
         }
-        if !open {
+        if !open || cancel {
             self.strip = None;
         }
     }
@@ -931,92 +1048,94 @@ impl TimelineView {
         let Some(window) = &mut self.process else {
             return;
         };
+        let detail = clips_detail(doc.project(), &window.clips);
         let mut open = true;
         let mut render = false;
-        egui::Window::new(tr("Process Clips"))
-            .id(egui::Id::unique("process-clips"))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .default_width(400.0)
-            .show(ctx, |ui| {
-                ui.weak(trf!(
-                    "Renders {count} clip(s) through the process and puts the result in their \
-                     place (undo restores them).",
-                    count = window.clips.len()
-                ));
-                ui.horizontal(|ui| {
-                    ui.label(tr("Process"));
-                    let name = match window.choice {
-                        Choice::Effect(id) => audiostrada_dsp::info(id).map_or(id, |i| tr(i.name)),
-                        Choice::Reverse => tr("Reverse"),
-                        Choice::Normalize => tr("Normalize"),
+        dialog::Dialog::new("process-clips", tr("Process Clips"))
+            .detail(detail)
+            .width(560.0)
+            .show(ctx, &mut open, |ui, part| match part {
+                dialog::Part::Body => {
+                    ui.spacing_mut().slider_width = 200.0;
+                    let info = match window.choice {
+                        Choice::Effect(id) => audiostrada_dsp::info(id),
+                        _ => None,
                     };
-                    egui::ComboBox::from_id_salt("process-choice")
-                        .selected_text(name)
-                        .width(220.0)
-                        .show_ui(ui, |ui| {
-                            for (choice, text) in [
-                                (Choice::Normalize, tr("Normalize")),
-                                (Choice::Reverse, tr("Reverse")),
-                            ] {
-                                ui.selectable_value(&mut window.choice, choice, text);
-                            }
-                            for category in audiostrada_dsp::CATEGORIES {
-                                let effects: Vec<_> = audiostrada_dsp::EFFECTS
-                                    .iter()
-                                    .filter(|e| e.category == *category)
-                                    .filter(|e| !e.instrument && e.files.is_empty())
-                                    .filter(|e| e.id != "analyzer" && e.id != "tuner")
-                                    .collect();
-                                if effects.is_empty() {
-                                    continue;
-                                }
-                                ui.separator();
-                                ui.label(RichText::new(tr(category)).small().weak());
-                                for e in effects {
-                                    if ui
-                                        .selectable_label(
-                                            window.choice == Choice::Effect(e.id),
-                                            tr(e.name),
-                                        )
-                                        .clicked()
-                                    {
-                                        window.choice = Choice::Effect(e.id);
-                                        window.params = e
-                                            .params
-                                            .iter()
-                                            .map(|p| (p.id.to_owned(), p.default))
-                                            .collect();
-                                    }
-                                }
-                            }
+                    dialog::section(ui, tr("Process"), |ui| {
+                        dialog::field(ui, tr("Process"), |ui| {
+                            process_choice(ui, window);
                         });
-                });
-                match window.choice {
-                    Choice::Normalize => {
-                        ui.add(
-                            egui::Slider::new(&mut window.peak_db, -24.0..=0.0)
-                                .text(tr("Peak"))
-                                .suffix(" dB"),
-                        );
-                    }
-                    Choice::Reverse => {
-                        ui.weak(tr("Plays the clips backwards."));
-                    }
-                    Choice::Effect(id) => {
-                        if let Some(info) = audiostrada_dsp::info(id) {
-                            effect_params(ui, info, &mut window.params);
+                        let about = match window.choice {
+                            Choice::Normalize => {
+                                tr("Brings the loudest peak of each clip to a level.")
+                            }
+                            Choice::Reverse => tr("Plays the clips backwards."),
+                            Choice::Effect(_) => info.map_or("", |i| tr(i.description)),
+                        };
+                        dialog::hint(ui, about);
+                    });
+                    match window.choice {
+                        Choice::Normalize => {
+                            dialog::section(ui, tr("Settings"), |ui| {
+                                dialog::field(ui, tr("Peak"), |ui| {
+                                    ui.add(
+                                        egui::Slider::new(&mut window.peak_db, -24.0..=0.0)
+                                            .suffix(" dB"),
+                                    );
+                                    for target in [-0.1f32, -1.0, -3.0] {
+                                        if ui.small_button(format!("{target}")).clicked() {
+                                            window.peak_db = target;
+                                        }
+                                    }
+                                });
+                            });
                         }
-                        ui.checkbox(
-                            &mut window.tail,
-                            tr("Keep the tail (what rings after the clip)"),
-                        );
+                        Choice::Reverse => {}
+                        Choice::Effect(_) => {
+                            if let Some(info) = info
+                                && !info.params.is_empty()
+                            {
+                                dialog::section(ui, tr("Settings"), |ui| {
+                                    egui::ScrollArea::vertical()
+                                        .max_height(360.0)
+                                        .show(ui, |ui| effect_params(ui, info, &mut window.params));
+                                });
+                            }
+                            dialog::section(ui, tr("Result"), |ui| {
+                                dialog::field(ui, tr("Tail"), |ui| {
+                                    ui.checkbox(
+                                        &mut window.tail,
+                                        tr("Keep what rings after the clip"),
+                                    );
+                                });
+                                dialog::hint(
+                                    ui,
+                                    tr("For reverbs and delays: the clip grows by their tail."),
+                                );
+                            });
+                        }
                     }
                 }
-                ui.add_space(4.0);
-                if theme::primary_button(ui, tr("Render")).clicked() {
-                    render = true;
+                dialog::Part::Actions => {
+                    summary(
+                        ui,
+                        &trf!(
+                            "{count} clip(s) replaced by the result; undo restores them",
+                            count = window.clips.len()
+                        ),
+                    );
+                    dialog::buttons(ui, |ui| {
+                        render = dialog::primary(ui, tr("Render"), true).clicked();
+                        if let Choice::Effect(id) = window.choice
+                            && let Some(info) = audiostrada_dsp::info(id)
+                            && !info.params.is_empty()
+                            && dialog::secondary(ui, tr("Defaults"))
+                                .on_hover_text(tr("Back to the effect's default settings"))
+                                .clicked()
+                        {
+                            window.params = defaults(info);
+                        }
+                    });
                 }
             });
         if render {
@@ -1040,41 +1159,239 @@ impl TimelineView {
     }
 }
 
-/// Sliders, switches and lists for an effect's parameters.
+/// The settings of Strip Silence that cover most needs: name, what it does, settings.
+const STRIP_PRESETS: [(&str, &str, StripSettings); 4] = [
+    (
+        "General",
+        "Takes off what is clearly silent, with short margins",
+        StripSettings {
+            threshold_db: -48.0,
+            min_silence_ms: 100.0,
+            pad_before_ms: 5.0,
+            pad_after_ms: 30.0,
+        },
+    ),
+    (
+        "Vocals",
+        "Takes off the noise between the phrases, keeps the breaths before them",
+        StripSettings {
+            threshold_db: -45.0,
+            min_silence_ms: 250.0,
+            pad_before_ms: 20.0,
+            pad_after_ms: 150.0,
+        },
+    ),
+    (
+        "Speech",
+        "Keeps the words whole, takes off the long pauses",
+        StripSettings {
+            threshold_db: -50.0,
+            min_silence_ms: 400.0,
+            pad_before_ms: 40.0,
+            pad_after_ms: 200.0,
+        },
+    ),
+    (
+        "Toms",
+        "Keeps each hit and its ring, takes off the other drums heard between them",
+        StripSettings {
+            threshold_db: -36.0,
+            min_silence_ms: 60.0,
+            pad_before_ms: 2.0,
+            pad_after_ms: 300.0,
+        },
+    ),
+];
+
+/// How tightly Groove follows: name, what it does, tolerance and strength.
+const FEELS: [(&str, &str, f32, f64); 3] = [
+    (
+        "Tight",
+        "Every hit near one of the reference lands on it",
+        35.0,
+        1.0,
+    ),
+    (
+        "Natural",
+        "Most of the way, some of the feel of the take stays",
+        35.0,
+        0.75,
+    ),
+    (
+        "Loose",
+        "Only the hits close to the reference, half of the way",
+        25.0,
+        0.5,
+    ),
+];
+
+fn feel_of(settings: &GrooveSettings) -> Option<usize> {
+    FEELS
+        .iter()
+        .position(|f| f.2 == settings.tolerance_ms && f.3 == settings.strength)
+}
+
+/// Names of tracks, the first ones only when there are many.
+fn track_names(project: &audiostrada_core::Project, tracks: &[TrackId]) -> String {
+    let names: Vec<&str> = tracks
+        .iter()
+        .filter_map(|t| project.track(*t))
+        .map(|t| t.name.as_str())
+        .collect();
+    if names.len() <= 3 {
+        names.join(", ")
+    } else {
+        trf!(
+            "{names} and {more} more",
+            names = names[..2].join(", "),
+            more = names.len() - 2
+        )
+    }
+}
+
+/// The tracks and the time span a window acts on.
+fn span_detail(
+    project: &audiostrada_core::Project,
+    tracks: &[TrackId],
+    start: u64,
+    end: u64,
+) -> String {
+    let rate = project.sample_rate;
+    trf!(
+        "{tracks}, from {start} to {end}",
+        tracks = track_names(project, tracks),
+        start = crate::mixer::format_time(start, rate),
+        end = crate::mixer::format_time(end, rate)
+    )
+}
+
+/// The clips a window acts on, and their tracks.
+fn clips_detail(project: &audiostrada_core::Project, clips: &[ClipId]) -> String {
+    let tracks: Vec<TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| t.clips.iter().any(|c| clips.contains(&c.id)))
+        .map(|t| t.id)
+        .collect();
+    trf!(
+        "{count} clip(s) on {tracks}",
+        count = clips.len(),
+        tracks = track_names(project, &tracks)
+    )
+}
+
+/// A short line at the left of the actions band.
+fn summary(ui: &mut Ui, text: &str) {
+    let weak = theme::current(ui).weak;
+    ui.label(RichText::new(text).size(11.5).color(weak));
+}
+
+/// A button of the actions band that stays lit while on.
+fn toggle(ui: &mut Ui, on: &mut bool, text: &str) -> egui::Response {
+    use crate::effect_frame::{Face, radius, text_button};
+    let p = theme::current(ui);
+    let width = ui
+        .painter()
+        .layout_no_wrap(text.to_owned(), theme::strong(12.0), p.text)
+        .size()
+        .x
+        + 28.0;
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width.max(80.0), 30.0), egui::Sense::hover());
+    let face = if *on {
+        Face::Lit(theme::mix(p.surface, p.accent, 0.7))
+    } else {
+        Face::Plain
+    };
+    let id = ui.scope_id().with(("toggle", text));
+    let response = text_button(ui, rect, id, text, face, radius(&p) as u8)
+        .on_hover_cursor(egui::CursorIcon::PointingHand);
+    if response.clicked() {
+        *on = !*on;
+    }
+    response
+}
+
+fn defaults(info: &audiostrada_dsp::EffectInfo) -> BTreeMap<String, f32> {
+    info.params
+        .iter()
+        .map(|p| (p.id.to_owned(), p.default))
+        .collect()
+}
+
+/// The list of processes: normalize, reverse, then the built-in effects by family.
+fn process_choice(ui: &mut Ui, window: &mut ProcessWindow) {
+    let name = match window.choice {
+        Choice::Effect(id) => audiostrada_dsp::info(id).map_or(id, |i| tr(i.name)),
+        Choice::Reverse => tr("Reverse"),
+        Choice::Normalize => tr("Normalize"),
+    };
+    egui::ComboBox::from_id_salt("process-choice")
+        .selected_text(name)
+        .width(240.0)
+        .height(420.0)
+        .show_ui(ui, |ui| {
+            for (choice, text) in [
+                (Choice::Normalize, tr("Normalize")),
+                (Choice::Reverse, tr("Reverse")),
+            ] {
+                ui.selectable_value(&mut window.choice, choice, text);
+            }
+            for category in audiostrada_dsp::CATEGORIES {
+                let effects: Vec<_> = audiostrada_dsp::EFFECTS
+                    .iter()
+                    .filter(|e| e.category == *category)
+                    .filter(|e| !e.instrument && e.files.is_empty())
+                    .filter(|e| e.id != "analyzer" && e.id != "tuner")
+                    .collect();
+                if effects.is_empty() {
+                    continue;
+                }
+                ui.separator();
+                ui.label(RichText::new(tr(category)).small().weak());
+                for e in effects {
+                    if ui
+                        .selectable_label(window.choice == Choice::Effect(e.id), tr(e.name))
+                        .clicked()
+                    {
+                        window.choice = Choice::Effect(e.id);
+                        window.params = defaults(e);
+                    }
+                }
+            }
+        });
+}
+
+/// Sliders, switches and lists for an effect's parameters, one labelled field each.
 fn effect_params(
     ui: &mut Ui,
     info: &audiostrada_dsp::EffectInfo,
     params: &mut BTreeMap<String, f32>,
 ) {
-    egui::Grid::new(("process-params", info.id))
-        .num_columns(2)
-        .spacing([12.0, 6.0])
-        .show(ui, |ui| {
-            for p in info.params {
-                let value = params.entry(p.id.to_owned()).or_insert(p.default);
-                ui.label(tr(p.name));
-                if p.toggle {
-                    let mut on = *value >= 0.5;
-                    if ui.checkbox(&mut on, "").changed() {
-                        *value = f32::from(u8::from(on));
-                    }
-                } else if !p.choices.is_empty() {
-                    let current = (*value - p.min).round().max(0.0) as usize;
-                    egui::ComboBox::from_id_salt(("process-param", p.id))
-                        .selected_text(p.choices.get(current).copied().map_or("?", tr))
-                        .show_ui(ui, |ui| {
-                            for (i, name) in p.choices.iter().enumerate() {
-                                if ui.selectable_label(i == current, tr(name)).clicked() {
-                                    *value = p.min + i as f32;
-                                }
-                            }
-                        });
-                } else {
-                    ui.add(egui::Slider::new(value, p.min..=p.max).suffix(format!(" {}", p.unit)));
+    for p in info.params {
+        let value = params.entry(p.id.to_owned()).or_insert(p.default);
+        dialog::field(ui, tr(p.name), |ui| {
+            if p.toggle {
+                let mut on = *value >= 0.5;
+                if ui.checkbox(&mut on, "").changed() {
+                    *value = f32::from(u8::from(on));
                 }
-                ui.end_row();
+            } else if !p.choices.is_empty() {
+                let current = (*value - p.min).round().max(0.0) as usize;
+                egui::ComboBox::from_id_salt(("process-param", p.id))
+                    .selected_text(p.choices.get(current).copied().map_or("?", tr))
+                    .width(200.0)
+                    .show_ui(ui, |ui| {
+                        for (i, name) in p.choices.iter().enumerate() {
+                            if ui.selectable_label(i == current, tr(name)).clicked() {
+                                *value = p.min + i as f32;
+                            }
+                        }
+                    });
+            } else {
+                ui.add(egui::Slider::new(value, p.min..=p.max).suffix(format!(" {}", p.unit)));
             }
         });
+    }
 }
 
 #[cfg(test)]

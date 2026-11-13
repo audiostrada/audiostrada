@@ -27,7 +27,8 @@ de chaque réglage.
   les presets *Sidechain* et *Ducker* attendent la clé d'une autre piste.
 - **Bypass**, à droite de la barre, s'allume en ambre tant que l'effet est bypassé.
 - **Les chaînes d'effets** gardent toute une liste d'effets avec leurs réglages : clic droit sur
-  un effet (ou menu de la piste) › *Enregistrer les effets comme chaîne*, puis ajoutez-la à
+  un effet (ou menu de la piste) › *Enregistrer les effets comme chaîne* (sa fenêtre liste les
+  effets enregistrés et prévient quand le nom remplace une de vos chaînes), puis ajoutez-la à
   n'importe quelle piste par *+ insert* › *Chaînes*. Chaînes d'usine : voix, bus batterie, guitare
   acoustique, master pour le streaming.
 

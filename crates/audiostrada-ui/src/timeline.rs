@@ -153,6 +153,12 @@ pub struct TimelineView {
     scroll: f64,
     scroll_y: f32,
     track_height: f32,
+    /// The tracks' height before *Compact*, while it is on.
+    compact_from: Option<f32>,
+    /// The playhead where it was drawn last: a jump brings it into view.
+    last_position: u64,
+    /// The playhead was sent somewhere: brought into view even if it did not move.
+    pub reveal: bool,
     /// Height of each shown track's clips, by row.
     heights: Vec<f32>,
     /// Vertical magnification of the waveforms.
@@ -301,6 +307,9 @@ impl TimelineView {
             scroll: 0.0,
             scroll_y: 0.0,
             track_height: 72.0,
+            compact_from: None,
+            last_position: 0,
+            reveal: false,
             heights: Vec::new(),
             wave_zoom: 1.0,
             selection: Vec::new(),
@@ -807,11 +816,13 @@ impl TimelineView {
             Action::NextMarker => {
                 if let Some(target) = edit::next_marker(doc.project(), position) {
                     doc.player_mut().locate(target);
+                    self.reveal = true;
                 }
             }
             Action::PreviousMarker => {
                 if let Some(target) = edit::previous_marker(doc.project(), position) {
                     doc.player_mut().locate(target);
+                    self.reveal = true;
                 }
             }
             Action::NewPlaylist => {
@@ -998,10 +1009,13 @@ impl TimelineView {
             }
         }
 
-        // Follow the playhead while playing.
+        // Follow the playhead while playing, and when it jumps (to the start, to a marker).
         let position = doc.player().position();
         let playing = doc.player().engine().playing();
-        if playing && self.drag.is_none() {
+        let jumped =
+            (position != self.last_position && !playing) | std::mem::take(&mut self.reveal);
+        self.last_position = position;
+        if (playing || jumped) && self.drag.is_none() {
             let visible = f64::from(lanes.width()) * self.zoom;
             if (position as f64) > self.scroll + visible * 0.95 || (position as f64) < self.scroll {
                 self.scroll = (position as f64 - visible * 0.05).max(0.0);
@@ -1298,6 +1312,10 @@ impl TimelineView {
         );
         self.link_loop(&mut doc);
         self.header_edge(ui, full, header);
+        self.corner(
+            ui,
+            Rect::from_min_max(full.min, pos2(header.right(), full.top() + RULER_HEIGHT)),
+        );
         let magnet =
             magnet::Magnet::new(settings, &project, scale.zoom, doc.player().position(), &[]);
         self.lane_rects.clear();
