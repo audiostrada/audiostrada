@@ -135,7 +135,7 @@ impl Analyzer {
         }
         let magnitudes = &self.re[..half];
         let fall = self.decay * elapsed;
-        for band in 0..BANDS {
+        for (band, level) in self.levels.iter_mut().enumerate() {
             let lo = LOW * (HIGH / LOW).powf(band as f32 / BANDS as f32) / bin;
             let hi = LOW * (HIGH / LOW).powf((band + 1) as f32 / BANDS as f32) / bin;
             let (a, b) = (
@@ -151,7 +151,7 @@ impl Analyzer {
                 magnitudes[k] + (magnitudes[k + 1] - magnitudes[k]) * t
             };
             let db = crate::gain_to_db(peak).max(-120.0);
-            self.levels[band] = db.max(self.levels[band] - fall);
+            *level = db.max(*level - fall);
         }
     }
 }

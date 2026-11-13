@@ -196,13 +196,12 @@ impl Effect for Filter {
                     *s
                 };
                 let mut y = x;
-                for stage in 0..stages {
+                for (stage, [ic1, ic2]) in self.ic[ch].iter_mut().take(stages).enumerate() {
                     let k = if stage + 1 == stages { k } else { k_first };
                     let a1 = 1.0 / (1.0 + g * (g + k));
                     let a2 = g * a1;
                     let a3 = g * a2;
                     let input = y;
-                    let [ic1, ic2] = &mut self.ic[ch][stage];
                     let v3 = input - *ic2;
                     let v1 = a1 * *ic1 + a2 * v3;
                     let v2 = *ic2 + a2 * *ic1 + a3 * v3;
