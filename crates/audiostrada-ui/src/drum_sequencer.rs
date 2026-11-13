@@ -809,6 +809,45 @@ fn new_pattern(params: &mut Params, track: TrackId, bars: u32) -> Option<ClipId>
     created
 }
 
+/// The ready-made rhythms, by genre, under a button that stands out; the one clicked. Each
+/// can also be dragged to the timeline.
+fn rhythm_menu(ui: &mut Ui) -> Option<usize> {
+    let mut chosen = None;
+    let button = egui::Button::new(
+        RichText::new(format!("{}  ▾", tr("Rhythms")))
+            .strong()
+            .color(Color32::WHITE),
+    )
+    .fill(Color32::from_rgb(74, 128, 200))
+    .min_size(vec2(120.0, 24.0));
+    egui::containers::menu::MenuButton::from_button(button)
+        .ui(ui, |ui| {
+            ui.set_min_width(170.0);
+            for genre in GENRES {
+                ui.menu_button(tr(genre), |ui| {
+                    ui.set_min_width(220.0);
+                    for (i, r) in RHYTHMS.iter().enumerate().filter(|(_, r)| r.genre == genre) {
+                        let label = format!("{}  ·  {} BPM", tr(r.name), r.bpm);
+                        let response = ui
+                            .add(egui::Button::new(label).sense(Sense::click_and_drag()))
+                            .on_hover_text(tr(
+                                "Click: writes its groove, its variation and its fill over the \
+                                 pattern. Drag it to the timeline for a new pattern there",
+                            ));
+                        response.dnd_set_drag_payload(DraggedRhythm(i));
+                        if response.clicked() {
+                            chosen = Some(i);
+                            ui.close();
+                        }
+                    }
+                });
+            }
+        })
+        .0
+        .on_hover_text(tr("Start from a ready-made rhythm, by genre"));
+    chosen
+}
+
 /// A variation's chip: filled in its color when it is the one edited, outlined otherwise.
 fn chip(ui: &mut Ui, text: &str, color: Color32, on: bool) -> egui::Response {
     let ink = if on {
@@ -888,6 +927,13 @@ pub fn show(
                     .suffix(tr(" bars")),
             )
             .on_hover_text(tr("Bars of the new pattern"));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if let Some(i) = rhythm_menu(ui) {
+                    state.clip = new_pattern(params, track, state.new_bars);
+                    state.variation = A;
+                    state.pending = Some(i);
+                }
+            });
         });
         return;
     };
@@ -986,32 +1032,17 @@ pub fn show(
         if response.drag_stopped() || response.lost_focus() {
             params.doc.history_mut().end_gesture();
         }
-        ui.add_space(10.0);
         let mut chosen = state.pending.take();
-        ui.menu_button(tr("Rhythms"), |ui| {
-            ui.set_min_width(170.0);
-            for genre in GENRES {
-                ui.menu_button(tr(genre), |ui| {
-                    ui.set_min_width(220.0);
-                    for (i, r) in RHYTHMS.iter().enumerate().filter(|(_, r)| r.genre == genre) {
-                        let label = format!("{}  ·  {} BPM", tr(r.name), r.bpm);
-                        let response = ui
-                            .add(egui::Button::new(label).sense(Sense::click_and_drag()))
-                            .on_hover_text(tr(
-                                "Click: writes its groove, its variation and its fill over the \
-                                 pattern. Drag it to the timeline for a new pattern there",
-                            ));
-                        response.dnd_set_drag_payload(DraggedRhythm(i));
-                        if response.clicked() {
-                            chosen = Some(i);
-                            ui.close();
-                        }
-                    }
-                });
+        let mut clear = false;
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if let Some(i) = rhythm_menu(ui) {
+                chosen = Some(i);
             }
-        })
-        .response
-        .on_hover_text(tr("Start from a ready-made rhythm, by genre"));
+            clear = ui
+                .button(tr("Clear"))
+                .on_hover_text(tr("Clears the steps of the variation shown"))
+                .clicked();
+        });
         if let Some(i) = chosen {
             let rhythm = &RHYTHMS[i];
             state.swing = rhythm.swing;
@@ -1034,11 +1065,7 @@ pub fn show(
             let label = crate::trf!("Rhythm {name}", name = tr(rhythm.name));
             store(params, &clip, &grid, write, &label, false);
         }
-        if ui
-            .button(tr("Clear"))
-            .on_hover_text(tr("Clears the steps of the variation shown"))
-            .clicked()
-        {
+        if clear {
             let gone: Vec<usize> = bars
                 .iter()
                 .flat_map(|&b| in_bar(&notes, &grid, b, swing))
