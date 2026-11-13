@@ -14,6 +14,7 @@ mod pool;
 mod processor;
 pub mod project;
 pub mod record;
+pub mod retouch;
 mod schedule;
 pub mod tap;
 mod transport;

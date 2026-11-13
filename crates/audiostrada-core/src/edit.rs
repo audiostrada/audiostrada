@@ -6,6 +6,9 @@
 //! follows the overlap as it grows, shrinks or goes; a clip covering another one, or covered by
 //! it, replaces the covered part.
 
+use std::sync::Arc;
+
+use crate::audio_edit::AudioEdits;
 use crate::model::{
     Clip, ClipId, MAX_CLIP_GAIN_DB, MIN_GAIN_DB, Marker, MarkerId, Note, Playlist, Project,
     SourceId, Track, TrackId, TrackKind,
@@ -146,6 +149,42 @@ pub fn clip_mut(project: &mut Project, id: ClipId) -> Option<&mut Clip> {
 /// The track holding a clip.
 pub fn track_of_clip(project: &Project, id: ClipId) -> Option<TrackId> {
     locate(project, id).map(|(t, _)| project.tracks[t].id)
+}
+
+/// Played samples of a clip (project rate, stretched) per frame of its source.
+pub fn played_per_source(project: &Project, clip: &Clip) -> f64 {
+    let rate = project
+        .sources
+        .get(&clip.source)
+        .map_or(project.sample_rate, |s| s.sample_rate)
+        .max(1);
+    f64::from(project.sample_rate) / f64::from(rate) * clip.stretch
+}
+
+/// Sets the audio editor's edits of a clip. When they shorten its pauses, its start and end
+/// stay on the same audio, the clip shorter by what was taken out.
+pub fn set_clip_edits(project: &mut Project, id: ClipId, edits: Option<AudioEdits>) {
+    let Some(c) = clip(project, id) else {
+        return;
+    };
+    let per = played_per_source(project, c);
+    let old = c.edits.as_deref().cloned().unwrap_or_default();
+    let new = edits.clone().unwrap_or_default();
+    let to_source = |p: u64| (p as f64 / per).round() as u64;
+    let to_played = |f: u64| (f as f64 * per).round() as u64;
+    // The window on the audio before any cut, then on the audio the new edits make.
+    let first = old.unmap(to_source(c.offset));
+    let last = old.unmap(to_source(c.offset + c.length));
+    let (offset, end) = (to_played(new.map(first)), to_played(new.map(last)));
+    let Some(c) = clip_mut(project, id) else {
+        return;
+    };
+    if old.cuts() != new.cuts() {
+        c.offset = offset;
+        c.length = end.saturating_sub(offset).max(1);
+        clamp_fades(c);
+    }
+    c.edits = edits.filter(|e| !e.entries.is_empty()).map(Arc::new);
 }
 
 /// Lengthens a MIDI clip to the bar after its last note, so pasted notes are heard; never
@@ -1778,6 +1817,42 @@ mod tests {
             2,
             "split on every track"
         );
+    }
+
+    #[test]
+    fn shortening_pauses_keeps_the_clip_on_its_audio() {
+        use crate::audio_edit::{Entry, Kind, Region};
+        let mut p = Project::new("Test", 48_000);
+        let source = p.add_source(Source {
+            path: PathBuf::from("a.wav"),
+            channels: 1,
+            sample_rate: 24_000,
+            frames: 24_000,
+        });
+        let t = p.add_track("Vox");
+        let id = p.add_clip(t, source, 0).unwrap();
+        trim_start(&mut p, id, 2_000);
+        let shorten = AudioEdits {
+            entries: vec![Entry::new(Kind::Shorten {
+                regions: vec![Region::new(10_000, 14_000)],
+                keep: 1_000,
+            })],
+        };
+        set_clip_edits(&mut p, id, Some(shorten.clone()));
+        let c = clip(&p, id).unwrap();
+        assert_eq!((c.offset, c.length), (2_000, 41_000));
+        assert!(c.edits.is_some());
+        let mut off = shorten;
+        off.entries[0].on = false;
+        set_clip_edits(&mut p, id, Some(off));
+        let c = clip(&p, id).unwrap();
+        assert_eq!(
+            (c.offset, c.length),
+            (2_000, 46_000),
+            "back to its whole length"
+        );
+        set_clip_edits(&mut p, id, None);
+        assert!(clip(&p, id).unwrap().edits.is_none());
     }
 
     #[test]

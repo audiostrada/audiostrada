@@ -76,6 +76,7 @@ actions! {
     ToolMute => ("Edit", "Mute tool"),
     AutomationEditor => ("View", "Automation editor of the selected tracks"),
     NoteEditor => ("View", "Note editor of the selected MIDI clip"),
+    AudioEditor => ("View", "Audio editor of the selected clip"),
     ToggleSnap => ("Edit", "Toggle snap to grid"),
     GridFiner => ("Edit", "Finer grid"),
     GridCoarser => ("Edit", "Coarser grid"),

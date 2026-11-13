@@ -24,6 +24,7 @@ use crate::i18n::tr;
 use crate::transport::{EditMode, EditSettings};
 use crate::trf;
 
+mod audio_editor;
 mod auto_editor;
 mod automation;
 mod draw;
@@ -183,6 +184,14 @@ pub struct TimelineView {
     auto_editor: Option<auto_editor::AutoEditor>,
     /// The note editor, the other window over the timeline.
     notes: note_editor::NoteEditor,
+    /// The audio editor, while open.
+    audio: Option<audio_editor::AudioEditor>,
+    /// The clip heard as it was in the audio editor, with the edits put aside meanwhile.
+    audio_before: Option<(ClipId, audiostrada_core::audio_edit::AudioEdits)>,
+    /// Delete was pressed while the audio editor is open.
+    audio_delete: bool,
+    /// What the audio editor found in the sources it opened, kept while the application runs.
+    audio_found: audio_editor::FoundBySource,
     /// Set while the automation editor draws its lanes: its pencil applies there.
     automation: bool,
     /// The tool of the automation editor.
@@ -254,8 +263,8 @@ pub struct TimelineView {
     pub(crate) zoom_back: Option<(f64, f64)>,
     /// Clips swept by the eraser or the mute tool during a drag.
     swept: Vec<ClipId>,
-    /// Attacks found in each media file, in its frames.
-    onsets: HashMap<std::path::PathBuf, Rc<Vec<usize>>>,
+    /// Attacks found in each media file, in its frames: all of them, or the clear hits.
+    onsets: HashMap<(std::path::PathBuf, bool), Rc<Vec<usize>>>,
     /// What a drag in the overview holds: the view's left edge, its right edge or all of it.
     overview_grab: Option<Grab>,
 }
@@ -324,6 +333,10 @@ impl TimelineView {
             content_height: 0.0,
             target_info: HashMap::new(),
             auto_editor: None,
+            audio: None,
+            audio_before: None,
+            audio_delete: false,
+            audio_found: Default::default(),
             automation: false,
             auto_tool: automation::AutoTool::default(),
             lane_surface: None,
@@ -671,9 +684,11 @@ impl TimelineView {
                 if self.auto_editor.take().is_none() {
                     self.auto_editor = Some(auto_editor::AutoEditor::at(self.zoom, self.scroll));
                     self.notes.open = false;
+                    self.audio = None;
                 }
             }
             Action::NoteEditor => self.toggle_note_editor(),
+            Action::AudioEditor => self.toggle_audio_editor(&doc),
             Action::ZoomToSelection => self.zoom_to_selection(&doc),
             Action::Fades => self.fades(&mut doc),
             Action::NextTransient | Action::PreviousTransient => {
@@ -1321,6 +1336,7 @@ impl TimelineView {
         self.lane_rects.clear();
         self.track_lanes(ui, &mut doc, &project, lanes, scale, &magnet);
         self.automation_window(ui.ctx(), &mut doc, &project, settings);
+        self.audio_window(ui.ctx(), &mut doc, settings);
         // The clip selected alone: the rack shows its own effects.
         doc.set_focused_clip(match self.selection.as_slice() {
             [one] => Some(*one),

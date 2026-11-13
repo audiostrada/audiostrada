@@ -17,10 +17,16 @@ one click: *Streaming* (WAV 24-bit at -14 LUFS), *CD* (WAV 16-bit, 44.1 kHz, dit
 | **Range** | the whole project or the loop range |
 | **Tail** | seconds added after the end, for reverbs and delays |
 | **Stems** | one file per track, soloed, besides or instead of the mix |
+| **Master effects** | shown when the master has effects: export with them or without them |
 
 The bar at the bottom sums up what will be written (format, rate, length, number of files)
 before *Export…*. Exports run faster than real time, in the background. The metronome and the monitoring effects
 are never exported.
+
+When effects are active on the master, the window names them: the files go through them. *Export
+without them* leaves them out of this export only; *Mastering* ticks it, since a mastering
+engineer expects a mix without a limiter. An effect meant only for listening (headphone or room
+correction) belongs in the master's monitoring effects, which are never exported.
 
 ## Render queue
 

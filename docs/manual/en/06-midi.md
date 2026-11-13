@@ -46,8 +46,8 @@ same pitch space.
   timeline's selection follows.
 - The keys on the left play the active track; a note dragged or added plays its own.
 
-The note editor and the automation editor take turns: opening one closes the other. Both have
-the same bar, keys, full screen and zoom.
+The note, audio and automation editors take turns: opening one closes the others. All have the
+same bar, keys, full screen and zoom.
 
 ## Tools
 

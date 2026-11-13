@@ -197,6 +197,7 @@ fn midi_clip(
         variations: Vec::new(),
         variation_names: Default::default(),
         take: None,
+        edits: None,
         inserts: Vec::new(),
         automation: Vec::new(),
     }
@@ -308,6 +309,8 @@ pub struct Document {
     revealed_clip: Option<ClipId>,
     /// File being auditioned, and whether it still waits for decoding.
     preview: Option<(PathBuf, bool)>,
+    /// Media kept loaded though nothing plays it: the audio editor's before and after.
+    kept_media: Vec<PathBuf>,
     recording: Option<Recording>,
     writers: HashMap<(Channel, AutomationTarget), Writer>,
     /// Automated controls held in Read mode (overriding their lane).
@@ -437,6 +440,7 @@ impl Document {
             synced: None,
             messages: Vec::new(),
             preview: None,
+            kept_media: Vec::new(),
             revealed_clip: None,
             recording: None,
             writers: HashMap::new(),
@@ -721,7 +725,16 @@ impl Document {
         let mut wanted = media_paths(self.project(), self.paths.as_ref());
         wanted.extend(self.imports.iter().map(|i| i.path.clone()));
         wanted.extend(self.preview.iter().map(|p| p.0.clone()));
+        wanted.extend(self.kept_media.iter().cloned());
         self.media.retain(&wanted);
+    }
+
+    /// Keeps these media loaded, whether they play or not.
+    pub fn keep_media(&mut self, paths: Vec<PathBuf>) {
+        if paths != self.kept_media {
+            self.kept_media = paths;
+            self.request_media();
+        }
     }
 
     /// Auditions a file from its start (decoded in the background), or stops with `None`.
@@ -1403,6 +1416,7 @@ impl Document {
             variations: Vec::new(),
             variation_names: Default::default(),
             take: None,
+            edits: None,
             inserts: Vec::new(),
             automation: Vec::new(),
         };
@@ -2883,6 +2897,45 @@ mod tests {
             peak = storage.output(0).iter().fold(peak, |p, s| p.max(s.abs()));
         }
         assert!(peak > 0.1, "silent on the next device");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn exports_without_the_master_effects_when_asked_and_leaves_them_in_the_project() {
+        let dir = temp("export-master-fx");
+        let take = dir.join("take.wav");
+        write_wav(&take, &AudioData::new(vec![vec![0.25; 9600]], 48_000)).unwrap();
+        let mut doc = Document::new(AppDirs::default());
+        doc.import(&[take]);
+        assert!(doc.wait_loaded(Duration::from_secs(10)));
+        doc.history_mut().edit("utility", |p| {
+            let id = audiostrada_core::routing::add_insert(
+                p,
+                Channel::Master,
+                "utility",
+                Default::default(),
+            );
+            let insert = p.master.inserts.iter_mut().find(|i| Some(i.id) == id);
+            insert.unwrap().gain_db = -20.0;
+        });
+        let mut peak = |without_master_fx: bool, name: &str| {
+            let settings = ExportSettings {
+                tail: 0.0,
+                without_master_fx,
+                ..ExportSettings::default()
+            };
+            doc.start_export(settings, &dir.join(name)).unwrap();
+            let deadline = std::time::Instant::now() + Duration::from_secs(20);
+            while doc.export_progress().is_some() && std::time::Instant::now() < deadline {
+                doc.update();
+            }
+            let mix = audiostrada_media::load(&dir.join(name)).unwrap();
+            mix.channel(0).iter().fold(0.0f32, |p, s| p.max(s.abs()))
+        };
+        let with = peak(false, "with.wav");
+        let without = peak(true, "without.wav");
+        assert!((with / without - 0.1).abs() < 0.01, "{with} vs {without}");
+        assert!(!doc.project().master.fx_off);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

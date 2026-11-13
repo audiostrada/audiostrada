@@ -40,6 +40,7 @@ mod plate;
 pub mod prepare;
 pub mod report;
 pub mod resample;
+pub mod retouch;
 pub mod reverb;
 pub mod rig;
 mod shift;

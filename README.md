@@ -33,7 +33,10 @@ AudioStrada is in active development: features land quickly, and some rough edge
 - **Recording**: punch-in, loop recording with every pass on its own take lane, comping,
   playlists, count-in and metronome, input latency compensation, low-latency monitoring.
 - **Editing**: Smart Tool, fades and crossfades, clip gain, Slip, Shuffle and Grid modes, time
-  ranges, markers, time-stretch and transpose, clips matched to the project tempo.
+  ranges, markers, time-stretch and transpose, clips matched to the project tempo. An audio
+  editor finds silences, breaths, sibilants, clicks and clipping and lets you retouch them
+  with the mouse, right on the waveform, every retouch dosable and undoable, another track
+  drawn under the clip to line them up.
 - **Mixing**: a console with effects and sends on every strip, buses made from the selection
   in one click, groups, VCAs, snapshots, sidechain, console colors, monitor effects and a loudness meter.
   Automation with bendable curves drawn, moved and selected point by point or freehand, and Read,

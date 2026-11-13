@@ -1,5 +1,6 @@
 //! AudioStrada project model, undo/redo and versioned serialization.
 
+pub mod audio_edit;
 pub mod automation;
 pub mod autosave;
 pub mod base64;

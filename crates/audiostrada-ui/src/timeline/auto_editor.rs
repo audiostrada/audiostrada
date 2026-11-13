@@ -55,6 +55,7 @@ impl TimelineView {
     /// shortcuts.
     pub fn take_editor_keys(&mut self, ctx: &egui::Context) {
         self.take_note_keys(ctx);
+        self.take_audio_keys(ctx);
         let Some(editor) = &mut self.auto_editor else {
             return;
         };
@@ -82,6 +83,7 @@ impl TimelineView {
             self.auto_editor = Some(AutoEditor::at(self.zoom, self.scroll));
         }
         self.notes.open = false;
+        self.audio = None;
     }
 
     /// The editor's window, while it is open.

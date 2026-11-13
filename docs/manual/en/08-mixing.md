@@ -272,7 +272,7 @@ track as it was.
 The settings are those of the channel strip, plus a Strada-EQ after it for the resonances and
 the plosives (its bands dynamic when they come and go), a Strada-DeEss and a Strada-Transient.
 Running the Express Mix again, on one track or all of them, updates what was done: nothing is
-added twice. These are starting points, set
+added twice, and the window opens with the settings last applied, saved with the project. These are starting points, set
 by rules from mixing practice, to adjust by ear.
 
 ## Snapshots

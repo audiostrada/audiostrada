@@ -66,10 +66,17 @@ fn peaks_cache(dir: &Path, path: &Path) -> Option<PathBuf> {
     Some(dir.join(format!("{stem}-{:016x}.peaks", hasher.finish())))
 }
 
-/// Decodes a file, stretched and transposed when `path` is a variant.
-fn decode(path: &Path) -> Result<AudioData, String> {
+/// Decodes a file, edited, stretched and transposed when `path` is a variant.
+/// `file`, the plain file a variant stands for, may be given already decoded.
+fn decode(path: &Path, file_data: Option<Arc<AudioData>>) -> Result<AudioData, String> {
     let (file, variant) = audiostrada_core::parse_variant(path);
-    let data = load(&file).map_err(|e| e.to_string())?;
+    let mut data = match file_data {
+        Some(data) => (*data).clone(),
+        None => load(&file).map_err(|e| e.to_string())?,
+    };
+    if let Some(edits) = audiostrada_core::audio_edit::edits_of(path)? {
+        data = crate::retouch::apply(&data, &edits);
+    }
     let Some((stretch, pitch)) = variant else {
         return Ok(data);
     };
@@ -84,15 +91,19 @@ fn decode(path: &Path) -> Result<AudioData, String> {
 
 fn load_job(
     path: &Path,
-    original: Option<Arc<AudioData>>,
+    (original, file_data): (Option<Arc<AudioData>>, Option<Arc<AudioData>>),
     rate: u32,
     peaks_dir: Option<&Path>,
 ) -> Result<LoadOutput, String> {
     let original = match original {
         Some(data) => data,
-        None => Arc::new(decode(path)?),
+        None => Arc::new(decode(path, file_data)?),
     };
-    let cache = peaks_dir.and_then(|dir| peaks_cache(dir, path));
+    // Edits change often while they are made: their peaks are not kept.
+    let edited = audiostrada_core::audio_edit::strip_edits(path) != path;
+    let cache = peaks_dir
+        .filter(|_| !edited)
+        .and_then(|dir| peaks_cache(dir, path));
     let peaks = match cache.as_deref().map(Peaks::read) {
         Some(Ok(peaks)) => peaks,
         _ => {
@@ -140,6 +151,11 @@ impl MediaPool {
     }
 
     fn spawn(&self, path: PathBuf, original: Option<Arc<AudioData>>) {
+        // A variant of a file already decoded starts from it.
+        let (file, _) = audiostrada_core::parse_variant(&path);
+        let file_data = (original.is_none() && file != path)
+            .then(|| self.entries.get(&file).and_then(|e| e.original.clone()))
+            .flatten();
         let tx = self.tx.clone();
         let rate = self.rate;
         let peaks_dir = self.peaks_dir.clone();
@@ -148,7 +164,7 @@ impl MediaPool {
             path.file_name().unwrap_or_default().to_string_lossy()
         );
         let spawned = thread::Builder::new().name(name).spawn(move || {
-            let result = load_job(&path, original, rate, peaks_dir.as_deref());
+            let result = load_job(&path, (original, file_data), rate, peaks_dir.as_deref());
             let _ = tx.send(Loaded { path, rate, result });
         });
         if let Err(e) = spawned {

@@ -174,6 +174,49 @@ Par le menu Édition, ou par un clic droit sur des clips ou une plage :
   tolérance et l'intensité ; en dessous de 100 %, une part du jeu d'origine reste.
   *Pré-écouter* fait entendre les pistes calées pendant les réglages.
 
+## L'éditeur audio
+
+Double-cliquez sur un clip audio, ou Affichage › *Éditeur audio du clip sélectionné*, pour le
+retoucher dans une grande fenêtre au-dessus de la timeline ; [[Escape]] la ferme. Il est
+disposé comme les éditeurs de notes et d'automation, avec la même barre, les mêmes touches
+([[F]] cadre le clip, [[F11]] remplit la fenêtre principale) et le même zoom. Tout se passe sur
+la forme d'onde, à la souris : AudioStrada trouve, vous décidez.
+
+À l'ouverture, AudioStrada écoute le clip. Les pastilles au-dessus de l'onde disent ce qu'il a
+trouvé et l'affichent ou le masquent : **Silences**, **Respirations** (la respiration avant
+chaque phrase), **Sifflantes** (chaque S trop aigu), **Clics** (bouche, câbles) et
+**Saturations** (crêtes écrêtées). Un point plein signale une retouche en service ; un clic
+droit sur une pastille les supprime, répare, désactive ou retire toutes d'un coup.
+
+- **Niveaux** : chaque partie trouvée a une ligne de niveau en pointillés, à son propre niveau,
+  sur une échelle qui part de 0 dB en haut. Descendez-la pour baisser la partie : toutes les
+  parties de ce genre suivent, et l'onde suit pendant le geste ; [[Alt]] ne bouge que
+  celle-ci. Tout en bas, la partie est supprimée. Un double-clic sur la ligne la remet.
+- **Silences** : la ligne *Seuil* en pointillés, avec le niveau du clip tracé dans le temps,
+  sépare les silences du son ; montez-la ou descendez-la pour en trouver plus ou moins. Le
+  seuil proposé passe au-dessus de ce qui s'entend entre les phrases (le casque, la pièce).
+  Resserrez une pause par la poignée ⟷ en bas : toutes les pauses prennent cette durée
+  ([[Alt]] : celle-ci), l'audio qui suit avance et le clip raccourcit.
+- **Clics et saturations** : chacun est une marque en haut de l'onde, creuse quand il est
+  trouvé, pleine quand il est réparé ; cliquez-la. Les marques serrées forment une bulle avec
+  leur nombre : cliquez-la pour zoomer.
+- **Bords** : tirez le bord de n'importe quelle région pour l'ajuster.
+- **Vos propres parties** : glissez sur l'onde pour sélectionner une partie (la boucle suit),
+  puis tirez sa ligne de niveau, ou faites un clic droit : *Amener au niveau de la voix*,
+  *Normaliser à -1 dB crête*, *Baisser de 6 dB*, *Supprimer*.
+- **Gomme** (**E**) : glissez sur un bruit (une chaise, une toux) pour l'effacer ; cliquez une
+  région pour l'écarter. [[Delete]] écarte la région sous le pointeur.
+- **Original / Retouché**, dans la barre : écoutez le clip tel qu'enregistré ou avec ses
+  retouches. Elles ne modifient jamais le fichier : chacune reste dosable et se retire, et
+  [[Ctrl+Z]] revient en arrière.
+- **Écouter** : appuyez sur la règle pour écouter à partir de là tant que le bouton est tenu,
+  glissez pour suivre le pointeur.
+- **Dessous** : choisissez une autre piste pour la dessiner dans une bande sous le clip, ses
+  frappes marquées en travers des deux : une basse sous la grosse caisse, des chœurs sous la
+  voix lead. [[Alt]]+glisser déplace le clip, et ses frappes s'aimantent à celles de la piste
+  dessous. *Caler* déplace le clip là où les deux se calent le mieux ; **Ø** inverse la
+  polarité de la piste du clip, quand les deux s'annulent.
+
 ## Pistes
 
 Double-cliquez sur le nom d'une piste pour la renommer ([[Enter]] valide, [[Escape]] annule). Un

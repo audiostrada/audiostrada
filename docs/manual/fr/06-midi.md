@@ -49,7 +49,7 @@ piste : la basse sous les accords, dans les mêmes hauteurs.
   piste. La sélection de la timeline suit.
 - Le clavier à gauche joue la piste active ; une note glissée ou ajoutée joue la sienne.
 
-L'éditeur de notes et l'éditeur d'automation se relaient : ouvrir l'un ferme l'autre. Les deux
+Les éditeurs de notes, audio et d'automation se relaient : ouvrir l'un ferme les autres. Tous
 ont la même barre, les mêmes touches, le même plein écran et le même zoom.
 
 ## Outils

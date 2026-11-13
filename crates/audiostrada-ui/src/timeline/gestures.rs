@@ -937,13 +937,17 @@ impl TimelineView {
             false
         };
 
-        // A double-click on a MIDI clip opens it in the note editor.
+        // A double-click on a clip opens it in its editor: notes or audio.
         if !handle_clicked
             && lanes_response.double_clicked()
             && let Some((clip, _, _)) = hovered
-            && edit::clip(project, clip).is_some_and(|c| c.is_midi())
+            && let Some(c) = edit::clip(project, clip)
         {
-            self.open_note_editor(clip);
+            if c.is_midi() {
+                self.open_note_editor(clip);
+            } else {
+                self.open_audio_editor(clip);
+            }
         }
 
         // Clicks.

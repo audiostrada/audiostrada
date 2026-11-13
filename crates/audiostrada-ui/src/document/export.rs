@@ -50,6 +50,8 @@ pub struct ExportSettings {
     pub mix: bool,
     /// One file per audio track (soloed, with the buses it feeds).
     pub stems: bool,
+    /// The master's own effects bypassed for this export; the project is left as it is.
+    pub without_master_fx: bool,
 }
 
 impl Default for ExportSettings {
@@ -63,6 +65,7 @@ impl Default for ExportSettings {
             tail: 2.0,
             mix: true,
             stems: false,
+            without_master_fx: false,
         }
     }
 }
@@ -456,7 +459,8 @@ impl Document {
     }
 
     /// Starts rendering `track` alone as it reaches its channel strip (its instrument kept,
-    /// its effects left out), on its own thread, to be prepared.
+    /// its effects and console color left out, at the input gain it had before a
+    /// preparation), on its own thread, to be prepared.
     pub fn start_source_render(&mut self, track: TrackId) -> Result<Measuring, String> {
         let mut project = isolate(self.project(), track).ok_or("no such track")?;
         let keep = usize::from(self.is_instrument_track(track));
@@ -464,6 +468,10 @@ impl Document {
             let t = Arc::make_mut(t);
             t.inserts.truncate(keep);
             t.automation.clear();
+            t.console = Some(audiostrada_core::console::Console::default());
+            if let Some(trim) = t.prepared.as_ref().and_then(|p| p.trim) {
+                t.trim_db = trim;
+            }
         }
         if project.length() == 0 {
             return Err(tr("The track plays nothing").into());
@@ -591,7 +599,8 @@ impl Document {
     /// The renders an export to `target` needs: the mix and/or one per stem.
     fn export_jobs(&mut self, settings: ExportSettings, target: &Path) -> Result<Vec<Job>, String> {
         self.capture_plugin_states();
-        let project = self.project().clone();
+        let mut project = self.project().clone();
+        project.master.fx_off |= settings.without_master_fx;
         let (start, end) = self.export_range(&settings);
         if end <= start {
             return Err(tr("there is nothing to export").into());
@@ -655,6 +664,7 @@ impl Document {
             return Err(tr("there is nothing to export").into());
         }
         let mut soloed = self.project().clone();
+        soloed.master.fx_off |= settings.without_master_fx;
         for t in &mut soloed.tracks {
             std::sync::Arc::make_mut(t).solo = t.id == track;
         }

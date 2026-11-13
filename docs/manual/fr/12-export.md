@@ -18,10 +18,16 @@ fichier par piste). Puis :
 | **Étendue** | tout le projet ou la zone de boucle |
 | **Traîne** | des secondes ajoutées après la fin, pour les réverbérations et les delays |
 | **Stems** | un fichier par piste, en solo, en plus ou à la place du mix |
+| **Effets du master** | affiché quand le master a des effets : exporter avec ou sans eux |
 
 La barre du bas résume ce qui sera écrit (format, fréquence, durée, nombre de fichiers) avant
 *Exporter…*. Les exports vont plus vite que le temps réel, en arrière-plan. Le métronome et les effets d'écoute
 ne sont jamais exportés.
+
+Quand des effets sont actifs sur le master, la fenêtre les nomme : les fichiers passent par eux.
+*Exporter sans eux* les laisse de côté pour cet export seulement ; *Mastering* le coche, car un
+ingénieur de mastering attend un mix sans limiteur. Un effet pour l'écoute seulement (correction
+de casque ou de pièce) va dans les effets d'écoute du master, qui ne sont jamais exportés.
 
 ## File de rendu
 

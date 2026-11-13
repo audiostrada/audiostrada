@@ -203,6 +203,9 @@ pub struct Clip {
     /// follows the clip when moved, and its audio when trimmed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub automation: Vec<AutomationLane>,
+    /// The audio editor's retouches, played over its source without changing it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edits: Option<Arc<crate::audio_edit::AudioEdits>>,
 }
 
 /// A recorded take: its number on its track, the section it was played in, how it was rated
@@ -250,9 +253,12 @@ pub fn parse_variant(path: &std::path::Path) -> (std::path::PathBuf, Option<(f64
         && let Some((s, p)) = params.split_once(',')
         && let (Ok(s), Ok(p)) = (s.parse(), p.parse())
     {
-        return (file.into(), Some((s, p)));
+        return (
+            crate::audio_edit::strip_edits(std::path::Path::new(file)),
+            Some((s, p)),
+        );
     }
-    (path.to_path_buf(), None)
+    (crate::audio_edit::strip_edits(path), None)
 }
 
 /// A controller value in a MIDI clip.
@@ -1398,6 +1404,7 @@ impl Project {
             variations: Vec::new(),
             variation_names: BTreeMap::new(),
             take: None,
+            edits: None,
             inserts: Vec::new(),
             automation: Vec::new(),
         });
@@ -1435,6 +1442,7 @@ impl Project {
             variations: Vec::new(),
             variation_names: BTreeMap::new(),
             take: None,
+            edits: None,
             inserts: Vec::new(),
             automation: Vec::new(),
         });

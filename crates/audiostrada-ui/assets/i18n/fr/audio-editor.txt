@@ -1,0 +1,301 @@
+# The audio editor (timeline/audio_editor.rs).
+
+Audio editor of the selected clip
+Éditeur audio du clip sélectionné
+
+Breaths
+Respirations
+
+Sibilants
+Sifflantes
+
+Clipping
+Saturations
+
+Removed
+Supprimé
+
+Fit the clip
+Cadrer le clip
+
+Under
+Dessous
+
+No track
+Aucune piste
+
+Line up
+Caler
+
+Invert the polarity
+Inverser la polarité
+
+Line up the clip
+Caler le clip
+
+Nothing to compare there
+Rien à comparer ici
+
+Switch a retouch
+Activer une retouche
+
+Take a retouch out
+Retirer une retouche
+
+Drag across a span to fill the view with it, click to zoom in, Alt+click to zoom out
+Glissez sur une étendue pour qu'elle remplisse la vue, cliquez pour zoomer, Alt+clic pour dézoomer
+
+Press to hear from there while held, drag to follow the pointer
+Appuyez pour écouter à partir de là tant que vous tenez, glissez pour suivre le pointeur
+
+Retouch a region
+Retoucher une région
+
+Lower by 6 dB
+Baisser de 6 dB
+
+Eraser: drag across a noise to remove it, click a region to set it aside (E)
+Gomme : glissez sur un bruit pour l'effacer, cliquez une région pour l'écarter (E)
+
+Retouched
+Retouché
+
+Moves the clip to where it lines up best with the track under it, measured over the selection or the clip's first seconds
+Déplace le clip là où il se cale le mieux sur la piste dessous, mesuré sur la sélection ou les premières secondes du clip
+
+The clip's track with its polarity inverted: when the two cancel each other out, this brings the low end back
+La piste du clip en polarité inversée : quand les deux s'annulent, ça ramène le bas
+
+Lined up: moved {ms} ms, correlation {corr}
+Calé : déplacé de {ms} ms, corrélation {corr}
+
+opposite polarity: switch on Ø to bring the low end back
+polarité opposée : activez Ø pour ramener le bas
+
+Repair them all
+Tout réparer
+
+Redraw them all
+Tout redessiner
+
+Repair the audio
+Réparer l'audio
+
+Set a level
+Régler un niveau
+
+Shorten every pause to {s} s
+Raccourcir toutes les pauses à {s} s
+
+Shorten the pauses
+Raccourcir les pauses
+
+Pauses back to their length
+Pauses à leur longueur d'origine
+
+Switch off
+Désactiver
+
+Switch on
+Activer
+
+Take back
+Retirer
+
+Listening to the clip…
+Écoute du clip…
+
+No retouch: the clip plays as recorded
+Aucune retouche : le clip joue tel qu'enregistré
+
+{count} retouches · the file is never changed
+{count} retouches · le fichier n'est jamais modifié
+
+Threshold {db}
+Seuil {db}
+
+Drag across a noise to remove it; click a region to set it aside
+Glissez sur un bruit pour l'effacer ; cliquez une région pour l'écarter
+
+Set a region aside
+Écarter une région
+
+{sort}: all
+{sort} : tout
+
+{sort}: this one
+{sort} : ici seulement
+
+This part
+Cette partie
+
+{what}: {s} s
+{what} : {s} s
+
+This pause
+Cette pause
+
+Every pause
+Toutes les pauses
+
+Set the threshold
+Régler le seuil
+
+Erase a noise
+Effacer un bruit
+
+Bring up to the voice's level
+Amener au niveau de la voix
+
+Normalize to -1 dB peak
+Normaliser à -1 dB crête
+
+Back to its own level
+Revenir à son niveau d'origine
+
+Set it aside
+L'écarter
+
+Drag across the waveform to select a part first
+Glissez d'abord sur l'onde pour sélectionner une partie
+
+Phrases
+Phrases
+
+Each phrase with its level line: pull one up or down, or bring them all to the same level from the menu
+Chaque phrase avec sa ligne de niveau : tirez-en une vers le haut ou le bas, ou mettez-les toutes au même niveau depuis le menu
+
+What lies between the sounds: noise, leaking headphones, another instrument, the room. Pull its line down to lower or remove it, up to bring it out; squeeze a pause by its handle
+Ce qu'il y a entre les sons : bruit, repisse du casque ou d'un autre instrument, ambiance. Tirez sa ligne vers le bas pour le baisser ou le supprimer, vers le haut pour le faire ressortir ; resserrez une pause par sa poignée
+
+The breath before each phrase. Pull a line down to soften them
+La respiration avant chaque phrase. Tirez une ligne vers le bas pour les adoucir
+
+Each S too sharp. Pull a line down: only its highs soften
+Chaque S trop appuyé. Tirez une ligne vers le bas : seuls ses aigus s'adoucissent
+
+Mouth or cable clicks. Click a mark to repair it
+Clics de bouche ou de câble. Cliquez une marque pour la réparer
+
+Peaks cut flat by a level too high. Click a mark to redraw it
+Crêtes coupées net par un niveau trop fort. Cliquez une marque pour la redessiner
+
+Each note or hit by its attack. Slide one sideways to move it in time: it snaps to the hits of the track under the clip
+Chaque note ou coup, par son attaque. Glissez-en une sur le côté pour la déplacer dans le temps : elle s'aimante sur les attaques de la piste placée sous le clip
+
+Switch on a chip to see what was found, or drag across the waveform to select a part
+Allumez une pastille pour voir ce qui a été trouvé, ou glissez sur l'onde pour sélectionner une partie
+
+Hand: pull a level line, move an edge, squeeze a pause, slide a hit; drag across the waveform to select a part, Alt+drag to move the clip (S)
+Main : tirez une ligne de niveau, déplacez un bord, resserrez une pause, glissez une attaque ; glissez sur l'onde pour sélectionner une partie, Alt+glisser pour déplacer le clip (S)
+
+Another track drawn under the clip, its hits marked across: a bass on the kick, backing vocals on the lead. The clip's hits then slide onto them
+Une autre piste dessinée sous le clip, ses attaques marquées en travers : une basse sur la grosse caisse, des chœurs sur la voix lead. Les attaques du clip se glissent alors dessus
+
+Brings the clip onto the track under it: each hit onto the nearest one, or the clip as a whole
+Cale le clip sur la piste du dessous : chaque attaque sur la plus proche, ou le clip entier
+
+Every hit onto {track}
+Chaque attaque sur {track}
+
+The whole clip
+Le clip entier
+
+What applies to all of them
+Ce qui s'applique à l'ensemble
+
+Bring them all to the same level
+Les mettre toutes au même niveau
+
+Lower by 12 dB
+Baisser de 12 dB
+
+Bring out by 6 dB
+Faire ressortir de 6 dB
+
+Lower by 9 dB
+Baisser de 9 dB
+
+Soften by 6 dB
+Adoucir de 6 dB
+
+Sensitivity: fewer or more hits
+Sensibilité : moins ou plus d'attaques
+
+Every hit onto the grid
+Chaque attaque sur la grille
+
+Hits back in place
+Remettre les attaques en place
+
+Even out the phrases
+Niveler les phrases
+
+Every hit is in place already
+Toutes les attaques sont déjà en place
+
+{count} hits lined up
+{count} attaques calées
+
+Line up the hits
+Caler les attaques
+
+Pull: the level of them all · Alt: this one alone · double-click: back to 0 dB
+Tirer : le niveau de l'ensemble · Alt : ici seulement · double-clic : retour à 0 dB
+
+Pull: its level · double-click: back to 0 dB
+Tirer : son niveau · double-clic : retour à 0 dB
+
+Pull the edge to where the region should start or end
+Tirez le bord là où la zone doit commencer ou finir
+
+Pull: every pause squeezed · Alt: this one alone
+Tirer : toutes les pauses resserrées · Alt : celle-ci seule
+
+Click: a closer look at these
+Clic : les voir de plus près
+
+Click: as it was recorded again
+Clic : de nouveau tel qu'enregistré
+
+Click: repair it
+Clic : réparer
+
+Pull: what stays under the line is background
+Tirer : ce qui reste sous la ligne est du fond
+
+Slide: this hit moves in time · Ctrl: free of the magnet · double-click: back in place · Shift+drag: select
+Glisser : l'attaque se déplace dans le temps · Ctrl : sans aimant · double-clic : remise en place · Maj+glisser : sélectionner
+
+Pull its line: its level · Delete: remove it · right-click: more
+Tirer sa ligne : son niveau · Suppr : la supprimer · clic droit : plus
+
+Drag: select a part · double-click: the whole phrase · Alt+drag: move the clip
+Glisser : sélectionner une partie · double-clic : la phrase entière · Alt+glisser : déplacer le clip
+
+This phrase
+Cette phrase
+
+Move a hit
+Déplacer une attaque
+
+Remove this one
+Supprimer ici
+
+Onto the nearest hit of {track}
+Sur l'attaque la plus proche de {track}
+
+Back in place
+Remettre en place
+
+Slide this hit sideways to move it in time
+Glissez cette attaque sur le côté pour la déplacer dans le temps
+
+1 retouch · the file is never changed
+1 retouche · le fichier n'est jamais modifié
+
+{ms} ms early
+{ms} ms en avance
+
+{ms} ms late
+{ms} ms en retard

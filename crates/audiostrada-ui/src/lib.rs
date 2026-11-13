@@ -1598,6 +1598,7 @@ impl AudioStradaApp {
             | Action::ToolMute
             | Action::AutomationEditor
             | Action::NoteEditor
+            | Action::AudioEditor
             | Action::TallerTracks
             | Action::ShorterTracks
             | Action::Heal
@@ -3550,8 +3551,13 @@ impl eframe::App for AudioStradaApp {
         }
         self.watch_layout();
         uncover_main(&ctx);
-        // Screenshots of a window: the command opening it, run once the main window is up.
-        if self.screenshot.as_ref().is_some_and(|s| s.frames == 5)
+        // Screenshots of a window: the command opening it, run once the main window is up
+        // (at the frame AUDIOSTRADA_SCREENSHOT_ACTION_FRAME, 5 unless set).
+        let at = std::env::var("AUDIOSTRADA_SCREENSHOT_ACTION_FRAME")
+            .ok()
+            .and_then(|f| f.parse().ok())
+            .unwrap_or(5);
+        if self.screenshot.as_ref().is_some_and(|s| s.frames == at)
             && let Ok(name) = std::env::var("AUDIOSTRADA_SCREENSHOT_ACTION")
             && let Some(&action) = Action::ALL.iter().find(|a| format!("{a:?}") == name)
         {

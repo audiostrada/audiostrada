@@ -288,7 +288,8 @@ effets ; *Annuler* laisse la piste comme elle était.
 Les réglages sont ceux du Channel Strip, plus un Strada-EQ après lui pour les résonances et les
 plosives (avec des bandes dynamiques quand elles vont et viennent), un Strada-DeEss et un
 Strada-Transient. Relancer l'Express Mix, sur une piste ou toutes, met à jour ce qui a été fait : rien
-n'est ajouté deux fois. Ce sont
+n'est ajouté deux fois, et la fenêtre s'ouvre avec les derniers réglages appliqués, enregistrés avec le
+projet. Ce sont
 des points de départ, posés par des règles tirées de la pratique du mixage, à ajuster à
 l'oreille.
 

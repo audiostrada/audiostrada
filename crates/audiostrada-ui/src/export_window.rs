@@ -1,6 +1,7 @@
 //! Export window: format, rate, dither, normalization, range, stems, the render queue and
 //! progress.
 
+use audiostrada_core::routing;
 use audiostrada_media::FileFormat;
 use eframe::egui::{self, RichText};
 
@@ -145,6 +146,9 @@ struct Asked {
     remove: Option<usize>,
 }
 
+/// The preset for a mastering engineer, which leaves the master's effects out.
+const MASTERING: usize = 2;
+
 /// The settings that cover most needs, in one click.
 const PRESETS: [(&str, &str); 4] = [
     (
@@ -197,17 +201,34 @@ fn apply(settings: &mut ExportSettings, preset: usize) {
         normalize,
         mix,
         stems,
+        without_master_fx: preset == MASTERING,
         ..settings.clone()
     };
 }
 
-/// The preset matching the settings, if one does.
+/// The preset matching the settings, if one does; the master's effects may differ.
 fn preset_of(settings: &ExportSettings) -> Option<usize> {
     (0..PRESETS.len()).find(|&k| {
         let mut probe = settings.clone();
         apply(&mut probe, k);
+        probe.without_master_fx = settings.without_master_fx;
         probe == *settings
     })
+}
+
+/// The master's effects heard in the mix, by name, unless they are all bypassed.
+fn master_effects(doc: &Document) -> Vec<String> {
+    let project = doc.project();
+    if project.master.fx_off || project.all_fx_off {
+        return Vec::new();
+    }
+    project
+        .master
+        .inserts
+        .iter()
+        .filter(|i| !i.monitor && !i.bypass && i.effect != routing::STRIP)
+        .map(|i| crate::mixer::effect_name(doc, &i.effect))
+        .collect()
 }
 
 /// What will be written: format, rate, length and files.
@@ -232,6 +253,41 @@ fn summary(doc: &Document, settings: &ExportSettings) -> String {
         rate_name(settings.sample_rate),
         trf!("{files} files", files = files)
     )
+}
+
+/// The master's effects that would go into the files, and the choice to leave them out.
+fn master_fx(ui: &mut egui::Ui, doc: &Document, settings: &mut ExportSettings) {
+    let effects = master_effects(doc);
+    if effects.is_empty() {
+        return;
+    }
+    let names = effects.join(", ");
+    dialog::field(ui, tr("Master effects"), |ui| {
+        ui.checkbox(&mut settings.without_master_fx, tr("Export without them"));
+    });
+    if settings.without_master_fx {
+        dialog::hint(
+            ui,
+            &trf!("Left out of the files: {names}", names = names.as_str()),
+        );
+        return;
+    }
+    let text = trf!(
+        "The files go through the master's effects: {names}",
+        names = names.as_str()
+    );
+    if preset_of(settings) == Some(MASTERING) {
+        ui.colored_label(crate::settings::WARN, text);
+    } else {
+        dialog::hint(ui, &text);
+    }
+    dialog::hint(
+        ui,
+        tr(
+            "An effect only for listening (headphone or room correction) belongs in the \
+            master's monitoring effects: those are never exported.",
+        ),
+    );
 }
 
 fn body(
@@ -270,6 +326,7 @@ fn body(
                 tr("Choose the mix, the stems or both."),
             );
         }
+        master_fx(ui, doc, settings);
     });
     dialog::section(ui, tr("Format"), |ui| {
         dialog::field(ui, tr("File"), |ui| {

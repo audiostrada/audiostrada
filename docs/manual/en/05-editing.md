@@ -163,6 +163,46 @@ From the Edit menu, or by right-clicking clips or a range:
   *Natural* and *Loose* set the tolerance and the strength at once; below 100 %, some of the
   feel of the take stays. *Pre-listen* plays the tracks grooved while you adjust.
 
+## The audio editor
+
+Double-click an audio clip, or View › *Audio editor of the selected clip*, to retouch it in a
+large window over the timeline; [[Escape]] closes it. It is laid out as the note and automation
+editors, with the same bar, keys ([[F]] frames the clip, [[F11]] fills the main window) and
+zoom. Everything happens on the waveform, with the mouse: AudioStrada finds, you decide.
+
+When it opens, AudioStrada listens to the clip. The chips above the waveform say what it found
+and show it or hide it: **Silences**, **Breaths** (the breath before each phrase),
+**Sibilants** (each S too sharp), **Clicks** (mouth, cables) and **Clipping** (peaks cut flat).
+A filled dot means the retouch is in use; right-click a chip to remove, repair, switch off or
+take back all of them at once.
+
+- **Levels**: every part found has a dashed level line, at its own level on a scale from 0 dB
+  at the top. Drag it down to lower the part: all the parts of that kind follow, the waveform
+  follows as you drag; [[Alt]] moves that one alone. At the bottom, the part is removed.
+  Double-click the line to bring it back.
+- **Silences**: the dashed *Threshold* line, with the level of the clip drawn through time,
+  separates the silences from the sound; drag it up or down to find more or fewer. The
+  default threshold sits above what leaks in between the phrases (the headphones, the room).
+  Squeeze a pause by the ⟷ handle at its bottom: every pause gets that length ([[Alt]]: that
+  one), the audio after it moves up and the clip gets shorter.
+- **Clicks and clipping**: each is a mark at the top of the waveform, hollow when found, full
+  when repaired; click it. Marks close together make a bubble with their count: click it to
+  zoom in.
+- **Edges**: pull the edge of any region to fit it.
+- **Your own parts**: drag across the waveform to select a part (the loop follows), then drag
+  its level line, or right-click it: *Bring up to the voice's level*, *Normalize to -1 dB
+  peak*, *Lower by 6 dB*, *Remove*.
+- **Eraser** (**E**): drag across a noise (a chair, a cough) to remove it; click a region to set
+  it aside. [[Delete]] sets aside the region under the pointer.
+- **Original / Retouched**, in the bar: hear the clip as recorded or with its retouches. They
+  never change the file: each stays dosable and can be taken back, and [[Ctrl+Z]] goes back.
+- **Listen**: press the ruler to hear from there while the button is held, drag to follow the
+  pointer.
+- **Under**: choose another track to draw it in a band below the clip, its hits marked across
+  both: a bass under the kick, backing vocals under the lead. [[Alt]]+drag moves the clip, and
+  its hits snap to those of the track under it. *Line up* moves the clip to where the two line
+  up best; **Ø** inverts the polarity of the clip's track, when the two cancel each other out.
+
 ## Tracks
 
 Double-click a track's name to rename it ([[Enter]] keeps it, [[Escape]] cancels). A name too

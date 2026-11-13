@@ -567,7 +567,56 @@ fn unmake(p: &mut Project, made: &[(&'static str, TrackId)], rows: &[Row], struc
     audiostrada_core::routing::normalize_order(p);
 }
 
+/// The key of [`Kept`] in `Project::extensions`.
+const SETTINGS: &str = "express_mix";
+
+/// The window's settings last applied, saved with the project to open with them again.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Kept {
+    clean: f32,
+    bring: f32,
+    space: f32,
+    wide: f32,
+    style: usize,
+    intensity: f32,
+}
+
 impl PrepareWindow {
+    fn kept(&self) -> Kept {
+        Kept {
+            clean: self.clean.0,
+            bring: self.bring.0,
+            space: self.space,
+            wide: self.wide,
+            style: Character::STYLES
+                .iter()
+                .position(|c| *c == self.flavor.character)
+                .unwrap_or(0),
+            intensity: self.flavor.amount,
+        }
+    }
+
+    fn take(&mut self, kept: &Kept) {
+        let unit = |v: f32| {
+            if v.is_finite() {
+                v.clamp(0.0, 1.0)
+            } else {
+                0.0
+            }
+        };
+        self.clean = Strength(unit(kept.clean));
+        self.bring = Strength(unit(kept.bring));
+        self.space = unit(kept.space);
+        self.wide = unit(kept.wide);
+        self.flavor = Flavor {
+            character: Character::STYLES
+                .get(kept.style)
+                .copied()
+                .unwrap_or_default(),
+            amount: unit(kept.intensity),
+        };
+    }
+
     /// Every track measured.
     #[cfg(test)]
     pub fn ready(&self) -> bool {
@@ -597,6 +646,13 @@ impl PrepareWindow {
         );
         self.project_console = (project.console, project.console_off);
         self.console = project.console;
+        if let Some(kept) = project
+            .extensions
+            .get(SETTINGS)
+            .and_then(|v| serde_json::from_value::<Kept>(v.clone()).ok())
+        {
+            self.take(&kept);
+        }
         // Prepared before, their instruments are known: no need to check them again.
         let prepared_before = tracks.iter().all(|t| {
             doc.project()
@@ -792,8 +848,8 @@ impl PrepareWindow {
         busy
     }
 
-    /// The input gain a track gets, and how much louder than now it then plays. Buses keep
-    /// theirs.
+    /// The input gain a track gets, and how much louder than when measured it then plays.
+    /// Buses keep theirs.
     fn staged(&self, row: &Row) -> (Option<f32>, f32) {
         let State::Ready(r) = &row.state else {
             return (None, 0.0);
@@ -801,9 +857,16 @@ impl PrepareWindow {
         if row.bus.is_some() {
             return (None, 0.0);
         }
+        // Measured at the input gain it had before a preparation (see `start_source_render`).
         let now = row.saved.trim;
-        let trim = rules::staging(&r.analysis).map_or(now, |d| (now + d).clamp(-24.0, 24.0));
-        (Some(trim), trim - now)
+        let measured = row
+            .saved
+            .prepared
+            .as_ref()
+            .and_then(|p| p.trim)
+            .unwrap_or(now);
+        let trim = rules::staging(&r.analysis).map_or(now, |d| (measured + d).clamp(-24.0, 24.0));
+        (Some(trim), trim - measured)
     }
 
     /// How much room is kept on the master, once the mix is measured.
@@ -1101,6 +1164,7 @@ impl PrepareWindow {
             .iter()
             .filter_map(|r| r.group.map(|g| (r.track, g)))
             .collect();
+        let kept = self.kept();
         self.restore(doc);
         doc.history_mut().edit(tr("Express Mix"), |p| {
             let made = make(p, &groups, &instruments);
@@ -1118,6 +1182,9 @@ impl PrepareWindow {
                 .collect();
             write_all(p, &plan, tr("Space"), console);
             write::master_headroom(p, lowered);
+            if let Ok(value) = serde_json::to_value(&kept) {
+                p.extensions.insert(SETTINGS.to_owned(), value);
+            }
         });
         self.mode = None;
         self.mix = None;

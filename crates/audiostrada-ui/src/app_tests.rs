@@ -743,6 +743,76 @@ fn the_note_editor_opens_on_the_selected_midi_clip_goes_full_screen_and_closes_w
 }
 
 #[test]
+fn the_audio_editor_opens_on_an_audio_clip_and_its_retouches_are_heard() {
+    use audiostrada_core::audio_edit::{AudioEdits, Entry, Kind, REMOVED_DB, Region};
+    let mut h = Harness::with_song("audio-editor");
+    h.frame(Vec::new());
+    let clip = {
+        let doc = h.app.doc.borrow();
+        doc.project()
+            .tracks
+            .iter()
+            .flat_map(|t| &t.clips)
+            .find(|c| !c.is_midi())
+            .unwrap()
+            .id
+    };
+    h.app.views.borrow_mut().timeline.selection = vec![clip];
+    h.act(Action::AudioEditor);
+    assert!(h.app.views.borrow().timeline.audio_editor_open());
+    let key = |key| Event::Key {
+        key,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    for k in [egui::Key::E, egui::Key::Z, egui::Key::S, egui::Key::F] {
+        h.frame(vec![key(k)]);
+        h.frame(Vec::new());
+    }
+    // The first half silenced: the clip plays it so, its file untouched.
+    h.app.doc.borrow_mut().history_mut().edit("Silence", |p| {
+        let edits = AudioEdits {
+            entries: vec![Entry::new(Kind::Gain {
+                regions: vec![Region::new(0, 48_000)],
+                db: REMOVED_DB,
+            })],
+        };
+        audiostrada_core::edit::set_clip_edits(p, clip, Some(edits));
+    });
+    let heard = |h: &Harness| {
+        let doc = h.app.doc.borrow();
+        let c = audiostrada_core::edit::clip(doc.project(), clip).unwrap();
+        audiostrada_engine::project::clip_media(doc.project(), doc.paths(), c)
+            .and_then(|p| doc.media().original(&p).cloned())
+    };
+    for _ in 0..1000 {
+        if heard(&h).is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        h.frame(Vec::new());
+    }
+    let data = heard(&h).expect("the edited audio is made");
+    let peak = |range: std::ops::Range<usize>| {
+        data.channel(0)[range]
+            .iter()
+            .fold(0.0f32, |m, v| m.max(v.abs()))
+    };
+    assert!(peak(2_000..46_000) < 1e-6, "silenced");
+    assert!(peak(50_000..90_000) > 0.2, "the rest as it was");
+    // Only one editor at a time.
+    h.act(Action::NoteEditor);
+    assert!(!h.app.views.borrow().timeline.audio_editor_open());
+    h.act(Action::AudioEditor);
+    assert!(h.app.views.borrow().timeline.audio_editor_open());
+    h.frame(vec![key(egui::Key::Escape)]);
+    h.frame(Vec::new());
+    assert!(!h.app.views.borrow().timeline.audio_editor_open());
+}
+
+#[test]
 fn the_note_editor_edits_the_midi_clips_of_several_tracks_together() {
     let mut h = Harness::with_song("note-editor-tracks");
     h.frame(Vec::new());
@@ -812,4 +882,42 @@ fn preparing_a_track_measures_it_then_sets_its_strip_in_one_undo_step() {
         doc.project().track(keys).unwrap().prepared.is_none(),
         "one undo step"
     );
+}
+
+#[test]
+fn preparing_a_track_again_proposes_what_it_had_not_more() {
+    let mut h = Harness::with_song("prepare-again");
+    let keys = {
+        let mut doc = h.app.doc.borrow_mut();
+        let keys = doc
+            .project()
+            .tracks
+            .iter()
+            .find(|t| t.name == "Keys")
+            .map(|t| t.id)
+            .unwrap();
+        doc.select_track(keys, crate::document::SelectMode::Only);
+        keys
+    };
+    let prepare = |h: &mut Harness| {
+        h.act(Action::PrepareTracks);
+        for _ in 0..2000 {
+            if h.app.prepare.ready() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            h.frame(Vec::new());
+        }
+        assert!(h.app.prepare.ready(), "the track is measured");
+        let mut doc = h.app.doc.borrow_mut();
+        h.app.prepare.apply_now(&mut doc);
+        let project = doc.project();
+        let track = project.track(keys).unwrap();
+        let strip = audiostrada_core::routing::strip(project, Channel::Track(keys))
+            .map(|s| s.params.clone());
+        (track.trim_db, track.inserts.len(), strip)
+    };
+    let first = prepare(&mut h);
+    let second = prepare(&mut h);
+    assert_eq!(first, second, "the same input gain, effects and settings");
 }

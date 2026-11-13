@@ -17,6 +17,7 @@ pub(crate) const TOOLS: f32 = 36.0;
 /// The editors' windows, by the id their state is kept under.
 pub(crate) const AUTOMATION: &str = "automation-editor";
 pub(crate) const NOTES: &str = "note-editor";
+pub(crate) const AUDIO: &str = "audio-editor";
 
 /// Whether the editor `id` fills the main window, kept while the application runs.
 pub(crate) fn full_screen(ctx: &egui::Context, id: &str) -> bool {

@@ -79,3 +79,18 @@ Vos propres réglages
 
 {project}: the mix and the stems to files
 {project} : le mix et les stems en fichiers
+
+Master effects
+Effets du master
+
+Export without them
+Exporter sans eux
+
+Left out of the files: {names}
+Laissés hors des fichiers : {names}
+
+The files go through the master's effects: {names}
+Les fichiers passent par les effets du master : {names}
+
+An effect only for listening (headphone or room correction) belongs in the master's monitoring effects: those are never exported.
+Un effet pour l'écoute seulement (correction de casque ou de pièce) va dans les effets d'écoute du master : ceux-là ne sont jamais exportés.

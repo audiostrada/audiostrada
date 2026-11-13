@@ -364,8 +364,8 @@ pub struct ProjectPlayer {
     console_blind: Option<bool>,
 }
 
-/// Absolute path of every source of `project`, plus the stretched or transposed variants
-/// its clips play.
+/// Absolute path of every source of `project`, plus the stretched, transposed or edited
+/// variants its clips play.
 pub fn media_paths(project: &Project, paths: Option<&ProjectPaths>) -> Vec<PathBuf> {
     let mut all: Vec<PathBuf> = project
         .sources
@@ -374,11 +374,11 @@ pub fn media_paths(project: &Project, paths: Option<&ProjectPaths>) -> Vec<PathB
         .chain(project.reference.iter().map(|r| resolve(paths, &r.path)))
         .collect();
     for clip in project.tracks.iter().flat_map(|t| t.clips.iter()) {
-        if let (Some(variant), Some(source)) = (clip.variant(), project.sources.get(&clip.source)) {
-            let path = audiostrada_core::variant_path(&resolve(paths, &source.path), variant);
-            if !all.contains(&path) {
-                all.push(path);
-            }
+        if (clip.variant().is_some() || clip.edits.is_some())
+            && let Some(path) = clip_media(project, paths, clip)
+            && !all.contains(&path)
+        {
+            all.push(path);
         }
     }
     all
@@ -391,7 +391,10 @@ pub fn clip_media(
     clip: &audiostrada_core::Clip,
 ) -> Option<PathBuf> {
     let source = project.sources.get(&clip.source)?;
-    let path = resolve(paths, &source.path);
+    let mut path = resolve(paths, &source.path);
+    if let Some(edits) = clip.edits.as_ref().filter(|e| e.active()) {
+        path = audiostrada_core::audio_edit::media_path(&path, edits);
+    }
     Some(match clip.variant() {
         Some(variant) => audiostrada_core::variant_path(&path, variant),
         None => path,
@@ -1485,6 +1488,7 @@ impl ProjectPlayer {
                         variations: Vec::new(),
                         variation_names: Default::default(),
                         take: None,
+                        edits: None,
                         inserts: Vec::new(),
                         automation: Vec::new(),
                     })
@@ -2675,7 +2679,17 @@ fn engine_clip(
     project_rate: u32,
     rate: u32,
 ) -> Option<Clip> {
-    let data = media.audio(&clip_media(project, paths, c)?)?;
+    let data = media.audio(&clip_media(project, paths, c)?).or_else(|| {
+        // Its edits still being made: it plays as it was meanwhile, rather than nothing.
+        let plain = audiostrada_core::Clip {
+            edits: None,
+            ..c.clone()
+        };
+        c.edits
+            .is_some()
+            .then(|| media.audio(&clip_media(project, paths, &plain)?))
+            .flatten()
+    })?;
     Some(Clip {
         start: scale(c.start, project_rate, rate),
         offset: scale(c.offset, project_rate, rate),

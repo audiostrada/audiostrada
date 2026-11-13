@@ -28,6 +28,7 @@ impl TimelineView {
         self.selection = vec![clip];
         self.notes.open = true;
         self.auto_editor = None;
+        self.audio = None;
     }
 
     /// Opens the note editor on the selected MIDI clip, or closes it.
@@ -35,6 +36,7 @@ impl TimelineView {
         self.notes.open = !self.notes.open;
         if self.notes.open {
             self.auto_editor = None;
+            self.audio = None;
         } else {
             self.notes.piano.release_preview();
         }
