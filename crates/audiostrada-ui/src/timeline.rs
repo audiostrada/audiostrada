@@ -2470,12 +2470,19 @@ mod tests {
             assert_eq!(h.view.selection.len(), 2, "the member's clip too");
             assert_eq!(doc.borrow().selected_tracks(), [tracks[1], tracks[0]]);
             h.view.selection.clear();
+            // Not a double-click, which would open the clip's editor.
+            for _ in 0..10 {
+                h.frame(vec![]);
+            }
             h.click(pos2(lanes.left() + 20.0, a), Modifiers::COMMAND);
             assert_eq!(h.view.selection.len(), 1, "Ctrl: the clip alone");
             doc.borrow_mut()
                 .history_mut()
                 .modify_unrecorded(|p| p.groups_off = true);
             h.view.selection.clear();
+            for _ in 0..10 {
+                h.frame(vec![]);
+            }
             h.click(pos2(lanes.left() + 20.0, a), Modifiers::NONE);
             assert_eq!(h.view.selection.len(), 1, "groups off");
         }

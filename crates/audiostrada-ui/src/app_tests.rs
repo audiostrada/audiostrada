@@ -746,17 +746,23 @@ fn the_note_editor_opens_on_the_selected_midi_clip_goes_full_screen_and_closes_w
 fn the_audio_editor_opens_on_an_audio_clip_and_its_retouches_are_heard() {
     use audiostrada_core::audio_edit::{AudioEdits, Entry, Kind, REMOVED_DB, Region};
     let mut h = Harness::with_song("audio-editor");
-    h.frame(Vec::new());
-    let clip = {
+    let audio_clip = |h: &Harness| {
         let doc = h.app.doc.borrow();
         doc.project()
             .tracks
             .iter()
             .flat_map(|t| &t.clips)
             .find(|c| !c.is_midi())
-            .unwrap()
-            .id
+            .map(|c| c.id)
     };
+    for _ in 0..1000 {
+        h.frame(Vec::new());
+        if audio_clip(&h).is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let clip = audio_clip(&h).expect("the tone imported");
     h.app.views.borrow_mut().timeline.selection = vec![clip];
     h.act(Action::AudioEditor);
     assert!(h.app.views.borrow().timeline.audio_editor_open());

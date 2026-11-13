@@ -442,11 +442,7 @@ impl Map {
             offset: clip.offset,
             end: clip.end(),
             per: edit::played_per_source(project, clip),
-            timing: clip
-                .edits
-                .as_ref()
-                .map(|e| e.timing())
-                .unwrap_or_default(),
+            timing: clip.edits.as_ref().map(|e| e.timing()).unwrap_or_default(),
         }
     }
 
@@ -1066,7 +1062,11 @@ impl TimelineView {
                 .threshold
                 .unwrap_or_else(|| found.profile.auto_threshold()),
         };
-        if editor.cache.as_ref().is_none_or(|c| c.threshold != threshold) {
+        if editor
+            .cache
+            .as_ref()
+            .is_none_or(|c| c.threshold != threshold)
+        {
             editor.cache = Some(Parts {
                 threshold,
                 phrases: found.profile.phrases(threshold),
@@ -1233,7 +1233,11 @@ impl TimelineView {
         let mut job = egui::text::LayoutJob::simple_singleline(
             hint.to_owned(),
             FontId::proportional(11.5),
-            if editor.hint.is_some() { p.text } else { p.weak },
+            if editor.hint.is_some() {
+                p.text
+            } else {
+                p.weak
+            },
         );
         job.wrap = egui::text::TextWrapping::truncate_at_width(
             (summary.left() - rect.left() - 36.0).max(0.0),
@@ -1502,9 +1506,11 @@ impl TimelineView {
             } else {
                 p.weak
             };
-            let name =
-                ui.painter()
-                    .layout_no_wrap(sort.name().to_owned(), crate::theme::strong(12.0), ink);
+            let name = ui.painter().layout_no_wrap(
+                sort.name().to_owned(),
+                crate::theme::strong(12.0),
+                ink,
+            );
             let number = ui.painter().layout_no_wrap(
                 count.map_or_else(|| "…".to_owned(), |c| c.to_string()),
                 FontId::proportional(11.5),
@@ -1535,7 +1541,11 @@ impl TimelineView {
                 StrokeKind::Inside,
             );
             let dot = pos2(chip.left() + 13.0, chip.center().y);
-            let dot_color = if dim { color.gamma_multiply(0.4) } else { color };
+            let dot_color = if dim {
+                color.gamma_multiply(0.4)
+            } else {
+                color
+            };
             if applied {
                 ui.painter().circle_filled(dot, 4.5, dot_color);
             } else {
@@ -2031,18 +2041,22 @@ impl TimelineView {
         };
 
         // TEMP-SHOT-BEGIN
-        let hover = match std::env::var("AE_HOVER").ok().as_deref().map(|v| {
-            v.split(':').map(str::to_owned).collect::<Vec<_>>()
-        }) {
+        let hover = match std::env::var("AE_HOVER")
+            .ok()
+            .as_deref()
+            .map(|v| v.split(':').map(str::to_owned).collect::<Vec<_>>())
+        {
             Some(v) if v[0] == "attack" => Under::Attack(
                 hits.iter()
                     .position(|h| x_moved(h.to) >= lane.left())
                     .unwrap_or(0)
-                    + v[1].parse::<usize>().unwrap(),
+                    + v[1].parse::<usize>().unwrap_or(0),
             ),
-            Some(v) if v[0] == "line" => Under::Line(v[1].parse().unwrap(), v[2].parse().unwrap()),
+            Some(v) if v[0] == "line" => {
+                Under::Line(v[1].parse().unwrap_or(0), v[2].parse().unwrap_or(0))
+            }
             Some(v) if v[0] == "region" => {
-                Under::Region(v[1].parse().unwrap(), v[2].parse().unwrap())
+                Under::Region(v[1].parse().unwrap_or(0), v[2].parse().unwrap_or(0))
             }
             Some(v) if v[0] == "threshold" => Under::Threshold,
             _ => hover,
@@ -2079,8 +2093,12 @@ impl TimelineView {
                 && n > 40
                 && found.is_some()
             {
-                let v: Vec<f32> = v.split(':').skip(1).filter_map(|t| t.parse().ok()).collect();
-                if std::env::var("AE_DRAG").unwrap().starts_with("hit") {
+                let v: Vec<f32> = v
+                    .split(':')
+                    .skip(1)
+                    .filter_map(|t| t.parse().ok())
+                    .collect();
+                if std::env::var("AE_DRAG").is_ok_and(|d| d.starts_with("hit")) {
                     let first = hits
                         .iter()
                         .position(|h| x_moved(h.to) >= lane.left())
@@ -2107,8 +2125,9 @@ impl TimelineView {
         // TEMP-SHOT-END
         // The clip, drawn to fill its band; while a retouch is made ready, as it last was.
         let ready = |c: &audiostrada_core::Clip| {
-            audiostrada_engine::project::clip_media(project, doc.paths(), c)
-                .is_some_and(|p| doc.media().peaks(&p).is_some() || doc.media().original(&p).is_some())
+            audiostrada_engine::project::clip_media(project, doc.paths(), c).is_some_and(|p| {
+                doc.media().peaks(&p).is_some() || doc.media().original(&p).is_some()
+            })
         };
         let mut shown_clip = if ready(clip) {
             editor.drawn = Some(clip.clone());
@@ -2133,7 +2152,10 @@ impl TimelineView {
             pos2(scale.x(shown_clip.end()), wave.bottom()),
         );
         lane_painter.rect_filled(
-            Rect::from_min_max(pos2(body.left(), band.top()), pos2(body.right(), band.bottom())),
+            Rect::from_min_max(
+                pos2(body.left(), band.top()),
+                pos2(body.right(), band.bottom()),
+            ),
             0.0,
             track_color.gamma_multiply(0.05),
         );
@@ -2193,7 +2215,8 @@ impl TimelineView {
             let within = lane_painter.with_clip_rect(all);
             for (from, until, lands, ends) in [(start, was, start, now), (was, end, now, end)] {
                 let (len, played) = ((until - from).max(0), (ends - lands).max(0));
-                let kept = retouch::kept_of(len as usize, played as usize, project.sample_rate) as i64;
+                let kept =
+                    retouch::kept_of(len as usize, played as usize, project.sample_rate) as i64;
                 self.draw_piece(
                     &within,
                     doc,
@@ -2296,7 +2319,8 @@ impl TimelineView {
                     hover,
                     Under::Line(hs, hj) | Under::Edge(hs, hj, _) | Under::Region(hs, hj)
                         if (hs, hj) == (s, j)
-                ) || (hover == Under::Pause(j) && set.owner == Owner::Sort(Sort::Background));
+                ) || (hover == Under::Pause(j)
+                    && set.owner == Owner::Sort(Sort::Background));
                 let on_line = hover == Under::Line(s, j);
                 // Labels sit in the middle of what is in view.
                 let middle = (x0.max(lane.left()) + x1.min(lane.right())) / 2.0;
@@ -2369,9 +2393,7 @@ impl TimelineView {
                 }
                 // A pause's handle, to squeeze it; its length once squeezed.
                 if set.owner == Owner::Sort(Sort::Background) && visible > 28.0 {
-                    let squeezed = shortened
-                        .iter()
-                        .any(|o| o.start < r.end && r.start < o.end);
+                    let squeezed = shortened.iter().any(|o| o.start < r.end && r.start < o.end);
                     if pointed || squeezed {
                         let at = pos2(middle, band.bottom() - 11.0);
                         let color = set.color.gamma_multiply(if pointed { 0.7 } else { 0.35 });
@@ -2440,13 +2462,13 @@ impl TimelineView {
                 .count();
             let crowded = in_view as f32 * 7.0 > lane.width();
             let dragged = match editor.drag {
-                Some(Drag::Hit { at, to, snapped, .. }) => Some((at, to, snapped)),
+                Some(Drag::Hit {
+                    at, to, snapped, ..
+                }) => Some((at, to, snapped)),
                 _ => None,
             };
             for (k, hit) in hits.iter().enumerate() {
-                let place = dragged
-                    .filter(|d| d.0 == hit.at)
-                    .map_or(hit.to, |d| d.1);
+                let place = dragged.filter(|d| d.0 == hit.at).map_or(hit.to, |d| d.1);
                 let sample = map.sample_moved(place);
                 let x = scale.x(sample.max(0) as u64);
                 if x < lane.left() - 40.0 || x > lane.right() + 40.0 {
@@ -2498,7 +2520,11 @@ impl TimelineView {
                         pos2(x + 5.0, foot),
                         pos2(x - 5.0, foot),
                     ],
-                    if moved || pointed { ink } else { ink.gamma_multiply(0.75) },
+                    if moved || pointed {
+                        ink
+                    } else {
+                        ink.gamma_multiply(0.75)
+                    },
                     Stroke::NONE,
                 ));
                 if let Some(d) = gap
@@ -2511,7 +2537,10 @@ impl TimelineView {
                         Stroke::new(3.0, ink.gamma_multiply(0.8)),
                     );
                     if pointed && dragged.is_none() {
-                        let ms = format!("{:.0}", d.abs() as f64 * 1000.0 / f64::from(project.sample_rate));
+                        let ms = format!(
+                            "{:.0}",
+                            d.abs() as f64 * 1000.0 / f64::from(project.sample_rate)
+                        );
                         let text = if d > 0 {
                             trf!("{ms} ms early", ms = ms)
                         } else {
@@ -2722,7 +2751,12 @@ impl TimelineView {
     /// The hits of the clip as the stack places them, whatever is heard now.
     fn stack_hits(&self, clip: &audiostrada_core::Clip, g: &Gesture) -> Vec<Moved> {
         let near = u64::from(g.rate / 100);
-        placed_hits(g.found_hits, &self.current_edits(clip), g.map.window(), near)
+        placed_hits(
+            g.found_hits,
+            &self.current_edits(clip),
+            g.map.window(),
+            near,
+        )
     }
 
     /// Writes the hits of the clip, `hits` where each one plays: those moved, and what holds
@@ -3003,9 +3037,9 @@ impl TimelineView {
             return tr("Drag across a noise to remove it; click a region to set it aside");
         }
         match under {
-            Under::Line(s, _) if g.sets[s].together() => tr(
-                "Pull: the level of them all · Alt: this one alone · double-click: back to 0 dB",
-            ),
+            Under::Line(s, _) if g.sets[s].together() => {
+                tr("Pull: the level of them all · Alt: this one alone · double-click: back to 0 dB")
+            }
             Under::Line(..) => tr("Pull: its level · double-click: back to 0 dB"),
             Under::Edge(..) => tr("Pull the edge to where the region should start or end"),
             Under::Pause(_) => tr("Pull: every pause squeezed · Alt: this one alone"),
@@ -3017,12 +3051,12 @@ impl TimelineView {
                 "Slide: this hit moves in time · Ctrl: free of the magnet · double-click: back \
                  in place · Shift+drag: select",
             ),
-            Under::Region(s, _) if g.sets[s].owner == Owner::Selection => tr(
-                "Pull its line: its level · Delete: remove it · right-click: more",
-            ),
-            _ => tr(
-                "Drag: select a part · double-click: the whole phrase · Alt+drag: move the clip",
-            ),
+            Under::Region(s, _) if g.sets[s].owner == Owner::Selection => {
+                tr("Pull its line: its level · Delete: remove it · right-click: more")
+            }
+            _ => {
+                tr("Drag: select a part · double-click: the whole phrase · Alt+drag: move the clip")
+            }
         }
     }
 
@@ -3097,7 +3131,15 @@ impl TimelineView {
             .map(|t| t.name.clone());
         response.context_menu(|ui| {
             if let Some((under, at)) = menu {
-                Self::audio_menu(ui, selection, g, under, at, under_name.as_deref(), &mut menu_action);
+                Self::audio_menu(
+                    ui,
+                    selection,
+                    g,
+                    under,
+                    at,
+                    under_name.as_deref(),
+                    &mut menu_action,
+                );
             }
         });
         if let Some(action) = menu_action {
@@ -3279,9 +3321,7 @@ impl TimelineView {
                 s = format!("{:.2}", keep as f32 / g.rate as f32)
             )),
             Some(Drag::Threshold(t)) => Some(trf!("Threshold {db}", db = format!("{t:.0} dB"))),
-            Some(Drag::Hit { at, to, .. }) => {
-                Some(ms_text(to as i64 - at as i64, g.rate))
-            }
+            Some(Drag::Hit { at, to, .. }) => Some(ms_text(to as i64 - at as i64, g.rate)),
             Some(Drag::Move { moved, .. }) => Some(ms_text(moved, project_rate)),
             _ => None,
         };
@@ -3781,8 +3821,15 @@ mod tests {
             assert!((gain_at(band, y_of_gain(band, gain)) - gain).abs() < 0.01);
         }
         assert_eq!(gain_at(band, y_of_gain(band, 0.0)), 0.0);
-        assert_eq!(gain_at(band, y_of_gain(band, 0.3)), 0.0, "0 dB holds the line");
-        assert!(y_of_gain(band, 6.0) < y_of_gain(band, 0.0), "louder is higher");
+        assert_eq!(
+            gain_at(band, y_of_gain(band, 0.3)),
+            0.0,
+            "0 dB holds the line"
+        );
+        assert!(
+            y_of_gain(band, 6.0) < y_of_gain(band, 0.0),
+            "louder is higher"
+        );
         assert!(y_of_gain(band, -20.0) > y_of_gain(band, 0.0));
         assert!(
             gain_at(band, wave_of(band).bottom()) <= GONE,
@@ -3840,7 +3887,12 @@ mod tests {
     #[test]
     fn the_hits_of_a_clip_are_those_found_where_the_stack_moved_them() {
         let stack = moves(&[hit(1_000, 1_000), hit(2_000, 2_300), hit(3_000, 3_000)]);
-        let placed = placed_hits(&[1_005, 2_010, 3_000, 4_000, 9_000], &stack, (500, 5_000), 20);
+        let placed = placed_hits(
+            &[1_005, 2_010, 3_000, 4_000, 9_000],
+            &stack,
+            (500, 5_000),
+            20,
+        );
         assert_eq!(
             placed,
             vec![

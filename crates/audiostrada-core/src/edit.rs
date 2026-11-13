@@ -1840,7 +1840,7 @@ mod tests {
         };
         set_clip_edits(&mut p, id, Some(shorten.clone()));
         let c = clip(&p, id).unwrap();
-        assert_eq!((c.offset, c.length), (2_000, 41_000));
+        assert_eq!((c.offset, c.length), (2_000, 40_000));
         assert!(c.edits.is_some());
         let mut off = shorten;
         off.entries[0].on = false;

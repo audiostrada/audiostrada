@@ -190,9 +190,11 @@ pub fn profile(channels: &[&[f32]], rate: u32) -> Profile {
     let mut flatness = vec![1.0; steps];
     let mut centroid = vec![0.0; steps];
     let mut high = vec![0.0; steps];
+    // A floor near the voice is no background: the recording never pauses.
+    let background = floor < voice - 12.0;
     for k in 0..steps {
         // Under the background, nothing to tell apart.
-        if level[k] < floor + 3.0 {
+        if background && level[k] < floor + 3.0 {
             continue;
         }
         let center = k * hop + hop / 2;
@@ -551,7 +553,9 @@ pub fn find_clicks(channels: &[&[f32]], rate: u32, sensitivity: f32) -> Vec<Rang
 /// on several samples in a row.
 fn clip_level(x: &[f32]) -> Option<f32> {
     let peak = x.iter().fold(0.0f32, |m, v| m.max(v.abs()));
-    (peak > db_to_gain(-6.0)).then_some(peak * 0.999)
+    let level = peak * 0.999;
+    let held = x.windows(3).any(|w| w.iter().all(|v| v.abs() >= level));
+    (peak > db_to_gain(-6.0) && held).then_some(level)
 }
 
 /// Clipped peaks: runs of three samples or more held at the channel's highest level.
