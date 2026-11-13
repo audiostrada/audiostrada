@@ -3255,16 +3255,46 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("speed", 60.0), ("humanize", 70.0), ("amount", 100.0)],
             ),
             preset(
+                tr("Vocal: ballad, long notes only"),
+                &[
+                    ("speed", 90.0),
+                    ("humanize", 85.0),
+                    ("tolerance", 12.0),
+                    ("amount", 100.0),
+                ],
+            ),
+            preset(
                 tr("Vocal: light touch"),
                 &[("speed", 150.0), ("humanize", 60.0), ("amount", 60.0)],
             ),
             preset(
-                tr("Backing vocals: locked"),
+                tr("Vocal: backing, locked"),
                 &[("speed", 10.0), ("humanize", 0.0), ("amount", 100.0)],
+            ),
+            preset(tr("Staircase: every semitone"), &[("mode", 1.0)]),
+            preset(
+                tr("Staircase: major scale"),
+                &[("mode", 1.0), ("scale", 1.0)],
+            ),
+            preset(
+                tr("Staircase: minor pentatonic"),
+                &[("mode", 1.0), ("scale", 6.0)],
+            ),
+            preset(
+                tr("Staircase: low and synthetic"),
+                &[("mode", 1.0), ("transpose", -5.0)],
             ),
             preset(
                 tr("FX: octave down"),
                 &[("speed", 20.0), ("humanize", 50.0), ("transpose", -12.0)],
+            ),
+            preset(
+                tr("FX: octave up"),
+                &[("speed", 20.0), ("humanize", 50.0), ("transpose", 12.0)],
+            ),
+            preset(
+                tr("FX: a fifth above, tight"),
+                &[("speed", 5.0), ("transpose", 7.0)],
             ),
         ],
         "deesser" => vec![
@@ -3785,5 +3815,20 @@ mod tests {
                 );
             }
         }
+    }
+    #[test]
+    fn strada_correct_has_three_to_six_presets_a_role() {
+        let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+        for preset in builtin("pitch_correct") {
+            let role = preset
+                .name
+                .split(": ")
+                .next()
+                .unwrap_or_default()
+                .to_owned();
+            *counts.entry(role).or_default() += 1;
+        }
+        assert!(counts.len() >= 3, "{counts:?}");
+        assert!(counts.values().all(|n| (3..=6).contains(n)), "{counts:?}");
     }
 }

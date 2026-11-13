@@ -108,8 +108,13 @@ fn measure_command(args: cli::MeasureArgs) -> anyhow::Result<()> {
 }
 
 fn app_dirs() -> AppDirs {
+    // A capture of an effect's window (a development aid) neither offers a recovery nor
+    // leaves one.
+    let capture = std::env::var_os("AUDIOSTRADA_SCREENSHOT_EFFECT").is_some();
     AppDirs {
-        recovery: dirs::data_dir().map(|d| d.join("audiostrada").join("recovery")),
+        recovery: dirs::data_dir()
+            .filter(|_| !capture)
+            .map(|d| d.join("audiostrada").join("recovery")),
         peaks: dirs::cache_dir().map(|d| d.join("audiostrada").join("peaks")),
         recordings: dirs::data_dir().map(|d| d.join("audiostrada").join("recordings")),
     }

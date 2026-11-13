@@ -285,9 +285,26 @@ alignment in milliseconds and phase rotation.
 
 ### Strada-Correct
 
-Automatic pitch correction for the voice, from natural to the robot effect. Choose the key and
-the scale (or *Custom* notes); *Retune speed* at 0 ms gives the hard effect, higher values a
-natural correction, *Humanize* leaves the held notes some life.
+Automatic pitch correction for the voice, from a light touch to the stepped, synthetic voice.
+The display scrolls the pitch sung (grey) and the corrected one (blue) over the notes of the
+scale; at its right, the note sung and how far off it is, the note aimed at, and a bar showing
+by how many cents the voice is being moved.
+
+- **Natural** follows the settings: *Retune speed* is the time the voice takes to reach its
+  note (0 ms is immediate, 20 to 60 ms sounds like a singer in tune), *Humanize* corrects the
+  center of a held note and leaves its vibrato, *Tolerance* leaves alone a note already that
+  close, *Amount* corrects only a part of the way.
+- **Staircase** puts every note flat on its target at once, whatever those settings: the
+  voice moves in steps, vibrato and slides gone, as on the first automatically corrected
+  records. Choose a scale with few notes for wider steps.
+- **Original** is the engine this effect started with. Projects made with it open in this
+  mode, to sound as they did; the two other modes follow real voices much better, so try
+  *Natural* on them.
+
+Choose the key and the scale (or click notes on the keyboard for a *Custom* one). While the
+voice plays, the effect listens for the key of what is sung and shows it under the keyboard
+(*Heard: A minor*); **Use this key** sets the key and the scale to it. *Transpose* moves the
+whole voice by semitones, formants kept.
 
 <!-- effect:pitch_correct -->
 

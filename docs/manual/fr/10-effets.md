@@ -296,10 +296,29 @@ canaux, alignement temporel en millisecondes et rotation de phase.
 
 ### Strada-Correct
 
-La correction de hauteur automatique pour la voix, du naturel à l'effet robot. Choisissez la
-tonalité et la gamme (ou des notes personnalisées) ; une vitesse de correction de 0 ms donne
-l'effet dur, des valeurs plus hautes une correction naturelle, *Humaniser* laisse un peu de vie
-aux notes tenues.
+La correction de hauteur automatique pour la voix, de la touche légère à la voix en paliers,
+synthétique. L'écran fait défiler la hauteur chantée (en gris) et la hauteur corrigée (en bleu)
+sur les notes de la gamme ; à sa droite, la note chantée et son écart, la note visée, et une
+barre qui montre de combien de cents la voix est déplacée.
+
+- **Naturel** suit les réglages : la *vitesse de correction* est le temps que met la voix à
+  rejoindre sa note (0 ms, c'est immédiat ; de 20 à 60 ms, on entend un chanteur juste),
+  *Humaniser* corrige le centre d'une note tenue et lui laisse son vibrato, la *tolérance*
+  laisse tranquille une note déjà aussi proche, la *quantité* ne corrige qu'une partie du
+  chemin.
+- **Escalier** pose chaque note à plat sur sa cible, tout de suite, quels que soient ces
+  réglages : la voix avance par paliers, sans vibrato ni glissé, comme sur les premiers
+  disques corrigés automatiquement. Choisissez une gamme de peu de notes pour des marches
+  plus larges.
+- **D'origine** est le moteur des débuts de cet effet. Les projets faits avec lui s'ouvrent
+  dans ce mode, pour sonner comme avant ; les deux autres modes suivent bien mieux les vraies
+  voix : essayez *Naturel* sur ces projets.
+
+Choisissez la tonalité et la gamme (ou cliquez des notes sur le clavier pour une gamme
+personnalisée). Pendant que la voix joue, l'effet écoute la tonalité de ce qui est chanté et
+l'affiche sous le clavier (*Entendu : A mineur*) ; **Utiliser cette tonalité** règle la
+tonalité et la gamme dessus. *Transposer* déplace toute la voix par demi-tons, formants
+conservés.
 
 <!-- effect:pitch_correct -->
 

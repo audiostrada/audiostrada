@@ -892,7 +892,9 @@ mod tests {
     /// The pitch of each stretch of 4096 samples of `x`, as notes.
     fn pitches(x: &[f32]) -> Vec<f32> {
         let mut difference = vec![0.0; 2048];
-        x.chunks_exact(4096)
+        x.as_chunks::<4096>()
+            .0
+            .iter()
             .filter_map(|w| crate::tuner::detect(w, RATE, &mut difference))
             .map(|found| to_note(found.0))
             .collect()
@@ -1044,7 +1046,7 @@ mod tests {
             "the modes share a latency"
         );
     }
-    const ORIGINAL_SUM: f64 = 4347.552_928;
+    const ORIGINAL_SUM: f64 = 4_347.552_928;
     const ORIGINAL_PROBES: [f32; 4] = [0.251_958_9, -0.011_172_57, -0.260_529_94, -0.048_771_17];
 
     #[test]

@@ -25,6 +25,8 @@ const SILENCE: f32 = 1e-6;
 /// Depth of the difference's dip under which a note starts, and under which it goes on.
 const ONSET: f32 = 0.2;
 const CONTINUE: f32 = 0.5;
+/// Depth under which a note starts when two readings in a row find it at the same period.
+const SOFT_ONSET: f32 = 0.35;
 /// How far the period may move from one reading to the next and still be the same course.
 const COURSE: f32 = 0.12;
 /// Unvoiced readings after which the next note starts afresh (60 ms).
@@ -107,6 +109,8 @@ pub(crate) struct Corrector {
     difference: Vec<f32>,
     /// Period of the last reading, in decimated samples, and unvoiced readings since.
     course: Option<f32>,
+    /// Period of a shallow dip of the last reading, waiting for the next one to agree.
+    tentative: Option<f32>,
     gap: u32,
     frames: [Frame; FRAMES],
     frame_count: usize,
@@ -151,6 +155,7 @@ impl Corrector {
             filled: 0,
             difference: Vec::new(),
             course: None,
+            tentative: None,
             gap: GAP,
             frames: [Frame::default(); FRAMES],
             frame_count: 0,
@@ -235,6 +240,7 @@ impl Corrector {
         self.next_grain = 0.0;
         self.crowding = 0.0;
         self.course = None;
+        self.tentative = None;
         self.gap = GAP;
         self.note = None;
         self.correction = 0.0;
@@ -322,11 +328,28 @@ impl Corrector {
             }
         }
         // A new note: the first dip deep enough, as YIN picks it.
-        let mut lag = (first..max_lag).find(|&l| d[l] < ONSET)?;
-        while lag + 1 < max_lag && d[lag + 1] < d[lag] {
-            lag += 1;
+        if let Some(mut lag) = (first..max_lag).find(|&l| d[l] < ONSET) {
+            while lag + 1 < max_lag && d[lag + 1] < d[lag] {
+                lag += 1;
+            }
+            self.tentative = None;
+            return Some(self.dip(lag));
         }
-        Some(self.dip(lag))
+        // Or a shallower one that two readings in a row agree on: a soft start, a voice
+        // doubled, which noise does not give twice at the same place.
+        let deepest = (first..max_lag)
+            .filter(|&l| is_dip(l) && d[l] < SOFT_ONSET)
+            .map(|l| d[l])
+            .min_by(f32::total_cmp);
+        // The shortest of the dips about as deep: the longer ones are two or three periods.
+        let shortest =
+            deepest.and_then(|depth| (first..max_lag).find(|&l| is_dip(l) && d[l] < depth + 0.1));
+        let agreed = shortest.filter(|&lag| {
+            self.tentative
+                .is_some_and(|before| (lag as f32 - before).abs() <= (before * COURSE).max(1.5))
+        });
+        self.tentative = shortest.map(|lag| lag as f32);
+        agreed.map(|lag| self.dip(lag))
     }
 
     /// Distance between the latest `window` samples and the ones `lag` before, at full rate.
@@ -479,7 +502,7 @@ impl Corrector {
         if self.clarity > 0.7 {
             // Only what is sung on a note: a glide between two says nothing.
             let off = pitch - pitch.round();
-            if off.abs() < 0.35 {
+            if off.abs() < 0.4 {
                 self.chroma[(pitch.round() as i32).rem_euclid(12) as usize] += 1.0;
             }
         }

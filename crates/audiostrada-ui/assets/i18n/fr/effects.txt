@@ -6604,3 +6604,72 @@ Preset suivant. Clic droit pour assigner un bouton MIDI
 
 Every note off, the held arpeggio's too, on every instrument
 Coupe toutes les notes, celles de l'arpège maintenu aussi, sur tous les instruments
+
+Staircase
+Escalier
+
+Follows the settings below, from a light touch to a tight correction
+Suit les réglages ci-dessous, d'une touche légère à une correction serrée
+
+Every note flat on its target at once: the stepped, synthetic voice
+Chaque note à plat sur sa cible, tout de suite : la voix en paliers, synthétique
+
+The first engine of this effect, for the projects made with it
+Le premier moteur de cet effet, pour les projets faits avec lui
+
+Sung
+Chanté
+
+Target
+Visé
+
+Moved by {cents} cents
+Déplacé de {cents} cents
+
+Sing or play a note
+Chantez ou jouez une note
+
+Heard: {key} {scale}
+Entendu : {key} {scale}
+
+The key of what was sung so far, {percent} % sure
+La tonalité de ce qui a été chanté jusqu'ici, sûre à {percent} %
+
+Correct to the key heard
+Corriger vers la tonalité entendue
+
+The original engine does not listen for the key
+Le moteur d'origine n'écoute pas la tonalité
+
+Heard: listening for the key...
+Entendu : écoute de la tonalité...
+
+Vocal: ballad, long notes only
+Voix : ballade, notes longues seulement
+
+Vocal: backing, locked
+Voix : chœurs, verrouillés
+
+Staircase: every semitone
+Escalier : tous les demi-tons
+
+Staircase: major scale
+Escalier : gamme majeure
+
+Staircase: minor pentatonic
+Escalier : pentatonique mineure
+
+Staircase: low and synthetic
+Escalier : grave et synthétique
+
+FX: octave up
+Effet : octave au-dessus
+
+FX: a fifth above, tight
+Effet : une quinte au-dessus, serrée
+
+Natural
+Naturel
+
+Use this key
+Utiliser cette tonalité

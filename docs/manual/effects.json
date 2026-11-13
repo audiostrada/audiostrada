@@ -8946,6 +8946,19 @@
     "min": 0,
     "name": "Tolerance",
     "unit": "cents"
+   },
+   {
+    "choices": [
+     "Natural",
+     "Staircase",
+     "Original"
+    ],
+    "default": 0,
+    "id": "mode",
+    "max": 2,
+    "min": 0,
+    "name": "Mode",
+    "unit": ""
    }
   ]
  },

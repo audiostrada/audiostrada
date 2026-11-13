@@ -696,6 +696,80 @@ fn take_keys(ctx: &egui::Context, keys: &[egui::Key]) -> Vec<egui::Key> {
     })
 }
 
+/// Development aid: with `AUDIOSTRADA_SCREENSHOT_EFFECT=<effect id>`, adds a track playing a
+/// tune on Strada-Synth through that effect (then a gain that makes it all but silent), and
+/// opens the effect's window inside the main one, where `AUDIOSTRADA_SCREENSHOT` sees it.
+/// `AUDIOSTRADA_SCREENSHOT_PARAMS=id=value,id=value` sets the effect first.
+mod effect_shot {
+    use super::*;
+    use std::cell::Cell;
+
+    thread_local! {
+        static CALLS: Cell<u32> = const { Cell::new(0) };
+        static HELD: Cell<Option<u8>> = const { Cell::new(None) };
+    }
+    /// A tune sung a little off, and the calls each note lasts (the mixer's windows are
+    /// drawn once or twice a frame).
+    const TUNE: [u8; 8] = [57, 60, 62, 64, 62, 60, 59, 57];
+    const FRAMES_PER_NOTE: u32 = 60;
+
+    pub(super) fn open(ctx: &egui::Context, doc: &mut Document) -> Option<(Channel, InsertId)> {
+        let effect = std::env::var("AUDIOSTRADA_SCREENSHOT_EFFECT").ok()?;
+        // The main window counts the frames to its capture: it is the one kept drawing, not
+        // a detached mixer, whose redraws would hold it back.
+        ctx.request_repaint_of(egui::ViewportId::ROOT);
+        let calls = CALLS.get();
+        CALLS.set(calls.saturating_add(1));
+        let found = doc.project().tracks.iter().find_map(|t| {
+            let insert = t.inserts.iter().find(|i| i.effect == effect)?;
+            Some((t.id, insert.id))
+        });
+        let Some((track, insert)) = found else {
+            if calls == 0 {
+                ctx.set_embed_viewports(true);
+                let settings = std::env::var("AUDIOSTRADA_SCREENSHOT_PARAMS").unwrap_or_default();
+                doc.history_mut().edit("Effect", |p| {
+                    let t = p.add_track("Voice");
+                    let channel = Channel::Track(t);
+                    let (Some(synth), Some(shown)) = (
+                        routing::add_insert(p, channel, "synth", Default::default()),
+                        routing::add_insert(p, channel, &effect, Default::default()),
+                    ) else {
+                        return;
+                    };
+                    // Off the note, for an effect that corrects it.
+                    routing::set_insert_param(p, channel, synth, "osc1_fine", 20.0);
+                    routing::set_insert_param(p, channel, synth, "osc2_fine", 20.0);
+                    for pair in settings.split(',') {
+                        if let Some((id, value)) = pair.split_once('=')
+                            && let Ok(value) = value.trim().parse()
+                        {
+                            routing::set_insert_param(p, channel, shown, id.trim(), value);
+                        }
+                    }
+                    if let Some(quiet) =
+                        routing::add_insert(p, channel, "utility", Default::default())
+                    {
+                        routing::set_insert_param(p, channel, quiet, "gain", -48.0);
+                    }
+                });
+            }
+            return None;
+        };
+        // The tune, a note after the other.
+        let step = (calls / FRAMES_PER_NOTE) as usize % TUNE.len();
+        let key = TUNE[step];
+        if HELD.get() != Some(key) {
+            if let Some(before) = HELD.get() {
+                doc.player().play_key(track, [0x80, before, 0]);
+            }
+            doc.player().play_key(track, [0x90, key, 100]);
+            HELD.set(Some(key));
+        }
+        (calls == 5).then_some((Channel::Track(track), insert))
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn editor_window(
     ctx: &egui::Context,
@@ -5858,6 +5932,9 @@ impl MixerView {
         if let Some((channel, id)) = crate::synth_editor::shot::open(ctx, doc) {
             self.show_editor(channel, id);
         }
+        if let Some((channel, id)) = effect_shot::open(ctx, doc) {
+            self.show_editor(channel, id);
+        }
         let mut closed = Vec::new();
         for (channel, id) in self.editors.clone() {
             let Some(insert) = routing::find_insert(project, channel, id) else {
@@ -5894,7 +5971,7 @@ impl MixerView {
                 "imager" => [900.0, 620.0],
                 "utility" => [940.0, 480.0],
                 "drive" => [1000.0, 620.0],
-                "pitch_correct" => [860.0, 560.0],
+                "pitch_correct" => [900.0, 680.0],
                 "reverb" => [980.0, 800.0],
                 "maximizer" => [900.0, 730.0],
                 "vintage_eq" => [820.0, 660.0],

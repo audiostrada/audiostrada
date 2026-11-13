@@ -126,6 +126,11 @@ comments on public items and modules, in the same plain style. No emojis, no em 
   `AUDIOSTRADA_SCREENSHOT_SOUND` and holds a chord, for a capture of that window from outside;
   `AUDIOSTRADA_SCREENSHOT_VIEW=oscillators`, `filter`, `modulation`, `effects` or `macros`
   chooses the view, `AUDIOSTRADA_SCREENSHOT_EXPERT=1` shows the expert controls.
+- `AUDIOSTRADA_SCREENSHOT_EFFECT=<effect id>`, with `AUDIOSTRADA_SCREENSHOT`, opens that
+  built-in effect's window inside the main one, where the screenshot sees it, on a new track
+  playing a tune on Strada-Synth through the effect (then a gain that makes it all but silent);
+  `AUDIOSTRADA_SCREENSHOT_PARAMS=id=value,id=value` sets the effect first, and a frame of 500
+  or more leaves the meters time to move. Such a run neither offers nor leaves a recovery.
 - `audiostrada --control PORT` lets `audiostrada mcp --connect PORT` drive a running window
   through the Model Context Protocol (`crates/audiostrada-ui/src/control.rs` lists the tools).
 - `audiostrada help` lists the command line (render, compare, latency, devices, plugin scan).
