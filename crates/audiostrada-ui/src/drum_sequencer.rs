@@ -8,9 +8,12 @@ use std::sync::Arc;
 use audiostrada_core::routing::Channel;
 use audiostrada_core::{ClipId, Note, TrackId};
 use audiostrada_dsp::drums::{LAYOUT, VOICES, voice_of};
-use eframe::egui::{self, Align2, Color32, FontId, Rect, RichText, Sense, Stroke, Ui, pos2, vec2};
+use eframe::egui::{
+    self, Align2, Color32, FontId, Rect, RichText, Sense, Shape, Stroke, Ui, pos2, vec2,
+};
 
-use crate::drums_editor::{RHYTHMS, family, rhythm_notes};
+use crate::drum_rhythms::{GENRES, RHYTHMS, rhythm_notes};
+use crate::drums_editor::family;
 use crate::effect_editors::Params;
 use crate::i18n::tr;
 use crate::theme;
@@ -27,6 +30,8 @@ enum Gesture {
     },
     /// Steps painted on or off.
     Paint(bool),
+    /// A pad's name pressed: it played, nothing more until the button is let go.
+    Listen,
     /// A step's velocity, dragged up or down.
     Velocity {
         pad: usize,
@@ -49,6 +54,8 @@ pub struct SequencerState {
     menu: Option<(usize, usize)>,
     /// The bars of a new pattern.
     new_bars: u32,
+    /// A rhythm to write once the pattern is there.
+    pending: Option<usize>,
 }
 
 impl Default for SequencerState {
@@ -60,6 +67,7 @@ impl Default for SequencerState {
             gesture: None,
             menu: None,
             new_bars: 4,
+            pending: None,
         }
     }
 }
@@ -645,6 +653,14 @@ fn store(
     }
 }
 
+/// For a screenshot: a new pattern of four bars playing rhythm `k`.
+pub(crate) fn shot_rhythm(params: &mut Params, state: &mut SequencerState, k: usize) {
+    if let Channel::Track(track) = params.channel {
+        state.clip = new_pattern(params, track, 4);
+        state.pending = Some(k);
+    }
+}
+
 /// A new empty pattern of `bars` bars at the playhead's bar.
 fn new_pattern(params: &mut Params, track: TrackId, bars: u32) -> Option<ClipId> {
     let doc = &mut *params.doc;
@@ -667,6 +683,35 @@ fn new_pattern(params: &mut Params, track: TrackId, bars: u32) -> Option<ClipId>
         }
     });
     created
+}
+
+/// A variation's chip: filled in its color when it is the one edited, outlined otherwise.
+fn chip(ui: &mut Ui, text: &str, color: Color32, on: bool) -> egui::Response {
+    let ink = if on {
+        Color32::WHITE
+    } else {
+        Color32::from_rgb(200, 206, 216)
+    };
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.to_owned(), FontId::proportional(12.0), ink);
+    let size = vec2((galley.size().x + 18.0).max(28.0), 22.0);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    let painter = ui.painter();
+    if on {
+        painter.rect_filled(rect, 11.0, color);
+    } else {
+        let alpha = if response.hovered() { 0.4 } else { 0.22 };
+        painter.rect_filled(rect, 11.0, color.gamma_multiply(alpha));
+        painter.rect_stroke(
+            rect,
+            11.0,
+            Stroke::new(1.0, color.gamma_multiply(0.8)),
+            egui::StrokeKind::Inside,
+        );
+    }
+    painter.galley(rect.center() - galley.size() / 2.0, galley, ink);
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 fn variation_color(variation: u8) -> Color32 {
@@ -742,24 +787,23 @@ pub fn show(
 
     // The variations, the swing, rhythms to start from.
     ui.horizontal(|ui| {
-        ui.label(RichText::new(tr("Pattern")).strong().color(p.weak));
-        ui.label(RichText::new(&clip.name).size(11.5));
-        ui.add_space(10.0);
+        ui.spacing_mut().item_spacing.x = 4.0;
         let used = shown_order(chain.clone());
         for &v in &used {
-            if ui
-                .selectable_label(
-                    state.variation == v,
-                    RichText::new(variation_name(v)).color(Color32::WHITE),
-                )
-                .on_hover_text(tr("Edit this variation"))
-                .clicked()
+            if chip(
+                ui,
+                &variation_name(v),
+                variation_color(v),
+                state.variation == v,
+            )
+            .on_hover_text(tr("Edit this variation"))
+            .clicked()
             {
                 state.variation = v;
             }
         }
         let add = |ui: &mut Ui, text: String, hint: &str| {
-            ui.button(RichText::new(text).color(Color32::from_rgb(150, 160, 175)))
+            chip(ui, &text, Color32::from_rgb(70, 78, 92), false)
                 .on_hover_text(hint)
                 .clicked()
         };
@@ -819,34 +863,47 @@ pub fn show(
             params.doc.history_mut().end_gesture();
         }
         ui.add_space(10.0);
-        let mut chosen = None;
-        egui::ComboBox::from_id_salt("drum-seq-rhythm")
-            .width(150.0)
-            .selected_text(tr("Start from a rhythm"))
-            .show_ui(ui, |ui| {
-                for (i, r) in RHYTHMS.iter().enumerate() {
-                    let label = format!("{} · {} BPM", tr(r.name), r.bpm);
-                    if ui.selectable_label(false, label).clicked() {
-                        chosen = Some(i);
+        let mut chosen = state.pending.take();
+        ui.menu_button(tr("Rhythms"), |ui| {
+            ui.set_min_width(170.0);
+            for genre in GENRES {
+                ui.menu_button(tr(genre), |ui| {
+                    ui.set_min_width(220.0);
+                    for (i, r) in RHYTHMS.iter().enumerate().filter(|(_, r)| r.genre == genre) {
+                        let label = format!("{}  ·  {} BPM", tr(r.name), r.bpm);
+                        if ui
+                            .button(label)
+                            .on_hover_text(tr(
+                                "Writes its groove, its variation and its fill over the pattern",
+                            ))
+                            .clicked()
+                        {
+                            chosen = Some(i);
+                            ui.close();
+                        }
                     }
-                }
-            });
+                });
+            }
+        })
+        .response
+        .on_hover_text(tr("Start from a ready-made rhythm, by genre"));
         if let Some(i) = chosen {
             let rhythm = &RHYTHMS[i];
             state.swing = rhythm.swing;
             state.variation = A;
-            let notes: Vec<Note> =
-                rhythm_notes(rhythm, grid.steps.div_ceil(16) as u32, grid.step * 4.0)
-                    .into_iter()
-                    .map(|mut n| {
-                        n.start += grid.origin as u64;
-                        n
-                    })
-                    .filter(|n| grid.step_of(n.start, rhythm.swing).is_some())
-                    .collect();
+            let bars = grid.steps.div_ceil(16);
+            let (notes, chain) = rhythm_notes(rhythm, bars, grid.step);
+            let notes: Vec<Note> = notes
+                .into_iter()
+                .map(|mut n| {
+                    n.start += grid.origin as u64;
+                    n
+                })
+                .filter(|n| grid.step_of(n.start, rhythm.swing).is_some())
+                .collect();
             let write = Write {
                 notes,
-                chain: &[],
+                chain: &chain,
                 bars: None,
             };
             let label = crate::trf!("Rhythm {name}", name = tr(rhythm.name));
@@ -994,81 +1051,148 @@ pub fn show(
         .map(|k| k % 16);
     let read =
         |pad: usize, c: usize| source.and_then(|_| read_step(&notes, &grid, pad, first + c, swing));
-    let label_width = 118.0;
-    let row = 20.0;
+    let label_width = 124.0;
+    let row = 21.0;
+    let header = 16.0;
     let width = ui.available_width();
-    let (rect, response) = ui.allocate_exact_size(vec2(width, row * 16.0), Sense::click_and_drag());
-    let painter = ui.painter_at(rect);
+    let (outer, response) =
+        ui.allocate_exact_size(vec2(width, header + row * 16.0), Sense::click_and_drag());
+    let painter = ui.painter_at(outer.expand(2.0));
+    let rect = Rect::from_min_max(pos2(outer.left(), outer.top() + header), outer.max);
     painter.rect_filled(rect, 8.0, Color32::from_rgb(16, 19, 25));
     let cells = Rect::from_min_max(pos2(rect.left() + label_width, rect.top()), rect.max);
-    let cell_width = cells.width() / 16.0;
+    // Each beat's four sixteenths together, a gap between beats.
+    let beat_gap = 6.0;
+    let cell_width = (cells.width() - 3.0 * beat_gap - 4.0) / 16.0;
+    let x_of = |c: usize| cells.left() + c as f32 * cell_width + (c / 4) as f32 * beat_gap;
     let cell_at = |pos: egui::Pos2| -> Option<(usize, usize)> {
         if !rect.contains(pos) {
             return None;
         }
         let r = ((pos.y - rect.top()) / row) as usize;
-        let c = ((pos.x - cells.left()) / cell_width).floor();
-        (r < 16).then_some((r, if c < 0.0 { usize::MAX } else { c as usize }))
+        if pos.x < cells.left() {
+            return (r < 16).then_some((r, usize::MAX));
+        }
+        let c = (0..16).find(|&c| pos.x < x_of(c) + cell_width + beat_gap / 2.0)?;
+        (r < 16).then_some((r, c))
     };
+    let hovered = response.hover_pos().and_then(cell_at);
+    // The beats over the steps, the one playing marked.
+    for beat in 0..4 {
+        painter.text(
+            pos2(x_of(beat * 4) + 3.0, outer.top() + header / 2.0),
+            Align2::LEFT_CENTER,
+            (beat + 1).to_string(),
+            FontId::proportional(10.5),
+            Color32::from_rgb(120, 130, 146),
+        );
+    }
     if let Some(c) = playing_c.filter(|c| *c < count) {
-        let x = cells.left() + c as f32 * cell_width;
+        let x = x_of(c);
         painter.rect_filled(
             Rect::from_min_size(pos2(x, rect.top()), vec2(cell_width, rect.height())),
-            0.0,
-            Color32::from_white_alpha(14),
+            3.0,
+            Color32::from_white_alpha(12),
         );
+        let tip = pos2(x + cell_width / 2.0, outer.top() + header - 2.0);
+        painter.add(Shape::convex_polygon(
+            vec![tip, tip + vec2(-4.0, -6.0), tip + vec2(4.0, -6.0)],
+            Color32::from_rgb(236, 240, 246),
+            Stroke::NONE,
+        ));
     }
     for (r, &pad) in LAYOUT.iter().enumerate() {
         let y = rect.top() + r as f32 * row;
+        let line = Rect::from_min_size(
+            pos2(rect.left() + 2.0, y + 1.0),
+            vec2(rect.width() - 4.0, row - 2.0),
+        );
         let color = family(pad);
         let glow = meters.get(pad).copied().unwrap_or(0.0).clamp(0.0, 1.0);
-        let name_color = if pad == *selected {
+        let is_selected = pad == *selected;
+        if is_selected {
+            painter.rect_filled(line, 4.0, color.gamma_multiply(0.1));
+            painter.rect_filled(
+                Rect::from_min_size(line.min, vec2(3.0, line.height())),
+                1.5,
+                color,
+            );
+        } else if hovered.is_some_and(|h| h.0 == r) {
+            painter.rect_filled(line, 4.0, Color32::from_white_alpha(5));
+        }
+        let used = (0..count).any(|c| read(pad, c).is_some());
+        let name_color = if is_selected {
             Color32::WHITE
+        } else if used {
+            Color32::from_rgb(190, 198, 212)
         } else {
-            Color32::from_rgb(170, 180, 195)
+            Color32::from_rgb(120, 130, 146)
         };
         painter.circle_filled(
-            pos2(rect.left() + 10.0, y + row / 2.0),
-            3.5 + 2.0 * glow,
-            color,
+            pos2(rect.left() + 13.0, y + row / 2.0),
+            3.5 + 2.5 * glow,
+            color.gamma_multiply(0.7 + 0.3 * glow),
         );
         painter.text(
-            pos2(rect.left() + 20.0, y + row / 2.0),
+            pos2(rect.left() + 23.0, y + row / 2.0),
             Align2::LEFT_CENTER,
             tr(VOICES[pad].1),
             FontId::proportional(11.5),
             name_color,
         );
         for c in 0..count {
-            let x = cells.left() + c as f32 * cell_width;
-            let cell =
-                Rect::from_min_size(pos2(x + 1.5, y + 2.0), vec2(cell_width - 3.0, row - 4.0));
-            // Beats stand out from their sixteenths.
-            let base = if (c / 4) % 2 == 0 {
-                Color32::from_rgb(34, 39, 49)
+            let cell = Rect::from_min_size(
+                pos2(x_of(c) + 1.5, y + 2.5),
+                vec2(cell_width - 3.0, row - 5.0),
+            );
+            let base = if c % 4 == 0 {
+                Color32::from_rgb(38, 43, 54)
             } else {
-                Color32::from_rgb(28, 32, 41)
+                Color32::from_rgb(30, 34, 43)
             };
-            painter.rect_filled(cell, 3.0, base);
+            let over = hovered == Some((r, c));
+            painter.rect_filled(
+                cell,
+                4.0,
+                if over {
+                    theme::mix(base, color, 0.25)
+                } else {
+                    base
+                },
+            );
             let Some(n) = read(pad, c) else {
                 continue;
             };
-            // The step's color rises with its velocity.
-            painter.rect_filled(cell, 3.0, color.gamma_multiply(0.3));
-            let h = cell.height() * (0.25 + 0.75 * f32::from(n.velocity) / 127.0);
+            // Softer for a ghost note, a bright cap for an accent; the fill rises with the
+            // velocity.
+            let ghost = n.velocity < 70;
+            let tint = if ghost {
+                color.gamma_multiply(0.6)
+            } else {
+                color
+            };
+            painter.rect_filled(cell, 4.0, tint.gamma_multiply(0.28));
+            let h = cell.height() * (0.3 + 0.7 * f32::from(n.velocity) / 127.0);
             painter.rect_filled(
                 Rect::from_min_max(pos2(cell.left(), cell.bottom() - h), cell.max),
-                3.0,
-                color,
+                4.0,
+                tint,
             );
+            if n.velocity >= 110 {
+                painter.rect_filled(
+                    Rect::from_min_size(cell.min + vec2(2.0, 1.0), vec2(cell.width() - 4.0, 2.0)),
+                    1.0,
+                    Color32::from_white_alpha(200),
+                );
+            }
             if playing_c == Some(c) {
-                painter.rect_filled(cell, 3.0, Color32::from_white_alpha(50));
+                painter.rect_filled(cell, 4.0, Color32::from_white_alpha(60));
             }
             // A roll splits the step in its hits, a flam marks its left edge.
             for j in 1..n.hits.min(8) {
                 let x = cell.left() + cell.width() * j as f32 / n.hits as f32;
                 painter.line_segment(
-                    [pos2(x, cell.top()), pos2(x, cell.bottom())],
+                    [pos2(x, cell.top() + 2.0), pos2(x, cell.bottom() - 2.0)],
                     Stroke::new(1.5, base),
                 );
             }
@@ -1079,32 +1203,29 @@ pub fn show(
                     Color32::WHITE,
                 );
             }
+            if n.probability < 100 {
+                painter.rect_stroke(
+                    cell,
+                    4.0,
+                    Stroke::new(1.0, Color32::from_white_alpha(150)),
+                    egui::StrokeKind::Inside,
+                );
+            }
             let dragged = matches!(state.gesture, Some(Gesture::Velocity { pad: g, c: gc, .. }) if g == pad && gc == c);
             let text = if dragged {
                 Some(n.velocity.to_string())
             } else {
-                (n.probability < 100).then(|| format!("{} %", n.probability))
+                (n.probability < 100 && cell.width() > 26.0).then(|| format!("{}%", n.probability))
             };
             if let Some(text) = text {
                 painter.text(
                     cell.center(),
                     Align2::CENTER_CENTER,
                     text,
-                    FontId::proportional(10.0),
+                    FontId::proportional(9.5),
                     Color32::WHITE,
                 );
             }
-        }
-        if pad == *selected {
-            painter.rect_stroke(
-                Rect::from_min_size(
-                    pos2(rect.left() + 2.0, y + 1.0),
-                    vec2(rect.width() - 4.0, row - 2.0),
-                ),
-                4.0,
-                Stroke::new(1.0, Color32::from_white_alpha(60)),
-                egui::StrokeKind::Inside,
-            );
         }
     }
 
@@ -1121,7 +1242,14 @@ pub fn show(
         let here = cell_at(pos);
         match state.gesture {
             None => match here {
-                Some((r, c)) if c == usize::MAX => *selected = LAYOUT[r],
+                Some((r, c)) if c == usize::MAX => {
+                    // A press on its name selects the pad and plays it, once.
+                    let key = VOICES[LAYOUT[r]].2;
+                    params.doc.player().play_key(track, [0x99, key, 100]);
+                    params.doc.player().play_key(track, [0x89, key, 0]);
+                    *selected = LAYOUT[r];
+                    state.gesture = Some(Gesture::Listen);
+                }
                 Some((r, c)) if c < count && source.is_some() => {
                     let pad = LAYOUT[r];
                     *selected = pad;
@@ -1154,6 +1282,7 @@ pub fn show(
                     state.gesture = Some(Gesture::Paint(!on));
                 }
             }
+            Some(Gesture::Listen) => {}
             Some(Gesture::Paint(on)) => {
                 if let Some((r, c)) = here.filter(|h| h.1 < count)
                     && read(LAYOUT[r], c).is_some() != on

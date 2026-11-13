@@ -1,7 +1,6 @@
 //! The drum machine's editor: pads lit while their voice sounds, played with the mouse and
 //! selected to edit; under them, tabs for the pad's sound, the pattern and the kit's effects.
 
-use audiostrada_core::Note;
 use audiostrada_core::routing::Channel;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -44,300 +43,6 @@ impl DrumsState {
     }
 }
 
-/// A ready-made rhythm: sixteenth-note steps per voice, a bar per 16 steps. `X` is accented,
-/// `x` normal, `o` a ghost note, `r` a roll (two thirty-second notes).
-pub(crate) struct Rhythm {
-    pub name: &'static str,
-    pub bpm: u32,
-    /// 50 plays straight, 66 swings the off sixteenths to triplets.
-    pub swing: f32,
-    pub lines: &'static [(&'static str, &'static str)],
-}
-
-pub(crate) const RHYTHMS: &[Rhythm] = &[
-    Rhythm {
-        name: "Hip hop: boom bap",
-        bpm: 90,
-        swing: 58.0,
-        lines: &[
-            ("kick", "X......x..x.....X......x..x..x.."),
-            ("snare", "....X.......X.......X.......X..."),
-            ("closed", "x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.o."),
-        ],
-    },
-    Rhythm {
-        name: "Hip hop: lo-fi",
-        bpm: 80,
-        swing: 62.0,
-        lines: &[
-            ("kick", "X......x.x......X.......x.x....."),
-            ("snare", "....X.......X..o....X.......X..."),
-            ("rim", "..............o...............o."),
-            ("closed", "x.o.x.o.x.o.x.o.x.o.x.o.x.o.x.xo"),
-        ],
-    },
-    Rhythm {
-        name: "Trap",
-        bpm: 140,
-        swing: 50.0,
-        lines: &[
-            ("kick", "X......x...x....X.x.......x....."),
-            ("clap", "........X...............X......."),
-            ("snare", "........X...............X......."),
-            ("closed", "x.x.x.x.rrx.x.x.x.x.x.x.x.rrrrx."),
-            ("open", "..............x................."),
-        ],
-    },
-    Rhythm {
-        name: "Drill",
-        bpm: 142,
-        swing: 50.0,
-        lines: &[
-            ("kick", "X.........x.....X..x......x....."),
-            ("snare", "......X........x......X........."),
-            ("closed", "x..x..x.x..x..x.x..x..rrx..x..x."),
-        ],
-    },
-    Rhythm {
-        name: "Trap: bounce",
-        bpm: 140,
-        swing: 50.0,
-        lines: &[
-            ("kick", "X.....x...x.....X.x.....x..x...."),
-            ("clap", "........X...............X......."),
-            ("snare", "........X...............X......."),
-            ("closed", "x.x.x.x.x.x.rrrrx.x.x.x.x.rrx.x."),
-            ("open", "......................x........."),
-        ],
-    },
-    Rhythm {
-        name: "Trap: rage",
-        bpm: 150,
-        swing: 50.0,
-        lines: &[
-            ("kick", "X..x..x...X.....X..x..x...x.x..."),
-            ("snare", "........X...............X......."),
-            ("clap", "........X...............X......."),
-            ("closed", "x.x.x.x.x.x.x.x.x.x.x.x.rrrrrrrr"),
-            ("open", "..x.......x.......x.......x....."),
-        ],
-    },
-    Rhythm {
-        name: "Trap: plugg",
-        bpm: 145,
-        swing: 50.0,
-        lines: &[
-            ("kick", "X.......x.x.....X.........x....."),
-            ("clap", "........X...............X......."),
-            ("rim", "..........o.........o.......o..."),
-            ("closed", "x...x...x...x...x...x...x.x.x.x."),
-        ],
-    },
-    Rhythm {
-        name: "Drill: New York",
-        bpm: 142,
-        swing: 50.0,
-        lines: &[
-            ("kick", "X.....x...x.....X..x...x..x....."),
-            ("snare", "........X......x........X......."),
-            ("closed", "x..x..x.x..x..x.x..x..x.x..rrx.."),
-        ],
-    },
-    Rhythm {
-        name: "Hip hop: West coast",
-        bpm: 94,
-        swing: 56.0,
-        lines: &[
-            ("kick", "X.......X.x.....X.......X..x...."),
-            ("snare", "....X.......X.......X.......X..."),
-            ("clap", "....X.......X.......X.......X..."),
-            ("closed", "x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x."),
-        ],
-    },
-    Rhythm {
-        name: "Jersey club",
-        bpm: 140,
-        swing: 50.0,
-        lines: &[
-            ("kick", "X..X..X.X...X.X.X..X..X.X...X.X."),
-            ("clap", "....X.......X.......X.......X..."),
-            ("closed", "..x...x...x...x...x...x...x...x."),
-        ],
-    },
-    Rhythm {
-        name: "House",
-        bpm: 124,
-        swing: 52.0,
-        lines: &[
-            ("kick", "X...x...X...x..."),
-            ("clap", "....X.......X..."),
-            ("closed", "o...o...o...o..."),
-            ("open", "..x...x...x...x."),
-        ],
-    },
-    Rhythm {
-        name: "Techno",
-        bpm: 130,
-        swing: 50.0,
-        lines: &[
-            ("kick", "X...x...X...x..."),
-            ("closed", "..x...x...x...x."),
-            ("rim", "...x..x....x..x."),
-            ("clap", "....x.......x..."),
-        ],
-    },
-    Rhythm {
-        name: "Electro: 808 funk",
-        bpm: 118,
-        swing: 54.0,
-        lines: &[
-            ("kick", "X.....x...x.....X.....x..x..x..."),
-            ("snare", "....X.......X.......X.......X..."),
-            ("closed", "x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x."),
-            ("cowbell", "...x......x........x......x..x.."),
-            ("clave", "x..x..x...x.x...x..x..x...x.x..."),
-        ],
-    },
-    Rhythm {
-        name: "Reggaeton: dembow",
-        bpm: 95,
-        swing: 50.0,
-        lines: &[
-            ("kick", "X...x...X...x..."),
-            ("snare", "...x..x....x..x."),
-            ("closed", "x.x.x.x.x.x.x.x."),
-        ],
-    },
-    Rhythm {
-        name: "Phonk",
-        bpm: 130,
-        swing: 50.0,
-        lines: &[
-            ("kick", "X......x..X.....X......x..X..x.."),
-            ("snare", "....X.......X.......X.......X..."),
-            ("closed", "x.x.x.x.x.x.x.x.x.x.x.x.x.x.rrx."),
-            ("cowbell", "x..x..x.x..x..x.x..x..x...x.x.x."),
-        ],
-    },
-    Rhythm {
-        name: "UK garage",
-        bpm: 132,
-        swing: 62.0,
-        lines: &[
-            ("kick", "X......x..X.....X.........X....."),
-            ("snare", "....X.......X.......X.......X..."),
-            ("rim", "..x.....x.x...x...x.....x.x...x."),
-            ("closed", "..x...x...x...x...x...x...x...x."),
-        ],
-    },
-    Rhythm {
-        name: "Afrobeats",
-        bpm: 104,
-        swing: 54.0,
-        lines: &[
-            ("kick", "X.....x.X.....x."),
-            ("rim", "...x..x....x..x."),
-            ("snare", "....X.......X..."),
-            ("closed", "x.xxx.xxx.xxx.xx"),
-            ("tambourine", "..x...x...x...x."),
-        ],
-    },
-    Rhythm {
-        name: "Amapiano",
-        bpm: 113,
-        swing: 56.0,
-        lines: &[
-            ("kick", "X...X...X...X..."),
-            ("clap", "....x.......x..."),
-            ("tambourine", "xxoxxxoxxxoxxxox"),
-            ("rim", "..x..x....x..x.."),
-            ("low_tom", "X.....x...x.X.......x...x.X...x."),
-        ],
-    },
-    Rhythm {
-        name: "Dancehall",
-        bpm: 98,
-        swing: 52.0,
-        lines: &[
-            ("kick", "X.....x.X.....x."),
-            ("rim", "...x..x....x..x."),
-            ("snare", "....X.......X..."),
-            ("closed", "x.x.x.x.x.x.x.x."),
-        ],
-    },
-    Rhythm {
-        name: "Funk",
-        bpm: 100,
-        swing: 54.0,
-        lines: &[
-            ("kick", "X..x..x...x..x..X..x......x..x.."),
-            ("snare", "....X..o.o..X..o....X..o.o..X.o."),
-            ("closed", "xoxoxoxoxoxoxoxoxoxoxoxoxoxoxoxo"),
-            ("open", "..............x...............x."),
-        ],
-    },
-    Rhythm {
-        name: "Rock",
-        bpm: 110,
-        swing: 50.0,
-        lines: &[
-            ("kick", "X.......x.x.....X.......x.x....."),
-            ("snare", "....X.......X.......X.......X..."),
-            ("closed", "x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x."),
-            ("cymbal", "X..............................."),
-        ],
-    },
-    Rhythm {
-        name: "Drum and bass",
-        bpm: 172,
-        swing: 50.0,
-        lines: &[
-            ("kick", "X.........x.....X.........x....."),
-            ("snare", "....X.......X.......X..o....X..."),
-            ("closed", "x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x."),
-        ],
-    },
-];
-
-/// The notes of `bars` bars of a rhythm, from a bar start, in samples of `samples_per_beat`.
-pub(crate) fn rhythm_notes(rhythm: &Rhythm, bars: u32, samples_per_beat: f64) -> Vec<Note> {
-    let step = samples_per_beat / 4.0;
-    let delay = step * f64::from((rhythm.swing / 100.0 * 2.0 - 1.0).clamp(0.0, 0.5));
-    let length = (step / 2.0) as u64;
-    let mut notes = Vec::new();
-    for (voice, steps) in rhythm.lines {
-        let Some(key) = VOICES.iter().find(|v| v.0 == *voice).map(|v| v.2) else {
-            continue;
-        };
-        let pattern: Vec<char> = steps.chars().collect();
-        for index in 0..(bars as usize * 16) {
-            let at = index as f64 * step + if index % 2 == 1 { delay } else { 0.0 };
-            let mut hit = |start: f64, velocity: u8| {
-                notes.push(Note {
-                    start: start as u64,
-                    length,
-                    key,
-                    velocity,
-                    channel: 9,
-                    ..Default::default()
-                })
-            };
-            match pattern[index % pattern.len()] {
-                'X' => hit(at, 120),
-                'x' => hit(at, 95),
-                'o' => hit(at, 55),
-                'r' => {
-                    hit(at, 85);
-                    hit(at + step / 2.0, 70);
-                }
-                _ => {}
-            }
-        }
-    }
-    notes.sort_by_key(|n| (n.start, n.key));
-    notes
-}
-
 /// A factory kit: every pad in `character` (0 for 808, 1 for 909), spread in stereo, the kicks
 /// mostly dry and the delay fed by the accents only, then `values`.
 fn kit(name: &str, character: f32, values: &[(&str, f32)]) -> crate::presets::Preset {
@@ -355,6 +60,7 @@ fn kit(name: &str, character: f32, values: &[(&str, f32)]) -> crate::presets::Pr
             ("cowbell_pan", 15.0),
             ("kick_reverb", 30.0),
             ("kick2_reverb", 20.0),
+            ("analog", 35.0),
         ],
     );
     for (id, _, _) in VOICES {
@@ -1279,6 +985,19 @@ fn shape(params: &Params, pad: usize, file: Option<&std::path::Path>) -> Arc<Vec
         .chunks(per)
         .map(|c| c.iter().fold(0.0f32, |m, s| m.max(s.abs())))
         .collect();
+    // The envelope rather than every wave: the highest around, then softened.
+    let held: Vec<f32> = (0..peaks.len())
+        .map(|i| {
+            let (a, b) = (i.saturating_sub(3), (i + 4).min(peaks.len()));
+            peaks[a..b].iter().fold(0.0f32, |m, v| m.max(*v))
+        })
+        .collect();
+    peaks = (0..held.len())
+        .map(|i| {
+            let (a, b) = (i.saturating_sub(1), (i + 2).min(held.len()));
+            held[a..b].iter().sum::<f32>() / (b - a) as f32
+        })
+        .collect();
     let top = peaks.iter().fold(1e-6f32, |m, v| m.max(*v));
     for v in &mut peaks {
         *v /= top;
@@ -1289,36 +1008,41 @@ fn shape(params: &Params, pad: usize, file: Option<&std::path::Path>) -> Arc<Vec
     peaks
 }
 
-/// A sound's peaks as a mirrored waveform in `rect`.
+/// A sound's envelope, mirrored around its middle in `rect`: filled brighter at the middle,
+/// its edge drawn.
 pub(crate) fn waveform(painter: &egui::Painter, rect: Rect, peaks: &[f32], color: Color32) {
-    if peaks.is_empty() {
+    if peaks.len() < 2 {
         return;
     }
     let n = peaks.len();
     let mid = rect.center().y;
     let half = rect.height() / 2.0;
+    let x = |i: usize| rect.left() + i as f32 / (n - 1) as f32 * rect.width();
+    let mut mesh = egui::Mesh::default();
+    let (edge, core) = (color.gamma_multiply(0.18), color.gamma_multiply(0.75));
+    for (i, v) in peaks.iter().enumerate() {
+        let h = v.sqrt() * half;
+        mesh.colored_vertex(pos2(x(i), mid - h), edge);
+        mesh.colored_vertex(pos2(x(i), mid), core);
+        mesh.colored_vertex(pos2(x(i), mid + h), edge);
+    }
+    for i in 0..(n - 1) as u32 {
+        let (a, b) = (3 * i, 3 * (i + 1));
+        mesh.add_triangle(a, b, a + 1);
+        mesh.add_triangle(a + 1, b, b + 1);
+        mesh.add_triangle(a + 1, b + 1, a + 2);
+        mesh.add_triangle(a + 2, b + 1, b + 2);
+    }
+    painter.add(mesh);
     let top: Vec<Pos2> = peaks
         .iter()
         .enumerate()
-        .map(|(i, v)| {
-            pos2(
-                rect.left() + i as f32 / (n - 1).max(1) as f32 * rect.width(),
-                mid - v.sqrt() * half,
-            )
-        })
+        .map(|(i, v)| pos2(x(i), mid - v.sqrt() * half))
         .collect();
-    for pair in top.windows(2) {
-        let (a, b) = (pair[0], pair[1]);
-        let quad = vec![a, b, pos2(b.x, 2.0 * mid - b.y), pos2(a.x, 2.0 * mid - a.y)];
-        painter.add(Shape::convex_polygon(
-            quad,
-            color.gamma_multiply(0.55),
-            Stroke::NONE,
-        ));
-    }
-    painter.add(Shape::line(top.clone(), Stroke::new(1.2, color)));
     let bottom: Vec<Pos2> = top.iter().map(|q| pos2(q.x, 2.0 * mid - q.y)).collect();
-    painter.add(Shape::line(bottom, Stroke::new(1.2, color)));
+    let stroke = Stroke::new(1.3, color);
+    painter.add(Shape::line(top, stroke));
+    painter.add(Shape::line(bottom, stroke));
 }
 
 /// The file pad `pad` plays, if any.
@@ -1364,8 +1088,9 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DrumsS
                                 Some((VOICES[pad].2, (40.0 + 87.0 * depth.clamp(0.0, 1.0)) as u8));
                             state.selected = pad;
                         }
-                        response.on_hover_text(tr(
-                            "Click to play and edit it; lower on the pad plays louder",
+                        response.on_hover_text(crate::trf!(
+                            "Note {key}. Click to play and edit it; lower on the pad plays louder",
+                            key = VOICES[pad].2
                         ));
                     }
                 });
@@ -1402,6 +1127,120 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DrumsS
     if meters.iter().any(|m| *m > 0.0) || state.held.is_some() {
         crate::animate(ui.ctx());
     }
+    shot::tick(ui, params, state);
+}
+
+/// Development aid: with `AUDIOSTRADA_SCREENSHOT_DRUMS=<file.ppm>`, opens Strada-Drums' window
+/// on the kit named by `AUDIOSTRADA_SCREENSHOT_SOUND`, in the tab of `AUDIOSTRADA_SCREENSHOT_VIEW`
+/// (`pad`, `pattern` or `effects`), with the rhythm named by `AUDIOSTRADA_SCREENSHOT_RHYTHM` in a
+/// new pattern, saves the window and quits.
+pub(crate) mod shot {
+    use super::*;
+    use std::cell::Cell;
+
+    thread_local! {
+        static OPENED: Cell<u32> = const { Cell::new(0) };
+        static FRAMES: Cell<u32> = const { Cell::new(0) };
+    }
+
+    fn asked() -> Option<std::path::PathBuf> {
+        std::env::var_os("AUDIOSTRADA_SCREENSHOT_DRUMS").map(Into::into)
+    }
+
+    /// The drum machine to open, once it is in the project, with its kit and rhythm.
+    pub(crate) fn open(
+        ctx: &egui::Context,
+        doc: &mut crate::document::Document,
+    ) -> Option<(Channel, audiostrada_core::InsertId)> {
+        asked()?;
+        // Drawn inside the main window, the editor can be captured with it.
+        ctx.set_embed_viewports(true);
+        ctx.request_repaint();
+        let calls = OPENED.get();
+        OPENED.set(calls.saturating_add(1));
+        let found = doc.project().tracks.iter().find_map(|t| {
+            let insert = t.inserts.iter().find(|i| i.effect == "drums")?;
+            Some((Channel::Track(t.id), insert.id))
+        });
+        match (calls, found) {
+            (0, None) => {
+                doc.history_mut().edit("Drums", |p| {
+                    let t = p.add_track("Drums");
+                    audiostrada_core::routing::add_insert(
+                        p,
+                        Channel::Track(t),
+                        "drums",
+                        Default::default(),
+                    );
+                });
+                None
+            }
+            (5, Some((channel, insert))) => {
+                let wanted = std::env::var("AUDIOSTRADA_SCREENSHOT_SOUND").unwrap_or_default();
+                if let Some(kit) = factory().into_iter().find(|k| k.name == wanted) {
+                    doc.history_mut().edit("Kit", |p| {
+                        for (id, value) in &kit.params {
+                            audiostrada_core::routing::set_insert_param(
+                                p, channel, insert, id, *value,
+                            );
+                        }
+                    });
+                }
+                Some((channel, insert))
+            }
+            _ => None,
+        }
+    }
+
+    /// In the window: the tab asked for, the rhythm, then the picture.
+    pub(crate) fn tick(ui: &mut Ui, params: &mut Params, state: &mut DrumsState) {
+        let Some(path) = asked() else {
+            return;
+        };
+        let frame = FRAMES.get() + 1;
+        FRAMES.set(frame);
+        let ctx = ui.ctx().clone();
+        ctx.request_repaint();
+        if frame == 1 {
+            state.tab = match std::env::var("AUDIOSTRADA_SCREENSHOT_VIEW").as_deref() {
+                Ok("pattern") => Tab::Pattern,
+                Ok("effects") => Tab::Effects,
+                _ => Tab::Pad,
+            };
+        }
+        if frame == 3
+            && let Ok(name) = std::env::var("AUDIOSTRADA_SCREENSHOT_RHYTHM")
+            && let Some(k) = crate::drum_rhythms::RHYTHMS
+                .iter()
+                .position(|r| r.name == name)
+        {
+            crate::drum_sequencer::shot_rhythm(params, &mut state.sequencer, k);
+        }
+        if frame == 60 {
+            let area = if std::env::var_os("AUDIOSTRADA_SCREENSHOT_FULL").is_some() {
+                ctx.content_rect()
+            } else {
+                ui.min_rect().expand(12.0)
+            };
+            let scale = ctx.pixels_per_point();
+            ctx.request_screenshot(move |image| {
+                let [w, h] = image.size;
+                let x0 = ((area.left() * scale).max(0.0) as usize).min(w);
+                let y0 = ((area.top() * scale).max(0.0) as usize).min(h);
+                let x1 = ((area.right() * scale) as usize).clamp(x0, w);
+                let y1 = ((area.bottom() * scale) as usize).clamp(y0, h);
+                let mut ppm = format!("P6\n{} {}\n255\n", x1 - x0, y1 - y0).into_bytes();
+                for y in y0..y1 {
+                    for x in x0..x1 {
+                        let p = image.pixels[y * w + x];
+                        ppm.extend([p.r(), p.g(), p.b()]);
+                    }
+                }
+                let _ = std::fs::write(&path, ppm);
+                std::process::exit(0);
+            });
+        }
+    }
 }
 
 /// One pad: its family's color lighting up as it sounds, its name, its sound drawn, its
@@ -1415,7 +1254,7 @@ fn cell(
     meters: &[f32],
     selected: bool,
 ) {
-    let painter = ui.painter_at(rect.expand(3.0));
+    let painter = ui.painter_at(rect.expand(6.0));
     let color = family(pad);
     let glow = meters
         .get(pad)
@@ -1423,35 +1262,50 @@ fn cell(
         .unwrap_or(0.0)
         .clamp(0.0, 1.0)
         .sqrt();
-    let fill = theme::mix(Color32::from_rgb(30, 35, 44), color, 0.22 + 0.6 * glow);
-    painter.rect_filled(rect, 7.0, fill);
-    // A bright edge on top, as on a lit pad.
+    // A rubber pad: its family's color, lit from above, flashing as it sounds.
+    let fill = theme::mix(Color32::from_rgb(28, 32, 41), color, 0.16 + 0.55 * glow);
+    painter.rect_filled(rect, 8.0, fill);
     painter.rect_filled(
-        Rect::from_min_size(rect.min, vec2(rect.width(), 3.0)),
+        Rect::from_min_max(rect.min, pos2(rect.right(), rect.center().y)),
         egui::CornerRadius {
-            nw: 7,
-            ne: 7,
+            nw: 8,
+            ne: 8,
             sw: 0,
             se: 0,
         },
-        color.gamma_multiply(0.6 + 0.4 * glow),
+        Color32::from_white_alpha(6),
     );
-    if selected {
+    painter.rect_filled(
+        Rect::from_min_size(rect.min + vec2(10.0, 0.0), vec2(rect.width() - 20.0, 2.5)),
+        1.5,
+        color.gamma_multiply(0.55 + 0.45 * glow),
+    );
+    if glow > 0.05 {
         painter.rect_stroke(
-            rect,
-            7.0,
-            Stroke::new(2.0, Color32::WHITE),
+            rect.expand(1.5),
+            9.0,
+            Stroke::new(3.0, color.gamma_multiply(0.5 * glow)),
             egui::StrokeKind::Outside,
         );
     }
-    let (id, name, key) = VOICES[pad];
+    let edge = if selected {
+        Stroke::new(1.8, theme::mix(color, Color32::WHITE, 0.35))
+    } else {
+        Stroke::new(1.0, Color32::from_white_alpha(10))
+    };
+    painter.rect_stroke(rect, 8.0, edge, egui::StrokeKind::Inside);
+    let (id, name, _) = VOICES[pad];
     let ink = Color32::from_rgb(236, 240, 246);
     painter.text(
-        rect.left_top() + vec2(9.0, 9.0),
+        rect.left_top() + vec2(10.0, 10.0),
         Align2::LEFT_TOP,
         tr(name),
         theme::strong(12.5),
-        ink,
+        if selected {
+            ink
+        } else {
+            ink.gamma_multiply(0.9)
+        },
     );
     let badge = match file {
         Some(path) => path
@@ -1462,29 +1316,22 @@ fn cell(
             tr(audiostrada_dsp::drums::MODELS[model.min(2)]).to_owned()
         }
     };
-    painter.text(
-        rect.right_top() + vec2(-8.0, 10.0),
-        Align2::RIGHT_TOP,
-        badge,
-        FontId::proportional(10.0),
-        ink.gamma_multiply(0.7),
+    let galley = painter.layout_no_wrap(badge, FontId::proportional(9.5), ink.gamma_multiply(0.75));
+    let chip = Rect::from_min_size(
+        pos2(rect.right() - galley.size().x - 18.0, rect.top() + 9.0),
+        galley.size() + vec2(10.0, 4.0),
     );
-    painter.text(
-        rect.right_bottom() + vec2(-7.0, -5.0),
-        Align2::RIGHT_BOTTOM,
-        key.to_string(),
-        FontId::monospace(9.0),
-        ink.gamma_multiply(0.45),
-    );
+    painter.rect_filled(chip, 4.0, Color32::from_black_alpha(70));
+    painter.galley(chip.min + vec2(5.0, 2.0), galley, ink);
     let wave = Rect::from_min_max(
-        rect.left_top() + vec2(9.0, 30.0),
-        rect.right_bottom() - vec2(28.0, 8.0),
+        rect.left_top() + vec2(10.0, 30.0),
+        rect.right_bottom() - vec2(10.0, 7.0),
     );
     waveform(
         &painter,
         wave,
         &shape(params, pad, file),
-        ink.gamma_multiply(0.85),
+        theme::mix(ink, color, 0.35).gamma_multiply(0.75 + 0.25 * glow),
     );
 }
 
@@ -1803,7 +1650,11 @@ fn effects(ui: &mut Ui, params: &mut Params) {
             ),
             (
                 tr("Color"),
-                vec![knob("drive", "Drive"), knob("crush", "Crush")],
+                vec![
+                    knob("drive", "Drive"),
+                    knob("crush", "Crush"),
+                    knob("analog", "Analog"),
+                ],
             ),
             (tr("EQ"), vec![knob("low", "Bass"), knob("high", "Treble")]),
         ],
@@ -1945,6 +1796,7 @@ mod tests {
     #[test]
     #[ignore = "writes audio files for listening"]
     fn render_kits_for_listening() {
+        use audiostrada_core::Note;
         use audiostrada_dsp::MidiEvent;
         let Some(dir) = std::env::var_os("KITS_DIR") else {
             return;
@@ -1952,24 +1804,23 @@ mod tests {
         let info = audiostrada_dsp::info("drums").unwrap();
         for kit in factory() {
             let category = kit.name.split(':').next().unwrap_or_default();
-            let style = match category.trim() {
-                "Trap" => "Trap",
-                "Drill" => "Drill",
-                "Afro" if kit.name.contains("Amapiano") => "Amapiano",
-                "Afro" => "Afrobeats",
-                "Latin" if kit.name.contains("Dancehall") => "Dancehall",
-                "Latin" => "Reggaeton: dembow",
-                "House" if kit.name.contains("garage") => "UK garage",
-                "House" | "808" | "909" if !kit.name.contains("Hard") => "House",
+            let genre = match category.trim() {
+                "Trap" | "Drill" => "Trap and drill",
+                "Afro" => "Afro",
+                "Latin" => "Latin and Caribbean",
+                "House" | "808" => "House",
                 "Techno" | "909" => "Techno",
-                "Hip hop" if kit.name.contains("Phonk") => "Phonk",
-                "Hip hop" | "Lo-fi" => "Hip hop: boom bap",
+                "Hip hop" => "Hip-hop",
+                "Lo-fi" => "Lo-fi and chill",
                 "Drum and bass" => "Drum and bass",
-                _ => "Electro: 808 funk",
+                _ => "Electro and breaks",
             };
-            let rhythm = RHYTHMS.iter().find(|r| r.name == style).unwrap();
+            let rhythm = crate::drum_rhythms::RHYTHMS
+                .iter()
+                .find(|r| r.genre == genre)
+                .unwrap();
             let beat = 48_000.0 * 60.0 / f64::from(rhythm.bpm);
-            let mut notes = rhythm_notes(rhythm, 2, beat);
+            let (mut notes, _) = crate::drum_rhythms::rhythm_notes(rhythm, 2, beat / 4.0);
             // A fill on the toms and a crash at the end, to hear the whole kit.
             let end = (8.0 * beat) as u64;
             for (k, key) in [50u8, 50, 47, 47, 45, 45, 43, 43].into_iter().enumerate() {
@@ -2046,53 +1897,5 @@ mod tests {
             let file = kit.name.replace([':', ' '], "_").replace("__", "_");
             std::fs::write(std::path::Path::new(&dir).join(format!("{file}.wav")), wav).unwrap();
         }
-    }
-
-    #[test]
-    fn rhythms_are_well_formed() {
-        for rhythm in RHYTHMS {
-            for (voice, steps) in rhythm.lines {
-                assert!(
-                    VOICES.iter().any(|v| v.0 == *voice),
-                    "{}: {voice}",
-                    rhythm.name
-                );
-                assert_eq!(steps.len() % 16, 0, "{}: {voice}", rhythm.name);
-                assert!(
-                    steps.chars().all(|c| ".Xxor".contains(c)),
-                    "{}",
-                    rhythm.name
-                );
-            }
-            assert!((50.0..=66.0).contains(&rhythm.swing));
-        }
-    }
-
-    #[test]
-    fn steps_become_notes_with_swing_and_rolls() {
-        let rhythm = Rhythm {
-            name: "Test",
-            bpm: 120,
-            swing: 60.0,
-            lines: &[("kick", "X..............."), ("closed", ".x..............")],
-        };
-        let notes = rhythm_notes(&rhythm, 2, 1000.0);
-        let kicks: Vec<u64> = notes
-            .iter()
-            .filter(|n| n.key == 36)
-            .map(|n| n.start)
-            .collect();
-        assert_eq!(kicks, [0, 4000], "one bar repeats");
-        let hat = notes.iter().find(|n| n.key == 42).unwrap();
-        assert_eq!(hat.start, 250 + 50, "the off sixteenth swings");
-        let roll = Rhythm {
-            lines: &[("closed", "r...............")],
-            ..rhythm
-        };
-        let starts: Vec<u64> = rhythm_notes(&roll, 1, 1000.0)
-            .iter()
-            .map(|n| n.start)
-            .collect();
-        assert_eq!(starts, [0, 125]);
     }
 }

@@ -99,6 +99,8 @@ pub mod p {
     pub const DELAY: usize = 106;
     pub const ROOM_SIZE: usize = 107;
     pub const SHAPES: usize = 108;
+    /// After the shapes of the sixteen pads.
+    pub const ANALOG: usize = SHAPES + 16 * super::SHAPE_FIELDS;
 
     /// Attack, pitch envelope, its decay, low cut, high cut, delay and reverb sends of `pad`.
     pub const fn shape(pad: usize) -> usize {
@@ -118,7 +120,7 @@ pub mod p {
 pub const PER_VOICE: usize = 4;
 /// Settings per pad among the last ones.
 pub const SHAPE_FIELDS: usize = 7;
-const COUNT: usize = p::SHAPES + VOICES.len() * SHAPE_FIELDS;
+const COUNT: usize = p::ANALOG + 1;
 
 macro_rules! pad_fields {
     ($($id:literal, $name:literal;)*) => {
@@ -263,6 +265,7 @@ static PARAMS: [ParamInfo; COUNT] = {
         out[p::SHAPES + i] = SHAPES[i];
         i += 1;
     }
+    out[p::ANALOG] = param("analog", "Analog", 0.0, 100.0, 0.0, "%");
     out
 };
 
@@ -841,10 +844,19 @@ impl Drums {
         }
         let rate = self.rate;
         let accent = self.values[p::ACCENT] / 100.0;
-        let level = self.field(pad, 0) / 100.0;
-        let ratio = 2f32.powf(self.field(pad, 1) / 12.0);
-        let length = self.field(pad, 2) / 100.0;
-        let tone = self.field(pad, 3) / 100.0;
+        // An analog machine never hits twice the same: a few cents, a little longer or shorter,
+        // softer, darker.
+        let analog = self.values[p::ANALOG] / 100.0;
+        let drift = if analog > 0.0 {
+            [self.noise(), self.noise(), self.noise(), self.noise()].map(|x| x * analog)
+        } else {
+            [0.0; 4]
+        };
+        // Never louder nor brighter than set, so that the kit's peaks stay where they were.
+        let level = self.field(pad, 0) / 100.0 * (1.0 - 0.08 * drift[0].abs());
+        let ratio = 2f32.powf((self.field(pad, 1) + 0.08 * drift[1]) / 12.0);
+        let length = self.field(pad, 2) / 100.0 * (1.0 + 0.06 * drift[2]);
+        let tone = (self.field(pad, 3) / 100.0 - 0.05 * drift[3].abs()).clamp(0.0, 1.0);
         let model = (self.values[p::MODELS + pad].round().max(0.0) as usize).min(MODELS.len() - 1);
         let hard = f32::from(velocity) / 127.0;
         let velocity = 1.0 - accent + accent * hard;
@@ -1503,6 +1515,22 @@ mod tests {
         drums.process(&mut l, &mut r);
         assert!(peak(&r[..4800]) > 0.1 && peak(&l[..4800]) < 1e-3);
         assert!(peak(&r[5000..]) < 1e-6, "it ends with the file");
+    }
+
+    #[test]
+    fn analog_varies_each_hit_a_little_and_never_without_it() {
+        let render = |analog: f32| {
+            let mut drums = fresh(0);
+            drums.set_param(p::ANALOG, analog);
+            let a = play(&mut drums, 75, 10);
+            let b = play(&mut drums, 75, 10);
+            (energy(&a), energy(&b))
+        };
+        let (a, b) = render(0.0);
+        assert!((a - b).abs() / a < 1e-3, "the same hit twice");
+        let (a, b) = render(100.0);
+        let change = (a - b).abs() / a;
+        assert!(change > 1e-3 && change < 0.4, "{change}");
     }
 
     #[test]

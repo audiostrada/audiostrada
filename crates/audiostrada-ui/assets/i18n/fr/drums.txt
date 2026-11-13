@@ -1,0 +1,295 @@
+# French: Strada-Drums rhythms and their genres
+
+Hip-hop
+Hip-hop
+
+Trap and drill
+Trap et drill
+
+R&B and pop
+R&B et pop
+
+Electro and breaks
+Électro et breaks
+
+UK garage and bass
+UK garage et bass
+
+Latin and Caribbean
+Latino et Caraïbes
+
+Afro
+Afro
+
+Funk, soul and disco
+Funk, soul et disco
+
+Synthwave and 80s
+Synthwave et années 80
+
+Lo-fi and chill
+Lo-fi et chill
+
+Boom bap
+Boom bap
+
+East coast
+East coast
+
+West coast
+West coast
+
+G-funk
+G-funk
+
+Dilla swing
+Swing à la Dilla
+
+Memphis
+Memphis
+
+Old school
+Old school
+
+Atlanta trap
+Trap d'Atlanta
+
+Trap bounce
+Trap bounce
+
+Rage
+Rage
+
+Plugg
+Plugg
+
+UK drill
+Drill UK
+
+New York drill
+Drill new-yorkaise
+
+Dark trap
+Trap sombre
+
+Modern R&B
+R&B moderne
+
+90s R&B
+R&B années 90
+
+New jack swing
+New jack swing
+
+Slow jam
+Slow jam
+
+Dance pop
+Dance pop
+
+Deep house
+Deep house
+
+Chicago house
+Chicago house
+
+Garage house
+Garage house
+
+Tech house
+Tech house
+
+Disco house
+Disco house
+
+Progressive house
+House progressive
+
+Acid house
+Acid house
+
+Detroit techno
+Techno de Detroit
+
+Berlin techno
+Techno berlinoise
+
+Minimal
+Minimale
+
+Dub techno
+Dub techno
+
+Hard techno
+Hard techno
+
+Industrial
+Industrielle
+
+808 electro
+Électro 808
+
+Breakbeat
+Breakbeat
+
+Big beat
+Big beat
+
+Miami bass
+Miami bass
+
+Freestyle
+Freestyle
+
+Funky breaks
+Funky breaks
+
+Liquid
+Liquid
+
+Rollers
+Rollers
+
+Neurofunk
+Neurofunk
+
+Jump up
+Jump up
+
+Jungle
+Jungle
+
+Halftime
+Halftime
+
+2-step
+2-step
+
+Speed garage
+Speed garage
+
+Grime
+Grime
+
+Dubstep
+Dubstep
+
+Bassline
+Bassline
+
+UK funky
+UK funky
+
+Reggaeton
+Reggaeton
+
+Dominican dembow
+Dembow dominicain
+
+Reggae one drop
+Reggae one drop
+
+Moombahton
+Moombahton
+
+Cumbia
+Cumbia
+
+Bossa nova
+Bossa nova
+
+Samba
+Samba
+
+Afro swing
+Afro swing
+
+Afro house
+Afro house
+
+Afrobeat
+Afrobeat
+
+Gqom
+Gqom
+
+Tight funk
+Funk serré
+
+Motown
+Motown
+
+Northern soul
+Northern soul
+
+Disco
+Disco
+
+Nu-disco
+Nu-disco
+
+Boogie
+Boogie
+
+Pop rock
+Pop rock
+
+Hard rock
+Hard rock
+
+Punk
+Punk
+
+Half-time rock
+Rock en demi-temps
+
+Half-time shuffle
+Shuffle en demi-temps
+
+Ballad
+Ballade
+
+Four on the floor
+Four on the floor
+
+Synthwave
+Synthwave
+
+Outrun
+Outrun
+
+Darkwave
+Darkwave
+
+80s pop
+Pop années 80
+
+Italo disco
+Italo disco
+
+Lo-fi
+Lo-fi
+
+Chillhop
+Chillhop
+
+Jazzy lo-fi
+Lo-fi jazzy
+
+Trip-hop
+Trip-hop
+
+Downtempo
+Downtempo
+
+Chillwave
+Chillwave
+
+Note {key}. Click to play and edit it; lower on the pad plays louder
+Note {key}. Cliquez pour le jouer et le modifier ; plus bas sur le pad, plus fort
+
+Start from a ready-made rhythm, by genre
+Partir d'un rythme tout prêt, par genre
+
+Writes its groove, its variation and its fill over the pattern
+Écrit son groove, sa variation et son fill sur tout le motif

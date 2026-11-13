@@ -126,6 +126,11 @@ comments on public items and modules, in the same plain style. No emojis, no em 
   `AUDIOSTRADA_SCREENSHOT_SOUND` and holds a chord, for a capture of that window from outside;
   `AUDIOSTRADA_SCREENSHOT_VIEW=oscillators`, `filter`, `modulation`, `effects` or `macros`
   chooses the view, `AUDIOSTRADA_SCREENSHOT_EXPERT=1` shows the expert controls.
+- `AUDIOSTRADA_SCREENSHOT_DRUMS=out.ppm audiostrada` opens Strada-Drums inside the main window
+  (viewports embedded), on the kit `AUDIOSTRADA_SCREENSHOT_SOUND`, the tab
+  `AUDIOSTRADA_SCREENSHOT_VIEW` (`pad`, `pattern`, `effects`) and, in a new pattern, the rhythm
+  `AUDIOSTRADA_SCREENSHOT_RHYTHM`; it saves the editor and quits (`AUDIOSTRADA_SCREENSHOT_FULL`
+  for the whole window).
 - `audiostrada --control PORT` lets `audiostrada mcp --connect PORT` drive a running window
   through the Model Context Protocol (`crates/audiostrada-ui/src/control.rs` lists the tools).
 - `audiostrada help` lists the command line (render, compare, latency, devices, plugin scan).

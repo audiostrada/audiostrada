@@ -78,6 +78,8 @@ The closed hat chokes the open one. The presets hold whole kits by style (hip ho
 house, electro, Latin, Afro, lo-fi, drum and bass…).
 
 The **Kit effects** tab holds the compression, colour, EQ, delay and reverb of the whole kit.
+**Analog** makes every hit a little different, as on an analog machine: a few cents of pitch, a
+slightly longer or shorter decay, a little softer or darker; the factory kits use some of it.
 
 ### Pattern
 
@@ -86,11 +88,15 @@ draw here is what the piano roll shows. Without a clip, *New pattern* creates on
 playhead's bar, with the number of bars chosen beside it.
 
 - **Steps**: click to set or clear a step, drag across to paint, drag a step up or down for its
-  velocity, right-click for its roll, flam and chance.
+  velocity, right-click for its roll, flam and chance. A step's fill rises with its velocity, an
+  accent has a bright edge on top, a ghost note is paler. Clicking a pad's name plays it.
 - **Swing** pushes the off sixteenths toward triplets.
-- **Start from a rhythm** writes a ready-made pattern: boom bap, lo-fi, trap, drill, Jersey club,
-  house, techno, electro, dembow, phonk, UK garage, afrobeats, amapiano, dancehall, funk, rock,
-  drum and bass. Each shows its usual tempo; the project's tempo is left alone.
+- **Rhythms** holds more than ninety ready-made rhythms by genre: hip-hop, trap and drill, R&B
+  and pop, house, techno, electro and breaks, drum and bass, UK garage and bass, Latin and
+  Caribbean, Afro, funk, soul and disco, rock, synthwave and 80s, lo-fi and chill. Each has its
+  groove, a variation and a fill: the pattern then plays them in a cycle of four bars (the
+  groove, its variation, the fill), each one a variation of the chain to edit. Each shows its
+  usual tempo; the project's tempo is left alone.
 - **Clear** empties the variation shown.
 
 ### Variations and chain

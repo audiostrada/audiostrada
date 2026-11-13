@@ -716,6 +716,12 @@ fn editor_window(
         let last = p.last.get(&id).copied();
         *p.opened.entry(id).or_insert(last)
     });
+    // Drawn inside the main window (screenshots only), it gets room for its whole content.
+    let size = if ctx.embed_viewports() {
+        [size[0], 1250.0]
+    } else {
+        size
+    };
     let builder = egui::ViewportBuilder::default()
         .with_title(format!("{title} — AudioStrada"))
         .with_inner_size(size)
@@ -5857,6 +5863,9 @@ impl MixerView {
         self.plugin_windows(doc, project);
         self.follow_selection(ctx, doc, project);
         if let Some((channel, id)) = crate::synth_editor::shot::open(ctx, doc) {
+            self.show_editor(channel, id);
+        }
+        if let Some((channel, id)) = crate::drums_editor::shot::open(ctx, doc) {
             self.show_editor(channel, id);
         }
         let mut closed = Vec::new();

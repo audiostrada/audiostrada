@@ -4112,8 +4112,6 @@ Clave : caractère
 Clave pan
 Clave : pan
 
-Click to play and edit it; lower on the pad plays louder
-Cliquez pour le jouer et le régler ; plus bas sur le pad, plus fort
 
 Closed hat character
 Charley fermé : caractère
@@ -4349,8 +4347,6 @@ Motif
 Roll
 Roulement
 
-Start from a rhythm
-Partir d'un rythme
 
 Add {name}
 Ajouter {name}

@@ -86,7 +86,9 @@ Le charleston fermé coupe l'ouvert. Les presets contiennent des kits entiers pa
 trap, drill, house, électro, latino, afro, lo-fi, drum and bass…).
 
 L'onglet **Effets du kit** contient la compression, la couleur, l'égaliseur, le delay et la
-réverbération de tout le kit.
+réverbération de tout le kit. **Analogique** rend chaque frappe un peu différente, comme sur une
+machine analogique : quelques cents de hauteur, une chute un peu plus longue ou plus courte, un
+peu plus douce ou plus sombre ; les kits d'usine en utilisent un peu.
 
 ### Motif
 
@@ -95,11 +97,16 @@ lecture : ce que vous dessinez ici est ce que montre le piano roll. Sans clip, *
 crée un à la mesure de la tête de lecture, avec le nombre de mesures choisi à côté.
 
 - **Pas** : un clic pose ou efface un pas, glisser en travers peint, glisser un pas vers le haut
-  ou le bas règle sa vélocité, le clic droit donne son roulement, son fla et sa probabilité.
+  ou le bas règle sa vélocité, le clic droit donne son roulement, son fla et sa probabilité. Le
+  remplissage d'un pas monte avec sa vélocité, un accent a un bord clair en haut, une note
+  fantôme est plus pâle. Un clic sur le nom d'un pad le joue.
 - **Swing** pousse les doubles croches à contretemps vers le triolet.
-- **Partir d'un rythme** écrit un motif tout prêt : boom bap, lo-fi, trap, drill, Jersey club,
-  house, techno, électro, dembow, phonk, UK garage, afrobeats, amapiano, dancehall, funk, rock,
-  drum and bass. Chacun affiche son tempo habituel ; le tempo du projet n'est pas touché.
+- **Rythmes** contient plus de quatre-vingt-dix rythmes tout prêts, par genre : hip-hop, trap et
+  drill, R&B et pop, house, techno, électro et breaks, drum and bass, UK garage et bass, latino
+  et Caraïbes, afro, funk, soul et disco, rock, synthwave et années 80, lo-fi et chill. Chacun a
+  son groove, une variation et un fill : le motif les joue alors en cycle de quatre mesures (le
+  groove, sa variation, le fill), chacun une variation de l'enchaînement à modifier. Chacun
+  affiche son tempo habituel ; le tempo du projet n'est pas touché.
 - **Effacer** vide la variation affichée.
 
 ### Variations et enchaînement

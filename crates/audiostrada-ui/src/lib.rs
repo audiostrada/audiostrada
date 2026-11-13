@@ -13,6 +13,7 @@ mod console_ui;
 pub mod control;
 mod dialogs;
 pub mod document;
+mod drum_rhythms;
 mod drum_sequencer;
 mod drums_editor;
 mod editor_frame;
