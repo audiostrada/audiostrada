@@ -115,8 +115,9 @@ the bars that play it.
   chain.
 - **Names**: right-click a variation to name it (Intro, Verse, Hook, Bridge, Outro, or your
   own); its name shows in the chain and on the pattern in the timeline.
-- **The chain** shows what each bar plays. A click on a bar steps to the next variation in use;
-  right-click for every choice, or to make the bar a new variation that keeps its notes.
+- **The chain** shows what each bar plays. A click on a bar shows its variation and takes the
+  playhead there; right-click to change what it plays, or to make the bar a new variation that
+  keeps its notes.
 - **Bars**: the number at the start of the chain sets the pattern's length, from 1 to 64 bars.
   New bars repeat the chain; bars past the end go, with their notes.
 

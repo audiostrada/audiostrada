@@ -1367,23 +1367,15 @@ pub fn show(
                 Color32::WHITE.gamma_multiply(if shown { 1.0 } else { 0.7 }),
             );
             let response = response.on_hover_text(crate::trf!(
-                "Bar {n}: click to change what it plays, right-click for every choice",
+                "Bar {n}: click to show what it plays and go there, right-click to change it",
                 n = b + 1
             ));
             let mut picked = None;
             if response.clicked() {
-                // The next variation in use, or B when there is only one.
-                let next = used
-                    .iter()
-                    .position(|&x| x == v)
-                    .and_then(|i| used.get(i + 1))
-                    .copied()
-                    .unwrap_or(if used.len() < 2 && v == A {
-                        B
-                    } else {
-                        used.first().copied().unwrap_or(A)
-                    });
-                picked = Some(next);
+                // Shows its variation, the playhead at the bar's start.
+                state.variation = v;
+                let at = clip.start + (b as f64 * 16.0 * grid.step).round() as u64;
+                params.doc.player_mut().locate(at);
             }
             response.context_menu(|ui| {
                 for &x in &used {

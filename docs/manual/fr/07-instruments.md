@@ -126,8 +126,8 @@ s'édite une fois pour toutes les mesures qui la jouent.
   est une variation comme les autres, à modifier ou à déplacer dans l'enchaînement.
 - **Noms** : clic droit sur une variation pour la nommer (Intro, Couplet, Refrain, Pont, Outro,
   ou le vôtre) ; son nom s'affiche dans l'enchaînement et sur le motif dans la timeline.
-- **L'enchaînement** montre ce que joue chaque mesure. Un clic sur une mesure passe à la variation
-  suivante parmi celles utilisées ; le clic droit donne tous les choix, ou fait de la mesure une
+- **L'enchaînement** montre ce que joue chaque mesure. Un clic sur une mesure affiche sa variation
+  et y amène la tête de lecture ; le clic droit change ce qu'elle joue, ou fait de la mesure une
   nouvelle variation qui garde ses notes.
 - **Mesures** : le nombre au début de l'enchaînement règle la longueur du motif, de 1 à 64
   mesures. Les nouvelles mesures reprennent l'enchaînement ; celles au-delà de la fin sont

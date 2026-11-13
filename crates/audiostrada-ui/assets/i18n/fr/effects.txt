@@ -5780,8 +5780,6 @@ La longueur du motif : les nouvelles mesures reprennent l'enchaînement, celles 
 Pattern length
 Longueur du motif
 
-Bar {n}: click to change what it plays, right-click for every choice
-Mesure {n} : un clic change ce qu'elle joue, clic droit pour tous les choix
 
 New: {name}
 Nouvelle : {name}
