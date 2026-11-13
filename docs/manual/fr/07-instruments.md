@@ -125,5 +125,18 @@ s'édite une fois pour toutes les mesures qui la jouent.
   mesures. Les nouvelles mesures reprennent l'enchaînement ; celles au-delà de la fin sont
   retirées avec leurs notes.
 
+### Dans la timeline
+
+- **Le motif suivi** : l'onglet Motif modifie le motif sélectionné dans la timeline, sinon celui
+  sous la tête de lecture.
+- **Variations visibles** : sur un clip de motif, chaque mesure montre la variation qu'elle
+  joue, dans la couleur de son enchaînement. Clic droit sur une mesure › *La mesure N joue* pour
+  la changer sans ouvrir la boîte à rythmes.
+- **Allongé, il continue** : tirer le bord droit d'un motif ajoute des mesures qui suivent son
+  enchaînement (le groove, sa variation, le fill…), plutôt que des mesures vides.
+- **Rythmes glissés** : glissez un rythme du menu *Rythmes* dans la timeline pour un nouveau
+  motif de quatre mesures à cette mesure, sur la piste de batterie sous le pointeur, sinon sur
+  une nouvelle piste de batterie.
+
 > **Astuce** Pour varier un groove sans repartir de zéro : construisez A, ajoutez B, puis clic
 > droit sur une mesure de l'enchaînement › *Nouvelle : C*, et ne changez que ce qui diffère.

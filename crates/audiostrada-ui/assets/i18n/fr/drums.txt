@@ -291,5 +291,8 @@ Note {key}. Cliquez pour le jouer et le modifier ; plus bas sur le pad, plus for
 Start from a ready-made rhythm, by genre
 Partir d'un rythme tout prêt, par genre
 
-Writes its groove, its variation and its fill over the pattern
-Écrit son groove, sa variation et son fill sur tout le motif
+Bar {n} plays
+La mesure {n} joue
+
+Click: writes its groove, its variation and its fill over the pattern. Drag it to the timeline for a new pattern there
+Clic : écrit son groove, sa variation et son fill sur tout le motif. Glissez-le dans la timeline pour un nouveau motif à cet endroit

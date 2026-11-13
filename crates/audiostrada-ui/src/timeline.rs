@@ -876,6 +876,10 @@ impl TimelineView {
 
     pub fn show(&mut self, ui: &mut Ui, settings: &mut EditSettings) {
         self.show_timeline(ui, settings);
+        // The drum machine's pattern follows the clip chosen here.
+        let chosen = self.selection.clone();
+        ui.ctx()
+            .data_mut(|d| d.insert_temp(crate::drum_sequencer::selected_clips_id(), chosen));
         self.note_window(ui.ctx(), settings);
     }
 

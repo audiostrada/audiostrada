@@ -317,6 +317,48 @@ impl TimelineView {
         }
     }
 
+    /// A drum pattern's bars: the variation each plays, as in the drum machine's chain.
+    fn draw_variations(
+        &self,
+        painter: &egui::Painter,
+        rect: Rect,
+        project: &Project,
+        clip: &audiostrada_core::Clip,
+    ) {
+        let Some((grid, chain)) = crate::drum_sequencer::clip_chain(project, clip) else {
+            return;
+        };
+        let bar = (grid.step * 16.0 / self.zoom) as f32;
+        if bar < 6.0 {
+            return;
+        }
+        for (b, &v) in chain.iter().enumerate() {
+            let left = rect.left() + b as f32 * bar;
+            if left > rect.right() {
+                break;
+            }
+            let band = Rect::from_min_max(
+                pos2(left + 1.0, rect.top()),
+                pos2((left + bar - 1.0).min(rect.right()), rect.top() + 4.0),
+            );
+            let color = crate::drum_sequencer::variation_color(v);
+            painter.rect_filled(band, 2.0, color);
+            if bar >= 26.0 && rect.height() >= 30.0 {
+                let galley = painter.layout_no_wrap(
+                    crate::drum_sequencer::variation_name(v),
+                    egui::FontId::proportional(9.5),
+                    Color32::WHITE,
+                );
+                let tag = Rect::from_min_size(
+                    pos2(left + 3.0, band.bottom() + 2.0),
+                    galley.size() + vec2(8.0, 2.0),
+                );
+                painter.rect_filled(tag, 3.0, color.gamma_multiply(0.85));
+                painter.galley(tag.min + vec2(4.0, 1.0), galley, Color32::WHITE);
+            }
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn draw_clip(
         &self,
@@ -421,6 +463,7 @@ impl TimelineView {
         );
         if let Some(notes) = &clip.notes {
             draw_notes(painter, wave_rect, clip, notes, self.zoom, base);
+            self.draw_variations(&clipped, wave_rect, project, clip);
         } else {
             // Light over the dark body; on a light theme the track color is too pale: darker.
             let ink = if visuals.dark_mode {

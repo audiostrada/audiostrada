@@ -231,6 +231,53 @@ impl TimelineView {
             doc.import_at(std::slice::from_ref(&file.0), track, position);
         }
 
+        // Rhythms dragged from the drum machine: a new pattern at the bar, on the drum track
+        // under the pointer, else on a new drum track.
+        let rhythm_hover = lanes_response
+            .dnd_hover_payload::<crate::drum_sequencer::DraggedRhythm>()
+            .is_some();
+        if rhythm_hover && let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
+            let x = scale.x(magnet.snap(scale.sample(pos.x)));
+            ui.painter().line_segment(
+                [pos2(x, lanes.top()), pos2(x, lanes.bottom())],
+                Stroke::new(2.0, ui.visuals().selection.bg_fill),
+            );
+        }
+        if let Some(dragged) =
+            lanes_response.dnd_release_payload::<crate::drum_sequencer::DraggedRhythm>()
+            && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
+        {
+            let drums = self
+                .track_at(project, pos.y - lanes.top())
+                .filter(|t| t.inserts.iter().any(|i| i.effect == "drums"))
+                .map(|t| t.id);
+            let (rate, tempo) = (project.sample_rate, project.tempo.clone());
+            let beat = tempo.sample_to_beat(scale.sample(pos.x), rate);
+            let bar = tempo.beat_to_bbt(beat);
+            let start = tempo.beat_to_sample(
+                tempo.bbt_to_beat(audiostrada_core::tempo::BarBeatTick {
+                    bar: bar.bar,
+                    beat: 1,
+                    tick: 0,
+                }),
+                rate,
+            );
+            let name = trf!("Drums {n}", n = project.tracks.len() + 1);
+            doc.history_mut().edit(tr("Rhythm"), |p| {
+                let track = drums.unwrap_or_else(|| {
+                    let t = p.add_track(&name);
+                    audiostrada_core::routing::add_insert(
+                        p,
+                        audiostrada_core::routing::Channel::Track(t),
+                        "drums",
+                        Default::default(),
+                    );
+                    t
+                });
+                crate::drum_sequencer::insert_rhythm(p, track, start, dragged.0, 4);
+            });
+        }
+
         // Starting a drag.
         if ruler_response.drag_started()
             && let Some(pos) = ruler_response.interact_pointer_pos()
@@ -721,7 +768,13 @@ impl TimelineView {
                 DragKind::Sweep { mute: Some(_) } => tr("Mute clips"),
                 DragKind::Comp(..) => tr("Comp takes"),
             };
-            doc.history_mut().edit(label, |p| *p = preview);
+            let lengthened = drag.kind == DragKind::TrimEnd;
+            doc.history_mut().edit(label, |p| {
+                *p = preview;
+                if lengthened {
+                    crate::drum_sequencer::follow_chains(p);
+                }
+            });
         }
         if self.drag.is_none() {
             self.comping = None;

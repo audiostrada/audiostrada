@@ -82,7 +82,7 @@ pub(crate) const FREE: u8 = 255;
 const LAST: u8 = 26;
 
 /// A variation's name: A, B, C… or Fill.
-fn variation_name(v: u8) -> String {
+pub(crate) fn variation_name(v: u8) -> String {
     match v {
         A => "A".into(),
         B => "B".into(),
@@ -93,7 +93,7 @@ fn variation_name(v: u8) -> String {
 }
 
 /// Variations in the order they are shown: A, B, C… then the fill.
-fn shown_order(mut list: Vec<u8>) -> Vec<u8> {
+pub(crate) fn shown_order(mut list: Vec<u8>) -> Vec<u8> {
     list.retain(|&v| v != FREE);
     list.sort_by_key(|&v| (v == FILL, v));
     list.dedup();
@@ -563,9 +563,120 @@ pub(crate) fn add_variation(
     (notes, chain, bars)
 }
 
-/// The MIDI clip the sequencer edits on `track`: the one under the playhead, else the one
-/// chosen before, else the first.
-fn target(params: &Params, track: TrackId, remembered: Option<ClipId>) -> Option<ClipId> {
+/// Where the timeline leaves the clips selected in it, for the sequencer to follow.
+pub(crate) fn selected_clips_id() -> egui::Id {
+    egui::Id::unique("timeline-selected-clips")
+}
+
+/// A rhythm dragged from the drum machine's menu to the timeline.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DraggedRhythm(pub usize);
+
+/// What each bar of a drum pattern plays, when it has variations.
+pub(crate) fn clip_chain(
+    project: &audiostrada_core::Project,
+    clip: &audiostrada_core::Clip,
+) -> Option<(Grid, Vec<u8>)> {
+    if clip.variations.is_empty() {
+        return None;
+    }
+    let notes = clip.notes.as_ref()?;
+    let grid = grid_in(project, clip);
+    let swing = swing_of(notes, &grid, 50.0).unwrap_or(50.0);
+    Some((grid, chain(&clip.variations, notes, &grid, swing)))
+}
+
+/// Has bar `bar` of pattern `id` play `variation`; a new fill starts from a build-up.
+pub(crate) fn set_bar(
+    project: &mut audiostrada_core::Project,
+    id: ClipId,
+    bar: usize,
+    variation: u8,
+) {
+    let Some(clip) = audiostrada_core::edit::clip(project, id).cloned() else {
+        return;
+    };
+    let Some((grid, mut chain)) = clip_chain(project, &clip) else {
+        return;
+    };
+    if bar >= chain.len() || chain[bar] == variation {
+        return;
+    }
+    let notes = clip.notes.clone().unwrap_or_default();
+    let swing = swing_of(&notes, &grid, 50.0).unwrap_or(50.0);
+    let fresh = variation == FILL && !chain.contains(&FILL);
+    let mut notes = assign(&notes, &grid, &mut chain, bar, variation, swing);
+    if fresh {
+        notes = build_up(&notes, &grid, bar, swing);
+    }
+    audiostrada_core::edit::set_notes(project, id, notes);
+    if let Some(c) = audiostrada_core::edit::clip_mut(project, id) {
+        c.variations = chain;
+    }
+}
+
+/// Patterns lengthened in the timeline: their new bars follow their chain.
+pub(crate) fn follow_chains(project: &mut audiostrada_core::Project) {
+    let clips: Vec<audiostrada_core::Clip> = project
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter())
+        .filter(|c| c.is_midi() && !c.variations.is_empty())
+        .cloned()
+        .collect();
+    for clip in clips {
+        let Some((grid, chain)) = clip_chain(project, &clip) else {
+            continue;
+        };
+        let bars = grid.steps.div_ceil(16);
+        let stored = clip.variations.len();
+        if bars <= stored {
+            continue;
+        }
+        let notes = clip.notes.clone().unwrap_or_default();
+        let swing = swing_of(&notes, &grid, 50.0).unwrap_or(50.0);
+        let (notes, chain) = resize(&notes, &grid, &chain[..stored], bars, swing);
+        audiostrada_core::edit::set_notes(project, clip.id, notes);
+        if let Some(c) = audiostrada_core::edit::clip_mut(project, clip.id) {
+            c.variations = chain;
+        }
+    }
+}
+
+/// A new pattern of `bars` bars at `start` on `track` playing rhythm `k`: its groove, its
+/// variation and its fill.
+pub(crate) fn insert_rhythm(
+    project: &mut audiostrada_core::Project,
+    track: TrackId,
+    start: u64,
+    k: usize,
+    bars: usize,
+) -> Option<ClipId> {
+    let rhythm = RHYTHMS.get(k)?;
+    let (rate, tempo) = (project.sample_rate, project.tempo.clone());
+    let beat = tempo.sample_to_beat(start, rate);
+    let step = (tempo.beat_to_sample(beat + 1.0, rate) as f64
+        - tempo.beat_to_sample(beat, rate) as f64)
+        / 4.0;
+    let length = (step * 16.0 * bars as f64).round() as u64;
+    let (notes, chain) = rhythm_notes(rhythm, bars, step.max(1.0));
+    let id = project.add_midi_clip(track, start, length, notes)?;
+    if let Some(c) = audiostrada_core::edit::clip_mut(project, id) {
+        c.variations = chain;
+        c.name = tr(rhythm.name).to_owned();
+    }
+    audiostrada_core::edit::resolve_overlaps(project, track, &[id]);
+    Some(id)
+}
+
+/// The MIDI clip the sequencer edits on `track`: the one selected in the timeline, else the
+/// one under the playhead, else the one chosen before, else the first.
+fn target(
+    ctx: &egui::Context,
+    params: &Params,
+    track: TrackId,
+    remembered: Option<ClipId>,
+) -> Option<ClipId> {
     let project = params.doc.project();
     let clips: Vec<&audiostrada_core::Clip> = project
         .tracks
@@ -576,9 +687,18 @@ fn target(params: &Params, track: TrackId, remembered: Option<ClipId>) -> Option
         .filter(|c| c.is_midi())
         .collect();
     let at = params.doc.player().position();
+    // A pattern chosen in the timeline first.
+    let chosen: Vec<ClipId> = ctx
+        .data(|d| d.get_temp(selected_clips_id()))
+        .unwrap_or_default();
     clips
         .iter()
-        .find(|c| at >= c.start && at < c.start + c.length)
+        .find(|c| chosen.contains(&c.id))
+        .or_else(|| {
+            clips
+                .iter()
+                .find(|c| at >= c.start && at < c.start + c.length)
+        })
         .or_else(|| clips.iter().find(|c| Some(c.id) == remembered))
         .or_else(|| clips.first())
         .map(|c| c.id)
@@ -586,7 +706,11 @@ fn target(params: &Params, track: TrackId, remembered: Option<ClipId>) -> Option
 
 /// The clip's steps, from the tempo at its start.
 fn grid_of(params: &Params, clip: &audiostrada_core::Clip) -> Grid {
-    let project = params.doc.project();
+    grid_in(params.doc.project(), clip)
+}
+
+/// The steps of `clip` in `project`, from the tempo at its start.
+pub(crate) fn grid_in(project: &audiostrada_core::Project, clip: &audiostrada_core::Clip) -> Grid {
     let (rate, tempo) = (project.sample_rate, &project.tempo);
     let beat = tempo.sample_to_beat(clip.start, rate);
     let beat_length =
@@ -714,7 +838,7 @@ fn chip(ui: &mut Ui, text: &str, color: Color32, on: bool) -> egui::Response {
     response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
-fn variation_color(variation: u8) -> Color32 {
+pub(crate) fn variation_color(variation: u8) -> Color32 {
     const MORE: [Color32; 6] = [
         Color32::from_rgb(52, 158, 120),
         Color32::from_rgb(196, 86, 110),
@@ -743,7 +867,7 @@ pub fn show(
         return;
     };
     let p = theme::current(ui);
-    state.clip = target(params, track, state.clip);
+    state.clip = target(ui.ctx(), params, track, state.clip);
     let Some(clip) = state.clip.and_then(|id| find_clip(params, id)) else {
         ui.horizontal(|ui| {
             ui.label(RichText::new(tr("Pattern")).strong().color(p.weak));
@@ -871,13 +995,14 @@ pub fn show(
                     ui.set_min_width(220.0);
                     for (i, r) in RHYTHMS.iter().enumerate().filter(|(_, r)| r.genre == genre) {
                         let label = format!("{}  ·  {} BPM", tr(r.name), r.bpm);
-                        if ui
-                            .button(label)
+                        let response = ui
+                            .add(egui::Button::new(label).sense(Sense::click_and_drag()))
                             .on_hover_text(tr(
-                                "Writes its groove, its variation and its fill over the pattern",
-                            ))
-                            .clicked()
-                        {
+                                "Click: writes its groove, its variation and its fill over the \
+                                 pattern. Drag it to the timeline for a new pattern there",
+                            ));
+                        response.dnd_set_drag_payload(DraggedRhythm(i));
+                        if response.clicked() {
                             chosen = Some(i);
                             ui.close();
                         }

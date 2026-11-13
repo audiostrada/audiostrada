@@ -112,5 +112,16 @@ the bars that play it.
 - **Bars**: the number at the start of the chain sets the pattern's length, from 1 to 64 bars.
   New bars repeat the chain; bars past the end go, with their notes.
 
+### In the timeline
+
+- **The pattern followed**: the Pattern tab edits the pattern selected in the timeline, else the
+  one under the playhead.
+- **Variations shown**: on a pattern clip, each bar shows the variation it plays, in its chain's
+  colour. Right-click a bar › *Bar N plays* to change it without opening the drum machine.
+- **Lengthened, it goes on**: dragging a pattern's right edge adds bars that follow its chain
+  (the groove, its variation, the fill…), instead of empty bars.
+- **Rhythms dragged**: drag a rhythm from the *Rhythms* menu to the timeline for a new four-bar
+  pattern at that bar, on the drum track under the pointer, else on a new drum track.
+
 > **Tip** To vary a groove without starting over: build A, add B, then right-click a bar of the
 > chain › *New: C* and change only what differs.

@@ -467,6 +467,33 @@ impl TimelineView {
             })
             .weak(),
         );
+        // A drum pattern: what the bar clicked plays.
+        if !many && let Some((grid, chain)) = crate::drum_sequencer::clip_chain(doc.project(), &c) {
+            let bar = (at.saturating_sub(c.start) as f64 / (grid.step * 16.0)) as usize;
+            if let Some(&now) = chain.get(bar) {
+                let mut choices = crate::drum_sequencer::shown_order(chain.clone());
+                if !choices.contains(&crate::drum_sequencer::FILL) {
+                    choices.push(crate::drum_sequencer::FILL);
+                }
+                let mut picked = None;
+                ui.menu_button(trf!("Bar {n} plays", n = bar + 1), |ui| {
+                    for v in choices {
+                        let name = crate::drum_sequencer::variation_name(v);
+                        if ui.selectable_label(v == now, name).clicked() {
+                            picked = Some(v);
+                            ui.close();
+                        }
+                    }
+                });
+                if let Some(v) = picked.filter(|&v| v != now) {
+                    doc.history_mut().edit(tr("Chain"), |p| {
+                        crate::drum_sequencer::set_bar(p, clip, bar, v);
+                    });
+                    ui.close();
+                }
+                ui.separator();
+            }
+        }
         let mut name = c.name.clone();
         if !many
             && ui
