@@ -118,6 +118,14 @@ s'édite une fois pour toutes les mesures qui la jouent.
   de quatre mesures, avec une montée de caisse claire comme point de départ. Une fois B créé,
   **+ C**, **+ D**… ajoutent une variation sur une nouvelle mesure à la fin, copiée de celle
   affichée.
+- **Sections** : *+ Section* crée une **Intro**, un **Pont** ou une **Outro** à partir de la
+  variation affichée. L'intro prend une mesure avant les autres (le motif commence une mesure
+  plus tôt quand c'est possible, pour que le groove reste à sa place) : les charleys et une
+  grosse caisse sur le un, avec une montée de caisse claire pour entrer. Le pont va à la fin, en
+  demi-temps sans les charleys ; l'outro est une dernière frappe, grosse caisse et crash. Chacune
+  est une variation comme les autres, à modifier ou à déplacer dans l'enchaînement.
+- **Noms** : clic droit sur une variation pour la nommer (Intro, Couplet, Refrain, Pont, Outro,
+  ou le vôtre) ; son nom s'affiche dans l'enchaînement et sur le motif dans la timeline.
 - **L'enchaînement** montre ce que joue chaque mesure. Un clic sur une mesure passe à la variation
   suivante parmi celles utilisées ; le clic droit donne tous les choix, ou fait de la mesure une
   nouvelle variation qui garde ses notes.

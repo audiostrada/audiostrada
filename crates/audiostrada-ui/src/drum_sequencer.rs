@@ -56,6 +56,8 @@ pub struct SequencerState {
     new_bars: u32,
     /// A rhythm to write once the pattern is there.
     pending: Option<usize>,
+    /// Names being typed for variations.
+    naming: std::collections::HashMap<u8, String>,
 }
 
 impl Default for SequencerState {
@@ -68,6 +70,7 @@ impl Default for SequencerState {
             menu: None,
             new_bars: 4,
             pending: None,
+            naming: Default::default(),
         }
     }
 }
@@ -462,6 +465,131 @@ fn build_up(notes: &[Note], grid: &Grid, bar: usize, swing: f32) -> Vec<Note> {
         out = write_step(&out, grid, snare, k, swing, Some(step));
     }
     out
+}
+
+/// A variation's name in a clip: the one given to it, else A, B, C… or Fill.
+pub(crate) fn label(clip: &audiostrada_core::Clip, v: u8) -> String {
+    clip.variation_names
+        .get(&v)
+        .cloned()
+        .unwrap_or_else(|| variation_name(v))
+}
+
+/// A section of a song a pattern can play besides its groove.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Section {
+    /// The groove lightened: the hats, a kick on one, a snare build-up at its end.
+    Intro,
+    /// The groove in half time, without the hats.
+    Bridge,
+    /// One last hit: kick and crash.
+    Outro,
+}
+
+impl Section {
+    pub(crate) const ALL: [Section; 3] = [Section::Intro, Section::Bridge, Section::Outro];
+
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Section::Intro => tr("Intro"),
+            Section::Bridge => tr("Bridge"),
+            Section::Outro => tr("Outro"),
+        }
+    }
+}
+
+/// Bar `bar` turned into `section`, from the groove it holds.
+fn shape_section(
+    notes: &[Note],
+    grid: &Grid,
+    bar: usize,
+    swing: f32,
+    section: Section,
+) -> Vec<Note> {
+    let mut out: Vec<Note> = notes
+        .iter()
+        .filter(|n| {
+            let Some(k) = grid.step_of(n.start, swing).filter(|k| k / 16 == bar) else {
+                return true;
+            };
+            let c = k % 16;
+            let Some(pad) = voice_of(n.key).map(|p| VOICES[p].0) else {
+                return false;
+            };
+            match section {
+                Section::Intro => match pad {
+                    "kick" | "kick2" => c == 0,
+                    "snare" | "snare2" | "clap" | "cymbal" | "low_tom" | "mid_tom" | "high_tom" => {
+                        false
+                    }
+                    _ => true,
+                },
+                Section::Bridge => match pad {
+                    "closed" | "open" => false,
+                    "kick" | "kick2" => c == 0 || c == 8,
+                    "snare" | "snare2" | "clap" | "rim" => c == 8,
+                    _ => true,
+                },
+                Section::Outro => false,
+            }
+        })
+        .copied()
+        .collect();
+    match section {
+        Section::Intro => out = build_up(&out, grid, bar, swing),
+        Section::Outro => {
+            for pad in ["kick", "cymbal"].into_iter().filter_map(pad_named) {
+                let hit = Step {
+                    velocity: 120,
+                    ..Step::new(pad)
+                };
+                out = write_step(&out, grid, pad, bar * 16, swing, Some(hit));
+            }
+        }
+        Section::Bridge => {}
+    }
+    out
+}
+
+/// A section added to a pattern as a new variation, from the groove of `from`: the intro on a
+/// bar before the others, the bridge and the outro on a bar at the end. Gives the notes, the
+/// chain, the new variation and whether the clip grew at its start.
+fn add_section(
+    notes: &[Note],
+    grid: &Grid,
+    chain: &[u8],
+    from: u8,
+    section: Section,
+    swing: f32,
+) -> Option<(Vec<Note>, Vec<u8>, u8, bool)> {
+    let v = next_letter(chain)?;
+    if section == Section::Intro {
+        let shift = (16.0 * grid.step).round() as u64;
+        let moved: Vec<Note> = notes
+            .iter()
+            .map(|n| Note {
+                start: n.start + shift,
+                ..*n
+            })
+            .collect();
+        let grid = Grid {
+            steps: grid.steps + 16,
+            ..*grid
+        };
+        let mut chain = chain.to_vec();
+        chain.insert(0, v);
+        let source = chain.iter().position(|&x| x == from).unwrap_or(1);
+        let notes = copy_bar(&moved, &grid, source, 0, swing);
+        let notes = shape_section(&notes, &grid, 0, swing, section);
+        return Some((notes, chain, v, true));
+    }
+    let (notes, chain) = append_variation(notes, grid, chain, v, from, swing);
+    let grid = Grid {
+        steps: chain.len() * 16,
+        ..*grid
+    };
+    let notes = shape_section(&notes, &grid, chain.len() - 1, swing, section);
+    Some((notes, chain, v, false))
 }
 
 /// The clip at `count` bars: new bars repeat the chain, bars past the end go.
@@ -959,18 +1087,56 @@ pub fn show(
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
         let used = shown_order(chain.clone());
+        let mut named = None;
         for &v in &used {
-            if chip(
+            let response = chip(
                 ui,
-                &variation_name(v),
+                &label(&clip, v),
                 variation_color(v),
                 state.variation == v,
             )
-            .on_hover_text(tr("Edit this variation"))
-            .clicked()
-            {
+            .on_hover_text(tr("Edit this variation; right-click to name it"));
+            if response.clicked() {
                 state.variation = v;
             }
+            response.context_menu(|ui| {
+                ui.label(RichText::new(tr("Name of the variation")).strong());
+                for name in ["Intro", "Verse", "Hook", "Bridge", "Outro"] {
+                    if ui.button(tr(name)).clicked() {
+                        named = Some((v, Some(tr(name).to_owned())));
+                        ui.close();
+                    }
+                }
+                ui.separator();
+                let text = state.naming.entry(v).or_insert_with(|| label(&clip, v));
+                let edit = ui.add(egui::TextEdit::singleline(text).desired_width(140.0));
+                if edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    let name = text.trim().to_owned();
+                    named = Some((v, (!name.is_empty()).then_some(name)));
+                    ui.close();
+                }
+                if clip.variation_names.contains_key(&v)
+                    && ui.button(tr("Back to its letter")).clicked()
+                {
+                    named = Some((v, None));
+                    ui.close();
+                }
+            });
+        }
+        if let Some((v, name)) = named {
+            state.naming.remove(&v);
+            let id = clip.id;
+            params
+                .doc
+                .history_mut()
+                .edit(tr("Name the variation"), |p| {
+                    if let Some(c) = audiostrada_core::edit::clip_mut(p, id) {
+                        match name {
+                            Some(name) => c.variation_names.insert(v, name),
+                            None => c.variation_names.remove(&v),
+                        };
+                    }
+                });
         }
         let add = |ui: &mut Ui, text: String, hint: &str| {
             chip(ui, &text, Color32::from_rgb(70, 78, 92), false)
@@ -1010,6 +1176,63 @@ pub fn show(
             };
             let label = crate::trf!("Add {name}", name = variation_name(v));
             store(params, &clip, &grid, write, &label, false);
+            state.variation = v;
+        }
+        // Song sections, made from the groove shown.
+        let mut asked = None;
+        if next_letter(&chain).is_some() {
+            let button = egui::Button::new(
+                RichText::new(format!("+ {}  ▾", tr("Section")))
+                    .color(Color32::from_rgb(200, 206, 216)),
+            )
+            .corner_radius(11.0)
+            .fill(Color32::from_rgb(70, 78, 92).gamma_multiply(0.22));
+            egui::containers::menu::MenuButton::from_button(button)
+                .ui(ui, |ui| {
+                    for section in Section::ALL {
+                        let hint = match section {
+                            Section::Intro => tr(
+                                "A bar before the others: the groove lightened, the hats and a \
+                                 kick on one, a snare build-up to come in",
+                            ),
+                            Section::Bridge => {
+                                tr("A bar at the end: the groove in half time, without the hats")
+                            }
+                            Section::Outro => tr("A bar at the end: one last hit, kick and crash"),
+                        };
+                        if ui.button(section.name()).on_hover_text(hint).clicked() {
+                            asked = Some(section);
+                            ui.close();
+                        }
+                    }
+                })
+                .0
+                .on_hover_text(tr(
+                    "Adds an intro, a bridge or an outro made from the variation shown",
+                ));
+        }
+        if let Some(section) = asked
+            && let Some((notes, chain, v, early)) =
+                add_section(&notes, &grid, &chain, state.variation, section, swing)
+        {
+            let bar = (16.0 * grid.step).round() as u64;
+            let length = (chain.len() as f64 * 16.0 * grid.step).round() as u64;
+            // The intro comes in a bar before, so that the groove stays where it was.
+            let start = (early && clip.start >= bar).then(|| clip.start - bar);
+            let (id, name) = (clip.id, section.name().to_owned());
+            let label = crate::trf!("Add {name}", name = name.as_str());
+            params.doc.history_mut().edit(&label, |p| {
+                audiostrada_core::edit::set_notes(p, id, notes);
+                if let Some(c) = audiostrada_core::edit::clip_mut(p, id) {
+                    c.variations = chain;
+                    c.length = length;
+                    if let Some(start) = start {
+                        c.start = start;
+                    }
+                    c.variation_names.insert(v, name);
+                }
+                audiostrada_core::edit::resolve_overlaps(p, track, &[id]);
+            });
             state.variation = v;
         }
         ui.add_space(14.0);
@@ -1112,7 +1335,14 @@ pub fn show(
         ui.add_space(4.0);
         let used = shown_order(chain.clone());
         for (b, &v) in chain.iter().enumerate() {
-            let (rect, response) = ui.allocate_exact_size(vec2(38.0, 20.0), Sense::click());
+            let name = label(&clip, v);
+            let width = ui
+                .painter()
+                .layout_no_wrap(name.clone(), FontId::proportional(10.5), Color32::WHITE)
+                .size()
+                .x;
+            let (rect, response) =
+                ui.allocate_exact_size(vec2((width + 14.0).max(38.0), 20.0), Sense::click());
             let painter = ui.painter();
             let color = variation_color(v);
             let shown = v == state.variation;
@@ -1132,7 +1362,7 @@ pub fn show(
             painter.text(
                 rect.center(),
                 Align2::CENTER_CENTER,
-                variation_name(v),
+                name,
                 FontId::proportional(10.5),
                 Color32::WHITE.gamma_multiply(if shown { 1.0 } else { 0.7 }),
             );
@@ -1157,7 +1387,7 @@ pub fn show(
             }
             response.context_menu(|ui| {
                 for &x in &used {
-                    if ui.selectable_label(x == v, variation_name(x)).clicked() {
+                    if ui.selectable_label(x == v, label(&clip, x)).clicked() {
                         picked = Some(x);
                         ui.close();
                     }
@@ -1576,6 +1806,59 @@ mod tests {
             step: 1000.0,
             steps: 16,
         }
+    }
+
+    #[test]
+    fn sections_are_made_from_the_groove_the_intro_first() {
+        let g = grid();
+        let pad = |id: &str| pad_named(id).unwrap();
+        let mut groove = Vec::new();
+        for (id, steps) in [
+            ("kick", vec![0, 8, 10]),
+            ("snare", vec![4, 12]),
+            ("closed", (0..16).step_by(2).collect()),
+        ] {
+            for k in steps {
+                groove = set_step(&groove, &g, pad(id), k, true, 50.0);
+            }
+        }
+        let on = |notes: &[Note], g: &Grid, id: &str, bar: usize| -> Vec<usize> {
+            (0..16)
+                .filter(|&c| read_step(notes, g, pad(id), bar * 16 + c, 50.0).is_some())
+                .collect()
+        };
+        let (notes, chain, v, early) =
+            add_section(&groove, &g, &[A], A, Section::Intro, 50.0).unwrap();
+        assert!(early);
+        assert_eq!(chain, [v, A]);
+        let g2 = Grid { steps: 32, ..g };
+        assert_eq!(on(&notes, &g2, "kick", 0), [0], "a kick on one only");
+        assert_eq!(
+            on(&notes, &g2, "closed", 0).len(),
+            6,
+            "hats, the last beat building up"
+        );
+        assert_eq!(on(&notes, &g2, "snare", 0), [12, 13, 14, 15]);
+        assert_eq!(
+            on(&notes, &g2, "kick", 1),
+            [0, 8, 10],
+            "the groove a bar later"
+        );
+        let (notes, chain, _, early) =
+            add_section(&groove, &g, &[A], A, Section::Bridge, 50.0).unwrap();
+        assert!(!early);
+        assert_eq!(chain.len(), 2);
+        assert!(on(&notes, &g2, "closed", 1).is_empty(), "no hats");
+        assert_eq!(
+            on(&notes, &g2, "snare", 1),
+            Vec::<usize>::new(),
+            "half time: the backbeat goes"
+        );
+        assert_eq!(on(&notes, &g2, "kick", 1), [0, 8]);
+        let (notes, _, _, _) = add_section(&groove, &g, &[A], A, Section::Outro, 50.0).unwrap();
+        assert_eq!(on(&notes, &g2, "kick", 1), [0]);
+        assert_eq!(on(&notes, &g2, "cymbal", 1), [0]);
+        assert!(on(&notes, &g2, "closed", 1).is_empty());
     }
 
     #[test]

@@ -1483,6 +1483,7 @@ impl ProjectPlayer {
                         controls: None,
                         notes: None,
                         variations: Vec::new(),
+                        variation_names: Default::default(),
                         take: None,
                         inserts: Vec::new(),
                         automation: Vec::new(),

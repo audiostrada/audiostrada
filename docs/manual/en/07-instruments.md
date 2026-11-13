@@ -107,6 +107,14 @@ the bars that play it.
 - **+ B** puts a second pattern on every other bar, **+ Fill** a fill at the end of every four
   bars, with a snare build-up to start from. Once B exists, **+ C**, **+ D**… add a variation on
   a new bar at the end, copied from the one shown.
+- **Sections**: *+ Section* makes an **Intro**, a **Bridge** or an **Outro** from the
+  variation shown. The intro takes a bar before the others (the pattern starts a bar earlier when
+  it can, so that the groove stays where it was): the hats and a kick on one, with a snare
+  build-up to come in. The bridge goes at the end, in half time without the hats; the outro is
+  one last hit, kick and crash. Each is a variation like the others, to edit or move in the
+  chain.
+- **Names**: right-click a variation to name it (Intro, Verse, Hook, Bridge, Outro, or your
+  own); its name shows in the chain and on the pattern in the timeline.
 - **The chain** shows what each bar plays. A click on a bar steps to the next variation in use;
   right-click for every choice, or to make the bar a new variation that keeps its notes.
 - **Bars**: the number at the start of the chain sets the pattern's length, from 1 to 64 bars.

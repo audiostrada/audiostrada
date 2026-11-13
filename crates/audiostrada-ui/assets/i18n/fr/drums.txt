@@ -296,3 +296,45 @@ La mesure {n} joue
 
 Click: writes its groove, its variation and its fill over the pattern. Drag it to the timeline for a new pattern there
 Clic : écrit son groove, sa variation et son fill sur tout le motif. Glissez-le dans la timeline pour un nouveau motif à cet endroit
+
+A bar at the end: one last hit, kick and crash
+Une mesure à la fin : une dernière frappe, grosse caisse et crash
+
+A bar at the end: the groove in half time, without the hats
+Une mesure à la fin : le groove en demi-temps, sans les charleys
+
+A bar before the others: the groove lightened, the hats and a kick on one, a snare build-up to come in
+Une mesure avant les autres : le groove allégé, les charleys et une grosse caisse sur le un, une montée de caisse claire pour entrer
+
+Adds an intro, a bridge or an outro made from the variation shown
+Ajoute une intro, un pont ou une outro tirés de la variation affichée
+
+Back to its letter
+Revenir à sa lettre
+
+Bridge
+Pont
+
+Edit this variation; right-click to name it
+Modifier cette variation ; clic droit pour la nommer
+
+Intro
+Intro
+
+Name of the variation
+Nom de la variation
+
+Name the variation
+Nommer la variation
+
+Outro
+Outro
+
+Section
+Section
+
+Verse
+Couplet
+
+Hook
+Refrain

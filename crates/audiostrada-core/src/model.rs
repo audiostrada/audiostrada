@@ -190,6 +190,9 @@ pub struct Clip {
     /// the fill, 255 for a bar left alone.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub variations: Vec<u8>,
+    /// Names given to its variations (Intro, Chorus...), by variation.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub variation_names: BTreeMap<u8, String>,
     /// What is known of a recorded take.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub take: Option<Box<TakeInfo>>,
@@ -1393,6 +1396,7 @@ impl Project {
             controls: None,
             notes: None,
             variations: Vec::new(),
+            variation_names: BTreeMap::new(),
             take: None,
             inserts: Vec::new(),
             automation: Vec::new(),
@@ -1429,6 +1433,7 @@ impl Project {
             controls: None,
             notes: Some(Arc::new(notes)),
             variations: Vec::new(),
+            variation_names: BTreeMap::new(),
             take: None,
             inserts: Vec::new(),
             automation: Vec::new(),

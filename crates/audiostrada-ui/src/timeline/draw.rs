@@ -343,12 +343,12 @@ impl TimelineView {
             );
             let color = crate::drum_sequencer::variation_color(v);
             painter.rect_filled(band, 2.0, color);
-            if bar >= 26.0 && rect.height() >= 30.0 {
-                let galley = painter.layout_no_wrap(
-                    crate::drum_sequencer::variation_name(v),
-                    egui::FontId::proportional(9.5),
-                    Color32::WHITE,
-                );
+            let galley = painter.layout_no_wrap(
+                crate::drum_sequencer::label(clip, v),
+                egui::FontId::proportional(9.5),
+                Color32::WHITE,
+            );
+            if galley.size().x + 12.0 <= bar && rect.height() >= 30.0 {
                 let tag = Rect::from_min_size(
                     pos2(left + 3.0, band.bottom() + 2.0),
                     galley.size() + vec2(8.0, 2.0),

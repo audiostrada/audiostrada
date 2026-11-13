@@ -478,7 +478,7 @@ impl TimelineView {
                 let mut picked = None;
                 ui.menu_button(trf!("Bar {n} plays", n = bar + 1), |ui| {
                     for v in choices {
-                        let name = crate::drum_sequencer::variation_name(v);
+                        let name = crate::drum_sequencer::label(&c, v);
                         if ui.selectable_label(v == now, name).clicked() {
                             picked = Some(v);
                             ui.close();
