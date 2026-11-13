@@ -1416,8 +1416,8 @@ Nettoyer et faire ressortir
 The track is silent
 La piste est silencieuse
 
-Prepare the track
-Préparer la piste
+Express Mix
+Express Mix
 
 High pass {low}, low pass {high}
 Passe-haut {low}, passe-bas {high}
@@ -1461,8 +1461,8 @@ Les deux…
 Clean up, then bring out
 Nettoyer, puis faire ressortir
 
-Remove the preparation
-Retirer ce qui a été préparé
+Remove the Express Mix
+Retirer l'Express Mix
 
 cleaned up and brought out
 nettoyée et ressortie
@@ -1473,11 +1473,11 @@ nettoyée
 brought out
 ressortie
 
-Prepare {count} tracks
-Préparer {count} pistes
+Express Mix: {count} tracks
+Express Mix : {count} pistes
 
-Prepare “{name}”
-Préparer « {name} »
+Express Mix: “{name}”
+Express Mix : « {name} »
 
 The analysis failed
 L'analyse a échoué
@@ -1491,11 +1491,11 @@ Nettoyer les pistes sélectionnées…
 Bring out the selected tracks…
 Faire ressortir les pistes sélectionnées…
 
-Clean up and bring out the selected tracks…
-Nettoyer et faire ressortir les pistes sélectionnées…
+Express Mix of the selected tracks…
+Express Mix des pistes sélectionnées…
 
-Remove the preparation of the selected tracks
-Retirer la préparation des pistes sélectionnées
+Remove the Express Mix of the selected tracks
+Retirer l'Express Mix des pistes sélectionnées
 
 {count} tracks
 {count} pistes
@@ -1680,14 +1680,14 @@ Coupé, cette piste reste comme elle est
 How much of it: {percent} % (50 % is what is proposed)
 Le dosage : {percent} % (50 % est ce qui est proposé)
 
-Prepare the track: clean it up, bring it out (right-click for more)
-Préparer la piste : la nettoyer, la faire ressortir (clic droit pour plus)
+Express Mix: clean the track up, bring it out (right-click for more)
+Express Mix : nettoyer la piste, la faire ressortir (clic droit pour plus)
 
-Prepared as: {instrument}, {what}. Click to redo it, right-click to remove it
-Préparée comme : {instrument}, {what}. Cliquer pour refaire, clic droit pour retirer
+Express Mix as: {instrument}, {what}. Click to redo it, right-click to remove it
+Express Mix comme : {instrument}, {what}. Cliquer pour refaire, clic droit pour retirer
 
-Prepare all
-Tout préparer
+Express Mix: all tracks
+Express Mix : toutes les pistes
 
 Cleans up and brings out every track (not the buses): each one is listened to, then you hear the proposal and leave out the tracks you want
 Nettoie et fait ressortir toutes les pistes (pas les bus) : chacune est écoutée, puis vous entendez la proposition et écartez les pistes que vous voulez
@@ -1695,3 +1695,389 @@ Nettoie et fait ressortir toutes les pistes (pas les bus) : chacune est écouté
 Brings the prepared track to the loudness it had, measured on its loudest 20 seconds: before and after compare at equal level, and Apply keeps that gain on the channel strip's output
 Amène la piste préparée au volume qu'elle avait, mesuré sur ses 20 secondes les plus fortes : avant et après se comparent à niveau égal, et Appliquer garde ce gain sur la sortie du Channel Strip
 
+
+Apply to {count} tracks
+Appliquer à {count} pistes
+
+Back to the doses for every track
+Revenir aux dosages de toutes les pistes
+
+Bring out: {dose}
+Faire ressortir : {dose}
+
+Clean up: {dose}
+Nettoyer : {dose}
+
+
+Compressors: {count}
+Compresseurs : {count}
+
+De-essers: {count}
+De-essers : {count}
+
+Drag up or down (Shift: finely), double-click for the usual dose
+Glisser vers le haut ou le bas (Maj : finement), double-clic pour le dosage habituel
+
+EQ moves: {count}
+Corrections d'égaliseur : {count}
+
+Filters: {count}
+Filtres : {count}
+
+For every track at once: each one can then be adjusted on its own.
+Pour toutes les pistes à la fois : chacune peut ensuite être ajustée séparément.
+
+Gates: {count}
+Gates : {count}
+
+Guessed from its sound: check it
+Deviné d'après le son : à vérifier
+
+
+
+Left as they are: {count}
+Laissées telles quelles : {count}
+
+Level riding: {count}
+Suivi du volume : {count}
+
+Listening to the tracks: {done} of {total}
+Écoute des pistes : {done} sur {total}
+
+Listening…
+Écoute…
+
+Nothing to do: the tracks are fine as they are.
+Rien à faire : les pistes sont bien telles quelles.
+
+Overview
+Vue d'ensemble
+
+Plosives: {count}
+Plosives : {count}
+
+Include this track
+Inclure cette piste
+
+Resonances: {count}
+Résonances : {count}
+
+Set for every track, on the overview
+Réglé pour toutes les pistes, dans la vue d'ensemble
+
+Waiting
+En attente
+
+What is proposed
+Ce qui est proposé
+
+{count} of {total} included
+{count} sur {total} incluses
+
+Barely
+À peine
+
+All the way
+À fond
+
+A cajón
+Un cajón
+
+A cowbell or woodblock
+Une cloche ou un woodblock
+
+A shaker or maracas
+Un shaker ou des maracas
+
+A tambourine
+Un tambourin
+
+A touch
+Une touche
+
+
+
+Bypass the Express Mix
+Bypasser l'Express Mix
+
+Bypass the Express Mix, to compare with the track as it was
+Bypasser l'Express Mix, pour comparer avec la piste telle qu'elle était
+
+Bypassed
+Bypassé
+
+Choose the instrument
+Choisir l'instrument
+
+Claps or snaps
+Claps ou claquements de doigts
+
+Compares with the track as it was, without losing anything
+Compare avec la piste telle qu'elle était, sans rien perdre
+
+Congas, bongos or djembe
+Congas, bongos ou djembé
+
+Console colors
+Couleurs de console
+
+Console colors: {count}
+Couleurs de console : {count}
+
+
+Generous
+Généreux
+
+Guitars
+Guitares
+
+Instrument to choose: {count}
+Instrument à choisir : {count}
+
+Its name does not tell the instrument: choose it for a proposal that suits it
+Son nom ne dit pas l'instrument : choisissez-le pour une proposition adaptée
+
+Keys and synths
+Claviers et synthés
+
+
+Pan: {pan}
+Pan : {pan}
+
+Percussion
+Percussions
+
+
+Sent to the space: {count}
+Envoyées dans l'espace : {count}
+
+Slap
+Claque
+
+Some room
+Un peu d'air
+
+Space: send at {db} dB
+Espace : envoi à {db} dB
+
+Spread in pairs: {count}
+Écartées par paires : {count}
+
+Strada-Transient: more punch on soft hits
+Strada-Transient : plus de punch sur les frappes molles
+
+Strada-Transient: more punch, a shorter ring
+Strada-Transient : plus de punch, une résonance plus courte
+
+Strings and winds
+Cordes et vents
+
+The Express Mix is bypassed: click to hear it again
+L'Express Mix est bypassé : cliquez pour l'entendre à nouveau
+
+
+Their names do not tell the instrument: click to choose it
+Leurs noms ne disent pas l'instrument : cliquez pour le choisir
+
+Thump
+Coffre
+
+Transient shapers: {count}
+Transient shapers : {count}
+
+Transients: attack {attack} %, sustain {sustain} %
+Transitoires : attaque {attack} %, maintien {sustain} %
+
+Turn the Express Mix back on
+Réactiver l'Express Mix
+
+not found from its name: choose it
+introuvable d'après son nom : à choisir
+
+
+
+
+A light reverb shared by the tracks that call for it
+Une réverbe légère partagée par les pistes qui s'y prêtent
+
+A mix of everything
+Un peu de tout
+
+Choose what it holds
+Choisir ce qu'il contient
+
+Pairs of an instrument spread a little around the center
+Les paires d'un même instrument un peu écartées autour du centre
+
+Subtle
+Subtil
+
+The bus holds
+Le bus contient
+
+Wide open
+Grand ouvert
+
+from its tracks
+d'après ses pistes
+
+A bus: no space, no spread
+Un bus : ni espace, ni largeur
+
+
+As every track: {name}, {amount} %
+Comme toutes les pistes : {name}, {amount} %
+
+
+
+
+
+
+
+
+In the bus {name}
+Dans le bus {name}
+
+In the mix
+Dans le mix
+
+Intensity
+Intensité
+
+
+Its own color
+Sa propre couleur
+
+Left as it is
+Laissée comme elle est
+
+
+
+
+Natural
+Naturel
+
+
+
+
+Some glue and a light touch, nothing that belongs to its tracks
+Un peu de colle et une touche légère, rien de ce qui revient à ses pistes
+
+Stays where it is
+Reste à sa place
+
+
+
+What the bus holds
+Ce que contient le bus
+
+{count} of its {total} tracks have their Express Mix: the bus gets a lighter touch and some glue
+{count} de ses {total} pistes ont leur Express Mix : le bus reçoit une touche plus légère et un peu de colle
+
+
+Drag to change the order of the buses; click to see its proposal
+Glisser pour changer l'ordre des bus ; cliquer pour voir sa proposition
+
+Drums and guitars forward, punch and bite
+Batterie et guitares en avant, du punch et du mordant
+
+Each family of two tracks or more in a bus of its own, shown in the list: drag the buses there to change their order
+Chaque famille de deux pistes ou plus dans un bus à elle, montré dans la liste : glissez-y les bus pour changer leur ordre
+
+
+
+
+How much of the console's color
+Quelle part de la couleur de la console
+
+
+Natural and open, light compression, soft highs
+Naturel et ouvert, compression légère, aigus doux
+
+Pop
+Pop
+
+The style of the song: it doses each move and the balance between instruments
+Le style du morceau : il dose chaque geste et l'équilibre entre les instruments
+
+Vocals up front, bright and polished, firm compression
+Voix devant, brillant et poli, compression ferme
+
+Electro / Hip-hop
+Électro / Hip-hop
+
+Full lows, kick and bass on top, dense compression
+Graves pleins, kick et basse au premier plan, compression dense
+
+Processing
+Traitements
+
+Settings for every track, what is proposed
+Réglages de toutes les pistes, ce qui est proposé
+
+The project's, heard on every track unless a track has its own
+Celle du projet, entendue sur toutes les pistes sauf celles qui ont la leur
+
+The usual moves, nothing pushed
+Les gestes habituels, rien de poussé
+
+Check the tracks
+Vérifier les pistes
+
+Continue
+Continuer
+
+Each family of two tracks or more in a bus of its own: drums, guitars, backing vocals...
+Chaque famille de deux pistes ou plus dans un bus à elle : batterie, guitares, chœurs…
+
+Each instrument is found from the track's name: correct those that are wrong, leave out those to keep as they are.
+Chaque instrument est trouvé d'après le nom de la piste : corrigez ceux qui sont faux, écartez les pistes à garder telles quelles.
+
+Every instrument is known.
+Tous les instruments sont connus.
+
+Group into buses
+Regrouper en bus
+
+Listening to the tracks…
+Écoute des pistes…
+
+No family has two tracks or more outside a bus yet.
+Aucune famille n'a encore deux pistes ou plus hors d'un bus.
+
+The tracks stay where they are.
+Les pistes restent où elles sont.
+
+chosen
+choisi
+
+{count} tracks without an instrument will be prepared as something else
+{count} pistes sans instrument seront préparées comme « autre chose »
+
+Brought to -18 dBFS first, the level its console and its compressors expect
+Amenée d'abord à -18 dBFS, le niveau qu'attendent sa console et ses compresseurs
+
+
+
+Input gain: {gain} dB
+Gain d'entrée : {gain} dB
+
+Input gains set: {count}
+Gains d'entrée réglés : {count}
+
+Measuring the mix…
+Mesure du mix…
+
+
+Mix peak {peak} dBFS: room kept
+Crête du mix {peak} dBFS : marge suffisante
+
+
+Headroom for the master
+Marge pour le master
+
+Mix peak {peak} dBFS: {db} dB of room kept for the master
+Crête du mix {peak} dBFS : {db} dB de marge gardés pour le master
+
+When the mix peaks above -6 dBFS, it is lowered before the master's effects and brought back after by a Strada-Max: the same loudness, room for the master's processing, no clipping
+Quand le mix dépasse -6 dBFS en crête, il est abaissé avant les effets du master puis remonté après par un Strada-Max : le même volume, de la place pour les traitements du master, pas de saturation

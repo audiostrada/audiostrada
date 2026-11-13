@@ -465,12 +465,29 @@ impl Document {
             t.inserts.truncate(keep);
             t.automation.clear();
         }
-        let end = project.length();
-        if end == 0 {
+        if project.length() == 0 {
             return Err(tr("The track plays nothing").into());
         }
+        Ok(self.start_render(&project))
+    }
+
+    /// Starts rendering the whole mix as it reaches the master, before its effects and its
+    /// fader, on its own thread: what the headroom is measured on.
+    pub fn start_mix_render(&mut self) -> Result<Measuring, String> {
+        let mut project = self.project().clone();
+        project.master.gain_db = 0.0;
+        project.master.inserts.clear();
+        project.master.automation.clear();
+        if project.length() == 0 {
+            return Err(tr("The track plays nothing").into());
+        }
+        Ok(self.start_render(&project))
+    }
+
+    fn start_render(&mut self, project: &Project) -> Measuring {
+        let end = project.length();
         let render = OfflineRender::new(
-            &project,
+            project,
             self.paths.as_ref(),
             &self.media,
             self.player.plugins().clone(),
@@ -495,11 +512,11 @@ impl Document {
             };
             (left, right, audio.sample_rate())
         });
-        Ok(Measuring {
+        Measuring {
             player,
             progress,
             handle: Some(handle),
-        })
+        }
     }
 
     pub fn start_export(&mut self, settings: ExportSettings, target: &Path) -> Result<(), String> {

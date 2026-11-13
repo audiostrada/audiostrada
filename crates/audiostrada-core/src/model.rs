@@ -489,18 +489,76 @@ pub struct Track {
 }
 
 /// The preparation of a track: the instrument it was prepared as, what was done, the effects
-/// it added after the channel strip, and the gain it added to the strip's output.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// it added after the channel strip, the gain it added to the strip's output, and what it
+/// changed besides (pan, console color, send to the space bus), with what was there before.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Prepared {
     pub instrument: String,
     #[serde(default)]
     pub cleaned: bool,
     #[serde(default)]
     pub brought_out: bool,
+    /// Added by the cleaning.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inserts: Vec<InsertId>,
+    /// Added by bringing out.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub out_inserts: Vec<InsertId>,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub strip_gain: f32,
+    /// The pan the track had, when the preparation panned it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pan: Option<f32>,
+    /// The preparation set the track's console color; `console` is the one it had.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub console_set: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub console: Option<crate::console::Console>,
+    /// The track sends to the space bus.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub space: bool,
+    /// The input gain the track had, when the preparation set it (gain staging).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trim: Option<f32>,
+    /// Switched off for a comparison, with what to put back.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bypassed: Option<Bypassed>,
+}
+
+/// The room kept on the master: a gain first lowering the mix, a limiter last bringing its
+/// loudness back with its peaks held.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Headroom {
+    pub trim: InsertId,
+    pub makeup: InsertId,
+    /// The limiter was already there: its own gain, given back when the room is taken out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub makeup_gain: Option<f32>,
+}
+
+/// What bypassing a preparation changed, to be put back.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Bypassed {
+    /// Channel strip modules switched off, with their values.
+    #[serde(default)]
+    pub switches: Vec<(String, f32)>,
+    /// Effects bypassed (not those already bypassed).
+    #[serde(default)]
+    pub inserts: Vec<InsertId>,
+    /// The ride's lane was switched off.
+    #[serde(default)]
+    pub ride: bool,
+    /// The send to the space bus was muted.
+    #[serde(default)]
+    pub send: bool,
+    /// The pan and the console color the preparation had set.
+    #[serde(default)]
+    pub pan: f32,
+    #[serde(default)]
+    pub console: Option<crate::console::Console>,
+    /// The input gain the preparation had set.
+    #[serde(default)]
+    pub trim: f32,
 }
 
 pub(crate) fn one() -> f32 {
@@ -638,6 +696,9 @@ pub struct Master {
     pub inserts: Vec<Insert>,
     #[serde(default)]
     pub automation: Vec<AutomationLane>,
+    /// The room the Express Mix keeps before the master's processing, and gives back after.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub headroom: Option<Headroom>,
     /// The master's own inserts bypassed (not the monitoring ones).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub fx_off: bool,
@@ -886,6 +947,7 @@ impl Project {
                 gain_db: 0.0,
                 inserts: Vec::new(),
                 automation: Vec::new(),
+                headroom: None,
                 fx_off: false,
                 automation_mode: AutomationMode::Read,
             },

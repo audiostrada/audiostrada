@@ -1216,10 +1216,11 @@ impl AudioStradaApp {
             Action::RemovePreparation => {
                 let mut doc = self.doc.borrow_mut();
                 let tracks = doc.selected_tracks().to_vec();
-                doc.history_mut().edit(tr("Remove the preparation"), |p| {
+                doc.history_mut().edit(tr("Remove the Express Mix"), |p| {
                     for t in tracks {
                         audiostrada_core::prepare::unprepare(p, t);
                     }
+                    audiostrada_core::prepare::tidy_space(p);
                 });
             }
             Action::RouteToNewBus => {
@@ -2424,7 +2425,7 @@ impl AudioStradaApp {
                 ] {
                     item(ui, &mut chosen, action, None, true);
                 }
-                ui.menu_button(tr("Prepare the track"), |ui| {
+                ui.menu_button(tr("Express Mix"), |ui| {
                     for action in [
                         Action::CleanUpTracks,
                         Action::BringOutTracks,

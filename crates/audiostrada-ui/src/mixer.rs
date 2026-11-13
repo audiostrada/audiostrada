@@ -40,7 +40,7 @@ const NAME_ROOM: f32 = 110.0;
 /// window: room for the fader and both lists.
 const FULL_STRIPS_HEIGHT: f32 = 560.0;
 /// Height of the channel strip section of tall strips.
-const STRIP_SECTION: f32 = 56.0;
+const STRIP_SECTION: f32 = 76.0;
 /// What showing the send lists adds besides their own height (title, frame, the master's
 /// monitoring list), until measured.
 const SENDS_EXTRA: f32 = 40.0;
@@ -5247,9 +5247,6 @@ impl MixerView {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.add_space(2.0);
                 self.console_dot(ui, doc, channel);
-                if let Channel::Track(t) = channel {
-                    crate::prepare_window::wand(ui, doc, t);
-                }
             });
         });
         ui.horizontal(|ui| {
@@ -5366,6 +5363,10 @@ impl MixerView {
             .clicked()
         {
             self.open_strip(doc, channel);
+        }
+        if let Channel::Track(t) = channel {
+            ui.add_space(2.0);
+            crate::prepare_window::strip_line(ui, doc, t, width - 4.0);
         }
     }
 

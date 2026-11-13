@@ -671,13 +671,64 @@ fn detect_at(project: &Project, track: &Track, depth: usize) -> TrackIcon {
     TrackIcon::Waveform
 }
 
-/// A track's icon: the one chosen, else the one found.
+/// A track's icon: the one chosen, else the instrument it was prepared as (the name's icon
+/// when it tells the same more precisely), else the one found.
 pub fn of(project: &Project, track: &Track) -> TrackIcon {
-    track
-        .icon
-        .as_deref()
-        .and_then(TrackIcon::from_id)
-        .unwrap_or_else(|| detect(project, track))
+    if let Some(icon) = track.icon.as_deref().and_then(TrackIcon::from_id) {
+        return icon;
+    }
+    let found = detect(project, track);
+    match track
+        .prepared
+        .as_ref()
+        .and_then(|p| prepared_as(&p.instrument))
+    {
+        Some(icon) if !same(icon, found) => icon,
+        _ => found,
+    }
+}
+
+/// The icon of an instrument a track was prepared as.
+fn prepared_as(id: &str) -> Option<TrackIcon> {
+    use audiostrada_dsp::prepare::Instrument::*;
+    if id == audiostrada_core::prepare::SPACE {
+        return Some(TrackIcon::Fx);
+    }
+    Some(match audiostrada_dsp::prepare::Instrument::from_id(id)? {
+        VocalMale | VocalFemale => TrackIcon::Vocals,
+        BackingVocals => TrackIcon::Choir,
+        Kick => TrackIcon::Kick,
+        Snare => TrackIcon::Snare,
+        Toms => TrackIcon::RackTom,
+        HiHat => TrackIcon::HiHat,
+        Overheads => TrackIcon::Cymbals,
+        Drums | HandDrums | Cajon | Claps => TrackIcon::Drums,
+        Shaker | Tambourine | Cowbell => TrackIcon::Bells,
+        Bass => TrackIcon::Bass,
+        ElectricGuitar => TrackIcon::Electric,
+        AcousticGuitar => TrackIcon::Guitar,
+        Keys => TrackIcon::Piano,
+        Synth => TrackIcon::Synth,
+        Strings => TrackIcon::Strings,
+        Brass => TrackIcon::Brass,
+        Other => return None,
+    })
+}
+
+/// Two icons of the same instrument, one more precise.
+fn same(a: TrackIcon, b: TrackIcon) -> bool {
+    use TrackIcon::*;
+    a == b
+        || [
+            (RackTom, FloorTom),
+            (Bass, Sub),
+            (Synth, Pad),
+            (Vocals, Speech),
+            (Drums, DrumMachine),
+            (Brass, Winds),
+        ]
+        .iter()
+        .any(|&(x, y)| (a, b) == (x, y) || (a, b) == (y, x))
 }
 
 /// Paints an icon centered in `rect`.

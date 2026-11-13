@@ -182,34 +182,100 @@ avec ses poignées et les indicateurs, la console, le gain d'entrée et la polar
 puis les modules dans l'ordre où ils jouent ; glissez un module par sa poignée pour le déplacer.
 Voir *Effets* pour ses paramètres.
 
-## Préparer une piste
+## Express Mix
 
-La baguette dans l'en-tête du **Channel Strip** d'une tranche prépare la piste, ou toutes les
-pistes sélectionnées : un clic la nettoie et la fait ressortir, un clic droit (ou le clic droit
-sur la piste, ou Piste › *Préparer la piste*) choisit l'un des deux ou retire la préparation.
-**Tout préparer**, en haut du mixer, le fait pour toutes les pistes d'un coup (pas les bus) :
-dans la fenêtre, coupez les pistes à laisser comme elles sont.
+**Express Mix**, sous le **Channel Strip** d'une tranche, règle la piste, ou toutes les pistes
+sélectionnées : un clic la nettoie et la fait ressortir, un clic droit (ou le clic droit sur la
+piste, ou Piste › *Express Mix*) choisit l'un des deux ou retire l'Express Mix. Une fois
+l'Express Mix appliqué, le bouton est allumé, et l'interrupteur à côté bypasse tout ce que
+l'Express Mix a fait (les modules du Channel Strip qu'il a réglés, les effets ajoutés, le suivi
+du volume, le pan, la couleur de console, l'envoi vers l'espace), pour comparer avec la piste
+telle qu'elle était ; un second clic remet tout en place.
+**Express Mix : toutes les pistes**, en haut du mixer, le fait pour toutes les pistes d'un coup
+(pas les bus).
+
+Avec plusieurs pistes pas encore préparées, la fenêtre demande d'abord de **Vérifier les pistes** pendant qu'elles
+sont écoutées : l'instrument de chacune trouvé d'après son nom (à corriger, ou à choisir quand
+le nom ne le dit pas), si elle est incluse, son mute et son solo, et s'il faut **Regrouper en
+bus**, avec les bus que cela ferait. **Continuer** mène à la suite, où tout cela reste
+modifiable.
+
+La fenêtre liste ensuite les pistes à gauche. Chacune a son interrupteur (coupé, la piste reste comme
+elle est), son mute et son solo, pour entendre la proposition dans le mix ou seule, et son
+instrument. La **Vue d'ensemble**, en haut de la liste, règle pour toutes les pistes : la **Couleur
+de console**, le **Style**, jusqu'où vont **Nettoyer** et **Faire ressortir** avec de grands potards (d'à peine à
+fond ; un double-clic revient au dosage habituel), l'**Espace** et la **Largeur**, et les
+**Bus** ; puis elle compte ce qui est proposé en tout, sur une ligne (le reste sous *+N*). Cliquez sur
+une piste pour voir ce qui lui est proposé et l'ajuster : son instrument, sa propre couleur de
+console si elle doit différer, sa place dans le mix (bus, espace, pan), son spectre et ses
+étapes.
+
+- **Style** : Aucun (par défaut), Pop, Rock, Acoustique ou Électro / Hip-hop, et son intensité. Il dose chaque geste et l'équilibre entre les
+  instruments : voix devant et plus d'air pour la pop, plus de mordant, de transitoires et une
+  compression plus rapide pour le rock, une compression plus légère pour l'acoustique, des
+  graves plus pleins, kick et basse au premier plan et une compression plus dense pour l'électro
+  et le hip-hop. La couleur de console reste un choix à part.
 
 - **Nettoyer** : un passe-haut sous l'énergie utile (et un passe-bas pour la basse, la grosse
   caisse et les guitares saturées), des coupes aux résonances qui ressortent, les plosives et
   les sifflantes d'une voix retenues (un de-esser est aussi proposé sur les overheads et le
-  charleston), et un gate sur la grosse caisse et les toms quand il y a de la repisse entre les
-  coups. Une piste avec de longs silences reçoit plutôt la suggestion de les supprimer.
+  charleston), et un gate quand il y a de la repisse ou du souffle entre les coups (grosse
+  caisse, caisse claire, toms, percussions à main) ou entre les notes d'une guitare électrique.
+  Une piste avec de longs silences reçoit plutôt la suggestion de les supprimer.
 - **Faire ressortir** : les gestes qu'un ingénieur fait sur cet instrument, sur l'EQ du Channel
   Strip (poids, boue, clic sur une grosse caisse ; boue, présence, air sur une voix…), chacun
   placé là où la piste l'a et dosé selon ce qu'elle en a ; un compresseur (toujours sur une
-  grosse caisse, une caisse claire et une basse, sinon quand le niveau varie beaucoup) ; et, si
-  vous le cochez, un suivi du volume écrit en automation de la sortie du Channel Strip (à 6 dB
-  près).
-- **Les deux**, et **Retirer ce qui a été préparé**.
+  grosse caisse, une caisse claire et une basse, sinon quand le niveau varie beaucoup) ; un
+  Strada-Transient sur la grosse caisse, la caisse claire, les toms et les percussions, plus de
+  punch là où les frappes sont molles (et une résonance plus courte sur les toms) ; et, si vous
+  le cochez, un suivi du volume écrit en automation de la sortie du Channel Strip (à 6 dB près).
+- **Réglage des gains**, toujours : le gain d'entrée de chaque piste l'amène d'abord à -18 dBFS
+  là où elle joue, le niveau qu'attendent sa console et ses compresseurs ; les seuils proposés
+  suivent, et le niveau entendu reste le même. Sa vue montre le gain réglé. Bypasser ou retirer
+  l'Express Mix remet le gain qu'avait la piste.
+- **Marge pour le master**, activée par défaut : une fois toutes les pistes entendues comme
+  proposé, AudioStrada mesure tout le mix avant le master. S'il dépasse -6 dBFS en crête, un
+  Strada-Utility en tête du master l'abaisse d'autant, et un Strada-Max en dernier (celui qui y
+  est déjà, sinon un nouveau) le remonte, crêtes sous -1 dB : le même volume, de la place pour
+  les traitements du master. On l'entend dès que la fenêtre est ouverte. Le résumé montre la
+  crête mesurée.
+- **Couleur de console** : celle du projet (affichée en haut du mixer), Neutre s'il n'en avait
+  pas, et son dosage ; toutes les pistes l'entendent sauf celles qui ont la leur (dans leur
+  vue).
+- **Bus**, coupés tant que vous ne les activez pas : chaque famille d'au moins deux pistes qui
+  ne sont dans aucun bus (batterie, percussions, basse, guitares, claviers et synthés, cordes et
+  vents, chœurs, chant) va dans un bus à elle, dans l'ordre habituel d'un mix. Les bus
+  s'affichent alors en tête de leurs pistes dans la liste de gauche : glissez-les pour changer
+  leur ordre, cliquez sur l'un pour voir sa proposition. Ils reçoivent l'Express Mix d'un bus
+  une fois leurs pistes entendues.
+- **Espace**, coupé tant que vous ne le montez pas : un bus nommé *Espace* avec une Strada-Verb
+  courte et légère (un hall de 1,5 s, graves et aigus coupés), et un envoi vers lui depuis les
+  pistes qui s'y prêtent (voix, chœurs, guitares acoustiques, claviers, cordes, cuivres, caisse
+  claire, percussions…), jamais depuis la grosse caisse, la basse, le charleston ou les
+  overheads. Le bus s'en va quand plus aucune piste n'y envoie.
+- **Largeur**, coupée tant que vous ne la montez pas : les paires restées au centre (deux
+  guitares, deux chœurs, des toms, des synthés…) sont un peu écartées de part et d'autre, en
+  suivant le L et le R de leurs noms ; une piste pannée à la main n'est pas touchée.
+
+Un bus (ou un dossier) est préparé comme une somme, pas comme un instrument : AudioStrada devine
+ce qu'il contient (batterie, voix, guitares…) d'après l'instrument de ses pistes préparées ou
+leurs noms, et ne lui donne qu'un passe-haut doux, de légères corrections d'égaliseur pour sa famille
+et un compresseur lent qui le colle (2:1, environ 2 dB), plus léger encore à mesure que ses
+pistes sont préparées. Ni gate, ni de-esser, ni coupe de résonance, ni transient shaper, ni
+espace, ni largeur : cela revient à ses pistes. Quand un bus est préparé avec ses pistes, les
+pistes sont d'abord entendues comme proposé, puis le bus est mesuré. Une fois l'instrument
+connu, l'icône de la piste le suit (sauf si vous en avez choisi une).
+- **Les deux**, et **Retirer l'Express Mix**.
 
 AudioStrada rend la piste seule, telle qu'elle arrive à son Channel Strip, et devine
-l'instrument d'après le nom de la piste, son instrument ou son son (voix d'homme ou de femme
-d'après sa hauteur) ; changez-le après *L'instrument est* et la proposition suit. L'image montre
+l'instrument d'après le nom de la piste ou son instrument (voix d'homme ou de femme d'après sa
+hauteur). Quand rien ne le dit, la piste est mise sur *Autre chose* et signalée pour que vous
+choisissiez son instrument ; la liste est rangée par famille (voix, batterie, percussions,
+basse, guitares, claviers et synthés, cordes et vents). Changez-le après *L'instrument est* et
+la proposition suit. L'image montre
 le spectre mesuré et ce que la proposition en fait, chaque geste marqué ; les deux cartes
 listent les étapes, chacune avec son interrupteur et son dosage (50 % est ce qui est proposé ;
-double-clic pour y revenir). **Intensité** (léger, normal, appuyé) règle jusqu'où tout cela
-va.
+double-clic pour y revenir).
 
 Tant que la fenêtre est ouverte, la proposition s'entend : *Écouter* joue la session, **Avant**
 et **Après** comparent la piste comme elle était et la piste préparée, et **Même niveau** amène
@@ -218,8 +284,9 @@ la piste préparée au volume qu'elle avait, pour que « plus fort » ne passe p
 effets ; *Annuler* laisse la piste comme elle était.
 
 Les réglages sont ceux du Channel Strip, plus un Strada-EQ après lui pour les résonances et les
-plosives (avec des bandes dynamiques quand elles vont et viennent) et un Strada-DeEss. Préparer
-à nouveau remplace ce qui a été fait ; la baguette reste allumée sur une piste préparée. Ce sont
+plosives (avec des bandes dynamiques quand elles vont et viennent), un Strada-DeEss et un
+Strada-Transient. Relancer l'Express Mix, sur une piste ou toutes, met à jour ce qui a été fait : rien
+n'est ajouté deux fois. Ce sont
 des points de départ, posés par des règles tirées de la pratique du mixage, à ajuster à
 l'oreille.
 

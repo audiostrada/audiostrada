@@ -39,7 +39,7 @@ pub fn name(model: ConsoleModel) -> &'static str {
     }
 }
 
-fn hint(model: ConsoleModel) -> &'static str {
+pub(crate) fn hint(model: ConsoleModel) -> &'static str {
     match model {
         ConsoleModel::Clean => tr("No color: the mix as it is"),
         ConsoleModel::Iron => tr("Transformers: round lows, a silky top"),
