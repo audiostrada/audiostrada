@@ -1068,6 +1068,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
                 ("kick", 0.0),
                 ("amount", 35.0),
                 ("room", 15.0),
+                ("level", -3.0),
             ],
         ),
         preset(
@@ -1086,6 +1087,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
                 ("kick", 3.0),
                 ("amount", 60.0),
                 ("room", 40.0),
+                ("level", -3.0),
             ],
         ),
         preset(
@@ -1097,6 +1099,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
                 ("tolerance", 85.0),
                 ("dynamics", 35.0),
                 ("room", 10.0),
+                ("level", -3.0),
             ],
         ),
         preset(
@@ -1115,6 +1118,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
                 ("snare", 2.0),
                 ("amount", 100.0),
                 ("room", 30.0),
+                ("level", -4.0),
             ],
         ),
         preset(
@@ -1124,6 +1128,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
                 ("snare", 6.0),
                 ("amount", 60.0),
                 ("room", 75.0),
+                ("level", -2.0),
             ],
         ),
         preset(
@@ -1134,6 +1139,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
                 ("amount", 50.0),
                 ("room", 0.0),
                 ("decay", 60.0),
+                ("level", -3.0),
             ],
         ),
     ]

@@ -9,6 +9,21 @@ plugins' audio.
 - `references/windows.toml`: the reference plugins, measured on Windows; written on the
   machine that measures them, kept out of the repository.
 
+## Factory presets
+
+`audiostrada measure-presets --audio <folder>` plays every factory preset of the built-in
+effects on a recording of what it names (`vocal.wav`, `backing.wav`, `kick.wav`, `snare.wav`,
+`toms.wav`, `overheads.wav`, `drums.wav`, `bass.wav`, `guitar.wav`, `guitar_di.wav`,
+`acoustic.wav`, `mix.wav` of the folder; keys and pads are played by Strada-Synth) and on a
+440 Hz tone, and prints what each one did: loudness and its change, true peak, crest factor,
+stereo image, the change by third-octave band, the tail, and on the tone the gain, the depth
+and rate of its swing, the pitch wobble and the harmonics, with the effect's own meters (gain
+reduction). Name effects to measure only those, `--only <text>` for some presets,
+`--write <folder>` to keep what each preset gave, `--presets <file.json>` to try presets before
+writing them in the code (`--dump` prints the factory ones in that form), and
+`--plugin <name> --source <sound> --set <parameter>=<value>` to put a plugin taken as a
+reference through the same measures. The recordings stay on the machine that measures.
+
 ## Measuring
 
 ```

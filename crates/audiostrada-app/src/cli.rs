@@ -30,6 +30,14 @@ Commands:
                      Fingerprint a built-in console
   measure-report FILE.json|DIR... --output PAGE.html
                      Compare fingerprints (or every one of a folder) on one page of charts
+  measure-presets --audio DIR [EFFECT...] [--only TEXT] [--write DIR] [--presets FILE.json]
+                     Play every factory preset on a sound of its kind (vocal.wav, kick.wav,
+                     mix.wav... of DIR) and on a tone: loudness, peaks, gain reduction, change by
+                     band, tail, modulation
+  measure-presets --dump [EFFECT...]
+                     Print the factory presets as a file for --presets
+  measure-presets --audio DIR --plugin NAME [--source SOUND] [--set PARAM=VALUE]...
+                     The same measures of a plugin taken as a reference
   mcp                Serve the Model Context Protocol on stdio, for agents, on a project of its
                      own; with --connect <PORT>, drive the AudioStrada started with --control <PORT>
   license keygen     Print a new key pair for signing licenses (keep the secret private)
@@ -86,6 +94,7 @@ pub enum Command {
         output: PathBuf,
     },
     PluginParams(String),
+    MeasurePresets(crate::preset_report::Args),
 }
 
 /// What `measure` fingerprints: the references of a file, or one built-in console.
@@ -196,6 +205,45 @@ pub fn parse(mut args: impl Iterator<Item = String>) -> Result<Command, String> 
                 (false, Some(output)) => Ok(Command::MeasureReport { files, output }),
                 _ => Err("'measure-report' needs fingerprints and --output <FILE>".into()),
             };
+        }
+        "measure-presets" => {
+            let mut m = crate::preset_report::Args::default();
+            let mut audio = None;
+            while let Some(arg) = args.next() {
+                if !arg.starts_with("--") {
+                    m.effects.push(arg);
+                    continue;
+                }
+                if arg == "--dump" {
+                    m.dump = true;
+                    continue;
+                }
+                let value = args
+                    .next()
+                    .ok_or_else(|| format!("missing value for {arg}"))?;
+                match arg.as_str() {
+                    "--audio" => audio = Some(PathBuf::from(value)),
+                    "--only" => m.only = Some(value),
+                    "--write" => m.write = Some(value.into()),
+                    "--plugin" => m.plugin = Some(value),
+                    "--source" => m.source = Some(value),
+                    "--presets" => m.presets = Some(value.into()),
+                    "--set" => {
+                        let pair = value.rsplit_once('=').and_then(|(k, v)| {
+                            v.trim().parse().ok().map(|v| (k.trim().to_owned(), v))
+                        });
+                        m.set
+                            .push(pair.ok_or_else(|| format!("invalid setting '{value}'"))?);
+                    }
+                    other => return Err(format!("unknown option '{other}' for measure-presets")),
+                }
+            }
+            m.audio = match audio {
+                Some(audio) => audio,
+                None if m.dump => PathBuf::new(),
+                None => return Err("'measure-presets' needs --audio <DIR>".into()),
+            };
+            return Ok(Command::MeasurePresets(m));
         }
         "plugin-params" => {
             let query: Vec<String> = args.collect();
@@ -539,6 +587,17 @@ mod tests {
             }))
         );
         assert!(parse_str("measure").is_err());
+        assert_eq!(
+            parse_str("measure-presets --audio sounds eq --only vocal --set mix=50"),
+            Ok(Command::MeasurePresets(crate::preset_report::Args {
+                audio: "sounds".into(),
+                effects: vec!["eq".into()],
+                only: Some("vocal".into()),
+                set: vec![("mix".into(), 50.0)],
+                ..Default::default()
+            }))
+        );
+        assert!(parse_str("measure-presets eq").is_err());
         assert!(parse_str("measure a.toml --console X").is_err());
         assert_eq!(
             parse_str("measure-report a.json b.json --output page.html"),

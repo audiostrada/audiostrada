@@ -18,9 +18,13 @@ de chaque réglage.
   ranger). **A** / **B** retiennent deux réglages à comparer, le bouton à côté copie l'un sur
   l'autre.
 - **Les presets d'usine** commencent par *Par défaut*, les réglages propres à l'effet, puis
-  vont par source ou par usage (*Voix*, *Grosse caisse*, *Bus batterie*, *Master*,
-  *Correction*...). Ceux rangés sous *Send* sont à 100 % d'effet, pour un effet sur un bus
-  alimenté par des sends ; les presets *Sidechain* attendent la clé d'une autre piste.
+  vont par source ou par usage (*Voix*, *Batterie*, *Basse*, *Bus*, *Master*,
+  *Correction*...), de trois à six sous chacun. Ils sont réglés sur des enregistrements de ce
+  qu'ils nomment, pour marcher tout de suite sur une piste dont les crêtes tournent autour de
+  -6 dBFS : ceux qui façonnent un son le rendent au volume où il est entré, et le seuil d'un
+  compresseur est le premier réglage à bouger pour une piste plus faible ou plus forte. Ceux
+  rangés sous *Send* sont à 100 % d'effet, pour un effet sur un bus alimenté par des sends ;
+  les presets *Sidechain* et *Ducker* attendent la clé d'une autre piste.
 - **Bypass**, à droite de la barre, s'allume en ambre tant que l'effet est bypassé.
 - **Les chaînes d'effets** gardent toute une liste d'effets avec leurs réglages : clic droit sur
   un effet (ou menu de la piste) › *Enregistrer les effets comme chaîne*, puis ajoutez-la à
