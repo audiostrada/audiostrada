@@ -113,8 +113,10 @@ the bars that play it.
   build-up to come in. The bridge goes at the end, in half time without the hats; the outro is
   one last hit, kick and crash. Each is a variation like the others, to edit or move in the
   chain.
-- **Names**: right-click a variation to name it (Intro, Verse, Hook, Bridge, Outro, or your
-  own); its name shows in the chain and on the pattern in the timeline.
+- **Names**: right-click a variation, or a bar of the chain › *Rename*, to name it (Intro,
+  Verse, Hook, Bridge, Outro, or your own); its name shows in the chain and on the pattern in
+  the timeline. Two variations never share a name: a second intro becomes *Intro 2*, and menus
+  show each one's letter beside its name.
 - **The chain** shows what each bar plays. A click on a bar shows its variation and takes the
   playhead there; right-click to change what it plays, or to make the bar a new variation that
   keeps its notes.

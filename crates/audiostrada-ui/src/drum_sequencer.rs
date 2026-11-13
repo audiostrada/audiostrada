@@ -475,6 +475,92 @@ pub(crate) fn label(clip: &audiostrada_core::Clip, v: u8) -> String {
         .unwrap_or_else(|| variation_name(v))
 }
 
+/// A variation's name in a menu: its name and its letter, so that two of the same name are told
+/// apart.
+pub(crate) fn menu_label(clip: &audiostrada_core::Clip, v: u8) -> String {
+    match clip.variation_names.get(&v) {
+        Some(name) => format!("{name}  ({})", variation_name(v)),
+        None => variation_name(v),
+    }
+}
+
+/// `name` unless a variation of `clip` has it already, else with the first number free.
+fn unique_name(clip: &audiostrada_core::Clip, name: &str, v: u8) -> String {
+    let taken = |n: &str| {
+        clip.variation_names
+            .iter()
+            .any(|(&other, given)| other != v && given == n)
+    };
+    if !taken(name) {
+        return name.to_owned();
+    }
+    (2..)
+        .map(|k| format!("{name} {k}"))
+        .find(|n| !taken(n))
+        .unwrap_or_else(|| name.to_owned())
+}
+
+/// The names to give a variation: the usual sections, one typed, or back to its letter;
+/// `Some(None)` for its letter.
+fn naming_menu(
+    ui: &mut Ui,
+    clip: &audiostrada_core::Clip,
+    v: u8,
+    naming: &mut std::collections::HashMap<u8, String>,
+) -> Option<Option<String>> {
+    let mut named = None;
+    ui.label(RichText::new(tr("Name of the variation")).strong());
+    for name in ["Intro", "Verse", "Hook", "Bridge", "Outro"] {
+        if ui.button(tr(name)).clicked() {
+            named = Some(Some(tr(name).to_owned()));
+            ui.close();
+        }
+    }
+    ui.separator();
+    let text = naming.entry(v).or_insert_with(|| label(clip, v));
+    let edit = ui
+        .add(egui::TextEdit::singleline(text).desired_width(140.0))
+        .on_hover_text(tr("Type a name, then Enter"));
+    if edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+        let name = text.trim().to_owned();
+        named = Some((!name.is_empty()).then_some(name));
+        ui.close();
+    }
+    if clip.variation_names.contains_key(&v) && ui.button(tr("Back to its letter")).clicked() {
+        named = Some(None);
+        ui.close();
+    }
+    named
+}
+
+/// Names variation `v` of clip `id` (a number added when the name is taken), or gives it its
+/// letter back, in one undo step.
+fn name_variation(
+    params: &mut Params,
+    state: &mut SequencerState,
+    id: ClipId,
+    v: u8,
+    name: Option<String>,
+) {
+    state.naming.remove(&v);
+    params
+        .doc
+        .history_mut()
+        .edit(tr("Name the variation"), |p| {
+            if let Some(c) = audiostrada_core::edit::clip_mut(p, id) {
+                match name {
+                    Some(name) => {
+                        let name = unique_name(c, &name, v);
+                        c.variation_names.insert(v, name);
+                    }
+                    None => {
+                        c.variation_names.remove(&v);
+                    }
+                }
+            }
+        });
+}
+
 /// A section of a song a pattern can play besides its groove.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Section {
@@ -1100,43 +1186,13 @@ pub fn show(
                 state.variation = v;
             }
             response.context_menu(|ui| {
-                ui.label(RichText::new(tr("Name of the variation")).strong());
-                for name in ["Intro", "Verse", "Hook", "Bridge", "Outro"] {
-                    if ui.button(tr(name)).clicked() {
-                        named = Some((v, Some(tr(name).to_owned())));
-                        ui.close();
-                    }
-                }
-                ui.separator();
-                let text = state.naming.entry(v).or_insert_with(|| label(&clip, v));
-                let edit = ui.add(egui::TextEdit::singleline(text).desired_width(140.0));
-                if edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                    let name = text.trim().to_owned();
-                    named = Some((v, (!name.is_empty()).then_some(name)));
-                    ui.close();
-                }
-                if clip.variation_names.contains_key(&v)
-                    && ui.button(tr("Back to its letter")).clicked()
-                {
-                    named = Some((v, None));
-                    ui.close();
+                if let Some(name) = naming_menu(ui, &clip, v, &mut state.naming) {
+                    named = Some((v, name));
                 }
             });
         }
         if let Some((v, name)) = named {
-            state.naming.remove(&v);
-            let id = clip.id;
-            params
-                .doc
-                .history_mut()
-                .edit(tr("Name the variation"), |p| {
-                    if let Some(c) = audiostrada_core::edit::clip_mut(p, id) {
-                        match name {
-                            Some(name) => c.variation_names.insert(v, name),
-                            None => c.variation_names.remove(&v),
-                        };
-                    }
-                });
+            name_variation(params, state, clip.id, v, name);
         }
         let add = |ui: &mut Ui, text: String, hint: &str| {
             chip(ui, &text, Color32::from_rgb(70, 78, 92), false)
@@ -1229,6 +1285,7 @@ pub fn show(
                     if let Some(start) = start {
                         c.start = start;
                     }
+                    let name = unique_name(c, &name, v);
                     c.variation_names.insert(v, name);
                 }
                 audiostrada_core::edit::resolve_overlaps(p, track, &[id]);
@@ -1371,6 +1428,7 @@ pub fn show(
                 n = b + 1
             ));
             let mut picked = None;
+            let mut renamed = None;
             if response.clicked() {
                 // Shows its variation, the playhead at the bar's start.
                 state.variation = v;
@@ -1378,12 +1436,22 @@ pub fn show(
                 params.doc.player_mut().locate(at);
             }
             response.context_menu(|ui| {
+                ui.label(RichText::new(tr("This bar plays")).strong());
                 for &x in &used {
-                    if ui.selectable_label(x == v, label(&clip, x)).clicked() {
+                    if ui.selectable_label(x == v, menu_label(&clip, x)).clicked() {
                         picked = Some(x);
                         ui.close();
                     }
                 }
+                ui.separator();
+                ui.menu_button(
+                    crate::trf!("Rename {name}", name = menu_label(&clip, v)),
+                    |ui| {
+                        if let Some(name) = naming_menu(ui, &clip, v, &mut state.naming) {
+                            renamed = Some((v, name));
+                        }
+                    },
+                );
                 ui.separator();
                 for x in [B, FILL]
                     .into_iter()
@@ -1399,6 +1467,9 @@ pub fn show(
                     }
                 }
             });
+            if let Some((v, name)) = renamed.take() {
+                name_variation(params, state, clip.id, v, name);
+            }
             if let Some(next) = picked.filter(|&n| n != v) {
                 let mut changed = chain.clone();
                 let mut notes = assign(&notes, &grid, &mut changed, b, next, swing);
@@ -1798,6 +1869,20 @@ mod tests {
             step: 1000.0,
             steps: 16,
         }
+    }
+
+    #[test]
+    fn two_variations_never_share_a_name() {
+        let mut p = audiostrada_core::Project::new("t", 48_000);
+        let t = p.add_track("Drums");
+        let id = p.add_midi_clip(t, 0, 1000, Vec::new()).unwrap();
+        let mut clip = audiostrada_core::edit::clip(&p, id).unwrap().clone();
+        clip.variation_names.insert(3, "Intro".into());
+        assert_eq!(unique_name(&clip, "Intro", 3), "Intro", "its own name");
+        assert_eq!(unique_name(&clip, "Intro", 4), "Intro 2");
+        clip.variation_names.insert(4, "Intro 2".into());
+        assert_eq!(unique_name(&clip, "Intro", 5), "Intro 3");
+        assert_eq!(menu_label(&clip, 4), "Intro 2  (D)");
     }
 
     #[test]

@@ -124,8 +124,10 @@ s'édite une fois pour toutes les mesures qui la jouent.
   grosse caisse sur le un, avec une montée de caisse claire pour entrer. Le pont va à la fin, en
   demi-temps sans les charleys ; l'outro est une dernière frappe, grosse caisse et crash. Chacune
   est une variation comme les autres, à modifier ou à déplacer dans l'enchaînement.
-- **Noms** : clic droit sur une variation pour la nommer (Intro, Couplet, Refrain, Pont, Outro,
-  ou le vôtre) ; son nom s'affiche dans l'enchaînement et sur le motif dans la timeline.
+- **Noms** : clic droit sur une variation, ou sur une mesure de l'enchaînement › *Renommer*, pour
+  la nommer (Intro, Couplet, Refrain, Pont, Outro, ou le vôtre) ; son nom s'affiche dans
+  l'enchaînement et sur le motif dans la timeline. Deux variations n'ont jamais le même nom : une
+  seconde intro devient *Intro 2*, et les menus montrent la lettre de chacune à côté de son nom.
 - **L'enchaînement** montre ce que joue chaque mesure. Un clic sur une mesure affiche sa variation
   et y amène la tête de lecture ; le clic droit change ce qu'elle joue, ou fait de la mesure une
   nouvelle variation qui garde ses notes.

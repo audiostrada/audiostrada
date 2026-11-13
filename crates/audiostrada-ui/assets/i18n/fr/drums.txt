@@ -341,3 +341,12 @@ Refrain
 
 Bar {n}: click to show what it plays and go there, right-click to change it
 Mesure {n} : clic pour afficher ce qu'elle joue et y aller, clic droit pour la changer
+
+This bar plays
+Cette mesure joue
+
+Rename {name}
+Renommer {name}
+
+Type a name, then Enter
+Tapez un nom, puis Entrée
