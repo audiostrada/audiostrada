@@ -438,7 +438,9 @@ pub static clap_entry: clap_plugin_entry = clap_plugin_entry {
     get_factory: Some(get_factory),
 };
 
-/// Where the library built next to the running test is, if it was built.
+/// Where the library built with the running test is, if it was built: in a folder above the
+/// test (the profile's, or `deps`), or in this crate's own build folders (Cargo 1.100 builds
+/// each package in `build/<package>/<hash>/out`). The newest when there are several.
 pub fn built_library() -> Option<std::path::PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let name = format!(
@@ -446,9 +448,17 @@ pub fn built_library() -> Option<std::path::PathBuf> {
         std::env::consts::DLL_PREFIX,
         std::env::consts::DLL_SUFFIX
     );
-    exe.ancestors()
-        .skip(1)
-        .take(3)
-        .map(|dir| dir.join(&name))
-        .find(|p| p.is_file())
+    let mut found = Vec::new();
+    for dir in exe.ancestors().skip(1).take(6) {
+        found.push(dir.join(&name));
+        found.push(dir.join("deps").join(&name));
+        if let Ok(builds) = std::fs::read_dir(dir.join("build").join("audiostrada-test-plugin")) {
+            found.extend(builds.flatten().map(|b| b.path().join("out").join(&name)));
+        }
+    }
+    found
+        .into_iter()
+        .filter_map(|p| Some((std::fs::metadata(&p).ok()?.modified().ok()?, p)))
+        .max_by_key(|(time, _)| *time)
+        .map(|(_, p)| p)
 }
