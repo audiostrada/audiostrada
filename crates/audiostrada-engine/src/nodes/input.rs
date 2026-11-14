@@ -42,33 +42,15 @@ impl ConsoleControls {
     }
 }
 
-/// What every console of a project shares: all colors off at once, to compare, or one console
-/// heard in place of each of them (a blind test).
+/// What every console of a project shares: all colors off at once, to compare.
 #[derive(Debug, Default)]
 pub struct ConsoleSwitch {
     off: AtomicBool,
-    /// 0: each channel's own console; else a model (high half) and its amount in tenths of a
-    /// percent plus one (low half).
-    test: std::sync::atomic::AtomicU32,
 }
 
 impl ConsoleSwitch {
     pub fn set_off(&self, off: bool) {
         self.off.store(off, Ordering::Relaxed);
-    }
-
-    /// The console (index into `audiostrada_dsp::console::MODELS`) and amount every channel
-    /// plays, or `None` for its own.
-    pub fn set_test(&self, test: Option<(usize, f32)>) {
-        let word = test.map_or(0, |(model, amount)| {
-            ((model as u32) << 16) | ((amount.clamp(0.0, 100.0) * 10.0).round() as u32 + 1)
-        });
-        self.test.store(word, Ordering::Relaxed);
-    }
-
-    fn test(&self) -> Option<(usize, f32)> {
-        let word = self.test.load(Ordering::Relaxed);
-        (word != 0).then(|| ((word >> 16) as usize, ((word & 0xffff) - 1) as f32 / 10.0))
     }
 }
 
@@ -77,12 +59,9 @@ pub struct InputStage {
     gain: SharedParam,
     smoothed: Smoothed,
     controls: ConsoleControls,
-    /// Every console color off at once, to compare, or one console in place of them all.
+    /// Every console color off at once, to compare.
     bypass: Arc<ConsoleSwitch>,
     color: ConsoleColor,
-    /// What the console plays while a blind test has it heard dry: it keeps running, so that
-    /// switching back gives no tell (no warm-up, no level settling).
-    unheard: [Vec<f32>; 2],
 }
 
 impl InputStage {
@@ -97,7 +76,6 @@ impl InputStage {
                 controls: controls.clone(),
                 bypass,
                 color: ConsoleColor::new(48_000),
-                unheard: [Vec::new(), Vec::new()],
             },
             gain,
             controls,
@@ -106,9 +84,8 @@ impl InputStage {
 }
 
 impl Processor for InputStage {
-    fn prepare(&mut self, sample_rate: u32, max_frames: usize) {
+    fn prepare(&mut self, sample_rate: u32, _max_frames: usize) {
         self.color = ConsoleColor::new(sample_rate);
-        self.unheard = [vec![0.0; max_frames], vec![0.0; max_frames]];
     }
 
     fn process(&mut self, ctx: &mut ProcessContext<'_>) {
@@ -124,12 +101,10 @@ impl Processor for InputStage {
         }
         let c = &self.controls;
         let off = self.bypass.off.load(Ordering::Relaxed);
-        let test = self.bypass.test();
-        let (model, amount) = match (off, test) {
-            // A blind test's dry take: the console tested still runs, unheard.
-            (true, Some(t)) => t,
-            (true, None) => (0, 0.0),
-            (false, t) => t.unwrap_or((c.model.get().round() as usize, c.amount.get())),
+        let (model, amount) = if off {
+            (0, 0.0)
+        } else {
+            (c.model.get().round() as usize, c.amount.get())
         };
         self.color.set(
             model,
@@ -140,15 +115,7 @@ impl Processor for InputStage {
         );
         if self.color.active() && b.output_channels() >= 2 {
             let (left, right) = b.output_pair(0, 1);
-            let n = left.len();
-            if off && n <= self.unheard[0].len() {
-                let [l, r] = &mut self.unheard;
-                l[..n].copy_from_slice(left);
-                r[..n].copy_from_slice(right);
-                self.color.process(&mut l[..n], &mut r[..n]);
-            } else if !off {
-                self.color.process(left, right);
-            }
+            self.color.process(left, right);
         }
     }
 

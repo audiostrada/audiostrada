@@ -10,8 +10,8 @@ through them family by family; the parameter tables give each control's range an
   its settings changed since. The arrows beside it, or [[Left]] and [[Right]], step through the
   presets; right-click an arrow › *MIDI learn* and press a button of your MIDI controller to
   step them from there, window open or not. Click its name for the preset panel: a search, the categories, your favorites, the
-  factory presets and yours apart. Browsing it with the pointer or [[Up]] and [[Down]] lets you
-  hear each preset; [[Enter]] keeps it, [[Escape]] goes back to the settings before.
+  factory presets and yours apart. The ear at the right of a preset lets you hear it (a
+  second click stops), as browsing with [[Up]] and [[Down]] does; [[Enter]] keeps it, [[Escape]] goes back to the settings before.
   Right-click one of yours to rename or delete it. The star adds the preset to your favorites,
   the disk saves the current settings (type *Category: name* to file it). **A** / **B** hold two
   settings to compare, the button beside them copies one onto the other.

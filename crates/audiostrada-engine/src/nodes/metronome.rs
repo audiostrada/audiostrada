@@ -212,7 +212,8 @@ impl Processor for Metronome {
         let gain = self.controls.gain.get();
         let t = ctx.transport;
         let mut start = 0;
-        if self.controls.enabled.get() >= 0.5 && t.playing && t.bpm > 0.0 {
+        let on = self.controls.enabled.get() >= 0.5 && t.playing;
+        if (on || t.counting) && t.bpm > 0.0 {
             let bar = t.bar;
             let grid = Grid::new(&self.controls, bar.beats_per_bar, bar.unit);
             let per_unit = f64::from(grid.ticks_per_unit);
@@ -345,6 +346,7 @@ mod tests {
         let mut fraction = 0.5;
         for block in 0..300u64 {
             let transport = TransportInfo {
+                counting: false,
                 playing: true,
                 position: block * 480,
                 sample_rate: 48_000,
@@ -385,6 +387,7 @@ mod tests {
         controls.enabled.set(0.0);
         metronome.reset();
         let transport = TransportInfo {
+            counting: false,
             playing: true,
             position: 0,
             sample_rate: 48_000,

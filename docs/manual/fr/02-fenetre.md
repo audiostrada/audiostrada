@@ -6,7 +6,8 @@
 
 De gauche à droite :
 
-- **Transport** : aller au début, lecture / pause ([[Space]]), stop, enregistrement, et
+- **Transport** : aller au début, lecture / pause ([[Space]] ; la lecture s'arrête d'elle-même après le dernier clip, sauf en
+  boucle ou en enregistrement), stop, enregistrement, et
   **Panique**, qui coupe toutes les notes.
 - **Boucle**, **punch**, **métronome**, **REF** (écouter une piste de référence) et le
   chronomètre du **mode basse latence** (voir *Enregistrement*).

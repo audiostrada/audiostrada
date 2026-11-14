@@ -219,6 +219,7 @@ mod tests {
         let (mut meter, mut readout) = LoudnessMeter::new();
         meter.prepare(48_000, 480);
         let transport = TransportInfo {
+            counting: false,
             playing: true,
             position: 0,
             sample_rate: 48_000,

@@ -63,8 +63,9 @@ arm the selected tracks.
 - Drag an effect to reorder it, or onto another strip to copy it there ([[Alt]]: move it). Drop
   it on the list to choose the place, anywhere else on the strip to put it last.
 - **Bypass** above the inserts bypasses every effect of the strip, and stays lit while they are
-  bypassed; on the master, **ALL** bypasses every effect of the session (an instrument leading a
-  track keeps playing).
+  bypassed. The master has its two on a line of their own: **Bypass master** for its own
+  effects, **Global bypass** for every effect of the session (an instrument leading a track keeps
+  playing).
 
 **Effect windows** show, in their bottom bar, the track driving the detection for the effects
 that have a **Sidechain**, the level going in and coming out (peaks and loudness) and the
@@ -90,7 +91,7 @@ chains split the signal into branches of their own and mix them back.
   right-click menu and in the Inspector.
 - **Buses** sum the tracks routed to them through their own inserts, sends and fader, then go to
   the master. They hold no clips. In the timeline the tracks of a bus show under it and fold
-  with it; dragging a track among them routes it there. Track › Add › *Add bus* makes an empty
+  with it, in the mixer too (the arrow on the bus's name plate); dragging a track among them routes it there. Track › Add › *Add bus* makes an empty
   one, for a reverb fed by sends.
 - **Sends** go to any track or bus (pre or post fader); the menu of an empty send slot lists
   the buses first, and *New effect bus* makes one fed by the send. The send is added to every
@@ -159,16 +160,6 @@ its neighbours', which widens the mix as a real console does. Each track can tak
 (*Track console*). The power button beside the menu switches every colour off at the same level,
 to compare.
 
-**Blind test › Start…** (or Transport › *Console blind test…*) tells from which amount you hear a
-console. Choose the console tested (the project's, or one of the four), and first listen freely
-to the mix with the console pushed all the way and without it. Then the duel: two takes of the
-mix, 1 and 2 (keys 1 and 2 switch between them), one through the console, drawn at random; say
-which. The test starts at 100 % and goes down by levels (75, 50, 35, 25, 15 %): three right
-answers pass a level, two misses at a level end it. Each answer tells which take went through
-which console at which amount; the end tells from which amount you hear it, against your
-project's setting, and keeps the results of each console. The test changes nothing in the
-project.
-
 A console's character depends on the level it gets: **Gain staging › Apply** sets each audio
 track's input gain so that it plays around -18 dBFS (the selected tracks, or all of them).
 
@@ -189,7 +180,7 @@ click cleans it up and brings it out, a right-click (or the track's right-click 
 button is lit, and the switch beside it bypasses everything the Express Mix did
 (the strip's modules it set, the effects it added, the ride, the pan, the console color, the
 send to the space), to compare with the track as it was; a second click puts it all back.
-**Express Mix: all tracks**, at the top of the mixer, does it for every track at once (not the
+**Express Mix**, at the top of the mixer, does it for every track at once (not the
 buses).
 
 Track › *Express Mix* with no track selected takes every audio track. The Express Mix opens in a

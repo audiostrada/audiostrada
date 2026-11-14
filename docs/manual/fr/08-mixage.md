@@ -64,8 +64,9 @@ les pistes sélectionnées.
 - Glissez un effet pour le réordonner, ou sur une autre tranche pour l'y copier ([[Alt]] : le
   déplacer). Déposé sur la liste, il va à l'endroit choisi ; ailleurs sur la tranche, en dernier.
 - **Bypass** au-dessus des inserts met en bypass tous les effets de la tranche, et reste allumé
-  tant qu'ils le sont ; sur le master, **ALL** met en bypass tous les effets de la session (un
-  instrument en tête de piste continue de jouer).
+  tant qu'ils le sont. Le master a les deux siens sur une ligne à part : **Bypass master** pour
+  ses propres effets, **Bypass global** pour tous les effets de la session (un instrument en tête
+  de piste continue de jouer).
 
 **Les fenêtres d'effets** montrent, dans leur barre du bas, la piste qui pilote la détection pour
 les effets qui ont un **Sidechain**, le niveau qui entre et qui sort (crêtes et sonie) et le gain
@@ -91,7 +92,7 @@ clic. Les chaînes parallèles séparent le signal en branches et les remélange
   Le menu est aussi dans le clic droit de la piste et dans l'Inspecteur.
 - **Les bus** additionnent les pistes routées vers eux à travers leurs propres inserts, sends et
   fader, puis vont au master. Ils ne portent pas de clips. Dans la timeline, les pistes d'un bus
-  s'affichent sous lui et se replient avec lui ; glisser une piste parmi elles la route vers ce
+  s'affichent sous lui et se replient avec lui, dans le mixer aussi (la flèche sur la plaque du bus) ; glisser une piste parmi elles la route vers ce
   bus. Piste › Ajouter › *Ajouter un bus* en crée un vide, pour une réverbe alimentée par des
   sends.
 - **Les sends** vont vers n'importe quelle piste ou bus (pré ou post fader) ; le menu d'un
@@ -166,16 +167,6 @@ part : ses composants diffèrent un peu de ceux de ses voisines, ce qui élargit
 une vraie console. Chaque piste peut prendre une autre console (*Console de la piste*). Le bouton
 marche/arrêt à côté du menu coupe toutes les couleurs au même niveau, pour comparer.
 
-**Test en aveugle › Lancer…** (ou Transport › *Test en aveugle des consoles…*) dit à partir de
-quelle quantité vous entendez une console. Choisissez la console testée (celle du projet, ou une
-des quatre), et écoutez d'abord librement le mix avec la console poussée à fond et sans elle. Puis
-le duel : deux prises du mix, 1 et 2 (les touches 1 et 2 passent de l'une à l'autre), l'une passe
-par la console, tirée au hasard ; dites laquelle. Le test commence à 100 % et descend par paliers
-(75, 50, 35, 25, 15 %) : trois bonnes réponses passent un palier, deux erreurs sur un palier
-l'arrêtent. Chaque réponse dit quelle prise passait par quelle console et à quelle quantité ; la
-fin dit à partir de quelle quantité vous l'entendez, comparé au réglage de votre projet, et garde
-les résultats de chaque console. Le test ne change rien au projet.
-
 Le caractère d'une console dépend du niveau qu'elle reçoit : **Réglage des gains › Appliquer**
 règle le gain d'entrée de chaque piste audio pour qu'elle joue vers -18 dBFS (les pistes
 sélectionnées, ou toutes).
@@ -199,7 +190,7 @@ l'Express Mix appliqué, le bouton est allumé, et l'interrupteur à côté bypa
 l'Express Mix a fait (les modules du Channel Strip qu'il a réglés, les effets ajoutés, le suivi
 du volume, le pan, la couleur de console, l'envoi vers l'espace), pour comparer avec la piste
 telle qu'elle était ; un second clic remet tout en place.
-**Express Mix : toutes les pistes**, en haut du mixer, le fait pour toutes les pistes d'un coup
+**Express Mix**, en haut du mixer, le fait pour toutes les pistes d'un coup
 (pas les bus).
 
 Piste › *Express Mix* sans piste sélectionnée prend toutes les pistes audio. L'Express Mix s'ouvre

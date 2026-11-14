@@ -4386,42 +4386,49 @@ pub fn strip_line(ui: &mut Ui, doc: &mut Document, track: TrackId, width: f32) {
     let tracks = targets(doc, track);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
-        let (rect, response) = ui.allocate_exact_size(vec2(width - 20.0, 17.0), Sense::click());
+        // Drawn as the strip's other small buttons (Rack, Bypass): lit while it is applied.
+        let (rect, response) = ui.allocate_exact_size(vec2(width - 17.0, 15.0), Sense::click());
         let hovered = response.hovered();
-        let fill = match (done.is_some(), bypassed) {
-            (true, false) => theme::mix(p.surface, p.accent, if hovered { 0.75 } else { 0.6 }),
-            (true, true) => theme::mix(p.surface, p.accent, 0.2),
-            (false, _) if hovered => p.hover,
-            (false, _) => p.surface,
+        let lit = done.is_some() && !bypassed;
+        let fill = if lit {
+            theme::mix(p.surface, p.accent, if hovered { 0.85 } else { 0.7 })
+        } else if hovered {
+            p.hover
+        } else {
+            p.surface
         };
         let painter = ui.painter();
-        painter.rect(
-            rect,
-            3.0,
-            fill,
-            Stroke::new(1.0, theme::mix(p.surface, p.accent, 0.5)),
-            StrokeKind::Inside,
-        );
-        let ink = match (done.is_some(), bypassed) {
-            (true, false) => theme::text_on(fill),
-            (true, true) => p.weak,
-            (false, _) => p.text,
+        painter.rect_filled(rect, 3.0, fill);
+        if !lit {
+            painter.rect_stroke(
+                rect,
+                3.0,
+                Stroke::new(1.0, Color32::from_black_alpha(if p.dark { 90 } else { 40 })),
+                StrokeKind::Inside,
+            );
+        }
+        let ink = if lit {
+            theme::text_on(fill)
+        } else if hovered {
+            p.text
+        } else {
+            theme::mix(p.weak, p.text, 0.35)
         };
-        paint_wand(
+        let text = if bypassed {
+            tr("Bypassed")
+        } else {
+            tr("Express Mix")
+        };
+        let galley = painter.layout_no_wrap(text.to_owned(), FontId::proportional(9.0), ink);
+        let left = rect.center().x - (galley.size().x + 13.0) / 2.0;
+        paint_faders(
             painter,
-            Rect::from_center_size(pos2(rect.left() + 10.0, rect.center().y), vec2(11.0, 11.0)),
+            Rect::from_min_size(pos2(left, rect.center().y - 4.5), vec2(9.0, 9.0)),
             ink,
         );
-        let text = match (done.is_some(), bypassed) {
-            (true, false) => tr("Express Mix"),
-            (true, true) => tr("Bypassed"),
-            (false, _) => tr("Express Mix"),
-        };
-        painter.with_clip_rect(rect.shrink(1.0)).text(
-            pos2(rect.left() + 19.0, rect.center().y),
-            Align2::LEFT_CENTER,
-            text,
-            theme::strong(10.0),
+        painter.with_clip_rect(rect.shrink(1.0)).galley(
+            pos2(left + 13.0, rect.center().y - galley.size().y / 2.0),
+            galley,
             ink,
         );
         let hint = match done {
@@ -4465,7 +4472,7 @@ pub fn strip_line(ui: &mut Ui, doc: &mut Document, track: TrackId, width: f32) {
                 menu_items(ui, doc, &tracks);
             });
         // The bypass: lit while what the preparation did is switched off.
-        let (rect, response) = ui.allocate_exact_size(vec2(18.0, 17.0), Sense::click());
+        let (rect, response) = ui.allocate_exact_size(vec2(15.0, 15.0), Sense::click());
         let enabled = done.is_some();
         let fill = if bypassed {
             theme::MUTE
@@ -4475,13 +4482,15 @@ pub fn strip_line(ui: &mut Ui, doc: &mut Document, track: TrackId, width: f32) {
             p.surface
         };
         let painter = ui.painter();
-        painter.rect(
-            rect,
-            3.0,
-            fill,
-            Stroke::new(1.0, line_edge(&p)),
-            StrokeKind::Inside,
-        );
+        painter.rect_filled(rect, 3.0, fill);
+        if !bypassed {
+            painter.rect_stroke(
+                rect,
+                3.0,
+                Stroke::new(1.0, Color32::from_black_alpha(if p.dark { 90 } else { 40 })),
+                StrokeKind::Inside,
+            );
+        }
         let ink = if bypassed {
             theme::text_on(theme::MUTE)
         } else if enabled {
@@ -4489,7 +4498,7 @@ pub fn strip_line(ui: &mut Ui, doc: &mut Document, track: TrackId, width: f32) {
         } else {
             p.weak.gamma_multiply(0.5)
         };
-        paint_power(painter, rect.center(), 4.5, ink);
+        paint_power(painter, rect.center(), 4.0, ink);
         if enabled {
             let hint = if bypassed {
                 tr("The Express Mix is bypassed: click to hear it again")
@@ -4516,22 +4525,18 @@ pub fn strip_line(ui: &mut Ui, doc: &mut Document, track: TrackId, width: f32) {
     });
 }
 
-/// A wand with its sparkles, in `rect`.
-fn paint_wand(painter: &egui::Painter, rect: Rect, ink: Color32) {
-    let stroke = Stroke::new(1.2, ink);
-    let (a, b) = (
-        rect.left_bottom() + vec2(1.0, -1.0),
-        rect.center() + vec2(1.0, -1.0),
-    );
-    painter.line_segment([a, b], stroke);
-    for (c, r) in [
-        (vec2(3.5, -3.5), 1.8),
-        (vec2(-1.0, -4.0), 1.0),
-        (vec2(4.0, 1.0), 1.0),
-    ] {
-        let c = rect.center() + c;
-        painter.line_segment([c - vec2(r, 0.0), c + vec2(r, 0.0)], stroke);
-        painter.line_segment([c - vec2(0.0, r), c + vec2(0.0, r)], stroke);
+/// Express Mix's mark: three faders at their places, in `rect`.
+pub(crate) fn paint_faders(painter: &egui::Painter, rect: Rect, ink: Color32) {
+    let stroke = Stroke::new(1.1, ink.gamma_multiply(0.7));
+    for (k, at) in [0.35f32, 0.7, 0.5].into_iter().enumerate() {
+        let x = rect.left() + rect.width() * (0.2 + 0.3 * k as f32);
+        painter.line_segment([pos2(x, rect.top()), pos2(x, rect.bottom())], stroke);
+        let y = rect.top() + rect.height() * at;
+        painter.rect_filled(
+            Rect::from_center_size(pos2(x, y), vec2(rect.width() * 0.26, 2.6)),
+            1.0,
+            ink,
+        );
     }
 }
 
@@ -4549,17 +4554,42 @@ fn paint_power(painter: &egui::Painter, c: egui::Pos2, r: f32, ink: Color32) {
     painter.line_segment([c - vec2(0.0, r + 1.0), c - vec2(0.0, 1.0)], stroke);
 }
 
-/// The mixer's button preparing every track at once (not the buses nor the VCAs).
+/// The mixer's button preparing every track at once (not the buses nor the VCAs): its mark
+/// and its name.
 pub fn all_button(ui: &mut Ui, doc: &Document) {
     let p = theme::current(ui);
-    let button = egui::Button::new(RichText::new(tr("Express Mix: all tracks")).strong())
-        .fill(theme::mix(p.surface, p.accent, 0.5));
-    if ui
-        .add(button)
+    let text = tr("Express Mix");
+    let font = theme::strong(13.0);
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.to_owned(), font, theme::text_on(p.accent));
+    let height = ui.spacing().interact_size.y;
+    let size = vec2(galley.size().x + 36.0, height);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    let fill = theme::mix(
+        p.surface,
+        p.accent,
+        if response.hovered() { 0.65 } else { 0.5 },
+    );
+    let ink = theme::text_on(fill);
+    let painter = ui.painter();
+    painter.rect_filled(rect, radius(&p), fill);
+    paint_faders(
+        painter,
+        Rect::from_center_size(pos2(rect.left() + 15.0, rect.center().y), vec2(12.0, 12.0)),
+        ink,
+    );
+    painter.galley(
+        pos2(rect.left() + 26.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        ink,
+    );
+    if response
         .on_hover_text(tr(
             "Cleans up and brings out every track (not the buses): each one is listened to, \
              then you hear the proposal and leave out the tracks you want",
         ))
+        .on_hover_cursor(egui::CursorIcon::PointingHand)
         .clicked()
     {
         request(ui.ctx(), &every_track(doc), Mode::Both);

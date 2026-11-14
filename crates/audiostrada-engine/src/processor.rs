@@ -11,6 +11,8 @@ pub struct TransportInfo {
     pub beat: f64,
     pub bpm: f64,
     pub bar: BarPosition,
+    /// A count-in: the position holds and only the metronome plays, whatever its switch.
+    pub counting: bool,
 }
 
 /// Where the first frame falls in its bar, in units of the time signature (eighths in 6/8).

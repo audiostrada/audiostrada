@@ -22,9 +22,6 @@ use crate::trf;
 /// Heights of the bars, their edge included.
 const TOP: f32 = 57.0;
 const BOTTOM: f32 = 45.0;
-/// Rest of the pointer on a preset before it is heard, in seconds.
-const HOVER_REST: f64 = 0.12;
-
 // Colors and shapes shared with the effect browser.
 
 /// The bars at the top and bottom of the windows.
@@ -226,6 +223,8 @@ pub(crate) enum Glyph {
     Key,
     Search,
     Close,
+    /// An ear: to hear.
+    Ear,
 }
 
 pub(crate) fn paint_glyph(painter: &Painter, rect: Rect, glyph: Glyph, color: Color32) {
@@ -329,6 +328,29 @@ pub(crate) fn paint_glyph(painter: &Painter, rect: Rect, glyph: Glyph, color: Co
             line(&[(6.0, 6.0), (18.0, 18.0)]);
             line(&[(18.0, 6.0), (6.0, 18.0)]);
         }
+        Glyph::Ear => {
+            line(&[
+                (7.5, 10.0),
+                (8.3, 6.6),
+                (11.2, 4.4),
+                (14.6, 4.8),
+                (16.8, 7.4),
+                (16.9, 10.6),
+                (15.2, 13.2),
+                (13.3, 14.8),
+                (12.6, 17.3),
+                (11.0, 19.6),
+                (8.4, 19.8),
+            ]);
+            line(&[
+                (10.4, 10.2),
+                (11.3, 8.4),
+                (13.1, 8.2),
+                (14.2, 9.6),
+                (13.6, 11.3),
+                (12.0, 12.3),
+            ]);
+        }
     }
 }
 
@@ -404,11 +426,17 @@ pub(crate) fn key_hints_width(painter: &Painter, p: &Palette, hints: &[(&[&str],
 
 /// The 2 pixel line of `color` and the bar under it, over the whole `rect`; returns the bar.
 pub(crate) fn paint_top_band(painter: &Painter, p: &Palette, rect: Rect, color: Color32) -> Rect {
-    painter.rect_filled(
-        Rect::from_min_size(rect.min, vec2(rect.width(), 2.0)),
-        0.0,
-        color,
-    );
+    // The line fades from the logo's side to the other.
+    let line = Rect::from_min_size(rect.min, vec2(rect.width(), 2.0));
+    let faded = color.gamma_multiply(0.06);
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(line.left_top(), color);
+    mesh.colored_vertex(line.right_top(), faded);
+    mesh.colored_vertex(line.right_bottom(), faded);
+    mesh.colored_vertex(line.left_bottom(), color);
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(0, 2, 3);
+    painter.add(mesh);
     let bar = rect.with_min_y(rect.top() + 2.0);
     painter.rect_filled(bar, 0.0, bar_fill(p));
     painter.line_segment(
@@ -532,10 +560,8 @@ struct Panel {
     group: Group,
     /// Preset chosen with the keyboard.
     cursor: Option<String>,
-    /// Preset under the pointer, since when.
-    hover: Option<(String, f64)>,
-    /// The pointer moved since the last key: it chooses what is heard.
-    mouse: bool,
+    /// Preset whose listen button is on.
+    listening: Option<String>,
     /// Preset being heard, not kept yet.
     heard: Option<String>,
     /// The settings when the panel opened, back on Esc.
@@ -1218,8 +1244,7 @@ fn open_panel(
         search: String::new(),
         group,
         cursor: state.preset.clone(),
-        hover: None,
-        mouse: true,
+        listening: None,
         // What plays is the loaded preset, maybe changed since: nothing to hear yet.
         heard: state.preset.clone(),
         before: current_settings(doc, channel, insert),
@@ -1309,8 +1334,7 @@ fn preset_panel(
                 (None, false) => names.len() - 1,
             };
             panel.cursor = Some(names[k].to_owned());
-            panel.mouse = false;
-            panel.hover = None;
+            panel.listening = None;
         }
         match key {
             Key::Enter => match panel.rename.take() {
@@ -1320,9 +1344,6 @@ fn preset_panel(
             Key::Escape if panel.rename.take().is_none() => cancel = true,
             _ => {}
         }
-    }
-    if ui.input(|i| i.pointer.delta() != egui::Vec2::ZERO) {
-        panel.mouse = true;
     }
     let area = egui::Area::new(ui.scope_id().with("preset-panel"))
         .order(egui::Order::Foreground)
@@ -1480,7 +1501,7 @@ fn preset_panel(
                 column
             };
             let mut rows_ui = ui.new_child(UiBuilder::new().max_rect(rows));
-            let mut hovered = None;
+            let mut listen = None;
             egui::ScrollArea::vertical()
                 .id_salt("preset-rows")
                 .auto_shrink([false, false])
@@ -1503,10 +1524,11 @@ fn preset_panel(
                             flat,
                             state.preset.as_deref() == Some(&preset.name),
                             panel.cursor.as_deref() == Some(&preset.name),
+                            panel.listening.as_deref() == Some(&preset.name),
                             &mut panel.rename,
                         );
-                        if row.hovered {
-                            hovered = Some(preset.name.clone());
+                        if row.listen {
+                            listen = Some(preset.name.clone());
                         }
                         if row.clicked {
                             keep = Some(preset.name.clone());
@@ -1537,8 +1559,8 @@ fn preset_panel(
                 );
                 let galley = painter.layout(
                     tr(
-                        "Hover or browse with the keyboard to hear a preset; Esc goes back to the \
-                        settings before, Enter keeps it.",
+                        "Click a preset's ear or browse with the keyboard to hear it; Esc \
+                        goes back to the settings before, Enter keeps it.",
                     )
                     .to_owned(),
                     FontId::proportional(11.5),
@@ -1551,30 +1573,17 @@ fn preset_panel(
                     p.weak,
                 );
             }
-            hovered
+            listen
         });
-    let hovered = area.inner.filter(|_| panel.mouse);
-    // What is heard: the preset under the resting pointer, else the keyboard's.
-    let now = ui.input(|i| i.time);
-    match (&hovered, &panel.hover) {
-        (Some(name), Some((h, _))) if name == h => {}
-        (Some(name), _) => panel.hover = Some((name.clone(), now)),
-        (None, _) => panel.hover = None,
+    // A play button heard, a second click stops it; else what the keyboard browsed to.
+    if let Some(name) = area.inner {
+        panel.listening = if panel.listening.as_ref() == Some(&name) {
+            None
+        } else {
+            Some(name)
+        };
     }
-    let rested = panel
-        .hover
-        .as_ref()
-        .filter(|(_, since)| now - since >= HOVER_REST)
-        .map(|(n, _)| n.clone());
-    let waiting = panel.hover.is_some() && rested.is_none();
-    if waiting {
-        ctx.request_repaint_after(std::time::Duration::from_secs_f64(HOVER_REST));
-    }
-    let target = if waiting {
-        panel.heard.clone()
-    } else {
-        rested.or(panel.cursor.clone())
-    };
+    let target = panel.listening.clone().or(panel.cursor.clone());
     if target != panel.heard && keep.is_none() && !cancel && panel.rename.is_none() {
         match target
             .as_ref()
@@ -1760,11 +1769,14 @@ struct Row {
     rect: Rect,
     hovered: bool,
     clicked: bool,
+    /// Its play button was clicked.
+    listen: bool,
     scroll: bool,
     action: Option<RowAction>,
 }
 
-/// A preset of the panel's list: its name, "loaded", its star.
+/// A preset of the panel's list: its name, "loaded", its play button, its star.
+#[allow(clippy::too_many_arguments)]
 fn preset_row(
     ui: &mut Ui,
     preset: &Preset,
@@ -1772,6 +1784,7 @@ fn preset_row(
     flat: bool,
     loaded: bool,
     cursor: bool,
+    listening: bool,
     rename: &mut Option<(String, String)>,
 ) -> Row {
     let p = theme::current(ui);
@@ -1780,6 +1793,7 @@ fn preset_row(
         rect,
         hovered: response.hovered(),
         clicked: false,
+        listen: false,
         scroll: false,
         action: None,
     };
@@ -1838,9 +1852,35 @@ fn preset_row(
     );
     let favorite = crate::favorites::with(|f| f.preset(effect, &preset.name));
     let star = Rect::from_center_size(rect.right_center() - vec2(18.0, 0.0), vec2(22.0, 22.0));
+    // Heard on demand, never on hover: some effects change size with their settings.
+    let play = Rect::from_center_size(star.center() - vec2(26.0, 0.0), vec2(22.0, 22.0));
+    let play_response = ui
+        .interact(play, response.id.with("play"), Sense::click())
+        .on_hover_text(if listening {
+            tr("Stop hearing this preset")
+        } else {
+            tr("Hear this preset")
+        });
+    if listening {
+        ui.painter().circle_filled(play.center(), 10.0, p.accent);
+    } else if play_response.hovered() {
+        ui.painter().circle_filled(play.center(), 10.0, p.hover);
+    }
+    paint_glyph(
+        ui.painter(),
+        Rect::from_center_size(play.center(), vec2(15.0, 15.0)),
+        Glyph::Ear,
+        if listening {
+            theme::text_on(p.accent)
+        } else if cursor {
+            ink.gamma_multiply(0.8)
+        } else {
+            p.weak
+        },
+    );
     if loaded {
         painter.text(
-            pos2(star.left() - 6.0, rect.center().y),
+            pos2(play.left() - 6.0, rect.center().y),
             Align2::RIGHT_CENTER,
             tr("loaded"),
             theme::strong(10.5),
@@ -1875,10 +1915,12 @@ fn preset_row(
     );
     if star_response.clicked() {
         crate::favorites::change(|f| f.toggle_preset(effect, &preset.name));
+    } else if play_response.clicked() {
+        row.listen = true;
     } else if response.clicked() {
         row.clicked = true;
     }
-    row.hovered |= star_response.hovered();
+    row.hovered |= star_response.hovered() || play_response.hovered();
     if !preset.factory {
         response.context_menu(|ui| {
             if ui.button(tr("Rename")).clicked() {
@@ -2182,7 +2224,16 @@ fn bottom_bar(
 
     // Center: the levels in and out.
     let room = right - left;
-    let label_w = 24.0;
+    // As wide as its words, ENTRÉE and SORTIE included.
+    let label_w = [tr("IN"), tr("OUT")]
+        .iter()
+        .map(|t| {
+            painter
+                .layout_no_wrap((*t).to_owned(), theme::strong(9.5), p.weak)
+                .size()
+                .x
+        })
+        .fold(24.0, f32::max);
     let lufs_w = 80.0;
     let mut bars = ((room - 20.0) / 2.0 - label_w - 16.0 - lufs_w).min(120.0);
     let lufs = bars >= 50.0;

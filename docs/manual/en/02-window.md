@@ -6,8 +6,8 @@
 
 From left to right:
 
-- **Transport**: go to start, play / pause ([[Space]]), stop, record, and **Panic**, which
-  silences every note.
+- **Transport**: go to start, play / pause ([[Space]]; playback stops by itself past the last clip,
+  unless it loops or records), stop, record, and **Panic**, which silences every note.
 - **Loop**, **punch**, **metronome**, **REF** (listen to a reference track) and the stopwatch of
   the **low latency mode** (see *Recording*).
 - **The counter**: bars.beats.ticks, with the clock time below.

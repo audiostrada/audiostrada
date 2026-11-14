@@ -236,8 +236,9 @@ fn body(ui: &mut Ui, click: &mut MetronomeSettings, beats: u32, unit: u32) {
         dialog::hint(
             ui,
             tr(
-                "The count-in clicks bars before recording starts; the pre-roll plays bars of \
-                 the song before the count-in, counted from the punch-in when there is one.",
+                "Before recording, the count-in clicks its bars first, even with the metronome \
+                 off; then the pre-roll plays bars of the song before where recording starts \
+                 (the punch-in when there is one).",
             ),
         );
     });

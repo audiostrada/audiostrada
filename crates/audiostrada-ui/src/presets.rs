@@ -172,7 +172,7 @@ fn builtin_or_instrument(effect: &str) -> Vec<Preset> {
 }
 
 /// Starting points for the built-in effects; parameters not listed keep their defaults.
-/// Names read "Role: character", the role being the source, the bus or the job; each list
+/// Names read "Role: Character", the role being the source, the bus or the job; each list
 /// opens with the effect's defaults.
 fn factory(effect: &str) -> Vec<Preset> {
     let mut list = match effect {
@@ -191,7 +191,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
     match effect {
         "channel" => vec![
             preset(
-                tr("Vocal: pop lead"),
+                tr("Vocal: Pop lead"),
                 &[
                     ("character", 2.0),
                     ("comp_type", 2.0),
@@ -214,7 +214,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: warm ballad"),
+                tr("Vocal: Warm ballad"),
                 &[
                     ("character", 1.0),
                     ("comp_type", 2.0),
@@ -239,7 +239,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: rap, upfront"),
+                tr("Vocal: Rap, upfront"),
                 &[
                     ("character", 2.0),
                     ("comp_type", 3.0),
@@ -262,7 +262,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: backing, tucked in"),
+                tr("Vocal: Backing, tucked in"),
                 &[
                     ("character", 2.0),
                     ("comp_type", 2.0),
@@ -283,7 +283,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: voice-over, podcast"),
+                tr("Vocal: Voice-over, podcast"),
                 &[
                     ("comp_type", 0.0),
                     ("comp_ratio", 3.0),
@@ -310,7 +310,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: kick punch"),
+                tr("Drums: Kick punch"),
                 &[
                     ("character", 3.0),
                     ("comp_type", 0.0),
@@ -338,7 +338,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: snare crack"),
+                tr("Drums: Snare crack"),
                 &[
                     ("character", 3.0),
                     ("comp_type", 3.0),
@@ -367,7 +367,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: toms, full and clear"),
+                tr("Drums: Toms, full and clear"),
                 &[
                     ("character", 3.0),
                     ("gate", 1.0),
@@ -389,7 +389,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: overheads, open"),
+                tr("Drums: Overheads, open"),
                 &[
                     ("character", 2.0),
                     ("comp_type", 1.0),
@@ -409,7 +409,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: bus, glue and weight"),
+                tr("Drums: Bus, glue and weight"),
                 &[
                     ("character", 3.0),
                     ("filters", 0.0),
@@ -431,7 +431,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: parallel crush"),
+                tr("Drums: Parallel crush"),
                 &[
                     ("character", 3.0),
                     ("filters", 0.0),
@@ -476,7 +476,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: pick, rock grit"),
+                tr("Bass: Pick, rock grit"),
                 &[
                     ("character", 3.0),
                     ("comp_type", 3.0),
@@ -504,7 +504,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: sub, clean and deep"),
+                tr("Bass: Sub, clean and deep"),
                 &[
                     ("character", 0.0),
                     ("comp_type", 0.0),
@@ -528,7 +528,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: electric, in the mix"),
+                tr("Guitar: Electric, in the mix"),
                 &[
                     ("character", 1.0),
                     ("hpf", 100.0),
@@ -544,7 +544,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: clean, sparkle"),
+                tr("Guitar: Clean, sparkle"),
                 &[
                     ("character", 4.0),
                     ("comp_type", 0.0),
@@ -567,7 +567,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: acoustic, strummed"),
+                tr("Guitar: Acoustic, strummed"),
                 &[
                     ("character", 4.0),
                     ("comp_type", 2.0),
@@ -588,7 +588,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: acoustic, fingerpicked"),
+                tr("Guitar: Acoustic, fingerpicked"),
                 &[
                     ("character", 1.0),
                     ("comp_type", 2.0),
@@ -611,7 +611,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: piano, clear"),
+                tr("Keys: Piano, clear"),
                 &[
                     ("character", 4.0),
                     ("comp_type", 1.0),
@@ -634,7 +634,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: electric piano, warm"),
+                tr("Keys: Electric piano, warm"),
                 &[
                     ("character", 1.0),
                     ("comp_type", 2.0),
@@ -656,7 +656,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: synth, make room"),
+                tr("Keys: Synth, make room"),
                 &[
                     ("hpf", 150.0),
                     ("slope", 1.0),
@@ -675,7 +675,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "eq" => vec![
             eq_extra(
-                tr("Vocal: presence"),
+                tr("Vocal: Presence"),
                 &[
                     (LOW_CUT, 90.0, 0.0, 0.707),
                     (BELL, 300.0, -2.5, 1.0),
@@ -685,7 +685,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("output", -1.5)],
             ),
             eq_extra(
-                tr("Vocal: air 12 kHz"),
+                tr("Vocal: Air 12 kHz"),
                 &[
                     (LOW_CUT, 80.0, 0.0, 0.707),
                     (HIGH_SHELF, 12_000.0, 4.0, 0.707),
@@ -693,12 +693,12 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("output", -0.5)],
             ),
             eq_extra(
-                tr("Vocal: less mud"),
+                tr("Vocal: Less mud"),
                 &[(LOW_CUT, 100.0, 0.0, 0.707), (BELL, 300.0, -3.5, 1.0)],
                 &[("b1_slope", 3.0)],
             ),
             eq_extra(
-                tr("Vocal: soften harsh notes"),
+                tr("Vocal: Soften harsh notes"),
                 &[(LOW_CUT, 80.0, 0.0, 0.707), (BELL, 3200.0, 0.0, 2.0)],
                 &[
                     ("b2_dyn", 1.0),
@@ -708,7 +708,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             eq_extra(
-                tr("Vocal: backing, sit behind"),
+                tr("Vocal: Backing, sit behind"),
                 &[
                     (LOW_CUT, 150.0, 0.0, 0.707),
                     (BELL, 350.0, -2.0, 1.0),
@@ -718,7 +718,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("b1_slope", 3.0), ("output", 1.0)],
             ),
             eq_extra(
-                tr("Vocal: voice-over, podcast"),
+                tr("Vocal: Voice-over, podcast"),
                 &[
                     (LOW_CUT, 80.0, 0.0, 0.707),
                     (BELL, 250.0, -2.0, 1.0),
@@ -728,7 +728,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("b1_slope", 3.0), ("output", -1.0)],
             ),
             eq_extra(
-                tr("Drums: kick punch"),
+                tr("Drums: Kick punch"),
                 &[
                     (LOW_CUT, 30.0, 0.0, 0.707),
                     (LOW_SHELF, 60.0, 3.0, 0.707),
@@ -738,7 +738,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("output", -0.5)],
             ),
             eq_extra(
-                tr("Drums: kick deep sub"),
+                tr("Drums: Kick deep sub"),
                 &[
                     (LOW_CUT, 25.0, 0.0, 0.707),
                     (BELL, 55.0, 3.0, 1.2),
@@ -748,7 +748,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("b1_slope", 3.0), ("output", -1.5)],
             ),
             eq_extra(
-                tr("Drums: snare crack"),
+                tr("Drums: Snare crack"),
                 &[
                     (LOW_CUT, 80.0, 0.0, 0.707),
                     (BELL, 200.0, 2.0, 1.2),
@@ -758,7 +758,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("output", -1.5)],
             ),
             eq_preset(
-                tr("Drums: toms, full and clear"),
+                tr("Drums: Toms, full and clear"),
                 &[
                     (LOW_CUT, 60.0, 0.0, 0.707),
                     (BELL, 100.0, 2.0, 1.0),
@@ -767,7 +767,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             eq_extra(
-                tr("Drums: overheads, cymbal air"),
+                tr("Drums: Overheads, cymbal air"),
                 &[
                     (LOW_CUT, 150.0, 0.0, 0.707),
                     (BELL, 400.0, -2.0, 1.0),
@@ -776,7 +776,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("output", 2.5)],
             ),
             eq_preset(
-                tr("Drums: bus, weight and air"),
+                tr("Drums: Bus, weight and air"),
                 &[
                     (LOW_SHELF, 70.0, 1.5, 0.707),
                     (BELL, 400.0, -1.5, 0.8),
@@ -784,7 +784,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             eq_preset(
-                tr("Bass: definition"),
+                tr("Bass: Definition"),
                 &[
                     (LOW_CUT, 35.0, 0.0, 0.707),
                     (BELL, 80.0, 2.0, 1.0),
@@ -793,7 +793,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             eq_extra(
-                tr("Bass: sub weight"),
+                tr("Bass: Sub weight"),
                 &[
                     (LOW_CUT, 30.0, 0.0, 0.707),
                     (BELL, 60.0, 3.0, 1.0),
@@ -803,7 +803,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("b1_slope", 3.0), ("output", -0.5)],
             ),
             eq_extra(
-                tr("Bass: heard on small speakers"),
+                tr("Bass: Heard on small speakers"),
                 &[
                     (LOW_CUT, 40.0, 0.0, 0.707),
                     (BELL, 250.0, -2.5, 1.0),
@@ -813,7 +813,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("output", 0.5)],
             ),
             eq_extra(
-                tr("Guitar: fit in the mix"),
+                tr("Guitar: Fit in the mix"),
                 &[
                     (LOW_CUT, 100.0, 0.0, 0.707),
                     (BELL, 400.0, -2.0, 1.2),
@@ -823,7 +823,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("output", 1.0)],
             ),
             eq_extra(
-                tr("Guitar: tame the fizz"),
+                tr("Guitar: Tame the fizz"),
                 &[
                     (LOW_CUT, 90.0, 0.0, 0.707),
                     (BELL, 4000.0, -2.5, 2.0),
@@ -832,7 +832,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("b3_slope", 3.0)],
             ),
             eq_extra(
-                tr("Guitar: acoustic, sparkle"),
+                tr("Guitar: Acoustic, sparkle"),
                 &[
                     (LOW_CUT, 90.0, 0.0, 0.707),
                     (BELL, 250.0, -3.0, 1.0),
@@ -841,7 +841,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("output", 1.5)],
             ),
             eq_extra(
-                tr("Guitar: acoustic, less boom"),
+                tr("Guitar: Acoustic, less boom"),
                 &[
                     (LOW_CUT, 80.0, 0.0, 0.707),
                     (BELL, 180.0, 0.0, 1.5),
@@ -856,7 +856,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             eq_extra(
-                tr("Keys: piano, clarity"),
+                tr("Keys: Piano, clarity"),
                 &[
                     (LOW_CUT, 40.0, 0.0, 0.707),
                     (BELL, 250.0, -2.0, 1.0),
@@ -866,7 +866,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("output", 0.5)],
             ),
             eq_extra(
-                tr("Keys: synth, make room for the vocal"),
+                tr("Keys: Synth, make room for the vocal"),
                 &[
                     (LOW_CUT, 150.0, 0.0, 0.707),
                     (BELL, 400.0, -2.0, 1.0),
@@ -875,7 +875,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("b1_slope", 3.0), ("output", 1.5)],
             ),
             eq_extra(
-                tr("Keys: pad, soft and dark"),
+                tr("Keys: Pad, soft and dark"),
                 &[
                     (LOW_CUT, 100.0, 0.0, 0.707),
                     (HIGH_SHELF, 4000.0, -3.0, 0.707),
@@ -884,7 +884,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("output", 0.5)],
             ),
             eq_extra(
-                tr("Master: gentle smile"),
+                tr("Master: Gentle smile"),
                 &[
                     (LOW_SHELF, 80.0, 1.5, 0.707),
                     (BELL, 300.0, -1.0, 0.8),
@@ -893,17 +893,17 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("output", 0.5)],
             ),
             eq_extra(
-                tr("Master: tilt brighter"),
+                tr("Master: Tilt brighter"),
                 &[(TILT, 1000.0, 2.0, 0.707)],
                 &[("output", 0.5)],
             ),
             eq_extra(
-                tr("Master: tilt warmer"),
+                tr("Master: Tilt warmer"),
                 &[(TILT, 1000.0, -2.0, 0.707)],
                 &[("output", -1.0)],
             ),
             eq_extra(
-                tr("Master: clear the low mids"),
+                tr("Master: Clear the low mids"),
                 &[
                     (LOW_CUT, 25.0, 0.0, 0.707),
                     (BELL, 250.0, -1.5, 0.7),
@@ -912,23 +912,23 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("b1_slope", 3.0), ("output", 0.5)],
             ),
             eq_extra(
-                tr("Master: mono lows below 120 Hz"),
+                tr("Master: Mono lows below 120 Hz"),
                 &[(LOW_CUT, 120.0, 0.0, 0.707)],
                 &[("b1_slope", 3.0), ("b1_place", 4.0)],
             ),
             eq_extra(
-                tr("Master: wider air"),
+                tr("Master: Wider air"),
                 &[(HIGH_SHELF, 9000.0, 2.5, 0.707)],
                 &[("b1_place", 4.0)],
             ),
-            eq_preset(tr("Fix: low cut 100 Hz"), &[(LOW_CUT, 100.0, 0.0, 0.707)]),
+            eq_preset(tr("Fix: Low cut 100 Hz"), &[(LOW_CUT, 100.0, 0.0, 0.707)]),
             eq_extra(
-                tr("Fix: rumble below 30 Hz"),
+                tr("Fix: Rumble below 30 Hz"),
                 &[(LOW_CUT, 30.0, 0.0, 0.707)],
                 &[("b1_slope", 5.0)],
             ),
             eq_preset(
-                tr("Fix: mains hum 50 Hz"),
+                tr("Fix: Mains hum 50 Hz"),
                 &[
                     (NOTCH, 50.0, 0.0, 10.0),
                     (NOTCH, 100.0, 0.0, 10.0),
@@ -936,7 +936,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             eq_preset(
-                tr("Fix: mains hum 60 Hz"),
+                tr("Fix: Mains hum 60 Hz"),
                 &[
                     (NOTCH, 60.0, 0.0, 10.0),
                     (NOTCH, 120.0, 0.0, 10.0),
@@ -944,12 +944,12 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             eq_extra(
-                tr("Fix: harsh 3 kHz, only when loud"),
+                tr("Fix: Harsh 3 kHz, only when loud"),
                 &[(BELL, 3000.0, 0.0, 2.5)],
                 &[("b1_dyn", 1.0), ("b1_thresh", -40.0), ("b1_range", -6.0)],
             ),
             eq_extra(
-                tr("FX: telephone"),
+                tr("FX: Telephone"),
                 &[
                     (LOW_CUT, 400.0, 0.0, 0.707),
                     (BELL, 1500.0, 6.0, 1.0),
@@ -958,7 +958,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("b1_slope", 3.0), ("b3_slope", 3.0)],
             ),
             eq_extra(
-                tr("FX: old radio"),
+                tr("FX: Old radio"),
                 &[
                     (LOW_CUT, 250.0, 0.0, 0.707),
                     (BELL, 1200.0, 4.0, 0.8),
@@ -967,7 +967,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 &[("b1_slope", 3.0), ("b3_slope", 3.0), ("output", -0.5)],
             ),
             eq_extra(
-                tr("FX: next room"),
+                tr("FX: Next room"),
                 &[
                     (LOW_SHELF, 150.0, 2.0, 0.707),
                     (HIGH_CUT, 500.0, 0.0, 0.707),
@@ -977,7 +977,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "compressor" => vec![
             preset(
-                tr("Vocal: gentle"),
+                tr("Vocal: Gentle"),
                 &[
                     ("type", 0.0),
                     ("ratio", 2.5),
@@ -990,7 +990,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: smooth opto"),
+                tr("Vocal: Smooth opto"),
                 &[
                     ("type", 2.0),
                     ("ratio", 3.0),
@@ -1001,7 +1001,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: radio-ready"),
+                tr("Vocal: Radio-ready"),
                 &[
                     ("type", 3.0),
                     ("ratio", 4.0),
@@ -1014,7 +1014,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: rap, upfront"),
+                tr("Vocal: Rap, upfront"),
                 &[
                     ("type", 3.0),
                     ("ratio", 8.0),
@@ -1027,7 +1027,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: backing, tucked in"),
+                tr("Vocal: Backing, tucked in"),
                 &[
                     ("type", 2.0),
                     ("ratio", 5.0),
@@ -1038,7 +1038,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: voice-over, steady"),
+                tr("Vocal: Voice-over, steady"),
                 &[
                     ("type", 0.0),
                     ("ratio", 3.5),
@@ -1051,7 +1051,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: kick punch"),
+                tr("Drums: Kick punch"),
                 &[
                     ("type", 0.0),
                     ("ratio", 4.0),
@@ -1064,7 +1064,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: snare crack"),
+                tr("Drums: Snare crack"),
                 &[
                     ("type", 3.0),
                     ("ratio", 4.0),
@@ -1077,7 +1077,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: toms, full"),
+                tr("Drums: Toms, full"),
                 &[
                     ("type", 0.0),
                     ("ratio", 4.0),
@@ -1090,7 +1090,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: overheads, tamed"),
+                tr("Drums: Overheads, tamed"),
                 &[
                     ("type", 1.0),
                     ("ratio", 3.0),
@@ -1103,7 +1103,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: room, all buttons"),
+                tr("Drums: Room, all buttons"),
                 &[
                     ("type", 3.0),
                     ("ratio", 20.0),
@@ -1117,7 +1117,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: parallel crush"),
+                tr("Drums: Parallel crush"),
                 &[
                     ("type", 0.0),
                     ("ratio", 10.0),
@@ -1131,7 +1131,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: control"),
+                tr("Bass: Control"),
                 &[
                     ("type", 0.0),
                     ("ratio", 4.0),
@@ -1143,7 +1143,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: opto leveler"),
+                tr("Bass: Opto leveler"),
                 &[
                     ("type", 2.0),
                     ("ratio", 4.0),
@@ -1154,7 +1154,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: slap tamer"),
+                tr("Bass: Slap tamer"),
                 &[
                     ("type", 3.0),
                     ("ratio", 8.0),
@@ -1166,7 +1166,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: sustain"),
+                tr("Guitar: Sustain"),
                 &[
                     ("type", 0.0),
                     ("ratio", 6.0),
@@ -1179,7 +1179,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: funk snap"),
+                tr("Guitar: Funk snap"),
                 &[
                     ("type", 3.0),
                     ("ratio", 4.0),
@@ -1191,7 +1191,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: acoustic, even strumming"),
+                tr("Guitar: Acoustic, even strumming"),
                 &[
                     ("type", 2.0),
                     ("ratio", 3.0),
@@ -1202,7 +1202,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: acoustic, fingerpicking"),
+                tr("Guitar: Acoustic, fingerpicking"),
                 &[
                     ("type", 0.0),
                     ("ratio", 2.5),
@@ -1215,7 +1215,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: piano, gentle"),
+                tr("Keys: Piano, gentle"),
                 &[
                     ("type", 1.0),
                     ("ratio", 2.0),
@@ -1226,7 +1226,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: piano, pop upfront"),
+                tr("Keys: Piano, pop upfront"),
                 &[
                     ("type", 0.0),
                     ("ratio", 4.0),
@@ -1238,7 +1238,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: electric piano, even"),
+                tr("Keys: Electric piano, even"),
                 &[
                     ("type", 2.0),
                     ("ratio", 3.0),
@@ -1248,7 +1248,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: drum glue"),
+                tr("Bus: Drum glue"),
                 &[
                     ("type", 1.0),
                     ("ratio", 4.0),
@@ -1261,7 +1261,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: drum smash"),
+                tr("Bus: Drum smash"),
                 &[
                     ("type", 1.0),
                     ("ratio", 4.0),
@@ -1275,7 +1275,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: mix glue"),
+                tr("Bus: Mix glue"),
                 &[
                     ("type", 1.0),
                     ("ratio", 2.0),
@@ -1288,7 +1288,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: mix, light touch"),
+                tr("Bus: Mix, light touch"),
                 &[
                     ("type", 1.0),
                     ("ratio", 1.5),
@@ -1301,7 +1301,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: vocals together"),
+                tr("Bus: Vocals together"),
                 &[
                     ("type", 2.0),
                     ("ratio", 2.5),
@@ -1312,7 +1312,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Sidechain: duck under the kick"),
+                tr("Sidechain: Duck under the kick"),
                 &[
                     ("type", 0.0),
                     ("threshold", -30.0),
@@ -1325,7 +1325,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Sidechain: bass under the kick"),
+                tr("Sidechain: Bass under the kick"),
                 &[
                     ("type", 0.0),
                     ("threshold", -30.0),
@@ -1338,7 +1338,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Sidechain: pumping"),
+                tr("Sidechain: Pumping"),
                 &[
                     ("type", 0.0),
                     ("threshold", -36.0),
@@ -1351,7 +1351,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Sidechain: slow breathing"),
+                tr("Sidechain: Slow breathing"),
                 &[
                     ("type", 0.0),
                     ("threshold", -34.0),
@@ -1367,7 +1367,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "reverb" => vec![
             preset(
-                tr("Vocal: plate"),
+                tr("Vocal: Plate"),
                 &[
                     ("type", 3.0),
                     ("decay", 2.0),
@@ -1378,7 +1378,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: plate, 1/16 pre-delay"),
+                tr("Vocal: Plate, 1/16 pre-delay"),
                 &[
                     ("type", 3.0),
                     ("decay", 2.2),
@@ -1390,7 +1390,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: ducked hall"),
+                tr("Vocal: Ducked hall"),
                 &[
                     ("type", 1.0),
                     ("decay", 2.2),
@@ -1401,7 +1401,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: ballad hall"),
+                tr("Vocal: Ballad hall"),
                 &[
                     ("type", 1.0),
                     ("decay", 3.2),
@@ -1413,7 +1413,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: close ambience"),
+                tr("Vocal: Close ambience"),
                 &[
                     ("type", 0.0),
                     ("decay", 0.4),
@@ -1425,7 +1425,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: small room"),
+                tr("Drums: Small room"),
                 &[
                     ("type", 0.0),
                     ("decay", 0.6),
@@ -1436,7 +1436,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: live room"),
+                tr("Drums: Live room"),
                 &[
                     ("type", 0.0),
                     ("decay", 1.1),
@@ -1447,7 +1447,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: tight ambience"),
+                tr("Drums: Tight ambience"),
                 &[
                     ("type", 0.0),
                     ("decay", 0.3),
@@ -1459,7 +1459,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: snare, bright plate"),
+                tr("Drums: Snare, bright plate"),
                 &[
                     ("type", 3.0),
                     ("decay", 1.2),
@@ -1471,7 +1471,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: dark plate"),
+                tr("Keys: Dark plate"),
                 &[
                     ("type", 3.0),
                     ("decay", 3.0),
@@ -1481,7 +1481,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: piano hall"),
+                tr("Keys: Piano hall"),
                 &[
                     ("type", 1.0),
                     ("decay", 2.2),
@@ -1492,7 +1492,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: electric piano, soft room"),
+                tr("Keys: Electric piano, soft room"),
                 &[
                     ("type", 0.0),
                     ("decay", 0.9),
@@ -1505,7 +1505,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: amp spring"),
+                tr("Guitar: Amp spring"),
                 &[
                     ("type", 4.0),
                     ("decay", 1.5),
@@ -1516,7 +1516,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: surf spring"),
+                tr("Guitar: Surf spring"),
                 &[
                     ("type", 4.0),
                     ("decay", 2.5),
@@ -1528,7 +1528,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: acoustic, wood room"),
+                tr("Guitar: Acoustic, wood room"),
                 &[
                     ("type", 0.0),
                     ("decay", 0.8),
@@ -1541,7 +1541,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Pads: vast space"),
+                tr("Pads: Vast space"),
                 &[
                     ("type", 2.0),
                     ("decay", 7.0),
@@ -1553,7 +1553,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Pads: strings, concert hall"),
+                tr("Pads: Strings, concert hall"),
                 &[
                     ("type", 1.0),
                     ("decay", 2.6),
@@ -1564,7 +1564,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Pads: shimmer"),
+                tr("Pads: Shimmer"),
                 &[
                     ("type", 5.0),
                     ("decay", 8.0),
@@ -1575,7 +1575,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Pads: endless shimmer"),
+                tr("Pads: Endless shimmer"),
                 &[
                     ("type", 5.0),
                     ("decay", 14.0),
@@ -1586,7 +1586,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Send: vocal plate"),
+                tr("Send: Vocal plate"),
                 &[
                     ("type", 3.0),
                     ("decay", 2.2),
@@ -1597,7 +1597,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Send: drum room"),
+                tr("Send: Drum room"),
                 &[
                     ("type", 0.0),
                     ("decay", 0.9),
@@ -1609,7 +1609,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Send: medium hall"),
+                tr("Send: Medium hall"),
                 &[
                     ("type", 1.0),
                     ("decay", 2.0),
@@ -1620,7 +1620,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Send: large dark hall"),
+                tr("Send: Large dark hall"),
                 &[
                     ("type", 1.0),
                     ("decay", 3.5),
@@ -1633,7 +1633,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Send: plate, 1/8 pre-delay"),
+                tr("Send: Plate, 1/8 pre-delay"),
                 &[
                     ("type", 3.0),
                     ("decay", 1.8),
@@ -1646,7 +1646,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "delay" => vec![
             preset(
-                tr("Vocal: slapback 90 ms"),
+                tr("Vocal: Slapback 90 ms"),
                 &[
                     ("time", 90.0),
                     ("feedback", 5.0),
@@ -1656,7 +1656,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: analog slap 110 ms"),
+                tr("Vocal: Analog slap 110 ms"),
                 &[
                     ("model", 2.0),
                     ("time", 110.0),
@@ -1666,7 +1666,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: dark 1/8 echo"),
+                tr("Vocal: Dark 1/8 echo"),
                 &[
                     ("sync", 1.0),
                     ("note", 5.0),
@@ -1692,7 +1692,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: slapback 120 ms"),
+                tr("Guitar: Slapback 120 ms"),
                 &[
                     ("model", 1.0),
                     ("time", 120.0),
@@ -1704,7 +1704,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: dotted eighth"),
+                tr("Guitar: Dotted eighth"),
                 &[
                     ("sync", 1.0),
                     ("note", 6.0),
@@ -1715,7 +1715,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: tape echo 330 ms"),
+                tr("Guitar: Tape echo 330 ms"),
                 &[
                     ("model", 1.0),
                     ("time", 330.0),
@@ -1727,7 +1727,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: wide solo, 1/4 and offset"),
+                tr("Guitar: Wide solo, 1/4 and offset"),
                 &[
                     ("sync", 1.0),
                     ("note", 8.0),
@@ -1761,7 +1761,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Synth: lead, analog 1/8"),
+                tr("Synth: Lead, analog 1/8"),
                 &[
                     ("model", 2.0),
                     ("sync", 1.0),
@@ -1772,7 +1772,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: drums, 1/16 ping-pong"),
+                tr("FX: Drums, 1/16 ping-pong"),
                 &[
                     ("sync", 1.0),
                     ("note", 2.0),
@@ -1784,7 +1784,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: dub, runaway tape"),
+                tr("FX: Dub, runaway tape"),
                 &[
                     ("model", 1.0),
                     ("sync", 1.0),
@@ -1798,7 +1798,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: stereo widener 25 ms"),
+                tr("FX: Stereo widener 25 ms"),
                 &[
                     ("time", 12.0),
                     ("feedback", 0.0),
@@ -1809,7 +1809,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: worn tape slap"),
+                tr("FX: Worn tape slap"),
                 &[
                     ("model", 1.0),
                     ("time", 140.0),
@@ -1833,7 +1833,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Send: dotted 1/8"),
+                tr("Send: Dotted 1/8"),
                 &[
                     ("sync", 1.0),
                     ("note", 6.0),
@@ -1844,7 +1844,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Send: slapback"),
+                tr("Send: Slapback"),
                 &[
                     ("model", 1.0),
                     ("time", 100.0),
@@ -1856,7 +1856,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Send: tape echo"),
+                tr("Send: Tape echo"),
                 &[
                     ("model", 1.0),
                     ("sync", 1.0),
@@ -1872,7 +1872,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "gate" => vec![
             preset(
-                tr("Drums: kick, tight"),
+                tr("Drums: Kick, tight"),
                 &[
                     ("threshold", -22.0),
                     ("range", -40.0),
@@ -1884,7 +1884,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: snare, bleed control"),
+                tr("Drums: Snare, bleed control"),
                 &[
                     ("threshold", -18.0),
                     ("range", -25.0),
@@ -1897,7 +1897,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: toms, hits only"),
+                tr("Drums: Toms, hits only"),
                 &[
                     ("threshold", -22.0),
                     ("range", -30.0),
@@ -1909,7 +1909,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: bus, tight"),
+                tr("Drums: Bus, tight"),
                 &[
                     ("threshold", -26.0),
                     ("range", -12.0),
@@ -1932,7 +1932,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: breath reducer"),
+                tr("Vocal: Breath reducer"),
                 &[
                     ("threshold", -32.0),
                     ("range", -10.0),
@@ -1944,7 +1944,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: silence between phrases"),
+                tr("Vocal: Silence between phrases"),
                 &[
                     ("threshold", -38.0),
                     ("range", -30.0),
@@ -1956,7 +1956,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: voice-over, room noise"),
+                tr("Vocal: Voice-over, room noise"),
                 &[
                     ("threshold", -40.0),
                     ("range", -15.0),
@@ -1968,7 +1968,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: high-gain silence"),
+                tr("Guitar: High-gain silence"),
                 &[
                     ("threshold", -40.0),
                     ("range", -50.0),
@@ -1978,7 +1978,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: tight palm mutes"),
+                tr("Guitar: Tight palm mutes"),
                 &[
                     ("threshold", -28.0),
                     ("range", -60.0),
@@ -1989,7 +1989,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: amp hum between riffs"),
+                tr("Guitar: Amp hum between riffs"),
                 &[
                     ("threshold", -36.0),
                     ("range", -18.0),
@@ -2001,7 +2001,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Ducker: music under the voice"),
+                tr("Ducker: Music under the voice"),
                 &[
                     ("threshold", -35.0),
                     ("range", -12.0),
@@ -2012,7 +2012,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Ducker: bass under the kick"),
+                tr("Ducker: Bass under the kick"),
                 &[
                     ("threshold", -30.0),
                     ("range", -6.0),
@@ -2023,7 +2023,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Ducker: reverb under the vocal"),
+                tr("Ducker: Reverb under the vocal"),
                 &[
                     ("threshold", -35.0),
                     ("range", -9.0),
@@ -2034,7 +2034,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Fix: noise floor"),
+                tr("Fix: Noise floor"),
                 &[
                     ("threshold", -50.0),
                     ("range", -20.0),
@@ -2044,7 +2044,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Fix: headphone bleed"),
+                tr("Fix: Headphone bleed"),
                 &[
                     ("threshold", -42.0),
                     ("range", -24.0),
@@ -2056,7 +2056,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Fix: hiss between notes"),
+                tr("Fix: Hiss between notes"),
                 &[
                     ("threshold", -48.0),
                     ("range", -12.0),
@@ -2071,11 +2071,11 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "limiter" => vec![
             preset(
-                tr("Master: safety -1 dBTP"),
+                tr("Master: Safety -1 dBTP"),
                 &[("auto", 1.0), ("ceiling", -1.0), ("true_peak", 1.0)],
             ),
             preset(
-                tr("Master: streaming -1 dBTP"),
+                tr("Master: Streaming -1 dBTP"),
                 &[
                     ("auto", 1.0),
                     ("ceiling", -1.0),
@@ -2085,7 +2085,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: broadcast -2 dBTP"),
+                tr("Master: Broadcast -2 dBTP"),
                 &[
                     ("auto", 1.0),
                     ("ceiling", -2.0),
@@ -2095,11 +2095,11 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: loud -0.3 dB"),
+                tr("Master: Loud -0.3 dB"),
                 &[("ceiling", -0.3), ("release", 80.0), ("input", 8.0)],
             ),
             preset(
-                tr("Master: wide, unlinked"),
+                tr("Master: Wide, unlinked"),
                 &[
                     ("ceiling", -1.0),
                     ("link", 50.0),
@@ -2109,23 +2109,23 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Track: vocal, peak catcher"),
+                tr("Track: Vocal, peak catcher"),
                 &[("ceiling", -6.0), ("release", 50.0), ("input", 3.0)],
             ),
             preset(
-                tr("Track: bass, even level"),
+                tr("Track: Bass, even level"),
                 &[("ceiling", -6.0), ("release", 150.0), ("input", 4.0)],
             ),
             preset(
-                tr("Track: acoustic guitar, strum peaks"),
+                tr("Track: Acoustic guitar, strum peaks"),
                 &[("ceiling", -6.0), ("release", 80.0), ("input", 4.0)],
             ),
             preset(
-                tr("Drums: bus, peak shave"),
+                tr("Drums: Bus, peak shave"),
                 &[("ceiling", -3.0), ("release", 20.0), ("input", 4.0)],
             ),
             preset(
-                tr("Drums: kick, clipper-style"),
+                tr("Drums: Kick, clipper-style"),
                 &[
                     ("ceiling", -3.0),
                     ("release", 5.0),
@@ -2134,7 +2134,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: snare, shaved crack"),
+                tr("Drums: Snare, shaved crack"),
                 &[
                     ("ceiling", -4.0),
                     ("release", 10.0),
@@ -2145,7 +2145,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "drive" => vec![
             preset(
-                tr("Bass: thick transformer"),
+                tr("Bass: Thick transformer"),
                 &[
                     ("mode", 5.0),
                     ("drive", 12.0),
@@ -2155,7 +2155,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: parallel grit"),
+                tr("Bass: Parallel grit"),
                 &[
                     ("mode", 0.0),
                     ("drive", 18.0),
@@ -2165,7 +2165,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: growl"),
+                tr("Bass: Growl"),
                 &[
                     ("mode", 0.0),
                     ("drive", 22.0),
@@ -2176,7 +2176,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: parallel grit"),
+                tr("Vocal: Parallel grit"),
                 &[
                     ("mode", 0.0),
                     ("drive", 20.0),
@@ -2187,7 +2187,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: tube sheen"),
+                tr("Vocal: Tube sheen"),
                 &[
                     ("mode", 3.0),
                     ("drive", 9.0),
@@ -2197,7 +2197,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: megaphone"),
+                tr("Vocal: Megaphone"),
                 &[
                     ("mode", 1.0),
                     ("drive", 24.0),
@@ -2209,7 +2209,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: parallel crunch"),
+                tr("Drums: Parallel crunch"),
                 &[
                     ("mode", 1.0),
                     ("drive", 24.0),
@@ -2219,7 +2219,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: warm tape"),
+                tr("Drums: Warm tape"),
                 &[
                     ("mode", 4.0),
                     ("drive", 12.0),
@@ -2228,7 +2228,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: snare bite"),
+                tr("Drums: Snare bite"),
                 &[
                     ("mode", 5.0),
                     ("drive", 16.0),
@@ -2239,7 +2239,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: light crunch"),
+                tr("Guitar: Light crunch"),
                 &[
                     ("mode", 0.0),
                     ("drive", 12.0),
@@ -2248,7 +2248,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: lead"),
+                tr("Guitar: Lead"),
                 &[
                     ("mode", 1.0),
                     ("drive", 30.0),
@@ -2257,7 +2257,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: tight metal"),
+                tr("Guitar: Tight metal"),
                 &[
                     ("mode", 1.0),
                     ("drive", 36.0),
@@ -2268,7 +2268,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: fuzz"),
+                tr("Guitar: Fuzz"),
                 &[
                     ("mode", 2.0),
                     ("drive", 36.0),
@@ -2277,7 +2277,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: octave fuzz"),
+                tr("Guitar: Octave fuzz"),
                 &[
                     ("mode", 6.0),
                     ("drive", 30.0),
@@ -2287,7 +2287,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: warm tube"),
+                tr("Keys: Warm tube"),
                 &[
                     ("mode", 3.0),
                     ("drive", 14.0),
@@ -2297,7 +2297,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: electric piano bark"),
+                tr("Keys: Electric piano bark"),
                 &[
                     ("mode", 0.0),
                     ("drive", 14.0),
@@ -2307,7 +2307,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: organ grind"),
+                tr("Keys: Organ grind"),
                 &[
                     ("mode", 3.0),
                     ("drive", 24.0),
@@ -2318,7 +2318,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: mix, tape warmth"),
+                tr("Bus: Mix, tape warmth"),
                 &[
                     ("mode", 4.0),
                     ("drive", 6.0),
@@ -2327,7 +2327,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: mix, transformer weight"),
+                tr("Bus: Mix, transformer weight"),
                 &[
                     ("mode", 5.0),
                     ("drive", 6.0),
@@ -2337,7 +2337,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: drums, tube glow"),
+                tr("Bus: Drums, tube glow"),
                 &[
                     ("mode", 3.0),
                     ("drive", 8.0),
@@ -2347,7 +2347,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Lo-fi: blown speaker"),
+                tr("Lo-fi: Blown speaker"),
                 &[
                     ("mode", 2.0),
                     ("drive", 30.0),
@@ -2358,7 +2358,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Lo-fi: transistor radio"),
+                tr("Lo-fi: Transistor radio"),
                 &[
                     ("mode", 1.0),
                     ("drive", 18.0),
@@ -2370,7 +2370,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Lo-fi: dying battery"),
+                tr("Lo-fi: Dying battery"),
                 &[
                     ("mode", 2.0),
                     ("drive", 24.0),
@@ -2382,11 +2382,11 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "chorus" => vec![
             preset(
-                tr("Vocal: subtle thickening"),
+                tr("Vocal: Subtle thickening"),
                 &[("rate", 0.5), ("depth", 25.0), ("mix", 35.0)],
             ),
             preset(
-                tr("Vocal: backing, wide"),
+                tr("Vocal: Backing, wide"),
                 &[
                     ("rate", 0.4),
                     ("depth", 35.0),
@@ -2397,7 +2397,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: dreamy double"),
+                tr("Vocal: Dreamy double"),
                 &[
                     ("rate", 0.25),
                     ("depth", 30.0),
@@ -2407,7 +2407,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: clean 80s"),
+                tr("Guitar: Clean 80s"),
                 &[
                     ("rate", 0.8),
                     ("depth", 50.0),
@@ -2416,7 +2416,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: acoustic, 12-string"),
+                tr("Guitar: Acoustic, 12-string"),
                 &[
                     ("rate", 0.3),
                     ("depth", 20.0),
@@ -2425,7 +2425,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: slow shimmer"),
+                tr("Guitar: Slow shimmer"),
                 &[
                     ("rate", 0.25),
                     ("depth", 55.0),
@@ -2435,7 +2435,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: bass, fretless shimmer"),
+                tr("Guitar: Bass, fretless shimmer"),
                 &[
                     ("rate", 0.6),
                     ("depth", 30.0),
@@ -2444,7 +2444,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: electric piano"),
+                tr("Keys: Electric piano"),
                 &[
                     ("rate", 1.2),
                     ("depth", 45.0),
@@ -2454,7 +2454,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: organ, slow rotor"),
+                tr("Keys: Organ, slow rotor"),
                 &[
                     ("rate", 0.9),
                     ("depth", 35.0),
@@ -2465,7 +2465,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: piano, honky-tonk"),
+                tr("Keys: Piano, honky-tonk"),
                 &[
                     ("rate", 2.5),
                     ("depth", 18.0),
@@ -2474,7 +2474,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Synth: lush ensemble"),
+                tr("Synth: Lush ensemble"),
                 &[
                     ("rate", 0.6),
                     ("depth", 60.0),
@@ -2495,7 +2495,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Synth: string ensemble"),
+                tr("Synth: String ensemble"),
                 &[
                     ("rate", 0.4),
                     ("depth", 45.0),
@@ -2506,7 +2506,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Synth: wide pad"),
+                tr("Synth: Wide pad"),
                 &[
                     ("rate", 0.9),
                     ("depth", 60.0),
@@ -2515,7 +2515,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: vibrato"),
+                tr("FX: Vibrato"),
                 &[
                     ("rate", 5.5),
                     ("depth", 40.0),
@@ -2524,7 +2524,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: resonant sweep"),
+                tr("FX: Resonant sweep"),
                 &[
                     ("rate", 0.25),
                     ("depth", 80.0),
@@ -2533,7 +2533,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: synced 1 bar swirl"),
+                tr("FX: Synced 1 bar swirl"),
                 &[
                     ("sync", 1.0),
                     ("note", 11.0),
@@ -2547,7 +2547,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "mb_comp" => vec![
             preset(
-                tr("Master: gentle glue"),
+                tr("Master: Gentle glue"),
                 &[
                     ("count", 1.0),
                     ("x1", 120.0),
@@ -2568,7 +2568,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: tame harshness"),
+                tr("Master: Tame harshness"),
                 &[
                     ("count", 2.0),
                     ("x1", 150.0),
@@ -2588,7 +2588,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: tight low end"),
+                tr("Master: Tight low end"),
                 &[
                     ("count", 1.0),
                     ("x1", 120.0),
@@ -2603,7 +2603,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: bring out details"),
+                tr("Master: Bring out details"),
                 &[
                     ("count", 1.0),
                     ("x1", 200.0),
@@ -2630,7 +2630,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: broadcast, loud and even"),
+                tr("Master: Broadcast, loud and even"),
                 &[
                     ("count", 2.0),
                     ("x1", 150.0),
@@ -2657,7 +2657,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: mix glue"),
+                tr("Bus: Mix glue"),
                 &[
                     ("count", 1.0),
                     ("x1", 200.0),
@@ -2678,7 +2678,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: mix, clear the mud"),
+                tr("Bus: Mix, clear the mud"),
                 &[
                     ("count", 1.0),
                     ("x1", 180.0),
@@ -2693,7 +2693,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: drum punch"),
+                tr("Bus: Drum punch"),
                 &[
                     ("count", 1.0),
                     ("x1", 120.0),
@@ -2715,7 +2715,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: drum smash"),
+                tr("Bus: Drum smash"),
                 &[
                     ("count", 1.0),
                     ("x1", 100.0),
@@ -2737,7 +2737,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Track: vocal, control"),
+                tr("Track: Vocal, control"),
                 &[
                     ("count", 2.0),
                     ("x1", 200.0),
@@ -2763,7 +2763,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Track: vocal, de-ess and smooth"),
+                tr("Track: Vocal, de-ess and smooth"),
                 &[
                     ("count", 1.0),
                     ("x1", 250.0),
@@ -2781,7 +2781,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Track: bass, even"),
+                tr("Track: Bass, even"),
                 &[
                     ("count", 1.0),
                     ("x1", 80.0),
@@ -2802,7 +2802,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Track: guitars, smooth"),
+                tr("Track: Guitars, smooth"),
                 &[
                     ("count", 1.0),
                     ("x1", 250.0),
@@ -2820,7 +2820,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("OTT: light"),
+                tr("OTT: Light"),
                 &[
                     ("count", 1.0),
                     ("x1", 88.0),
@@ -2848,7 +2848,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("OTT: full"),
+                tr("OTT: Full"),
                 &[
                     ("count", 1.0),
                     ("x1", 88.0),
@@ -2876,7 +2876,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("OTT: synth, bright and dense"),
+                tr("OTT: Synth, bright and dense"),
                 &[
                     ("count", 1.0),
                     ("x1", 120.0),
@@ -2905,7 +2905,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("OTT: drums, explosive"),
+                tr("OTT: Drums, explosive"),
                 &[
                     ("count", 1.0),
                     ("x1", 100.0),
@@ -2935,7 +2935,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "modulator" => vec![
             preset(
-                tr("Tremolo: vintage amp"),
+                tr("Tremolo: Vintage amp"),
                 &[
                     ("mode", 0.0),
                     ("note", 5.0),
@@ -2945,7 +2945,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Tremolo: surf"),
+                tr("Tremolo: Surf"),
                 &[
                     ("mode", 0.0),
                     ("note", 4.0),
@@ -2955,7 +2955,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Tremolo: choppy 1/16"),
+                tr("Tremolo: Choppy 1/16"),
                 &[
                     ("mode", 0.0),
                     ("note", 2.0),
@@ -2965,7 +2965,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Tremolo: stereo shimmer"),
+                tr("Tremolo: Stereo shimmer"),
                 &[
                     ("mode", 0.0),
                     ("note", 5.0),
@@ -2975,7 +2975,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Tremolo: slow swell"),
+                tr("Tremolo: Slow swell"),
                 &[
                     ("mode", 0.0),
                     ("note", 11.0),
@@ -2985,7 +2985,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Pump: sidechain 1/4"),
+                tr("Pump: Sidechain 1/4"),
                 &[
                     ("mode", 0.0),
                     ("note", 8.0),
@@ -2995,7 +2995,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Pump: soft 1/8"),
+                tr("Pump: Soft 1/8"),
                 &[
                     ("mode", 0.0),
                     ("note", 5.0),
@@ -3005,7 +3005,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Auto-pan: gentle 1/2"),
+                tr("Auto-pan: Gentle 1/2"),
                 &[
                     ("mode", 1.0),
                     ("note", 10.0),
@@ -3015,7 +3015,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Auto-pan: wide circle 1/8"),
+                tr("Auto-pan: Wide circle 1/8"),
                 &[
                     ("mode", 1.0),
                     ("note", 5.0),
@@ -3024,7 +3024,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Auto-pan: ping-pong 1/4"),
+                tr("Auto-pan: Ping-pong 1/4"),
                 &[
                     ("mode", 1.0),
                     ("note", 8.0),
@@ -3034,7 +3034,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Auto-pan: random drift"),
+                tr("Auto-pan: Random drift"),
                 &[
                     ("mode", 1.0),
                     ("note", 8.0),
@@ -3044,7 +3044,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             cutter(
-                tr("Cutter: trance gate"),
+                tr("Cutter: Trance gate"),
                 &[
                     ("mode", 2.0),
                     ("note", 2.0),
@@ -3056,7 +3056,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 "x.x.xx.xx.x.xxx.",
             ),
             cutter(
-                tr("Cutter: offbeat stabs"),
+                tr("Cutter: Offbeat stabs"),
                 &[
                     ("mode", 2.0),
                     ("note", 2.0),
@@ -3068,7 +3068,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 "..x...x...x...x.",
             ),
             cutter(
-                tr("Cutter: stutter 1/32"),
+                tr("Cutter: Stutter 1/32"),
                 &[
                     ("mode", 2.0),
                     ("note", 0.0),
@@ -3080,7 +3080,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 "xxxxxxxxx.x.x.x.",
             ),
             cutter(
-                tr("Cutter: dotted groove"),
+                tr("Cutter: Dotted groove"),
                 &[
                     ("mode", 2.0),
                     ("note", 2.0),
@@ -3092,7 +3092,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 "x..x..x..x..x.x.",
             ),
             cutter(
-                tr("Cutter: half-time duck"),
+                tr("Cutter: Half-time duck"),
                 &[
                     ("mode", 2.0),
                     ("note", 8.0),
@@ -3104,7 +3104,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 "x.xxxxxxxxxxxxxx",
             ),
             cutter(
-                tr("Cutter: glitch"),
+                tr("Cutter: Glitch"),
                 &[
                     ("mode", 2.0),
                     ("note", 1.0),
@@ -3116,7 +3116,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 "xx.x.xxxx..xxx.x",
             ),
             preset(
-                tr("Vibrato: subtle"),
+                tr("Vibrato: Subtle"),
                 &[
                     ("mode", 3.0),
                     ("sync", 0.0),
@@ -3126,7 +3126,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vibrato: warped tape"),
+                tr("Vibrato: Warped tape"),
                 &[
                     ("mode", 3.0),
                     ("sync", 0.0),
@@ -3137,7 +3137,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vibrato: chorus-like"),
+                tr("Vibrato: Chorus-like"),
                 &[
                     ("mode", 3.0),
                     ("sync", 0.0),
@@ -3149,7 +3149,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vibrato: seasick"),
+                tr("Vibrato: Seasick"),
                 &[
                     ("mode", 3.0),
                     ("sync", 0.0),
@@ -3160,7 +3160,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Ring: robot voice"),
+                tr("Ring: Robot voice"),
                 &[
                     ("mode", 4.0),
                     ("freq", 140.0),
@@ -3170,7 +3170,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Ring: metallic bell"),
+                tr("Ring: Metallic bell"),
                 &[
                     ("mode", 4.0),
                     ("freq", 880.0),
@@ -3180,11 +3180,11 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Ring: dalek"),
+                tr("Ring: Dalek"),
                 &[("mode", 4.0), ("freq", 30.0), ("depth", 100.0)],
             ),
             preset(
-                tr("Ring: alien radio"),
+                tr("Ring: Alien radio"),
                 &[
                     ("mode", 4.0),
                     ("freq", 2300.0),
@@ -3195,10 +3195,10 @@ fn builtin(effect: &str) -> Vec<Preset> {
             ),
         ],
         "pitch" => vec![
-            preset(tr("Octave: up"), &[("a_semis", 12.0)]),
-            preset(tr("Octave: down"), &[("a_semis", -12.0)]),
+            preset(tr("Octave: Up"), &[("a_semis", 12.0)]),
+            preset(tr("Octave: Down"), &[("a_semis", -12.0)]),
             preset(
-                tr("Octave: up and down"),
+                tr("Octave: Up and down"),
                 &[
                     ("a_semis", 12.0),
                     ("a_level", 70.0),
@@ -3209,7 +3209,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Octave: vocal, octave below, blended"),
+                tr("Octave: Vocal, octave below, blended"),
                 &[
                     ("a_semis", -12.0),
                     ("a_level", 70.0),
@@ -3219,7 +3219,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Octave: bass, sub octave"),
+                tr("Octave: Bass, sub octave"),
                 &[
                     ("a_semis", -12.0),
                     ("mix", 40.0),
@@ -3229,19 +3229,19 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Harmony: fifth above"),
+                tr("Harmony: Fifth above"),
                 &[("a_semis", 7.0), ("mix", 50.0), ("output", 3.5)],
             ),
             preset(
-                tr("Harmony: major third above"),
+                tr("Harmony: Major third above"),
                 &[("a_semis", 4.0), ("mix", 50.0), ("output", 3.5)],
             ),
             preset(
-                tr("Harmony: fourth below"),
+                tr("Harmony: Fourth below"),
                 &[("a_semis", -5.0), ("mix", 45.0), ("output", 3.5)],
             ),
             preset(
-                tr("Harmony: third and fifth"),
+                tr("Harmony: Third and fifth"),
                 &[
                     ("a_semis", 4.0),
                     ("a_level", 80.0),
@@ -3253,13 +3253,13 @@ fn builtin(effect: &str) -> Vec<Preset> {
                     ("output", 4.0),
                 ],
             ),
-            preset(tr("FX: chipmunk"), &[("a_semis", 12.0), ("window", 25.0)]),
+            preset(tr("FX: Chipmunk"), &[("a_semis", 12.0), ("window", 25.0)]),
             preset(
-                tr("FX: monster voice"),
+                tr("FX: Monster voice"),
                 &[("a_semis", -7.0), ("window", 60.0)],
             ),
             preset(
-                tr("FX: demon and child"),
+                tr("FX: Demon and child"),
                 &[
                     ("a_semis", -12.0),
                     ("a_pan", -40.0),
@@ -3271,7 +3271,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: micro-shift widener"),
+                tr("FX: Micro-shift widener"),
                 &[
                     ("a_semis", 0.0),
                     ("a_cents", 9.0),
@@ -3286,7 +3286,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Spiral: rising shimmer"),
+                tr("Spiral: Rising shimmer"),
                 &[
                     ("a_semis", 12.0),
                     ("delay", 250.0),
@@ -3297,7 +3297,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Spiral: falling"),
+                tr("Spiral: Falling"),
                 &[
                     ("a_semis", -12.0),
                     ("delay", 180.0),
@@ -3307,7 +3307,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Spiral: fifths staircase"),
+                tr("Spiral: Fifths staircase"),
                 &[
                     ("a_semis", 7.0),
                     ("delay", 300.0),
@@ -3317,7 +3317,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Spiral: glitch cascade"),
+                tr("Spiral: Glitch cascade"),
                 &[
                     ("a_semis", 5.0),
                     ("a_level", 70.0),
@@ -3333,7 +3333,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "doubler" => vec![
             preset(
-                tr("Vocal: natural double"),
+                tr("Vocal: Natural double"),
                 &[
                     ("voices", 0.0),
                     ("detune", 6.0),
@@ -3346,7 +3346,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: tight widen"),
+                tr("Vocal: Tight widen"),
                 &[
                     ("voices", 0.0),
                     ("detune", 9.0),
@@ -3358,7 +3358,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: stack of takes"),
+                tr("Vocal: Stack of takes"),
                 &[
                     ("voices", 1.0),
                     ("detune", 12.0),
@@ -3370,7 +3370,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: vintage ADT"),
+                tr("Vocal: Vintage ADT"),
                 &[
                     ("voices", 0.0),
                     ("detune", 4.0),
@@ -3382,7 +3382,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: slapback double"),
+                tr("Vocal: Slapback double"),
                 &[
                     ("voices", 0.0),
                     ("detune", 3.0),
@@ -3394,7 +3394,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: wall"),
+                tr("Guitar: Wall"),
                 &[
                     ("voices", 1.0),
                     ("detune", 10.0),
@@ -3407,7 +3407,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: subtle stereo"),
+                tr("Guitar: Subtle stereo"),
                 &[
                     ("voices", 0.0),
                     ("detune", 5.0),
@@ -3419,7 +3419,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: acoustic, twin takes"),
+                tr("Guitar: Acoustic, twin takes"),
                 &[
                     ("voices", 0.0),
                     ("detune", 7.0),
@@ -3431,7 +3431,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Synth: wide pad"),
+                tr("Synth: Wide pad"),
                 &[
                     ("voices", 1.0),
                     ("detune", 18.0),
@@ -3444,7 +3444,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Synth: lead, fat unison"),
+                tr("Synth: Lead, fat unison"),
                 &[
                     ("voices", 1.0),
                     ("detune", 14.0),
@@ -3456,7 +3456,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Synth: bass, wide tops"),
+                tr("Synth: Bass, wide tops"),
                 &[
                     ("voices", 0.0),
                     ("detune", 10.0),
@@ -3469,7 +3469,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: out-of-tune choir"),
+                tr("FX: Out-of-tune choir"),
                 &[
                     ("voices", 1.0),
                     ("detune", 35.0),
@@ -3481,7 +3481,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: drunken double"),
+                tr("FX: Drunken double"),
                 &[
                     ("voices", 0.0),
                     ("detune", 22.0),
@@ -3493,7 +3493,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: crowd of four"),
+                tr("FX: Crowd of four"),
                 &[
                     ("voices", 1.0),
                     ("detune", 25.0),
@@ -3507,7 +3507,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "maximizer" => vec![
             preset(
-                tr("Master: acoustic, gentle"),
+                tr("Master: Acoustic, gentle"),
                 &[
                     ("ceiling", -1.0),
                     ("release", 500.0),
@@ -3516,7 +3516,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: transparent -1 dBTP"),
+                tr("Master: Transparent -1 dBTP"),
                 &[
                     ("ceiling", -1.0),
                     ("release", 250.0),
@@ -3525,7 +3525,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: streaming -1 dBTP"),
+                tr("Master: Streaming -1 dBTP"),
                 &[
                     ("ceiling", -1.0),
                     ("release", 150.0),
@@ -3534,7 +3534,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: broadcast -2 dBTP"),
+                tr("Master: Broadcast -2 dBTP"),
                 &[
                     ("ceiling", -2.0),
                     ("release", 200.0),
@@ -3552,7 +3552,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Loud: punchy pop"),
+                tr("Loud: Punchy pop"),
                 &[
                     ("ceiling", -1.0),
                     ("release", 90.0),
@@ -3561,7 +3561,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Loud: dense rock"),
+                tr("Loud: Dense rock"),
                 &[
                     ("ceiling", -1.0),
                     ("release", 70.0),
@@ -3580,7 +3580,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: drums, peak control"),
+                tr("Bus: Drums, peak control"),
                 &[
                     ("ceiling", -3.0),
                     ("release", 30.0),
@@ -3589,7 +3589,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: instruments, firm"),
+                tr("Bus: Instruments, firm"),
                 &[
                     ("ceiling", -3.0),
                     ("release", 120.0),
@@ -3598,7 +3598,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: vocals, upfront"),
+                tr("Bus: Vocals, upfront"),
                 &[
                     ("ceiling", -3.0),
                     ("release", 80.0),
@@ -3609,7 +3609,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "tape" => vec![
             preset(
-                tr("Mix bus: glue 30 ips"),
+                tr("Mix bus: Glue 30 ips"),
                 &[
                     ("machine", 1.0),
                     ("speed", 2.0),
@@ -3621,7 +3621,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Mix bus: warm 15 ips"),
+                tr("Mix bus: Warm 15 ips"),
                 &[
                     ("machine", 0.0),
                     ("speed", 1.0),
@@ -3633,7 +3633,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Mix bus: vintage"),
+                tr("Mix bus: Vintage"),
                 &[
                     ("machine", 2.0),
                     ("speed", 1.0),
@@ -3646,7 +3646,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Mastering: transparent 30 ips"),
+                tr("Mastering: Transparent 30 ips"),
                 &[
                     ("machine", 1.0),
                     ("speed", 2.0),
@@ -3658,7 +3658,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Mastering: analog sheen"),
+                tr("Mastering: Analog sheen"),
                 &[
                     ("machine", 1.0),
                     ("speed", 2.0),
@@ -3671,7 +3671,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Mastering: round 15 ips"),
+                tr("Mastering: Round 15 ips"),
                 &[
                     ("machine", 1.0),
                     ("speed", 1.0),
@@ -3683,7 +3683,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: punchy 15 ips"),
+                tr("Drums: Punchy 15 ips"),
                 &[
                     ("machine", 0.0),
                     ("speed", 1.0),
@@ -3695,7 +3695,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: crushed room"),
+                tr("Drums: Crushed room"),
                 &[
                     ("machine", 2.0),
                     ("speed", 0.0),
@@ -3708,7 +3708,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: parallel smash"),
+                tr("Drums: Parallel smash"),
                 &[
                     ("machine", 0.0),
                     ("speed", 1.0),
@@ -3720,7 +3720,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: round 15 ips"),
+                tr("Bass: Round 15 ips"),
                 &[
                     ("machine", 0.0),
                     ("speed", 1.0),
@@ -3731,7 +3731,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: thick 7.5 ips"),
+                tr("Bass: Thick 7.5 ips"),
                 &[
                     ("machine", 2.0),
                     ("speed", 0.0),
@@ -3742,7 +3742,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: tight 30 ips"),
+                tr("Bass: Tight 30 ips"),
                 &[
                     ("machine", 0.0),
                     ("speed", 2.0),
@@ -3753,7 +3753,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: smooth 30 ips"),
+                tr("Vocal: Smooth 30 ips"),
                 &[
                     ("machine", 1.0),
                     ("speed", 2.0),
@@ -3765,7 +3765,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: vintage warmth"),
+                tr("Vocal: Vintage warmth"),
                 &[
                     ("machine", 2.0),
                     ("speed", 1.0),
@@ -3777,7 +3777,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: pushed hard"),
+                tr("Vocal: Pushed hard"),
                 &[
                     ("machine", 0.0),
                     ("speed", 1.0),
@@ -3789,7 +3789,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Instrument: guitars, glue 15 ips"),
+                tr("Instrument: Guitars, glue 15 ips"),
                 &[
                     ("machine", 0.0),
                     ("speed", 1.0),
@@ -3800,7 +3800,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Instrument: keys, warm wobble"),
+                tr("Instrument: Keys, warm wobble"),
                 &[
                     ("machine", 2.0),
                     ("speed", 0.0),
@@ -3812,7 +3812,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Instrument: acoustic guitar, soft top"),
+                tr("Instrument: Acoustic guitar, soft top"),
                 &[
                     ("machine", 2.0),
                     ("speed", 1.0),
@@ -3824,7 +3824,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Lo-fi: cassette demo"),
+                tr("Lo-fi: Cassette demo"),
                 &[
                     ("machine", 3.0),
                     ("speed", 1.0),
@@ -3837,7 +3837,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Lo-fi: worn cassette"),
+                tr("Lo-fi: Worn cassette"),
                 &[
                     ("machine", 3.0),
                     ("speed", 0.0),
@@ -3851,7 +3851,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Lo-fi: warbly tape"),
+                tr("Lo-fi: Warbly tape"),
                 &[
                     ("machine", 2.0),
                     ("speed", 0.0),
@@ -3865,7 +3865,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "flanger" => vec![
             preset(
-                tr("Guitar: subtle motion"),
+                tr("Guitar: Subtle motion"),
                 &[
                     ("rate", 0.3),
                     ("depth", 40.0),
@@ -3876,7 +3876,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: jet"),
+                tr("Guitar: Jet"),
                 &[
                     ("rate", 0.15),
                     ("depth", 90.0),
@@ -3887,7 +3887,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: bass, slow flange"),
+                tr("Guitar: Bass, slow flange"),
                 &[
                     ("rate", 0.1),
                     ("depth", 50.0),
@@ -3899,7 +3899,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: psychedelic sweep"),
+                tr("Vocal: Psychedelic sweep"),
                 &[
                     ("rate", 0.08),
                     ("depth", 70.0),
@@ -3910,7 +3910,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: soft doubling"),
+                tr("Vocal: Soft doubling"),
                 &[
                     ("rate", 0.4),
                     ("depth", 25.0),
@@ -3921,7 +3921,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: robot tube"),
+                tr("Vocal: Robot tube"),
                 &[
                     ("rate", 0.05),
                     ("depth", 10.0),
@@ -3932,7 +3932,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Synth: metallic"),
+                tr("Synth: Metallic"),
                 &[
                     ("rate", 0.5),
                     ("depth", 60.0),
@@ -3955,7 +3955,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Synth: pad, wide motion"),
+                tr("Synth: Pad, wide motion"),
                 &[
                     ("rate", 0.3),
                     ("depth", 40.0),
@@ -3967,7 +3967,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Synth: hollow drain"),
+                tr("Synth: Hollow drain"),
                 &[
                     ("rate", 0.12),
                     ("depth", 75.0),
@@ -3978,7 +3978,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: hi-hats, swirl"),
+                tr("Drums: Hi-hats, swirl"),
                 &[
                     ("rate", 0.2),
                     ("depth", 80.0),
@@ -3990,7 +3990,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: bus, through-zero"),
+                tr("Drums: Bus, through-zero"),
                 &[
                     ("rate", 0.1),
                     ("depth", 100.0),
@@ -4003,7 +4003,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: snare, tape flange"),
+                tr("Drums: Snare, tape flange"),
                 &[
                     ("rate", 0.25),
                     ("depth", 60.0),
@@ -4018,11 +4018,11 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "phaser" => vec![
             preset(
-                tr("Guitar: classic 4-stage"),
+                tr("Guitar: Classic 4-stage"),
                 &[("rate", 0.5), ("feedback", 30.0), ("stages", 0.0)],
             ),
             preset(
-                tr("Guitar: funk rhythm"),
+                tr("Guitar: Funk rhythm"),
                 &[
                     ("rate", 1.5),
                     ("depth", 80.0),
@@ -4032,7 +4032,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: fast vibe"),
+                tr("Guitar: Fast vibe"),
                 &[
                     ("rate", 4.5),
                     ("depth", 70.0),
@@ -4042,7 +4042,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: electric piano swirl"),
+                tr("Keys: Electric piano swirl"),
                 &[
                     ("rate", 0.3),
                     ("depth", 70.0),
@@ -4053,7 +4053,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: clav funk"),
+                tr("Keys: Clav funk"),
                 &[
                     ("rate", 2.2),
                     ("depth", 85.0),
@@ -4063,7 +4063,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: organ, slow rotor"),
+                tr("Keys: Organ, slow rotor"),
                 &[
                     ("rate", 0.9),
                     ("depth", 60.0),
@@ -4074,7 +4074,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Synth: deep swirl"),
+                tr("Synth: Deep swirl"),
                 &[
                     ("rate", 0.2),
                     ("depth", 100.0),
@@ -4094,7 +4094,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Synth: pad, slow 12-stage"),
+                tr("Synth: Pad, slow 12-stage"),
                 &[
                     ("rate", 0.05),
                     ("depth", 100.0),
@@ -4105,7 +4105,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Synth: resonant 1 bar"),
+                tr("Synth: Resonant 1 bar"),
                 &[
                     ("sync", 1.0),
                     ("note", 11.0),
@@ -4118,7 +4118,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: vocal, subtle movement"),
+                tr("FX: Vocal, subtle movement"),
                 &[
                     ("rate", 0.2),
                     ("depth", 40.0),
@@ -4128,7 +4128,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: drums, breakbeat sweep"),
+                tr("FX: Drums, breakbeat sweep"),
                 &[
                     ("rate", 0.15),
                     ("depth", 90.0),
@@ -4140,7 +4140,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: hi-hats, jet stream"),
+                tr("FX: Hi-hats, jet stream"),
                 &[
                     ("rate", 0.1),
                     ("depth", 100.0),
@@ -4152,7 +4152,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("FX: whole mix, slow notch"),
+                tr("FX: Whole mix, slow notch"),
                 &[
                     ("rate", 0.05),
                     ("depth", 70.0),
@@ -4165,7 +4165,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "imager" => vec![
             preset(
-                tr("Master: mono bass 150 Hz"),
+                tr("Master: Mono bass 150 Hz"),
                 &[
                     ("low_width", 100.0),
                     ("mid_width", 100.0),
@@ -4174,7 +4174,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: wide top"),
+                tr("Master: Wide top"),
                 &[
                     ("low_width", 100.0),
                     ("mid_width", 115.0),
@@ -4183,7 +4183,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: gentle widen"),
+                tr("Master: Gentle widen"),
                 &[
                     ("low_width", 100.0),
                     ("mid_width", 108.0),
@@ -4192,7 +4192,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: focus the center"),
+                tr("Master: Focus the center"),
                 &[
                     ("low_width", 90.0),
                     ("mid_width", 88.0),
@@ -4201,7 +4201,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: drums, wide overheads"),
+                tr("Bus: Drums, wide overheads"),
                 &[
                     ("low_width", 100.0),
                     ("mid_width", 110.0),
@@ -4210,7 +4210,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: guitars, wide doubles"),
+                tr("Bus: Guitars, wide doubles"),
                 &[
                     ("low_width", 100.0),
                     ("mid_width", 130.0),
@@ -4220,7 +4220,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: pads, super wide"),
+                tr("Bus: Pads, super wide"),
                 &[
                     ("low_width", 120.0),
                     ("mid_width", 160.0),
@@ -4229,7 +4229,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bus: backing vocals, spread"),
+                tr("Bus: Backing vocals, spread"),
                 &[
                     ("low_width", 100.0),
                     ("mid_width", 140.0),
@@ -4239,7 +4239,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Fix: mono source, stereoize"),
+                tr("Fix: Mono source, stereoize"),
                 &[
                     ("mid_width", 100.0),
                     ("high_width", 100.0),
@@ -4249,7 +4249,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Fix: bass, mono lows"),
+                tr("Fix: Bass, mono lows"),
                 &[
                     ("low_width", 0.0),
                     ("mid_width", 100.0),
@@ -4259,7 +4259,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Fix: tame a too-wide source"),
+                tr("Fix: Tame a too-wide source"),
                 &[
                     ("low_width", 70.0),
                     ("mid_width", 70.0),
@@ -4268,13 +4268,13 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Fix: check in mono"),
+                tr("Fix: Check in mono"),
                 &[("low_width", 0.0), ("mid_width", 0.0), ("high_width", 0.0)],
             ),
         ],
         "transient" => vec![
             preset(
-                tr("Drums: kick punch"),
+                tr("Drums: Kick punch"),
                 &[
                     ("attack", 22.0),
                     ("sustain", -20.0),
@@ -4283,7 +4283,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: snare crack"),
+                tr("Drums: Snare crack"),
                 &[
                     ("attack", 22.0),
                     ("sustain", 0.0),
@@ -4292,7 +4292,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: snare, fat sustain"),
+                tr("Drums: Snare, fat sustain"),
                 &[
                     ("attack", 8.0),
                     ("sustain", 40.0),
@@ -4301,7 +4301,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: toms, shorter ring"),
+                tr("Drums: Toms, shorter ring"),
                 &[
                     ("attack", 12.0),
                     ("sustain", -40.0),
@@ -4310,7 +4310,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: bus, tight and punchy"),
+                tr("Drums: Bus, tight and punchy"),
                 &[
                     ("attack", 15.0),
                     ("sustain", -35.0),
@@ -4319,7 +4319,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: bus, more room"),
+                tr("Drums: Bus, more room"),
                 &[
                     ("attack", 0.0),
                     ("sustain", 60.0),
@@ -4328,7 +4328,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: acoustic, pick attack"),
+                tr("Guitar: Acoustic, pick attack"),
                 &[
                     ("attack", 20.0),
                     ("sustain", -10.0),
@@ -4337,7 +4337,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: funk bite"),
+                tr("Guitar: Funk bite"),
                 &[
                     ("attack", 22.0),
                     ("sustain", -15.0),
@@ -4346,7 +4346,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: softer strumming"),
+                tr("Guitar: Softer strumming"),
                 &[
                     ("attack", -30.0),
                     ("sustain", 10.0),
@@ -4355,7 +4355,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: pluck definition"),
+                tr("Bass: Pluck definition"),
                 &[
                     ("attack", 18.0),
                     ("sustain", 0.0),
@@ -4364,7 +4364,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: longer notes"),
+                tr("Bass: Longer notes"),
                 &[
                     ("attack", 0.0),
                     ("sustain", 50.0),
@@ -4373,7 +4373,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: slap, tamed"),
+                tr("Bass: Slap, tamed"),
                 &[
                     ("attack", -35.0),
                     ("sustain", 0.0),
@@ -4382,7 +4382,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: piano, more hammer"),
+                tr("Keys: Piano, more hammer"),
                 &[
                     ("attack", 18.0),
                     ("sustain", 0.0),
@@ -4391,7 +4391,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: piano, softer touch"),
+                tr("Keys: Piano, softer touch"),
                 &[
                     ("attack", -30.0),
                     ("sustain", 15.0),
@@ -4400,7 +4400,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Keys: plucks pop out"),
+                tr("Keys: Plucks pop out"),
                 &[
                     ("attack", 28.0),
                     ("sustain", -30.0),
@@ -4409,11 +4409,11 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Fix: soften attacks"),
+                tr("Fix: Soften attacks"),
                 &[("attack", -40.0), ("sustain", 10.0), ("output", 2.0)],
             ),
             preset(
-                tr("Fix: less room"),
+                tr("Fix: Less room"),
                 &[
                     ("attack", 0.0),
                     ("sustain", -60.0),
@@ -4422,7 +4422,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Fix: clicky kick, tamed"),
+                tr("Fix: Clicky kick, tamed"),
                 &[
                     ("attack", -25.0),
                     ("sustain", 0.0),
@@ -4433,33 +4433,33 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "pitch_correct" => vec![
             preset(
-                tr("Vocal: hard tune"),
+                tr("Vocal: Hard tune"),
                 &[("speed", 0.0), ("humanize", 0.0), ("amount", 100.0)],
             ),
             preset(
-                tr("Vocal: pop, tight"),
+                tr("Vocal: Pop, tight"),
                 &[("speed", 15.0), ("humanize", 20.0), ("amount", 100.0)],
             ),
             preset(
-                tr("Vocal: natural, keeps the vibrato"),
+                tr("Vocal: Natural, keeps the vibrato"),
                 &[("speed", 60.0), ("humanize", 70.0), ("amount", 100.0)],
             ),
             preset(
-                tr("Vocal: light touch"),
+                tr("Vocal: Light touch"),
                 &[("speed", 150.0), ("humanize", 60.0), ("amount", 60.0)],
             ),
             preset(
-                tr("Backing vocals: locked"),
+                tr("Backing vocals: Locked"),
                 &[("speed", 10.0), ("humanize", 0.0), ("amount", 100.0)],
             ),
             preset(
-                tr("FX: octave down"),
+                tr("FX: Octave down"),
                 &[("speed", 20.0), ("humanize", 50.0), ("transpose", -12.0)],
             ),
         ],
         "deesser" => vec![
             preset(
-                tr("Vocal: female, standard"),
+                tr("Vocal: Female, standard"),
                 &[
                     ("frequency", 7500.0),
                     ("range", 8.0),
@@ -4468,7 +4468,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: female, bright and harsh"),
+                tr("Vocal: Female, bright and harsh"),
                 &[
                     ("frequency", 8500.0),
                     ("range", 10.0),
@@ -4478,7 +4478,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: male, standard"),
+                tr("Vocal: Male, standard"),
                 &[
                     ("frequency", 5500.0),
                     ("range", 8.0),
@@ -4487,7 +4487,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: male, gentle"),
+                tr("Vocal: Male, gentle"),
                 &[
                     ("frequency", 6000.0),
                     ("range", 4.0),
@@ -4496,7 +4496,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: wide-band, natural"),
+                tr("Vocal: Wide-band, natural"),
                 &[
                     ("frequency", 6500.0),
                     ("mode", 1.0),
@@ -4506,7 +4506,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: backing, strong"),
+                tr("Vocal: Backing, strong"),
                 &[
                     ("frequency", 7000.0),
                     ("range", 12.0),
@@ -4516,7 +4516,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Voice-over: broadcast"),
+                tr("Voice-over: Broadcast"),
                 &[
                     ("frequency", 6000.0),
                     ("range", 8.0),
@@ -4525,7 +4525,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Voice-over: podcast, close mic"),
+                tr("Voice-over: Podcast, close mic"),
                 &[
                     ("frequency", 5500.0),
                     ("range", 10.0),
@@ -4536,7 +4536,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Voice-over: audiobook, gentle"),
+                tr("Voice-over: Audiobook, gentle"),
                 &[
                     ("frequency", 6500.0),
                     ("range", 5.0),
@@ -4546,11 +4546,11 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Instrument: cymbals, harsh"),
+                tr("Instrument: Cymbals, harsh"),
                 &[("frequency", 9000.0), ("range", 6.0), ("threshold", -46.0)],
             ),
             preset(
-                tr("Instrument: hi-hat bleed"),
+                tr("Instrument: Hi-hat bleed"),
                 &[
                     ("frequency", 8000.0),
                     ("range", 9.0),
@@ -4560,7 +4560,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Instrument: acoustic guitar, string squeaks"),
+                tr("Instrument: Acoustic guitar, string squeaks"),
                 &[
                     ("frequency", 4000.0),
                     ("range", 8.0),
@@ -4572,7 +4572,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         // The defaults boost lows and highs a little: each preset sets every boost and cut.
         "vintage_eq" => vec![
             preset(
-                tr("Drums: kick, low end trick"),
+                tr("Drums: Kick, low end trick"),
                 &[
                     ("low_freq", 2.0),
                     ("low_boost", 6.0),
@@ -4582,7 +4582,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: snare snap"),
+                tr("Drums: Snare snap"),
                 &[
                     ("low_freq", 3.0),
                     ("low_boost", 3.0),
@@ -4594,7 +4594,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Drums: bus, weight and silk"),
+                tr("Drums: Bus, weight and silk"),
                 &[
                     ("low_freq", 2.0),
                     ("low_boost", 3.0),
@@ -4606,7 +4606,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: low end trick 60 Hz"),
+                tr("Bass: Low end trick 60 Hz"),
                 &[
                     ("low_freq", 2.0),
                     ("low_boost", 5.0),
@@ -4617,7 +4617,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: round and warm"),
+                tr("Bass: Round and warm"),
                 &[
                     ("low_freq", 3.0),
                     ("low_boost", 4.0),
@@ -4630,7 +4630,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: tight low end"),
+                tr("Bass: Tight low end"),
                 &[
                     ("low_freq", 1.0),
                     ("low_boost", 4.0),
@@ -4641,7 +4641,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: presence 5 kHz"),
+                tr("Vocal: Presence 5 kHz"),
                 &[
                     ("high_freq", 2.0),
                     ("high_boost", 3.0),
@@ -4652,7 +4652,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: air"),
+                tr("Vocal: Air"),
                 &[
                     ("high_freq", 5.0),
                     ("high_boost", 4.0),
@@ -4663,7 +4663,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: body and air"),
+                tr("Vocal: Body and air"),
                 &[
                     ("low_freq", 3.0),
                     ("low_boost", 2.0),
@@ -4675,7 +4675,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Vocal: smooth top"),
+                tr("Vocal: Smooth top"),
                 &[
                     ("high_freq", 0.0),
                     ("high_boost", 2.0),
@@ -4689,7 +4689,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: acoustic, sparkle"),
+                tr("Guitar: Acoustic, sparkle"),
                 &[
                     ("low_freq", 3.0),
                     ("low_cut", 3.0),
@@ -4701,7 +4701,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: electric, bite 3 kHz"),
+                tr("Guitar: Electric, bite 3 kHz"),
                 &[
                     ("high_freq", 0.0),
                     ("high_boost", 4.0),
@@ -4712,7 +4712,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Guitar: electric, dark and fat"),
+                tr("Guitar: Electric, dark and fat"),
                 &[
                     ("low_freq", 3.0),
                     ("low_boost", 3.0),
@@ -4725,7 +4725,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: sheen"),
+                tr("Master: Sheen"),
                 &[
                     ("low_freq", 1.0),
                     ("low_boost", 2.0),
@@ -4737,7 +4737,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: warm and dark"),
+                tr("Master: Warm and dark"),
                 &[
                     ("low_boost", 3.0),
                     ("low_cut", 2.0),
@@ -4749,7 +4749,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: tube glue"),
+                tr("Master: Tube glue"),
                 &[
                     ("warmth", 45.0),
                     ("low_boost", 0.0),
@@ -4759,7 +4759,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Master: low end trick and air"),
+                tr("Master: Low end trick and air"),
                 &[
                     ("low_freq", 2.0),
                     ("low_boost", 3.0),
@@ -4774,7 +4774,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "filter" => vec![
             preset(
-                tr("Sweep: slow low-pass, 2 bars"),
+                tr("Sweep: Slow low-pass, 2 bars"),
                 &[
                     ("type", 0.0),
                     ("cutoff", 800.0),
@@ -4786,7 +4786,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Sweep: high-pass, 1 bar"),
+                tr("Sweep: High-pass, 1 bar"),
                 &[
                     ("type", 1.0),
                     ("cutoff", 500.0),
@@ -4799,7 +4799,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Sweep: stereo band-pass drift"),
+                tr("Sweep: Stereo band-pass drift"),
                 &[
                     ("type", 2.0),
                     ("cutoff", 1200.0),
@@ -4812,7 +4812,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Sweep: random steps 1/16"),
+                tr("Sweep: Random steps 1/16"),
                 &[
                     ("type", 0.0),
                     ("cutoff", 1200.0),
@@ -4826,15 +4826,15 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Transition: high-pass build-up"),
+                tr("Transition: High-pass build-up"),
                 &[("type", 1.0), ("cutoff", 200.0), ("resonance", 40.0)],
             ),
             preset(
-                tr("Transition: low-pass breakdown"),
+                tr("Transition: Low-pass breakdown"),
                 &[("type", 0.0), ("cutoff", 400.0), ("resonance", 30.0)],
             ),
             preset(
-                tr("Transition: narrow band, far away"),
+                tr("Transition: Narrow band, far away"),
                 &[("type", 2.0), ("cutoff", 900.0), ("resonance", 45.0)],
             ),
             preset(
@@ -4851,7 +4851,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Rhythm: wobble 1/8"),
+                tr("Rhythm: Wobble 1/8"),
                 &[
                     ("type", 0.0),
                     ("cutoff", 300.0),
@@ -4865,7 +4865,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Rhythm: pump 1/4"),
+                tr("Rhythm: Pump 1/4"),
                 &[
                     ("type", 0.0),
                     ("cutoff", 700.0),
@@ -4878,7 +4878,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Rhythm: high-pass chop 1/8"),
+                tr("Rhythm: High-pass chop 1/8"),
                 &[
                     ("type", 1.0),
                     ("cutoff", 400.0),
@@ -4891,7 +4891,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Envelope: guitar auto-wah"),
+                tr("Envelope: Guitar auto-wah"),
                 &[
                     ("type", 2.0),
                     ("cutoff", 600.0),
@@ -4901,7 +4901,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Envelope: bass funk"),
+                tr("Envelope: Bass funk"),
                 &[
                     ("type", 0.0),
                     ("cutoff", 300.0),
@@ -4912,7 +4912,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Envelope: keys quack"),
+                tr("Envelope: Keys quack"),
                 &[
                     ("type", 0.0),
                     ("cutoff", 500.0),
@@ -4925,7 +4925,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Envelope: drums, ducking highs"),
+                tr("Envelope: Drums, ducking highs"),
                 &[
                     ("type", 0.0),
                     ("cutoff", 9000.0),
@@ -4937,7 +4937,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Tone: radio voice"),
+                tr("Tone: Radio voice"),
                 &[
                     ("type", 2.0),
                     ("cutoff", 1800.0),
@@ -4947,7 +4947,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Tone: next room"),
+                tr("Tone: Next room"),
                 &[
                     ("type", 0.0),
                     ("cutoff", 700.0),
@@ -4956,7 +4956,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Tone: warm low-pass"),
+                tr("Tone: Warm low-pass"),
                 &[
                     ("type", 0.0),
                     ("cutoff", 7000.0),
@@ -4965,7 +4965,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Tone: thin and distant"),
+                tr("Tone: Thin and distant"),
                 &[
                     ("type", 1.0),
                     ("cutoff", 900.0),
@@ -4975,7 +4975,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("DJ: low-pass with drive"),
+                tr("DJ: Low-pass with drive"),
                 &[
                     ("type", 0.0),
                     ("cutoff", 2000.0),
@@ -4986,7 +4986,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("DJ: high-pass with drive"),
+                tr("DJ: High-pass with drive"),
                 &[
                     ("type", 1.0),
                     ("cutoff", 150.0),
@@ -4997,7 +4997,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("DJ: mids only"),
+                tr("DJ: Mids only"),
                 &[
                     ("type", 2.0),
                     ("cutoff", 1000.0),
@@ -5009,25 +5009,25 @@ fn builtin(effect: &str) -> Vec<Preset> {
         ],
         "utility" => vec![
             preset(
-                tr("Fix: flip polarity"),
+                tr("Fix: Flip polarity"),
                 &[("invert_left", 1.0), ("invert_right", 1.0)],
             ),
-            preset(tr("Fix: flip left polarity"), &[("invert_left", 1.0)]),
-            preset(tr("Fix: flip right polarity"), &[("invert_right", 1.0)]),
-            preset(tr("Fix: swap channels"), &[("swap", 1.0)]),
-            preset(tr("Fix: remove DC offset"), &[("dc", 1.0)]),
-            preset(tr("Fix: mono bass below 120 Hz"), &[("bass_mono", 120.0)]),
+            preset(tr("Fix: Flip left polarity"), &[("invert_left", 1.0)]),
+            preset(tr("Fix: Flip right polarity"), &[("invert_right", 1.0)]),
+            preset(tr("Fix: Swap channels"), &[("swap", 1.0)]),
+            preset(tr("Fix: Remove DC offset"), &[("dc", 1.0)]),
+            preset(tr("Fix: Mono bass below 120 Hz"), &[("bass_mono", 120.0)]),
             preset(tr("Gain: -6 dB headroom"), &[("gain", -6.0)]),
             preset(tr("Gain: -12 dB before a hot plugin"), &[("gain", -12.0)]),
             preset(tr("Gain: +6 dB"), &[("gain", 6.0)]),
-            preset(tr("Width: mono check"), &[("mono", 1.0)]),
-            preset(tr("Width: narrow 50%"), &[("width", 50.0)]),
-            preset(tr("Width: wide 130%"), &[("width", 130.0)]),
+            preset(tr("Width: Mono check"), &[("mono", 1.0)]),
+            preset(tr("Width: Narrow 50%"), &[("width", 50.0)]),
+            preset(tr("Width: Wide 130%"), &[("width", 130.0)]),
             preset(tr("Width: Haas widener 12 ms"), &[("delay_right", 12.0)]),
         ],
         "amp_rig" => vec![
             preset(
-                tr("Clean: sparkle"),
+                tr("Clean: Sparkle"),
                 &[
                     ("amp", 1.0),
                     ("cab", 3.0),
@@ -5044,7 +5044,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Clean: edge of breakup"),
+                tr("Clean: Edge of breakup"),
                 &[
                     ("amp", 2.0),
                     ("cab", 4.0),
@@ -5058,7 +5058,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Clean: jangle"),
+                tr("Clean: Jangle"),
                 &[
                     ("amp", 6.0),
                     ("cab", 2.0),
@@ -5075,7 +5075,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Clean: warm jazz"),
+                tr("Clean: Warm jazz"),
                 &[
                     ("amp", 3.0),
                     ("cab", 5.0),
@@ -5091,7 +5091,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Crunch: blues"),
+                tr("Crunch: Blues"),
                 &[
                     ("amp", 7.0),
                     ("cab", 1.0),
@@ -5106,7 +5106,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Crunch: rock"),
+                tr("Crunch: Rock"),
                 &[
                     ("amp", 8.0),
                     ("cab", 1.0),
@@ -5122,7 +5122,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Crunch: tweed bite"),
+                tr("Crunch: Tweed bite"),
                 &[
                     ("amp", 4.0),
                     ("cab", 5.0),
@@ -5133,7 +5133,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Crunch: boutique edge"),
+                tr("Crunch: Boutique edge"),
                 &[
                     ("amp", 9.0),
                     ("cab", 2.0),
@@ -5151,7 +5151,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Lead: singing"),
+                tr("Lead: Singing"),
                 &[
                     ("amp", 8.0),
                     ("cab", 0.0),
@@ -5172,7 +5172,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Lead: liquid"),
+                tr("Lead: Liquid"),
                 &[
                     ("amp", 10.0),
                     ("cab", 0.0),
@@ -5194,7 +5194,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Lead: fuzz rock"),
+                tr("Lead: Fuzz rock"),
                 &[
                     ("amp", 8.0),
                     ("cab", 1.0),
@@ -5208,7 +5208,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("High gain: metal"),
+                tr("High gain: Metal"),
                 &[
                     ("amp", 11.0),
                     ("cab", 0.0),
@@ -5225,7 +5225,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("High gain: modern rhythm"),
+                tr("High gain: Modern rhythm"),
                 &[
                     ("amp", 10.0),
                     ("cab", 0.0),
@@ -5243,7 +5243,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("High gain: thrash scoop"),
+                tr("High gain: Thrash scoop"),
                 &[
                     ("amp", 11.0),
                     ("cab", 0.0),
@@ -5261,7 +5261,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: classic"),
+                tr("Bass: Classic"),
                 &[
                     ("amp", 12.0),
                     ("cab", 7.0),
@@ -5274,7 +5274,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: flip-top, round"),
+                tr("Bass: Flip-top, round"),
                 &[
                     ("amp", 13.0),
                     ("cab", 8.0),
@@ -5286,7 +5286,7 @@ fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
             preset(
-                tr("Bass: driven rock"),
+                tr("Bass: Driven rock"),
                 &[
                     ("amp", 12.0),
                     ("cab", 6.0),
@@ -5365,7 +5365,7 @@ mod tests {
     }
 
     /// Each role of an effect offers a real choice without drowning it: three to six presets,
-    /// under names that tell them apart.
+    /// under names that tell them apart, each name with a capital.
     #[test]
     fn every_category_has_three_to_six_presets() {
         for info in audiostrada_dsp::EFFECTS {
@@ -5376,8 +5376,14 @@ mod tests {
             let mut counts: BTreeMap<String, usize> = BTreeMap::new();
             let mut names = std::collections::BTreeSet::new();
             for preset in builtin_or_instrument(info.id) {
-                let (category, _) = crate::effect_editors::preset_category(&preset.name)
+                let (category, name) = crate::effect_editors::preset_category(&preset.name)
                     .unwrap_or_else(|| panic!("{}: {} has no category", info.id, preset.name));
+                assert!(
+                    name.starts_with(|c: char| c.is_uppercase() || c.is_ascii_digit()),
+                    "{}: {} starts without a capital",
+                    info.id,
+                    preset.name
+                );
                 *counts.entry(category).or_default() += 1;
                 assert!(
                     names.insert(preset.name.clone()),

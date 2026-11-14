@@ -99,8 +99,8 @@ Morceau
 The click is off
 Le clic est désactivé
 
-The count-in clicks bars before recording starts; the pre-roll plays bars of the song before the count-in, counted from the punch-in when there is one.
-Le décompte clique des mesures avant que l'enregistrement commence ; le pré-roll joue des mesures du morceau avant le décompte, comptées depuis le punch-in s'il y en a un.
+Before recording, the count-in clicks its bars first, even with the metronome off; then the pre-roll plays bars of the song before where recording starts (the punch-in when there is one).
+Avant l'enregistrement, le décompte clique d'abord ses mesures, même métronome coupé ; puis le pré-roll joue des mesures du morceau avant l'endroit où l'enregistrement commence (le punch-in s'il y en a un).
 
 The mixer was left as it was
 Le mixer est resté tel quel

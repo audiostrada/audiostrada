@@ -288,6 +288,7 @@ mod tests {
         playing: bool,
     ) -> Vec<Vec<f32>> {
         let transport = crate::TransportInfo {
+            counting: false,
             playing,
             position,
             sample_rate: 48_000,

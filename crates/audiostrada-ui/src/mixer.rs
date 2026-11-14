@@ -1072,6 +1072,7 @@ fn name_plate(
     color: Color32,
     (tall, kind): (bool, Option<&str>),
     icon: Option<crate::track_icons::TrackIcon>,
+    fold: bool,
 ) -> Plate {
     let (rect, response) =
         ui.allocate_exact_size(vec2(width, plate_height(tall)), Sense::click_and_drag());
@@ -1123,13 +1124,15 @@ fn name_plate(
         icon_at = Some(at);
         left = at.right() + 2.0;
     }
-    let mut right = band.right() - 5.0;
+    // A bus's fold arrow takes the right end (see `fold_arrow`).
+    let end = band.right() - if fold { 16.0 } else { 0.0 };
+    let mut right = end - 5.0;
     if let Some(kind) = kind {
         let galley = ui
             .painter()
             .layout_no_wrap(kind.to_owned(), theme::strong(8.5), ink);
         let badge = Rect::from_min_size(
-            pos2(band.right() - galley.size().x - 9.0, band.center().y - 6.5),
+            pos2(end - galley.size().x - 9.0, band.center().y - 6.5),
             vec2(galley.size().x + 6.0, 13.0),
         );
         ui.painter()
@@ -1165,6 +1168,48 @@ fn name_plate(
         ink,
     );
     plate
+}
+
+/// On a bus's name plate, the arrow folding its tracks away, as in the timeline.
+fn fold_arrow(ui: &mut Ui, doc: &mut Document, project: &Project, track: &Track, plate: &Plate) {
+    if !routing::has_children(project, track.id) {
+        return;
+    }
+    let rect = Rect::from_center_size(
+        pos2(plate.response.rect.right() - 10.0, plate.name.center().y),
+        vec2(16.0, 18.0),
+    );
+    let response = ui
+        .interact(
+            rect,
+            ui.scope_id().with(("fold", track.id.0)),
+            Sense::click(),
+        )
+        .on_hover_text(tr("Show or hide the tracks of this bus"))
+        .on_hover_cursor(egui::CursorIcon::PointingHand);
+    let p = theme::current(ui);
+    if response.hovered() {
+        ui.painter().rect_filled(
+            rect,
+            3.0,
+            Color32::from_black_alpha(if p.dark { 70 } else { 30 }),
+        );
+    }
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        if track.collapsed { "▸" } else { "▾" },
+        egui::FontId::proportional(12.0),
+        theme::text_on(color(track)),
+    );
+    if response.clicked() {
+        let (id, collapsed) = (track.id, !track.collapsed);
+        doc.history_mut().modify_unrecorded(|p| {
+            if let Some(t) = p.track_mut(id) {
+                t.collapsed = collapsed;
+            }
+        });
+    }
 }
 
 /// A drawn name plate: its response, and where its icon and its name are.
@@ -1798,6 +1843,11 @@ pub(crate) fn route_to_new_bus(doc: &mut Document, tracks: &[TrackId]) -> Result
 /// A button 13 px tall for a section title, lit with `lit` when given: drawn by hand so that
 /// it lines up with the title whatever the style's button height.
 fn title_button(ui: &mut Ui, text: &str, lit: Option<Color32>) -> Response {
+    title_button_wide(ui, text, lit, 0.0)
+}
+
+/// A title button at least `width` wide.
+fn title_button_wide(ui: &mut Ui, text: &str, lit: Option<Color32>, width: f32) -> Response {
     let p = theme::current(ui);
     let font = egui::FontId::proportional(8.5);
     let ink = if lit.is_some() {
@@ -1806,7 +1856,7 @@ fn title_button(ui: &mut Ui, text: &str, lit: Option<Color32>) -> Response {
         theme::mix(p.weak, p.text, 0.35)
     };
     let galley = ui.painter().layout_no_wrap(text.to_owned(), font, ink);
-    let size = vec2((galley.size().x + 8.0).max(22.0), 13.0);
+    let size = vec2((galley.size().x + 8.0).max(22.0).max(width), 13.0);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     let fill = match lit {
         Some(color) => color,
@@ -3311,7 +3361,17 @@ impl MixerView {
                     TrackKind::Audio => None,
                 };
                 let tall = self.detached;
-                let drawn = name_plate(ui, width, &name, color(track), (tall, kind), Some(icon));
+                let fold = routing::has_children(project, track.id);
+                let drawn = name_plate(
+                    ui,
+                    width,
+                    &name,
+                    color(track),
+                    (tall, kind),
+                    Some(icon),
+                    fold,
+                );
+                fold_arrow(ui, doc, project, track, &drawn);
                 self.plate_editing(ui, doc, track, &drawn);
                 let plate = drawn.response.on_hover_text(if vca {
                     tr("VCA. Click to select, drag to reorder, right-click for options")
@@ -3448,6 +3508,7 @@ impl MixerView {
                     color(track),
                     (self.detached, None),
                     Some(icon),
+                    false,
                 );
                 self.plate_editing(ui, doc, track, &drawn);
                 plate = Some(drawn.response);
@@ -3993,6 +4054,13 @@ impl MixerView {
     /// The buttons bypassing a channel's inserts (and every insert, on the master).
     fn fx_toggles(&mut self, ui: &mut Ui, doc: &mut Document, channel: Channel, small: bool) {
         ui.spacing_mut().item_spacing.x = 2.0;
+        let master = channel == Channel::Master;
+        // The master's two bypasses share a line of their own.
+        let wide = if master && small {
+            (ui.available_width() - 2.0) / 2.0
+        } else {
+            0.0
+        };
         let project = doc.project();
         let all_off = project.all_fx_off;
         let channel_off = match channel {
@@ -4007,7 +4075,9 @@ impl MixerView {
         let toggle = |ui: &mut Ui, label: &str, off: bool, hint: &str| {
             if small {
                 let lit = off.then_some(crate::settings::WARN);
-                return title_button(ui, label, lit).on_hover_text(hint).clicked();
+                return title_button_wide(ui, label, lit, wide)
+                    .on_hover_text(hint)
+                    .clicked();
             }
             let text = RichText::new(label).size(10.0);
             let button = if off {
@@ -4017,7 +4087,6 @@ impl MixerView {
             };
             ui.add(button).on_hover_text(hint).clicked()
         };
-        let master = channel == Channel::Master;
         let hint = match (channel_off, all_off, master) {
             (false, false, true) => tr("Effects on: click to bypass the master's inserts"),
             (false, false, false) => tr("Effects on: click to bypass every insert of this track"),
@@ -4025,9 +4094,14 @@ impl MixerView {
             (true, _, false) => {
                 tr("Effects bypassed: click to turn every insert of this track back on")
             }
-            (false, true, _) => tr("Every effect is bypassed by ALL on the master"),
+            (false, true, _) => tr("Every effect is bypassed by the global bypass on the master"),
         };
-        if toggle(ui, tr("Bypass"), channel_off || all_off, hint) {
+        let label = if master {
+            tr("Bypass master")
+        } else {
+            tr("Bypass")
+        };
+        if toggle(ui, label, channel_off || all_off, hint) {
             let alone = clutch(ui);
             doc.history_mut()
                 .edit(tr("Bypass inserts"), |p| match channel {
@@ -4041,7 +4115,7 @@ impl MixerView {
         if channel == Channel::Master
             && toggle(
                 ui,
-                tr("ALL"),
+                tr("Global bypass"),
                 all_off,
                 if all_off {
                     tr("Every effect bypassed: click to turn them back on")
@@ -4078,7 +4152,9 @@ impl MixerView {
             if toggles {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(2.0);
-                    self.fx_toggles(ui, doc, channel, true);
+                    if channel != Channel::Master {
+                        self.fx_toggles(ui, doc, channel, true);
+                    }
                     let rack = title_button(ui, tr("Rack"), None)
                         .on_hover_text(tr("Open this chain in the rack"));
                     if rack.clicked() {
@@ -4087,6 +4163,13 @@ impl MixerView {
                 });
             }
         });
+        if toggles && channel == Channel::Master {
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                ui.set_height(13.0);
+                self.fx_toggles(ui, doc, channel, true);
+            });
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -5066,6 +5149,7 @@ impl MixerView {
                     master_color(ui),
                     (self.detached, None),
                     Some(crate::track_icons::TrackIcon::Bus),
+                    false,
                 );
                 plate
                     .response

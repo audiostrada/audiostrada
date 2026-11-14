@@ -1085,7 +1085,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
     use crate::presets::preset;
     vec![
         preset(
-            tr("Kick: reinforce"),
+            tr("Kick: Reinforce"),
             &[
                 ("kind", 0.0),
                 ("kick", 0.0),
@@ -1095,7 +1095,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             ],
         ),
         preset(
-            tr("Kick: replace"),
+            tr("Kick: Replace"),
             &[
                 ("kind", 0.0),
                 ("kick", 2.0),
@@ -1104,7 +1104,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             ],
         ),
         preset(
-            tr("Kick: big and open"),
+            tr("Kick: Big and open"),
             &[
                 ("kind", 0.0),
                 ("kick", 3.0),
@@ -1114,7 +1114,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             ],
         ),
         preset(
-            tr("Kick: fast double pedal"),
+            tr("Kick: Fast double pedal"),
             &[
                 ("kind", 0.0),
                 ("kick", 5.0),
@@ -1126,7 +1126,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             ],
         ),
         preset(
-            tr("Snare: reinforce"),
+            tr("Snare: Reinforce"),
             &[
                 ("kind", 1.0),
                 ("snare", 1.0),
@@ -1135,7 +1135,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             ],
         ),
         preset(
-            tr("Snare: replace"),
+            tr("Snare: Replace"),
             &[
                 ("kind", 1.0),
                 ("snare", 2.0),
@@ -1145,7 +1145,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             ],
         ),
         preset(
-            tr("Snare: in the room"),
+            tr("Snare: In the room"),
             &[
                 ("kind", 1.0),
                 ("snare", 6.0),
@@ -1155,7 +1155,7 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
             ],
         ),
         preset(
-            tr("Snare: tight and dry"),
+            tr("Snare: Tight and dry"),
             &[
                 ("kind", 1.0),
                 ("snare", 3.0),

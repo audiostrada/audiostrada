@@ -79,6 +79,7 @@ impl WorkerPool {
                 schedule: std::ptr::null_mut(),
                 frames: 0,
                 transport: TransportInfo {
+                    counting: false,
                     playing: false,
                     position: 0,
                     sample_rate: 0,

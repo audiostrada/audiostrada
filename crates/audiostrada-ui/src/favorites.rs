@@ -92,9 +92,9 @@ mod tests {
     #[test]
     fn favorites_toggle_and_recent_effects_come_first() {
         let mut f = Favorites::default();
-        f.toggle_preset("compressor", "Vocal: gentle");
-        assert!(f.preset("compressor", "Vocal: gentle"));
-        f.toggle_preset("compressor", "Vocal: gentle");
+        f.toggle_preset("compressor", "Vocal: Gentle");
+        assert!(f.preset("compressor", "Vocal: Gentle"));
+        f.toggle_preset("compressor", "Vocal: Gentle");
         assert!(f.presets.is_empty());
         for key in ["eq", "reverb", "eq"] {
             f.used(key);

@@ -11,8 +11,8 @@ de chaque réglage.
   quand ses réglages ont changé depuis. Les flèches à côté, ou [[Left]] et [[Right]], parcourent
   les presets ; clic droit sur une flèche › *Apprentissage MIDI*, puis appuyez sur un bouton de
   votre contrôleur MIDI pour les parcourir depuis celui-ci, fenêtre ouverte ou non. Cliquez sur son nom pour le panneau des presets : une recherche, les catégories,
-  vos favoris, les presets d'usine et les vôtres à part. Le parcourir à la souris ou avec [[Up]]
-  et [[Down]] fait entendre chaque preset ; [[Enter]] le garde, [[Escape]] revient au réglage
+  vos favoris, les presets d'usine et les vôtres à part. L'oreille à droite d'un preset le fait
+  entendre (un second clic l'arrête), comme le parcourir avec [[Up]] et [[Down]] ; [[Enter]] le garde, [[Escape]] revient au réglage
   d'avant. Clic droit sur l'un des vôtres pour le renommer ou le supprimer. L'étoile ajoute le
   preset à vos favoris, la disquette enregistre les réglages (tapez *Catégorie : nom* pour le
   ranger). **A** / **B** retiennent deux réglages à comparer, le bouton à côté copie l'un sur

@@ -2025,17 +2025,17 @@ fn delay(ui: &mut Ui, params: &mut Params, state: &mut EditorState) {
                     }
                     response
                 });
-                if !synced {
-                    tap_button(ui, params, state);
-                }
+                ui.add_enabled_ui(!synced, |ui| tap_button(ui, params, state));
             });
             ui.add_space(4.0);
             ui.horizontal_top(|ui| {
-                if synced {
-                    note_grid(ui, params, "note", None);
-                } else {
-                    wide_knob(ui, params, "time", tr("Time"), 44.0, accent);
-                }
+                steady(ui, params, synced, |ui, params, synced| {
+                    if synced {
+                        note_grid(ui, params, "note", None);
+                    } else {
+                        wide_knob(ui, params, "time", tr("Time"), 44.0, accent);
+                    }
+                });
                 wide_knob(ui, params, "offset", tr("Right offset"), 44.0, accent);
             });
         });
@@ -2088,6 +2088,23 @@ fn delay(ui: &mut Ui, params: &mut Params, state: &mut EditorState) {
                 wide_knob(ui, params, "mix", tr("Mix"), 44.0, accent);
             });
         });
+    });
+}
+
+/// What a switch swaps (a knob or a grid of note values) keeps the room of its larger form,
+/// measured unseen, so that the window keeps its size when a preset or a click flips it.
+fn steady(
+    ui: &mut Ui,
+    params: &mut Params,
+    on: bool,
+    mut add: impl FnMut(&mut Ui, &mut Params, bool),
+) {
+    let mut probe = ui.new_child(egui::UiBuilder::new().id_salt("steady-probe").invisible());
+    add(&mut probe, params, !on);
+    let other = probe.min_rect().size();
+    ui.scope(|ui| {
+        ui.set_min_size(other);
+        add(ui, params, on);
     });
 }
 
@@ -2193,11 +2210,14 @@ fn reverb(ui: &mut Ui, params: &mut Params) {
         });
         // Its switch under it, as Freeze under the space.
         section_frame(ui, tr("Pre-delay"), p.weak, 118.0, |ui| {
-            if params.get("predelay_sync") >= 0.5 {
-                note_grid(ui, params, "predelay_note", Some(0.5));
-            } else {
-                knob(ui, params, "predelay", accent);
-            }
+            let synced = params.get("predelay_sync") >= 0.5;
+            steady(ui, params, synced, |ui, params, synced| {
+                if synced {
+                    note_grid(ui, params, "predelay_note", Some(0.5));
+                } else {
+                    knob(ui, params, "predelay", accent);
+                }
+            });
             ui.add_space(4.0);
             pill(
                 ui,

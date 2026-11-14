@@ -266,6 +266,7 @@ mod tests {
     fn plugins_are_told_where_the_song_is() {
         // Third beat and a half of the second bar of 4/4, at 96 BPM, playing.
         let info = TransportInfo {
+            counting: false,
             playing: true,
             position: 192_000,
             sample_rate: 48_000,
@@ -285,6 +286,7 @@ mod tests {
         assert_eq!((t.numerator, t.denominator), (4, 4));
         // 6/8: beats are eighths, half a quarter note each.
         let info = TransportInfo {
+            counting: false,
             beat: 4.5,
             bar: BarPosition {
                 beat: 4,

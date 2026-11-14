@@ -303,17 +303,11 @@ Effets bypassés: cliquer pour réactiver les inserts du master
 Effects bypassed: click to turn every insert of this track back on
 Effets bypassés: cliquer pour réactiver tous les inserts de cette piste
 
-Every effect is bypassed by ALL on the master
-Tous les effets sont bypassés par TOUT sur le master
-
 FX
 FX
 
 Bypass inserts
 Bypasser les inserts
-
-ALL
-TOUT
 
 Every effect bypassed: click to turn them back on
 Tous les effets bypassés: cliquer pour les réactiver
@@ -1677,9 +1671,6 @@ Express Mix : nettoyer la piste, la révéler (clic droit pour plus)
 Express Mix as: {instrument}, {what}. Click to redo it, right-click to remove it
 Express Mix comme : {instrument}, {what}. Cliquer pour refaire, clic droit pour retirer
 
-Express Mix: all tracks
-Express Mix : toutes les pistes
-
 Cleans up and brings out every track (not the buses): each one is listened to, then you hear the proposal and leave out the tracks you want
 Nettoie et révèle toutes les pistes (pas les bus) : chacune est écoutée, puis vous entendez la proposition et écartez les pistes que vous voulez
 
@@ -2056,11 +2047,17 @@ Le son voulu pour le mix : son timbre, sa dynamique, sa couleur de console
 50 %: the console run hot, as on records. Lower: gentler, down to nothing. Higher: its character exaggerated. Always at the same loudness
 50 % : la console poussée à chaud, comme sur les disques. Plus bas : plus douce, jusqu'à rien. Plus haut : son caractère exagéré. Toujours au même volume
 
-Do you hear the consoles? Two takes of the mix, one through a console: say which. It starts easy and gets subtler, to find the amount you hear it from.
-Entendez-vous les consoles ? Deux prises du mix, dont une passe par une console : dites laquelle. Le test commence facile et devient plus subtil, pour trouver à partir de quelle quantité vous l'entendez.
-
 Spatial
 Spatial
 
 Play from this marker
 Lire depuis ce marqueur
+
+Bypass master
+Bypass master
+
+Global bypass
+Bypass global
+
+Every effect is bypassed by the global bypass on the master
+Tous les effets sont bypassés par le bypass global du master

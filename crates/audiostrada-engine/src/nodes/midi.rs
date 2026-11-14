@@ -416,6 +416,7 @@ mod tests {
 
     fn transport(position: u64, playing: bool) -> TransportInfo {
         TransportInfo {
+            counting: false,
             playing,
             position,
             sample_rate: 48_000,

@@ -27,6 +27,8 @@ const QUEUE_CAPACITY: usize = 256;
 enum Command {
     Schedule(Box<Schedule>),
     Play,
+    /// Plays after a count-in of so many frames.
+    CountIn(u64),
     Stop,
     Locate(u64),
     /// Empties the effects: tails, delays, held voices.
@@ -97,11 +99,7 @@ impl Engine {
             garbage: None,
             shared: Arc::new(EngineShared::default()),
             tempo: Arc::new(TempoMap::default()),
-            transport: Transport {
-                playing: false,
-                position: 0,
-                looping: None,
-            },
+            transport: Transport::default(),
             sample_rate: 48_000,
             max_frames: 1024,
             config,
@@ -214,6 +212,12 @@ impl Engine {
     pub fn play(&mut self) {
         self.transport.playing = true;
         self.send(Command::Play);
+    }
+
+    /// Plays once the metronome has counted `frames` in, the position held meanwhile.
+    pub fn play_after_count_in(&mut self, frames: u64) {
+        self.transport.playing = true;
+        self.send(Command::CountIn(frames));
     }
 
     pub fn stop(&mut self) {
@@ -519,7 +523,14 @@ impl EngineProcessor {
                     self.take_schedule(schedule);
                 }
                 Command::Play => self.transport.playing = true,
-                Command::Stop => self.transport.playing = false,
+                Command::CountIn(frames) => {
+                    self.transport.playing = true;
+                    self.transport.count = (frames > 0).then_some((frames, frames));
+                }
+                Command::Stop => {
+                    self.transport.playing = false;
+                    self.transport.count = None;
+                }
                 Command::Locate(position) => self.transport.position = position,
                 Command::Flush => {
                     if let Some(schedule) = &mut self.schedule {
@@ -568,6 +579,8 @@ impl EngineProcessor {
         );
         self.transport
             .advance(buffers.frames(), schedule.max_frames, |segment| {
+                // Counting in, nothing moves but the clicks.
+                let playing = playing && segment.counted.is_none();
                 if let Some(automation) = automation {
                     automation.apply(segment.position);
                 }
@@ -584,18 +597,33 @@ impl EngineProcessor {
                 let unit = 4.0 / f64::from(signature.denominator.max(1));
                 let beat_start =
                     tempo.bbt_to_beat(audiostrada_core::tempo::BarBeatTick { tick: 0, ..bbt });
-                let transport = TransportInfo {
-                    playing,
-                    position: segment.position,
-                    sample_rate,
-                    beat,
-                    bpm: tempo.bpm_at_beat(beat),
-                    bar: crate::BarPosition {
+                let bpm = tempo.bpm_at_beat(beat);
+                let bar = match segment.counted {
+                    // Whole bars at the tempo where playing starts, from the first beat.
+                    Some(counted) => {
+                        let units = counted as f64 / (f64::from(sample_rate) * 60.0 / bpm * unit);
+                        crate::BarPosition {
+                            beat: (units.floor() as u32 % signature.numerator.max(1)) + 1,
+                            fraction: units.fract(),
+                            beats_per_bar: signature.numerator.max(1),
+                            unit,
+                        }
+                    }
+                    None => crate::BarPosition {
                         beat: bbt.beat,
                         fraction: ((beat - beat_start) / unit).clamp(0.0, 1.0),
                         beats_per_bar: signature.numerator.max(1),
                         unit,
                     },
+                };
+                let transport = TransportInfo {
+                    playing,
+                    position: segment.position,
+                    sample_rate,
+                    beat,
+                    bpm,
+                    bar,
+                    counting: segment.counted.is_some(),
                 };
                 pool.run(
                     schedule,

@@ -3,7 +3,6 @@
 mod actions;
 mod add_tracks;
 mod assistants_window;
-mod blind_test;
 mod browser;
 mod captures;
 mod chains;
@@ -623,6 +622,25 @@ impl AudioStradaApp {
         }
     }
 
+    /// Playback stops once past the last clip, as a stop would (back where it started if the
+    /// preferences say so); not while recording or looping. The effects ring out.
+    fn stop_at_song_end(&mut self) {
+        let mut doc = self.doc.borrow_mut();
+        let end = doc.project().length();
+        if end == 0
+            || !doc.player().engine().playing()
+            || doc.recording().is_some()
+            || doc.project().looping().is_some()
+            || doc.player().position() < end
+        {
+            return;
+        }
+        doc.player_mut().engine_mut().stop();
+        if self.prefs.return_on_stop {
+            doc.player_mut().locate(self.play_start);
+        }
+    }
+
     /// Points the MIDI output thread at the tracks playing external instruments.
     fn route_midi_outputs(&mut self) {
         let routes: Vec<(String, audiostrada_midi::live::LiveMidi)> = self
@@ -1197,7 +1215,6 @@ impl AudioStradaApp {
                 });
             }
             Action::ReferenceTrack => reference_window::open(ctx),
-            Action::ConsoleBlindTest => crate::blind_test::open(ctx),
             Action::ToggleLoop => {
                 // On over the loop kept, else the selection, else the whole project.
                 let selection = self
@@ -2522,7 +2539,6 @@ impl AudioStradaApp {
                     item(ui, &mut chosen, Action::ListenToReference, None, true);
                     item(ui, &mut chosen, Action::ReferenceTrack, None, true);
                 });
-                item(ui, &mut chosen, Action::ConsoleBlindTest, None, true);
                 ui.separator();
                 let low = self.doc.borrow().player().low_latency();
                 check(ui, &mut chosen, Action::LowLatency, low);
@@ -3312,6 +3328,7 @@ impl eframe::App for AudioStradaApp {
         self.follow_selection();
         self.answer_control(ctx);
         self.doc.borrow_mut().update();
+        self.stop_at_song_end();
         self.route_midi_outputs();
         ctx.request_repaint_after(self.refresh());
     }
@@ -3416,9 +3433,6 @@ impl eframe::App for AudioStradaApp {
                 actions.push(Action::PlayPause);
             }
             reference_window::show(ui.ctx(), &mut doc);
-            if crate::blind_test::show(ui.ctx(), &mut doc) {
-                actions.push(Action::PlayPause);
-            }
         });
         if audio.open_settings {
             self.preferences.open_audio();

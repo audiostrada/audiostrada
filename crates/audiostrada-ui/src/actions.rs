@@ -97,7 +97,6 @@ actions! {
     LowLatency => ("Transport", "Low latency mode"),
     ReduceLatency => ("Transport", "Reduce the monitoring latency"),
     ReferenceTrack => ("Transport", "Reference track…"),
-    ConsoleBlindTest => ("Transport", "Console blind test…"),
     TogglePunch => ("Transport", "Toggle punch range"),
     LoopSelection => ("Transport", "Loop selected clips"),
     AddMarker => ("Markers", "Add marker at playhead"),

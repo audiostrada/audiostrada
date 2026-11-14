@@ -975,18 +975,29 @@ impl Document {
         let position = self.player.position();
         let start = punch.map_or(position, |(a, _)| position.max(a));
         let (count_in, pre_roll) = (project.metronome.count_in, project.metronome.pre_roll);
+        let mut counted = 0;
         if count_in + pre_roll > 0 && !self.player.engine().playing() {
-            // Start earlier and only record from where the playhead was; a pre-roll counts
-            // from where recording starts.
             let tempo = &project.tempo;
             let rate = project.sample_rate;
-            let base = if pre_roll > 0 { start } else { position };
-            let beat = tempo.sample_to_beat(base, rate);
-            let bars =
-                f64::from(count_in + pre_roll) * tempo.signature_at_beat(beat).beats_per_bar();
-            let from = tempo.beat_to_sample((beat - bars).max(0.0), rate);
-            punch = Some(punch.map_or((start, u64::MAX), |(_, b)| (start, b)));
-            self.player.locate(from);
+            // The pre-roll plays bars of the song before where recording starts, which only
+            // records from there.
+            let mut from = position;
+            if pre_roll > 0 {
+                let beat = tempo.sample_to_beat(start, rate);
+                let bars = f64::from(pre_roll) * tempo.signature_at_beat(beat).beats_per_bar();
+                from = tempo.beat_to_sample((beat - bars).max(0.0), rate);
+                punch = Some(punch.map_or((start, u64::MAX), |(_, b)| (start, b)));
+                self.player.locate(from);
+            }
+            // The count-in clicks its bars before anything plays, even at the song's start.
+            if count_in > 0 {
+                let beat = tempo.sample_to_beat(from, rate);
+                let beats = f64::from(count_in) * tempo.signature_at_beat(beat).beats_per_bar();
+                let seconds = beats * 60.0 / tempo.bpm_at_beat(beat).max(1.0);
+                counted = self
+                    .player
+                    .to_engine((seconds * f64::from(rate)).round() as u64);
+            }
         }
         let recorder = if targets.is_empty() {
             None
@@ -1037,7 +1048,11 @@ impl Document {
         let heard = self.player.engine().shared().latency();
         let offset = offset + self.player.to_project(u64::from(heard)) as i64;
         self.player.set_recording_click(true);
-        self.player.engine_mut().play();
+        if counted > 0 {
+            self.player.engine_mut().play_after_count_in(counted);
+        } else {
+            self.player.engine_mut().play();
+        }
         self.recording = Some(Recording {
             recorder,
             prints,

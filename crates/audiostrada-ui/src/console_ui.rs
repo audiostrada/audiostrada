@@ -162,23 +162,6 @@ fn menu_contents(ui: &mut Ui, doc: &mut Document) {
         console_options(ui, doc, console)
     });
     ui.separator();
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(tr("Blind test")).strong());
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button(tr("Start…")).clicked() {
-                crate::blind_test::open(ui.ctx());
-            }
-        });
-    });
-    ui.label(
-        RichText::new(tr(
-            "Do you hear the consoles? Two takes of the mix, one through a console: say \
-             which. It starts easy and gets subtler, to find the amount you hear it from.",
-        ))
-        .size(10.5)
-        .color(p.weak),
-    );
-    ui.separator();
     let done_key = egui::Id::unique("console-gain-staging");
     ui.horizontal(|ui| {
         ui.label(RichText::new(tr("Gain staging")).strong());
