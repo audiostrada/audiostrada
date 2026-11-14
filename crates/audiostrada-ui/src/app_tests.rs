@@ -927,3 +927,78 @@ fn preparing_a_track_again_proposes_what_it_had_not_more() {
     let second = prepare(&mut h);
     assert_eq!(first, second, "the same input gain, effects and settings");
 }
+
+/// The tracks of the song named so.
+fn named(doc: &crate::document::Document, names: &[&str]) -> Vec<audiostrada_core::TrackId> {
+    names
+        .iter()
+        .map(|name| {
+            let track = doc.project().tracks.iter().find(|t| &t.name == name);
+            track.expect("a track of the song").id
+        })
+        .collect()
+}
+
+#[test]
+fn an_express_mix_with_everything_at_zero_changes_nothing() {
+    let mut h = Harness::with_song("express-zero");
+    h.frame(Vec::new());
+    let mut doc = h.app.doc.borrow_mut();
+    let before = doc.project().clone();
+    let request = prepare_window::Request {
+        tracks: named(&doc, &["Keys", "Drums"]),
+        clean: Some(0.0),
+        bring: Some(0.0),
+        depth: Some(0.0),
+        wide: Some(0.0),
+        balance: Some(0.0),
+        buses: Some(false),
+        ..Default::default()
+    };
+    assert_eq!(prepare_window::run(&mut doc, &request), Ok(2));
+    let after = doc.project();
+    assert_eq!(after.tracks, before.tracks, "not a track touched");
+    assert_eq!(after.master, before.master, "nor the master");
+    assert_eq!(after.console, before.console);
+}
+
+#[test]
+fn an_express_mix_balances_the_faders_and_gives_each_instrument_its_space() {
+    use audiostrada_core::prepare::{SPACE, SPACES, space_bus, space_buses};
+    let mut h = Harness::with_song("express-balance");
+    h.frame(Vec::new());
+    let mut doc = h.app.doc.borrow_mut();
+    let tracks = named(&doc, &["Keys", "Drums"]);
+    let request = prepare_window::Request {
+        tracks: tracks.clone(),
+        depth: Some(0.6),
+        ambience: Some(0.35),
+        balance: Some(1.0),
+        buses: Some(false),
+        ..Default::default()
+    };
+    assert_eq!(prepare_window::run(&mut doc, &request), Ok(2));
+    let p = doc.project();
+    // The balance set all the way: the faders it found kept to come back to.
+    for t in &tracks {
+        let track = p.track(*t).unwrap();
+        let done = track.prepared.as_ref().expect("prepared");
+        assert_eq!(done.gain, Some(0.0), "{}", track.name);
+    }
+    let (keys, drums) = (p.track(tracks[0]).unwrap(), p.track(tracks[1]).unwrap());
+    assert!(keys.gain_db != 0.0 || drums.gain_db != 0.0);
+    // The keys go to the hall, the drums to the room: two buses, each with its reverb.
+    let (hall, room) = (
+        space_bus(p, SPACE).unwrap(),
+        space_bus(p, SPACES[0]).unwrap(),
+    );
+    assert!(keys.sends.iter().any(|s| s.target == hall));
+    assert!(drums.sends.iter().any(|s| s.target == room));
+    assert_eq!(space_buses(p).len(), 2);
+    let kind = |bus| p.track(bus).unwrap().inserts[0].params["type"];
+    assert_ne!(kind(hall), kind(room));
+    // One undo step takes it all back.
+    doc.history_mut().undo();
+    assert!(space_buses(doc.project()).is_empty());
+    assert_eq!(doc.project().track(tracks[0]).unwrap().gain_db, 0.0);
+}

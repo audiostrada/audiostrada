@@ -39,6 +39,12 @@ pub trait Stage: Send {
     fn latency(&self) -> f32 {
         0.0
     }
+
+    /// The stage pushed `over` times harder than a console is ever run (1: within its range):
+    /// a circuit lets its parts that clip hard make room for it.
+    fn pushed(&mut self, x: f32, _over: f32) -> f32 {
+        self.process(x)
+    }
 }
 
 /// Stages one after the other.

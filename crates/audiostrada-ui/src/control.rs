@@ -437,6 +437,9 @@ pub fn inspect(doc: &Document, full: bool) -> Value {
                 "inserts": inserts(&t.inserts),
                 "sends": t.sends.iter().map(|s| json!({"to": s.target.0, "gain_db": s.gain_db})).collect::<Vec<_>>(),
             });
+            if let Some(p) = &t.prepared {
+                v["express_mix"] = json!(p.instrument);
+            }
             if full {
                 v["clips"] = json!(t
                     .clips

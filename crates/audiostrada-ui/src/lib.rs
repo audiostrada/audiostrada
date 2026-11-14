@@ -1197,6 +1197,7 @@ impl AudioStradaApp {
                 });
             }
             Action::ReferenceTrack => reference_window::open(ctx),
+            Action::ConsoleBlindTest => crate::blind_test::open(ctx),
             Action::ToggleLoop => {
                 // On over the loop kept, else the selection, else the whole project.
                 let selection = self
@@ -1231,7 +1232,11 @@ impl AudioStradaApp {
                     Action::BringOutTracks => prepare_window::Mode::BringOut,
                     _ => prepare_window::Mode::Both,
                 };
-                let tracks = self.doc.borrow().selected_tracks().to_vec();
+                let mut tracks = self.doc.borrow().selected_tracks().to_vec();
+                // Nothing selected: the whole song.
+                if tracks.is_empty() {
+                    tracks = prepare_window::every_track(&self.doc.borrow());
+                }
                 prepare_window::request(ctx, &tracks, mode);
             }
             Action::RemovePreparation => {
@@ -2517,6 +2522,7 @@ impl AudioStradaApp {
                     item(ui, &mut chosen, Action::ListenToReference, None, true);
                     item(ui, &mut chosen, Action::ReferenceTrack, None, true);
                 });
+                item(ui, &mut chosen, Action::ConsoleBlindTest, None, true);
                 ui.separator();
                 let low = self.doc.borrow().player().low_latency();
                 check(ui, &mut chosen, Action::LowLatency, low);
@@ -3410,7 +3416,9 @@ impl eframe::App for AudioStradaApp {
                 actions.push(Action::PlayPause);
             }
             reference_window::show(ui.ctx(), &mut doc);
-            crate::blind_test::show(ui.ctx(), &mut doc);
+            if crate::blind_test::show(ui.ctx(), &mut doc) {
+                actions.push(Action::PlayPause);
+            }
         });
         if audio.open_settings {
             self.preferences.open_audio();

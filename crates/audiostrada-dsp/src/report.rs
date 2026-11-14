@@ -205,6 +205,17 @@ type Spectrum = (
     Vec<(f32, f32)>,
 );
 
+/// Level (dB) of each third octave of a mono signal, from 25 Hz to 16 kHz.
+pub fn third_octave_levels(x: &[f32], rate: u32) -> Vec<(f32, f32)> {
+    let (_, thirds, ..) = spectrum(x, x, rate);
+    let power = x.iter().map(|v| f64::from(*v) * f64::from(*v)).sum::<f64>();
+    let rms = db(power / x.len().max(1) as f64);
+    thirds
+        .into_iter()
+        .map(|(f, share)| (f, share + rms))
+        .collect()
+}
+
 fn spectrum(left: &[f32], right: &[f32], rate: u32) -> Spectrum {
     let power = power_spectrum(left, right, rate);
     let bin = rate as f32 / FFT as f32;

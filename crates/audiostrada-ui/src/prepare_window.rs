@@ -9,7 +9,7 @@ use audiostrada_core::groups::{self, Link};
 use audiostrada_core::prepare::{self as write, Added, Preparation};
 use audiostrada_core::{Insert, Prepared, Project, TrackId, TrackSend};
 use audiostrada_dsp::prepare::{
-    self as rules, Analysis, Character, Cut, Flavor, Instrument, Step, Strength,
+    self as rules, Ambience, Analysis, Character, Cut, Flavor, Instrument, Space, Step, Strength,
 };
 use eframe::egui::{
     self, Align2, Color32, FontId, Rect, Response, RichText, Sense, Stroke, StrokeKind, Ui, pos2,
@@ -18,15 +18,22 @@ use eframe::egui::{
 
 use crate::document::{Document, Measuring};
 use crate::effect_frame::{
-    Face, Glyph, bar_fill, button, field_fill, glyph_button, line_edge, paint_bottom_band,
-    paint_face, paint_glyph, paint_title, paint_top_band, radius, text_button,
+    Face, bar_fill, field_fill, line_edge, paint_bottom_band, paint_title, paint_top_band, radius,
+    text_button,
 };
 use crate::i18n::tr;
 use crate::settings::WARN;
 use crate::theme::{self, Palette};
 use crate::trf;
 
-const WIDTH: f32 = 1280.0;
+const WIDTH: f32 = 1080.0;
+const HEIGHT: f32 = 820.0;
+/// Height of the settings of a single track, above its page.
+const BAND: f32 = 128.0;
+/// Height of a knob's box, inside its margins.
+const DOSE_HEIGHT: f32 = 196.0;
+/// Height of the bar showing where the song plays.
+const PLAYHEAD: f32 = 52.0;
 /// Width of the track list.
 const LIST: f32 = 320.0;
 /// Color of what the cleaning removes.
@@ -37,6 +44,10 @@ const SPACE: Color32 = Color32::from_rgb(0x4f, 0xb3, 0xc8);
 const HEADROOM: f32 = -6.0;
 /// Color of the spread.
 const WIDE: Color32 = Color32::from_rgb(0x9b, 0x7f, 0xd9);
+/// Color of the balance.
+const BALANCE: Color32 = Color32::from_rgb(0x6c, 0xc0, 0x8a);
+/// Color of the ambience.
+const AMBIENCE: Color32 = Color32::from_rgb(0x5f, 0x8f, 0xe0);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Mode {
@@ -129,8 +140,8 @@ impl Bus {
 /// The doses of the parts and the character asked, for every track.
 type Doses = (Strength, Strength, Flavor);
 
-/// What a track is given: its preparation and its send (dB) to the space bus.
-type Planned = (TrackId, Preparation, Option<f32>);
+/// What a track is given: its preparation, and its sends (dB) to its space and to the echo.
+type Planned = (TrackId, Preparation, (Option<f32>, Option<f32>));
 
 /// The buses proposed: their group's key and their tracks.
 type Groups = Vec<(&'static str, Vec<TrackId>)>;
@@ -146,6 +157,7 @@ struct Saved {
     parent: Option<TrackId>,
     master_send: bool,
     trim: f32,
+    gain: f32,
 }
 
 /// Effect settings, by parameter.
@@ -170,6 +182,8 @@ struct Row {
     level_of: Settings,
     /// That gain being computed on its own thread, for these settings.
     leveling: Option<(Settings, std::thread::JoinHandle<f32>)>,
+    /// Channel strip modules set by hand: left as they are.
+    hands: Vec<&'static str>,
 }
 
 /// What the right side shows.
@@ -185,17 +199,24 @@ pub struct PrepareWindow {
     mode: Option<Mode>,
     rows: Vec<Row>,
     view: View,
+    tab: Tab,
     /// How far each part goes, for every track.
     clean: Strength,
     bring: Strength,
-    /// The shared reverb, 0 (off) to 1.
-    space: f32,
+    /// How much of the space the tracks get, 0 (dry) to 1.
+    depth: f32,
+    /// Which space, 0 to 1 through the ambiences (see `Ambience::at`).
+    ambience: f32,
+    /// The ambience last heard, to fade its buses out and in when it changes.
+    heard_ambience: Option<Ambience>,
+    /// Frames left before the space buses come back after an ambience changed.
+    fading: u8,
+    /// The space buses' faders, faded out, to bring back.
+    faded: Vec<(TrackId, f32)>,
     /// The spread of pairs, 0 (off) to 1.
     wide: f32,
-    /// The character asked of the mix.
+    /// The style asked of the mix; it brings its console color.
     flavor: Flavor,
-    /// The project's console color, set by the window (the tracks with their own keep theirs).
-    console: Console,
     /// The project's console color and switch when the window opened.
     project_console: (Console, bool),
     /// Tracks grouped into buses by family, in this order of the groups.
@@ -206,41 +227,57 @@ pub struct PrepareWindow {
     made_for: Groups,
     /// The tracks' order when the window opened.
     structure: Vec<TrackId>,
-    /// Room kept before the master's processing when the mix peaks too high, given back after.
+    /// Room kept before the master's processing when the mix peaks too high, given back
+    /// after: only when the master has no effects of its own.
     headroom: bool,
     /// The master's effects and room when the window opened.
     master_saved: (Vec<Insert>, Option<audiostrada_core::model::Headroom>),
-    /// The master follows the mix measured or the switch.
+    /// The master follows the mix measured.
     master_dirty: bool,
     /// The mix being rendered to measure its peak, and that peak (dBFS) once known.
     mix: Option<Box<Measuring>>,
     mix_peak: Option<f32>,
     /// The proposal heard changed since the mix was measured.
     mix_stale: bool,
-    /// The project had a space bus when the window opened.
-    space_existed: bool,
-    keep_level: bool,
+    /// The space buses the project had when the window opened.
+    spaces_were: Vec<TrackId>,
+    /// How far the faders go toward a balanced mix, 0 (as they are) to 1.
+    balance: f32,
+    /// The proposal heard changes something: only then is room kept on the master.
+    changes: bool,
     /// The preparation is heard (else the tracks as they were).
     after: bool,
     /// The proposal changed: the preview follows.
     dirty: bool,
 }
 
+/// The tabs of the settings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Tab {
+    Mix,
+    Tracks,
+}
+
 impl Default for PrepareWindow {
     fn default() -> Self {
+        let (depth, ambience, wide) = Character::Transparent.place();
         Self {
             mode: None,
             rows: Vec::new(),
             view: View::Overview,
+            tab: Tab::Mix,
             clean: Strength::NORMAL,
             bring: Strength::NORMAL,
-            space: 0.0,
-            wide: 0.0,
+            depth,
+            ambience,
+            heard_ambience: None,
+            fading: 0,
+            faded: Vec::new(),
+            wide,
             flavor: Flavor {
-                character: Character::Natural,
+                character: Character::Transparent,
                 amount: 0.5,
             },
-            console: Console::default(),
             project_console: (Console::default(), false),
             grouping: false,
             group_order: rules::GROUPS.iter().map(|g| g.0).collect(),
@@ -253,8 +290,9 @@ impl Default for PrepareWindow {
             mix: None,
             mix_peak: None,
             mix_stale: true,
-            space_existed: false,
-            keep_level: true,
+            spaces_were: Vec::new(),
+            balance: 0.0,
+            changes: false,
             after: true,
             dirty: false,
         }
@@ -320,8 +358,14 @@ fn guess_bus(doc: &Document, track: TrackId, members: &[TrackId]) -> (Instrument
     }
 }
 
-/// The instrument of a track: as prepared before, else its name, its instrument, its sound.
-fn guess(doc: &Document, track: TrackId, analysis: &Analysis) -> (Instrument, Guess) {
+/// The instrument of a track: as prepared before, else its name (what its sound tells on top),
+/// its instrument. A voice beside a track named as the lead one is a backing vocal.
+fn guess(
+    doc: &Document,
+    track: TrackId,
+    analysis: &Analysis,
+    names: &[String],
+) -> (Instrument, Guess) {
     let project = doc.project();
     let Some(t) = project.track(track) else {
         return (Instrument::Other, Guess::Unknown);
@@ -334,6 +378,19 @@ fn guess(doc: &Document, track: TrackId, analysis: &Analysis) -> (Instrument, Gu
         return (i, Guess::Chosen);
     }
     if let Some(i) = Instrument::from_name(&t.name, analysis.pitch) {
+        let i = i.refine(analysis);
+        let backing = matches!(i, Instrument::VocalMale | Instrument::VocalFemale)
+            && !Instrument::leads(&t.name)
+            && names.iter().any(|n| {
+                *n != t.name
+                    && Instrument::leads(n)
+                    && Instrument::from_name(n, None).is_some_and(Instrument::is_vocal)
+            });
+        let i = if backing {
+            Instrument::BackingVocals
+        } else {
+            i
+        };
         return (i, Guess::Name);
     }
     match t.inserts.first().map(|i| i.effect.as_str()) {
@@ -350,12 +407,13 @@ fn propose(
     mode: Mode,
     (clean, bring, flavor): Doses,
     bus: Option<&Bus>,
+    hands: &[&'static str],
 ) -> Vec<Choice> {
     let mut steps = Vec::new();
     match bus {
         Some(bus) => {
             if mode.cleans() {
-                steps.extend(rules::clean_bus(analysis, instrument));
+                steps.extend(rules::clean_bus(analysis, instrument, clean));
             }
             if mode.brings_out() {
                 steps.extend(rules::bring_out_bus(
@@ -371,18 +429,38 @@ fn propose(
                 steps.extend(rules::clean(analysis, instrument, clean));
             }
             if mode.brings_out() {
-                steps.extend(rules::bring_out(analysis, instrument, bring, flavor));
+                let before: Vec<Step> = steps
+                    .iter()
+                    .filter(|step| by_hand(step).is_none_or(|m| !hands.contains(&m)))
+                    .filter(|step| step.default_on())
+                    .cloned()
+                    .collect();
+                steps.extend(rules::bring_out(
+                    analysis, instrument, bring, flavor, &before,
+                ));
             }
         }
     }
     steps
         .into_iter()
+        .filter(|step| by_hand(step).is_none_or(|m| !hands.contains(&m)))
         .map(|step| Choice {
             on: step.default_on(),
             step,
             amount: 0.5,
         })
         .collect()
+}
+
+/// The channel strip module a step sets, when it sets one.
+fn by_hand(step: &Step) -> Option<&'static str> {
+    match step {
+        Step::Filters { .. } => Some("filters"),
+        Step::Gate { .. } => Some("gate"),
+        Step::Eq { .. } => Some("eq"),
+        Step::Compressor { .. } => Some("comp"),
+        _ => None,
+    }
 }
 
 /// Keeps in `new` what was ticked and dosed by hand in `old`, step by step of the same kind.
@@ -479,6 +557,7 @@ fn saved(t: &audiostrada_core::Track) -> Saved {
         parent: t.parent,
         master_send: t.master_send,
         trim: t.trim_db,
+        gain: t.gain_db,
     }
 }
 
@@ -492,25 +571,70 @@ fn put_back(p: &mut Project, row: &Row) {
         t.console = row.saved.console;
         t.sends = row.saved.sends.clone();
         t.trim_db = row.saved.trim;
+        t.gain_db = row.saved.gain;
     }
 }
 
-/// Writes the preparations, each with its send (dB) to the space bus, made if needed, and the
-/// project's console color.
-fn write_all(p: &mut Project, plan: &[Planned], bus_name: &str, console: Option<Console>) {
+/// The mark of a space's bus in the project.
+fn space_kind(space: Space) -> &'static str {
+    match space {
+        Space::Room => write::SPACES[0],
+        Space::Plate => write::SPACES[1],
+        Space::Hall => write::SPACE,
+        Space::Echo => write::SPACES[3],
+    }
+}
+
+/// Writes the preparations, each with its sends (dB) to the bus of its instrument's space in
+/// the ambience (made if needed with the effect the ambience, its size, the style and the
+/// tempo call for) and to the echo, and the project's console color. The space buses of
+/// `kept` were there before: their effects stay as they are.
+fn write_all(
+    p: &mut Project,
+    plan: &[Planned],
+    (flavor, (ambience, size)): (Flavor, (Ambience, f32)),
+    kept: &[TrackId],
+    console: Option<Console>,
+) {
     if let Some(console) = console {
         p.console = console;
         if console.colors() {
             p.console_off = false;
         }
     }
-    let bus = plan
-        .iter()
-        .any(|x| x.2.is_some())
-        .then(|| write::ensure_space_bus(p, bus_name, &rules::SPACE_REVERB));
-    for (track, prep, send) in plan {
+    let bpm = p.tempo.bpm_at_beat(0.0);
+    let bus_of = |p: &mut Project, space: Space| {
+        let settings = space.settings(ambience, size, flavor, bpm);
+        let name = tr(space.name(ambience));
+        let bus = write::ensure_space_bus(p, space_kind(space), name, (space.effect(), &settings));
+        // Made here: it follows the ambience and the style chosen meanwhile.
+        if !kept.contains(&bus) {
+            let insert = p.track_mut(bus).and_then(|t| {
+                t.name = name.to_owned();
+                t.inserts
+                    .iter()
+                    .find(|i| i.effect == space.effect())
+                    .map(|i| i.id)
+            });
+            if let Some(insert) = insert {
+                for (param, value) in settings {
+                    audiostrada_core::routing::set_insert_param(
+                        p,
+                        audiostrada_core::routing::Channel::Track(bus),
+                        insert,
+                        param,
+                        value,
+                    );
+                }
+            }
+        }
+        bus
+    };
+    for (track, prep, (send, echo)) in plan {
         let mut prep = prep.clone();
-        prep.space = bus.zip(*send);
+        let space = Instrument::from_id(&prep.instrument).and_then(|i| Space::of(i, ambience));
+        prep.space = send.zip(space).map(|(db, space)| (bus_of(p, space), db));
+        prep.echo = echo.map(|db| (bus_of(p, Space::Echo), db));
         write::prepare(p, *track, &prep);
     }
     write::tidy_space(p);
@@ -575,10 +699,19 @@ const SETTINGS: &str = "express_mix";
 struct Kept {
     clean: f32,
     bring: f32,
-    space: f32,
+    #[serde(alias = "space")]
+    depth: f32,
+    #[serde(default = "usual_ambience")]
+    ambience: f32,
     wide: f32,
     style: usize,
     intensity: f32,
+    #[serde(default, rename = "balance_dose")]
+    balance: f32,
+}
+
+fn usual_ambience() -> f32 {
+    Character::Transparent.place().1
 }
 
 impl PrepareWindow {
@@ -586,13 +719,15 @@ impl PrepareWindow {
         Kept {
             clean: self.clean.0,
             bring: self.bring.0,
-            space: self.space,
+            depth: self.depth,
+            ambience: self.ambience,
             wide: self.wide,
             style: Character::STYLES
                 .iter()
                 .position(|c| *c == self.flavor.character)
                 .unwrap_or(0),
             intensity: self.flavor.amount,
+            balance: self.balance,
         }
     }
 
@@ -606,7 +741,8 @@ impl PrepareWindow {
         };
         self.clean = Strength(unit(kept.clean));
         self.bring = Strength(unit(kept.bring));
-        self.space = unit(kept.space);
+        self.depth = unit(kept.depth);
+        self.ambience = unit(kept.ambience);
         self.wide = unit(kept.wide);
         self.flavor = Flavor {
             character: Character::STYLES
@@ -615,6 +751,7 @@ impl PrepareWindow {
                 .unwrap_or_default(),
             amount: unit(kept.intensity),
         };
+        self.balance = unit(kept.balance);
     }
 
     /// Every track measured.
@@ -631,27 +768,61 @@ impl PrepareWindow {
     }
 
     fn open(&mut self, doc: &mut Document, tracks: Vec<TrackId>, mode: Mode) {
+        // Screenshots: `AUDIOSTRADA_SCREENSHOT_VIEW=single` opens on the first track alone.
+        let mut tracks = tracks;
+        if std::env::var("AUDIOSTRADA_SCREENSHOT_VIEW").is_ok_and(|v| v == "single") {
+            tracks.truncate(1);
+        }
         self.mode = Some(mode);
-        self.space_existed = write::space_bus(doc.project()).is_some();
+        self.spaces_were = write::space_buses(doc.project());
         self.structure = doc.project().tracks.iter().map(|t| t.id).collect();
         self.made.clear();
         self.made_for.clear();
         self.mix = None;
         self.mix_peak = None;
         self.mix_stale = true;
+        // One track: what is proposed for it first.
+        self.tab = if tracks.len() == 1 {
+            Tab::Tracks
+        } else {
+            Tab::Mix
+        };
+        (self.heard_ambience, self.fading) = (None, 0);
+        self.faded.clear();
         let project = doc.project();
         self.master_saved = (
             project.master.inserts.clone(),
             project.master.headroom.clone(),
         );
         self.project_console = (project.console, project.console_off);
-        self.console = project.console;
+        self.balance = 0.0;
+        // Buses, when nothing is grouped yet.
+        let flat = |t: &TrackId| project.track(*t).is_none_or(|t| t.parent.is_none());
+        let grouped = project.tracks.iter().any(|t| {
+            t.kind == audiostrada_core::TrackKind::Bus
+                && !t
+                    .prepared
+                    .as_ref()
+                    .is_some_and(|p| write::is_space(&p.instrument))
+        });
+        self.grouping = tracks.len() > 1 && !grouped && tracks.iter().all(flat);
+        let room = project.master.headroom.as_ref();
+        self.headroom = project
+            .master
+            .inserts
+            .iter()
+            .all(|i| room.is_some_and(|h| i.id == h.trim || i.id == h.makeup));
+        self.changes = false;
         if let Some(kept) = project
             .extensions
             .get(SETTINGS)
             .and_then(|v| serde_json::from_value::<Kept>(v.clone()).ok())
         {
             self.take(&kept);
+        }
+        // One track: nothing that belongs to the whole mix.
+        if tracks.len() == 1 {
+            (self.balance, self.headroom) = (0.0, false);
         }
         // Prepared before, their instruments are known: no need to check them again.
         let prepared_before = tracks.iter().all(|t| {
@@ -665,6 +836,13 @@ impl PrepareWindow {
             (_, true) => View::Overview,
             _ => View::Check,
         };
+        // Screenshots: `AUDIOSTRADA_SCREENSHOT_VIEW=overview` skips the check of the tracks.
+        // `tracks` shows the Tracks tab.
+        match std::env::var("AUDIOSTRADA_SCREENSHOT_VIEW").as_deref() {
+            Ok("overview") => self.view = View::Overview,
+            Ok("tracks") => (self.view, self.tab) = (View::Overview, Tab::Tracks),
+            _ => {}
+        }
         self.after = true;
         self.rows = tracks
             .iter()
@@ -674,7 +852,7 @@ impl PrepareWindow {
                 if t.kind == audiostrada_core::TrackKind::Vca
                     || t.prepared
                         .as_ref()
-                        .is_some_and(|p| p.instrument == write::SPACE)
+                        .is_some_and(|p| write::is_space(&p.instrument))
                 {
                     return None;
                 }
@@ -705,6 +883,7 @@ impl PrepareWindow {
                     Bus { members, prepared }
                 });
                 let saved = saved(t);
+                let hands = write::hands(&saved.inserts, saved.prepared.as_ref());
                 Some(Row {
                     track,
                     name,
@@ -718,6 +897,7 @@ impl PrepareWindow {
                     level: 0.0,
                     level_of: Vec::new(),
                     leveling: None,
+                    hands,
                 })
             })
             .collect();
@@ -725,7 +905,16 @@ impl PrepareWindow {
 
     /// Renders the tracks a few at a time, measures each on its own thread, then proposes.
     fn poll(&mut self, doc: &mut Document, mode: Mode) {
-        const AT_ONCE: usize = 3;
+        let at_once = std::thread::available_parallelism()
+            .map_or(3, |n| n.get() / 2)
+            .clamp(2, 8);
+        // Every track of the song tells which voice leads, not only those opened here.
+        let names: Vec<String> = doc
+            .project()
+            .tracks
+            .iter()
+            .map(|t| t.name.clone())
+            .collect();
         let mut busy = 0;
         for row in &mut self.rows {
             let state = std::mem::replace(&mut row.state, State::Queued);
@@ -743,7 +932,7 @@ impl PrepareWindow {
                     Ok(analysis) if analysis.report.integrated.is_some() => {
                         let (instrument, guess) = match &row.bus {
                             Some(bus) => guess_bus(doc, row.track, &bus.members),
-                            None => guess(doc, row.track, &analysis),
+                            None => guess(doc, row.track, &analysis, &names),
                         };
                         let steps = propose(
                             &analysis,
@@ -751,6 +940,7 @@ impl PrepareWindow {
                             mode,
                             (self.clean, self.bring, self.flavor),
                             row.bus.as_ref(),
+                            &row.hands,
                         );
                         row.heard = false;
                         self.dirty = true;
@@ -791,7 +981,7 @@ impl PrepareWindow {
             })
             .collect();
         for (row, waiting) in self.rows.iter_mut().zip(waiting) {
-            if busy >= AT_ONCE {
+            if busy >= at_once {
                 break;
             }
             if matches!(row.state, State::Queued) && !waiting {
@@ -816,13 +1006,13 @@ impl PrepareWindow {
             let State::Ready(r) = &row.state else {
                 continue;
             };
-            if !self.keep_level || !row.included {
+            if !row.included {
                 continue;
             }
             if row.leveling.as_ref().is_some_and(|l| l.1.is_finished())
                 && let Some((settings, handle)) = row.leveling.take()
             {
-                row.level = handle.join().unwrap_or(0.0);
+                row.level = handle.join().unwrap_or_default();
                 row.level_of = settings;
                 self.dirty = true;
             }
@@ -838,7 +1028,7 @@ impl PrepareWindow {
                 if settings != row.level_of {
                     let (excerpt, rate) = (r.analysis.excerpt.clone(), r.analysis.rate);
                     let handle = std::thread::spawn(move || {
-                        rules::level_kept(&excerpt, rate, shift, &strip, &inserts)
+                        rules::level_kept(&excerpt, rate, shift, &picked)
                     });
                     row.leveling = Some((settings, handle));
                 }
@@ -857,6 +1047,13 @@ impl PrepareWindow {
         if row.bus.is_some() {
             return (None, 0.0);
         }
+        // Nothing to drive: the track is left as it is.
+        let works = chosen(r)
+            .iter()
+            .any(|s| !matches!(s, Step::StripSilence(_)));
+        if !works && !self.console_of(r).unwrap_or(self.console()).colors() {
+            return (None, 0.0);
+        }
         // Measured at the input gain it had before a preparation (see `start_source_render`).
         let now = row.saved.trim;
         let measured = row
@@ -872,7 +1069,8 @@ impl PrepareWindow {
     /// How much room is kept on the master, once the mix is measured.
     fn lowered(&self) -> Option<f32> {
         let peak = self.mix_peak?;
-        (self.headroom && peak > HEADROOM).then(|| ((peak - HEADROOM) * 10.0).ceil() / 10.0)
+        (self.headroom && self.changes && peak > HEADROOM)
+            .then(|| ((peak - HEADROOM) * 10.0).ceil() / 10.0)
     }
 
     /// Measures the mix heard, in the background, whenever the proposal changed and every
@@ -897,16 +1095,36 @@ impl PrepareWindow {
             .rows
             .iter()
             .all(|r| matches!(r.state, State::Ready(_) | State::Failed(_)));
-        if self.headroom && self.mix_stale && ready && self.after && !self.dirty {
+        if self.mix_stale && ready && self.after && !self.dirty {
             self.mix_stale = false;
             self.mix = doc.start_mix_render().ok().map(Box::new);
         }
         self.mix.is_some()
     }
 
+    /// The console color the style brings, dosed by its intensity: 25 % (as measured) at the
+    /// usual intensity, 50 % (run hot) at full. A transparent mix keeps the project's.
+    fn console(&self) -> Console {
+        match self.flavor.character.console() {
+            _ if self.single() => self.project_console.0,
+            0 => self.project_console.0,
+            k => Console {
+                model: ConsoleModel::ALL[k.min(ConsoleModel::ALL.len() - 1)],
+                amount: (self.flavor.amount.clamp(0.0, 1.0) * 50.0).round(),
+            },
+        }
+    }
+
+    /// The ambience asked, and the size within it.
+    fn space(&self) -> (Ambience, f32) {
+        Ambience::at(self.ambience)
+    }
+
     /// Puts the tracks back as they were when the window opened, outside the undo history.
     fn restore(&mut self, doc: &mut Document) {
-        let space_existed = self.space_existed;
+        self.fade_in(doc);
+        self.fading = 0;
+        let spaces_were = self.spaces_were.clone();
         let (console, off) = self.project_console;
         let (made, rows, structure) = (&self.made, &self.rows, &self.structure);
         let master = self.master_saved.clone();
@@ -918,8 +1136,15 @@ impl PrepareWindow {
             for row in rows.iter().filter(|r| r.group.is_none()) {
                 put_back(p, row);
             }
-            if !space_existed {
-                write::tidy_space(p);
+            // The space buses made here go once nothing sends to them any more.
+            for bus in write::space_buses(p) {
+                let fed = p
+                    .tracks
+                    .iter()
+                    .any(|t| t.sends.iter().any(|s| s.target == bus));
+                if !spaces_were.contains(&bus) && !fed {
+                    p.remove_track(bus);
+                }
             }
         });
         self.made.clear();
@@ -1022,6 +1247,7 @@ impl PrepareWindow {
                 level: 0.0,
                 level_of: Vec::new(),
                 leveling: None,
+                hands: Vec::new(),
             });
         }
         self.view = match shown.and_then(|t| self.rows.iter().position(|r| r.track == t)) {
@@ -1068,9 +1294,43 @@ impl PrepareWindow {
         } else {
             vec![None; kept.len()]
         };
+        // The faders of a balanced mix, for the tracks (the buses keep theirs).
+        let faders: Vec<Option<f32>> = if self.balance > 0.005 && mode.brings_out() {
+            let mixed: Vec<(Instrument, f32, f32, f32)> = kept
+                .iter()
+                .filter(|(row, _)| row.bus.is_none())
+                .filter_map(|(row, r)| {
+                    let report = &r.analysis.report;
+                    Some((
+                        r.instrument,
+                        report.integrated?,
+                        report.sample_peak,
+                        row.saved.gain,
+                    ))
+                })
+                .collect();
+            let mut set = rules::mix::balance(&mixed, self.flavor).into_iter();
+            let k = self.balance.clamp(0.0, 1.0);
+            kept.iter()
+                .map(|(row, r)| {
+                    (row.bus.is_none() && r.analysis.report.integrated.is_some())
+                        .then(|| set.next())
+                        .flatten()
+                        .map(|to| {
+                            let from = row.saved.gain;
+                            ((from + (to - from) * k) * 10.0).round() / 10.0
+                        })
+                })
+                .collect()
+        } else {
+            vec![None; kept.len()]
+        };
+        let colors = mode.brings_out() && self.console().colors();
+        let (ambience, _) = self.space();
         kept.iter()
             .zip(pans)
-            .map(|((row, r), pan)| {
+            .zip(faders)
+            .filter_map(|(((row, r), pan), fader)| {
                 let after_first = doc.is_instrument_track(row.track);
                 let (trim, shift) = self.staged(row);
                 // Until the level is measured again for a new input gain, that gain is taken
@@ -1080,22 +1340,32 @@ impl PrepareWindow {
                     .iter()
                     .find(|(k, _)| k == "trim")
                     .map_or(0.0, |x| x.1);
-                let gain = if self.keep_level {
-                    row.level - (shift - measured)
-                } else {
-                    0.0
-                };
+                let gain = row.level - (shift - measured);
                 let mut prep = preparation(r, mode, rate, (after_first, shift), gain);
                 prep.trim = trim;
-                let mut send = None;
+                prep.hands = row.hands.iter().map(|m| (*m).to_owned()).collect();
+                let mut send = (None, None);
                 if mode.brings_out() {
                     prep.pan = pan;
                     prep.console = self.console_of(r);
+                    prep.gain = fader;
                     if row.bus.is_none() {
-                        send = rules::space_send_db(r.instrument, self.space);
+                        send = (
+                            rules::space_send_db(r.instrument, self.depth, ambience),
+                            rules::echo_send_db(r.instrument, self.depth, ambience),
+                        );
                     }
                 }
-                (row.track, prep, send)
+                // Nothing asked of it: the track stays as it is, untouched.
+                let idle = prep.strip.is_empty()
+                    && prep.inserts.is_empty()
+                    && prep.ride.is_empty()
+                    && prep.pan.is_none()
+                    && prep.console.is_none()
+                    && prep.gain.is_none()
+                    && send == (None, None)
+                    && !colors;
+                (!idle).then_some((row.track, prep, send))
             })
             .collect()
     }
@@ -1120,8 +1390,9 @@ impl PrepareWindow {
         let rebuild = groups != self.made_for;
         let instruments = self.instruments();
         let plan = self.plan(doc, mode);
-        let console = mode.brings_out().then_some(self.console);
+        let console = self.written_console(mode);
         let (rows, structure) = (&self.rows, &self.structure);
+        let (flavor, spaces_were, space) = (self.flavor, self.spaces_were.clone(), self.space());
         let mut made = self.made.clone();
         doc.history_mut().modify_unrecorded(|p| {
             if rebuild {
@@ -1138,10 +1409,12 @@ impl PrepareWindow {
                 .filter(|x| !rebuild || !rows.iter().any(|r| r.track == x.0 && r.group.is_some()))
                 .cloned()
                 .collect();
-            write_all(p, &plan, tr("Space"), console);
+            write_all(p, &plan, (flavor, space), &spaces_were, console);
         });
+        self.changes = !plan.is_empty();
         for row in &mut self.rows {
-            row.heard |= plan.iter().any(|x| x.0 == row.track);
+            row.heard |=
+                plan.iter().any(|x| x.0 == row.track) || matches!(row.state, State::Ready(_));
         }
         if rebuild {
             self.made = made;
@@ -1157,14 +1430,15 @@ impl PrepareWindow {
         let groups = self.groups();
         let instruments = self.instruments();
         let plan = self.plan(doc, mode);
-        let console = mode.brings_out().then_some(self.console);
+        let console = self.written_console(mode);
         let lowered = self.lowered();
         let keys: Vec<(TrackId, &'static str)> = self
             .rows
             .iter()
             .filter_map(|r| r.group.map(|g| (r.track, g)))
             .collect();
-        let kept = self.kept();
+        let kept = (!self.single()).then(|| self.kept());
+        let (flavor, spaces_were, space) = (self.flavor, self.spaces_were.clone(), self.space());
         self.restore(doc);
         doc.history_mut().edit(tr("Express Mix"), |p| {
             let made = make(p, &groups, &instruments);
@@ -1180,10 +1454,12 @@ impl PrepareWindow {
                     },
                 )
                 .collect();
-            write_all(p, &plan, tr("Space"), console);
-            write::master_headroom(p, lowered);
-            if let Ok(value) = serde_json::to_value(&kept) {
-                p.extensions.insert(SETTINGS.to_owned(), value);
+            write_all(p, &plan, (flavor, space), &spaces_were, console);
+            if let Some(kept) = &kept {
+                write::master_headroom(p, lowered);
+                if let Ok(value) = serde_json::to_value(kept) {
+                    p.extensions.insert(SETTINGS.to_owned(), value);
+                }
             }
         });
         self.mode = None;
@@ -1210,6 +1486,7 @@ impl PrepareWindow {
                     mode,
                     (self.clean, self.bring, self.flavor),
                     row.bus.as_ref(),
+                    &row.hands,
                 );
                 carry(&r.steps, &mut steps);
                 r.steps = steps;
@@ -1217,7 +1494,88 @@ impl PrepareWindow {
         }
     }
 
-    /// Shows the window; true when it asks to play or pause.
+    /// The console color written to the project: the style's, when it brings one.
+    fn written_console(&self, mode: Mode) -> Option<Console> {
+        (mode.brings_out() && self.flavor.character.console() != 0 && !self.single())
+            .then(|| self.console())
+    }
+
+    /// A single track: its own page, nothing that belongs to the whole mix (console, balance,
+    /// width, buses, the master's room, the settings kept for the next time).
+    fn single(&self) -> bool {
+        self.rows.iter().filter(|r| r.group.is_none()).count() == 1
+    }
+
+    /// Moves the measuring, the proposal heard and the master's room on; true while something
+    /// is still being worked out.
+    fn advance(&mut self, doc: &mut Document, mode: Mode) -> bool {
+        self.poll(doc, mode);
+        let leveling = self.levels();
+        // Another ambience changes the reverbs' rooms: their buses fade out first, so that
+        // nothing clicks, and come back once the new settings are heard.
+        let playing = doc.player().engine().playing();
+        if self.fading > 0 {
+            self.fading -= 1;
+        } else if self.dirty
+            && playing
+            && self.after
+            && self.heard_ambience.is_some_and(|a| a != self.space().0)
+        {
+            self.fade_out(doc);
+            self.fading = 2;
+        }
+        if self.fading == 0 && self.dirty && self.preview(doc, mode) {
+            self.dirty = false;
+            self.mix_stale = true;
+            self.master_dirty = true;
+            self.heard_ambience = Some(self.space().0);
+            self.fade_in(doc);
+        }
+        let mixing = self.measure_mix(doc);
+        if self.master_dirty && self.after && !self.single() {
+            self.master_dirty = false;
+            let db = self.lowered();
+            doc.history_mut()
+                .modify_unrecorded(|p| write::master_headroom(p, db));
+        }
+        let measuring = self
+            .rows
+            .iter()
+            .any(|r| !matches!(r.state, State::Ready(_) | State::Failed(_)));
+        measuring || leveling || mixing || self.mix_stale || self.dirty || self.fading > 0
+    }
+
+    /// Brings the space buses' faders down (the engine ramps them), keeping where they were.
+    fn fade_out(&mut self, doc: &mut Document) {
+        let mut faded = Vec::new();
+        doc.history_mut().modify_unrecorded(|p| {
+            for bus in write::space_buses(p) {
+                if let Some(t) = p.track_mut(bus) {
+                    faded.push((bus, t.gain_db));
+                    t.gain_db = -80.0;
+                }
+            }
+        });
+        self.faded.extend(faded);
+    }
+
+    /// Brings the space buses faded out back.
+    fn fade_in(&mut self, doc: &mut Document) {
+        if self.faded.is_empty() {
+            return;
+        }
+        let faded = std::mem::take(&mut self.faded);
+        doc.history_mut().modify_unrecorded(|p| {
+            for (bus, gain) in faded {
+                if let Some(t) = p.track_mut(bus) {
+                    t.gain_db = gain;
+                }
+            }
+        });
+    }
+
+    /// Shows the window, a window of its own that goes to any screen; true when it asks to
+    /// play or pause.
     pub fn show(&mut self, ctx: &egui::Context, doc: &mut Document) -> bool {
         if let Some((tracks, mode)) =
             ctx.data_mut(|d| d.remove_temp::<(Vec<TrackId>, Mode)>(request_id()))
@@ -1228,62 +1586,52 @@ impl PrepareWindow {
         let Some(mode) = self.mode else {
             return false;
         };
-        self.poll(doc, mode);
-        let leveling = self.levels();
-        if self.dirty && self.preview(doc, mode) {
-            self.dirty = false;
-            self.mix_stale = true;
-            self.master_dirty = true;
-        }
-        let mixing = self.measure_mix(doc);
-        if self.master_dirty && self.after {
-            self.master_dirty = false;
-            let db = self.lowered();
-            doc.history_mut()
-                .modify_unrecorded(|p| write::master_headroom(p, db));
-        }
-        let measuring = self
-            .rows
-            .iter()
-            .any(|r| !matches!(r.state, State::Ready(_) | State::Failed(_)));
-        if measuring || leveling || mixing || self.mix_stale {
-            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        if self.advance(doc, mode) {
+            let soon = if self.fading > 0 { 16 } else { 100 };
+            ctx.request_repaint_after(std::time::Duration::from_millis(soon));
         }
         if matches!(self.view, View::Track(k) if k >= self.rows.len()) {
             self.view = View::Overview;
         }
-
-        let screen = ctx.content_rect();
-        let width = WIDTH.min(screen.width() - 40.0).max(720.0);
-        let height = (screen.height() - 200.0).clamp(560.0, 760.0);
-        let p = theme::current_for(ctx);
         let mut asked = Asked::default();
         let playing = doc.player().engine().playing();
-        egui::Window::new("prepare")
-            .id(egui::Id::unique("prepare-window"))
-            .title_bar(false)
-            .resizable(false)
-            .collapsible(false)
-            .frame(
-                egui::Frame::new()
-                    .fill(p.panel)
-                    .stroke(Stroke::new(1.0, p.border))
-                    .shadow(egui::Shadow {
-                        offset: [0, 10],
-                        blur: 28,
-                        spread: 0,
-                        color: Color32::from_black_alpha(110),
-                    }),
-            )
-            .pivot(Align2::CENTER_TOP)
-            .default_pos(screen.center_top() + vec2(0.0, 50.0))
-            .show(ctx, |ui| {
-                ui.set_width(width);
-                ui.spacing_mut().item_spacing.y = 0.0;
-                self.header(ui, &p, mode, width, &mut asked);
-                self.body(ui, &p, doc, mode, vec2(width, height));
-                self.footer(ui, &p, playing, width, &mut asked);
-            });
+        // Screenshots: drawn inside the main window, to be captured with it.
+        if std::env::var("AUDIOSTRADA_SCREENSHOT_ACTION").is_ok_and(|a| a == "PrepareTracks") {
+            ctx.set_embed_viewports(true);
+        }
+        let id = egui::ViewportId::from_hash_of("express-mix");
+        let builder = egui::ViewportBuilder::default()
+            .with_title(format!("{} — AudioStrada", tr("Express Mix")))
+            .with_inner_size([WIDTH, HEIGHT])
+            .with_min_inner_size([760.0, 540.0]);
+        let builder =
+            crate::floating_builder(ctx, id, crate::Floating::Editor(ctx.viewport_id()), builder);
+        ctx.show_viewport_immediate(id, builder, |ui, _| {
+            crate::window_shortcuts(ui.ctx());
+            if ui.ctx().input(|i| i.viewport().close_requested()) {
+                asked.close = true;
+            }
+            let p = theme::current_for(ui.ctx());
+            egui::CentralPanel::default()
+                .frame(egui::Frame::new().fill(p.panel))
+                .show(ui, |ui| {
+                    // Drawn inside the main window (screenshots), it keeps its own size.
+                    let size = if ui.ctx().embed_viewports() {
+                        vec2(WIDTH, HEIGHT)
+                    } else {
+                        ui.available_size()
+                    };
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    self.header(ui, &p, mode, size.x);
+                    let body = (size.y - 58.0 - PLAYHEAD - 54.0).max(300.0);
+                    self.body(ui, &p, doc, mode, vec2(size.x, body));
+                    self.playhead(ui, &p, doc, size.x);
+                    self.footer(ui, &p, playing, size.x, &mut asked);
+                });
+        });
+        if playing {
+            ctx.request_repaint_after(std::time::Duration::from_millis(40));
+        }
         if asked.apply {
             self.apply(doc, mode);
         } else if asked.close {
@@ -1292,12 +1640,12 @@ impl PrepareWindow {
         asked.play
     }
 
-    /// The top bar: the logo, what is being done and to which tracks, the close button.
-    fn header(&mut self, ui: &mut Ui, p: &Palette, mode: Mode, width: f32, asked: &mut Asked) {
+    /// The top bar: the logo, what is being done and to which tracks.
+    fn header(&mut self, ui: &mut Ui, p: &Palette, mode: Mode, width: f32) {
         let (rect, _) = ui.allocate_exact_size(vec2(width, 58.0), Sense::hover());
-        let color = match self.view {
-            View::Track(k) => self.rows.get(k).map_or(p.accent, |r| r.color),
-            View::Overview | View::Check => p.accent,
+        let color = match (self.tab, self.view) {
+            (Tab::Tracks, View::Track(k)) => self.rows.get(k).map_or(p.accent, |r| r.color),
+            _ => p.accent,
         };
         let painter = ui.painter().clone();
         let bar = paint_top_band(&painter, p, rect, color);
@@ -1307,7 +1655,10 @@ impl PrepareWindow {
                 format!("{} · {}", mode.title(), one.name),
             ),
             rows => (
-                trf!("Express Mix: {count} tracks", count = rows.len()),
+                trf!(
+                    "Express Mix: {count} tracks",
+                    count = rows.iter().filter(|r| r.group.is_none()).count()
+                ),
                 mode.title().to_owned(),
             ),
         };
@@ -1316,7 +1667,7 @@ impl PrepareWindow {
             &painter,
             p,
             bar,
-            width - 120.0,
+            width - 40.0,
             &title,
             &|painter, at| {
                 painter.text(
@@ -1329,62 +1680,252 @@ impl PrepareWindow {
             },
             false,
         );
-        let close =
-            Rect::from_center_size(pos2(bar.right() - 26.0, bar.center().y), vec2(28.0, 28.0));
-        if glyph_button(
-            ui,
-            close,
-            ui.scope_id().with("close"),
-            Glyph::Close,
-            None,
-            true,
-        )
-        .on_hover_text(tr("Close without keeping anything"))
-        .clicked()
-        {
-            asked.close = true;
-        }
     }
 
-    /// The track list on the left, the overview or the track chosen on the right.
+    /// The check of the tracks first; then the tabs: the mix, or the tracks one by one.
     fn body(&mut self, ui: &mut Ui, p: &Palette, doc: &mut Document, mode: Mode, size: egui::Vec2) {
         let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-        if self.view == View::Check {
-            let mut all = ui.new_child(
-                egui::UiBuilder::new()
-                    .max_rect(rect.shrink2(vec2(24.0, 16.0)))
-                    .layout(egui::Layout::top_down(egui::Align::Min)),
-            );
-            all.set_clip_rect(rect);
-            self.check(&mut all, p, doc, mode);
-            return;
-        }
-        let list = rect.with_max_x(rect.left() + LIST);
-        let side = rect.with_min_x(list.right() + 1.0);
-        ui.painter().rect_filled(list, 0.0, bar_fill(p));
-        ui.painter().line_segment(
-            [list.right_top(), list.right_bottom()],
-            Stroke::new(1.0, line_edge(p)),
-        );
         let column = |area: Rect| {
             egui::UiBuilder::new()
                 .max_rect(area)
                 .layout(egui::Layout::top_down(egui::Align::Min))
         };
-        let mut left = ui.new_child(column(list.shrink(8.0)));
-        left.set_clip_rect(list);
-        self.list(&mut left, p, doc, mode);
-        let mut right = ui.new_child(column(side.shrink2(vec2(22.0, 16.0))));
-        right.set_clip_rect(side);
-        match self.view {
-            View::Overview | View::Check => {
-                egui::ScrollArea::vertical()
-                    .id_salt("overview")
-                    .auto_shrink([false, false])
-                    .show(&mut right, |ui| self.overview(ui, p, doc, mode));
-            }
-            View::Track(k) => self.track(&mut right, p, doc, mode, k),
+        if self.view == View::Check {
+            let mut all = ui.new_child(column(rect.shrink2(vec2(24.0, 16.0))));
+            all.set_clip_rect(rect);
+            self.check(&mut all, p, doc, mode);
+            return;
         }
+        if self.single() {
+            if !matches!(self.view, View::Track(_)) {
+                self.view = View::Track(0);
+            }
+            let band = rect.with_max_y(rect.top() + BAND);
+            let mut top = ui.new_child(column(band.shrink2(vec2(22.0, 12.0))));
+            top.set_clip_rect(band);
+            self.band(&mut top, p, mode);
+            ui.painter().line_segment(
+                [band.left_bottom(), band.right_bottom()],
+                Stroke::new(1.0, line_edge(p)),
+            );
+            let side = rect.with_min_y(band.bottom() + 1.0);
+            let mut right = ui.new_child(column(side.shrink2(vec2(22.0, 14.0))));
+            right.set_clip_rect(side);
+            if let View::Track(k) = self.view {
+                self.track(&mut right, p, doc, mode, k);
+            }
+            return;
+        }
+        let several = self.rows.len() > 1;
+        let tabs = rect.with_max_y(rect.top() + 46.0);
+        {
+            let mut bar = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(tabs.shrink2(vec2(22.0, 8.0)))
+                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            );
+            bar.spacing_mut().item_spacing.x = 0.0;
+            for (k, (tab, text)) in [(Tab::Mix, tr("Mix")), (Tab::Tracks, tr("Tracks"))]
+                .into_iter()
+                .enumerate()
+            {
+                let face = if self.tab == tab {
+                    Face::Lit(theme::mix(p.surface, p.accent, 0.6))
+                } else {
+                    Face::Plain
+                };
+                if chip_with(&mut bar, ("tab", k), text, face, segment_corners(p, k, 2)).clicked() {
+                    self.tab = tab;
+                }
+            }
+            bar.add_space(16.0);
+            let status = self.status();
+            bar.label(RichText::new(status).size(11.5).color(p.weak));
+        }
+        let area = rect.with_min_y(tabs.bottom());
+        match self.tab {
+            Tab::Mix => {
+                let mut mix = ui.new_child(column(area.shrink2(vec2(22.0, 12.0))));
+                mix.set_clip_rect(area);
+                egui::ScrollArea::vertical()
+                    .id_salt("mix")
+                    .auto_shrink([false, false])
+                    .show(&mut mix, |ui| self.mix_tab(ui, p, mode));
+            }
+            Tab::Tracks => {
+                let list = area.with_max_x(area.left() + LIST);
+                let side = if several {
+                    area.with_min_x(list.right() + 1.0)
+                } else {
+                    area
+                };
+                if several {
+                    ui.painter().rect_filled(list, 0.0, bar_fill(p));
+                    ui.painter().line_segment(
+                        [list.right_top(), list.right_bottom()],
+                        Stroke::new(1.0, line_edge(p)),
+                    );
+                    let mut left = ui.new_child(column(list.shrink(8.0)));
+                    left.set_clip_rect(list);
+                    self.list(&mut left, p, doc, mode);
+                }
+                if !matches!(self.view, View::Track(_)) && !self.rows.is_empty() {
+                    self.view = View::Track(0);
+                }
+                let mut right = ui.new_child(column(side.shrink2(vec2(22.0, 16.0))));
+                right.set_clip_rect(side);
+                if let View::Track(k) = self.view {
+                    self.track(&mut right, p, doc, mode, k);
+                }
+            }
+        }
+    }
+
+    /// A single track's settings, in a band above its page: the style (its tone and its
+    /// dynamics, never the project's console), then a small knob for each part that applies to
+    /// one track. The ambience only while the project has no space yet.
+    fn band(&mut self, ui: &mut Ui, p: &Palette, mode: Mode) {
+        let (mut changed, mut settled) = (false, false);
+        let ambience = self.spaces_were.is_empty();
+        let knobs = usize::from(mode.cleans())
+            + usize::from(mode.brings_out()) * (2 + usize::from(ambience));
+        let knob_width = 104.0;
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            let style_width = ui.available_width() - knobs as f32 * (knob_width + 8.0) - 16.0;
+            if mode.brings_out() {
+                ui.vertical(|ui| {
+                    ui.set_width(style_width);
+                    ui.spacing_mut().item_spacing.y = 6.0;
+                    ui.label(RichText::new(tr("Style")).font(theme::strong(13.0)));
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing.x = 6.0;
+                        for c in Character::STYLES {
+                            let face = if c == self.flavor.character {
+                                Face::Lit(theme::mix(p.surface, style_color(c), 0.55))
+                            } else {
+                                Face::Plain
+                            };
+                            if chip(ui, ("band-style", c.name()), tr(c.name()), face)
+                                .on_hover_text(tr(c.description()))
+                                .clicked()
+                                && c != self.flavor.character
+                            {
+                                self.flavor.character = c;
+                                let (depth, place, _) = c.place();
+                                self.depth = depth;
+                                if ambience {
+                                    self.ambience = place;
+                                }
+                                changed = true;
+                                settled = true;
+                            }
+                        }
+                    });
+                    let mut intensity = self.flavor.amount * 100.0;
+                    let slider = fader(
+                        ui,
+                        p,
+                        ("band-intensity", tr("Intensity")),
+                        &mut intensity,
+                        style_color(self.flavor.character),
+                        true,
+                    );
+                    if slider.changed() {
+                        self.flavor.amount = intensity / 100.0;
+                        changed = true;
+                        settled |= !slider.dragged();
+                    }
+                    settled |= slider.drag_stopped();
+                });
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                let mut spaced = false;
+                if mode.brings_out() && ambience {
+                    let (_, s) = small_dose(
+                        ui,
+                        p,
+                        ("band-ambience", tr("Ambience"), AMBIENCE),
+                        (&mut self.ambience, self.flavor.character.place().1),
+                        knob_width,
+                        &ambience_word,
+                    );
+                    spaced |= s;
+                }
+                if mode.brings_out() {
+                    let (_, s) = small_dose(
+                        ui,
+                        p,
+                        ("band-depth", tr("Space"), SPACE),
+                        (&mut self.depth, 0.3),
+                        knob_width,
+                        &space_word,
+                    );
+                    spaced |= s;
+                    let (c, s) = small_dose(
+                        ui,
+                        p,
+                        ("band-bring", tr("Bring out"), p.accent),
+                        (&mut self.bring.0, 0.5),
+                        knob_width,
+                        &|v| tr(Strength(v).name()),
+                    );
+                    changed |= c;
+                    settled |= s;
+                }
+                if mode.cleans() {
+                    let (c, s) = small_dose(
+                        ui,
+                        p,
+                        ("band-clean", tr("Clean up"), CUT),
+                        (&mut self.clean.0, 0.5),
+                        knob_width,
+                        &|v| tr(Strength(v).name()),
+                    );
+                    changed |= c;
+                    settled |= s;
+                }
+                settled |= spaced;
+            });
+        });
+        if changed {
+            self.repropose(mode);
+        }
+        if settled {
+            self.dirty = true;
+        }
+    }
+
+    /// The tracks being listened to, or what the mix is given, in a few words.
+    fn status(&self) -> String {
+        let total = self.rows.iter().filter(|r| r.group.is_none()).count();
+        let done = self
+            .rows
+            .iter()
+            .filter(|r| r.group.is_none() && matches!(r.state, State::Ready(_) | State::Failed(_)))
+            .count();
+        if done < total {
+            return trf!(
+                "Listening to the tracks: {done} of {total}",
+                done = done,
+                total = total
+            );
+        }
+        let kept = self
+            .rows
+            .iter()
+            .filter(|r| r.group.is_none() && r.included && matches!(r.state, State::Ready(_)))
+            .count();
+        let mut parts = vec![trf!(
+            "{count} of {total} included",
+            count = kept,
+            total = total
+        )];
+        if !self.made_for.is_empty() {
+            parts.push(trf!("{count} bus(es)", count = self.made_for.len()));
+        }
+        parts.join(" · ")
     }
 
     /// The first screen for several tracks, while they are listened to: each one's instrument
@@ -1403,7 +1944,7 @@ impl PrepareWindow {
             |ui| ui.label(""),
         );
         let strengths = (self.clean, self.bring, self.flavor);
-        let footer = 132.0;
+        let footer = 118.0;
         let mut changed = false;
         egui::ScrollArea::vertical()
             .id_salt("check")
@@ -1419,44 +1960,23 @@ impl PrepareWindow {
             });
         ui.add_space(8.0);
         let mut grouping = self.grouping;
-        heading(
+        let status = self.grouping_status(true);
+        let width = ui.available_width();
+        if tile(
             ui,
             p,
-            tr("Group into buses"),
+            width,
+            (tr("Group into buses"), p.accent),
+            &mut grouping,
+            &status,
             tr(
                 "Each family of two tracks or more in a bus of its own: drums, guitars, backing \
                 vocals...",
             ),
-            |ui| switch_labeled(ui, p, &mut grouping),
-        );
-        if grouping != self.grouping {
+        ) {
             self.grouping = grouping;
             changed = true;
         }
-        let groups = self.groups();
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
-            if !self.grouping {
-                ui.label(RichText::new(tr("The tracks stay where they are.")).color(p.weak));
-            } else if groups.is_empty() {
-                ui.label(
-                    RichText::new(tr("No family has two tracks or more outside a bus yet."))
-                        .color(p.weak),
-                );
-            }
-            for (key, tracks) in &groups {
-                let name = rules::GROUPS
-                    .iter()
-                    .find(|g| g.0 == *key)
-                    .map_or("", |g| tr(g.1));
-                let names: Vec<&str> = tracks
-                    .iter()
-                    .filter_map(|t| self.rows.iter().find(|r| r.track == *t))
-                    .map(|r| r.name.as_str())
-                    .collect();
-                pill(ui, p, &format!("{name}: {}", names.join(", ")), p.accent);
-            }
-        });
         let listening = self
             .rows
             .iter()
@@ -1509,10 +2029,32 @@ impl PrepareWindow {
     /// their tracks, and are dragged to change their order.
     fn list(&mut self, ui: &mut Ui, p: &Palette, doc: &mut Document, mode: Mode) {
         ui.spacing_mut().item_spacing.y = 0.0;
-        if overview_entry(ui, p, self.view == View::Overview).clicked() {
-            self.view = View::Overview;
+        if mode.brings_out() {
+            let mut grouping = self.grouping;
+            ui.horizontal(|ui| {
+                ui.add_space(8.0);
+                ui.spacing_mut().item_spacing.x = 8.0;
+                if toggle(ui, p, &mut grouping).changed() {
+                    self.grouping = grouping;
+                    self.dirty = true;
+                }
+                ui.label(RichText::new(tr("Group into buses")).font(theme::strong(12.0)))
+                    .on_hover_text(tr(
+                        "Each family of two tracks or more in a bus of its own, shown below: \
+                         drag the buses to change their order",
+                    ));
+            });
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.add_space(8.0);
+                ui.label(
+                    RichText::new(self.grouping_status(false))
+                        .size(10.5)
+                        .color(p.weak),
+                );
+            });
+            ui.add_space(12.0);
         }
-        ui.add_space(14.0);
         let total = self.rows.iter().filter(|r| r.group.is_none()).count();
         let kept = self
             .rows
@@ -1610,43 +2152,68 @@ impl PrepareWindow {
 
     /// The console color, the style of the mix, the doses and the grouping into buses, for
     /// every track, and what they propose in all; all of it without scrolling.
-    fn overview(&mut self, ui: &mut Ui, p: &Palette, doc: &Document, mode: Mode) {
+    /// What the grouping does now, in a few words; `tracks` names each bus's tracks.
+    fn grouping_status(&self, tracks: bool) -> String {
+        if !self.grouping {
+            return tr("The tracks stay where they are.").to_owned();
+        }
+        let groups = self.groups();
+        if groups.is_empty() {
+            return tr("No family has two tracks or more outside a bus yet.").to_owned();
+        }
+        let names: Vec<String> = groups
+            .iter()
+            .map(|(key, members)| {
+                let name = rules::GROUPS
+                    .iter()
+                    .find(|g| g.0 == *key)
+                    .map_or("", |g| tr(g.1));
+                if !tracks {
+                    return name.to_owned();
+                }
+                let members: Vec<&str> = members
+                    .iter()
+                    .filter_map(|t| self.rows.iter().find(|r| r.track == *t))
+                    .map(|r| r.name.as_str())
+                    .collect();
+                format!("{name} ({})", members.join(", "))
+            })
+            .collect();
+        trf!(
+            "{count} bus(es): {names}",
+            count = names.len(),
+            names = names.join(if tracks { " · " } else { ", " })
+        )
+    }
+
+    /// The settings for every track: the style first (it brings its console color), with its
+    /// intensity across the window, then one knob for each part.
+    fn mix_tab(&mut self, ui: &mut Ui, p: &Palette, mode: Mode) {
         ui.spacing_mut().item_spacing.y = 6.0;
         let (mut changed, mut settled) = (false, false);
         if mode.brings_out() {
-            heading(
-                ui,
-                p,
-                tr("Console color"),
-                tr("The project's, heard on every track unless a track has its own"),
-                |ui| ui.label(""),
-            );
-            let (c, s) = console_picker(ui, p, "every", &mut self.console, false);
-            if s || (c && !ui.input(|i| i.pointer.any_down())) {
-                self.dirty = true;
-            }
-            ui.add_space(10.0);
-            heading(
+            title(
                 ui,
                 p,
                 tr("Style"),
-                tr("The style of the song: it doses each move and the balance between instruments"),
-                |ui| ui.label(""),
+                tr("What the mix should sound like: its tone, its dynamics, its console color"),
             );
             if let Some(c) = style_tiles(ui, p, self.flavor.character) {
                 self.flavor.character = c;
+                // A style comes with its space and its width, to be turned as one likes.
+                (self.depth, self.ambience, self.wide) = c.place();
                 changed = true;
                 settled = true;
             }
+            ui.add_space(4.0);
             let mut intensity = self.flavor.amount * 100.0;
-            let natural = self.flavor.character == Character::Natural;
             let slider = fader(
                 ui,
                 p,
                 ("style-amount", tr("Intensity")),
                 &mut intensity,
                 style_color(self.flavor.character),
-                !natural,
+                true,
             );
             if slider.changed() {
                 self.flavor.amount = intensity / 100.0;
@@ -1654,32 +2221,20 @@ impl PrepareWindow {
                 settled |= !slider.dragged();
             }
             settled |= slider.drag_stopped();
-            ui.add_space(10.0);
+            ui.add_space(14.0);
         }
-        heading(
+        title(
             ui,
             p,
             tr("Processing"),
-            tr("For every track at once: each one can then be adjusted on its own."),
-            |ui| {
-                let mut headroom = self.headroom;
-                let r = switch_labeled_as(ui, p, tr("Headroom for the master"), &mut headroom)
-                    .on_hover_text(tr(
-                        "When the mix peaks above -6 dBFS, it is lowered before the master's \
-                         effects and brought back after by a Strada-Max: the same loudness, \
-                         room for the master's processing, no clipping",
-                    ));
-                if headroom != self.headroom {
-                    self.headroom = headroom;
-                    self.master_dirty = true;
-                }
-                r
-            },
+            tr("For every track at once: each one can then be adjusted in Tracks."),
         );
-        let parts = usize::from(mode.cleans()) + 3 * usize::from(mode.brings_out());
-        let gap = 10.0;
+        let parts = usize::from(mode.cleans()) + 5 * usize::from(mode.brings_out());
+        let gap = 8.0;
         let width = (ui.available_width() - gap * (parts as f32 - 1.0)) / parts as f32;
         let mut spaced = false;
+        let (ambience, _) = self.space();
+        let usual_ambience = self.flavor.character.place().1;
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = gap;
             if mode.cleans() {
@@ -1687,8 +2242,8 @@ impl PrepareWindow {
                     ui,
                     p,
                     ("clean", tr("Clean up"), CUT),
-                    tr("Useless lows, resonances, plosives and sibilance, bleed"),
-                    &mut self.clean.0,
+                    tr("Rumble, resonances, plosives, sibilance, bleed"),
+                    (&mut self.clean.0, 0.5),
                     width,
                     &|v| tr(Strength(v).name()),
                 );
@@ -1700,8 +2255,8 @@ impl PrepareWindow {
                     ui,
                     p,
                     ("bring", tr("Bring out"), p.accent),
-                    tr("The instrument's colour, an even level"),
-                    &mut self.bring.0,
+                    tr("Each instrument's tone, an even level"),
+                    (&mut self.bring.0, 0.5),
                     width,
                     &|v| tr(Strength(v).name()),
                 );
@@ -1710,19 +2265,44 @@ impl PrepareWindow {
                 let (_, s) = dose(
                     ui,
                     p,
-                    ("space", tr("Space"), SPACE),
-                    tr("A light reverb shared by the tracks that call for it"),
-                    &mut self.space,
+                    ("balance", tr("Balance"), BALANCE),
+                    tr("The faders, toward a balanced mix"),
+                    (&mut self.balance, 0.0),
                     width,
-                    &space_word,
+                    &balance_word,
                 );
-                spaced = s;
+                spaced |= s;
                 let (_, s) = dose(
                     ui,
                     p,
-                    ("wide", tr("Wide"), WIDE),
-                    tr("Pairs of an instrument spread a little around the center"),
-                    &mut self.wide,
+                    ("depth", tr("Space"), SPACE),
+                    tr("How much reverb each instrument gets"),
+                    (&mut self.depth, 0.3),
+                    width,
+                    &space_word,
+                );
+                spaced |= s;
+                let (_, s) = dose(
+                    ui,
+                    p,
+                    ("ambience", tr("Ambience"), AMBIENCE),
+                    match ambience {
+                        Ambience::Studio => tr("Dry and close, a small room"),
+                        Ambience::Natural => tr("A room, a plate and a hall, by instrument"),
+                        Ambience::Live => tr("A concert hall, an echo on the lead voice"),
+                        Ambience::Space => tr("Vast and floating, an echo on the lead voice"),
+                    },
+                    (&mut self.ambience, usual_ambience),
+                    width,
+                    &ambience_word,
+                );
+                spaced |= s;
+                let (_, s) = dose(
+                    ui,
+                    p,
+                    ("wide", tr("Width"), WIDE),
+                    tr("Pairs spread around the center"),
+                    (&mut self.wide, 0.4),
                     width,
                     &wide_word,
                 );
@@ -1735,76 +2315,6 @@ impl PrepareWindow {
         if settled || spaced {
             self.dirty = true;
         }
-        ui.add_space(10.0);
-        let mut grouping = self.grouping;
-        heading(
-            ui,
-            p,
-            tr("Buses"),
-            tr(
-                "Each family of two tracks or more in a bus of its own, shown in the list: drag the \
-                buses there to change their order",
-            ),
-            |ui| switch_labeled(ui, p, &mut grouping),
-        );
-        if grouping != self.grouping {
-            self.grouping = grouping;
-            self.dirty = true;
-        }
-        ui.add_space(10.0);
-        let total = self.rows.len();
-        let done = self
-            .rows
-            .iter()
-            .filter(|r| matches!(r.state, State::Ready(_) | State::Failed(_)))
-            .count();
-        if done < total {
-            let progress = self
-                .rows
-                .iter()
-                .map(|r| match &r.state {
-                    State::Queued => 0.0,
-                    State::Measuring(m) => m.progress() * 0.9,
-                    State::Analysing(_) => 0.95,
-                    _ => 1.0,
-                })
-                .sum::<f32>()
-                / total.max(1) as f32;
-            ui.label(
-                RichText::new(trf!(
-                    "Listening to the tracks: {done} of {total}",
-                    done = done,
-                    total = total
-                ))
-                .color(p.weak),
-            );
-            let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width(), 4.0), Sense::hover());
-            ui.painter().rect_filled(bar, 2.0, field_fill(p));
-            ui.painter().rect_filled(
-                bar.with_max_x(bar.left() + bar.width() * progress),
-                2.0,
-                p.accent,
-            );
-        } else {
-            let plan = self.plan(doc, mode);
-            let headroom = self
-                .headroom
-                .then(|| match (self.mix_peak, self.lowered()) {
-                    (Some(peak), Some(db)) if !self.mix_stale && self.mix.is_none() => trf!(
-                        "Mix peak {peak} dBFS: {db} dB of room kept for the master",
-                        peak = format!("{peak:.1}"),
-                        db = format!("{db:.1}")
-                    ),
-                    (Some(peak), None) if !self.mix_stale && self.mix.is_none() => trf!(
-                        "Mix peak {peak} dBFS: room kept",
-                        peak = format!("{peak:.1}")
-                    ),
-                    _ => tr("Measuring the mix…").to_owned(),
-                });
-            if let Some(k) = summary(ui, p, &self.rows, &plan, headroom) {
-                self.view = View::Track(k);
-            }
-        }
     }
 
     /// What is proposed for one track: who it is, its color and its place in the mix, then its
@@ -1812,7 +2322,6 @@ impl PrepareWindow {
     fn track(&mut self, ui: &mut Ui, p: &Palette, doc: &Document, mode: Mode, k: usize) {
         let several = self.rows.len() > 1;
         let strengths = (self.clean, self.bring, self.flavor);
-        let every = Some(self.console);
         let planned = self
             .rows
             .get(k)
@@ -1825,17 +2334,12 @@ impl PrepareWindow {
                 .and_then(|g| rules::GROUPS.iter().find(|x| x.0 == g.0))
                 .map(|g| tr(g.1))
         });
-        let mut back = false;
         let mut changed = false;
         let Some(row) = self.rows.get_mut(k) else {
             return;
         };
         ui.spacing_mut().item_spacing = vec2(8.0, 10.0);
         ui.horizontal(|ui| {
-            if several && back_button(ui, p).clicked() {
-                back = true;
-            }
-            ui.add_space(4.0);
             let (bar, _) = ui.allocate_exact_size(vec2(4.0, 26.0), Sense::hover());
             ui.painter().rect_filled(bar, 2.0, row.color);
             ui.label(RichText::new(&row.name).font(theme::strong(18.0)));
@@ -1871,13 +2375,11 @@ impl PrepareWindow {
                     .inner_margin(10.0)
                     .show(ui, |ui| {
                         ui.set_width(ui.available_width());
-                        ui.columns(3, |c| {
-                            changed |= identity(&mut c[0], p, k, r, bus, mode, strengths);
-                            if mode.brings_out() {
-                                changed |= own_console(&mut c[1], p, k, r, every);
-                            }
+                        ui.columns(2, |c| {
+                            changed |=
+                                identity(&mut c[0], p, k, r, (bus, &row.hands), mode, strengths);
                             placement(
-                                &mut c[2],
+                                &mut c[1],
                                 p,
                                 (planned.as_ref(), shift),
                                 group,
@@ -1909,11 +2411,127 @@ impl PrepareWindow {
                     });
             }
         }
-        if back {
-            self.view = View::Overview;
-        }
         if changed {
             self.dirty = true;
+        }
+    }
+
+    /// Where the song plays, over the outline of the tracks measured, with its markers: a click
+    /// or a drag moves there, a marker's name goes to it.
+    fn playhead(&mut self, ui: &mut Ui, p: &Palette, doc: &mut Document, width: f32) {
+        let (rect, _) = ui.allocate_exact_size(vec2(width, PLAYHEAD), Sense::hover());
+        let project = doc.project();
+        let rate = f64::from(project.sample_rate.max(1));
+        let length = project.length().max(1);
+        let position = doc.player().position().min(length);
+        let bar = Rect::from_min_max(
+            pos2(rect.left() + 22.0, rect.top() + 20.0),
+            pos2(rect.right() - 120.0, rect.bottom() - 6.0),
+        );
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(bar, radius(p), field_fill(p));
+        let x_of = |at: u64| bar.left() + bar.width() * (at as f64 / length as f64) as f32;
+        // The tracks' loudness together, every fifth of a second.
+        let mut power: Vec<f32> = Vec::new();
+        for row in &self.rows {
+            if let State::Ready(r) = &row.state
+                && row.included
+                && row.bus.is_none()
+            {
+                if power.len() < r.analysis.levels.len() {
+                    power.resize(r.analysis.levels.len(), 0.0);
+                }
+                for (sum, db) in power.iter_mut().zip(&r.analysis.levels) {
+                    *sum += 10f32.powf(db / 10.0);
+                }
+            }
+        }
+        if !power.is_empty() {
+            let top = power.iter().copied().fold(1e-12, f32::max);
+            let step = rules::RIDE_STEP * rate;
+            let played = x_of(position);
+            for (k, v) in power.iter().enumerate() {
+                let x = x_of((k as f64 * step) as u64);
+                if x > bar.right() {
+                    break;
+                }
+                let h = ((10.0 * (v / top).log10() + 40.0) / 40.0).clamp(0.0, 1.0)
+                    * (bar.height() / 2.0 - 2.0);
+                let ink = if x <= played {
+                    p.accent.gamma_multiply(0.8)
+                } else {
+                    p.weak.gamma_multiply(0.45)
+                };
+                painter.line_segment(
+                    [pos2(x, bar.center().y - h), pos2(x, bar.center().y + h)],
+                    Stroke::new(1.0, ink),
+                );
+            }
+        }
+        let response = ui
+            .interact(
+                bar.expand2(vec2(0.0, 4.0)),
+                ui.scope_id().with("playhead"),
+                Sense::click_and_drag(),
+            )
+            .on_hover_cursor(egui::CursorIcon::PointingHand);
+        let mut go = None;
+        if let Some(pos) = response.interact_pointer_pos()
+            && (response.clicked() || response.dragged())
+        {
+            let share = ((pos.x - bar.left()) / bar.width()).clamp(0.0, 1.0);
+            go = Some((f64::from(share) * length as f64) as u64);
+        }
+        // The markers, their names over the bar.
+        for (k, marker) in project.markers.iter().enumerate() {
+            let x = x_of(marker.position.min(length));
+            painter.line_segment(
+                [pos2(x, bar.top() - 2.0), pos2(x, bar.bottom())],
+                Stroke::new(1.0, WARN.gamma_multiply(0.8)),
+            );
+            let galley =
+                painter.layout_no_wrap(marker.name.clone(), FontId::proportional(10.5), p.text);
+            let label = Rect::from_min_size(
+                pos2(x + 2.0, rect.top() + 3.0),
+                galley.size() + vec2(6.0, 2.0),
+            );
+            let hit = ui.interact(label, ui.scope_id().with(("marker", k)), Sense::click());
+            painter.rect_filled(
+                label,
+                3.0,
+                if hit.hovered() {
+                    p.hover
+                } else {
+                    WARN.gamma_multiply(0.18)
+                },
+            );
+            painter.galley(label.min + vec2(3.0, 1.0), galley, p.text);
+            if hit
+                .on_hover_text(tr("Play from this marker"))
+                .on_hover_cursor(egui::CursorIcon::PointingHand)
+                .clicked()
+            {
+                go = Some(marker.position);
+            }
+        }
+        let x = x_of(position);
+        painter.line_segment(
+            [pos2(x, bar.top() - 3.0), pos2(x, bar.bottom() + 3.0)],
+            Stroke::new(2.0, p.text),
+        );
+        let time = |at: u64| {
+            let s = (at as f64 / rate) as u64;
+            format!("{}:{:02}", s / 60, s % 60)
+        };
+        painter.text(
+            pos2(rect.right() - 22.0, bar.center().y),
+            Align2::RIGHT_CENTER,
+            format!("{} / {}", time(position), time(length)),
+            FontId::monospace(11.5),
+            p.weak,
+        );
+        if let Some(at) = go {
+            doc.player_mut().locate(at.min(length));
         }
     }
 
@@ -1924,7 +2542,7 @@ impl PrepareWindow {
         let ready = self
             .rows
             .iter()
-            .filter(|r| r.included && matches!(r.state, State::Ready(_)))
+            .filter(|r| r.group.is_none() && r.included && matches!(r.state, State::Ready(_)))
             .count();
         let mut bar = ui.new_child(
             egui::UiBuilder::new()
@@ -1961,17 +2579,7 @@ impl PrepareWindow {
                 self.dirty = true;
             }
         }
-        ui.add_space(14.0);
-        if toggle(ui, p, &mut self.keep_level).changed() {
-            self.dirty = true;
-        }
-        ui.add_space(6.0);
-        ui.label(tr("Same level")).on_hover_text(tr(
-            "Brings the prepared track to the loudness it had, measured on its loudest 20 \
-             seconds: before and after compare at equal level, and Apply keeps that gain on \
-             the channel strip's output",
-        ));
-        if let (true, View::Track(k)) = (self.keep_level, self.view)
+        if let (Tab::Tracks, View::Track(k)) = (self.tab, self.view)
             && let Some(row) = self.rows.get(k)
             && row.included
             && matches!(row.state, State::Ready(_))
@@ -1981,7 +2589,8 @@ impl PrepareWindow {
                 RichText::new(format!("{:+.1} dB", row.level))
                     .font(FontId::monospace(11.0))
                     .color(p.accent),
-            );
+            )
+            .on_hover_text(tr("The gain that keeps the track as loud as it was"));
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
@@ -2079,47 +2688,6 @@ fn switch(ui: &Ui, p: &Palette, rect: Rect, mut response: Response, on: &mut boo
         pos2(x, rect.center().y),
         5.0,
         if *on { Color32::WHITE } else { p.weak },
-    );
-    response.on_hover_cursor(egui::CursorIcon::PointingHand)
-}
-
-/// The first entry of the list, leading back to the doses for every track.
-fn overview_entry(ui: &mut Ui, p: &Palette, shown: bool) -> Response {
-    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 46.0), Sense::click());
-    let painter = ui.painter();
-    let fill = if shown {
-        theme::mix(p.surface, p.accent, 0.25)
-    } else if response.hovered() {
-        p.hover
-    } else {
-        Color32::TRANSPARENT
-    };
-    let stroke = if shown {
-        Stroke::new(1.0, theme::mix(p.surface, p.accent, 0.6))
-    } else {
-        Stroke::NONE
-    };
-    painter.rect(rect, radius(p), fill, stroke, StrokeKind::Inside);
-    // Two small knobs, the doses.
-    for (k, tint) in [CUT, p.accent].into_iter().enumerate() {
-        let c = pos2(rect.left() + 16.0 + k as f32 * 13.0, rect.center().y);
-        painter.circle_stroke(c, 5.5, Stroke::new(2.0, tint));
-        painter.line_segment([c, c + vec2(2.5, -3.5)], Stroke::new(1.5, p.text));
-    }
-    let left = rect.left() + 46.0;
-    painter.text(
-        pos2(left, rect.center().y - 8.0),
-        Align2::LEFT_CENTER,
-        tr("Overview"),
-        theme::strong(12.5),
-        p.text,
-    );
-    painter.text(
-        pos2(left, rect.center().y + 9.0),
-        Align2::LEFT_CENTER,
-        tr("Settings for every track, what is proposed"),
-        FontId::proportional(10.5),
-        p.weak,
     );
     response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
@@ -2247,7 +2815,8 @@ fn track_row(
                     ui.spacing_mut().item_spacing.x = 6.0;
                     let bus = row.bus.as_ref();
                     if instrument_combo(ui, ("instrument", k), r, bus.is_some(), 160.0) {
-                        r.steps = propose(&r.analysis, r.instrument, mode, strengths, bus);
+                        r.steps =
+                            propose(&r.analysis, r.instrument, mode, strengths, bus, &row.hands);
                         changed = true;
                     }
                 },
@@ -2395,7 +2964,8 @@ fn check_row(
                 |ui| {
                     ui.spacing_mut().item_spacing.x = 10.0;
                     if instrument_combo(ui, ("check-instrument", k), r, bus.is_some(), 240.0) {
-                        r.steps = propose(&r.analysis, r.instrument, mode, strengths, bus);
+                        r.steps =
+                            propose(&r.analysis, r.instrument, mode, strengths, bus, &row.hands);
                         changed = true;
                     }
                     let (found, color) = match r.guess {
@@ -2541,18 +3111,59 @@ fn heading(
     out.unwrap_or_else(|| ui.label(""))
 }
 
-/// A switch named beside it, in a layout from the right.
-fn switch_labeled_as(ui: &mut Ui, p: &Palette, name: &str, on: &mut bool) -> Response {
-    let response = toggle(ui, p, on);
-    ui.label(RichText::new(name).color(if *on { p.text } else { p.weak }));
-    response
+/// A section's title with what it is about beside it, on one line.
+fn title(ui: &mut Ui, p: &Palette, title: &str, what: &str) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 10.0;
+        ui.label(RichText::new(title).font(theme::strong(15.0)));
+        ui.label(RichText::new(what).size(11.0).color(p.weak));
+    });
+    ui.add_space(2.0);
 }
 
-/// A switch with its state written beside it.
-fn switch_labeled(ui: &mut Ui, p: &Palette, on: &mut bool) -> Response {
-    let response = toggle(ui, p, on);
-    ui.label(RichText::new(if *on { tr("On") } else { tr("Off") }).color(p.weak));
-    response
+/// A switch as a tile: its name, the switch, and under them what it does now. True when
+/// switched.
+fn tile(
+    ui: &mut Ui,
+    p: &Palette,
+    width: f32,
+    (name, tint): (&str, Color32),
+    on: &mut bool,
+    status: &str,
+    hint: &str,
+) -> bool {
+    let mut changed = false;
+    let (fill, edge) = if *on {
+        (
+            theme::mix(field_fill(p), tint, 0.12),
+            theme::mix(line_edge(p), tint, 0.55),
+        )
+    } else {
+        (field_fill(p), line_edge(p))
+    };
+    egui::Frame::new()
+        .fill(fill)
+        .stroke(Stroke::new(1.0, edge))
+        .corner_radius(radius(p))
+        .inner_margin(12.0)
+        .show(ui, |ui| {
+            ui.set_width(width - 24.0);
+            ui.vertical(|ui| {
+                ui.set_min_height(46.0);
+                ui.spacing_mut().item_spacing.y = 4.0;
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(name).font(theme::strong(13.5)));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        changed = toggle(ui, p, on).changed();
+                    });
+                });
+                let ink = if *on { p.text } else { p.weak };
+                ui.label(RichText::new(status).size(11.0).color(ink));
+            });
+        })
+        .response
+        .on_hover_text(hint);
+    changed
 }
 
 /// A column's small title.
@@ -2568,11 +3179,11 @@ fn caption(ui: &mut Ui, p: &Palette, text: &str) {
 /// The color of a style, to find it among the others.
 fn style_color(c: Character) -> Color32 {
     match c {
-        Character::Natural => Color32::from_rgb(0x9a, 0x9c, 0xa3),
-        Character::Pop => Color32::from_rgb(0xe8, 0x6f, 0xb0),
-        Character::Rock => Color32::from_rgb(0xe0, 0x4f, 0x4f),
-        Character::Acoustic => Color32::from_rgb(0xc9, 0x9a, 0x5b),
-        Character::Electronic => Color32::from_rgb(0x6f, 0x8c, 0xf2),
+        Character::Transparent => Color32::from_rgb(0x9a, 0x9c, 0xa3),
+        Character::Warm => Color32::from_rgb(0xd9, 0x8a, 0x4a),
+        Character::Crisp => Color32::from_rgb(0x5f, 0xb8, 0xe6),
+        Character::Punchy => Color32::from_rgb(0xe0, 0x55, 0x55),
+        Character::Big => Color32::from_rgb(0x9b, 0x7f, 0xd9),
     }
 }
 
@@ -2585,7 +3196,7 @@ fn style_tiles(ui: &mut Ui, p: &Palette, current: Character) -> Option<Character
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = gap;
         for c in Character::STYLES {
-            let (rect, response) = ui.allocate_exact_size(vec2(width, 56.0), Sense::click());
+            let (rect, response) = ui.allocate_exact_size(vec2(width, 82.0), Sense::click());
             let on = c == current;
             let tint = style_color(c);
             let fill = if on {
@@ -2617,6 +3228,17 @@ fn style_tiles(ui: &mut Ui, p: &Palette, current: Character) -> Option<Character
                 width - 24.0,
             );
             painter.galley(pos2(rect.left() + 12.0, rect.top() + 27.0), galley, p.weak);
+            let console = match c.console() {
+                0 => tr("No console color"),
+                k => tr(audiostrada_dsp::console::MODELS[k]),
+            };
+            painter.text(
+                pos2(rect.left() + 12.0, rect.bottom() - 10.0),
+                Align2::LEFT_CENTER,
+                console,
+                FontId::proportional(10.0),
+                tint,
+            );
             if response
                 .on_hover_text(tr(c.description()))
                 .on_hover_cursor(egui::CursorIcon::PointingHand)
@@ -2723,127 +3345,6 @@ fn group_header(
         clicked: response.clicked(),
         dropped,
     }
-}
-
-/// The five console colors to choose from, then how much of it; whether it changed, and
-/// whether that settled (not in the middle of a drag). `compact`: colored dots, the name
-/// of the one chosen below.
-fn console_picker(
-    ui: &mut Ui,
-    p: &Palette,
-    id: &str,
-    console: &mut Console,
-    compact: bool,
-) -> (bool, bool) {
-    if compact {
-        return ui
-            .horizontal(|ui| picker_body(ui, p, id, console, true))
-            .inner;
-    }
-    picker_body(ui, p, id, console, false)
-}
-
-fn picker_body(
-    ui: &mut Ui,
-    p: &Palette,
-    id: &str,
-    console: &mut Console,
-    compact: bool,
-) -> (bool, bool) {
-    let (mut changed, mut settled) = (false, false);
-    let gap = if compact { 6.0 } else { 8.0 };
-    let count = ConsoleModel::ALL.len() as f32;
-    let width = if compact {
-        30.0
-    } else {
-        (ui.available_width() - gap * (count - 1.0)) / count
-    };
-    let height = if compact { 30.0 } else { 54.0 };
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = gap;
-        for m in ConsoleModel::ALL {
-            let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::click());
-            let on = console.model == m;
-            let tint = crate::console_ui::color(m);
-            let painter = ui.painter_at(rect);
-            if compact {
-                let c = rect.center();
-                if on {
-                    painter.circle_stroke(c, 13.0, Stroke::new(2.0, tint));
-                } else if response.hovered() {
-                    painter.circle_filled(c, 13.0, p.hover);
-                }
-                painter.circle_filled(c, 9.0, tint);
-            } else {
-                let fill = if on {
-                    theme::mix(p.surface, tint, 0.25)
-                } else if response.hovered() {
-                    p.hover
-                } else {
-                    field_fill(p)
-                };
-                let stroke = if on {
-                    Stroke::new(1.5, tint)
-                } else {
-                    Stroke::new(1.0, line_edge(p))
-                };
-                painter.rect(rect, radius(p), fill, stroke, StrokeKind::Inside);
-                painter.rect_filled(
-                    Rect::from_min_size(
-                        rect.left_top() + vec2(10.0, 10.0),
-                        vec2(rect.width() - 20.0, 6.0),
-                    ),
-                    3.0,
-                    tint,
-                );
-                painter.text(
-                    pos2(rect.center().x, rect.top() + 34.0),
-                    Align2::CENTER_CENTER,
-                    crate::console_ui::name(m),
-                    theme::strong(12.5),
-                    p.text,
-                );
-            }
-            let hint = format!(
-                "{}: {}",
-                crate::console_ui::name(m),
-                crate::console_ui::hint(m)
-            );
-            if response
-                .on_hover_text(hint)
-                .on_hover_cursor(egui::CursorIcon::PointingHand)
-                .clicked()
-                && !on
-            {
-                console.model = m;
-                changed = true;
-                settled = true;
-            }
-        }
-    });
-    let mut amount = console.amount;
-    let colors = console.model != ConsoleModel::Clean;
-    let response = if compact {
-        ui.push_id(id, |ui| {
-            ui.spacing_mut().slider_width = 70.0;
-            let slider = egui::Slider::new(&mut amount, 0.0..=100.0)
-                .suffix(" %")
-                .fixed_decimals(0);
-            ui.add_enabled(colors, slider)
-        })
-        .inner
-    } else {
-        let tint = crate::console_ui::color(console.model);
-        fader(ui, p, (id, tr("Amount")), &mut amount, tint, colors)
-    };
-    let response = response.on_hover_text(tr("How much of the console's color"));
-    if response.changed() {
-        console.amount = amount;
-        changed = true;
-        settled |= !response.dragged();
-    }
-    settled |= response.drag_stopped();
-    (changed, settled)
 }
 
 /// A horizontal fader the whole width, from 0 to 100 %: its name, a groove lit in a gradient
@@ -2976,7 +3477,7 @@ fn identity(
     p: &Palette,
     k: usize,
     r: &mut Ready,
-    bus: Option<&Bus>,
+    (bus, hands): (Option<&Bus>, &[&'static str]),
     mode: Mode,
     strengths: Doses,
 ) -> bool {
@@ -2993,7 +3494,7 @@ fn identity(
     );
     let width = ui.available_width() - 12.0;
     if instrument_combo(ui, ("instrument", k), r, bus.is_some(), width) {
-        r.steps = propose(&r.analysis, r.instrument, mode, strengths, bus);
+        r.steps = propose(&r.analysis, r.instrument, mode, strengths, bus, hands);
         changed = true;
     }
     let found = match r.guess {
@@ -3025,39 +3526,6 @@ fn identity(
     changed
 }
 
-/// The track's view, second column: the console color set for every track, or its own.
-fn own_console(ui: &mut Ui, p: &Palette, k: usize, r: &mut Ready, every: Option<Console>) -> bool {
-    let mut changed = false;
-    ui.spacing_mut().item_spacing.y = 6.0;
-    caption(ui, p, tr("Console color"));
-    let mut own = r.console.is_some();
-    ui.horizontal(|ui| {
-        if toggle(ui, p, &mut own).changed() {
-            r.console = own.then(|| every.unwrap_or_default());
-            changed = true;
-        }
-        ui.label(tr("Its own color"));
-    });
-    match &mut r.console {
-        Some(console) => {
-            let (_, settled) = console_picker(ui, p, &format!("own-{k}"), console, true);
-            changed |= settled;
-        }
-        None => {
-            let text = match every {
-                Some(c) => trf!(
-                    "As every track: {name}, {amount} %",
-                    name = crate::console_ui::name(c.model),
-                    amount = format!("{:.0}", c.amount)
-                ),
-                None => tr("Left as it is").to_owned(),
-            };
-            ui.label(RichText::new(text).size(11.0).color(p.weak));
-        }
-    }
-    changed
-}
-
 /// The track's view, third column: where it goes in the mix.
 fn placement(
     ui: &mut Ui,
@@ -3082,9 +3550,14 @@ fn placement(
             any = true;
         }
         if let Some((_, prep, send)) = planned {
-            if let Some(db) = send {
+            if let Some(db) = send.0 {
                 let text = trf!("Space: send at {db} dB", db = format!("{db:.0}"));
                 pill(ui, p, &text, SPACE);
+                any = true;
+            }
+            if let Some(db) = send.1 {
+                let text = trf!("Echo: send at {db} dB", db = format!("{db:.0}"));
+                pill(ui, p, &text, AMBIENCE);
                 any = true;
             }
             if let Some(pan) = prep.pan.filter(|p| p.abs() > 0.005) {
@@ -3119,6 +3592,21 @@ fn wide_word(v: f32) -> &'static str {
     }
 }
 
+/// The word for the balance's dose.
+fn balance_word(v: f32) -> &'static str {
+    match v {
+        x if x < 0.01 => tr("Off"),
+        x if x < 0.35 => tr("A little"),
+        x if x < 0.75 => tr("Halfway"),
+        _ => tr("Balanced"),
+    }
+}
+
+/// The ambience at a place of its knob.
+fn ambience_word(v: f32) -> &'static str {
+    tr(Ambience::at(v).0.name())
+}
+
 /// The word for the space's dose.
 fn space_word(v: f32) -> &'static str {
     match v {
@@ -3129,36 +3617,6 @@ fn space_word(v: f32) -> &'static str {
     }
 }
 
-/// The back button of a track's view.
-fn back_button(ui: &mut Ui, p: &Palette) -> Response {
-    let text = tr("Overview");
-    let width = ui
-        .painter()
-        .layout_no_wrap(text.to_owned(), theme::strong(12.0), p.text)
-        .size()
-        .x
-        + 40.0;
-    let (rect, _) = ui.allocate_exact_size(vec2(width, 28.0), Sense::hover());
-    let response = button(ui, rect, ui.scope_id().with("back"), true);
-    paint_face(ui, rect, radius(p), &response, Face::Plain);
-    paint_glyph(
-        ui.painter(),
-        Rect::from_center_size(pos2(rect.left() + 15.0, rect.center().y), vec2(13.0, 13.0)),
-        Glyph::Left,
-        p.text,
-    );
-    ui.painter().text(
-        pos2(rect.left() + 27.0, rect.center().y),
-        Align2::LEFT_CENTER,
-        text,
-        theme::strong(12.0),
-        p.text,
-    );
-    response
-        .on_hover_text(tr("Back to the doses for every track"))
-        .on_hover_cursor(egui::CursorIcon::PointingHand)
-}
-
 /// A part's dose, with its big knob; returns whether it moved, and whether it settled (the
 /// preview follows then, not at every step of a drag).
 fn dose(
@@ -3166,7 +3624,7 @@ fn dose(
     p: &Palette,
     (id, title, tint): (&str, &str, Color32),
     what: &str,
-    value: &mut f32,
+    (value, usual): (&mut f32, f32),
     width: f32,
     word: &dyn Fn(f32) -> &'static str,
 ) -> (bool, bool) {
@@ -3175,22 +3633,24 @@ fn dose(
         .fill(field_fill(p))
         .stroke(Stroke::new(1.0, line_edge(p)))
         .corner_radius(radius(p))
-        .inner_margin(14.0)
+        .inner_margin(10.0)
         .show(ui, |ui| {
-            ui.set_width(width - 28.0);
+            ui.set_width(width - 20.0);
+            // Every knob's box as tall, whatever its text.
+            ui.set_min_height(DOSE_HEIGHT);
             ui.vertical_centered(|ui| {
-                ui.spacing_mut().item_spacing.y = 4.0;
+                ui.spacing_mut().item_spacing.y = 3.0;
                 ui.label(RichText::new(title).font(theme::strong(14.0)));
-                ui.add_space(6.0);
-                let diameter = (width - 70.0).clamp(72.0, 96.0);
-                let (v, response) = big_knob(ui, p, id, *value, tint, diameter);
+                ui.add_space(2.0);
+                let diameter = (width - 70.0).clamp(64.0, 80.0);
+                let (v, response) = big_knob(ui, p, (id, usual), *value, tint, diameter);
                 let moved = v != *value;
                 *value = v;
                 out = (
                     moved,
                     (moved && !response.dragged()) || response.drag_stopped(),
                 );
-                ui.add_space(6.0);
+                ui.add_space(2.0);
                 let ink = if *value < 0.01 { p.weak } else { p.text };
                 ui.label(
                     RichText::new(word(*value))
@@ -3202,18 +3662,54 @@ fn dose(
                         .font(FontId::monospace(11.0))
                         .color(p.weak),
                 );
-                ui.add_space(6.0);
-                ui.label(RichText::new(what).size(11.0).color(p.weak));
+                ui.add_space(2.0);
+                ui.add(egui::Label::new(RichText::new(what).size(11.0).color(p.weak)).wrap());
             });
         });
     out
 }
 
-/// A large knob from 0 to 1, its usual dose (0.5) marked; drag, wheel, double-click to reset.
+/// A part's dose with a small knob, for the band of a single track: whether it moved, and
+/// whether it settled.
+fn small_dose(
+    ui: &mut Ui,
+    p: &Palette,
+    (id, title, tint): (&str, &str, Color32),
+    (value, usual): (&mut f32, f32),
+    width: f32,
+    word: &dyn Fn(f32) -> &'static str,
+) -> (bool, bool) {
+    let mut out = (false, false);
+    ui.allocate_ui_with_layout(
+        vec2(width, BAND - 24.0),
+        egui::Layout::top_down(egui::Align::Center),
+        |ui| {
+            ui.set_width(width);
+            ui.spacing_mut().item_spacing.y = 2.0;
+            ui.label(RichText::new(title).font(theme::strong(12.0)));
+            let (v, response) = big_knob(ui, p, (id, usual), *value, tint, 60.0);
+            let moved = v != *value;
+            *value = v;
+            out = (
+                moved,
+                (moved && !response.dragged()) || response.drag_stopped(),
+            );
+            let ink = if *value < 0.01 { p.weak } else { p.text };
+            ui.label(
+                RichText::new(word(*value))
+                    .font(theme::strong(12.0))
+                    .color(ink),
+            );
+        },
+    );
+    out
+}
+
+/// A large knob from 0 to 1, its usual dose marked; drag, wheel, double-click to reset.
 fn big_knob(
     ui: &mut Ui,
     p: &Palette,
-    id: &str,
+    (id, usual): (&str, f32),
     value: f32,
     tint: Color32,
     diameter: f32,
@@ -3238,12 +3734,14 @@ fn big_knob(
         }
     }
     if response.double_clicked() {
-        v = 0.5;
+        v = usual;
     }
     let v = v.clamp(0.0, 1.0);
     let painter = ui.painter();
     let c = rect.center();
     let r = diameter * 0.5;
+    // Drawn for 80 px, in proportion below.
+    let scale = (diameter / 80.0).clamp(0.6, 1.0);
     let angle = |f: f32| PI * 0.75 + PI * 1.5 * f.clamp(0.0, 1.0);
     let at = |a: f32, radius: f32| pos2(c.x + radius * a.cos(), c.y + radius * a.sin());
     let arc = |from: f32, to: f32, radius: f32| -> Vec<egui::Pos2> {
@@ -3253,32 +3751,36 @@ fn big_knob(
             .collect()
     };
     // The scale, the usual dose a longer mark.
+    let mark = (usual * 10.0).round() as usize;
     for k in 0..=10 {
         let a = angle(k as f32 / 10.0);
-        let long = k == 5;
+        let long = k == mark;
         painter.line_segment(
-            [at(a, r - 1.0), at(a, r - if long { 9.0 } else { 5.0 })],
+            [
+                at(a, r - 1.0),
+                at(a, r - (if long { 9.0 } else { 5.0 }) * scale),
+            ],
             Stroke::new(
                 if long { 2.0 } else { 1.0 },
                 p.weak.gamma_multiply(if long { 0.9 } else { 0.5 }),
             ),
         );
     }
-    let ring = r - 15.0;
+    let ring = r - 15.0 * scale;
     painter.add(egui::Shape::line(
         arc(angle(0.0), angle(1.0), ring),
-        Stroke::new(6.0, p.base),
+        Stroke::new(6.0 * scale, p.base),
     ));
     if v > 0.005 {
         let lit = arc(angle(0.0), angle(v), ring);
         painter.add(egui::Shape::line(
             lit.clone(),
-            Stroke::new(14.0, tint.gamma_multiply(0.16)),
+            Stroke::new(14.0 * scale, tint.gamma_multiply(0.16)),
         ));
-        painter.add(egui::Shape::line(lit, Stroke::new(6.0, tint)));
+        painter.add(egui::Shape::line(lit, Stroke::new(6.0 * scale, tint)));
     }
     let active = response.hovered() || response.dragged();
-    let body = r - 26.0;
+    let body = r - 26.0 * scale;
     painter.circle_filled(
         c + vec2(0.0, 2.5),
         body + 1.0,
@@ -3304,140 +3806,6 @@ fn big_knob(
         ))
         .on_hover_cursor(egui::CursorIcon::ResizeVertical);
     (v, response)
-}
-
-/// What the tracks prepared receive in all, by kind of step; the tracks whose instrument is
-/// to choose first. Returns the track to show when that warning is clicked.
-fn summary(
-    ui: &mut Ui,
-    p: &Palette,
-    rows: &[Row],
-    plan: &[Planned],
-    headroom: Option<String>,
-) -> Option<usize> {
-    let mut counts = [0usize; 12];
-    let mut left_out = 0;
-    let mut unknown = Vec::new();
-    for (k, row) in rows.iter().enumerate() {
-        let State::Ready(r) = &row.state else {
-            left_out += 1;
-            continue;
-        };
-        if !row.included {
-            left_out += 1;
-            continue;
-        }
-        if r.guess == Guess::Unknown {
-            unknown.push(k);
-        }
-        for step in chosen(r) {
-            let k = match step {
-                Step::Filters { .. } => 0,
-                Step::Resonance(_) => 1,
-                Step::Plosives(_) => 2,
-                Step::DeEss { .. } => 3,
-                Step::Gate { .. } => 4,
-                Step::Eq { .. } => 5,
-                Step::Compressor { .. } => 6,
-                Step::Transient { .. } => 7,
-                Step::Ride(_) => 8,
-                Step::StripSilence(_) => continue,
-            };
-            counts[k] += 1;
-        }
-    }
-    for (_, prep, send) in plan {
-        counts[9] += usize::from(prep.console.is_some());
-        counts[10] += usize::from(send.is_some());
-        counts[11] += usize::from(prep.pan.is_some_and(|p| p.abs() > 0.005));
-    }
-    let names = [
-        tr("Filters: {count}"),
-        tr("Resonances: {count}"),
-        tr("Plosives: {count}"),
-        tr("De-essers: {count}"),
-        tr("Gates: {count}"),
-        tr("EQ moves: {count}"),
-        tr("Compressors: {count}"),
-        tr("Transient shapers: {count}"),
-        tr("Level riding: {count}"),
-        tr("Console colors: {count}"),
-        tr("Sent to the space: {count}"),
-        tr("Spread in pairs: {count}"),
-    ];
-    let mut open = None;
-    let mut pills: Vec<(String, Color32)> = Vec::new();
-    for (k, (count, name)) in counts.iter().zip(names).enumerate() {
-        if *count > 0 {
-            let tint = match k {
-                0..5 => CUT,
-                9 => crate::console_ui::color(ConsoleModel::Iron),
-                10 => SPACE,
-                11 => WIDE,
-                _ => p.accent,
-            };
-            pills.push((
-                crate::i18n::fill(name, &[("count", count.to_string())]),
-                tint,
-            ));
-        }
-    }
-    let staged = plan.iter().filter(|x| x.1.trim.is_some()).count();
-    if staged > 0 {
-        pills.insert(0, (trf!("Input gains set: {count}", count = staged), CUT));
-    }
-    if let Some(text) = headroom {
-        pills.insert(0, (text, p.accent));
-    }
-    if left_out > 0 {
-        pills.push((trf!("Left as they are: {count}", count = left_out), p.weak));
-    }
-    // One line: what does not fit is listed under "+N".
-    let font = FontId::proportional(11.5);
-    let painter = ui.painter().clone();
-    let width_of = |text: &str| {
-        painter
-            .layout_no_wrap(text.to_owned(), font.clone(), p.text)
-            .size()
-            .x
-            + 36.0
-    };
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 6.0;
-        let mut room = ui.available_width() - 70.0;
-        if let Some(&first) = unknown.first() {
-            let text = trf!("Instrument to choose: {count}", count = unknown.len());
-            room -= width_of(&text);
-            if pill(ui, p, &text, WARN)
-                .on_hover_text(tr(
-                    "Their names do not tell the instrument: click to choose it",
-                ))
-                .on_hover_cursor(egui::CursorIcon::PointingHand)
-                .clicked()
-            {
-                open = Some(first);
-            }
-        }
-        let mut rest = Vec::new();
-        for (text, tint) in &pills {
-            let w = width_of(text);
-            if rest.is_empty() && w <= room {
-                room -= w;
-                pill(ui, p, text, *tint);
-            } else {
-                rest.push(text.as_str());
-            }
-        }
-        if !rest.is_empty() {
-            pill(ui, p, &format!("+{}", rest.len()), p.weak).on_hover_text(rest.join("\n"));
-        }
-        if pills.is_empty() && unknown.is_empty() {
-            ui.label(
-                RichText::new(tr("Nothing to do: the tracks are fine as they are.")).color(p.weak),
-            );
-        }
-    });
-    open
 }
 
 /// A count of the summary, its dot telling the part.
@@ -4009,7 +4377,7 @@ pub fn strip_line(ui: &mut Ui, doc: &mut Document, track: TrackId, width: f32) {
     let prepared = doc.project().track(track).and_then(|t| t.prepared.clone());
     if prepared
         .as_ref()
-        .is_some_and(|d| d.instrument == write::SPACE)
+        .is_some_and(|d| write::is_space(&d.instrument))
     {
         return;
     }
@@ -4194,13 +4562,108 @@ pub fn all_button(ui: &mut Ui, doc: &Document) {
         ))
         .clicked()
     {
-        let tracks: Vec<TrackId> = doc
-            .project()
-            .tracks
-            .iter()
-            .filter(|t| t.kind == audiostrada_core::TrackKind::Audio)
-            .map(|t| t.id)
-            .collect();
-        request(ui.ctx(), &tracks, Mode::Both);
+        request(ui.ctx(), &every_track(doc), Mode::Both);
     }
+}
+
+/// An Express Mix asked without its window: what is given replaces the settings last applied.
+#[derive(Clone, Debug, Default)]
+pub struct Request {
+    pub tracks: Vec<TrackId>,
+    /// Doses, 0 to 1.
+    pub clean: Option<f32>,
+    pub bring: Option<f32>,
+    pub depth: Option<f32>,
+    pub ambience: Option<f32>,
+    pub wide: Option<f32>,
+    pub balance: Option<f32>,
+    pub intensity: Option<f32>,
+    pub style: Option<Character>,
+    pub buses: Option<bool>,
+    pub headroom: Option<bool>,
+    /// The instruments of tracks, where the names do not tell.
+    pub instruments: Vec<(TrackId, Instrument)>,
+}
+
+/// Measures the tracks, proposes and applies, as the window does on Apply; the tracks done.
+pub fn run(doc: &mut Document, request: &Request) -> Result<usize, String> {
+    let mode = Mode::Both;
+    let mut window = PrepareWindow::default();
+    window.open(doc, request.tracks.clone(), mode);
+    let unit = |v: f32| v.clamp(0.0, 1.0);
+    if let Some(v) = request.clean {
+        window.clean = Strength(unit(v));
+    }
+    if let Some(v) = request.bring {
+        window.bring = Strength(unit(v));
+    }
+    if let Some(c) = request.style {
+        window.flavor.character = c;
+        (window.depth, window.ambience, window.wide) = c.place();
+    }
+    if let Some(v) = request.depth {
+        window.depth = unit(v);
+    }
+    if let Some(v) = request.ambience {
+        window.ambience = unit(v);
+    }
+    if let Some(v) = request.wide {
+        window.wide = unit(v);
+    }
+    if let Some(v) = request.intensity {
+        window.flavor.amount = unit(v);
+    }
+
+    if let Some(on) = request.buses {
+        window.grouping = on;
+    }
+    if let Some(on) = request.headroom {
+        window.headroom = on;
+    }
+    if let Some(v) = request.balance {
+        window.balance = unit(v);
+    }
+    let started = std::time::Instant::now();
+    loop {
+        // The instruments given, as soon as their tracks are measured.
+        for row in &mut window.rows {
+            if let State::Ready(r) = &mut row.state
+                && let Some(&(_, i)) = request.instruments.iter().find(|x| x.0 == row.track)
+                && r.instrument != i
+            {
+                r.instrument = i;
+                r.guess = Guess::Chosen;
+                r.steps.clear();
+            }
+        }
+        if !window.advance(doc, mode) {
+            break;
+        }
+        if started.elapsed() > std::time::Duration::from_secs(900) {
+            window.cancel(doc);
+            return Err("the tracks took too long to measure".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let done = window
+        .rows
+        .iter()
+        .filter(|r| r.included && matches!(r.state, State::Ready(_)))
+        .count();
+    if done == 0 {
+        window.cancel(doc);
+        return Err("no track could be measured".into());
+    }
+    window.apply(doc, mode);
+    Ok(done)
+}
+
+/// The tracks an Express Mix of the whole song takes: the audio ones, not the buses.
+pub fn every_track(doc: &Document) -> Vec<TrackId> {
+    doc.project()
+        .tracks
+        .iter()
+        .filter(|t| t.kind == audiostrada_core::TrackKind::Audio)
+        .map(|t| t.id)
+        .collect()
 }

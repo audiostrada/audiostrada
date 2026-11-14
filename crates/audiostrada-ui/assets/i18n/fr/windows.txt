@@ -611,42 +611,6 @@ Pour les contrôleurs MPE (Roli Seaboard, LinnStrument, Osmose...), qui envoient
 Console blind test
 Test en aveugle des consoles
 
-A is the mix through its consoles, B the mix without them, X one of the two. Play the song, listen to A, B and X as often as you like, then say which one X is.
-A est le mix avec ses consoles, B le mix sans elles, X l'un des deux. Lancez la lecture, écoutez A, B et X autant de fois que vous voulez, puis dites lequel est X.
-
-No console colors the mix: choose one in the Console menu first.
-Aucune console ne colore le mix : choisissez-en d'abord une dans le menu Console.
-
-Round {round} of {rounds}
-Essai {round} sur {rounds}
-
-X is A
-X est A
-
-X is B
-X est B
-
-Right.
-Juste.
-
-Wrong.
-Faux.
-
-A and B are at the same level: the consoles keep the working level (-18 dBFS).
-A et B sont au même niveau : les consoles gardent le niveau de travail (-18 dBFS).
-
-{right} right out of {rounds}
-{right} justes sur {rounds}
-
-By guessing, {chance} % of tests do as well.
-Au hasard, {chance} % des tests font aussi bien.
-
-You hear the consoles.
-Vous entendez les consoles.
-
-Not told apart for sure: at this level and amount, the color is subtle.
-Pas de différence sûre : à ce niveau et à ce dosage, la couleur est subtile.
-
 Again
 Recommencer
 
@@ -656,5 +620,89 @@ Test en aveugle
 Start…
 Lancer…
 
-Do you hear the consoles? The mix with and without them, one of the two at random: say which.
-Entendez-vous les consoles ? Le mix avec et sans elles, l'un des deux au hasard : dites lequel.
+Which take goes through the console? From easy to subtle
+Quelle prise passe par la console ? Du facile au subtil
+
+Console tested
+Console testée
+
+The console of your project.
+La console de votre projet.
+
+Last time: {found}.
+La dernière fois : {found}.
+
+Listen first
+Écoutez d'abord
+
+With the console, pushed all the way
+Avec la console, poussée à fond
+
+Without it
+Sans elle
+
+heard
+écoutée
+
+Play the song and switch between the two (keys 1 and 2) to hear what the console does. Then start: the two takes are shuffled, and it gets subtler as you find the right one.
+Lancez la lecture et passez de l'une à l'autre (touches 1 et 2) pour entendre ce que fait la console. Puis commencez : les deux prises sont mélangées, et le test devient plus subtil à chaque bonne réponse.
+
+Start the test
+Commencer le test
+
+Level {level} of {levels} · {name} at {amount} %
+Palier {level} sur {levels} · {name} à {amount} %
+
+Which take goes through the console?
+Quelle prise passe par la console ?
+
+Play the song and switch between the two takes (keys 1 and 2) as often as you like, then answer. Both are as loud: only the color differs.
+Lancez la lecture et passez d'une prise à l'autre (touches 1 et 2) autant de fois que vous voulez, puis répondez. Les deux sont au même volume : seule la couleur change.
+
+{pass} right answers pass a level; {misses} misses at a level end the test.
+{pass} bonnes réponses passent un palier ; {misses} erreurs sur un palier arrêtent le test.
+
+It is take 1
+C'est la prise 1
+
+It is take 2
+C'est la prise 2
+
+Right: take {take} went through {name} at {amount} %.
+Bravo : la prise {take} passait par {name} à {amount} %.
+
+Missed: take {take} went through {name} at {amount} %.
+Raté : la prise {take} passait par {name} à {amount} %.
+
+{name}: you hear it from {amount} %.
+{name} : vous l'entendez dès {amount} %.
+
+{name}: you hear it down to {amount} %, the subtlest level.
+{name} : vous l'entendez jusqu'à {amount} %, le palier le plus subtil.
+
+{name}: not heard, even pushed all the way.
+{name} : pas entendue, même poussée à fond.
+
+Your mix is set to {amount} %: you hear it.
+Votre mix est réglé à {amount} % : vous l'entendez.
+
+Your mix is set to {amount} %: under what you hear. Push the amount, or set the gains so that the tracks play around -18 dBFS.
+Votre mix est réglé à {amount} % : en dessous de ce que vous entendez. Montez la quantité, ou réglez les gains pour que les pistes jouent vers -18 dBFS.
+
+{right} right answers out of {asked}.
+{right} bonnes réponses sur {asked}.
+
+Your results
+Vos résultats
+
+heard from {amount} %
+entendue dès {amount} %
+
+not heard
+pas entendue
+
+not tested yet
+pas encore testée
+
+Another console
+Une autre console

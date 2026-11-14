@@ -141,27 +141,33 @@ its summing.
 | **Nashville** | smooth and warm, very low distortion (inspired by Harrison consoles) |
 
 Each console is a circuit of analogue stages (transformers, class A amplifiers, op-amps, VCAs),
-calibrated on measurements of the plugins that model the console it is after. Like the real
-ones, they colour subtly: at the working level a channel's harmonics sit 60 to 90 dB below the
-signal, and grow as it gets louder. The transformers of British Warm thicken the lows most;
-British Bright's channel adds odd harmonics, flat across the spectrum, and its mix bus is the
-most coloured; American Punch adds even harmonics; Nashville's channel is nearly clean, its bus
-saturates the lows.
+calibrated on measurements of the plugins that model the console it is after, with a signature
+that grows with the amount: British Warm rounds the lows and softens the top; British Bright
+tightens the bottom, brings the upper mids forward with some air, and its mix bus glues the mix
+(a gentle compressor, 1 to 2 dB at 50 %); American Punch gives punch in the low mids and bite;
+Nashville warms the low mids, softens the highs and widens the buses a little.
 
-*Amount* pushes the circuit: 50 % is the console at its working level, 0 % twelve dB
-softer, 100 % twelve dB harder, always at the same output level, so only the colour changes.
+*Amount*: 25 % is the console as its references measure it, as discreet as a real one at the
+working level; 50 % runs it hot, as on records, where it is heard; above, its character is
+exaggerated (6 dB hotter and three times the signature at 100 %); 0 % is nothing. The buses and
+the master are pushed half as hard as a track, as they get the whole mix. The console keeps the
+loudness all along: switching it, or changing the amount, changes only the colour. Projects saved
+before keep their sound (their amounts are halved when they open).
 *Hiss and crosstalk* adds each channel's noise floor (hiss, a little hum) and the sides of the
 buses leaking into each other. Every track is a channel of its own: its parts differ slightly from
 its neighbours', which widens the mix as a real console does. Each track can take another console
 (*Track console*). The power button beside the menu switches every colour off at the same level,
 to compare.
 
-**Blind test › Start…** tells whether you hear the consoles rather than believe it: A is the mix
-through its consoles, B without them, X one of the two drawn at random. Play the song, listen to
-A, B and X as often as you like, then say which one X is (*X is A* or *X is B*); a row of dots
-shows the rounds answered, right or wrong. After ten rounds, the window tells how
-often guessing would do as well: 9 right out of 10 happens about once in a hundred tests by
-chance. The test changes nothing in the project; closing its window gives the consoles back.
+**Blind test › Start…** (or Transport › *Console blind test…*) tells from which amount you hear a
+console. Choose the console tested (the project's, or one of the four), and first listen freely
+to the mix with the console pushed all the way and without it. Then the duel: two takes of the
+mix, 1 and 2 (keys 1 and 2 switch between them), one through the console, drawn at random; say
+which. The test starts at 100 % and goes down by levels (75, 50, 35, 25, 15 %): three right
+answers pass a level, two misses at a level end it. Each answer tells which take went through
+which console at which amount; the end tells from which amount you hear it, against your
+project's setting, and keeps the results of each console. The test changes nothing in the
+project.
 
 A console's character depends on the level it gets: **Gain staging › Apply** sets each audio
 track's input gain so that it plays around -18 dBFS (the selected tracks, or all of them).
@@ -186,94 +192,111 @@ send to the space), to compare with the track as it was; a second click puts it 
 **Express Mix: all tracks**, at the top of the mixer, does it for every track at once (not the
 buses).
 
-With several tracks not prepared yet, the window first asks to **Check the tracks** while they are listened
-to: each one's instrument as found from its name (to correct, or to choose when the name does
-not tell it), whether it is included, its mute and solo, and whether to **Group into buses**,
-with the buses it would make. **Continue** leads to the rest, where all of it can still be
-changed.
+Track › *Express Mix* with no track selected takes every audio track. The Express Mix opens in a
+window of its own, which you can move to another screen.
 
-The window then lists the tracks on the left. Each has a switch (off, the track is left as it is),
-its mute and solo, to hear the proposal in the mix or alone, and its instrument. The
-**Overview** at the top of the list sets, for every track: the **Console color**, the
-**Style**, how far **Clean up** and **Bring out** go with large knobs (from a light touch to all the way; double-click
-comes back to the usual dose), the **Space** and the **Wide**, and the **Buses**; then it
-counts what is proposed in all, on one line (the rest under *+N*). Click a track to see what is proposed for
-it and adjust it: its instrument, its own console color if it should differ, where it goes in
-the mix (bus, space, pan), its spectrum and its steps.
+With several tracks not prepared yet, the window first asks to **Check the tracks** while they are
+listened to: each one's instrument as found from its name and its sound (to correct, or to choose
+when nothing tells it), whether it is included, its mute and solo, and whether to **Group into
+buses**, with the buses it would make (on unless the tracks are already in buses). **Continue**
+leads to the settings, where all of it can still be changed.
 
-- **Style**: None (the default), Pop, Rock, Acoustic or Electro / Hip-hop, and its intensity. It doses every move and the balance between the
-  instruments: voices up front and more air for pop, more bite, transients and faster
-  compression for rock, lighter compression for acoustic, fuller lows, kick and bass on top and
-  denser compression for electro and hip-hop. The console color stays a choice
-  of its own.
+The settings have two tabs. **Mix** sets every track at once:
 
-- **Clean up**: a high pass under the energy that counts (and a low pass for the bass, the kick
-  and distorted guitars), cuts at the resonances that stand out, the plosives and the sibilance
-  of a voice held down (a de-esser is also offered on overheads and hi-hats), and a gate when
-  there is bleed or hiss between the hits (kick, snare, toms, hand drums) or the notes of an
-  electric guitar. A track with long silences gets the suggestion to strip them instead.
-- **Bring out**: the moves an engineer makes on that instrument, on the channel strip's EQ
-  (weight, mud, click on a kick; mud, presence, air on a voice...), each placed where the track
-  has it and dosed on how much it has; a compressor (always on a kick, a snare and a bass, else
-  when the level moves a lot); a Strada-Transient on the kick, the snare, the toms and the
-  percussion, more punch where the hits are soft (and a shorter ring on toms); and, if you tick
-  it, a riding of the level written as automation of the strip's output (within 6 dB).
+- **Style**: what the mix should sound like, at an **Intensity** set across the window. Each style
+  leans the tone, doses the compression and the attacks, moves some instruments forward, and
+  brings its console color (shown on its tile), its space, its ambience and its width, which you
+  can then change:
+  - **Transparent** (the default): as in the room, nothing pushed; a lighter hand, no console color
+    added (the project's stays).
+  - **Warm**: round and soft, vintage; softer highs, fuller low mids, slower compression; British
+    Warm.
+  - **Clean**: defined and modern, never harsh; tighter low mids, a little more presence, the voice
+    forward; British Bright.
+  - **Punchy**: the rhythm up front; more weight and attack on the kick, the snare and the bass,
+    firmer compression, the drums forward; American Punch.
+  - **Big**: large, wide and airy; more lows and air, a wider image, a live hall; Nashville.
+
+  The intensity also doses the console: 25 % (the console as measured) at the usual 50 %, 50 %
+  (run hot) all the way.
+- Then one knob for each part, double-click comes back to its usual place:
+  - **Clean up**: a high pass well under the energy that counts (an octave under the lowest note
+    that matters, gentle, 12 dB per octave), a low pass on the bass, the kick and electric
+    guitars, cuts only at the resonances that really stand out, the plosives and the sibilance
+    of a voice held down, and a gate or a gentle expander where there is bleed between the hits
+    or the phrases (drums, voices, backing vocals, acoustic guitars): the bleed of a choir mic
+    no longer comes up with the compressor. A track with long silences gets the suggestion to
+    strip them.
+  - **Bring out**: each instrument brought to its usual tone. AudioStrada measures how much of
+    the track's energy sits in its lows, low mids, presence and air, compares it with what that
+    instrument has in a mix that sounds right, and moves the strip's EQ only part of the way,
+    only where the track is clearly off, within gentle limits; a track already right is left
+    alone. The kick and the bass also get some weight. Then a compressor when the level moves
+    (always on a kick, a snare and a bass), a Strada-Transient on drums and percussion, and, if
+    you tick it, a riding of the level.
+  - **Balance**, at 0 until you turn it up: moves the faders toward a balanced mix, where each
+    instrument usually sits against the lead vocal (kick a little above it, bass at its level,
+    backing vocals and guitars under it...), moved by the style. The mix keeps its loudness.
+  - **Space**: how much reverb each instrument gets. The kick, the bass, the hi-hat and the
+    overheads stay dry.
+  - **Ambience**: which space, in four zones of the knob, the size growing within each:
+    **Studio** (dry and close, a small room), **Natural** (a room for the drums and the
+    percussion, a plate for the voices and the snare, a hall for the rest), **Live** (one
+    concert hall for everything, a short slapback on the lead voice), **Spatial** (a vast,
+    floating reverb, a dotted eighth echo on the lead voice, the drums kept nearer). The tails
+    follow the tempo, their lows cut so that they never muddy. Changing zone while playing fades
+    the reverbs out and in, so that nothing clicks.
+  - **Width**: pairs left in the center (two guitars, backing vocals, toms...) are spread around
+    it, following the L and R of their names; a track panned by hand is left alone.
+
+For a single track, the window is that track's page, with its settings in a band above it: the
+style, then **Clean up**, **Bring out**, **Space** and, while the project has no space yet,
+**Ambience**. What belongs to the whole mix is left out: the style changes neither the project's
+console nor the buses, and there is no balance, width or headroom for the master.
+
+**Tracks** lists the tracks, under the buses they go into, with the **Group into buses** switch
+at the top: drag a bus to change their order. Each track has a switch (off, it is left as it is),
+its mute and solo, and its instrument. Click one to see what is proposed for it: where it goes in
+the mix (input gain, bus, space, echo, pan), its spectrum before and after, and the steps of each
+part, each with its switch and its amount (50 % is what is proposed).
+
 - **Gain staging**, always: each track's input gain first brings it to -18 dBFS where it plays,
-  the level its console and its compressors expect; the thresholds proposed follow, and the
-  level heard stays the same. Its view shows the gain set. Bypassing or removing the Express
-  Mix puts back the gain the track had.
-- **Headroom for the master**, on by default: once every track is heard as proposed,
-  AudioStrada measures the whole mix before the master. When it peaks above -6 dBFS, a
-  Strada-Utility first on the master lowers it by what is needed, and a Strada-Max last (the one
-  already there, else a new one) brings it back with its peaks under -1 dB: the same loudness,
-  room for the master's processing. It is heard while the window is open. The summary shows the
-  peak measured.
-- **Console color**: the project's console color (the one at the top of the mixer), Neutral
-  unless it had one, and how much of it; every track hears it unless it has its own (in its
-  view).
-- **Buses**, off until you switch them on: each family of at least two tracks that are in no
-  bus yet (drums, percussion, bass, guitars, keys and synths, strings and winds, backing
-  vocals, vocals) goes into a bus of its own, in the usual order of a mix. The buses then head
-  their tracks in the list on the left: drag them there to change their order, click one to
-  see its proposal. They get the Express Mix of a bus once their tracks are heard.
-- **Space**, off until you turn it up: a bus named *Space* with a short and light Strada-Verb
-  (a hall of 1.5 s, its lows and highs cut), and a send to it from the tracks that call for it
-  (voices, backing vocals, acoustic guitars, keys, strings, brass, snare, percussion...), never
-  from the kick, the bass, the hi-hat or the overheads. The bus goes when no track sends to it
-  any more.
-- **Wide**, off until you turn it up: pairs left in the center (two guitars, two backing
-  vocals, toms, synths...) are spread a little around it, following the L and R of their
-  names; a track panned by hand is left alone.
+  the level its console and its compressors expect; the thresholds proposed follow, and the level
+  heard stays the same.
+- **Same level**, always: what the processing changes is given back on the strip's output, so
+  that every track keeps its loudness and louder never passes for better. The fader is the
+  Balance's.
+- **Headroom for the master**, by itself when the master has no effects of its own: when the mix
+  peaks above -6 dBFS, a Strada-Utility first on the master lowers it, and a Strada-Max last
+  brings it back (at most 12 dB) with its peaks under -1 dB.
+- **Hand-set modules**: a module of the channel strip (filters, gate, EQ, compressor) you switched
+  on and set yourself is left as it is.
+- **Nothing at zero**: with Clean up, Bring out, Balance, Space and Width at 0 and the Transparent
+  style, nothing is touched: the mix is identical to the original.
 
-A bus (or a folder) is prepared as a sum, not as an instrument: AudioStrada guesses what it
-holds (drums, voices, guitars...) from what its tracks were prepared as or from the names, and
-gives it only a gentle high pass, light EQ moves for its family and a slow compressor that glues
-it (2:1, about 2 dB), lighter still as more of its tracks are prepared. No gate, de-esser,
-resonance cut, transient shaper, space or spread: those belong to its tracks. When a bus is
-prepared with its tracks, the tracks are heard as proposed first, then the bus is measured.
-Once the instrument is known, the track's icon follows it (unless you chose one).
+AudioStrada renders each track alone, as it reaches its channel strip, several at a time, and
+guesses the instrument from the track's name and its sound: a man's or a woman's voice by its
+pitch, whistling above any singing voice, an acoustic guitar by the highs no amplifier gives, a
+voice beside a track named as the lead (*Lead*, *Main*...) as a backing vocal, and plucked strings
+such as a cuatro or a ukulele as an acoustic guitar. When nothing tells it, the track is set to
+*Something else* and marked.
+
+A bus (or a folder) is prepared as a sum: a gentle high pass and a slow compressor that glues it
+(2:1), lighter as more of its tracks are prepared, and on the drums a gentle lift of lows and highs
+as a tube EQ gives. Once the instrument is known, the track's icon follows it (unless you chose
+one).
 - **Both**, and **Remove the Express Mix**.
 
-AudioStrada renders the track alone, as it reaches its channel strip, and guesses the
-instrument from the track's name or its instrument (a man's or a woman's voice by its pitch).
-When neither tells, the track is set to *Something else* and marked to choose its instrument;
-the list is sorted by family (voices, drums, percussion, bass, guitars, keys and synths, strings
-and winds). Change it after *The instrument is* and the proposal follows. The picture shows the
-spectrum measured and what the proposal makes of it, with each move marked; the two cards list
-the steps, each with its switch and its amount (50 % is what is proposed; double-click to come
-back to it).
-
 While the window is open the proposal is heard: *Listen* plays the session, **Before** and
-**After** compare the track as it was with the prepared one, and **Same level** brings the
-prepared track to the loudness it had, so that louder does not pass for better. *Apply* writes
-everything in one undo step, with that gain kept on the effects' outputs; *Cancel* leaves the
-track as it was.
+**After** compare. Above them, a bar shows where the song plays, over its outline, with its
+markers: click or drag to go to a passage, click a marker's name to hear it. *Apply* writes everything in one undo step; *Cancel* or closing the window
+leaves the tracks as they were.
 
-The settings are those of the channel strip, plus a Strada-EQ after it for the resonances and
-the plosives (its bands dynamic when they come and go), a Strada-DeEss and a Strada-Transient.
+The settings are those of the channel strip, plus a Strada-EQ after it for the resonances and the
+plosives (its bands dynamic when they come and go), a Strada-DeEss and a Strada-Transient.
 Running the Express Mix again, on one track or all of them, updates what was done: nothing is
-added twice, and the window opens with the settings last applied, saved with the project. These are starting points, set
-by rules from mixing practice, to adjust by ear.
+added twice, and the window opens with the settings last applied, saved with the project. These
+are starting points, to adjust by ear.
 
 ## Snapshots
 

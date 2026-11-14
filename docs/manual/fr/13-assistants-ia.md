@@ -31,7 +31,11 @@ et la décrit : sonie (LUFS, crête réelle, plage de sonie), dynamique dans le 
 part d'énergie par bande de fréquences, résonances, tempo, et remarques sur les problèmes
 (saturation, master trop fort pour le streaming, phase). `compare_audio` met deux pistes côte à
 côte et nomme les zones de fréquences où elles se gênent. L'assistant peut alors changer un
-égaliseur ou un niveau et réécouter.
+égaliseur ou un niveau et réécouter. `express_mix` lance l'Express Mix sur toutes les pistes audio
+(ou celles données) et l'applique en une étape d'annulation : dosages de 0 à 100 (`clean`,
+`bring_out`, `balance`, `depth`, `ambience`, `wide`), un `style` (transparent, warm, clean,
+punchy, big) à une `intensity`, `buses`, `headroom`, et les `instruments` des pistes dont le nom
+ne le dit pas.
 
 **Il écrit de la musique.** `read_midi_clip` donne les notes d'un clip MIDI en temps (avec la
 correspondance des fûts d'une piste Strada-Drums), `write_midi_clip` remplace ou ajoute des

@@ -5,8 +5,27 @@
 use crate::analog::amplifier::ClassASettings;
 use crate::analog::noise::NoiseSettings;
 use crate::analog::transformer;
+use crate::biquad::FilterKind;
 
-/// The circuit of a console's channel or bus, at its working level (amount 50 %).
+/// A broad move of a console's voicing: a shelf or a bell, its gain (dB) at amount 50 %.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Voicing {
+    pub kind: FilterKind,
+    pub freq: f64,
+    pub q: f64,
+    pub gain_db: f64,
+}
+
+const fn voice(kind: FilterKind, freq: f64, q: f64, gain_db: f64) -> Voicing {
+    Voicing {
+        kind,
+        freq,
+        q,
+        gain_db,
+    }
+}
+
+/// The circuit of a console's channel or bus, as its references measure it (amount 25 %).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Recipe {
     /// Its stages, in the signal's order; `None` for those it has not.
@@ -17,9 +36,18 @@ pub struct Recipe {
     /// A VCA: its 2nd and 3rd harmonics at the working level, dB.
     pub vca: Option<(f32, f32)>,
     pub output: Option<transformer::Settings>,
-    /// A low and a high shelf, Hz and dB: the faint tilt of its response.
-    pub low: (f64, f64),
-    pub high: (f64, f64),
+    /// Its voicing, for one stage at amount 50 %: a track then the master make it twice.
+    /// None at 0 %, three times as much at 100 %.
+    pub tone: [Voicing; 3],
+    /// How far its parts are from their values, against an ordinary console's (1).
+    pub spread: f32,
+    /// How much harder (dB) it is pushed at 50 % than the others: the consoles whose
+    /// references are cleanest are run hotter, so that each is heard as much as the others.
+    pub hotter: f32,
+    /// What a bus adds to its sides against its middle at amount 50 %, dB: its width.
+    pub width_db: f32,
+    /// A bus compressor gluing the mix: its threshold (dBFS) and ratio at amount 50 %.
+    pub glue: Option<(f32, f32)>,
     pub noise: NoiseSettings,
     /// What leaks from one side of a bus into the other at 1 kHz, dB; rising with frequency.
     pub crosstalk_db: f32,
@@ -33,7 +61,7 @@ pub enum Reading {
     H3,
 }
 
-/// A figure a console must measure, at amount 50 %: a tone's frequency and level (dBFS), what
+/// A figure a console must measure, as its references do: a tone's frequency and level (dBFS), what
 /// is read of it, and its value in dB below the tone.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Target {
@@ -196,7 +224,34 @@ const fn noise(hiss_dbu: f32, hum_dbu: f32) -> NoiseSettings {
     }
 }
 
-const FLAT: (f64, f64) = (1_000.0, 0.0);
+const FLAT: [Voicing; 3] = [voice(FilterKind::Peak, 1_000.0, 1.0, 0.0); 3];
+
+use FilterKind::{HighShelf, LowShelf, Peak};
+
+/// British Warm: round lows, a forward midrange, a silky top.
+const WARM: [Voicing; 3] = [
+    voice(LowShelf, 120.0, 0.7, 0.8),
+    voice(Peak, 1_600.0, 0.6, 0.4),
+    voice(HighShelf, 12_000.0, 0.7, -0.5),
+];
+/// British Bright: tight lows, upper mids up front, air.
+const BRIGHT: [Voicing; 3] = [
+    voice(LowShelf, 45.0, 0.7, -0.2),
+    voice(Peak, 4_000.0, 0.6, 0.15),
+    voice(HighShelf, 10_000.0, 0.7, 0.25),
+];
+/// American Punch: a thump in the low mids, bite.
+const PUNCH: [Voicing; 3] = [
+    voice(Peak, 120.0, 0.9, 0.6),
+    voice(Peak, 2_500.0, 0.7, 0.55),
+    voice(Peak, 400.0, 0.9, -0.3),
+];
+/// Nashville: warm low mids, smooth, a creamy top.
+const SMOOTH: [Voicing; 3] = [
+    voice(Peak, 220.0, 0.5, 0.4),
+    voice(Peak, 3_000.0, 0.5, -0.15),
+    voice(HighShelf, 8_000.0, 0.7, -0.45),
+];
 
 /// The circuit of `model`, channel or bus; `None` for Clean.
 pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
@@ -206,8 +261,11 @@ pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
         op_amp: None,
         vca: None,
         output: None,
-        low: FLAT,
-        high: FLAT,
+        tone: FLAT,
+        spread: 1.0,
+        hotter: 0.0,
+        width_db: 0.0,
+        glue: None,
         noise: noise(-90.0, -120.0),
         crosstalk_db: -80.0,
     };
@@ -218,7 +276,8 @@ pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
         (1, false) => Recipe {
             input: Some(iron(30.0, 31.25, 0.95, 0.95)),
             class_a: Some(class_a(23.25, 0.0135)),
-            high: (16_000.0, -0.3),
+            tone: WARM,
+            spread: 1.3,
             noise: noise(-84.0, -120.0),
             ..none
         },
@@ -226,7 +285,9 @@ pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
         (1, true) => Recipe {
             class_a: Some(class_a(49.0, 0.188)),
             output: Some(iron(25.0, 28.75, 0.95, 0.5)),
-            high: (16_000.0, -0.3),
+            tone: WARM,
+            spread: 1.3,
+            hotter: 13.0,
             noise: noise(-82.0, -110.0),
             ..none
         },
@@ -234,7 +295,8 @@ pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
         (2, false) => Recipe {
             op_amp: Some((26.0, 13.0)),
             vca: Some((-94.0, -91.5)),
-            high: (12_000.0, 0.3),
+            tone: BRIGHT,
+            spread: 0.8,
             noise: noise(-88.0, -120.0),
             ..none
         },
@@ -244,7 +306,10 @@ pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
             op_amp: Some((26.0, 13.0)),
             vca: Some((-89.5, -94.25)),
             output: Some(iron(30.0, 19.5, 0.95, 0.5)),
-            high: (12_000.0, 0.3),
+            tone: BRIGHT,
+            spread: 0.8,
+            // Its bus compressor: what glues a mix on this console.
+            glue: Some((-12.0, 1.5)),
             noise: noise(-84.0, -110.0),
             ..none
         },
@@ -252,7 +317,8 @@ pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
         (3, false) => Recipe {
             class_a: Some(class_a(36.0, 0.0252)),
             output: Some(iron(25.0, 26.5, 0.0067, 0.5)),
-            low: (90.0, 0.2),
+            tone: PUNCH,
+            hotter: 5.0,
             noise: noise(-86.0, -120.0),
             ..none
         },
@@ -260,7 +326,8 @@ pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
             input: Some(iron(30.0, 28.75, 0.95, 0.2259)),
             class_a: Some(class_a(32.0, 0.0327)),
             output: Some(iron(25.0, 38.25, 0.95, 0.5)),
-            low: (90.0, 0.2),
+            tone: PUNCH,
+            hotter: 7.5,
             noise: noise(-83.0, -110.0),
             ..none
         },
@@ -270,6 +337,8 @@ pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
             input: Some(iron(30.0, 55.0, 0.2824, 0.396)),
             op_amp: Some((27.0, 13.0)),
             vca: Some((-108.0, -118.5)),
+            tone: SMOOTH,
+            spread: 2.0,
             noise: noise(-92.0, -120.0),
             ..none
         },
@@ -278,6 +347,9 @@ pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
             input: Some(iron(100.0, 10.5, 0.0, 0.07)),
             op_amp: Some((27.0, 13.0)),
             vca: Some((-117.0, -83.75)),
+            tone: SMOOTH,
+            spread: 2.0,
+            width_db: 0.5,
             noise: noise(-90.0, -110.0),
             ..none
         },

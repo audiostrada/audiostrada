@@ -15,7 +15,7 @@ mod strip;
 
 pub use control_room::{ControlRoom, ControlRoomControls, DIM_DB};
 pub use gain::Gain;
-pub use input::{ConsoleControls, InputStage};
+pub use input::{ConsoleControls, ConsoleSwitch, InputStage};
 pub use insert::{Insert, InsertControls};
 pub use levels::LevelControls;
 pub use metronome::{Metronome, MetronomeControls};

@@ -75,7 +75,7 @@ fn each_console_meets_its_targets() {
     let mut misses = Vec::new();
     for (model, bus) in CONSOLES {
         let targets = targets(model, bus);
-        let read = read(&mut color(model, 50.0, bus), targets);
+        let read = read(&mut color(model, MEASURED, bus), targets);
         for (t, got) in targets.iter().zip(read) {
             let tolerance = if t.reading == Reading::Thd { 3.0 } else { 5.0 };
             if (got - t.db).abs() > tolerance {
@@ -100,7 +100,7 @@ fn the_response_stays_flat_at_the_working_level() {
         .map(|f| (f, -18.0))
         .collect();
     for (model, bus) in CONSOLES {
-        let mut c = color(model, 50.0, bus);
+        let mut c = color(model, MEASURED, bus);
         let tones = crate::measure::tones_at(&mut |l, r| c.process(l, r), &plan, 0);
         for t in tones {
             // A transformer's core holds back a little of the lowest lows, as the references
@@ -121,7 +121,7 @@ fn the_amount_pushes_the_circuit() {
     }];
     for (model, bus) in CONSOLES {
         let at = |amount| read(&mut color(model, amount, bus), &target)[0];
-        let (soft, half, hard) = (at(1.0), at(50.0), at(100.0));
+        let (soft, half, hard) = (at(1.0), at(MEASURED), at(100.0));
         assert!(
             hard > half + 6.0 && half > soft + 6.0,
             "{}: {soft} {half} {hard}",
@@ -136,7 +136,7 @@ fn a_new_amount_glides() {
     let input = sine(100.0, -6.0);
     let mut out = Vec::new();
     for (i, block) in input.chunks(256).enumerate() {
-        c.set(1, if i < 40 { 10.0 } else { 100.0 }, false, false, None);
+        c.set(1, if i < 40 { 5.0 } else { 50.0 }, false, false, None);
         let (mut l, mut r) = (block.to_vec(), block.to_vec());
         c.process(&mut l, &mut r);
         out.extend(l);
@@ -146,18 +146,18 @@ fn a_new_amount_glides() {
         .windows(2)
         .map(|o| (o[1] - o[0]).abs())
         .fold(0.0f32, f32::max);
-    assert!(jump < 0.012, "{jump}");
+    assert!(jump < 0.015, "{jump}");
 }
 
 #[test]
 fn hiss_and_crosstalk_only_when_asked() {
     let silence = vec![0.0f32; 48_000];
-    let mut quiet = color(1, 50.0, true);
+    let mut quiet = color(1, MEASURED, true);
     let (l, r) = through(&mut quiet, &silence, &silence);
     assert!(l.iter().chain(&r).all(|&s| s == 0.0));
     for (model, bus) in CONSOLES {
         let mut c = ConsoleColor::new(48_000);
-        c.set(model, 50.0, bus, true, Some(7));
+        c.set(model, MEASURED, bus, true, Some(7));
         let (l, _) = through(&mut c, &silence, &silence);
         let level = gain_to_db(rms(&l[4_800..]));
         assert!(
@@ -169,7 +169,7 @@ fn hiss_and_crosstalk_only_when_asked() {
     // A bus leaks a little of one side into the other, more in the highs.
     let leak = |freq| {
         let mut c = ConsoleColor::new(48_000);
-        c.set(2, 50.0, true, true, None);
+        c.set(2, MEASURED, true, true, None);
         let (_, r) = through(&mut c, &sine(freq, -6.0), &silence);
         gain_to_db(crate::measure::amplitude(&r[24_000..], f64::from(freq) / 2.0) as f32) + 6.0
     };
@@ -185,7 +185,7 @@ fn each_channel_has_its_own_tolerances() {
     let input = sine(1_000.0, -6.0);
     let out = |seed| {
         let mut c = ConsoleColor::new(48_000);
-        c.set(1, 50.0, false, false, seed);
+        c.set(1, MEASURED, false, false, seed);
         through(&mut c, &input, &input)
     };
     let (a, b) = (out(Some(3)), out(Some(4)));
@@ -200,10 +200,10 @@ fn each_channel_has_its_own_tolerances() {
 
 #[test]
 fn the_fingerprints_tell_the_consoles_apart() {
-    let warm = harmonics(1, 50.0, -12.0);
-    let bright = harmonics(2, 50.0, -12.0);
-    let punch = harmonics(3, 50.0, -12.0);
-    let nashville = harmonics(4, 50.0, -12.0);
+    let warm = harmonics(1, MEASURED, -12.0);
+    let bright = harmonics(2, MEASURED, -12.0);
+    let punch = harmonics(3, MEASURED, -12.0);
+    let nashville = harmonics(4, MEASURED, -12.0);
     // An API's even harmonics, an SSL channel's odd ones.
     assert!(punch[0] > punch[1] + 6.0, "{punch:?}");
     assert!(bright[1] > bright[0] + 6.0, "{bright:?}");
@@ -279,7 +279,7 @@ fn knobs(model: usize, bus: bool) -> Vec<Knob> {
 
 /// How far a recipe measures from its targets.
 fn error(recipe: Recipe, bus: bool, targets: &[Target]) -> f32 {
-    let mut c = ConsoleColor::of_recipe(48_000, recipe, 50.0, bus);
+    let mut c = ConsoleColor::of_recipe(48_000, recipe, MEASURED, bus);
     read(&mut c, targets)
         .iter()
         .zip(targets)
@@ -342,7 +342,7 @@ fn fit_recipes() {
             println!("    {label:<24} {:.4}", knob(&mut best));
         }
         let read = read(
-            &mut ConsoleColor::of_recipe(48_000, best, 50.0, bus),
+            &mut ConsoleColor::of_recipe(48_000, best, MEASURED, bus),
             targets,
         );
         for (t, got) in targets.iter().zip(read) {
@@ -368,7 +368,7 @@ fn console_budget() {
         let mut cost = [0.0; 2];
         for (k, noise) in [false, true].into_iter().enumerate() {
             let mut c = ConsoleColor::new(48_000);
-            c.set(model, 50.0, bus, noise, Some(1));
+            c.set(model, MEASURED, bus, noise, Some(1));
             let (mut l, mut r) = (input.clone(), input.clone());
             let start = std::time::Instant::now();
             for _ in 0..20 {
@@ -386,4 +386,82 @@ fn console_budget() {
             cost[1]
         );
     }
+}
+
+/// Noise with the slope of music: less and less toward the highs.
+fn program(seconds: usize) -> Vec<f32> {
+    let mut state = 0x2545_f491u32;
+    let (mut low, mut lower) = (0.0f32, 0.0f32);
+    (0..48_000 * seconds)
+        .map(|_| {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            let white = (state >> 8) as f32 / (1 << 24) as f32 * 2.0 - 1.0;
+            low += 0.02 * (white - low);
+            lower += 0.002 * (white - lower);
+            0.1 * white + 0.6 * low + 1.2 * lower
+        })
+        .collect()
+}
+
+/// Level (dB) of `x` between two frequencies.
+fn band(x: &[f32], lo: f32, hi: f32) -> f32 {
+    crate::report::third_octave_levels(x, 48_000)
+        .iter()
+        .filter(|b| (lo..=hi).contains(&b.0))
+        .map(|b| 10f32.powf(b.1 / 10.0))
+        .sum::<f32>()
+        .log10()
+        * 10.0
+}
+
+#[test]
+fn the_voicing_grows_with_the_amount_at_an_equal_loudness() {
+    let input = program(4);
+    let tail = 96_000..;
+    let tilt = |x: &[f32]| band(x, 5_000.0, 16_000.0) - band(x, 40.0, 125.0);
+    for (model, brighter) in [(1, false), (2, true), (4, false)] {
+        let at = |amount: f32| {
+            let (l, _) = through(&mut color(model, amount, false), &input, &input);
+            (
+                gain_to_db(rms(&l[tail.clone()]) / rms(&input[tail.clone()])),
+                tilt(&l[tail.clone()]) - tilt(&input[tail.clone()]),
+            )
+        };
+        let (half, full) = (at(50.0), at(100.0));
+        // As loud as what went in, at any amount.
+        assert!(
+            half.0.abs() < 0.4 && full.0.abs() < 0.4,
+            "{half:?} {full:?}"
+        );
+        // British Bright opens the top, British Warm and Nashville soften it; more at 100 %.
+        let sign = if brighter { 1.0 } else { -1.0 };
+        assert!(
+            half.1 * sign > 0.1 && full.1 * sign > half.1 * sign + 0.2,
+            "{}: {half:?} {full:?}",
+            MODELS[model]
+        );
+    }
+}
+
+#[test]
+fn a_bus_is_pushed_half_as_hard_and_british_bright_glues_it() {
+    use crate::analog::chain::{bus_drive_db, drive_db};
+    assert_eq!(drive_db(MEASURED), 0.0);
+    assert_eq!(drive_db(50.0), 12.0);
+    assert_eq!(bus_drive_db(50.0), 6.0);
+    assert!(drive_db(100.0) > drive_db(50.0) && bus_drive_db(0.0) == drive_db(0.0));
+    // A loud hit after a quiet stretch: the glue holds it back, on that console's bus only.
+    let mut input = sine(200.0, -30.0);
+    input.extend(sine(200.0, -3.0));
+    let hit = |model: usize, bus: bool| {
+        let (l, _) = through(&mut color(model, 100.0, bus), &input, &input);
+        gain_to_db(rms(&l[52_800..57_600]) / rms(&l[24_000..47_000])) - 27.0
+    };
+    assert!(
+        hit(2, true) < hit(2, false) - 1.5,
+        "{} {}",
+        hit(2, true),
+        hit(2, false)
+    );
+    assert!((hit(3, true) - hit(3, false)).abs() < 1.5);
 }

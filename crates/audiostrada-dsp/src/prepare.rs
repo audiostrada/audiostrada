@@ -10,6 +10,8 @@ use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::report::{self, Report};
 use crate::time_coefficient;
 
+pub mod mix;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Instrument {
     VocalMale,
@@ -35,19 +37,23 @@ pub enum Instrument {
     Tambourine,
     Cowbell,
     Claps,
+    Whistling,
 }
 
 use Instrument::*;
 
 /// Above this fundamental (Hz, the median through the track), a voice is taken for a woman's.
 const FEMALE_FROM: f32 = 165.0;
+/// Above this one, nobody sings: someone whistles.
+const WHISTLE_FROM: f32 = 700.0;
 
 impl Instrument {
     /// In the order of their categories.
-    pub const ALL: [Instrument; 23] = [
+    pub const ALL: [Instrument; 24] = [
         VocalMale,
         VocalFemale,
         BackingVocals,
+        Whistling,
         Kick,
         Snare,
         Toms,
@@ -73,7 +79,7 @@ impl Instrument {
     /// The family it is listed under, in English.
     pub fn category(self) -> &'static str {
         match self {
-            VocalMale | VocalFemale | BackingVocals => "Voices",
+            VocalMale | VocalFemale | BackingVocals | Whistling => "Voices",
             Kick | Snare | Toms | HiHat | Overheads | Drums => "Drums",
             HandDrums | Cajon | Shaker | Tambourine | Cowbell | Claps => "Percussion",
             Bass => "Bass",
@@ -110,6 +116,7 @@ impl Instrument {
             Tambourine => "tambourine",
             Cowbell => "cowbell",
             Claps => "claps",
+            Whistling => "whistling",
         }
     }
 
@@ -143,7 +150,25 @@ impl Instrument {
             Tambourine => "A tambourine",
             Cowbell => "A cowbell or woodblock",
             Claps => "Claps or snaps",
+            Whistling => "Whistling",
         }
+    }
+
+    /// A track's name says it carries the song: "Lead vox", "Main voice", "Chant principal".
+    pub fn leads(name: &str) -> bool {
+        let lower = name.to_lowercase();
+        lower.split(|c: char| !c.is_alphanumeric()).any(|w| {
+            [
+                "lead",
+                "main",
+                "lv",
+                "principal",
+                "principale",
+                "solo",
+                "soliste",
+            ]
+            .contains(&w)
+        })
     }
 
     pub fn is_vocal(self) -> bool {
@@ -234,6 +259,41 @@ impl Instrument {
             "percs",
         ]) {
             return Some(Drums);
+        }
+        if has(&[
+            "whistle",
+            "whistling",
+            "whistles",
+            "siffle",
+            "sifflet",
+            "sifflement",
+            "siffleur",
+            "sifflets",
+        ]) {
+            return Some(Whistling);
+        }
+        // Plucked strings that sit where an acoustic guitar does.
+        if has(&[
+            "cuatro",
+            "quatro",
+            "quattro",
+            "ukulele",
+            "uke",
+            "charango",
+            "tres",
+            "mandolin",
+            "mandoline",
+            "mandolina",
+            "bouzouki",
+            "banjo",
+            "oud",
+            "sitar",
+            "guitalele",
+            "requinto",
+            "bandurria",
+            "dobro",
+        ]) {
+            return Some(AcousticGuitar);
         }
         let guitar = has(&[
             "gtr", "guitar", "guitars", "guit", "guitare", "guitares", "egtr",
@@ -349,12 +409,30 @@ impl Instrument {
         None
     }
 
-    /// A voice, a man's or a woman's by its pitch.
+    /// A voice, a man's or a woman's by its pitch, or whistling.
     pub fn voice(pitch: Option<f32>) -> Self {
-        if pitch.is_some_and(|f| f >= FEMALE_FROM) {
+        if pitch.is_some_and(|f| f >= WHISTLE_FROM) {
+            Whistling
+        } else if pitch.is_some_and(|f| f >= FEMALE_FROM) {
             VocalFemale
         } else {
             VocalMale
+        }
+    }
+
+    /// What the sound tells beyond a name: a guitar with highs no amplifier gives is an
+    /// acoustic one; a voice that never sings below a whistle's pitch whistles.
+    pub fn refine(self, analysis: &Analysis) -> Self {
+        match self {
+            ElectricGuitar if region_share(&analysis.report.third_octaves, REGIONS[3]) > -24.0 => {
+                AcousticGuitar
+            }
+            VocalMale | VocalFemale | BackingVocals
+                if analysis.pitch.is_some_and(|f| f >= WHISTLE_FROM) =>
+            {
+                Whistling
+            }
+            other => other,
         }
     }
 
@@ -376,7 +454,7 @@ impl Instrument {
     }
 }
 
-/// How far the rules go, from 0 (a light touch) to 1 (all the way); 0.5 is the usual dose.
+/// How far the rules go, from 0 (nothing) to 1 (all the way); 0.5 is the usual dose.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Strength(pub f32);
 
@@ -394,6 +472,7 @@ impl Strength {
     /// A word for the dose.
     pub fn name(self) -> &'static str {
         match self.0 {
+            x if x < 0.005 => "Off",
             x if x < 0.12 => "Barely",
             x if x < 0.38 => "Gentle",
             x if x < 0.63 => "Normal",
@@ -402,9 +481,15 @@ impl Strength {
         }
     }
 
-    /// 0.65 gentle, 1 normal, 1.35 bold.
+    /// 0 at nothing, 0.5 gentle, 1 normal, 1.35 bold, 1.7 all the way.
     fn factor(self) -> f32 {
-        0.3 + 1.4 * self.0.clamp(0.0, 1.0)
+        let v = self.0.clamp(0.0, 1.0);
+        if v < 0.5 { 2.0 * v } else { 0.3 + 1.4 * v }
+    }
+
+    /// Asks for nothing.
+    pub fn off(self) -> bool {
+        self.0 < 0.005
     }
 }
 
@@ -427,7 +512,8 @@ pub struct Analysis {
     pub plosives: Option<f32>,
     /// Level every [`RIDE_STEP`] seconds (dBFS), for the riding.
     pub levels: Vec<f32>,
-    /// The loudest [`EXCERPT`] seconds, in mono: what the level kept is measured on.
+    /// [`EXCERPT`] seconds taken all along where the track plays, in mono: what the level kept
+    /// is measured on.
     pub excerpt: std::sync::Arc<Vec<f32>>,
     pub rate: u32,
 }
@@ -523,7 +609,7 @@ fn high_passed(x: &[f32], rate: u32, freq: f64) -> Vec<f32> {
 /// The median fundamental of the loud moments, when most of them are pitched.
 fn pitch(x: &[f32], rate: u32, short: &[f32], loud: f32) -> Option<f32> {
     const WINDOW: usize = 2048;
-    const TRIES: usize = 40;
+    const TRIES: usize = 160;
     if x.len() < WINDOW * 2 {
         return None;
     }
@@ -532,13 +618,27 @@ fn pitch(x: &[f32], rate: u32, short: &[f32], loud: f32) -> Option<f32> {
     let mut found = Vec::new();
     for k in 0..TRIES {
         let at = k * (x.len() - WINDOW) / TRIES;
-        if short.get(at / ten).is_none_or(|v| *v < loud - 20.0) {
+        // The track's own sound, not the bleed between its phrases.
+        if short.get(at / ten).is_none_or(|v| *v < loud - 12.0) {
             continue;
         }
-        if let Some((f, clarity)) =
-            crate::tuner::detect(&x[at..at + WINDOW], rate as f32, &mut difference)
+        let w = &x[at..at + WINDOW];
+        // Up to a whistle's pitch, above what the tuner looks for.
+        let loud_enough = w.iter().map(|s| s * s).sum::<f32>() / WINDOW as f32 > 1e-7;
+        if let Some((f, clarity)) = loud_enough
+            .then(|| {
+                crate::tuner::yin(
+                    w,
+                    WINDOW / 2,
+                    (rate / 3000) as usize,
+                    (rate / 60) as usize,
+                    &mut difference,
+                )
+            })
+            .flatten()
+            .map(|(lag, clarity)| (rate as f32 / lag, clarity))
             && clarity >= 0.8
-            && (60.0..=1000.0).contains(&f)
+            && (60.0..=3000.0).contains(&f)
         {
             found.push(f);
         }
@@ -656,15 +756,36 @@ pub fn analyse(left: &[f32], right: &[f32], rate: u32) -> Analysis {
 
     let step = ((f64::from(rate) * RIDE_STEP) as usize).max(1);
     let levels = window_levels(&mid, 2 * step, step);
-    // The loudest stretch: where a change of level is heard.
-    let span = (EXCERPT / RIDE_STEP) as usize;
+    // A sample of where the track plays, taken all along it: what its level is heard on. The
+    // loudest stretch alone would call for too much gain after a compressor.
+    const PIECE: usize = 10;
+    let pieces = (EXCERPT / RIDE_STEP) as usize / PIECE;
     let power: Vec<f32> = levels.iter().map(|v| 10f32.powf(v / 10.0)).collect();
-    let from = (0..power.len().saturating_sub(span))
-        .map(|i| (i, power[i..i + span].iter().sum::<f32>()))
-        .max_by(|a, b| a.1.total_cmp(&b.1))
-        .map_or(0, |(i, _)| i * step);
-    let to = (from + (EXCERPT * f64::from(rate)) as usize).min(mid.len());
-    let excerpt = std::sync::Arc::new(mid[from.min(to)..to].to_vec());
+    let blocks: Vec<(usize, f32)> = power
+        .as_chunks::<PIECE>()
+        .0
+        .iter()
+        .enumerate()
+        .map(|(k, c)| (k, c.iter().sum::<f32>()))
+        .collect();
+    let top = blocks.iter().map(|b| b.1).fold(0.0f32, f32::max);
+    let playing: Vec<usize> = blocks
+        .iter()
+        .filter(|b| b.1 > top * 0.03)
+        .map(|b| b.0)
+        .collect();
+    let mut excerpt = Vec::new();
+    for n in 0..pieces.min(playing.len()) {
+        let block = playing[n * playing.len() / pieces.min(playing.len())];
+        let from = (block * PIECE * step).min(mid.len());
+        let to = (from + PIECE * step).min(mid.len());
+        excerpt.extend_from_slice(&mid[from..to]);
+    }
+    if excerpt.is_empty() {
+        let to = ((EXCERPT * f64::from(rate)) as usize).min(mid.len());
+        excerpt.extend_from_slice(&mid[..to]);
+    }
+    let excerpt = std::sync::Arc::new(excerpt);
     Analysis {
         excerpt,
         rate,
@@ -1038,26 +1159,17 @@ pub fn inserts<'a>(
     out
 }
 
-/// The gain (dB) bringing `excerpt`, once through the input gain `trim_db`, the channel strip
-/// set with `strip` then `inserts`, back to the loudness it had.
-pub fn level_kept(
-    excerpt: &[f32],
-    rate: u32,
-    trim_db: f32,
-    strip: &[(String, f32)],
-    inserts: &[(&'static str, Vec<(String, f32)>)],
-) -> f32 {
+/// `excerpt` through the input gain `trim_db`, then the channel strip and the effects `steps`
+/// set: its loudness (LUFS).
+fn through(excerpt: &[f32], rate: u32, trim_db: f32, steps: &[Step]) -> f32 {
     use crate::loudness::LevelMeter;
-    // Through the input gain set first, as the track will play.
     let trim = crate::db_to_gain(trim_db);
     let trimmed: Vec<f32> = excerpt.iter().map(|x| x * trim).collect();
     let (mut left, mut right) = (trimmed.clone(), trimmed);
-    let mut before = LevelMeter::new(rate);
-    for x in excerpt {
-        before.push(*x, *x);
-    }
+    let strip = strip_settings(steps.iter());
+    let inserts = inserts(steps.iter());
     let chain =
-        std::iter::once(("channel", strip)).chain(inserts.iter().map(|(e, p)| (*e, &p[..])));
+        std::iter::once(("channel", &strip[..])).chain(inserts.iter().map(|(e, p)| (*e, &p[..])));
     for (effect, params) in chain {
         let (Some(mut e), Some(info)) = (crate::create(effect), crate::info(effect)) else {
             continue;
@@ -1073,49 +1185,82 @@ pub fn level_kept(
             e.process(l, r);
         }
     }
-    let mut after = LevelMeter::new(rate);
+    let mut meter = LevelMeter::new(rate);
     for (l, r) in left.iter().zip(&right) {
-        after.push(*l, *r);
+        meter.push(*l, *r);
     }
-    let (a, b) = (before.integrated(), after.integrated());
-    if a.is_finite() && b.is_finite() && a > -70.0 && b > -70.0 {
-        (a - b).clamp(-12.0, 12.0)
+    meter.integrated()
+}
+
+/// The gain (dB) on the strip's output that keeps the loudness `excerpt` had, once through
+/// the input gain `trim_db` and `steps`: Express Mix changes the color of a track, its fader
+/// its level.
+pub fn level_kept(excerpt: &[f32], rate: u32, trim_db: f32, steps: &[Step]) -> f32 {
+    let plain = through(excerpt, rate, trim_db, &[]);
+    let loud = through(excerpt, rate, trim_db, steps);
+    let heard = |v: f32| v.is_finite() && v > -70.0;
+    // The input gain is given back whole; only what the processing changes is capped.
+    if heard(plain) && heard(loud) {
+        (plain - loud).clamp(-12.0, 12.0) - trim_db
     } else {
-        0.0
+        -trim_db
     }
 }
 
-/// A move on a band of the channel strip's EQ.
-struct Move {
-    band: usize,
-    /// Where it looks for its place; a single frequency when it does not look.
-    range: (f32, f32),
-    /// Nominal gain, dB.
-    gain: f32,
-    q: f32,
-    bell: bool,
-    purpose: &'static str,
+/// The regions of the spectrum the tone looks at, as the third octaves they hold (centers, Hz):
+/// the lows, the low mids, the presence and the air, in the order of the strip's EQ bands.
+pub const REGIONS: [(f32, f32); 4] = [
+    (60.0, 130.0),
+    (155.0, 410.0),
+    (1_950.0, 5_100.0),
+    (6_200.0, 16_500.0),
+];
+
+/// Share (dB) of a track's energy in `region`, from third octaves given as shares.
+pub fn region_share(thirds: &[(f32, f32)], (lo, hi): (f32, f32)) -> f32 {
+    let power: f64 = thirds
+        .iter()
+        .filter(|t| (lo..=hi).contains(&t.0))
+        .map(|t| 10f64.powf(f64::from(t.1) / 10.0))
+        .sum();
+    (10.0 * power.max(1e-12).log10()) as f32
 }
 
-const fn bell(band: usize, lo: f32, hi: f32, gain: f32, q: f32, purpose: &'static str) -> Move {
-    Move {
-        band,
-        range: (lo, hi),
-        gain,
-        q,
-        bell: true,
-        purpose,
-    }
+/// The third octaves of a track as shares of its energy, once through `steps`.
+fn shaped(thirds: &[(f32, f32)], steps: &[Step]) -> Vec<(f32, f32)> {
+    let moved: Vec<(f32, f32)> = thirds
+        .iter()
+        .map(|&(f, s)| (f, s + mix::response_db(steps, f)))
+        .collect();
+    let total: f64 = moved
+        .iter()
+        .map(|t| 10f64.powf(f64::from(t.1) / 10.0))
+        .sum();
+    let total = (10.0 * total.max(1e-12).log10()) as f32;
+    moved.into_iter().map(|(f, s)| (f, s - total)).collect()
 }
 
-const fn shelf(band: usize, freq: f32, gain: f32, purpose: &'static str) -> Move {
-    Move {
-        band,
-        range: (freq, freq),
-        gain,
-        q: 0.7,
-        bell: false,
-        purpose,
+/// The tone an instrument is brought to: for each of [`REGIONS`], its share of the energy in a
+/// mix that sounds right (dB; `None`: left as it is), and how far a move may go up and down at
+/// the usual dose. Measured on the stems of a mix made by hand, completed from practice.
+struct Tone {
+    target: [Option<f32>; 4],
+    boost: [f32; 4],
+    cut: [f32; 4],
+    /// Where the presence is lifted, Hz.
+    presence: f32,
+    /// The weight (dB) given to what carries the low end, whose share of its lows says
+    /// nothing: they are almost all it has.
+    weight: f32,
+}
+
+const fn tone(target: [Option<f32>; 4], boost: [f32; 4], cut: [f32; 4], presence: f32) -> Tone {
+    Tone {
+        target,
+        boost,
+        cut,
+        presence,
+        weight: 0.0,
     }
 }
 
@@ -1132,402 +1277,365 @@ struct Rules {
     lpf: Option<(f32, f32)>,
     /// Where resonances are cut.
     zone: (f32, f32),
-    /// Gate range and release, when a gate may help, and where its threshold sits between the
-    /// floor between the hits and the hits (0 at the floor).
+    /// Gate range (dB) and release (ms), when a gate or an expander helps (bleed between the
+    /// hits or the phrases), and where its threshold sits between the floor and the hits.
     gate: Option<(f32, f32, f32)>,
     /// Strada-Transient's attack and sustain (%), on percussive sounds.
     transient: Option<(f32, f32)>,
     comp: Comp,
-    moves: &'static [Move],
+    tone: Tone,
 }
 
+const NONE: [Option<f32>; 4] = [None; 4];
+
 fn rules(i: Instrument) -> Rules {
+    let rules = |hpf, steep, zone, gate, comp, tone| Rules {
+        hpf,
+        steep,
+        lpf: None,
+        zone,
+        gate,
+        transient: None,
+        comp,
+        tone,
+    };
     match i {
-        VocalMale => Rules {
-            hpf: (70.0, 110.0),
-            steep: true,
-            lpf: None,
-            zone: (180.0, 8000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(3.0, 10.0, 100.0, 4.0, 4.0),
-            moves: &const {
-                [
-                    bell(0, 100.0, 180.0, 1.5, 1.0, "Warmth"),
-                    bell(1, 220.0, 450.0, -3.5, 1.4, "Mud"),
-                    bell(2, 2500.0, 4500.0, 3.5, 1.0, "Presence"),
-                    shelf(3, 10_000.0, 3.0, "Air"),
-                ]
-            },
-        },
-        VocalFemale => Rules {
-            hpf: (90.0, 160.0),
-            steep: true,
-            lpf: None,
-            zone: (250.0, 9000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(3.0, 10.0, 100.0, 4.0, 4.0),
-            moves: &const {
-                [
-                    shelf(0, 180.0, -1.5, "Boom"),
-                    bell(1, 300.0, 600.0, -3.0, 1.4, "Mud"),
-                    bell(2, 3000.0, 5500.0, 3.5, 1.0, "Presence"),
-                    shelf(3, 12_000.0, 3.5, "Air"),
-                ]
-            },
-        },
+        VocalMale => rules(
+            (40.0, 70.0),
+            false,
+            (180.0, 8000.0),
+            Some((-6.0, 250.0, 0.3)),
+            Comp(3.0, 10.0, 100.0, 4.0, 4.0),
+            tone(
+                [Some(-25.0), Some(-4.0), Some(-11.0), Some(-23.0)],
+                [0.0, 1.0, 3.0, 2.0],
+                [3.0, 3.0, 3.0, 3.0],
+                3500.0,
+            ),
+        ),
+        VocalFemale => rules(
+            (60.0, 90.0),
+            false,
+            (250.0, 9000.0),
+            Some((-6.0, 250.0, 0.3)),
+            Comp(3.0, 10.0, 100.0, 4.0, 4.0),
+            tone(
+                [Some(-35.0), Some(-5.0), Some(-10.0), Some(-21.0)],
+                [0.0, 1.5, 3.0, 2.0],
+                [3.0, 3.0, 3.0, 3.0],
+                3500.0,
+            ),
+        ),
+        BackingVocals => rules(
+            (70.0, 110.0),
+            false,
+            (200.0, 9000.0),
+            Some((-12.0, 250.0, 0.35)),
+            Comp(3.0, 15.0, 120.0, 3.0, 4.0),
+            tone(
+                [Some(-28.0), Some(-8.0), Some(-11.0), Some(-23.0)],
+                [0.0, 1.0, 1.5, 1.5],
+                [3.0, 3.0, 3.0, 3.0],
+                3000.0,
+            ),
+        ),
+        Whistling => rules(
+            (200.0, 400.0),
+            true,
+            (800.0, 6000.0),
+            Some((-12.0, 300.0, 0.35)),
+            Comp(2.0, 20.0, 150.0, 2.0, 6.0),
+            tone(NONE, [0.0; 4], [0.0; 4], 3000.0),
+        ),
         Kick => Rules {
-            hpf: (20.0, 28.0),
-            steep: false,
             lpf: Some((7000.0, 10_000.0)),
-            zone: (120.0, 1000.0),
-            gate: Some((-30.0, 120.0, 0.35)),
-            transient: Some((25.0, -10.0)),
-            comp: Comp(4.0, 20.0, 80.0, 3.5, 0.0),
-            moves: &const {
-                [
-                    bell(0, 40.0, 65.0, 4.5, 1.0, "Weight"),
-                    bell(1, 220.0, 320.0, -5.0, 1.5, "Mud"),
-                    bell(2, 2000.0, 3500.0, 4.0, 1.2, "Click"),
-                ]
-            },
+            transient: Some((20.0, -10.0)),
+            ..rules(
+                (20.0, 25.0),
+                false,
+                (120.0, 1000.0),
+                Some((-20.0, 120.0, 0.35)),
+                Comp(4.0, 20.0, 80.0, 3.0, 0.0),
+                Tone {
+                    weight: 2.5,
+                    ..tone(
+                        [Some(-2.0), Some(-21.0), Some(-33.0), None],
+                        [3.0, 0.0, 6.0, 0.0],
+                        [2.0, 4.0, 2.0, 0.0],
+                        3000.0,
+                    )
+                },
+            )
         },
         Snare => Rules {
-            hpf: (60.0, 120.0),
-            steep: false,
-            lpf: None,
-            zone: (300.0, 1500.0),
-            gate: Some((-15.0, 150.0, 0.35)),
-            transient: Some((25.0, 0.0)),
-            comp: Comp(4.0, 15.0, 60.0, 3.0, 0.0),
-            moves: &const {
-                [
-                    bell(0, 150.0, 250.0, 3.0, 1.0, "Body"),
-                    bell(1, 400.0, 900.0, -3.5, 1.5, "Boxiness"),
-                    bell(2, 2500.0, 5000.0, 3.5, 1.0, "Crack"),
-                    shelf(3, 10_000.0, 2.5, "Air"),
-                ]
-            },
+            transient: Some((20.0, 0.0)),
+            ..rules(
+                (40.0, 80.0),
+                false,
+                (300.0, 1500.0),
+                Some((-12.0, 150.0, 0.35)),
+                Comp(4.0, 15.0, 60.0, 3.0, 0.0),
+                tone(
+                    [None, Some(-5.5), Some(-8.5), None],
+                    [0.0, 1.0, 4.0, 0.0],
+                    [0.0, 3.0, 2.0, 0.0],
+                    4000.0,
+                ),
+            )
         },
         Toms => Rules {
-            hpf: (40.0, 80.0),
-            steep: false,
-            lpf: None,
-            zone: (150.0, 1000.0),
-            gate: Some((-20.0, 250.0, 0.35)),
-            transient: Some((20.0, -20.0)),
-            comp: Comp(3.0, 15.0, 120.0, 3.0, 4.0),
-            moves: &const {
-                [
-                    bell(0, 70.0, 150.0, 3.5, 1.0, "Weight"),
-                    bell(1, 300.0, 600.0, -5.0, 1.4, "Boxiness"),
-                    bell(2, 3000.0, 5000.0, 3.5, 1.0, "Attack"),
-                    shelf(3, 9000.0, -2.5, "Bleed"),
-                ]
-            },
+            transient: Some((15.0, -15.0)),
+            ..rules(
+                (35.0, 60.0),
+                false,
+                (150.0, 1000.0),
+                Some((-15.0, 250.0, 0.35)),
+                Comp(3.0, 15.0, 120.0, 3.0, 4.0),
+                tone(
+                    [Some(-3.0), Some(-6.0), Some(-28.0), None],
+                    [2.0, 0.0, 3.0, 0.0],
+                    [2.0, 4.0, 2.0, 0.0],
+                    3500.0,
+                ),
+            )
         },
-        HiHat => Rules {
-            hpf: (200.0, 500.0),
-            steep: true,
-            lpf: None,
-            zone: (1000.0, 10_000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(2.0, 20.0, 100.0, 2.0, 9.0),
-            moves: &const {
-                [
-                    bell(1, 500.0, 1200.0, -3.0, 1.2, "Clang"),
-                    bell(2, 2500.0, 5000.0, -2.5, 1.2, "Harshness"),
-                    shelf(3, 10_000.0, 3.0, "Air"),
-                ]
-            },
-        },
-        Overheads => Rules {
-            hpf: (80.0, 250.0),
-            steep: true,
-            lpf: None,
-            zone: (300.0, 8000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(2.0, 30.0, 150.0, 2.5, 6.0),
-            moves: &const {
-                [
-                    shelf(0, 150.0, -2.5, "Boom"),
-                    bell(1, 300.0, 600.0, -3.5, 1.2, "Boxiness"),
-                    bell(2, 2500.0, 5000.0, -2.0, 1.2, "Harshness"),
-                    shelf(3, 12_000.0, 3.0, "Air"),
-                ]
-            },
-        },
-        Drums => Rules {
-            hpf: (20.0, 30.0),
-            steep: false,
-            lpf: None,
-            zone: (200.0, 6000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(2.0, 30.0, 120.0, 3.0, 4.0),
-            moves: &const {
-                [
-                    bell(0, 50.0, 90.0, 3.0, 1.0, "Weight"),
-                    bell(1, 300.0, 600.0, -3.5, 1.2, "Boxiness"),
-                    bell(2, 3000.0, 5000.0, 2.0, 1.0, "Attack"),
-                    shelf(3, 12_000.0, 2.5, "Air"),
-                ]
-            },
-        },
+        HiHat => rules(
+            (150.0, 300.0),
+            true,
+            (1000.0, 10_000.0),
+            None,
+            Comp(2.0, 20.0, 100.0, 2.0, 9.0),
+            tone(
+                [None, Some(-30.0), Some(-6.0), Some(-5.0)],
+                [0.0, 0.0, 1.0, 1.5],
+                [0.0, 4.0, 3.0, 2.0],
+                4000.0,
+            ),
+        ),
+        Overheads => rules(
+            (60.0, 120.0),
+            false,
+            (300.0, 8000.0),
+            None,
+            Comp(2.0, 30.0, 150.0, 2.0, 6.0),
+            tone(
+                [Some(-15.0), Some(-8.0), Some(-10.0), Some(-11.0)],
+                [0.0, 0.0, 1.5, 2.0],
+                [4.0, 3.0, 3.0, 2.0],
+                4000.0,
+            ),
+        ),
+        Drums => rules(
+            (20.0, 30.0),
+            false,
+            (200.0, 6000.0),
+            None,
+            Comp(2.0, 30.0, 120.0, 3.0, 4.0),
+            tone(
+                [Some(-5.0), Some(-8.0), Some(-12.0), Some(-16.0)],
+                [2.0, 0.0, 2.0, 2.0],
+                [2.0, 3.0, 2.0, 2.0],
+                3500.0,
+            ),
+        ),
         Bass => Rules {
-            hpf: (25.0, 40.0),
-            steep: false,
             lpf: Some((5000.0, 12_000.0)),
-            zone: (150.0, 3000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(4.0, 25.0, 120.0, 4.0, 0.0),
-            moves: &const {
-                [
-                    bell(0, 60.0, 110.0, 3.0, 1.0, "Weight"),
-                    bell(1, 200.0, 350.0, -3.5, 1.4, "Mud"),
-                    bell(2, 700.0, 1500.0, 3.0, 1.0, "Growl"),
-                ]
-            },
+            ..rules(
+                (25.0, 35.0),
+                false,
+                (150.0, 3000.0),
+                None,
+                Comp(4.0, 25.0, 120.0, 4.0, 0.0),
+                Tone {
+                    weight: 2.0,
+                    ..tone(
+                        [Some(-1.0), Some(-9.0), None, None],
+                        [3.0, 1.0, 0.0, 0.0],
+                        [2.0, 3.0, 0.0, 0.0],
+                        1000.0,
+                    )
+                },
+            )
         },
         ElectricGuitar => Rules {
-            hpf: (70.0, 120.0),
-            steep: true,
-            lpf: Some((7000.0, 12_000.0)),
-            zone: (150.0, 6000.0),
-            gate: Some((-15.0, 150.0, 0.15)),
-            transient: None,
-            comp: Comp(2.5, 25.0, 200.0, 2.5, 5.0),
-            moves: &const {
-                [
-                    shelf(0, 120.0, -2.5, "Boom"),
-                    bell(1, 300.0, 600.0, -3.0, 1.3, "Mud"),
-                    bell(2, 1500.0, 3000.0, 3.0, 1.0, "Bite"),
-                    shelf(3, 8000.0, -2.0, "Fizz"),
-                ]
-            },
+            lpf: Some((8000.0, 14_000.0)),
+            ..rules(
+                (60.0, 90.0),
+                false,
+                (150.0, 6000.0),
+                Some((-10.0, 150.0, 0.3)),
+                Comp(2.5, 25.0, 200.0, 2.5, 5.0),
+                tone(
+                    [Some(-16.0), Some(-4.0), Some(-10.0), Some(-26.0)],
+                    [0.0, 1.0, 2.0, 0.0],
+                    [3.0, 3.0, 3.0, 3.0],
+                    2500.0,
+                ),
+            )
         },
-        AcousticGuitar => Rules {
-            hpf: (70.0, 140.0),
-            steep: true,
-            lpf: None,
-            zone: (100.0, 6000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(3.0, 15.0, 100.0, 3.0, 4.0),
-            moves: &const {
-                [
-                    shelf(0, 150.0, -2.5, "Boom"),
-                    bell(1, 200.0, 400.0, -3.5, 1.4, "Mud"),
-                    bell(2, 2500.0, 5000.0, 2.5, 1.0, "Presence"),
-                    shelf(3, 12_000.0, 3.5, "Air"),
-                ]
-            },
-        },
-        Keys => Rules {
-            hpf: (30.0, 70.0),
-            steep: false,
-            lpf: None,
-            zone: (150.0, 6000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(2.0, 20.0, 150.0, 2.5, 6.0),
-            moves: &const {
-                [
-                    shelf(0, 120.0, -1.5, "Boom"),
-                    bell(1, 250.0, 500.0, -2.5, 1.2, "Mud"),
-                    bell(2, 2000.0, 4000.0, 2.5, 1.0, "Presence"),
-                    shelf(3, 10_000.0, 2.5, "Air"),
-                ]
-            },
-        },
-        Synth => Rules {
-            hpf: (30.0, 120.0),
-            steep: false,
-            lpf: None,
-            zone: (150.0, 8000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(2.0, 20.0, 150.0, 2.5, 7.0),
-            moves: &const {
-                [
-                    bell(1, 250.0, 500.0, -2.5, 1.2, "Mud"),
-                    bell(2, 2000.0, 5000.0, 2.0, 1.0, "Presence"),
-                    shelf(3, 10_000.0, 2.5, "Air"),
-                ]
-            },
-        },
-        Strings => Rules {
-            hpf: (40.0, 100.0),
-            steep: false,
-            lpf: None,
-            zone: (200.0, 8000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(2.0, 30.0, 200.0, 2.0, 7.0),
-            moves: &const {
-                [
-                    shelf(0, 150.0, -2.0, "Boom"),
-                    bell(1, 250.0, 500.0, -3.0, 1.2, "Mud"),
-                    bell(2, 2000.0, 4000.0, 2.0, 1.0, "Presence"),
-                    shelf(3, 10_000.0, 3.0, "Air"),
-                ]
-            },
-        },
-        Brass => Rules {
-            hpf: (60.0, 120.0),
-            steep: false,
-            lpf: None,
-            zone: (200.0, 6000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(3.0, 10.0, 120.0, 3.0, 5.0),
-            moves: &const {
-                [
-                    shelf(0, 150.0, -2.0, "Boom"),
-                    bell(1, 400.0, 800.0, -2.5, 1.2, "Boxiness"),
-                    bell(2, 1500.0, 3000.0, 2.5, 1.0, "Bite"),
-                    shelf(3, 8000.0, -1.5, "Harshness"),
-                ]
-            },
-        },
-        Other => Rules {
-            hpf: (30.0, 80.0),
-            steep: false,
-            lpf: None,
-            zone: (150.0, 8000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(2.0, 20.0, 150.0, 2.5, 6.0),
-            moves: &const {
-                [
-                    bell(1, 250.0, 500.0, -2.5, 1.2, "Mud"),
-                    bell(2, 2000.0, 4000.0, 2.0, 1.0, "Presence"),
-                    shelf(3, 10_000.0, 2.0, "Air"),
-                ]
-            },
-        },
-        BackingVocals => Rules {
-            hpf: (100.0, 180.0),
-            steep: true,
-            lpf: None,
-            zone: (200.0, 9000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(4.0, 10.0, 100.0, 4.5, 3.0),
-            moves: &const {
-                [
-                    shelf(0, 200.0, -2.0, "Boom"),
-                    bell(1, 250.0, 500.0, -3.5, 1.4, "Mud"),
-                    bell(2, 2000.0, 4000.0, 1.5, 1.0, "Presence"),
-                    shelf(3, 12_000.0, 3.0, "Air"),
-                ]
-            },
-        },
+        AcousticGuitar => rules(
+            (50.0, 80.0),
+            false,
+            (100.0, 6000.0),
+            Some((-8.0, 250.0, 0.3)),
+            Comp(3.0, 15.0, 100.0, 3.0, 4.0),
+            tone(
+                [Some(-16.0), Some(-2.0), Some(-13.5), Some(-20.0)],
+                [0.0, 1.0, 2.5, 2.0],
+                [2.5, 2.5, 3.0, 3.0],
+                3200.0,
+            ),
+        ),
+        Keys => rules(
+            (25.0, 45.0),
+            false,
+            (150.0, 6000.0),
+            None,
+            Comp(2.0, 20.0, 150.0, 2.5, 6.0),
+            tone(
+                [Some(-14.0), Some(-4.0), Some(-13.0), Some(-24.0)],
+                [1.0, 1.0, 2.0, 1.5],
+                [3.0, 3.0, 3.0, 3.0],
+                3000.0,
+            ),
+        ),
+        Synth => rules(
+            (25.0, 60.0),
+            false,
+            (150.0, 8000.0),
+            None,
+            Comp(2.0, 20.0, 150.0, 2.5, 7.0),
+            tone(
+                [Some(-12.0), Some(-5.0), Some(-12.0), Some(-22.0)],
+                [1.0, 1.0, 2.0, 1.5],
+                [3.0, 3.0, 3.0, 3.0],
+                3000.0,
+            ),
+        ),
+        Strings => rules(
+            (35.0, 60.0),
+            false,
+            (200.0, 8000.0),
+            None,
+            Comp(2.0, 30.0, 200.0, 2.0, 7.0),
+            tone(
+                [Some(-18.0), Some(-5.0), Some(-12.0), Some(-22.0)],
+                [0.0, 1.0, 1.5, 1.5],
+                [3.0, 3.0, 3.0, 3.0],
+                3000.0,
+            ),
+        ),
+        Brass => rules(
+            (50.0, 90.0),
+            false,
+            (200.0, 6000.0),
+            None,
+            Comp(3.0, 10.0, 120.0, 3.0, 5.0),
+            tone(
+                [Some(-25.0), Some(-8.0), Some(-9.0), Some(-20.0)],
+                [0.0, 0.0, 1.5, 1.0],
+                [3.0, 3.0, 3.0, 3.0],
+                2500.0,
+            ),
+        ),
+        Other => rules(
+            (25.0, 40.0),
+            false,
+            (150.0, 8000.0),
+            None,
+            Comp(2.0, 20.0, 150.0, 2.0, 6.0),
+            tone(NONE, [0.0; 4], [0.0; 4], 3000.0),
+        ),
         HandDrums => Rules {
-            hpf: (60.0, 100.0),
-            steep: false,
-            lpf: None,
-            zone: (200.0, 2000.0),
-            gate: Some((-12.0, 150.0, 0.35)),
-            transient: Some((20.0, 0.0)),
-            comp: Comp(3.0, 10.0, 100.0, 3.0, 0.0),
-            moves: &const {
-                [
-                    bell(0, 150.0, 250.0, 2.5, 1.0, "Body"),
-                    bell(1, 400.0, 800.0, -3.0, 1.4, "Boxiness"),
-                    bell(2, 2000.0, 5000.0, 3.0, 1.0, "Slap"),
-                    shelf(3, 10_000.0, 2.0, "Air"),
-                ]
-            },
+            transient: Some((15.0, 0.0)),
+            ..rules(
+                (50.0, 80.0),
+                false,
+                (200.0, 2000.0),
+                Some((-12.0, 150.0, 0.35)),
+                Comp(3.0, 10.0, 100.0, 3.0, 0.0),
+                tone(
+                    [Some(-10.0), Some(-4.0), Some(-14.0), Some(-22.0)],
+                    [1.5, 0.0, 2.0, 1.5],
+                    [3.0, 3.0, 3.0, 3.0],
+                    3500.0,
+                ),
+            )
         },
         Cajon => Rules {
-            hpf: (35.0, 55.0),
-            steep: false,
-            lpf: None,
-            zone: (150.0, 1500.0),
-            gate: None,
-            transient: Some((25.0, -10.0)),
-            comp: Comp(4.0, 15.0, 80.0, 3.5, 0.0),
-            moves: &const {
-                [
-                    bell(0, 70.0, 110.0, 3.5, 1.0, "Thump"),
-                    bell(1, 300.0, 600.0, -3.5, 1.4, "Boxiness"),
-                    bell(2, 2500.0, 5000.0, 3.0, 1.0, "Slap"),
-                ]
-            },
+            transient: Some((20.0, -10.0)),
+            ..rules(
+                (30.0, 45.0),
+                false,
+                (150.0, 1500.0),
+                None,
+                Comp(4.0, 15.0, 80.0, 3.0, 0.0),
+                Tone {
+                    weight: 1.5,
+                    ..tone(
+                        [Some(-3.0), Some(-8.0), Some(-18.0), None],
+                        [2.0, 0.0, 3.0, 0.0],
+                        [2.0, 3.0, 2.0, 0.0],
+                        3500.0,
+                    )
+                },
+            )
         },
-        Shaker => Rules {
-            hpf: (250.0, 500.0),
-            steep: true,
-            lpf: None,
-            zone: (1500.0, 10_000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(2.0, 20.0, 100.0, 2.0, 9.0),
-            moves: &const {
-                [
-                    bell(2, 3000.0, 6000.0, -2.0, 1.2, "Harshness"),
-                    shelf(3, 12_000.0, 2.0, "Air"),
-                ]
-            },
-        },
-        Tambourine => Rules {
-            hpf: (250.0, 500.0),
-            steep: true,
-            lpf: None,
-            zone: (1000.0, 10_000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(2.0, 15.0, 100.0, 2.0, 9.0),
-            moves: &const {
-                [
-                    bell(1, 800.0, 2000.0, -2.0, 1.2, "Clang"),
-                    bell(2, 3000.0, 6000.0, -2.0, 1.2, "Harshness"),
-                    shelf(3, 12_000.0, 2.5, "Air"),
-                ]
-            },
-        },
-        Cowbell => Rules {
-            hpf: (200.0, 400.0),
-            steep: true,
-            lpf: None,
-            zone: (500.0, 5000.0),
-            gate: None,
-            transient: None,
-            comp: Comp(2.0, 15.0, 100.0, 2.0, 9.0),
-            moves: &const {
-                [
-                    bell(1, 600.0, 1200.0, -2.5, 1.4, "Clang"),
-                    bell(2, 2000.0, 4000.0, 1.5, 1.0, "Presence"),
-                ]
-            },
-        },
+        Shaker | Tambourine => rules(
+            (200.0, 400.0),
+            true,
+            (1500.0, 10_000.0),
+            None,
+            Comp(2.0, 20.0, 100.0, 2.0, 9.0),
+            tone(
+                [None, Some(-40.0), Some(-6.0), Some(-4.0)],
+                [0.0, 0.0, 0.0, 1.5],
+                [0.0, 6.0, 3.0, 2.0],
+                4000.0,
+            ),
+        ),
+        Cowbell => rules(
+            (150.0, 300.0),
+            true,
+            (500.0, 5000.0),
+            None,
+            Comp(2.0, 15.0, 100.0, 2.0, 9.0),
+            tone(
+                [None, Some(-20.0), Some(-8.0), Some(-20.0)],
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 4.0, 3.0, 3.0],
+                3000.0,
+            ),
+        ),
         Claps => Rules {
-            hpf: (120.0, 250.0),
-            steep: true,
-            lpf: None,
-            zone: (300.0, 6000.0),
-            gate: None,
-            transient: Some((15.0, 0.0)),
-            comp: Comp(3.0, 10.0, 100.0, 3.0, 0.0),
-            moves: &const {
-                [
-                    bell(1, 800.0, 1500.0, 2.0, 1.0, "Body"),
-                    bell(2, 3000.0, 5000.0, 2.0, 1.0, "Snap"),
-                    shelf(3, 10_000.0, 2.0, "Air"),
-                ]
-            },
+            transient: Some((10.0, 0.0)),
+            ..rules(
+                (100.0, 200.0),
+                false,
+                (300.0, 6000.0),
+                None,
+                Comp(3.0, 10.0, 100.0, 3.0, 0.0),
+                tone(
+                    [None, Some(-12.0), Some(-7.0), Some(-14.0)],
+                    [0.0, 1.0, 2.0, 1.5],
+                    [0.0, 3.0, 3.0, 3.0],
+                    3500.0,
+                ),
+            )
         },
     }
 }
 
-/// The filters: just under the lowest and above the highest energy that counts, within the
-/// ranges given.
-fn filters(a: &Analysis, hpf: (f32, f32), lpf: Option<(f32, f32)>, steep: bool) -> Option<Step> {
+/// The filters: well under the lowest and above the highest energy that counts, within the
+/// ranges given; a lighter dose keeps further from the sound.
+fn filters(
+    a: &Analysis,
+    hpf: (f32, f32),
+    lpf: Option<(f32, f32)>,
+    steep: bool,
+    k: f32,
+) -> Option<Step> {
+    let near = 0.5 + 0.5 * k.min(1.0);
     let curve = &a.report.curve;
     let top = curve
         .iter()
@@ -1539,38 +1647,50 @@ fn filters(a: &Analysis, hpf: (f32, f32), lpf: Option<(f32, f32)>, steep: bool) 
     }
     let lowest = curve.iter().find(|p| p.1 >= top - 24.0).map(|p| p.0);
     let highest = curve.iter().rev().find(|p| p.1 >= top - 40.0).map(|p| p.0);
+    // An octave under the lowest energy that counts: the body stays whole.
     let hpf = lowest
-        .map(|f| (f * 0.8).clamp(hpf.0, hpf.1))
+        .map(|f| (f * 0.5).clamp(hpf.0, hpf.1) * near)
         .filter(|f| *f > 21.0);
-    let lpf = lpf.and_then(|(lo, hi)| highest.map(|f| (f * 1.4).clamp(lo, hi)));
+    let lpf = lpf
+        .and_then(|(lo, hi)| highest.map(|f| (f * 1.5).clamp(lo, hi) / near))
+        .filter(|f| *f < 19_000.0);
     (hpf.is_some() || lpf.is_some()).then_some(Step::Filters { hpf, lpf, steep })
 }
 
-/// The cleaning of a track: filters, resonances, plosives and sibilance, a gate when there is
-/// bleed, and the suggestion to strip long silences.
+/// The cleaning of a track: filters, the resonances that really stand out, plosives and
+/// sibilance, a gate or a gentle expander when there is bleed, and the suggestion to strip
+/// long silences.
 pub fn clean(a: &Analysis, instrument: Instrument, strength: Strength) -> Vec<Step> {
+    if strength.off() {
+        return Vec::new();
+    }
     let rules = rules(instrument);
     let k = strength.factor();
-    let mut steps: Vec<Step> = filters(a, rules.hpf, rules.lpf, rules.steep)
+    let mut steps: Vec<Step> = filters(a, rules.hpf, rules.lpf, rules.steep, k)
         .into_iter()
         .collect();
     let mut cuts = 0;
     for r in &a.resonances {
-        if cuts == 4 || !(rules.zone.0..=rules.zone.1).contains(&r.freq) || r.above < 6.0 {
+        if cuts == 3 || !(rules.zone.0..=rules.zone.1).contains(&r.freq) || r.above < 7.0 {
             continue;
         }
-        let depth = (-(r.above - 2.0).clamp(2.0, 8.0) * k).max(-12.0);
+        let depth = (-(r.above - 4.0).clamp(1.5, 6.0) * 0.8 * k).max(-8.0);
+        let depth = (depth * 2.0).round() / 2.0;
+        if depth > -1.5 {
+            continue;
+        }
         // Always there: a fixed cut; else only while it stands out.
         let threshold = (r.spread > 4.0).then(|| (r.usual + 2.0).clamp(-60.0, 0.0));
         steps.push(Step::Resonance(Cut {
             freq: r.freq,
-            depth: (depth * 2.0).round() / 2.0,
+            depth,
             threshold,
         }));
         cuts += 1;
     }
     if instrument.is_vocal()
         && let Some(threshold) = a.plosives
+        && k >= 0.125
     {
         steps.push(Step::Plosives(Cut {
             freq: PLOSIVE_HZ,
@@ -1580,23 +1700,25 @@ pub fn clean(a: &Analysis, instrument: Instrument, strength: Strength) -> Vec<St
     }
     if let Some(s) = a.sibilance {
         let sure = instrument.is_vocal() && (0.005..0.4).contains(&s.share);
-        if sure || matches!(instrument, Overheads | HiHat) {
+        if (sure || matches!(instrument, Overheads | HiHat)) && k >= 0.125 {
             steps.push(Step::DeEss {
                 freq: (s.freq * 0.85).clamp(4000.0, 9000.0),
                 threshold: (s.level - 4.0 * k).clamp(-30.0, -1.0),
-                range: (8.0 * k).min(16.0),
+                range: (6.0 * k).min(12.0),
                 sure,
             });
         }
     }
-    // Something between the hits (bleed, hiss), well under them.
+    // Something between the hits or the phrases (bleed, hiss), well under them.
     if let (Some((range, release, at)), Some((floor, hits))) = (rules.gate, a.floor)
         && hits - floor > 12.0
         && floor > -80.0
+        && range * k.min(1.0) <= -3.0
     {
         steps.push(Step::Gate {
             threshold: (floor + (hits - floor) * at).clamp(-80.0, 0.0),
-            range,
+            // A lighter dose closes less.
+            range: (range * k.min(1.0)).round(),
             release,
         });
     }
@@ -1606,23 +1728,140 @@ pub fn clean(a: &Analysis, instrument: Instrument, strength: Strength) -> Vec<St
     steps
 }
 
-/// Bringing a track out: the instrument's usual moves on the channel strip's EQ, each placed
-/// and dosed on what the track has there, a compressor, and the riding of its level (offered).
+/// The EQ bringing a track to its instrument's tone: in each region, part of the way to the
+/// target, nothing where it is already close, within the instrument's limits; the style then
+/// leans the tone its way. `before` is the cleaning kept, heard first.
+fn tone_moves(
+    a: &Analysis,
+    instrument: Instrument,
+    k: f32,
+    flavor: Flavor,
+    before: &[Step],
+) -> Vec<Step> {
+    const DEAD: f32 = 1.5;
+    const PART: f32 = 0.6;
+    let t = rules(instrument).tone;
+    let lean = flavor.lean(instrument);
+    let dose = k * flavor.get(|t| t.moves);
+    let curve = &a.report.curve;
+    let peak = |lo: f32, hi: f32| {
+        let bump = bumps(curve);
+        curve
+            .iter()
+            .zip(&bump)
+            .filter(|(c, _)| (lo..=hi).contains(&c.0))
+            .max_by(|x, y| x.1.total_cmp(y.1))
+            .map(|(c, _)| c.0)
+    };
+    let loudest = |lo: f32, hi: f32| {
+        curve
+            .iter()
+            .filter(|c| (lo..=hi).contains(&c.0))
+            .max_by(|x, y| x.1.total_cmp(&y.1))
+            .map_or(lo, |c| c.0)
+    };
+    let carries_lows = matches!(instrument, Kick | Bass | Toms | Cajon | Drums | HandDrums);
+    let mut heard: Vec<Step> = before.to_vec();
+    let mut steps = Vec::new();
+    for band in 0..4 {
+        let Some(target) = t.target[band] else {
+            continue;
+        };
+        let thirds = shaped(&a.report.third_octaves, &heard);
+        let now = region_share(&thirds, REGIONS[band]);
+        let off = target - now;
+        let toward = if off.abs() < DEAD {
+            0.0
+        } else {
+            (off - DEAD * off.signum()) * PART
+        };
+        let weight = if band == 0 { t.weight * dose } else { 0.0 };
+        let (low, high) = (
+            -t.cut[band] * k.max(0.5),
+            (t.boost[band] + lean[band].max(0.0)) * k,
+        );
+        let wanted =
+            (toward * dose + weight + lean[band] * flavor.amount.clamp(0.0, 1.0)).clamp(low, high);
+        if wanted.abs() < 0.75 {
+            continue;
+        }
+        let up = wanted > 0.0;
+        let (freq, q, bell) = match band {
+            0 if carries_lows => (
+                if instrument == Kick {
+                    loudest(40.0, 90.0)
+                } else {
+                    loudest(45.0, 120.0)
+                },
+                1.0,
+                true,
+            ),
+            0 => (if up { 100.0 } else { 150.0 }, 0.7, false),
+            1 if up => (250.0, 1.0, true),
+            1 => (peak(160.0, 450.0).unwrap_or(300.0), 1.2, true),
+            2 if up => (t.presence, 0.8, true),
+            2 => (peak(2000.0, 5000.0).unwrap_or(3500.0), 1.2, true),
+            _ => (if up { 10_000.0 } else { 8000.0 }, 0.7, false),
+        };
+        let purpose = match (band, up) {
+            (0, true) => "Weight",
+            (0, false) => "Boom",
+            (1, true) => "Warmth",
+            (1, false) => "Mud",
+            (2, true) => "Presence",
+            (2, false) => "Harshness",
+            (_, true) => "Air",
+            (_, false) => "Softness",
+        };
+        let step = |gain: f32| Step::Eq {
+            band,
+            freq: freq.round(),
+            gain,
+            q,
+            bell,
+            purpose,
+        };
+        // The gain that changes the region's share by what is wanted.
+        let got = region_share(&shaped(&thirds, &[step(wanted)]), REGIONS[band]) - now;
+        // A broad band moves its region less than its gain: a little more is asked of it, never
+        // far past the instrument's limits.
+        let gain = if band == 0 && carries_lows {
+            wanted
+        } else if got.abs() > 0.1 && got.signum() == wanted.signum() {
+            (wanted * wanted / got).clamp(low * 1.5, high * 1.25)
+        } else {
+            wanted
+        };
+        let gain = (gain * 2.0).round() / 2.0;
+        if gain.abs() >= 1.0 {
+            heard.push(step(gain));
+            steps.push(step(gain));
+        }
+    }
+    steps
+}
+
+/// Bringing a track out: its tone, a compressor when it moves, its attacks, and the riding of
+/// its level (offered). `before` is the cleaning kept.
 pub fn bring_out(
     a: &Analysis,
     instrument: Instrument,
     strength: Strength,
     flavor: Flavor,
+    before: &[Step],
 ) -> Vec<Step> {
+    if strength.off() {
+        return Vec::new();
+    }
     let rules = rules(instrument);
     let k = strength.factor();
     let r = &a.report;
-    let mut steps = place_moves(a, instrument, rules.moves, k, flavor);
+    let mut steps = tone_moves(a, instrument, k, flavor, before);
     let Comp(ratio, attack, release, reduction, lra) = rules.comp;
     let moves = lra == 0.0 || r.loudness_range.map_or(r.crest > 20.0, |v| v > lra);
-    if moves && r.integrated.is_some() {
+    let reduction = reduction * k * flavor.get(|t| t.comp);
+    if moves && r.integrated.is_some() && reduction >= 0.5 {
         let attack = attack * flavor.get(|t| t.attack);
-        let reduction = reduction * k * flavor.get(|t| t.comp);
         steps.push(compressor(a, (ratio, attack, release), reduction));
     }
     // More attack where the hits are soft (a low crest), less where they already snap.
@@ -1651,55 +1890,6 @@ fn compressor(a: &Analysis, (ratio, attack, release): (f32, f32, f32), reduction
         threshold: (a.peaks - reduction * ratio / (ratio - 1.0)).clamp(-60.0, -1.0),
         reduction,
     }
-}
-
-/// The EQ moves, each placed where the track has the most of it and dosed on how much.
-fn place_moves(
-    a: &Analysis,
-    instrument: Instrument,
-    moves: &[Move],
-    k: f32,
-    flavor: Flavor,
-) -> Vec<Step> {
-    let r = &a.report;
-    let mut steps = Vec::new();
-    let bump = bumps(&r.curve);
-    for m in moves {
-        // Where the track has the most of it, and how much it stands out there.
-        let found = r
-            .curve
-            .iter()
-            .zip(&bump)
-            .filter(|(c, _)| (m.range.0..=m.range.1).contains(&c.0))
-            .max_by(|x, y| x.1.total_cmp(y.1))
-            .map(|(c, d)| (c.0, *d));
-        let (freq, amount) = match found {
-            Some((freq, d)) if m.range.0 < m.range.1 => (
-                freq,
-                if m.gain < 0.0 {
-                    // The bigger the bump, the deeper the cut.
-                    (0.6 + 0.2 * d).clamp(0.5, 1.6)
-                } else {
-                    // Already standing out: less of a boost.
-                    (1.0 - 0.1 * d).clamp(0.8, 1.2)
-                },
-            ),
-            _ => (m.range.0, 1.0),
-        };
-        let gain = m.gain * amount * k * flavor.of_move(instrument, m.purpose, m.gain);
-        let gain = (gain.clamp(-9.0, 9.0) * 2.0).round() / 2.0;
-        if gain.abs() >= 1.0 {
-            steps.push(Step::Eq {
-                band: m.band,
-                freq: freq.round(),
-                gain,
-                q: m.q,
-                bell: m.bell,
-                purpose: m.purpose,
-            });
-        }
-    }
-    steps
 }
 
 /// Gain changes bringing the level toward its median where the track plays, within 6 dB,
@@ -1735,100 +1925,101 @@ fn riding(levels: &[f32], k: f32) -> Option<Vec<(f64, f32)>> {
     (points.iter().any(|p| p.1.abs() >= 1.0)).then_some(points)
 }
 
-/// The style asked of the mix: a variable of every move's dose and of the dynamics, and of the
-/// balance between the instruments (the console color stays a choice of its own). `Natural`
-/// asks nothing.
+/// The style asked of the mix: what it should sound like, not a genre. It leans the tone,
+/// doses the dynamics, moves instruments forward or back, brings its console color, its
+/// ambience and its width. `Transparent` asks nothing but a lighter hand.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Character {
     #[default]
-    Natural,
-    Pop,
-    Rock,
-    Acoustic,
-    /// Electronic music and hip-hop.
-    Electronic,
+    Transparent,
+    Warm,
+    Crisp,
+    Punchy,
+    Big,
 }
 
-/// What a style does, as factors of the usual dose (1: unchanged).
+/// What a style does to the dynamics, as factors of the usual dose (1: unchanged).
 #[derive(Clone, Copy, Debug)]
 pub struct Traits {
-    /// Low boosts: weight, warmth, body.
-    pub weight: f32,
-    /// Cuts of mud and boxiness.
-    pub mud: f32,
-    /// Boosts of presence, bite, click, attack.
-    pub presence: f32,
-    /// Air on top.
-    pub air: f32,
-    /// Cuts of harshness, fizz, clang.
-    pub harsh: f32,
+    /// The tone moves.
+    pub moves: f32,
     /// Compression's reduction, and its attack time.
     pub comp: f32,
     pub attack: f32,
     /// Transient shaping.
     pub transient: f32,
-    /// The voices brought forward: their presence and air.
-    pub vocals: f32,
-    /// The kick and the bass: their weight and click.
-    pub rhythm: f32,
 }
 
 impl Character {
-    /// The styles offered, `Natural` first: none of them.
     pub const STYLES: [Character; 5] = [
-        Character::Natural,
-        Character::Pop,
-        Character::Rock,
-        Character::Acoustic,
-        Character::Electronic,
+        Character::Transparent,
+        Character::Warm,
+        Character::Crisp,
+        Character::Punchy,
+        Character::Big,
     ];
 
     pub fn name(self) -> &'static str {
         match self {
-            Character::Natural => "None",
-            Character::Pop => "Pop",
-            Character::Rock => "Rock",
-            Character::Acoustic => "Acoustic",
-            Character::Electronic => "Electro / Hip-hop",
+            Character::Transparent => "Transparent",
+            Character::Warm => "Warm",
+            Character::Crisp => "Clean",
+            Character::Punchy => "Punchy",
+            Character::Big => "Big",
         }
     }
 
     /// What it sounds like, in English.
     pub fn description(self) -> &'static str {
         match self {
-            Character::Natural => "The usual moves, nothing pushed",
-            Character::Pop => "Vocals up front, bright and polished, firm compression",
-            Character::Rock => "Drums and guitars forward, punch and bite",
-            Character::Acoustic => "Natural and open, light compression, soft highs",
-            Character::Electronic => "Full lows, kick and bass on top, dense compression",
+            Character::Transparent => "As in the room, nothing pushed",
+            Character::Warm => "Round and soft, vintage",
+            Character::Crisp => "Defined and modern, never harsh",
+            Character::Punchy => "The rhythm up front, energy",
+            Character::Big => "Large, wide and airy",
         }
     }
 
     pub fn traits(self) -> Traits {
-        let t =
-            |weight, mud, presence, air, harsh, comp, attack, transient, vocals, rhythm| Traits {
-                weight,
-                mud,
-                presence,
-                air,
-                harsh,
-                comp,
-                attack,
-                transient,
-                vocals,
-                rhythm,
-            };
+        let t = |moves, comp, attack, transient| Traits {
+            moves,
+            comp,
+            attack,
+            transient,
+        };
         match self {
-            Character::Natural => t(1.0, 1.0, 1.0, 1.0, 1.0, 0.8, 1.0, 1.0, 1.0, 1.0),
-            Character::Pop => t(1.1, 1.2, 1.2, 1.4, 1.1, 1.3, 1.0, 1.1, 1.4, 1.1),
-            Character::Rock => t(1.1, 1.2, 1.4, 1.0, 1.0, 1.3, 0.8, 1.4, 1.0, 1.0),
-            Character::Acoustic => t(1.0, 1.0, 0.9, 1.1, 1.2, 0.6, 1.3, 0.7, 1.1, 0.9),
-            Character::Electronic => t(1.4, 1.25, 1.05, 1.2, 1.15, 1.45, 0.85, 1.25, 1.2, 1.45),
+            Character::Transparent => t(0.6, 0.6, 1.2, 0.5),
+            Character::Warm => t(1.0, 1.0, 1.5, 0.5),
+            Character::Crisp => t(1.0, 1.2, 0.9, 1.0),
+            Character::Punchy => t(1.0, 1.4, 1.5, 1.8),
+            Character::Big => t(1.0, 1.1, 1.2, 1.2),
+        }
+    }
+
+    /// Its console color, as an index of [`crate::console::MODELS`] (0: none).
+    pub fn console(self) -> usize {
+        match self {
+            Character::Transparent => 0,
+            Character::Warm => 1,
+            Character::Crisp => 2,
+            Character::Punchy => 3,
+            Character::Big => 4,
+        }
+    }
+
+    /// Where it puts the depth, the ambience and the width (0 to 1).
+    pub fn place(self) -> (f32, f32, f32) {
+        match self {
+            Character::Transparent => (0.3, 0.35, 0.4),
+            Character::Warm => (0.4, 0.45, 0.4),
+            Character::Crisp => (0.3, 0.15, 0.5),
+            Character::Punchy => (0.3, 0.55, 0.5),
+            Character::Big => (0.55, 0.7, 0.55),
         }
     }
 }
 
-/// A style at an intensity (0: natural, 1: all of it).
+/// A style at an intensity (0: nothing of it, 1: all of it).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Flavor {
     pub character: Character,
@@ -1841,25 +2032,60 @@ impl Flavor {
         1.0 + (f(&self.character.traits()) - 1.0) * self.amount.clamp(0.0, 1.0)
     }
 
-    /// The factor of an EQ move on `instrument`, by what it is for.
-    fn of_move(self, instrument: Instrument, purpose: &str, gain: f32) -> f32 {
-        let base = match purpose {
-            "Warmth" | "Weight" | "Body" | "Thump" => self.get(|t| t.weight),
-            "Mud" | "Boxiness" | "Boom" => self.get(|t| t.mud),
-            "Presence" | "Click" | "Crack" | "Attack" | "Bite" | "Slap" | "Snap" | "Growl" => {
-                self.get(|t| t.presence)
-            }
-            "Air" if gain > 0.0 => self.get(|t| t.air),
-            "Harshness" | "Fizz" | "Clang" | "Bleed" => self.get(|t| t.harsh),
-            _ => 1.0,
+    /// How the style leans an instrument's tone in each of [`REGIONS`], dB at full intensity.
+    fn lean(self, i: Instrument) -> [f32; 4] {
+        let rhythm = matches!(i, Kick | Snare | Toms | Drums | Bass | Cajon | HandDrums);
+        let lows = matches!(i, Kick | Bass | Toms | Cajon | Drums);
+        let lean = match self.character {
+            Character::Transparent => [0.0; 4],
+            Character::Warm => [1.0, 1.0, -0.5, 0.0],
+            Character::Crisp => [-0.5, -1.0, 0.5, 0.25],
+            Character::Punchy if rhythm => [2.0, -1.5, 2.5, 0.0],
+            Character::Punchy => [0.0, -0.5, 0.5, 0.0],
+            Character::Big => [1.5, -0.5, 0.5, 1.5],
         };
-        let forward = gain > 0.0 && purpose != "Mud";
-        let focus = match instrument {
-            VocalMale | VocalFemale if forward => self.get(|t| t.vocals),
-            Kick | Bass if forward => self.get(|t| t.rhythm),
-            _ => 1.0,
-        };
-        base * focus
+        // Only what carries the low end gets more of it.
+        [
+            if lows || lean[0] < 0.0 { lean[0] } else { 0.0 },
+            lean[1],
+            lean[2],
+            lean[3],
+        ]
+    }
+}
+
+/// The ambience of the space: from dry and close to vast. The knob goes through them in order,
+/// each over a quarter of its course, the size growing within each.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Ambience {
+    Studio,
+    Natural,
+    Live,
+    Space,
+}
+
+impl Ambience {
+    pub const ALL: [Ambience; 4] = [
+        Ambience::Studio,
+        Ambience::Natural,
+        Ambience::Live,
+        Ambience::Space,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Ambience::Studio => "Studio",
+            Ambience::Natural => "Natural",
+            Ambience::Live => "Live",
+            Ambience::Space => "Spatial",
+        }
+    }
+
+    /// The ambience at a place of the knob (0 to 1), and the size within it (0 to 1).
+    pub fn at(v: f32) -> (Ambience, f32) {
+        let v = v.clamp(0.0, 1.0) * 4.0;
+        let k = (v.floor() as usize).min(3);
+        (Self::ALL[k], (v - k as f32).clamp(0.0, 1.0))
     }
 }
 
@@ -1884,7 +2110,7 @@ pub fn group(i: Instrument) -> Option<&'static str> {
         ElectricGuitar | AcousticGuitar => "guitars",
         Keys | Synth => "keys",
         Strings | Brass => "strings",
-        BackingVocals => "backing",
+        BackingVocals | Whistling => "backing",
         VocalMale | VocalFemale => "vocals",
         Other => return None,
     })
@@ -1910,83 +2136,67 @@ pub fn bus_family(i: Instrument) -> Instrument {
         .unwrap_or(Other)
 }
 
-/// What a bus of a family calls for: a high-pass range and light moves.
-fn bus_rules(family: Instrument) -> ((f32, f32), &'static [Move]) {
-    match family.category() {
-        "Voices" => (
-            (80.0, 120.0),
-            &const {
-                [
-                    bell(1, 250.0, 500.0, -2.0, 1.2, "Mud"),
-                    shelf(3, 12_000.0, 2.0, "Air"),
-                ]
-            },
-        ),
-        "Drums" => (
-            (20.0, 30.0),
-            &const {
-                [
-                    bell(0, 50.0, 90.0, 1.5, 0.8, "Weight"),
-                    bell(1, 300.0, 600.0, -2.0, 1.2, "Boxiness"),
-                    shelf(3, 10_000.0, 1.5, "Air"),
-                ]
-            },
-        ),
-        "Percussion" => (
-            (80.0, 150.0),
-            &const {
-                [
-                    bell(2, 3000.0, 6000.0, -1.5, 1.0, "Harshness"),
-                    shelf(3, 10_000.0, 1.5, "Air"),
-                ]
-            },
-        ),
-        "Bass" => (
-            (25.0, 35.0),
-            &const { [bell(1, 200.0, 350.0, -1.5, 1.2, "Mud")] },
-        ),
-        "Guitars" => (
-            (60.0, 90.0),
-            &const {
-                [
-                    bell(1, 250.0, 500.0, -2.0, 1.2, "Mud"),
-                    bell(2, 2000.0, 4000.0, 1.5, 1.0, "Presence"),
-                ]
-            },
-        ),
-        "Keys and synths" | "Strings and winds" => (
-            (30.0, 60.0),
-            &const {
-                [
-                    bell(1, 250.0, 500.0, -1.5, 1.2, "Mud"),
-                    shelf(3, 10_000.0, 1.5, "Air"),
-                ]
-            },
-        ),
-        _ => ((20.0, 30.0), &[]),
+/// Cleaning a bus: only a gentle high-pass under what its tracks play. What is destructive on
+/// a sum (gates, de-essers, resonance cuts) belongs to its tracks.
+pub fn clean_bus(a: &Analysis, family: Instrument, strength: Strength) -> Vec<Step> {
+    if strength.off() {
+        return Vec::new();
     }
+    let hpf = match bus_family(family).category() {
+        "Voices" => (40.0, 60.0),
+        "Guitars" => (30.0, 45.0),
+        _ => (20.0, 25.0),
+    };
+    filters(a, hpf, None, false, strength.factor())
+        .into_iter()
+        .collect()
 }
 
-/// Cleaning a bus: only a gentle high-pass. What is destructive on a sum (gates, de-essers,
-/// resonance cuts) belongs to its tracks.
-pub fn clean_bus(a: &Analysis, family: Instrument) -> Vec<Step> {
-    let (hpf, _) = bus_rules(bus_family(family));
-    filters(a, hpf, None, false).into_iter().collect()
-}
-
-/// Bringing a bus out: light moves for its family and a slow compressor that glues it.
+/// Bringing a bus out: a slow compressor that glues it, and on the drums the gentle lift of
+/// lows and highs a tube EQ gives.
 pub fn bring_out_bus(
     a: &Analysis,
     family: Instrument,
     strength: Strength,
     flavor: Flavor,
 ) -> Vec<Step> {
+    if strength.off() {
+        return Vec::new();
+    }
     let k = strength.factor();
-    let (_, moves) = bus_rules(bus_family(family));
-    let mut steps = place_moves(a, family, moves, k, flavor);
-    if a.report.integrated.is_some() {
+    let mut steps = Vec::new();
+    if bus_family(family) == Drums {
+        let lean = flavor.lean(Drums);
+        let intensity = flavor.amount.clamp(0.0, 1.0);
+        let weight = (1.5 * k + lean[0] * intensity).clamp(0.0, 4.0);
+        let air = (1.0 * k + lean[3] * intensity).clamp(-2.0, 3.0);
+        let freq = a
+            .report
+            .curve
+            .iter()
+            .filter(|c| (45.0..=90.0).contains(&c.0))
+            .max_by(|x, y| x.1.total_cmp(&y.1))
+            .map_or(60.0, |c| c.0);
+        for (band, freq, gain, bell, purpose) in [
+            (0, freq.round(), weight, true, "Weight"),
+            (3, 10_000.0, air, false, "Air"),
+        ] {
+            let gain = (gain * 2.0).round() / 2.0;
+            if gain.abs() >= 1.0 {
+                steps.push(Step::Eq {
+                    band,
+                    freq,
+                    gain,
+                    q: 0.8,
+                    bell,
+                    purpose,
+                });
+            }
+        }
+    }
+    let reduction = 1.5 * k * flavor.get(|t| t.comp);
+    if a.report.integrated.is_some() && reduction >= 0.5 {
         let attack = 30.0 * flavor.get(|t| t.attack);
-        let reduction = 2.0 * k * flavor.get(|t| t.comp);
         steps.push(compressor(a, (2.0, attack, 200.0), reduction));
     }
     steps
@@ -2008,29 +2218,11 @@ pub fn staging(a: &Analysis) -> Option<f32> {
     Some((((WORKING_DB - level) * 10.0).round() / 10.0).clamp(-24.0, 24.0))
 }
 
-/// The console color that suits an instrument, as an index of [`crate::console::MODELS`]
-/// (0: none).
-pub fn console(i: Instrument) -> usize {
-    const WARM: usize = 1;
-    const BRIGHT: usize = 2;
-    const PUNCH: usize = 3;
-    const SMOOTH: usize = 4;
-    match i {
-        Kick | Snare | Toms | Drums | HandDrums | Cajon | ElectricGuitar => PUNCH,
-        VocalMale | VocalFemale | Bass | Keys => WARM,
-        HiHat | Overheads | Shaker | Tambourine | Cowbell | Claps | AcousticGuitar | Synth => {
-            BRIGHT
-        }
-        BackingVocals | Strings | Brass => SMOOTH,
-        Other => 0,
-    }
-}
-
-/// The send (dB) to the shared reverb at full space; `None` for what stays dry, the low end
-/// and the close drums that carry the rhythm.
+/// The send (dB) to the space at full depth; `None` for what stays dry, the low end and the
+/// close drums that carry the rhythm.
 fn space_send(i: Instrument) -> Option<f32> {
     match i {
-        BackingVocals | Strings => Some(-10.0),
+        BackingVocals | Strings | Whistling => Some(-10.0),
         VocalMale | VocalFemale | AcousticGuitar | Keys | Brass | Claps => Some(-13.0),
         Snare | Synth | HandDrums => Some(-15.0),
         ElectricGuitar | Toms | Shaker | Tambourine | Cajon => Some(-17.0),
@@ -2039,38 +2231,241 @@ fn space_send(i: Instrument) -> Option<f32> {
     }
 }
 
-/// The send (dB) of an instrument to the shared reverb, at `space` (0 to 1).
-pub fn space_send_db(i: Instrument, space: f32) -> Option<f32> {
-    let full = space_send(i)?;
-    (space > 0.01).then(|| (full + 20.0 * space.min(1.0).log10()).max(-40.0))
+/// The drums and the percussion, kept nearer in a vast space.
+fn rhythmic(i: Instrument) -> bool {
+    matches!(i.category(), "Drums" | "Percussion")
 }
 
-/// The shared reverb: a short, light hall, its lows and highs cut so that it never muddies.
-pub const SPACE_REVERB: [(&str, f32); 12] = [
-    ("type", crate::reverb::HALL as f32),
-    ("decay", 1.5),
-    ("predelay", 25.0),
-    ("low_cut", 250.0),
-    ("high_cut", 7000.0),
-    ("width", 100.0),
-    ("mix", 100.0),
-    ("size", 45.0),
-    ("early", 35.0),
-    ("treble", 40.0),
-    ("diffusion", 80.0),
-    ("modulation", 30.0),
-];
+/// The send (dB) of an instrument to its space, at `depth` (0 to 1) in `ambience`.
+pub fn space_send_db(i: Instrument, depth: f32, ambience: Ambience) -> Option<f32> {
+    let full = space_send(i)?
+        + match ambience {
+            Ambience::Studio => -2.0,
+            Ambience::Natural => 0.0,
+            Ambience::Live => 1.0,
+            Ambience::Space if rhythmic(i) => -7.0,
+            Ambience::Space => -1.0,
+        };
+    (depth > 0.01).then(|| (full + 20.0 * depth.min(1.0).log10()).max(-40.0))
+}
+
+/// The send (dB) of the lead voice to the echo, which comes with a live or a vast ambience.
+pub fn echo_send_db(i: Instrument, depth: f32, ambience: Ambience) -> Option<f32> {
+    let full = match ambience {
+        Ambience::Live => -15.0,
+        Ambience::Space => -12.0,
+        Ambience::Studio | Ambience::Natural => return None,
+    };
+    (matches!(i, VocalMale | VocalFemale) && depth > 0.01)
+        .then(|| (full + 20.0 * depth.min(1.0).log10()).max(-40.0))
+}
+
+/// The buses of the space: a room, a plate and a hall shared by the tracks that call for them
+/// (only the natural ambience uses all three), and the echo of the lead voice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Space {
+    Room,
+    Plate,
+    Hall,
+    Echo,
+}
+
+impl Space {
+    pub const ALL: [Space; 4] = [Space::Room, Space::Plate, Space::Hall, Space::Echo];
+
+    /// Its name in an ambience, in English: what its bus is called.
+    pub fn name(self, ambience: Ambience) -> &'static str {
+        match (self, ambience) {
+            (Space::Echo, _) => "Echo",
+            (_, Ambience::Studio) => "Studio",
+            (_, Ambience::Live) => "Live",
+            (_, Ambience::Space) => "Spatial",
+            (Space::Room, _) => "Room",
+            (Space::Plate, _) => "Plate",
+            (Space::Hall, _) => "Hall",
+        }
+    }
+
+    /// The space of an instrument in an ambience; `None` for what stays dry.
+    pub fn of(i: Instrument, ambience: Ambience) -> Option<Self> {
+        space_send(i)?;
+        Some(match ambience {
+            Ambience::Studio => Space::Room,
+            Ambience::Live | Ambience::Space => Space::Hall,
+            Ambience::Natural => match i {
+                VocalMale | VocalFemale | BackingVocals | Whistling | Snare => Space::Plate,
+                Toms | Drums | HandDrums | Cajon | Shaker | Tambourine | Cowbell | Claps => {
+                    Space::Room
+                }
+                _ => Space::Hall,
+            },
+        })
+    }
+
+    /// The effect of its bus.
+    pub fn effect(self) -> &'static str {
+        match self {
+            Space::Echo => "delay",
+            _ => "reverb",
+        }
+    }
+
+    /// Its effect's settings in an ambience at a size (0 to 1), for a style and a tempo. The
+    /// size moves only what changes without a click (the decay, the tone, the early
+    /// reflections); the room and the pre-delay belong to the ambience. The tails die with the
+    /// song's pulse, their lows cut so that they never muddy, their highs soft.
+    pub fn settings(
+        self,
+        ambience: Ambience,
+        size: f32,
+        flavor: Flavor,
+        bpm: f64,
+    ) -> Vec<(&'static str, f32)> {
+        let beat = (60.0 / bpm.clamp(50.0, 220.0)) as f32;
+        let s = size.clamp(0.0, 1.0);
+        let lerp = |a: f32, b: f32| a + (b - a) * s;
+        if self == Space::Echo {
+            return match ambience {
+                Ambience::Space => vec![
+                    ("sync", 1.0),
+                    ("note", 6.0),
+                    ("feedback", lerp(25.0, 40.0)),
+                    ("pingpong", 1.0),
+                    ("low_cut", 300.0),
+                    ("high_cut", lerp(4500.0, 3500.0)),
+                    ("model", 0.0),
+                    ("mix", 100.0),
+                    ("duck", 50.0),
+                ],
+                _ => vec![
+                    ("sync", 0.0),
+                    ("time", (beat * 1000.0 / 5.0).clamp(90.0, 140.0).round()),
+                    ("feedback", lerp(8.0, 18.0)),
+                    ("pingpong", 0.0),
+                    ("low_cut", 250.0),
+                    ("high_cut", 5000.0),
+                    ("model", 1.0),
+                    ("wow", 15.0),
+                    ("mix", 100.0),
+                    ("duck", 30.0),
+                ],
+            };
+        }
+        // Type, decay (s), pre-delay (ms), low and high cut (Hz), room size, early
+        // reflections, treble, diffusion, modulation.
+        let (kind, decay, predelay, low, high, room, early, treble, diffusion, modulation) =
+            match (ambience, self) {
+                (Ambience::Studio, _) => (
+                    crate::reverb::ROOM,
+                    lerp(0.35, 0.7),
+                    2.0,
+                    220.0,
+                    lerp(8000.0, 9500.0),
+                    25.0,
+                    lerp(65.0, 50.0),
+                    55.0,
+                    70.0,
+                    10.0,
+                ),
+                (Ambience::Natural, Space::Room) => (
+                    crate::reverb::ROOM,
+                    lerp(0.5, 0.9),
+                    8.0,
+                    180.0,
+                    9000.0,
+                    35.0,
+                    lerp(60.0, 45.0),
+                    50.0,
+                    70.0,
+                    10.0,
+                ),
+                (Ambience::Natural, Space::Plate) => (
+                    crate::reverb::PLATE,
+                    lerp(beat * 2.0, beat * 3.2).clamp(0.9, 2.2),
+                    (beat * 1000.0 / 16.0).clamp(15.0, 40.0),
+                    220.0,
+                    lerp(7000.0, 8500.0),
+                    50.0,
+                    20.0,
+                    50.0,
+                    85.0,
+                    25.0,
+                ),
+                (Ambience::Natural, _) => (
+                    crate::reverb::HALL,
+                    lerp(beat * 2.8, beat * 4.0).clamp(1.2, 2.8),
+                    25.0,
+                    220.0,
+                    lerp(6500.0, 8000.0),
+                    55.0,
+                    30.0,
+                    40.0,
+                    80.0,
+                    30.0,
+                ),
+                (Ambience::Live, _) => (
+                    crate::reverb::HALL,
+                    lerp(1.6, 2.8),
+                    (beat * 1000.0 / 24.0).clamp(15.0, 35.0),
+                    200.0,
+                    lerp(7500.0, 9000.0),
+                    80.0,
+                    lerp(55.0, 70.0),
+                    45.0,
+                    75.0,
+                    20.0,
+                ),
+                (Ambience::Space, _) => (
+                    crate::reverb::SPACE,
+                    lerp(3.5, 7.0),
+                    (beat * 1000.0 / 8.0).clamp(40.0, 90.0),
+                    300.0,
+                    lerp(7000.0, 5500.0),
+                    90.0,
+                    15.0,
+                    35.0,
+                    90.0,
+                    lerp(45.0, 65.0),
+                ),
+            };
+        // A warm style darkens the tails, a crisp or big one opens them.
+        let top = match flavor.character {
+            Character::Warm => 0.9,
+            Character::Crisp => 1.05,
+            Character::Big => 1.15,
+            _ => 1.0,
+        };
+        let top = 1.0 + (top - 1.0) * flavor.amount.clamp(0.0, 1.0);
+        vec![
+            ("type", kind as f32),
+            ("decay", (decay * 20.0).round() / 20.0),
+            ("predelay", predelay.round()),
+            ("low_cut", low),
+            (
+                "high_cut",
+                ((high * top).min(12_000.0) / 100.0).round() * 100.0,
+            ),
+            ("width", 100.0),
+            ("mix", 100.0),
+            ("size", room),
+            ("early", early.clamp(0.0, 100.0)),
+            ("treble", treble),
+            ("diffusion", diffusion),
+            ("modulation", modulation.clamp(0.0, 100.0)),
+        ]
+    }
+}
 
 /// How far apart (pan, 0 to 1) the tracks of an instrument go when there are several; `None`
 /// for what stays in the center.
 fn spread_of(i: Instrument) -> Option<f32> {
     match i {
-        ElectricGuitar => Some(0.4),
-        AcousticGuitar | Shaker | Tambourine => Some(0.35),
-        BackingVocals | Synth | Strings | HandDrums | Cowbell => Some(0.3),
-        Toms | Keys | Brass => Some(0.25),
-        Claps => Some(0.2),
-        Overheads => Some(0.5),
+        ElectricGuitar => Some(0.8),
+        AcousticGuitar | Shaker | Tambourine => Some(0.7),
+        BackingVocals | Synth | Strings | HandDrums | Cowbell => Some(0.6),
+        Toms | Keys | Brass => Some(0.5),
+        Claps => Some(0.4),
+        Overheads => Some(1.0),
         _ => None,
     }
 }
@@ -2181,8 +2576,8 @@ mod tests {
             panic!("{steps:?}");
         };
         assert!(
-            *hpf > 100.0 && *hpf <= 110.0,
-            "the energy starts high: so does the filter ({hpf})"
+            *hpf > 60.0 && *hpf <= 70.0,
+            "the energy starts high: the filter goes as high as a voice allows ({hpf})"
         );
     }
 
@@ -2209,7 +2604,7 @@ mod tests {
     }
 
     #[test]
-    fn a_kick_gets_weight_less_mud_a_click_and_a_compressor() {
+    fn a_kick_gets_weight_less_mud_and_a_compressor() {
         // A kick every half second: a 52 Hz thump, a boxy ring at 260 Hz, a click.
         let left: Vec<f32> = (0..RATE as usize * 8)
             .map(|t| {
@@ -2220,7 +2615,7 @@ mod tests {
             })
             .collect();
         let a = analyse(&left, &left, RATE);
-        let steps = bring_out(&a, Kick, Strength::NORMAL, Flavor::default());
+        let steps = bring_out(&a, Kick, Strength::NORMAL, Flavor::default(), &[]);
         let eq = |band: usize| {
             steps.iter().find_map(|s| match s {
                 Step::Eq {
@@ -2232,16 +2627,12 @@ mod tests {
                 _ => None,
             })
         };
-        let (weight, mud, click) = (eq(0).unwrap(), eq(1).unwrap(), eq(2).unwrap());
+        let (weight, mud) = (eq(0).unwrap(), eq(1).unwrap());
         assert!(
-            (40.0..=65.0).contains(&weight.0) && weight.1 >= 2.5,
+            (40.0..=65.0).contains(&weight.0) && weight.1 >= 2.0,
             "{weight:?}"
         );
         assert!((220.0..=320.0).contains(&mud.0) && mud.1 <= -2.5, "{mud:?}");
-        assert!(
-            (2000.0..=3500.0).contains(&click.0) && click.1 >= 2.0,
-            "{click:?}"
-        );
         assert!(
             steps
                 .iter()
@@ -2252,14 +2643,26 @@ mod tests {
 
     #[test]
     fn the_space_leaves_the_low_end_dry_and_grows_with_its_knob() {
+        let natural = Ambience::Natural;
         for dry in [Kick, Bass, HiHat, Other] {
-            assert_eq!(space_send_db(dry, 1.0), None, "{dry:?}");
+            assert_eq!(space_send_db(dry, 1.0, natural), None, "{dry:?}");
         }
-        assert_eq!(space_send_db(VocalMale, 0.0), None, "off by default");
-        let half = space_send_db(VocalMale, 0.5).unwrap();
-        let full = space_send_db(VocalMale, 1.0).unwrap();
+        assert_eq!(
+            space_send_db(VocalMale, 0.0, natural),
+            None,
+            "nothing at zero"
+        );
+        let half = space_send_db(VocalMale, 0.5, natural).unwrap();
+        let full = space_send_db(VocalMale, 1.0, natural).unwrap();
         assert!(half < full && full <= -10.0);
-        assert!(space_send_db(BackingVocals, 1.0) > space_send_db(VocalMale, 1.0));
+        assert!(
+            space_send_db(BackingVocals, 1.0, natural) > space_send_db(VocalMale, 1.0, natural)
+        );
+        // A vast space keeps the drums nearer; the lead voice gets an echo live and in space.
+        assert!(space_send_db(Snare, 1.0, Ambience::Space) < space_send_db(Snare, 1.0, natural));
+        assert!(echo_send_db(VocalFemale, 0.5, Ambience::Live).is_some());
+        assert_eq!(echo_send_db(VocalFemale, 0.5, natural), None);
+        assert_eq!(echo_send_db(BackingVocals, 0.5, Ambience::Space), None);
     }
 
     #[test]
@@ -2275,15 +2678,15 @@ mod tests {
             (Toms, "Floor"),
         ];
         let pans = pans(&tracks, 1.0);
-        assert_eq!(pans[0], Some(0.4));
-        assert_eq!(pans[2], Some(-0.4));
+        assert_eq!(pans[0], Some(0.8));
+        assert_eq!(pans[2], Some(-0.8));
         assert_eq!((pans[1], pans[3], pans[4]), (None, None, None));
         assert_eq!(
             (pans[5], pans[6], pans[7]),
-            (Some(-0.25), Some(0.0), Some(0.25))
+            (Some(-0.5), Some(0.0), Some(0.5))
         );
         assert!(super::pans(&tracks, 0.0).iter().all(Option::is_none));
-        assert_eq!(super::pans(&tracks, 0.5)[0], Some(0.2));
+        assert_eq!(super::pans(&tracks, 0.5)[0], Some(0.4));
     }
 
     #[test]
@@ -2291,7 +2694,7 @@ mod tests {
         let left = noise(6.0, |x| x);
         let a = analyse(&left, &left, RATE);
         assert!(
-            clean_bus(&a, Kick)
+            clean_bus(&a, Kick, Strength::NORMAL)
                 .iter()
                 .all(|s| matches!(s, Step::Filters { lpf: None, .. }))
         );
@@ -2309,36 +2712,39 @@ mod tests {
     }
 
     #[test]
-    fn a_pop_mix_brings_the_voice_forward_more_than_a_natural_one() {
+    fn a_style_leans_the_tone_brings_its_console_and_nothing_without_intensity() {
         let left = noise(6.0, |x| x);
         let a = analyse(&left, &left, RATE);
-        let gain = |flavor: Flavor, purpose: &str| -> f32 {
-            bring_out(&a, VocalMale, Strength::NORMAL, flavor)
-                .iter()
-                .find_map(|s| match s {
-                    Step::Eq {
-                        gain, purpose: p, ..
-                    } if *p == purpose => Some(*gain),
-                    _ => None,
-                })
-                .unwrap_or(0.0)
-        };
-        let natural = Flavor::default();
-        let pop = Flavor {
-            character: Character::Pop,
+        let clean = Flavor {
+            character: Character::Crisp,
             amount: 1.0,
         };
-        assert!(gain(pop, "Presence") > gain(natural, "Presence"));
-        assert!(gain(pop, "Air") > gain(natural, "Air"));
+        let warm = Flavor {
+            character: Character::Warm,
+            amount: 1.0,
+        };
+        assert!(clean.lean(VocalMale)[2] > 0.0 && warm.lean(VocalMale)[2] < 0.0);
+        assert!(warm.lean(VocalMale)[3] < clean.lean(VocalMale)[3]);
+        // Only what carries the low end gets more of it.
+        let punchy = Flavor {
+            character: Character::Punchy,
+            amount: 1.0,
+        };
+        assert!(punchy.lean(Kick)[0] > 0.0 && punchy.lean(VocalMale)[0] == 0.0);
         let none = Flavor {
-            character: Character::Pop,
+            character: Character::Crisp,
             amount: 0.0,
         };
         assert_eq!(
-            gain(none, "Air"),
-            gain(natural, "Air"),
+            bring_out(&a, VocalMale, Strength::NORMAL, none, &[]),
+            bring_out(&a, VocalMale, Strength::NORMAL, Flavor::default(), &[]),
             "no intensity, no change"
         );
+        assert_eq!(Character::Transparent.console(), 0);
+        assert!(Character::STYLES[1..].iter().all(|c| c.console() > 0));
+        assert_eq!(Ambience::at(0.1).0, Ambience::Studio);
+        assert_eq!(Ambience::at(0.6).0, Ambience::Live);
+        assert_eq!(Ambience::at(1.0), (Ambience::Space, 1.0));
     }
 
     #[test]
@@ -2360,7 +2766,7 @@ mod tests {
         let left = noise(6.0, |x| x);
         let a = analyse(&left, &left, RATE);
         let total = |s: Strength| -> f32 {
-            bring_out(&a, VocalMale, s, Flavor::default())
+            bring_out(&a, VocalMale, s, Flavor::default(), &[])
                 .iter()
                 .map(|s| match s {
                     Step::Eq { gain, .. } => gain.abs(),
@@ -2421,6 +2827,7 @@ mod tests {
                 Keys,
                 Strength::NORMAL,
                 Flavor::default(),
+                &[],
             )
             .iter()
             .any(|s| matches!(s, Step::Compressor { .. }))
@@ -2452,10 +2859,10 @@ mod tests {
             bell: true,
             purpose: "Presence",
         }];
-        let gain = level_kept(&x, RATE, 0.0, &strip_settings(boost.iter()), &[]);
+        let gain = level_kept(&x, RATE, 0.0, &boost);
         assert!(gain < -1.0, "a big boost is brought back down ({gain})");
         assert_eq!(
-            level_kept(&x, RATE, 0.0, &[], &[]),
+            level_kept(&x, RATE, 0.0, &[]),
             0.0,
             "nothing set: nothing to undo"
         );
@@ -2630,5 +3037,95 @@ mod tests {
                 ("lookahead", 2.0),
             ]),
         );
+    }
+
+    #[test]
+    fn at_zero_nothing_is_proposed() {
+        let x = noise(4.0, |v| v);
+        let a = analyse(&x, &x, RATE);
+        let off = Strength(0.0);
+        assert!(off.off() && off.name() == "Off");
+        assert!(clean(&a, VocalMale, off).is_empty());
+        assert!(bring_out(&a, VocalMale, off, Flavor::default(), &[]).is_empty());
+        assert!(clean_bus(&a, Drums, off).is_empty());
+        assert!(bring_out_bus(&a, Drums, off, Flavor::default()).is_empty());
+        // A light touch does less than the usual dose, never nothing at all.
+        let moves = |s: Strength| -> f32 {
+            bring_out(&a, VocalMale, s, Flavor::default(), &[])
+                .iter()
+                .map(|s| match s {
+                    Step::Eq { gain, .. } => gain.abs(),
+                    _ => 0.0,
+                })
+                .sum()
+        };
+        assert!(moves(Strength::GENTLE) > 0.0 && moves(Strength::GENTLE) < moves(Strength::NORMAL));
+    }
+
+    #[test]
+    fn what_the_cuts_remove_is_given_back_and_the_input_gain_too() {
+        // Low noise: a high-pass in the middle of it takes a lot away.
+        let mut low = 0.0;
+        let x = noise(4.0, |v| {
+            low += 0.02 * (v - low);
+            low * 6.0
+        });
+        let cut = [Step::Filters {
+            hpf: Some(400.0),
+            lpf: None,
+            steep: true,
+        }];
+        let lost = through(&x, RATE, 0.0, &[]) - through(&x, RATE, 0.0, &cut);
+        assert!(lost > 3.0, "{lost}");
+        let kept = level_kept(&x, RATE, 0.0, &cut);
+        assert!((kept - lost).abs() < 0.3, "{kept} for {lost}");
+        // The same through an input gain 7 dB hotter: all of it comes back.
+        let hot = level_kept(&x, RATE, 7.0, &cut);
+        assert!((hot - (kept - 7.0)).abs() < 0.3, "{hot}");
+    }
+
+    #[test]
+    fn each_ambience_has_its_spaces_and_the_size_and_the_tempo_set_the_tails() {
+        let natural = Ambience::Natural;
+        assert_eq!(Space::of(Snare, natural), Some(Space::Plate));
+        assert_eq!(Space::of(VocalFemale, natural), Some(Space::Plate));
+        assert_eq!(Space::of(Toms, natural), Some(Space::Room));
+        assert_eq!(Space::of(Keys, natural), Some(Space::Hall));
+        assert_eq!(Space::of(Kick, natural), None, "the low end stays dry");
+        assert_eq!(Space::of(Keys, Ambience::Studio), Some(Space::Room));
+        assert_eq!(Space::of(Snare, Ambience::Live), Some(Space::Hall));
+        let none = Flavor::default();
+        let get = |space: Space, ambience: Ambience, size: f32, bpm: f64, id: &str| {
+            space
+                .settings(ambience, size, none, bpm)
+                .iter()
+                .find(|p| p.0 == id)
+                .map(|p| p.1)
+        };
+        let decay = |space, ambience, size, bpm| get(space, ambience, size, bpm, "decay").unwrap();
+        assert!(decay(Space::Plate, natural, 0.5, 70.0) > decay(Space::Plate, natural, 0.5, 160.0));
+        assert!(decay(Space::Hall, natural, 0.5, 120.0) > decay(Space::Room, natural, 0.5, 120.0));
+        assert!(
+            decay(Space::Hall, Ambience::Space, 0.0, 120.0)
+                > decay(Space::Hall, natural, 1.0, 120.0)
+        );
+        assert!(
+            decay(Space::Room, Ambience::Studio, 1.0, 120.0)
+                > decay(Space::Room, Ambience::Studio, 0.0, 120.0)
+        );
+        // Within an ambience, the size moves nothing that would click: the room and the
+        // pre-delay stay.
+        for id in ["size", "predelay", "type"] {
+            assert_eq!(
+                get(Space::Hall, Ambience::Live, 0.0, 120.0, id),
+                get(Space::Hall, Ambience::Live, 1.0, 120.0, id)
+            );
+        }
+        assert_eq!(
+            get(Space::Hall, Ambience::Space, 0.5, 120.0, "type"),
+            Some(crate::reverb::SPACE as f32)
+        );
+        assert_eq!(Space::Echo.effect(), "delay");
+        assert!(get(Space::Echo, Ambience::Space, 0.5, 120.0, "sync") == Some(1.0));
     }
 }

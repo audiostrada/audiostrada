@@ -15,7 +15,7 @@ use crate::model::{Project, SourceId};
 pub const EXTENSION: &str = "strada";
 const FORMAT: &str = "audiostrada-project";
 /// Version written by this build. Older files are migrated on load.
-pub const VERSION: u32 = 3;
+pub const VERSION: u32 = 4;
 const AUDIO_DIR: &str = "Audio Files";
 const PEAKS_DIR: &str = "Peaks";
 const VERSIONS_DIR: &str = "Versions";
@@ -162,6 +162,9 @@ pub fn from_json(bytes: &[u8]) -> Result<Project, ProjectError> {
     if version < 3 {
         crate::legacy::folders_to_buses(&mut project);
     }
+    if version < 4 {
+        crate::legacy::rescale_console_amounts(&mut project);
+    }
     if !(8_000..=768_000).contains(&project.sample_rate) {
         return Err(ProjectError::Format(format!(
             "invalid sample rate {}",
@@ -185,6 +188,8 @@ fn migrate(value: Value, version: u32) -> Result<Value, ProjectError> {
         1 => migrate(crate::legacy::v1_to_v2(value), 2),
         // Folders become buses once the project is read (`legacy::folders_to_buses`).
         2 => Ok(value),
+        // Console amounts are halved once it is read (`legacy::rescale_console_amounts`).
+        3 => Ok(value),
         v => Err(ProjectError::Format(format!(
             "no migration from version {v}"
         ))),

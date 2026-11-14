@@ -691,12 +691,13 @@ pub fn of(project: &Project, track: &Track) -> TrackIcon {
 /// The icon of an instrument a track was prepared as.
 fn prepared_as(id: &str) -> Option<TrackIcon> {
     use audiostrada_dsp::prepare::Instrument::*;
-    if id == audiostrada_core::prepare::SPACE {
+    if audiostrada_core::prepare::is_space(id) {
         return Some(TrackIcon::Fx);
     }
     Some(match audiostrada_dsp::prepare::Instrument::from_id(id)? {
         VocalMale | VocalFemale => TrackIcon::Vocals,
         BackingVocals => TrackIcon::Choir,
+        Whistling => TrackIcon::Vocals,
         Kick => TrackIcon::Kick,
         Snare => TrackIcon::Snare,
         Toms => TrackIcon::RackTom,

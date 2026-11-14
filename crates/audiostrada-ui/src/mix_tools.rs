@@ -82,6 +82,12 @@ pub fn definitions(live: bool) -> Vec<Value> {
             &[],
         ),
         tool(
+            "express_mix",
+            "Express Mix: measures the tracks (all the audio tracks unless `tracks`), cleans them up and brings them out by instrument, and applies it in one undo step. Doses 0-100: `clean`, `bring_out`, `balance` (faders toward a balanced mix), `depth` (how much reverb), `ambience` (0-25 studio, 25-50 natural, 50-75 live, 75-100 spatial, the size growing within each), `wide`; `style` transparent, warm, clean, punchy or big at `intensity` (it brings its console color, its depth, ambience and width unless given); `buses` groups families into buses; `headroom` keeps room on the master; `instruments` names what tracks are where their names do not tell ({\"Track\": \"backing_vocals\"}: vocal_male, vocal_female, backing_vocals, whistling, kick, snare, toms, hihat, overheads, drums, bass, electric_guitar, acoustic_guitar, keys, synth, strings, brass, hand_drums, cajon, shaker, tambourine, cowbell, claps, other). What is left out stays as last applied.",
+            json!({"tracks": {"type": "array"}, "clean": {"type": "number"}, "bring_out": {"type": "number"}, "balance": {"type": "number"}, "depth": {"type": "number"}, "ambience": {"type": "number"}, "wide": {"type": "number"}, "style": {"type": "string", "enum": ["transparent", "warm", "clean", "punchy", "big"]}, "intensity": {"type": "number"}, "buses": {"type": "boolean"}, "headroom": {"type": "boolean"}, "instruments": {"type": "object"}}),
+            &[],
+        ),
+        tool(
             "snapshot",
             "Mix snapshots: `save` the console as it is under a name, `recall` one, `list` them.",
             json!({"action": {"type": "string", "enum": ["save", "recall", "list"]}, "name": {"type": "string"}}),
@@ -468,6 +474,58 @@ pub fn call(doc: &mut Document, name: &str, args: &Value) -> Option<Result<Value
                     }
                 });
                 Ok(json!("ok"))
+            }
+            "express_mix" => {
+                use audiostrada_dsp::prepare::Character;
+                let dose = |k: &str| {
+                    args.get(k)
+                        .and_then(Value::as_f64)
+                        .map(|v| (v as f32 / 100.0).clamp(0.0, 1.0))
+                };
+                let tracks = match args.get("tracks").and_then(Value::as_array) {
+                    Some(list) => list
+                        .iter()
+                        .map(|v| match track_ref(doc, Some(v))? {
+                            Channel::Track(t) => Ok(t),
+                            _ => Err("`tracks` takes tracks".to_owned()),
+                        })
+                        .collect::<Result<Vec<_>, String>>()?,
+                    None => crate::prepare_window::every_track(doc),
+                };
+                let style = match string("style").as_deref() {
+                    None => None,
+                    Some(name) => Some(
+                        Character::STYLES
+                            .into_iter()
+                            .find(|c| c.name().eq_ignore_ascii_case(name))
+                            .ok_or(format!("unknown style {name}"))?,
+                    ),
+                };
+                let mut instruments = Vec::new();
+                if let Some(map) = args.get("instruments").and_then(Value::as_object) {
+                    for (track, id) in map {
+                        let id = id.as_str().unwrap_or_default();
+                        let instrument = audiostrada_dsp::prepare::Instrument::from_id(id)
+                            .ok_or(format!("unknown instrument {id}"))?;
+                        instruments.push((track_id(doc, Some(&json!(track)))?, instrument));
+                    }
+                }
+                let request = crate::prepare_window::Request {
+                    tracks,
+                    instruments,
+                    clean: dose("clean"),
+                    bring: dose("bring_out"),
+                    depth: dose("depth"),
+                    ambience: dose("ambience"),
+                    wide: dose("wide"),
+                    balance: dose("balance"),
+                    intensity: dose("intensity"),
+                    style,
+                    buses: args.get("buses").and_then(Value::as_bool),
+                    headroom: args.get("headroom").and_then(Value::as_bool),
+                };
+                let done = crate::prepare_window::run(doc, &request)?;
+                Ok(json!({"tracks": done}))
             }
             "set_console" => {
                 let model = string("model");

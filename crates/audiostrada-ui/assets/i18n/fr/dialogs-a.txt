@@ -72,9 +72,6 @@ Match the level
 Measuring…
 Mesure en cours…
 
-Nothing to compare
-Rien à comparer
-
 Part of the signal of {track}, sent to {target}
 Une part du signal de {track}, envoyée vers {target}
 
@@ -90,9 +87,6 @@ Restaurer la version {number}
 Result
 Résultat
 
-Round {round} of {rounds} · {right} right
-Essai {round} sur {rounds} · {right} juste(s)
-
 Route
 Trajet
 
@@ -101,9 +95,6 @@ Versions enregistrées
 
 Song
 Morceau
-
-Test finished
-Test terminé
 
 The click is off
 Le clic est désactivé
@@ -137,9 +128,6 @@ Pour ajouter les mêmes effets, avec leurs réglages, à n'importe quelle piste
 
 Version {number} restored
 Version {number} restaurée
-
-Whether you hear the consoles or only believe it: {rounds} rounds of A, B and X
-Entendez-vous les consoles ou le croyez-vous seulement : {rounds} essais de A, B et X
 
 You hear the mix
 Vous entendez le mix

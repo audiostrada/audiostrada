@@ -30,9 +30,10 @@ use crate::loudness::{LoudnessMeter, LoudnessReadout};
 use crate::media::MediaPool;
 use crate::meter::MeterReadout;
 use crate::nodes::{
-    Clip, ClipPlayer, ConsoleControls, Gain, InputStage, Insert, InsertControls, LevelControls,
-    MidiClip, MidiControls, MidiLayer, MidiPlayer, MidiShare, Monitor, PlayerControls,
-    PluginControls, PluginNode, RecordWindow, Sequence, SoloBus, Strip, StripControls,
+    Clip, ClipPlayer, ConsoleControls, ConsoleSwitch, Gain, InputStage, Insert, InsertControls,
+    LevelControls, MidiClip, MidiControls, MidiLayer, MidiPlayer, MidiShare, Monitor,
+    PlayerControls, PluginControls, PluginNode, RecordWindow, Sequence, SoloBus, Strip,
+    StripControls,
 };
 use crate::record::{Recorder, TakeTarget};
 use crate::{Engine, EngineConfig, EngineProcessor, HARDWARE_CHANNELS, NodeId, Port, SharedParam};
@@ -358,7 +359,7 @@ pub struct ProjectPlayer {
     /// Live MIDI input, read by the instruments of armed tracks.
     live: LiveMidi,
     /// Every console color off, shared by the input stages.
-    console_off: Arc<AtomicBool>,
+    console_off: Arc<ConsoleSwitch>,
     /// The console on or off whatever the project says: a blind test's, which leaves nothing in
     /// the project or its history.
     console_blind: Option<bool>,
@@ -479,7 +480,7 @@ impl ChannelNodes {
     fn new(
         engine: &mut Engine,
         solo: &SoloBus,
-        bypass: &Arc<AtomicBool>,
+        bypass: &Arc<ConsoleSwitch>,
         name: &str,
         master: bool,
     ) -> Self {
@@ -675,7 +676,7 @@ impl ProjectPlayer {
     pub fn new(config: EngineConfig) -> Self {
         let mut engine = Engine::new(config);
         let solo = SoloBus::default();
-        let console_off = Arc::new(AtomicBool::new(false));
+        let console_off = Arc::new(ConsoleSwitch::default());
         let master = ChannelNodes::new(&mut engine, &solo, &console_off, "Master", true);
         let (meter, loudness) = LoudnessMeter::new();
         let meter = engine.add_node("Loudness", meter, 2, 2);
@@ -747,8 +748,14 @@ impl ProjectPlayer {
     /// nothing written anywhere.
     pub fn set_console_blind(&mut self, off: Option<bool>, project_off: bool) {
         self.console_blind = off;
-        self.console_off
-            .store(off.unwrap_or(project_off), Ordering::Relaxed);
+        self.console_off.set_off(off.unwrap_or(project_off));
+    }
+
+    /// Plays one console (index into `audiostrada_dsp::console::MODELS`) at an amount in place
+    /// of every channel's own, until `None`: what a blind test compares, nothing written
+    /// anywhere.
+    pub fn set_console_test(&mut self, test: Option<(usize, f32)>) {
+        self.console_off.set_test(test);
     }
 
     pub fn engine(&self) -> &Engine {
@@ -1145,10 +1152,8 @@ impl ProjectPlayer {
     /// Brings the graph up to date with `project`; cheap when nothing changed.
     pub fn sync(&mut self, project: &Project, paths: Option<&ProjectPaths>, media: &MediaPool) {
         self.sync_reference(project, paths, media);
-        self.console_off.store(
-            self.console_blind.unwrap_or(project.console_off),
-            Ordering::Relaxed,
-        );
+        self.console_off
+            .set_off(self.console_blind.unwrap_or(project.console_off));
         self.plugins.paths = paths.cloned();
         self.plugins.forced.clear();
         let click = &project.metronome;
@@ -3677,6 +3682,21 @@ mod tests {
         assert!(!f.history.project().console_off);
         f.player.set_console_blind(None, false);
         assert!(differs(&clean, &play(&mut f, &mut processor)));
+        // A blind test may also play another console than the project's, at its own amount.
+        let apart = |a: &[f32], b: &[f32]| {
+            a[1_000..]
+                .iter()
+                .zip(&b[1_000..])
+                .map(|(x, y)| (x - y).abs())
+                .sum::<f32>()
+        };
+        let own = play(&mut f, &mut processor);
+        f.player.set_console_test(Some((1, 100.0)));
+        let tested = play(&mut f, &mut processor);
+        assert!(differs(&clean, &tested) && differs(&own, &tested));
+        f.player.set_console_test(None);
+        let back = play(&mut f, &mut processor);
+        assert!(apart(&own, &back) * 4.0 < apart(&tested, &back));
         // A track of its own stays clean.
         f.history.edit("Console", |p| {
             let t = p.tracks[0].id;

@@ -864,9 +864,6 @@ Inspirée des consoles API
 Inspired by Harrison consoles
 Inspirée des consoles Harrison
 
-50 %: the console as it is. 0 %: softer, 100 %: pushed harder, more harmonics; always at the same level
-50 % : la console telle quelle. 0 % : plus douce, 100 % : poussée plus fort, plus d'harmoniques ; toujours au même niveau
-
 A console's character depends on the level it gets. Sets each audio track's input gain so it plays around -18 dBFS (the selected tracks, or all of them).
 Le caractère d'une console dépend du niveau qu'elle reçoit. Règle le gain d'entrée de chaque piste audio pour qu'elle joue autour de -18 dBFS (les pistes sélectionnées, ou toutes).
 
@@ -1408,10 +1405,10 @@ Clean up
 Nettoyer
 
 Bring out
-Faire ressortir
+Révéler
 
 Clean up and bring out
-Nettoyer et faire ressortir
+Nettoyer et révéler
 
 The track is silent
 La piste est silencieuse
@@ -1450,7 +1447,7 @@ Clean up…
 Nettoyer…
 
 Bring out…
-Faire ressortir…
+Révéler…
 
 The instrument's colour, an even level
 La couleur de l'instrument, un niveau régulier
@@ -1459,7 +1456,7 @@ Both…
 Les deux…
 
 Clean up, then bring out
-Nettoyer, puis faire ressortir
+Nettoyer, puis révéler
 
 Remove the Express Mix
 Retirer l'Express Mix
@@ -1489,7 +1486,7 @@ Clean up the selected tracks…
 Nettoyer les pistes sélectionnées…
 
 Bring out the selected tracks…
-Faire ressortir les pistes sélectionnées…
+Révéler les pistes sélectionnées…
 
 Express Mix of the selected tracks…
 Express Mix des pistes sélectionnées…
@@ -1499,9 +1496,6 @@ Retirer l'Express Mix des pistes sélectionnées
 
 {count} tracks
 {count} pistes
-
-Close without keeping anything
-Fermer sans rien garder
 
 The instrument is
 L'instrument est
@@ -1523,9 +1517,6 @@ Après
 
 What is heard: the track as it was, or prepared as proposed here
 Ce qu'on entend : la piste comme elle était, ou préparée comme proposé ici
-
-Same level
-Même niveau
 
 Listening to the track…
 Écoute de la piste…
@@ -1681,7 +1672,7 @@ How much of it: {percent} % (50 % is what is proposed)
 Le dosage : {percent} % (50 % est ce qui est proposé)
 
 Express Mix: clean the track up, bring it out (right-click for more)
-Express Mix : nettoyer la piste, la faire ressortir (clic droit pour plus)
+Express Mix : nettoyer la piste, la révéler (clic droit pour plus)
 
 Express Mix as: {instrument}, {what}. Click to redo it, right-click to remove it
 Express Mix comme : {instrument}, {what}. Cliquer pour refaire, clic droit pour retirer
@@ -1690,56 +1681,26 @@ Express Mix: all tracks
 Express Mix : toutes les pistes
 
 Cleans up and brings out every track (not the buses): each one is listened to, then you hear the proposal and leave out the tracks you want
-Nettoie et fait ressortir toutes les pistes (pas les bus) : chacune est écoutée, puis vous entendez la proposition et écartez les pistes que vous voulez
-
-Brings the prepared track to the loudness it had, measured on its loudest 20 seconds: before and after compare at equal level, and Apply keeps that gain on the channel strip's output
-Amène la piste préparée au volume qu'elle avait, mesuré sur ses 20 secondes les plus fortes : avant et après se comparent à niveau égal, et Appliquer garde ce gain sur la sortie du Channel Strip
+Nettoie et révèle toutes les pistes (pas les bus) : chacune est écoutée, puis vous entendez la proposition et écartez les pistes que vous voulez
 
 
 Apply to {count} tracks
 Appliquer à {count} pistes
 
-Back to the doses for every track
-Revenir aux dosages de toutes les pistes
-
 Bring out: {dose}
-Faire ressortir : {dose}
+Révéler : {dose}
 
 Clean up: {dose}
 Nettoyer : {dose}
 
 
-Compressors: {count}
-Compresseurs : {count}
-
-De-essers: {count}
-De-essers : {count}
-
 Drag up or down (Shift: finely), double-click for the usual dose
 Glisser vers le haut ou le bas (Maj : finement), double-clic pour le dosage habituel
-
-EQ moves: {count}
-Corrections d'égaliseur : {count}
-
-Filters: {count}
-Filtres : {count}
-
-For every track at once: each one can then be adjusted on its own.
-Pour toutes les pistes à la fois : chacune peut ensuite être ajustée séparément.
-
-Gates: {count}
-Gates : {count}
 
 Guessed from its sound: check it
 Deviné d'après le son : à vérifier
 
 
-
-Left as they are: {count}
-Laissées telles quelles : {count}
-
-Level riding: {count}
-Suivi du volume : {count}
 
 Listening to the tracks: {done} of {total}
 Écoute des pistes : {done} sur {total}
@@ -1747,20 +1708,8 @@ Listening to the tracks: {done} of {total}
 Listening…
 Écoute…
 
-Nothing to do: the tracks are fine as they are.
-Rien à faire : les pistes sont bien telles quelles.
-
-Overview
-Vue d'ensemble
-
-Plosives: {count}
-Plosives : {count}
-
 Include this track
 Inclure cette piste
-
-Resonances: {count}
-Résonances : {count}
 
 Set for every track, on the overview
 Réglé pour toutes les pistes, dans la vue d'ensemble
@@ -1821,18 +1770,12 @@ Congas, bongos ou djembé
 Console colors
 Couleurs de console
 
-Console colors: {count}
-Couleurs de console : {count}
-
 
 Generous
 Généreux
 
 Guitars
 Guitares
-
-Instrument to choose: {count}
-Instrument à choisir : {count}
 
 Its name does not tell the instrument: choose it for a proposal that suits it
 Son nom ne dit pas l'instrument : choisissez-le pour une proposition adaptée
@@ -1848,9 +1791,6 @@ Percussion
 Percussions
 
 
-Sent to the space: {count}
-Envoyées dans l'espace : {count}
-
 Slap
 Claque
 
@@ -1859,9 +1799,6 @@ Un peu d'air
 
 Space: send at {db} dB
 Espace : envoi à {db} dB
-
-Spread in pairs: {count}
-Écartées par paires : {count}
 
 Strada-Transient: more punch on soft hits
 Strada-Transient : plus de punch sur les frappes molles
@@ -1876,14 +1813,8 @@ The Express Mix is bypassed: click to hear it again
 L'Express Mix est bypassé : cliquez pour l'entendre à nouveau
 
 
-Their names do not tell the instrument: click to choose it
-Leurs noms ne disent pas l'instrument : cliquez pour le choisir
-
 Thump
 Coffre
-
-Transient shapers: {count}
-Transient shapers : {count}
 
 Transients: attack {attack} %, sustain {sustain} %
 Transitoires : attaque {attack} %, maintien {sustain} %
@@ -1897,17 +1828,11 @@ introuvable d'après son nom : à choisir
 
 
 
-A light reverb shared by the tracks that call for it
-Une réverbe légère partagée par les pistes qui s'y prêtent
-
 A mix of everything
 Un peu de tout
 
 Choose what it holds
 Choisir ce qu'il contient
-
-Pairs of an instrument spread a little around the center
-Les paires d'un même instrument un peu écartées autour du centre
 
 Subtle
 Subtil
@@ -1925,9 +1850,6 @@ A bus: no space, no spread
 Un bus : ni espace, ni largeur
 
 
-As every track: {name}, {amount} %
-Comme toutes les pistes : {name}, {amount} %
-
 
 
 
@@ -1944,12 +1866,6 @@ Dans le mix
 Intensity
 Intensité
 
-
-Its own color
-Sa propre couleur
-
-Left as it is
-Laissée comme elle est
 
 
 
@@ -1981,14 +1897,8 @@ Glisser pour changer l'ordre des bus ; cliquer pour voir sa proposition
 Drums and guitars forward, punch and bite
 Batterie et guitares en avant, du punch et du mordant
 
-Each family of two tracks or more in a bus of its own, shown in the list: drag the buses there to change their order
-Chaque famille de deux pistes ou plus dans un bus à elle, montré dans la liste : glissez-y les bus pour changer leur ordre
 
 
-
-
-How much of the console's color
-Quelle part de la couleur de la console
 
 
 Natural and open, light compression, soft highs
@@ -1996,9 +1906,6 @@ Naturel et ouvert, compression légère, aigus doux
 
 Pop
 Pop
-
-The style of the song: it doses each move and the balance between instruments
-Le style du morceau : il dose chaque geste et l'équilibre entre les instruments
 
 Vocals up front, bright and polished, firm compression
 Voix devant, brillant et poli, compression ferme
@@ -2011,12 +1918,6 @@ Graves pleins, kick et basse au premier plan, compression dense
 
 Processing
 Traitements
-
-Settings for every track, what is proposed
-Réglages de toutes les pistes, ce qui est proposé
-
-The project's, heard on every track unless a track has its own
-Celle du projet, entendue sur toutes les pistes sauf celles qui ont la leur
 
 The usual moves, nothing pushed
 Les gestes habituels, rien de poussé
@@ -2062,22 +1963,104 @@ Amenée d'abord à -18 dBFS, le niveau qu'attendent sa console et ses compresseu
 Input gain: {gain} dB
 Gain d'entrée : {gain} dB
 
-Input gains set: {count}
-Gains d'entrée réglés : {count}
+Whistling
+Sifflement
 
-Measuring the mix…
-Mesure du mix…
+Warm
+Chaleureux
 
+Big
+Ample
 
-Mix peak {peak} dBFS: room kept
-Crête du mix {peak} dBFS : marge suffisante
+Live
+Live
 
+Ambience
+Ambiance
 
-Headroom for the master
-Marge pour le master
+As in the room, nothing pushed
+Comme dans la pièce, rien d'appuyé
 
-Mix peak {peak} dBFS: {db} dB of room kept for the master
-Crête du mix {peak} dBFS : {db} dB de marge gardés pour le master
+Round and soft, vintage
+Rond et doux, vintage
 
-When the mix peaks above -6 dBFS, it is lowered before the master's effects and brought back after by a Strada-Max: the same loudness, room for the master's processing, no clipping
-Quand le mix dépasse -6 dBFS en crête, il est abaissé avant les effets du master puis remonté après par un Strada-Max : le même volume, de la place pour les traitements du master, pas de saturation
+Defined and modern, never harsh
+Défini et moderne, jamais agressif
+
+The rhythm up front, energy
+La rythmique devant, de l'énergie
+
+Large, wide and airy
+Grand, large et aérien
+
+A concert hall, an echo on the lead voice
+Une salle de concert, un écho sur la voix lead
+
+A little
+Un peu
+
+A room, a plate and a hall, by instrument
+Une pièce, une plaque et une salle, selon l'instrument
+
+Balanced
+Équilibrée
+
+Dry and close, a small room
+Sec et proche, une petite pièce
+
+Each family of two tracks or more in a bus of its own, shown below: drag the buses to change their order
+Chaque famille de deux pistes ou plus dans un bus à elle, montré ci-dessous : faites glisser les bus pour changer leur ordre
+
+Each instrument's tone, an even level
+Le son de chaque instrument, un niveau régulier
+
+Echo: send at {db} dB
+Écho : envoi à {db} dB
+
+For every track at once: each one can then be adjusted in Tracks.
+Pour toutes les pistes à la fois : chacune se règle ensuite dans Pistes.
+
+Halfway
+À mi-chemin
+
+How much reverb each instrument gets
+Combien de réverbe reçoit chaque instrument
+
+No console color
+Pas de couleur de console
+
+Pairs spread around the center
+Les paires écartées autour du centre
+
+Rumble, resonances, plosives, sibilance, bleed
+Grondements, résonances, plosives, sifflantes, repisse
+
+The faders, toward a balanced mix
+Les faders, vers un mix équilibré
+
+The gain that keeps the track as loud as it was
+Le gain qui garde la piste aussi forte qu'avant
+
+Vast and floating, an echo on the lead voice
+Vaste et flottant, un écho sur la voix lead
+
+What the mix should sound like: its tone, its dynamics, its console color
+Le son voulu pour le mix : son timbre, sa dynamique, sa couleur de console
+
+{count} bus(es)
+{count} bus
+
+{count} bus(es): {names}
+{count} bus : {names}
+
+50 %: the console run hot, as on records. Lower: gentler, down to nothing. Higher: its character exaggerated. Always at the same loudness
+50 % : la console poussée à chaud, comme sur les disques. Plus bas : plus douce, jusqu'à rien. Plus haut : son caractère exagéré. Toujours au même volume
+
+Do you hear the consoles? Two takes of the mix, one through a console: say which. It starts easy and gets subtler, to find the amount you hear it from.
+Entendez-vous les consoles ? Deux prises du mix, dont une passe par une console : dites laquelle. Le test commence facile et devient plus subtil, pour trouver à partir de quelle quantité vous l'entendez.
+
+Spatial
+Spatial
+
+Play from this marker
+Lire depuis ce marqueur

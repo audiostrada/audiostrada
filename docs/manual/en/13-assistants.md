@@ -32,7 +32,10 @@ the master and describes it: loudness (LUFS, true peak, loudness range), dynamic
 stereo image, share of energy per frequency band, resonances, tempo, and notes on problems
 (clipping, a master too loud for streaming, phase). `compare_audio` sets two tracks side by side
 and names the frequency ranges where they compete. The agent can then change an EQ or a level
-and listen again.
+and listen again. `express_mix` runs the Express Mix on every audio track (or those given) and
+applies it in one undo step: doses from 0 to 100 (`clean`, `bring_out`, `balance`, `depth`,
+`ambience`, `wide`), a `style` (transparent, warm, clean, punchy, big) at an `intensity`,
+`buses`, `headroom`, and the `instruments` of tracks whose names do not tell.
 It writes music too: `read_midi_clip` gives the notes of a MIDI clip in beats (with the drum map
 of a Strada-Drums track), `write_midi_clip` replaces or adds notes, `add_midi_clip` makes a new
 clip, and `export_midi_file` / `import_midi_file` go through standard MIDI files. Ask it to vary

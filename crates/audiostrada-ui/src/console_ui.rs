@@ -172,8 +172,8 @@ fn menu_contents(ui: &mut Ui, doc: &mut Document) {
     });
     ui.label(
         RichText::new(tr(
-            "Do you hear the consoles? The mix with and without them, one of the two at random: \
-             say which.",
+            "Do you hear the consoles? Two takes of the mix, one through a console: say \
+             which. It starts easy and gets subtler, to find the amount you hear it from.",
         ))
         .size(10.5)
         .color(p.weak),
@@ -214,8 +214,8 @@ fn console_options(ui: &mut Ui, doc: &mut Document, console: Console) {
         let response = ui
             .add(egui::Slider::new(&mut amount, 0.0..=100.0).suffix(" %"))
             .on_hover_text(tr(
-                "50 %: the console as it is. 0 %: softer, 100 %: pushed harder, more harmonics; \
-                 always at the same level",
+                "50 %: the console run hot, as on records. Lower: gentler, down to nothing. \
+                 Higher: its character exaggerated. Always at the same loudness",
             ));
         if response.changed() {
             doc.history_mut()

@@ -337,6 +337,27 @@ pub fn folders_to_buses(project: &mut crate::Project) {
     }
 }
 
+/// Console amounts of projects saved when 50 % was the console as measured and 100 % the
+/// console run hot: these are now 25 % and 50 %, so every amount is halved and the project
+/// sounds as it did.
+pub fn rescale_console_amounts(project: &mut crate::Project) {
+    project.console.amount /= 2.0;
+    for track in &mut project.tracks {
+        let track = std::sync::Arc::make_mut(track);
+        if let Some(console) = &mut track.console {
+            console.amount /= 2.0;
+        }
+        if let Some(prepared) = &mut track.prepared {
+            if let Some(console) = &mut prepared.console {
+                console.amount /= 2.0;
+            }
+            if let Some(console) = prepared.bypassed.as_mut().and_then(|b| b.console.as_mut()) {
+                console.amount /= 2.0;
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

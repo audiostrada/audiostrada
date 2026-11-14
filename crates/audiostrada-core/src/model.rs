@@ -529,6 +529,15 @@ pub struct Prepared {
     /// The input gain the track had, when the preparation set it (gain staging).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trim: Option<f32>,
+    /// The fader the track had, when the preparation set the balance.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gain: Option<f32>,
+    /// Channel strip modules set by hand, left as they were.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hands: Vec<String>,
+    /// What it wrote on the channel strip: a module changed since was set by hand.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub strip: Vec<(String, f32)>,
     /// Switched off for a comparison, with what to put back.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bypassed: Option<Bypassed>,
@@ -568,6 +577,9 @@ pub struct Bypassed {
     /// The input gain the preparation had set.
     #[serde(default)]
     pub trim: f32,
+    /// The fader the preparation had set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gain: Option<f32>,
 }
 
 pub(crate) fn one() -> f32 {
