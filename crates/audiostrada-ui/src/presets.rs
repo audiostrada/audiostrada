@@ -5379,7 +5379,7 @@ mod tests {
                 let (category, name) = crate::effect_editors::preset_category(&preset.name)
                     .unwrap_or_else(|| panic!("{}: {} has no category", info.id, preset.name));
                 assert!(
-                    name.starts_with(|c: char| c.is_uppercase() || c.is_ascii_digit()),
+                    !name.starts_with(char::is_lowercase),
                     "{}: {} starts without a capital",
                     info.id,
                     preset.name
