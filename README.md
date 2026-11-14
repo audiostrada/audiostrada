@@ -31,20 +31,28 @@ AudioStrada is in active development: features land quickly, and some rough edge
 ## Features
 
 - **Recording**: punch-in, loop recording with every pass on its own take lane, comping,
-  playlists, count-in and metronome, input latency compensation, low-latency monitoring.
+  playlists, metronome with a count-in that clicks even from the first bar, pre-roll, input latency compensation, low-latency monitoring.
 - **Editing**: Smart Tool, fades and crossfades, clip gain, Slip, Shuffle and Grid modes, time
   ranges, markers, time-stretch and transpose, clips matched to the project tempo. An audio
   editor finds silences, breaths, sibilants, clicks and clipping and lets you retouch them
   with the mouse, right on the waveform, every retouch dosable and undoable, another track
   drawn under the clip to line them up.
+- **Express Mix**: a pre-mix of the whole song in one click. Each track's instrument is found
+  from its name and its sound, then cleaned up (rumble, resonances, plosives, sibilance, bleed)
+  and brought to its instrument's tone; a style (Transparent, Warm, Clean, Punchy, Big) brings
+  its console color, the faders can move toward a balanced mix, and reverbs and echo come from
+  four ambiences. Everything stays as ordinary inserts, sends and buses, at the same loudness.
 - **Mixing**: a console with effects and sends on every strip, buses made from the selection
-  in one click, groups, VCAs, snapshots, sidechain, console colors, monitor effects and a loudness meter.
+  in one click and folded from the mixer, groups, VCAs, snapshots, sidechain, analog console
+  colors, monitor effects and a loudness meter.
   Automation with bendable curves drawn, moved and selected point by point or freehand, and Read,
   Touch, Latch, Write and Trim modes. Track freeze.
-- **Effects**, each with its own editor, factory presets, A/B and loudness matching: EQ and
-  Vintage EQ, Compressor (Clean, Bus, Opto, FET), Channel Strip, Gate, Limiter, Maximizer,
-  Transient Shaper, De-esser, Pitch Correct, Reverb, Delay, Chorus, Flanger, Phaser, Drive, Tape,
-  Filter, Stereo Imager, Utility, Analyzer and Tuner.
+- **Effects**, each with its own editor, factory presets you can hear before choosing, A/B and
+  loudness matching: EQ and
+  Vintage EQ, Compressor (Clean, Bus, Opto, FET), Multiband Compressor, Channel Strip, Gate,
+  Limiter, Maximizer, Transient Shaper, De-esser, Drum Trigger, Pitch Correct, Pitch Shifter,
+  Doubler, Reverb, Delay, Chorus, Flanger, Phaser, Tremolo and Auto-pan, Drive, Tape, Filter,
+  Stereo Imager, Utility, Analyzer and Tuner.
 - **Guitar**: an amp with 16 built-in models, 21 pedals and cabinet impulse responses, which
   also runs Neural Amp Modeler captures from your library or TONE3000.
 - **MIDI**: an MPE synth, a drum machine, plugin instruments, a piano roll with controller
@@ -59,10 +67,12 @@ AudioStrada is in active development: features land quickly, and some rough edge
 - **AI assistants**: Claude, Cursor or Gemini can drive AudioStrada through the Model Context
   Protocol, from the robot button.
 
-| | | |
-|:-:|:-:|:-:|
-| ![Mixer](docs/images/mixer-window.webp) | ![Channel strip](docs/images/channel-strip.webp) | ![Piano roll](docs/images/piano.webp) |
-| Mixer | Effect editors | Piano roll |
+| | |
+|:-:|:-:|
+| ![Mixer](docs/images/mixer-window.webp) | ![Express Mix](docs/images/express-mix.webp) |
+| Mixer | Express Mix |
+| ![Channel strip](docs/images/channel-strip.webp) | ![Piano roll](docs/images/piano.webp) |
+| Effect editors | Piano roll |
 
 ## Get AudioStrada
 
@@ -133,6 +143,7 @@ AudioStrada is written in Rust.
 | `audiostrada-plugins` | Plugin hosting |
 | `audiostrada-dsp` | Built-in effects |
 | `audiostrada-media` | Decoding, encoding, resampling, peak files |
+| `audiostrada-mp3` | MP3 encoder, run as a separate process |
 | `audiostrada-midi` | MIDI devices, clips and files |
 | `audiostrada-ui` | User interface (egui and wgpu) |
 | `audiostrada-license` | Licenses of the official builds |
