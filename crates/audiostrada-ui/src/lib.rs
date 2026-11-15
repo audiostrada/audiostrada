@@ -20,6 +20,7 @@ mod editor_frame;
 mod effect_browser;
 mod effect_editors;
 mod effect_frame;
+mod effect_shot;
 mod export_window;
 pub mod extension;
 mod favorites;
@@ -71,6 +72,7 @@ mod trigger_editor;
 mod ui_prefs;
 mod updates;
 mod versions_window;
+mod video_capture;
 mod widgets;
 
 #[cfg(test)]
@@ -130,11 +132,16 @@ const MIDI_PORTS_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Development aid: with `AUDIOSTRADA_SCREENSHOT=<file.ppm>`, saves the window after a few frames
 /// (`AUDIOSTRADA_SCREENSHOT_FRAME`, to leave time for `--control` to set it up) and closes it.
+/// With `AUDIOSTRADA_SCREENSHOT_WINDOW` set, the other windows are drawn inside the main one and
+/// only the menu or window on top is saved; `AUDIOSTRADA_SCREENSHOT_CLICK=x,y` clicks there (in
+/// points) half a second before.
 #[derive(Debug)]
 struct Screenshot {
     path: PathBuf,
     frames: u32,
     at: u32,
+    window: bool,
+    click: Option<egui::Pos2>,
     done: Arc<AtomicBool>,
 }
 
@@ -147,19 +154,73 @@ impl Screenshot {
                 .ok()
                 .and_then(|f| f.parse().ok())
                 .unwrap_or(SCREENSHOT_FRAME),
+            window: std::env::var_os("AUDIOSTRADA_SCREENSHOT_WINDOW").is_some(),
+            click: std::env::var("AUDIOSTRADA_SCREENSHOT_CLICK")
+                .ok()
+                .and_then(|c| {
+                    let (x, y) = c.split_once(',')?;
+                    Some(egui::pos2(x.trim().parse().ok()?, y.trim().parse().ok()?))
+                }),
             done: Arc::new(AtomicBool::new(false)),
         })
+    }
+
+    /// The click asked for, in the events of the next frame.
+    fn input(&self) -> Vec<egui::Event> {
+        let Some(pos) = self.click else {
+            return Vec::new();
+        };
+        let at = self.at.saturating_sub(30);
+        let press = |pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        match self.frames + 1 {
+            f if f == at => vec![egui::Event::PointerMoved(pos), press(true), press(false)],
+            f if f == at + 2 => vec![egui::Event::PointerGone],
+            _ => Vec::new(),
+        }
     }
 
     /// Returns true once the screenshot is saved and the window should close.
     fn tick(&mut self, ctx: &egui::Context) -> bool {
         self.frames += 1;
+        if self.window {
+            ctx.set_embed_viewports(true);
+        }
         if self.frames == self.at {
             let (path, done) = (self.path.clone(), Arc::clone(&self.done));
+            let area = self
+                .window
+                .then(|| {
+                    ctx.memory(|m| {
+                        let areas = m.areas();
+                        let top = areas
+                            .top_layer_id(egui::Order::Foreground)
+                            .or_else(|| areas.top_layer_id(egui::Order::Middle))?;
+                        m.area_rect(top.id)
+                    })
+                })
+                .flatten()
+                .map(|r| r * ctx.pixels_per_point());
             ctx.request_screenshot(move |image| {
-                let mut ppm =
-                    format!("P6\n{} {}\n255\n", image.size[0], image.size[1]).into_bytes();
-                ppm.extend(image.pixels.iter().flat_map(|p| [p.r(), p.g(), p.b()]));
+                let [w, h] = image.size;
+                let full =
+                    egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w as f32, h as f32));
+                let r = area.map_or(full, |a| a.round().intersect(full));
+                let (x0, y0, x1, y1) = (
+                    r.left() as usize,
+                    r.top() as usize,
+                    r.right() as usize,
+                    r.bottom() as usize,
+                );
+                let mut ppm = format!("P6\n{} {}\n255\n", x1 - x0, y1 - y0).into_bytes();
+                for y in y0..y1 {
+                    let row = &image.pixels[y * w + x0..y * w + x1];
+                    ppm.extend(row.iter().flat_map(|p| [p.r(), p.g(), p.b()]));
+                }
                 if let Err(e) = std::fs::write(&path, ppm) {
                     tracing::error!("cannot write screenshot {}: {e}", path.display());
                 }
@@ -376,6 +437,7 @@ pub struct AudioStradaApp {
     layout_checked: Instant,
     mac: bool,
     screenshot: Option<Screenshot>,
+    video: Option<video_capture::Video>,
     /// The About window is open.
     about: bool,
     after_save: Option<AfterSave>,
@@ -503,6 +565,7 @@ impl AudioStradaApp {
             layout_checked: Instant::now(),
             mac: cfg!(target_os = "macos"),
             screenshot: Screenshot::from_env(),
+            video: video_capture::Video::from_env(),
             about: false,
             after_save: None,
             license: {
@@ -3221,6 +3284,16 @@ impl eframe::App for AudioStradaApp {
     /// the next pass and played in the mixer on the other screen.
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         let id = raw_input.viewport_id;
+        if let Some(shot) = &self.screenshot
+            && id == egui::ViewportId::ROOT
+        {
+            raw_input.events.extend(shot.input());
+        }
+        if let Some(video) = &mut self.video
+            && id == egui::ViewportId::ROOT
+        {
+            raw_input.events.extend(video.input());
+        }
         if self.lent_keys == Some(id) {
             let wheel = raw_input
                 .events
@@ -3597,6 +3670,16 @@ impl eframe::App for AudioStradaApp {
             && let Some(&action) = Action::ALL.iter().find(|a| format!("{a:?}") == name)
         {
             self.run(&ctx, action);
+        }
+        let commands = self
+            .video
+            .as_mut()
+            .map(|v| v.tick(&ctx))
+            .unwrap_or_default();
+        for name in commands {
+            if let Some(&action) = Action::ALL.iter().find(|a| format!("{a:?}") == name) {
+                self.run(&ctx, action);
+            }
         }
         if let Some(screenshot) = &mut self.screenshot
             && screenshot.tick(&ctx)

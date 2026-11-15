@@ -120,7 +120,10 @@ comments on public items and modules, in the same plain style. No emojis, no em 
   set `XDG_DATA_HOME`, `XDG_STATE_HOME` and `XDG_CACHE_HOME` too, or its autosaves land in the
   user's recovery folder and its log replaces theirs),
   and with `AUDIOSTRADA_SCREENSHOT_FRAME=<n>` and `--control` to set the window up through MCP
-  before the shot.
+  before the shot. `AUDIOSTRADA_SCREENSHOT_ACTION=<Action>` runs a command first (its name in
+  `actions.rs`, such as `Preferences`); `AUDIOSTRADA_SCREENSHOT_WINDOW=1` draws the other windows
+  inside the main one and saves only the menu or window on top; `AUDIOSTRADA_SCREENSHOT_CLICK=x,y`
+  clicks there (in points) half a second before the shot, to open a menu.
 - `AUDIOSTRADA_SCREENSHOT_SYNTH=1 audiostrada` opens Strada-Synth's window (a window of its own,
   which the screenshot above does not show) on the sound named by
   `AUDIOSTRADA_SCREENSHOT_SOUND` and holds a chord, for a capture of that window from outside;
@@ -131,6 +134,18 @@ comments on public items and modules, in the same plain style. No emojis, no em 
   `AUDIOSTRADA_SCREENSHOT_VIEW` (`pad`, `pattern`, `effects`) and, in a new pattern, the rhythm
   `AUDIOSTRADA_SCREENSHOT_RHYTHM`; it saves the editor and quits (`AUDIOSTRADA_SCREENSHOT_FULL`
   for the whole window).
+- `AUDIOSTRADA_SCREENSHOT_EFFECT=out.ppm audiostrada --control PORT project.strada` waits for
+  the built-in effect `AUDIOSTRADA_SCREENSHOT_ID` to be added (through MCP, with its preset) to
+  the track `AUDIOSTRADA_SCREENSHOT_TRACK` (`master` for the master), opens its editor inside
+  the main window at the size its window would have, saves the editor alone a few seconds
+  later and quits. Give the main
+  window room for it (`AUDIOSTRADA_WINDOW_SIZE=1600x1400`); play the song for moving meters.
+- `AUDIOSTRADA_RECORD=<file or fifo>` records the window as PPM frames for ffmpeg
+  (`-f image2pipe -c:v ppm`), from `AUDIOSTRADA_RECORD_AFTER` seconds for
+  `AUDIOSTRADA_RECORD_SECONDS`, cropped to `AUDIOSTRADA_RECORD_RECT=x,y,w,h` or to the window on
+  top with `AUDIOSTRADA_SCREENSHOT_WINDOW`. `AUDIOSTRADA_RECORD_SCRIPT=<file.json>` plays timed
+  gestures (`to`, `dur`, `down`, `up`, `click`, `double`, `mods`) and commands (`action`), and
+  draws a mouse cursor; see `video_capture.rs`.
 - `audiostrada --control PORT` lets `audiostrada mcp --connect PORT` drive a running window
   through the Model Context Protocol (`crates/audiostrada-ui/src/control.rs` lists the tools).
 - `audiostrada help` lists the command line (render, compare, latency, devices, plugin scan).

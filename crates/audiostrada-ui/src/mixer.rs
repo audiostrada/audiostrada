@@ -759,16 +759,23 @@ fn editor_window(
         let last = p.last.get(&id).copied();
         *p.opened.entry(id).or_insert(last)
     });
-    // Drawn inside the main window (screenshots only), it gets room for its whole content.
-    let size = if ctx.embed_viewports() {
-        [size[0], 1250.0]
-    } else {
-        size
-    };
+    // Drawn inside the main window (screenshots only), its size is held here and follows the
+    // content as the window's would.
+    let held_id = egui::Id::unique(("embedded-size", id));
+    let held = ctx.embed_viewports().then(|| {
+        ctx.data(|d| d.get_temp::<egui::Vec2>(held_id))
+            .unwrap_or(egui::vec2(size[0], size[1]))
+    });
     let builder = egui::ViewportBuilder::default()
         .with_title(format!("{title} — AudioStrada"))
-        .with_inner_size(size)
-        .with_min_inner_size([280.0, 180.0]);
+        .with_inner_size(size);
+    let builder = match held {
+        Some(s) => builder
+            .with_inner_size(s)
+            .with_min_inner_size(s)
+            .with_max_inner_size(s),
+        None => builder.with_min_inner_size([280.0, 180.0]),
+    };
     let builder = match position {
         Some(p) => builder.with_position(p),
         None => builder,
@@ -783,6 +790,14 @@ fn editor_window(
         if let Some(add) = add.take() {
             add(ui, &mut fit);
         }
+        if let (Some(held), Some((content, room))) = (held, fit.size) {
+            let wanted = egui::vec2(held.x, (held.y + content.y - room.y).round());
+            if (wanted.y - held.y).abs() > 1.0 {
+                ui.ctx().data_mut(|d| d.insert_temp(held_id, wanted));
+                ui.ctx().request_repaint();
+            }
+        }
+        crate::effect_shot::tick(ui.ctx(), id, ui.min_rect());
         let content = fit.size;
         // The window follows its content, as it changes: no empty space below or at the right,
         // nothing cut when controls appear.
@@ -799,7 +814,9 @@ fn editor_window(
             let v = i.viewport();
             v.maximized == Some(true) || v.fullscreen == Some(true)
         });
-        if let Some((content, room)) = content.filter(|_| frame >= first + 2 && !maximized) {
+        if let Some((content, room)) =
+            content.filter(|_| held.is_none() && frame >= first + 2 && !maximized)
+        {
             let (inner, monitor) = ctx.input(|i| {
                 let v = i.viewport();
                 (
@@ -6007,6 +6024,9 @@ impl MixerView {
             self.show_editor(channel, id);
         }
         if let Some((channel, id)) = crate::drums_editor::shot::open(ctx, doc) {
+            self.show_editor(channel, id);
+        }
+        if let Some((channel, id)) = crate::effect_shot::open(ctx, project) {
             self.show_editor(channel, id);
         }
         let mut closed = Vec::new();
