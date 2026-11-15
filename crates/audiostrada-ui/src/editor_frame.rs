@@ -203,7 +203,11 @@ pub(crate) fn tool_bar(
                     set_full_screen(ui.ctx(), id, !full);
                 }
                 ui.add_space(8.0);
-                ui.label(egui::RichText::new(keys(tools)).size(11.0).color(p.weak));
+                // Cut to the room left by the tools, whole on hover.
+                if ui.available_width() > 60.0 {
+                    let text = egui::RichText::new(keys(tools)).size(11.0).color(p.weak);
+                    ui.add(egui::Label::new(text).truncate());
+                }
             });
         });
     });
