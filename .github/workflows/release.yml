@@ -13,6 +13,9 @@ env:
   CARGO_TERM_COLOR: always
   AUDIOSTRADA_FEATURES: official
   AUDIOSTRADA_LICENSE_KEY: ${{ vars.AUDIOSTRADA_LICENSE_KEY }}
+  # Where crash reports and bugs or ideas go (see crates/audiostrada-ui/src/report.rs); unset,
+  # the web site's /report.
+  AUDIOSTRADA_REPORTS: ${{ vars.AUDIOSTRADA_REPORTS }}
   # Web site serving the download page, as in crates/audiostrada-license (SITE).
   SITE_URL: https://audiostrada.com
 

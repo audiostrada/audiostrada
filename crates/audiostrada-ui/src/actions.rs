@@ -90,6 +90,7 @@ actions! {
     KeyboardShortcuts => ("Help", "Keyboard shortcuts…"),
     About => ("Help", "About AudioStrada"),
     License => ("Help", "License…"),
+    ReportIssue => ("Help", "Report a bug or an idea…"),
     Assistants => ("Help", "AI assistants…"),
     ToggleMetronome => ("Transport", "Toggle metronome"),
     MetronomeSettings => ("Transport", "Metronome settings…"),

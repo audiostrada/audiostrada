@@ -225,6 +225,8 @@ pub struct UiPrefs {
     pub check_updates: Option<bool>,
     /// Day of the last check (YYYY-MM-DD).
     pub updates_checked: Option<String>,
+    /// Crash reports sent without asking (`Some(true)`), else offered at the next start.
+    pub send_crash_reports: Option<bool>,
     /// Width of the timeline's track headers.
     pub header_width: f32,
     /// Narrow mixer strips, but for the one opened by a click.
@@ -276,6 +278,7 @@ impl Default for UiPrefs {
             tab: 0,
             check_updates: None,
             updates_checked: None,
+            send_crash_reports: None,
             header_width: 210.0,
             mixer_compact: false,
             master_left: false,

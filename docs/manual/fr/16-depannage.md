@@ -51,4 +51,12 @@ versions si vous l'avez permis, et pour TONE3000 quand vous le parcourez.
 projet…*.
 
 **Mon travail est-il sauvé si AudioStrada plante ?** Oui : il enregistre tout seul, et propose de
-récupérer le travail au démarrage suivant.
+récupérer le travail au démarrage suivant. Il propose aussi d'envoyer un rapport de plantage : la
+version, le système, l'endroit de l'erreur et la fin du journal (jamais d'audio ni de projet),
+avec un commentaire et votre e-mail si vous voulez une réponse. *Toujours envoyer* évite la
+question ; rien n'est envoyé sans votre accord.
+
+**Comment signaler un bug ou proposer une fonction ?** Aide › *Signaler un bug ou une idée…* : un
+titre, ce qui s'est passé ou ce que vous souhaitez, votre e-mail pour recevoir une réponse et, si
+vous êtes d'accord, la version, le système et la fin du journal. Cela arrive directement aux
+personnes qui font AudioStrada.

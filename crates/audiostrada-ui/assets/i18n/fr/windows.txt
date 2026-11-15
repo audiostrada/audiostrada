@@ -610,3 +610,93 @@ Pour les contrôleurs MPE (Roli Seaboard, LinnStrument, Osmose...), qui envoient
 
 heard
 écoutée
+
+A bug
+Un bug
+
+A report can help fix it: nothing is sent without you
+Un rapport peut aider à corriger le problème : rien n'est envoyé sans vous
+
+A title
+Un titre
+
+About
+Sujet
+
+Always send crash reports without asking
+Toujours envoyer les rapports de plantage sans demander
+
+An idea
+Une idée
+
+Attach the version, the system and the end of the log
+Joindre la version, le système et la fin du journal
+
+AudioStrada closed unexpectedly
+AudioStrada s'est fermé de façon inattendue
+
+AudioStrada stopped on an error {count} times. The reports hold the version, the system, where the error happened and the end of the log: no audio, no project.
+AudioStrada s'est arrêté sur une erreur {count} fois. Les rapports contiennent la version, le système, l'endroit de l'erreur et la fin du journal : ni audio, ni projet.
+
+AudioStrada stopped on an error. The report holds the version, the system, where the error happened and the end of the log: no audio, no project.
+AudioStrada s'est arrêté sur une erreur. Le rapport contient la version, le système, l'endroit de l'erreur et la fin du journal : ni audio, ni projet.
+
+Details
+Détails
+
+Don't send
+Ne pas envoyer
+
+Neither audio nor projects are ever sent. Sent through audiostrada.com.
+Ni audio ni projet ne sont jamais envoyés. Envoyé via audiostrada.com.
+
+Not sent: {error}
+Non envoyé : {error}
+
+Optional, to be answered
+Facultatif, pour recevoir une réponse
+
+Optional: what you did just before
+Facultatif : ce que vous faisiez juste avant
+
+Report a bug or an idea
+Signaler un bug ou une idée
+
+Send the report
+Envoyer le rapport
+
+Sent. Thank you!
+Envoyé. Merci !
+
+Straight to the people who make AudioStrada; we read everything
+Directement aux personnes qui font AudioStrada ; nous lisons tout
+
+The feature, in a few words
+La fonction, en quelques mots
+
+Title
+Titre
+
+What goes wrong, in a few words
+Ce qui ne va pas, en quelques mots
+
+What is sent
+Ce qui est envoyé
+
+What it would let you do, and how you picture it
+Ce qu'elle vous permettrait de faire, et comment vous l'imaginez
+
+What were you doing?
+Que faisiez-vous ?
+
+What you did, what you expected, what happened instead
+Ce que vous avez fait, ce que vous attendiez, ce qui s'est passé à la place
+
+Your email
+Votre e-mail
+
+Your message
+Votre message
+
+Send the message
+Envoyer le message

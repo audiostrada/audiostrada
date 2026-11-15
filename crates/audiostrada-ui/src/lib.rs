@@ -51,6 +51,7 @@ mod prepare_window;
 mod presets;
 mod recording;
 mod reference_window;
+mod report;
 mod rig_editor;
 mod screens;
 mod settings;
@@ -111,6 +112,7 @@ use crate::mixer::MixerView;
 use crate::palette::CommandPalette;
 use crate::preferences::PreferencesWindow;
 pub use crate::presets::factory_presets;
+pub use crate::report::install as install_crash_reports;
 pub use crate::settings::{AudioSettingsPanel, SettingsChange};
 use crate::timeline::TimelineView;
 use crate::transport::{EditMode, EditSettings};
@@ -320,6 +322,8 @@ pub struct AudioStradaApp {
     palette: CommandPalette,
     export: export_window::ExportWindow,
     prepare: prepare_window::PrepareWindow,
+    crashes: report::CrashOffer,
+    feedback: report::Feedback,
     /// Panels shown in their own windows.
     detached: Vec<Pane>,
     midi_inputs: Option<audiostrada_midi::devices::MidiInputs>,
@@ -460,6 +464,8 @@ impl AudioStradaApp {
             palette: CommandPalette::default(),
             export: export_window::ExportWindow::default(),
             prepare: prepare_window::PrepareWindow::default(),
+            crashes: report::CrashOffer::default(),
+            feedback: report::Feedback::default(),
             detached,
             midi_inputs: None,
             play_start: 0,
@@ -1240,6 +1246,7 @@ impl AudioStradaApp {
             Action::KeyboardShortcuts => self.preferences.open_keyboard(),
             Action::About => self.about = true,
             Action::License => self.license_window.open(),
+            Action::ReportIssue => self.feedback.open(),
             Action::Assistants => self.assistants_window.open(),
             Action::AddVca => mixer::add_vca(&mut self.doc.borrow_mut()),
             Action::AddBus => mixer::add_bus(&mut self.doc.borrow_mut()),
@@ -2662,6 +2669,8 @@ impl AudioStradaApp {
                 item(ui, &mut chosen, Action::KeyboardShortcuts, None, true);
                 item(ui, &mut chosen, Action::CommandPalette, None, true);
                 ui.separator();
+                item(ui, &mut chosen, Action::ReportIssue, None, true);
+                ui.separator();
                 item(ui, &mut chosen, Action::Assistants, None, true);
                 item(ui, &mut chosen, Action::License, None, true);
                 item(ui, &mut chosen, Action::About, None, true);
@@ -3554,6 +3563,10 @@ impl eframe::App for AudioStradaApp {
             (self.hooks.ui_changed)(&self.prefs);
         }
         self.ask_for_updates(&ctx);
+        if self.crashes.show(&ctx, &mut self.prefs) {
+            self.ui_changed();
+        }
+        self.feedback.show(&ctx);
         self.updates.poll();
         if self.updates.start(&mut self.prefs) {
             self.ui_changed();

@@ -49,4 +49,10 @@ you allowed it, and for TONE3000 when you browse it.
 **Can I go back to an earlier version of my song?** Yes: File › *Project versions…*.
 
 **Is my work saved if AudioStrada crashes?** Yes: it autosaves, and offers to recover the work
-at the next start.
+at the next start. It also offers to send a crash report: the version, the system, where the
+error happened and the end of the log (never audio nor projects), with a comment and your email
+if you want an answer. *Always send* stops the question; nothing is sent without your word.
+
+**How do I report a bug or suggest a feature?** Help › *Report a bug or an idea…*: a title,
+what happened or what you wish for, your email to be answered, and if you agree the version,
+the system and the end of the log. It goes straight to the people who make AudioStrada.

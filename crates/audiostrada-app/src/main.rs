@@ -135,6 +135,7 @@ fn run_ui(run: &cli::RunArgs) -> anyhow::Result<()> {
     #[cfg(windows)]
     detach_own_console();
     tracing::info!(version = env!("CARGO_PKG_VERSION"), "AudioStrada starting");
+    audiostrada_ui::install_crash_reports(logging::path());
     let prefs = Rc::new(RefCell::new(prefs::Prefs::load()));
     let dirs = app_dirs();
     let project_file = files.iter().find(|f| audio::is_project(f));
