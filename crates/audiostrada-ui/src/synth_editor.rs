@@ -1943,7 +1943,8 @@ fn landscape(
         // The ends rest on the ground: the wave rises in the middle of the field.
         let window = |k: usize| {
             let t = k as f32 / (RIDGE_POINTS - 1) as f32;
-            (std::f32::consts::PI * t).sin().powf(0.7)
+            // sin(PI) is slightly negative in f32, and its power NaN.
+            (std::f32::consts::PI * t).sin().max(0.0).powf(0.7)
         };
         let points: Vec<Pos2> = (0..RIDGE_POINTS)
             .map(|k| {
@@ -2049,7 +2050,7 @@ fn ribbon(
         let reach = rect.height() * 0.36 * (1.0 + 0.35 * depth);
         let window = |k: usize| {
             let t = k as f32 / (RIDGE_POINTS - 1) as f32;
-            (std::f32::consts::PI * t).sin().powf(0.5)
+            (std::f32::consts::PI * t).sin().max(0.0).powf(0.5)
         };
         let at = |k: usize, side: f32| {
             let t = k as f32 / (RIDGE_POINTS - 1) as f32;
