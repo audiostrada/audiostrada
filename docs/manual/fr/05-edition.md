@@ -162,17 +162,6 @@ Par le menu Édition, ou par un clic droit sur des clips ou une plage :
   les normalise, en nouveaux fichiers. La fenêtre dit ce que fait le traitement ; *Valeurs par
   défaut* remet les réglages d'un effet. Les originaux restent dans le projet ; [[Ctrl+Z]]
   revient en arrière.
-- **Beat Detective…** ([[Alt+B]]), avec une plage sur des pistes de batterie, trouve les coups,
-  affichés en lignes rouges, sur toutes les pistes sélectionnées ensemble, pour que les micros
-  d'une batterie soient coupés aux mêmes endroits. *Couper seulement* coupe les clips ; *Caler*
-  déplace aussi chaque tranche vers la grille choisie dans la fenêtre (celle de la barre
-  d'outils au départ), selon l'intensité choisie, avec de courts fondus enchaînés.
-- **Groove…** ([[Alt+G]]) cale les coups de certaines pistes (une basse, des guitares, des
-  claviers) sur ceux d'une référence (la batterie), en étirant l'audio entre eux. Les pistes
-  traitées ensemble sont coupées aux mêmes endroits pour garder leur phase ; chacune reçoit le
-  résultat dans une nouvelle playlist. *Serré*, *Naturel* et *Souple* règlent d'un coup la
-  tolérance et l'intensité ; en dessous de 100 %, une part du jeu d'origine reste.
-  *Pré-écouter* fait entendre les pistes calées pendant les réglages.
 
 ## L'éditeur audio
 

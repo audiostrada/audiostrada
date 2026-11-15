@@ -473,8 +473,6 @@ impl TimelineView {
             };
             self.draw_waveform(painter, wave_rect, doc, project, clip, ink);
             self.strip_preview(painter, wave_rect, clip);
-            self.beat_preview(painter, wave_rect, track.id, clip);
-            self.groove_preview(painter, wave_rect, track.id, clip);
         }
 
         let px = |samples: u64| (samples as f64 / self.zoom) as f32;

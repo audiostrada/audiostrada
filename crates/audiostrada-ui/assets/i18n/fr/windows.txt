@@ -219,9 +219,6 @@ Impossible de restaurer cette version: {error}
 Reference track
 Piste de référence
 
-Choose…
-Choisir…
-
 Reference
 Référence
 

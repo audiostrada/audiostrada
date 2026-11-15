@@ -62,8 +62,6 @@
 | [[Ctrl+H]] | recoller |
 | [[Ctrl+Shift+C]] | consolider |
 | [[Alt+P]] | traiter les clips |
-| [[Alt+B]] | Beat Detective |
-| [[Alt+G]] | Groove |
 
 ## Pistes
 

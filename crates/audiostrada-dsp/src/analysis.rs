@@ -1,5 +1,4 @@
-//! Offline analysis of audio: where it is silent (Strip Silence), where notes and hits start
-//! (Beat Detective).
+//! Offline analysis of audio: where it is silent (Strip Silence), where notes and hits start.
 
 use crate::db_to_gain;
 

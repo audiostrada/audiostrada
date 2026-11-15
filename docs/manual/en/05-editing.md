@@ -153,15 +153,6 @@ From the Edit menu, or by right-clicking clips or a range:
 - **Process clips…** ([[Alt+P]]) renders clips through a built-in effect, reverses them or
   normalizes them, as new files. The window says what the process does; *Defaults* puts an
   effect's settings back. The originals stay in the project; [[Ctrl+Z]] goes back.
-- **Beat Detective…** ([[Alt+B]]), with a range over drum tracks, finds the hits, shown as red
-  lines, on all the selected tracks together, so that the microphones of a kit are cut at the
-  same places. *Separate only* cuts the clips; *Conform* also moves each slice toward the grid
-  chosen in the window (the toolbar's at first) by the chosen strength, with short crossfades.
-- **Groove…** ([[Alt+G]]) moves the hits of some tracks (a bass, guitars, keys) onto those of a
-  reference (the drums) by stretching the audio between them. Tracks grooved together are cut at
-  the same places so that their phase is kept; each gets the result as a new playlist. *Tight*,
-  *Natural* and *Loose* set the tolerance and the strength at once; below 100 %, some of the
-  feel of the take stays. *Pre-listen* plays the tracks grooved while you adjust.
 
 ## The audio editor
 

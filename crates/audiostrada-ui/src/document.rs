@@ -27,11 +27,9 @@ use crate::trf;
 
 mod archive;
 mod export;
-mod groove;
 mod processing;
 mod reference;
-pub use groove::{Band, GrooveMoves, GrooveScan, GrooveSettings, Grooved};
-pub use processing::{Found, HitScan, StripSettings};
+pub use processing::{Found, StripSettings};
 
 pub use export::{ExportRange, ExportSettings, Measuring, Normalize, Process};
 
@@ -3625,42 +3623,6 @@ mod tests {
         assert_eq!(side("Room (G)"), Some((true, "Room".into())));
         assert_eq!(side("Snare"), None);
         assert_eq!(side("Bell"), None);
-    }
-
-    #[test]
-    fn beat_detective_puts_late_and_early_hits_on_the_grid() {
-        let dir = temp("beat-detective");
-        let take = dir.join("drums.wav");
-        // At 120 BPM a beat is 24000 samples: hits a little late or early around beats 2 to 5.
-        let at = [24_600usize, 47_400, 72_500, 95_700];
-        let mut seed = 3u32;
-        let mut samples = vec![0.0f32; 120_000];
-        for &start in &at {
-            for i in 0..4800 {
-                seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
-                let noise = (seed >> 8) as f32 / (1 << 24) as f32 * 2.0 - 1.0;
-                samples[start + i] += noise * 0.8 * (-(i as f32) / 600.0).exp();
-            }
-        }
-        write_wav(&take, &AudioData::new(vec![samples], 48_000)).unwrap();
-        let mut doc = Document::new(AppDirs::default());
-        doc.import(std::slice::from_ref(&take));
-        assert!(doc.wait_loaded(Duration::from_secs(10)));
-        let t = doc.project().tracks[0].id;
-        let hits = doc.find_hits(&[t], 0, 120_000, 0.5);
-        assert_eq!(hits.len(), 4, "{hits:?}");
-        doc.beat_detective(&[t], 0, 120_000, &hits, Some((Some(1.0), 1.0)));
-        let starts: Vec<u64> = doc.project().tracks[0]
-            .clips
-            .iter()
-            .map(|c| c.start)
-            .collect();
-        assert_eq!(starts, [0, 24_000, 48_000, 72_000, 96_000]);
-        assert_eq!(
-            doc.history_mut().undo().as_deref(),
-            Some("Conform to the grid")
-        );
-        assert_eq!(doc.project().tracks[0].clips.len(), 1, "one undo step");
     }
 
     #[test]

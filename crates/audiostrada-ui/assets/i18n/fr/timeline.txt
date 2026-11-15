@@ -219,9 +219,6 @@ Scinder ici
 Normalize, reverse, or render through an effect
 Normaliser, inverser ou faire passer dans un effet
 
-Find the hits of the selected clips, cut or conform them to the grid
-Trouver les attaques des clips sélectionnés, les couper ou les caler sur la grille
-
 Fade in
 Fondu d'entrée
 
@@ -348,20 +345,8 @@ Rien à recoller: sélectionnez des clips coupés dans le même audio, restés e
 Cannot consolidate: {error}
 Consolidation impossible: {error}
 
-Beat Detective
-Beat Detective
-
 Sensitivity
 Sensibilité
-
-{count} hit(s), marked in red
-{count} attaque(s), marquée(s) en rouge
-
-Looking for the hits…
-Recherche des attaques…
-
-Cut the clips where the hits start
-Couper les clips au début des attaques
 
 Strength
 Intensité
@@ -488,39 +473,6 @@ Pentatonique mineure
 
 # Groove
 
-Groove
-Groove
-
-nothing to groove
-rien à caler
-
-the reference holds no audio
-la référence ne contient pas d'audio
-
-{clip} is still loading, try again
-{clip} est encore en chargement, réessayez
-
-{count} track(s) grooved, as a new playlist
-{count} piste(s) calée(s), dans une nouvelle playlist
-
-{name} groove
-{name} groove
-
-Move the hits of the selected tracks onto those of the drums (or any track)
-Caler les attaques des pistes sélectionnées sur celles de la batterie (ou d'une autre piste)
-
-Below 100 %, some of the feel of the take stays
-Sous 100 %, une part du jeu de la prise reste
-
-Choose the track to follow
-Choisissez la piste à suivre
-
-Follow
-Suivre
-
-Hits to follow
-Attaques à suivre
-
 All hits
 Toutes
 
@@ -530,47 +482,20 @@ Grosse caisse (graves)
 Snare and hi-hats (highs)
 Caisse claire et charleston (aigus)
 
-How far a hit may be from the one it follows; farther ones stay
-Écart maximal entre une attaque et celle qu'elle suit ; au-delà, elle ne bouge pas
-
-In the clips: each hit goes from the grey line to the colored one.
-Dans les clips : chaque attaque va du trait gris au trait coloré.
-
 Stretch the tracks into a new playlist; the current one stays as an alternate
 Étirer les pistes dans une nouvelle playlist ; l'actuelle reste en alternative
-
-Stretching…
-Étirement…
 
 Tolerance
 Tolérance
 
-the stretching stopped
-l'étirement s'est arrêté
-
 {moved} of the {hits} hits of the tracks move, by {largest} ms at most ({reference} hits in the reference)
 {moved} des {hits} attaques des pistes bougent, de {largest} ms au plus ({reference} attaques dans la référence)
-
-{name} (folder)
-{name} (dossier)
-
-Groove preview
-Pré-écoute du groove
 
 The Groove preview stays in the project: it was edited meanwhile (undo it if needed)
 La pré-écoute du groove reste dans le projet : il a été modifié entre-temps (annulez-la si besoin)
 
 Hear the tracks grooved while you adjust; nothing stays until you press Groove
 Entendre les pistes calées pendant les réglages ; rien n'est gardé avant d'appuyer sur Groove
-
-Pre-listen
-Pré-écouter
-
-Preparing the pre-listen…
-Préparation de la pré-écoute…
-
-You hear the grooved tracks
-Vous entendez les pistes calées
 
 Select a passage first: Shift+drag across the tracks, or set a loop
 Sélectionnez d'abord un passage : Maj+glisser sur les pistes, ou posez une boucle

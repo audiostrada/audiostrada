@@ -248,8 +248,6 @@ const PANELS: &[Binding] = &[
     (k(PLAIN, true, false, Key::K), Action::MetronomeSettings),
     (k(PLAIN, false, true, Key::R), Action::ListenToReference),
     (k(PLAIN, false, false, Key::Q), Action::Quantize),
-    (k(PLAIN, false, true, Key::G), Action::Groove),
-    (k(PLAIN, false, true, Key::B), Action::BeatDetective),
     (k(PLAIN, false, true, Key::P), Action::ProcessClips),
     (k(PLAIN, true, false, Key::R), Action::RangeFromClips),
     (k(CMD, true, false, Key::R), Action::CropToSelection),

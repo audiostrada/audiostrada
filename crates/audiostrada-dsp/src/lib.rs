@@ -22,7 +22,6 @@ pub mod eq;
 pub mod filter;
 pub mod flanger;
 pub mod gate;
-pub mod groove;
 mod hall;
 pub mod imager;
 pub mod limiter;

@@ -133,12 +133,6 @@ pub fn tool_definitions(live: bool) -> Vec<Value> {
             &["track"],
         ),
         tool(
-            "beat_detective",
-            "Find the hits of tracks (a drum kit: all together, so they stay in phase), cut there and, with a grid (bar, 1/2, 1/4, 1/8, 1/16, 1/32), move the slices toward it by strength (0 to 1).",
-            json!({"tracks": {"type": "array"}, "start": time, "end": time, "sensitivity": {"type": "number"}, "grid": {"type": "string"}, "strength": {"type": "number"}}),
-            &["tracks"],
-        ),
-        tool(
             "consolidate",
             "Render what a track plays between two positions to one new clip.",
             json!({"track": track, "start": time, "end": time}),
@@ -794,39 +788,6 @@ pub fn call_tool(
             let start = time("start").unwrap_or(0);
             let end = time("end").unwrap_or(u64::MAX);
             Ok(json!({"joined": doc.heal(&[track], start, end)}))
-        }
-        "beat_detective" => {
-            let tracks: Vec<TrackId> = arg("tracks")
-                .and_then(Value::as_array)
-                .ok_or("`tracks` is a list")?
-                .iter()
-                .map(|t| track_id(doc, Some(t)))
-                .collect::<Result<_, _>>()?;
-            let start = time("start").unwrap_or(0);
-            let end = time("end").unwrap_or(doc.project().length());
-            let sensitivity = arg("sensitivity").and_then(Value::as_f64).unwrap_or(0.5) as f32;
-            loaded(doc, live)?;
-            let hits = doc.find_hits(&tracks, start, end, sensitivity);
-            let conform = match string("grid") {
-                None => None,
-                Some(grid) => {
-                    let beats = match grid {
-                        "bar" => None,
-                        "1/2" => Some(2.0),
-                        "1/4" => Some(1.0),
-                        "1/8" => Some(0.5),
-                        "1/16" => Some(0.25),
-                        "1/32" => Some(0.125),
-                        other => return Err(format!("unknown grid {other}")),
-                    };
-                    Some((
-                        beats,
-                        arg("strength").and_then(Value::as_f64).unwrap_or(1.0),
-                    ))
-                }
-            };
-            doc.beat_detective(&tracks, start, end, &hits, conform);
-            Ok(json!({"hits": hits.len()}))
         }
         "consolidate" => {
             let track = track_id(doc, arg("track"))?;
@@ -1936,14 +1897,6 @@ pub(crate) mod tests {
             1
         );
         assert_eq!(b.0.project().tracks[2].clips.len(), 1);
-        assert!(
-            call(
-                &mut b,
-                "beat_detective",
-                json!({"tracks": ["Audio 3"], "grid": "1/3"})
-            )
-            .is_err()
-        );
 
         call(&mut b, "delete_track", json!({"track": "Audio 3"})).unwrap();
         assert_eq!(b.0.project().tracks.len(), 2);

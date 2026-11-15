@@ -113,8 +113,6 @@ actions! {
     Consolidate => ("Edit", "Consolidate clips"),
     StripSilence => ("Edit", "Strip silence…"),
     ProcessClips => ("Edit", "Process clips…"),
-    BeatDetective => ("Edit", "Beat Detective…"),
-    Groove => ("Edit", "Groove…"),
     RangeFromClips => ("Edit", "Range over the selected clips"),
     RangeFromLoop => ("Edit", "Range from the loop"),
     RangeAllTracks => ("Edit", "Range on every track"),

@@ -198,12 +198,6 @@ Séparer aux silences
 Heal
 Recoller
 
-Conform to the grid
-Caler sur la grille
-
-Separate at hits
-Séparer aux attaques
-
 save the project first
 enregistrez d'abord le projet
 

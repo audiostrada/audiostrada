@@ -237,8 +237,6 @@ pub struct TimelineView {
     /// Strip Silence and Process clips windows, when open.
     strip: Option<processing::StripWindow>,
     process: Option<processing::ProcessWindow>,
-    beat: Option<processing::BeatWindow>,
-    groove: Option<processing::GrooveWindow>,
     /// The span the range and the loop last agreed on.
     linked: Option<(u64, u64)>,
     /// The range's span when the loop was last matched to it: a change is the user's.
@@ -360,8 +358,6 @@ impl TimelineView {
             comping: None,
             strip: None,
             process: None,
-            beat: None,
-            groove: None,
             linked: None,
             seen_range: None,
             hover: None,
@@ -884,8 +880,6 @@ impl TimelineView {
             Action::Consolidate => self.consolidate(&mut doc),
             Action::StripSilence => self.open_strip(&mut doc),
             Action::ProcessClips => self.open_process(&mut doc),
-            Action::BeatDetective => self.open_beat(&mut doc),
-            Action::Groove => self.open_groove(&mut doc),
             Action::RangeFromClips | Action::RangeFromLoop | Action::RangeAllTracks => {
                 self.set_range(&mut doc, action)
             }
@@ -1314,7 +1308,7 @@ impl TimelineView {
         ui.set_clip_rect(header.intersect(clip));
         self.draw_headers(ui, header, &mut doc, &project, &visuals);
         ui.set_clip_rect(clip);
-        self.processing_windows(ui.ctx(), &mut doc, settings.grid);
+        self.processing_windows(ui.ctx(), &mut doc);
         self.interact(
             ui,
             &mut doc,

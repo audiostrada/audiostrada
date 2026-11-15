@@ -62,8 +62,6 @@
 | [[Ctrl+H]] | heal |
 | [[Ctrl+Shift+C]] | consolidate |
 | [[Alt+P]] | process clips |
-| [[Alt+B]] | Beat Detective |
-| [[Alt+G]] | Groove |
 
 ## Tracks
 

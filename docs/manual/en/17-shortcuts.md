@@ -38,7 +38,7 @@ them, or picks the Pro Tools, Logic or Reaper preset. On macOS, [[Cmd]] replaces
 | [[Ctrl+Shift+R]] | crop the project to the selection |
 | [[Ctrl+Shift+Delete]] / [[Shift+Delete]] | remove / clear the section |
 | [[Ctrl+U]] / [[Ctrl+H]] / [[Ctrl+Shift+C]] | strip silence / heal / consolidate |
-| [[Alt+P]] / [[Alt+B]] / [[Alt+G]] | process clips / Beat Detective / Groove |
+| [[Alt+P]] | process clips |
 | [[Q]] | quantize notes |
 
 ## Tracks

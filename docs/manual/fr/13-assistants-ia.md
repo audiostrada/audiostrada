@@ -24,7 +24,7 @@ d'AudioStrada, se reconnecte à sa requête suivante.
 
 L'assistant commence par appeler `inspect_project`, qui décrit les pistes, les clips, les inserts
 et les sends. Il peut importer de l'audio, ajouter des pistes et des effets, régler les niveaux,
-couper, supprimer les silences, lancer Beat Detective, exporter et enregistrer.
+couper, supprimer les silences, exporter et enregistrer.
 
 **Il entend ce qu'il fait.** `analyze_audio` rend une piste (seule, après ses effets) ou le master
 et la décrit : sonie (LUFS, crête réelle, plage de sonie), dynamique dans le temps, image stéréo,

@@ -836,70 +836,6 @@ pub fn strip_clip(
     pieces
 }
 
-/// Beat Detective's conform: moves the audio clips of `tracks` that start within `start..end`
-/// toward `target(clip start)` by `strength` (0 to 1), then joins each to the next one (a gap
-/// is filled with more of its audio, an overlap is cut) with fades of `fade` samples.
-pub fn conform(
-    project: &mut Project,
-    tracks: &[TrackId],
-    start: u64,
-    end: u64,
-    target: impl Fn(u64) -> u64,
-    strength: f64,
-    fade: u64,
-) {
-    let strength = strength.clamp(0.0, 1.0);
-    for &track in tracks {
-        let Some(t) = project.track_mut(track) else {
-            continue;
-        };
-        let mut moved = std::collections::HashSet::new();
-        for c in t.clips.iter_mut().filter(|c| c.notes.is_none()) {
-            if c.start < start || c.start >= end {
-                continue;
-            }
-            let to = target(c.start) as f64;
-            let new = (c.start as f64 + (to - c.start as f64) * strength)
-                .round()
-                .max(0.0) as u64;
-            c.start = new;
-            moved.insert(c.id);
-        }
-        t.clips.sort_by_key(|c| (c.start, c.id));
-        let Some(t) = project.track(track) else {
-            continue;
-        };
-        let audio: Vec<usize> = (0..t.clips.len())
-            .filter(|&i| t.clips[i].notes.is_none())
-            .collect();
-        // Each moved slice ends where the next starts (as `trim_end` does), crossfaded.
-        let joins: Vec<(usize, usize, u64)> = audio
-            .windows(2)
-            .filter(|w| moved.contains(&t.clips[w[0]].id) || moved.contains(&t.clips[w[1]].id))
-            .map(|w| {
-                let (a, b) = (&t.clips[w[0]], &t.clips[w[1]]);
-                let latest = a.start + source_length(project, a).saturating_sub(a.offset);
-                let end = b
-                    .start
-                    .clamp(a.start + MIN_LENGTH, latest.max(a.start + MIN_LENGTH));
-                (w[0], w[1], end)
-            })
-            .collect();
-        let Some(t) = project.track_mut(track) else {
-            continue;
-        };
-        for (a, b, end) in joins {
-            let c = &mut t.clips[a];
-            c.length = end - c.start;
-            c.fade_out = fade;
-            clamp_fades(c);
-            let c = &mut t.clips[b];
-            c.fade_in = fade;
-            clamp_fades(c);
-        }
-    }
-}
-
 /// Copies of the clips `ids`, with their track.
 fn with_tracks(project: &Project, ids: &[ClipId]) -> Vec<(TrackId, Clip)> {
     ids.iter()
@@ -1737,45 +1673,6 @@ mod tests {
                 (25_000, 5000, 5000)
             ]
         );
-    }
-
-    #[test]
-    fn conform_moves_slices_and_joins_them() {
-        let (mut p, t, ids) = project();
-        // Slices at 0, 2900 and 6100 of the first clip; the grid is every 3000 samples.
-        let right = split(&mut p, 2900, &[ids[0]]);
-        split(&mut p, 6100, &right);
-        conform(
-            &mut p,
-            &[t],
-            0,
-            10_000,
-            |at| (at + 1500) / 3000 * 3000,
-            1.0,
-            32,
-        );
-        let c = clips(&p, t);
-        assert_eq!(
-            c.iter().map(|c| c.0).take(3).collect::<Vec<_>>(),
-            [0, 3000, 6000]
-        );
-        // Each slice now reaches the next: the first grew (its source goes on), the second
-        // was cut where the third starts.
-        assert_eq!((c[0].1, c[1].1), (3000, 3000));
-        assert_eq!((c[0].4, c[1].3), (32, 32), "joined with fades");
-        // Half strength goes half way.
-        let (mut p, t, ids) = project();
-        split(&mut p, 2900, &[ids[0]]);
-        conform(
-            &mut p,
-            &[t],
-            0,
-            10_000,
-            |at| (at + 1500) / 3000 * 3000,
-            0.5,
-            0,
-        );
-        assert_eq!(clips(&p, t)[1].0, 2950);
     }
 
     #[test]

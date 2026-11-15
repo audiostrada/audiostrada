@@ -178,14 +178,6 @@ impl TimelineView {
             self.open_process(doc);
             ui.close();
         }
-        if ui.button(Action::BeatDetective.label()).clicked() {
-            self.open_beat(doc);
-            ui.close();
-        }
-        if ui.button(Action::Groove.label()).clicked() {
-            self.open_groove(doc);
-            ui.close();
-        }
         if ui.button(Action::Copy.label()).clicked() {
             self.copy(doc);
             ui.close();
@@ -598,26 +590,6 @@ impl TimelineView {
             .clicked()
         {
             self.open_process(doc);
-            ui.close();
-        }
-        if ui
-            .button(Action::BeatDetective.label())
-            .on_hover_text(tr(
-                "Find the hits of the selected clips, cut or conform them to the grid",
-            ))
-            .clicked()
-        {
-            self.open_beat(doc);
-            ui.close();
-        }
-        if ui
-            .button(Action::Groove.label())
-            .on_hover_text(tr(
-                "Move the hits of the selected tracks onto those of the drums (or any track)",
-            ))
-            .clicked()
-        {
-            self.open_groove(doc);
             ui.close();
         }
         ui.separator();

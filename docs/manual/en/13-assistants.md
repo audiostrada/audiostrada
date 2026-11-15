@@ -24,7 +24,7 @@ its next request.
 
 AudioStrada speaks the Model Context Protocol (MCP), so an AI agent (Claude Code, Claude Desktop,
 any MCP client) or a script can build and mix a project: import audio, add tracks and
-effects, set levels, cut, strip silence, run Beat Detective, export and save. The agent first
+effects, set levels, cut, strip silence, export and save. The agent first
 calls `inspect_project`, which describes the tracks, clips, inserts and sends.
 
 The agent also hears what it does. `analyze_audio` renders a track (alone, after its effects) or

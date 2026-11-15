@@ -1697,8 +1697,6 @@ impl AudioStradaApp {
             | Action::Consolidate
             | Action::StripSilence
             | Action::ProcessClips
-            | Action::BeatDetective
-            | Action::Groove
             | Action::CropToSelection
             | Action::RangeFromClips
             | Action::RangeFromLoop
@@ -2508,9 +2506,7 @@ impl AudioStradaApp {
                     item(ui, &mut chosen, action, None, true);
                 }
                 ui.separator();
-                for action in [Action::ProcessClips, Action::BeatDetective, Action::Groove] {
-                    item(ui, &mut chosen, action, None, true);
-                }
+                item(ui, &mut chosen, Action::ProcessClips, None, true);
                 ui.separator();
                 item(ui, &mut chosen, Action::Quantize, None, true);
             });

@@ -102,32 +102,14 @@ Un clic sur un son le télécharge et le charge
 Moves the hits of these tracks onto those of another one, stretching the audio between them. The tracks move together, cut at the same places, so their phase is kept (a DI and its amp, several microphones).
 Déplace les attaques de ces pistes sur celles d'une autre, en étirant l'audio entre elles. Les pistes bougent ensemble, coupées aux mêmes endroits, donc leur phase est gardée (une DI et son ampli, plusieurs micros).
 
-Feel
-Jeu
-
-Higher finds softer hits, in both
-Plus haut trouve les attaques plus douces, des deux côtés
-
-What moves
-Ce qui bouge
-
 Hits
 Attaques
-
-Higher finds softer hits
-Plus haut trouve les attaques plus douces
 
 Hits are looked for on all the tracks together, so the microphones of a kit are cut at the same places.
 Les attaques sont cherchées sur toutes les pistes ensemble : les micros d'une batterie sont coupés aux mêmes endroits.
 
 Each slice moves toward the nearest grid line, the slices joined with short crossfades. Below 100 %, some of the feel stays.
 Chaque tranche va vers la ligne de grille la plus proche, les tranches reliées par de courts fondus enchaînés. En dessous de 100 %, une part du jeu reste.
-
-Conform
-Caler
-
-Separate only
-Couper seulement
 
 Silence
 Silence
@@ -215,9 +197,6 @@ Seulement les attaques proches de la référence, à moitié du chemin
 
 {names} and {more} more
 {names} et {more} autres
-
-{tracks}, from {start} to {end}
-{tracks}, de {start} à {end}
 
 {count} clip(s) on {tracks}
 {count} clip(s) sur {tracks}

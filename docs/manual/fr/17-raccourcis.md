@@ -38,7 +38,7 @@ lequel, ou choisit le jeu Pro Tools, Logic ou Reaper. Sous macOS, [[Cmd]] rempla
 | [[Ctrl+Shift+R]] | rogner le projet à la sélection |
 | [[Ctrl+Shift+Delete]] / [[Shift+Delete]] | supprimer / vider le passage |
 | [[Ctrl+U]] / [[Ctrl+H]] / [[Ctrl+Shift+C]] | supprimer les silences / recoller / consolider |
-| [[Alt+P]] / [[Alt+B]] / [[Alt+G]] | traiter les clips / Beat Detective / Groove |
+| [[Alt+P]] | traiter les clips |
 | [[Q]] | quantifier les notes |
 
 ## Pistes
