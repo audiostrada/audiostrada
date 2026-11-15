@@ -6120,6 +6120,7 @@ impl MixerView {
                             audiostrada_dsp::supports_sidechain(info.id),
                         );
                     }
+                    effect_frame::song_row(ui, doc, channel, id);
                     fit.body(ui, |ui| {
                         // The synth shows its wavetable files on its own face.
                         if !rig
@@ -6291,6 +6292,7 @@ impl MixerView {
                 if loaded {
                     let sidechain = doc.player_mut().has_sidechain(channel, id);
                     effect_frame::bottom(ui, doc, channel, insert, &mut state.matching, sidechain);
+                    effect_frame::song_row(ui, doc, channel, id);
                 }
                 fit.body(ui, |ui| {
                     if let Some(error) = &error {

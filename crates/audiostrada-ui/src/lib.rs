@@ -56,6 +56,7 @@ mod report;
 mod rig_editor;
 mod screens;
 mod settings;
+mod song_bar;
 mod song_tools;
 mod synth_editor;
 mod synth_presets;
@@ -2141,6 +2142,17 @@ pub(crate) fn shortcut_labels(action: Action) -> Vec<String> {
             )
         })
         .unwrap_or_default()
+}
+
+/// Runs `action` in the main window at its next frame, from a button of another window.
+pub(crate) fn send_action(ctx: &egui::Context, action: Action) {
+    let Some(inbox) = INBOX.with(|i| i.borrow().clone()) else {
+        return;
+    };
+    if let Ok(mut inbox) = inbox.try_borrow_mut() {
+        inbox.actions.push(action);
+        ctx.request_repaint_of(egui::ViewportId::ROOT);
+    }
 }
 
 /// Shortcuts typed in an effect window, run as in the main window.

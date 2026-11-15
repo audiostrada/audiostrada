@@ -2024,6 +2024,91 @@ fn save_box(
     state.saving = Some(name);
 }
 
+/// Height of the song row under an effect's editor.
+const SONG: f32 = 52.0;
+
+/// The song under an effect's editor: play and pause, solo of the track the effect is on, the
+/// loop, and the song's bar over the outline of what the effect hears.
+pub fn song_row(ui: &mut Ui, doc: &mut Document, channel: Channel, insert: InsertId) {
+    egui::Panel::bottom(("effect-song", insert.0))
+        .frame(egui::Frame::NONE)
+        .exact_size(SONG)
+        .show_separator_line(false)
+        .show(ui, |ui| {
+            let p = theme::current(ui);
+            let full = ui.max_rect();
+            ui.painter().rect_filled(full, 0.0, bar_fill(&p));
+            ui.painter()
+                .hline(full.x_range(), full.top(), Stroke::new(1.0, p.border));
+            ui.allocate_rect(full, Sense::hover());
+            let cy = crate::song_bar::middle(full);
+            let playing = doc.player().engine().playing();
+            let play = Rect::from_center_size(pos2(full.left() + 29.0, cy), vec2(30.0, 26.0));
+            let (icon, hint) = if playing {
+                (theme::Icon::Pause, tr("Pause"))
+            } else {
+                (theme::Icon::Play, tr("Play"))
+            };
+            let clicked = ui
+                .put(play, |ui: &mut Ui| {
+                    theme::icon_button(ui, icon, playing, theme::PLAY, hint, 1.0)
+                })
+                .clicked();
+            if clicked {
+                crate::send_action(ui.ctx(), crate::actions::Action::PlayPause);
+            }
+            let mut left = play.right() + 6.0;
+            let track = match channel {
+                Channel::Master => None,
+                _ => channel.track(doc.project()),
+            };
+            if let Some(id) = track
+                && let Some(t) = doc.project().track(id)
+            {
+                let (solo, name) = (t.solo, t.name.clone());
+                let rect = Rect::from_min_size(pos2(left, cy - 13.0), vec2(26.0, 26.0));
+                let response = ui.put(rect, |ui: &mut Ui| {
+                    theme::letter_toggle(ui, vec2(26.0, 26.0), "S", solo, theme::SOLO)
+                });
+                if response.on_hover_text(tr("Solo")).clicked() {
+                    doc.history_mut()
+                        .edit(&trf!("Solo {name}", name = name), |p| {
+                            audiostrada_core::groups::set_switch(
+                                p,
+                                id,
+                                audiostrada_core::groups::Link::Solo,
+                                !solo,
+                            )
+                        });
+                }
+                left = rect.right() + 6.0;
+            }
+            let looping = doc.project().looping().is_some();
+            let loop_rect = Rect::from_min_size(pos2(left, cy - 13.0), vec2(30.0, 26.0));
+            let action = crate::actions::Action::ToggleLoop;
+            let toggled = ui
+                .put(loop_rect, |ui: &mut Ui| {
+                    theme::icon_button(
+                        ui,
+                        theme::Icon::Loop,
+                        looping,
+                        p.accent,
+                        action.label(),
+                        1.0,
+                    )
+                })
+                .clicked();
+            if toggled {
+                crate::send_action(ui.ctx(), action);
+            }
+            left = loop_rect.right() + 6.0;
+            let bar = Rect::from_min_max(pos2(left, full.top()), full.max);
+            crate::song_bar::show(ui, bar, 8.0, doc, |doc, heights, per_column| {
+                crate::song_bar::outline(doc, channel, heights, per_column)
+            });
+        });
+}
+
 /// The bottom bar: the sidechain when the effect has one, levels in and out, the output gain
 /// and Match.
 pub fn bottom(

@@ -2053,6 +2053,9 @@ Spatial
 Play from this marker
 Lire depuis ce marqueur
 
+Click to play from there, drag to loop a passage
+Cliquez pour jouer depuis là, glissez pour boucler un passage
+
 Bypass master
 Bypass master
 

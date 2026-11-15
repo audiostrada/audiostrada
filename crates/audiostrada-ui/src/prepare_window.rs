@@ -1625,7 +1625,7 @@ impl PrepareWindow {
                     self.header(ui, &p, mode, size.x);
                     let body = (size.y - 58.0 - PLAYHEAD - 54.0).max(300.0);
                     self.body(ui, &p, doc, mode, vec2(size.x, body));
-                    self.playhead(ui, &p, doc, size.x);
+                    self.playhead(ui, doc, size.x);
                     self.footer(ui, &p, playing, size.x, &mut asked);
                 });
         });
@@ -2416,21 +2416,9 @@ impl PrepareWindow {
         }
     }
 
-    /// Where the song plays, over the outline of the tracks measured, with its markers: a click
-    /// or a drag moves there, a marker's name goes to it.
-    fn playhead(&mut self, ui: &mut Ui, p: &Palette, doc: &mut Document, width: f32) {
+    /// Where the song plays, over the outline of the tracks measured, with its markers.
+    fn playhead(&mut self, ui: &mut Ui, doc: &mut Document, width: f32) {
         let (rect, _) = ui.allocate_exact_size(vec2(width, PLAYHEAD), Sense::hover());
-        let project = doc.project();
-        let rate = f64::from(project.sample_rate.max(1));
-        let length = project.length().max(1);
-        let position = doc.player().position().min(length);
-        let bar = Rect::from_min_max(
-            pos2(rect.left() + 22.0, rect.top() + 20.0),
-            pos2(rect.right() - 120.0, rect.bottom() - 6.0),
-        );
-        let painter = ui.painter_at(rect);
-        painter.rect_filled(bar, radius(p), field_fill(p));
-        let x_of = |at: u64| bar.left() + bar.width() * (at as f64 / length as f64) as f32;
         // The tracks' loudness together, every fifth of a second.
         let mut power: Vec<f32> = Vec::new();
         for row in &self.rows {
@@ -2446,93 +2434,15 @@ impl PrepareWindow {
                 }
             }
         }
-        if !power.is_empty() {
-            let top = power.iter().copied().fold(1e-12, f32::max);
-            let step = rules::RIDE_STEP * rate;
-            let played = x_of(position);
-            for (k, v) in power.iter().enumerate() {
-                let x = x_of((k as f64 * step) as u64);
-                if x > bar.right() {
-                    break;
+        let top = power.iter().copied().fold(1e-12, f32::max);
+        let step = rules::RIDE_STEP * f64::from(doc.project().sample_rate.max(1));
+        crate::song_bar::show(ui, rect, 22.0, doc, |_, heights, per_column| {
+            for (k, h) in heights.iter_mut().enumerate() {
+                if let Some(v) = power.get((k as f64 * per_column / step) as usize) {
+                    *h = ((10.0 * (v / top).log10() + 40.0) / 40.0).clamp(0.0, 1.0);
                 }
-                let h = ((10.0 * (v / top).log10() + 40.0) / 40.0).clamp(0.0, 1.0)
-                    * (bar.height() / 2.0 - 2.0);
-                let ink = if x <= played {
-                    p.accent.gamma_multiply(0.8)
-                } else {
-                    p.weak.gamma_multiply(0.45)
-                };
-                painter.line_segment(
-                    [pos2(x, bar.center().y - h), pos2(x, bar.center().y + h)],
-                    Stroke::new(1.0, ink),
-                );
             }
-        }
-        let response = ui
-            .interact(
-                bar.expand2(vec2(0.0, 4.0)),
-                ui.scope_id().with("playhead"),
-                Sense::click_and_drag(),
-            )
-            .on_hover_cursor(egui::CursorIcon::PointingHand);
-        let mut go = None;
-        if let Some(pos) = response.interact_pointer_pos()
-            && (response.clicked() || response.dragged())
-        {
-            let share = ((pos.x - bar.left()) / bar.width()).clamp(0.0, 1.0);
-            go = Some((f64::from(share) * length as f64) as u64);
-        }
-        // The markers, their names over the bar.
-        for (k, marker) in project.markers.iter().enumerate() {
-            let x = x_of(marker.position.min(length));
-            painter.line_segment(
-                [pos2(x, bar.top() - 2.0), pos2(x, bar.bottom())],
-                Stroke::new(1.0, WARN.gamma_multiply(0.8)),
-            );
-            let galley =
-                painter.layout_no_wrap(marker.name.clone(), FontId::proportional(10.5), p.text);
-            let label = Rect::from_min_size(
-                pos2(x + 2.0, rect.top() + 3.0),
-                galley.size() + vec2(6.0, 2.0),
-            );
-            let hit = ui.interact(label, ui.scope_id().with(("marker", k)), Sense::click());
-            painter.rect_filled(
-                label,
-                3.0,
-                if hit.hovered() {
-                    p.hover
-                } else {
-                    WARN.gamma_multiply(0.18)
-                },
-            );
-            painter.galley(label.min + vec2(3.0, 1.0), galley, p.text);
-            if hit
-                .on_hover_text(tr("Play from this marker"))
-                .on_hover_cursor(egui::CursorIcon::PointingHand)
-                .clicked()
-            {
-                go = Some(marker.position);
-            }
-        }
-        let x = x_of(position);
-        painter.line_segment(
-            [pos2(x, bar.top() - 3.0), pos2(x, bar.bottom() + 3.0)],
-            Stroke::new(2.0, p.text),
-        );
-        let time = |at: u64| {
-            let s = (at as f64 / rate) as u64;
-            format!("{}:{:02}", s / 60, s % 60)
-        };
-        painter.text(
-            pos2(rect.right() - 22.0, bar.center().y),
-            Align2::RIGHT_CENTER,
-            format!("{} / {}", time(position), time(length)),
-            FontId::monospace(11.5),
-            p.weak,
-        );
-        if let Some(at) = go {
-            doc.player_mut().locate(at.min(length));
-        }
+        });
     }
 
     /// The bottom bar: listening (play, before and after, the level kept), then the outcome.

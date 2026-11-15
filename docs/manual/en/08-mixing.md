@@ -74,6 +74,12 @@ lit, the output is brought to the input's loudness, so that bypassing the effect
 equal level. It is never saved nor exported and turns off when the window closes; **Keep** moves
 its correction into Output.
 
+Above that bar, the **song** plays without leaving the window: play and pause, **S** to solo the
+track the effect is on (the same solo as in the mixer), the loop, and the whole song drawn from
+what the effect hears, with its markers. A click on it plays from there, a drag loops the
+passage (playback starts at its beginning), a marker's name plays from it; the loop button
+turns the loop off and on again. Express Mix has the same bar.
+
 ## The rack
 
 The **Rack** tab ([[Alt+6]]) shows the chain of the selected track (or of a pinned channel) as

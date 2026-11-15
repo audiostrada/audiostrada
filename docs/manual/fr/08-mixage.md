@@ -75,6 +75,13 @@ qu'il est allumé, la sortie est ramenée à la sonie de l'entrée, pour compare
 bypass à niveau égal. Il n'est jamais enregistré ni exporté et s'éteint quand la fenêtre se ferme ;
 **Garder** reporte sa correction dans la Sortie.
 
+Au-dessus de cette barre, le **morceau** se joue sans quitter la fenêtre : lecture et pause, **S**
+pour mettre en solo la piste qui porte l'effet (le même solo que dans la console), la boucle, et
+tout le morceau dessiné d'après ce qu'entend l'effet, avec ses marqueurs. Un clic dessus lance
+la lecture depuis là, un glisser met le passage en boucle (la lecture repart à son début), le nom
+d'un marqueur lance la lecture depuis lui ; le bouton de boucle l'éteint et la rallume. Express
+Mix a la même barre.
+
 ## Le rack
 
 L'onglet **Rack** ([[Alt+6]]) montre la chaîne de la piste sélectionnée (ou d'une tranche
