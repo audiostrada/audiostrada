@@ -2388,9 +2388,6 @@ Dynamique
 Dynamic EQ band
 Bande d'EQ dynamique
 
-Dynamic band
-Bande dynamique
-
 EQ band type
 Type de bande d'EQ
 
@@ -2399,12 +2396,6 @@ N'écouter que les fréquences sur lesquelles agit cette bande
 
 Remove EQ band
 Retirer une bande d'EQ
-
-Static band
-Bande statique
-
-Stop solo
-Arrêter le solo
 
 The EQ has 16 bands at most
 L'EQ a 16 bandes au plus
@@ -7268,3 +7259,21 @@ Effet : Démon et enfant
 
 FX: Micro-shift widener
 Effet : Élargisseur par micro-décalage
+
+EQ band slope
+Pente de bande d'EQ
+
+Gain to 0 dB
+Gain à 0 dB
+
+Flip the gain
+Inverser le gain
+
+EQ band gain
+Gain de bande d'EQ
+
+Cuts up to {db} dB while these frequencies pass the threshold
+Baisse jusqu'à {db} dB tant que ces fréquences dépassent le seuil
+
+Boosts up to {db} dB while these frequencies pass the threshold
+Monte jusqu'à {db} dB tant que ces fréquences dépassent le seuil

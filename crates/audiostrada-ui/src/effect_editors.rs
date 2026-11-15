@@ -1119,7 +1119,7 @@ fn eq(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut EditorState)
     drag.on_hover_text(hint);
 
     ui.add_space(6.0);
-    band_panel(ui, params, state, &bands);
+    band_panel(ui, params, state, &bands, &offsets);
 }
 
 /// Puts a band in the first free slot, at `freq` and `gain`.
@@ -1157,7 +1157,8 @@ fn remove_band(params: &mut Params, state: &mut EditorState, b: usize) {
     );
 }
 
-/// Right-click menu of a band: its type, dynamics, solo, bypass, removal.
+/// Right-click menu of a band: its shape, slope and placement, its switches, quick changes of
+/// its gain, its removal.
 fn band_menu(
     ui: &mut Ui,
     params: &mut Params,
@@ -1166,57 +1167,151 @@ fn band_menu(
     band: &audiostrada_dsp::eq::Band,
 ) {
     let id = |field: &str| audiostrada_dsp::eq::param_id(b, field);
-    for kind in BandType::ALL {
-        if ui
-            .selectable_label(band.kind == kind, band_type_name(kind))
-            .clicked()
-        {
-            edit_params(
-                params,
-                tr("EQ band type"),
-                &[(id("type"), kind.index() as f32)],
-            );
+    let color = band_color(b);
+    ui.set_width(180.0);
+    ui.label(
+        RichText::new(format!("{} {}", tr("Band"), b + 1))
+            .strong()
+            .color(color),
+    );
+    if let Some(kind) = type_picker(ui, band.kind, color) {
+        edit_params(
+            params,
+            tr("EQ band type"),
+            &[(id("type"), kind.index() as f32)],
+        );
+        ui.close();
+    }
+    if band.kind.has_slope() {
+        ui.horizontal(|ui| {
+            if let Some(i) = chips(
+                ui,
+                &SLOPE_SHORT,
+                &audiostrada_dsp::eq::SLOPES,
+                Some(band.slope),
+            ) {
+                edit_params(params, tr("EQ band slope"), &[(id("slope"), i as f32)]);
+            }
+        });
+    }
+    ui.horizontal(|ui| {
+        if let Some(i) = chips(ui, &PLACE_SHORT, &PLACE_HINTS, Some(band.place as usize)) {
+            edit_params(params, tr("EQ band placement"), &[(id("place"), i as f32)]);
+        }
+    });
+    ui.separator();
+    if band.kind.can_be_dynamic() {
+        let mut dynamic = band.dynamic.is_some();
+        if ui.checkbox(&mut dynamic, tr("Dynamic")).changed() {
+            let on = if dynamic { 1.0 } else { 0.0 };
+            edit_params(params, tr("Dynamic EQ band"), &[(id("dyn"), on)]);
+        }
+    }
+    let mut soloed = state.eq_solo == Some(b);
+    if ui.checkbox(&mut soloed, tr("Solo")).changed() {
+        state.eq_solo = soloed.then_some(b);
+        solo_band(params, state.eq_solo);
+    }
+    let mut bypassed = band.bypass;
+    if ui.checkbox(&mut bypassed, tr("Bypass")).changed() {
+        let off = if bypassed { 1.0 } else { 0.0 };
+        edit_params(params, tr("Bypass EQ band"), &[(id("bypass"), off)]);
+    }
+    if band.kind.has_gain() && band.gain.abs() > 0.05 {
+        ui.separator();
+        if ui.button(tr("Gain to 0 dB")).clicked() {
+            edit_params(params, tr("EQ band gain"), &[(id("gain"), 0.0)]);
+            ui.close();
+        }
+        if ui.button(tr("Flip the gain")).clicked() {
+            edit_params(params, tr("EQ band gain"), &[(id("gain"), -band.gain)]);
             ui.close();
         }
     }
     ui.separator();
-    if band.kind.can_be_dynamic() {
-        let label = if band.dynamic.is_some() {
-            tr("Static band")
-        } else {
-            tr("Dynamic band")
-        };
-        if ui.button(label).clicked() {
-            let on = if band.dynamic.is_some() { 0.0 } else { 1.0 };
-            edit_params(params, tr("Dynamic EQ band"), &[(id("dyn"), on)]);
-            ui.close();
-        }
-    }
-    let soloed = state.eq_solo == Some(b);
     if ui
-        .button(if soloed { tr("Stop solo") } else { tr("Solo") })
+        .button(RichText::new(tr("Remove")).color(theme::RECORD))
         .clicked()
     {
-        state.eq_solo = (!soloed).then_some(b);
-        solo_band(params, state.eq_solo);
-        ui.close();
-    }
-    if ui
-        .button(if band.bypass {
-            tr("Enable")
-        } else {
-            tr("Bypass")
-        })
-        .clicked()
-    {
-        let off = if band.bypass { 0.0 } else { 1.0 };
-        edit_params(params, tr("Bypass EQ band"), &[(id("bypass"), off)]);
-        ui.close();
-    }
-    if ui.button(tr("Remove")).clicked() {
         remove_band(params, state, b);
         ui.close();
     }
+}
+
+/// The slopes of the cuts, as their chips show them (dB per octave in the hints).
+const SLOPE_SHORT: [&str; 6] = ["6", "12", "18", "24", "36", "48"];
+
+/// A small drawing of a band type's curve in `rect`, around its 0 dB line.
+fn shape_glyph(painter: &egui::Painter, rect: Rect, kind: BandType, color: Color32) {
+    let smooth = |x: f32| {
+        let x = x.clamp(0.0, 1.0);
+        x * x * (3.0 - 2.0 * x)
+    };
+    let bump = |t: f32, width: f32| (-((t - 0.5) / width).powi(2)).exp();
+    let level = |t: f32| match kind {
+        BandType::Bell => bump(t, 0.16),
+        BandType::LowShelf => 1.0 - smooth((t - 0.25) / 0.45),
+        BandType::HighShelf => smooth((t - 0.3) / 0.45),
+        BandType::LowCut => -1.2 * (1.0 - smooth((t - 0.02) / 0.4)),
+        BandType::HighCut => -1.2 * smooth((t - 0.58) / 0.4),
+        BandType::Notch => -1.2 * bump(t, 0.06),
+        BandType::BandPass => -1.2 * (1.0 - bump(t, 0.2)),
+        BandType::Tilt => (t - 0.5) * 1.8,
+    };
+    let middle = rect.center().y;
+    let amp = rect.height() * 0.4;
+    painter.hline(
+        rect.x_range(),
+        middle,
+        Stroke::new(1.0, color.gamma_multiply(0.25)),
+    );
+    let points: Vec<Pos2> = (0..=28)
+        .map(|i| {
+            let t = i as f32 / 28.0;
+            pos2(rect.left() + t * rect.width(), middle - level(t) * amp)
+        })
+        .collect();
+    painter.add(Shape::line(points, Stroke::new(1.6, color)));
+}
+
+/// The band types as drawings in two rows across the width, the current one lit in `color`;
+/// the type clicked.
+fn type_picker(ui: &mut Ui, current: BandType, color: Color32) -> Option<BandType> {
+    let p = theme::current(ui);
+    let mut picked = None;
+    let cell = ((ui.available_width() - 9.0) / 4.0).clamp(30.0, 48.0);
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing = vec2(3.0, 3.0);
+        for row in BandType::ALL.chunks(4) {
+            ui.horizontal(|ui| {
+                for &kind in row {
+                    let (rect, response) = ui.allocate_exact_size(vec2(cell, 24.0), Sense::click());
+                    let on = kind == current;
+                    let fill = if on {
+                        color.gamma_multiply(0.2)
+                    } else if response.hovered() {
+                        p.hover
+                    } else {
+                        p.surface
+                    };
+                    let painter = ui.painter();
+                    painter.rect_filled(rect, 4.0, fill);
+                    painter.rect_stroke(
+                        rect,
+                        4.0,
+                        Stroke::new(1.0, if on { color } else { p.border }),
+                        egui::StrokeKind::Inside,
+                    );
+                    let ink = if on { color } else { p.weak };
+                    shape_glyph(painter, rect.shrink2(vec2(6.0, 5.0)), kind, ink);
+                    if response.on_hover_text(band_type_name(kind)).clicked() && !on {
+                        picked = Some(kind);
+                    }
+                }
+            });
+        }
+    });
+    picked
 }
 
 /// The bands as colored chips, and the controls of the selected one.
@@ -1225,6 +1320,7 @@ fn band_panel(
     params: &mut Params,
     state: &mut EditorState,
     bands: &[(usize, audiostrada_dsp::eq::Band)],
+    offsets: &[f32],
 ) {
     let p = theme::current(ui);
     ui.horizontal(|ui| {
@@ -1283,12 +1379,24 @@ fn band_panel(
             let id = |field: &str| audiostrada_dsp::eq::param_id(b, field);
             let title = format!("{} {}", tr("Band"), b + 1);
             eq_section(ui, &title, color, |ui| {
-                ui.horizontal(|ui| {
-                    choice_box(ui, params, &id("type"));
-                    if band.kind.has_slope() {
-                        choice_box(ui, params, &id("slope"));
-                    }
-                });
+                if let Some(kind) = type_picker(ui, band.kind, color) {
+                    edit_params(
+                        params,
+                        tr("EQ band type"),
+                        &[(id("type"), kind.index() as f32)],
+                    );
+                }
+                if band.kind.has_slope() {
+                    ui.add_space(2.0);
+                    ui.horizontal(|ui| {
+                        let current = Some(band.slope);
+                        if let Some(i) =
+                            chips(ui, &SLOPE_SHORT, &audiostrada_dsp::eq::SLOPES, current)
+                        {
+                            edit_params(params, tr("EQ band slope"), &[(id("slope"), i as f32)]);
+                        }
+                    });
+                }
                 ui.add_space(2.0);
                 ui.horizontal(|ui| {
                     let current = Some(band.place as usize);
@@ -1359,6 +1467,26 @@ fn band_panel(
                         params,
                         tr("Dynamic EQ band"),
                         &[(id("dyn"), if dynamic { 0.0 } else { 1.0 })],
+                    );
+                }
+                if let Some((_, range)) = band.dynamic {
+                    let what = if range < 0.0 {
+                        crate::trf!(
+                            "Cuts up to {db} dB while these frequencies pass the threshold",
+                            db = format!("{:.1}", -range)
+                        )
+                    } else {
+                        crate::trf!(
+                            "Boosts up to {db} dB while these frequencies pass the threshold",
+                            db = format!("{range:.1}")
+                        )
+                    };
+                    let now = offsets.get(b).copied().unwrap_or(0.0);
+                    ui.add_space(2.0);
+                    ui.label(
+                        RichText::new(format!("{what} · {:+.1} dB", now))
+                            .size(10.5)
+                            .color(p.weak),
                     );
                 }
             });
@@ -3681,17 +3809,11 @@ fn vintage_eq(ui: &mut Ui, params: &mut Params) {
     );
     ui.add_space(8.0);
     // The faceplate: knobs above, frequency selectors below, by section.
-    let plate = Plate::of(&theme::current(ui));
+    let plate = Plate::TEAL;
     let width = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(vec2(width, 268.0), Sense::hover());
-    theme::gradient_rect(ui.painter(), rect, plate.top, plate.bottom);
-    ui.painter().rect_stroke(
-        rect,
-        8.0,
-        Stroke::new(1.0, plate.ink.gamma_multiply(0.25)),
-        egui::StrokeKind::Inside,
-    );
-    let inner = rect.shrink2(vec2(14.0, 10.0));
+    paint_faceplate(&ui.painter_at(rect), rect, &plate);
+    let inner = rect.shrink2(vec2(30.0, 10.0));
     let unit = inner.width() / 6.0;
     let strip = |from: f32, cells: f32| {
         Rect::from_min_size(
@@ -3825,27 +3947,126 @@ fn vintage_eq(ui: &mut Ui, params: &mut Params) {
         row(tube, 0, 1, true),
         &plate,
     );
-    // The pilot lamp glows with the warmth.
-    let glow = params.get("warmth") / 100.0;
-    let lamp = pos2(tube.right() - 12.0, tube.top() + 8.0);
-    let lit = Color32::from_rgb(255, 176, 64);
-    for (radius, alpha) in [(14.0, 0.10), (10.0, 0.18)] {
-        ui.painter()
-            .circle_filled(lamp, radius, lit.gamma_multiply(alpha * glow));
+    // The pilot lamp, a red jewel: lit while powered, brighter with the warmth.
+    let glow = 0.45 + 0.55 * params.get("warmth") / 100.0;
+    let lamp = pos2(tube.right() - 24.0, tube.top() + 10.0);
+    let lit = Color32::from_rgb(255, 64, 52);
+    let painter = ui.painter();
+    for (radius, alpha) in [(18.0, 0.07), (13.0, 0.14), (9.5, 0.22)] {
+        painter.circle_filled(lamp, radius, lit.gamma_multiply(alpha * glow));
     }
-    ui.painter().circle_filled(
+    painter.circle_filled(lamp, 8.0, Color32::from_rgb(150, 150, 156));
+    painter.circle_stroke(lamp, 8.0, Stroke::new(1.0, Color32::from_black_alpha(140)));
+    painter.circle_filled(
         lamp,
         6.0,
-        Color32::from_rgb(90, 40, 20).lerp_to_gamma(lit, 0.25 + 0.75 * glow),
+        Color32::from_rgb(80, 8, 8).lerp_to_gamma(lit, glow),
     );
-    ui.painter()
-        .circle_stroke(lamp, 6.0, Stroke::new(1.5, Color32::from_black_alpha(120)));
-    ui.painter()
-        .circle_filled(lamp + vec2(-2.0, -2.0), 1.6, Color32::from_white_alpha(140));
+    // Facets of the jewel, and the light caught on it.
+    for k in 0..6 {
+        let a = k as f32 * std::f32::consts::PI / 3.0;
+        painter.line_segment(
+            [lamp, plate_point(lamp, 6.0, a)],
+            Stroke::new(0.8, Color32::from_black_alpha(50)),
+        );
+    }
+    painter.circle_filled(lamp + vec2(-2.0, -2.2), 1.8, Color32::from_white_alpha(170));
 }
 
-/// Colors of the tube EQ's faceplate, with the theme: slate with cream engraving in the
-/// dark, pale steel with dark engraving in the light.
+/// The faceplate of the tube EQ, as the old hardware in its teal paint: lit from the top left,
+/// darker toward the bottom, its edges bevelled, rack slots at its ends and chrome screws.
+fn paint_faceplate(painter: &egui::Painter, rect: Rect, plate: &Plate) {
+    theme::gradient_rect(painter, rect, plate.bottom, plate.top);
+    // A soft light from the top left, fading out across the plate.
+    let light = pos2(
+        rect.left() + rect.width() * 0.3,
+        rect.top() + rect.height() * 0.15,
+    );
+    let reach = rect.width() * 0.75;
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(light, Color32::from_white_alpha(32));
+    let n = 48;
+    for k in 0..=n {
+        let a = k as f32 / n as f32 * std::f32::consts::TAU;
+        mesh.colored_vertex(
+            light + vec2(a.cos() * reach, a.sin() * reach * 0.55),
+            Color32::TRANSPARENT,
+        );
+        if k > 0 {
+            mesh.add_triangle(0, k, k + 1);
+        }
+    }
+    painter.add(Shape::mesh(mesh));
+    // The bottom in shade.
+    let shade = Rect::from_min_max(
+        pos2(rect.left(), rect.bottom() - rect.height() * 0.35),
+        rect.max,
+    );
+    theme::gradient_rect(
+        painter,
+        shade,
+        Color32::from_black_alpha(70),
+        Color32::TRANSPARENT,
+    );
+    // Bevelled edges: light above and at the left, dark below and at the right.
+    let edge = |a: Pos2, b: Pos2, c: Color32| painter.line_segment([a, b], Stroke::new(1.5, c));
+    edge(
+        rect.left_top(),
+        rect.right_top(),
+        Color32::from_white_alpha(70),
+    );
+    edge(
+        rect.left_top(),
+        rect.left_bottom(),
+        Color32::from_white_alpha(35),
+    );
+    edge(
+        rect.left_bottom(),
+        rect.right_bottom(),
+        Color32::from_black_alpha(120),
+    );
+    edge(
+        rect.right_top(),
+        rect.right_bottom(),
+        Color32::from_black_alpha(80),
+    );
+    // Rack slots at both ends, and a chrome screw in each corner.
+    for x in [rect.left() + 8.0, rect.right() - 8.0] {
+        for y in [
+            rect.top() + rect.height() * 0.22,
+            rect.bottom() - rect.height() * 0.22,
+        ] {
+            let slot = Rect::from_center_size(pos2(x, y), vec2(9.0, 22.0));
+            painter.rect_filled(slot, 4.5, Color32::from_rgb(12, 20, 24));
+            painter.rect_stroke(
+                slot,
+                4.5,
+                Stroke::new(1.0, Color32::from_white_alpha(30)),
+                egui::StrokeKind::Outside,
+            );
+        }
+    }
+    for (x, y) in [
+        (rect.left() + 22.0, rect.top() + 16.0),
+        (rect.right() - 22.0, rect.top() + 16.0),
+        (rect.left() + 22.0, rect.bottom() - 16.0),
+        (rect.right() - 22.0, rect.bottom() - 16.0),
+    ] {
+        let c = pos2(x, y);
+        painter.circle_filled(c + vec2(0.0, 1.0), 5.5, Color32::from_black_alpha(90));
+        painter.circle_filled(c, 5.0, Color32::from_rgb(168, 172, 176));
+        painter.circle_filled(c + vec2(-1.2, -1.2), 3.2, Color32::from_rgb(214, 218, 222));
+        painter.circle_stroke(c, 5.0, Stroke::new(0.8, Color32::from_rgb(90, 94, 98)));
+        let slot = vec2(3.6, -1.6);
+        painter.line_segment(
+            [c - slot, c + slot],
+            Stroke::new(1.3, Color32::from_rgb(70, 74, 78)),
+        );
+    }
+}
+
+/// Colors of the tube EQ's faceplate: the teal paint of the old hardware with white lettering,
+/// whatever the theme, as the tape machines keep their look.
 struct Plate {
     top: Color32,
     bottom: Color32,
@@ -3856,27 +4077,14 @@ struct Plate {
 }
 
 impl Plate {
-    fn of(p: &theme::Palette) -> Self {
-        if p.dark {
-            Self {
-                top: Color32::from_rgb(54, 64, 76),
-                bottom: Color32::from_rgb(38, 45, 54),
-                ink: Color32::from_rgb(234, 226, 206),
-                knob: Color32::from_rgb(14, 14, 16),
-                head: Color32::from_rgb(36, 36, 40),
-                edge: Color32::from_rgb(78, 78, 84),
-            }
-        } else {
-            Self {
-                top: Color32::from_rgb(202, 212, 221),
-                bottom: Color32::from_rgb(176, 188, 199),
-                ink: Color32::from_rgb(26, 34, 46),
-                knob: Color32::from_rgb(18, 18, 20),
-                head: Color32::from_rgb(40, 40, 44),
-                edge: Color32::from_rgb(96, 96, 102),
-            }
-        }
-    }
+    const TEAL: Plate = Plate {
+        top: Color32::from_rgb(36, 112, 130),
+        bottom: Color32::from_rgb(23, 80, 96),
+        ink: Color32::from_rgb(244, 246, 242),
+        knob: Color32::from_rgb(16, 16, 18),
+        head: Color32::from_rgb(28, 28, 32),
+        edge: Color32::from_rgb(96, 100, 108),
+    };
 }
 
 /// Where a hardware control points: 0 straight up, clockwise, in radians.
@@ -3906,11 +4114,19 @@ fn paint_pointer_knob(painter: &egui::Painter, center: Pos2, r: f32, angle: f32,
         plate.head,
         Stroke::new(1.0, plate.edge),
     ));
+    // Light from the top left: a sheen on the skirt and a rim catching it.
     painter.circle_filled(
-        center - vec2(r * 0.25, r * 0.3),
-        r * 0.32,
-        Color32::from_white_alpha(14),
+        center - vec2(r * 0.3, r * 0.35),
+        r * 0.45,
+        Color32::from_white_alpha(22),
     );
+    let rim: Vec<Pos2> = (0..=16)
+        .map(|k| plate_point(center, r - 1.0, -2.4 + k as f32 * 0.15))
+        .collect();
+    painter.add(Shape::line(
+        rim,
+        Stroke::new(1.4, Color32::from_white_alpha(80)),
+    ));
     painter.line_segment(
         [center + dir * r * 0.2, center + dir * r * 1.15],
         Stroke::new(2.0, Color32::from_rgb(240, 234, 220)),

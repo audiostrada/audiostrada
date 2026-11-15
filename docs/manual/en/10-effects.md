@@ -128,13 +128,21 @@ Up to 16 bands on the curve. Double-click the curve to add a band (a cut near th
 elsewhere), drag a band to move it, [[Ctrl]]-drag it (up narrower, down wider) or use the wheel
 over it to set its Q, double-click it to remove it.
 
-Right-click a band for its type (bell, low and high shelf, low and high cut from 6 to 48 dB per
-octave, notch, band pass, tilt), *Dynamic band*, *Solo* and *Bypass*. Under the curve: the
-selected band's type, slope, frequency, gain and Q.
+Right-click a band for its shape, drawn (bell, low and high shelf, low and high cut, notch, band
+pass, tilt), the slope of a cut (6 to 48 dB per octave), its placement (both channels, left,
+right, mid or sides), *Dynamic*, *Solo* and *Bypass*, *Gain to 0 dB* and *Flip the gain*. Under
+the curve, the selected band has the same drawn shapes, its slope and placement, then its
+frequency, gain and Q.
 
-- A **dynamic** band moves its gain by up to its *Range* while its frequencies are above the
-  *Threshold*: a negative range tames a resonance only when it rings. Its range shows as a line
-  under the band, the gain it has now as a ring.
+- A **dynamic** band listens to its own frequencies at the input (a bell around its frequency,
+  a low shelf below it, a high shelf above it) and moves its gain while they are above the
+  *Threshold*: by as many dB as they pass it, up to the *Range*, at the speed set by *Attack*
+  and *Release*. A negative range cuts when loud (a resonance that only rings now and then,
+  sibilance, a boomy note); a positive range boosts when loud (the crack of a snare on its hits
+  only). To boost while quiet, give the band a gain and a negative range of the same size: it
+  boosts at rest and comes back to flat when its frequencies get loud. The panel says what the
+  band does and the gain it has now; on the curve, its range shows as a line under the band,
+  the gain it has now as a ring.
 - **Solo** plays only the frequencies the band works on, to find what to cut; it stops when the
   window closes.
 

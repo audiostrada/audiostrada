@@ -136,13 +136,22 @@ ou coupe-haut près des bords, une cloche ailleurs), glissez une bande pour la d
 [[Ctrl]]-glisser (vers le haut plus étroite, vers le bas plus large) ou la molette sur elle règle
 son Q, un double-clic la supprime.
 
-Le clic droit sur une bande donne son type (cloche, plateaux grave et aigu, coupe-bas et coupe-haut
-de 6 à 48 dB par octave, réjecteur, passe-bande, bascule), *Bande dynamique*, *Solo* et *Bypass*.
-Sous la courbe : le type, la pente, la fréquence, le gain et le Q de la bande sélectionnée.
+Le clic droit sur une bande donne sa forme, dessinée (cloche, plateaux grave et aigu, coupe-bas et
+coupe-haut, coupe-bande, passe-bande, pente inclinée), la pente d'une coupe (6 à 48 dB par octave), son
+placement (deux canaux, gauche, droite, mid ou côtés), *Dynamique*, *Solo* et *Bypass*, *Gain à
+0 dB* et *Inverser le gain*. Sous la courbe, la bande sélectionnée a les mêmes formes dessinées, sa
+pente et son placement, puis sa fréquence, son gain et son Q.
 
-- Une bande **dynamique** bouge son gain jusqu'à sa *Plage* quand ses fréquences dépassent le
-  *Seuil* : une plage négative calme une résonance seulement quand elle sonne. Sa plage s'affiche
-  en trait sous la bande, son gain du moment en anneau.
+- Une bande **dynamique** écoute ses propres fréquences à l'entrée (autour de sa fréquence pour une
+  cloche, en dessous pour un plateau grave, au-dessus pour un plateau aigu) et bouge son gain tant
+  qu'elles dépassent le *Seuil* : d'autant de dB qu'elles le dépassent, jusqu'à l'*Étendue*, à la
+  vitesse réglée par l'*Attaque* et le *Relâchement*. Une étendue négative baisse quand c'est fort
+  (une résonance qui ne sonne que par moments, les sifflantes, une note qui bourdonne) ; une étendue
+  positive monte quand c'est fort (le claquant d'une caisse claire, sur ses coups seulement). Pour
+  monter quand c'est faible, donnez à la bande un gain et une étendue négative de même taille : elle
+  monte au repos et revient à plat quand ses fréquences deviennent fortes. Le panneau dit ce que
+  fait la bande et son gain du moment ; sur la courbe, son étendue s'affiche en trait sous la bande,
+  son gain du moment en anneau.
 - **Solo** ne fait entendre que les fréquences où agit la bande, pour trouver quoi couper ; il
   s'arrête quand la fenêtre se ferme.
 
