@@ -426,17 +426,11 @@ pub(crate) fn key_hints_width(painter: &Painter, p: &Palette, hints: &[(&[&str],
 
 /// The 2 pixel line of `color` and the bar under it, over the whole `rect`; returns the bar.
 pub(crate) fn paint_top_band(painter: &Painter, p: &Palette, rect: Rect, color: Color32) -> Rect {
-    // The line fades from the logo's side to the other.
-    let line = Rect::from_min_size(rect.min, vec2(rect.width(), 2.0));
-    let faded = color.gamma_multiply(0.06);
-    let mut mesh = egui::Mesh::default();
-    mesh.colored_vertex(line.left_top(), color);
-    mesh.colored_vertex(line.right_top(), faded);
-    mesh.colored_vertex(line.right_bottom(), faded);
-    mesh.colored_vertex(line.left_bottom(), color);
-    mesh.add_triangle(0, 1, 2);
-    mesh.add_triangle(0, 2, 3);
-    painter.add(mesh);
+    fade_line(
+        painter,
+        Rect::from_min_size(rect.min, vec2(rect.width(), 2.0)),
+        color,
+    );
     let bar = rect.with_min_y(rect.top() + 2.0);
     painter.rect_filled(bar, 0.0, bar_fill(p));
     painter.line_segment(
@@ -447,6 +441,37 @@ pub(crate) fn paint_top_band(painter: &Painter, p: &Palette, rect: Rect, color: 
         Stroke::new(1.0, line_edge(p)),
     );
     bar.with_max_y(bar.bottom() - 1.0)
+}
+
+/// The title band of a window drawn inside another, which has no title bar of the system
+/// above it: the line under the band, as under the system's bar of the other windows.
+pub(crate) fn paint_header_band(
+    painter: &Painter,
+    p: &Palette,
+    rect: Rect,
+    color: Color32,
+) -> Rect {
+    let bar = rect.with_max_y(rect.bottom() - 2.0);
+    painter.rect_filled(bar, 0.0, bar_fill(p));
+    fade_line(
+        painter,
+        Rect::from_min_max(pos2(rect.left(), bar.bottom()), rect.max),
+        color,
+    );
+    bar
+}
+
+/// A line fading from the logo's side to the other.
+fn fade_line(painter: &Painter, line: Rect, color: Color32) {
+    let faded = color.gamma_multiply(0.06);
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(line.left_top(), color);
+    mesh.colored_vertex(line.right_top(), faded);
+    mesh.colored_vertex(line.right_bottom(), faded);
+    mesh.colored_vertex(line.left_bottom(), color);
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(0, 2, 3);
+    painter.add(mesh);
 }
 
 /// A bar at the bottom of a window over the whole `rect`, its edge on top.

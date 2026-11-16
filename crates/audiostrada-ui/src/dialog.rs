@@ -9,8 +9,8 @@ use eframe::egui::{
 };
 
 use crate::effect_frame::{
-    Face, Glyph, field_fill, glyph_button, line_edge, paint_bottom_band, paint_title,
-    paint_top_band, radius, text_button,
+    Face, Glyph, field_fill, glyph_button, line_edge, paint_bottom_band, paint_header_band,
+    paint_title, radius, text_button,
 };
 use crate::theme::{self, Palette};
 
@@ -141,7 +141,7 @@ impl<'a> Dialog<'a> {
     fn header(&self, ui: &mut Ui, p: &Palette, width: f32) -> bool {
         let (rect, _) = ui.allocate_exact_size(vec2(width, TITLE), Sense::hover());
         let painter = ui.painter().clone();
-        let bar = paint_top_band(&painter, p, rect, self.color.unwrap_or(p.accent));
+        let bar = paint_header_band(&painter, p, rect, self.color.unwrap_or(p.accent));
         let (weak, detail) = (p.weak, self.detail.clone());
         paint_title(
             &painter,
