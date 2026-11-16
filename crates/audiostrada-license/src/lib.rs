@@ -128,11 +128,15 @@ pub fn status(license: Option<License>) -> Status {
 
 /// Signs `license` into the text sent to the buyer.
 pub fn sign(license: &License, secret: &[u8; 32]) -> String {
-    let payload = serde_json::to_vec(license).unwrap_or_default();
-    let signature = SigningKey::from_bytes(secret).sign(&payload);
+    sign_payload(&serde_json::to_vec(license).unwrap_or_default(), secret)
+}
+
+/// Signs any payload in the same text form (the plugins' licenses carry their own).
+pub fn sign_payload(payload: &[u8], secret: &[u8; 32]) -> String {
+    let signature = SigningKey::from_bytes(secret).sign(payload);
     let body = format!(
         "{}.{}",
-        URL_SAFE_NO_PAD.encode(&payload),
+        URL_SAFE_NO_PAD.encode(payload),
         URL_SAFE_NO_PAD.encode(signature.to_bytes())
     );
     let mut text = format!("{BEGIN}\n");
@@ -147,6 +151,11 @@ pub fn sign(license: &License, secret: &[u8; 32]) -> String {
 
 /// Checks a license text, however it was wrapped or indented by the mail it came in.
 pub fn verify(text: &str, key: &[u8; 32]) -> Result<License, LicenseError> {
+    serde_json::from_slice(&verify_payload(text, key)?).map_err(|_| LicenseError::Format)
+}
+
+/// The payload of a signed text, once its signature is checked.
+pub fn verify_payload(text: &str, key: &[u8; 32]) -> Result<Vec<u8>, LicenseError> {
     let body: String = text
         .lines()
         .map(str::trim)
@@ -167,7 +176,7 @@ pub fn verify(text: &str, key: &[u8; 32]) -> Result<License, LicenseError> {
         .map_err(|_| LicenseError::NoKey)?
         .verify_strict(&payload, &Signature::from_bytes(&signature))
         .map_err(|_| LicenseError::Signature)?;
-    serde_json::from_slice(&payload).map_err(|_| LicenseError::Format)
+    Ok(payload)
 }
 
 /// Public key of a secret signing key.
