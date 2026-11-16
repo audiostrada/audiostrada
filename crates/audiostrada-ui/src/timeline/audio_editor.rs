@@ -291,6 +291,8 @@ enum MenuAction {
     Aside(usize, usize),
     HitBack(u64),
     HitSnap(u64),
+    Deselect,
+    ClearLoop,
 }
 
 /// What a chip's menu asks.
@@ -354,6 +356,9 @@ pub(super) struct AudioEditor {
     asked: Option<(Sort, ChipAction)>,
     /// Ctrl+A pressed: the whole clip is selected.
     select_all: bool,
+    /// The selection as last seen, and the loop it set (see `link_loop`).
+    seen: Option<(u64, u64)>,
+    linked: Option<(u64, u64)>,
 }
 
 /// What the profile gives at a threshold.
@@ -373,6 +378,8 @@ impl AudioEditor {
             scroll: 0.0,
             tool: FrameTool::Select,
             selection: None,
+            seen: None,
+            linked: None,
             drag: None,
             zoom_from: None,
             fit_asked: false,
@@ -997,6 +1004,7 @@ impl TimelineView {
             .filter_map(|c| audiostrada_engine::project::clip_media(doc.project(), doc.paths(), &c))
             .collect();
         doc.keep_media(kept);
+        link_loop(&mut editor, doc);
         if open {
             self.audio = Some(editor);
         }
@@ -2743,9 +2751,24 @@ impl TimelineView {
         {
             doc.player_mut().engine_mut().stop();
         }
-        response.on_hover_text(tr(
-            "Press to hear from there while held, drag to follow the pointer",
+        let response = response.on_hover_text(tr(
+            "Press to hear from there while held, drag to follow the pointer; right-click for the loop",
         ));
+        let looped = project.loop_range.is_some();
+        if looped || editor.selection.is_some() {
+            response.context_menu(|ui| {
+                if editor.selection.is_some() && ui.button(tr("Deselect")).clicked() {
+                    editor.selection = None;
+                    ui.close();
+                }
+                if looped && ui.button(tr("Remove loop")).clicked() {
+                    editor.selection = None;
+                    doc.history_mut()
+                        .edit(tr("Clear loop"), |p| p.loop_range = None);
+                    ui.close();
+                }
+            });
+        }
     }
 
     /// The hits of the clip as the stack places them, whatever is heard now.
@@ -3125,6 +3148,7 @@ impl TimelineView {
         let mut menu_action = None;
         let menu = editor.menu;
         let selection = editor.selection;
+        let looped = doc.project().loop_range.is_some();
         let under_name = editor
             .under
             .and_then(|t| doc.project().track(t))
@@ -3133,7 +3157,7 @@ impl TimelineView {
             if let Some((under, at)) = menu {
                 Self::audio_menu(
                     ui,
-                    selection,
+                    (selection, looped),
                     g,
                     under,
                     at,
@@ -3371,10 +3395,6 @@ impl TimelineView {
                             })
                             .filter(|(a, b)| b > a)
                     });
-                    if let Some(span) = editor.selection {
-                        doc.history_mut()
-                            .modify_unrecorded(|p| p.loop_range = Some(span));
-                    }
                 }
             }
             return;
@@ -3419,12 +3439,7 @@ impl TimelineView {
         at: u64,
     ) {
         match drag {
-            Drag::Select(_) => {
-                if let Some(span) = editor.selection {
-                    doc.history_mut()
-                        .modify_unrecorded(|p| p.loop_range = Some(span));
-                }
-            }
+            Drag::Select(_) => {}
             Drag::Level {
                 shown,
                 region,
@@ -3646,7 +3661,7 @@ impl TimelineView {
     /// The menu of what was right-clicked.
     fn audio_menu(
         ui: &mut Ui,
-        selection: Option<(u64, u64)>,
+        (selection, looped): (Option<(u64, u64)>, bool),
         g: &Gesture,
         under: Under,
         at: u64,
@@ -3666,6 +3681,8 @@ impl TimelineView {
                 item(ui, tr("Normalize to -1 dB peak"), MenuAction::Normalize);
                 item(ui, tr("Lower by 6 dB"), MenuAction::Lower);
                 item(ui, tr("Remove"), MenuAction::Silence);
+                ui.separator();
+                item(ui, tr("Deselect"), MenuAction::Deselect);
             }
             Under::Line(s, j) | Under::Region(s, j) | Under::Edge(s, j, _) => {
                 let set = &g.sets[s];
@@ -3700,6 +3717,10 @@ impl TimelineView {
                         .weak(),
                 );
             }
+        }
+        if looped && !in_selection {
+            ui.separator();
+            item(ui, tr("Remove loop"), MenuAction::ClearLoop);
         }
     }
 
@@ -3761,6 +3782,16 @@ impl TimelineView {
                 }
                 return;
             }
+            MenuAction::Deselect => {
+                editor.selection = None;
+                return;
+            }
+            MenuAction::ClearLoop => {
+                editor.selection = None;
+                doc.history_mut()
+                    .edit(tr("Clear loop"), |p| p.loop_range = None);
+                return;
+            }
             MenuAction::HitBack(found) | MenuAction::HitSnap(found) => {
                 let mut hits = self.stack_hits(clip, g);
                 let Some(k) = hits.iter().position(|h| h.at == found) else {
@@ -3795,9 +3826,59 @@ impl TimelineView {
     }
 }
 
+/// Keeps the loop on the selection, as the timeline does: selected, moved or cleared, the loop
+/// with it; a loop set apart stays when the selection goes, and one removed elsewhere takes the
+/// selection along. Waits for the end of a drag.
+fn link_loop(editor: &mut AudioEditor, doc: &mut Document) {
+    if editor.drag.is_some() {
+        return;
+    }
+    let selection = editor.selection.filter(|(a, b)| b > a);
+    let looped = doc.project().loop_range;
+    if selection != editor.seen {
+        let cleared = selection.is_none() && looped != editor.linked;
+        if looped != selection && !cleared {
+            doc.history_mut()
+                .modify_unrecorded(|p| p.loop_range = selection);
+        }
+        editor.seen = selection;
+        editor.linked = if cleared { looped } else { selection };
+    } else if looped != editor.linked {
+        if selection.is_some() {
+            editor.selection = looped;
+        }
+        editor.seen = editor.selection;
+        editor.linked = looped;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_loop_follows_the_selection_and_goes_with_it() {
+        let mut doc = Document::new(crate::document::AppDirs::default());
+        let mut editor = AudioEditor::new(ClipId(1));
+        editor.selection = Some((100, 900));
+        link_loop(&mut editor, &mut doc);
+        assert_eq!(doc.project().loop_range, Some((100, 900)));
+        editor.selection = None;
+        link_loop(&mut editor, &mut doc);
+        assert_eq!(doc.project().loop_range, None, "cleared with the selection");
+        // A loop set elsewhere, without a selection, stays.
+        doc.history_mut()
+            .edit("Loop", |p| p.loop_range = Some((10, 20)));
+        link_loop(&mut editor, &mut doc);
+        assert_eq!(doc.project().loop_range, Some((10, 20)));
+        assert_eq!(editor.selection, None);
+        // Removed elsewhere: the selection goes too.
+        editor.selection = Some((300, 400));
+        link_loop(&mut editor, &mut doc);
+        doc.history_mut().edit("Clear", |p| p.loop_range = None);
+        link_loop(&mut editor, &mut doc);
+        assert_eq!(editor.selection, None);
+    }
 
     #[test]
     fn two_copies_line_up_where_one_was_moved() {

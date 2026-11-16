@@ -192,7 +192,9 @@ droit sur une pastille les supprime, répare, désactive ou retire toutes d'un c
 - **Bords** : tirez le bord de n'importe quelle région pour l'ajuster.
 - **Vos propres parties** : glissez sur l'onde pour sélectionner une partie (la boucle suit),
   puis tirez sa ligne de niveau, ou faites un clic droit : *Amener au niveau de la voix*,
-  *Normaliser à -1 dB crête*, *Baisser de 6 dB*, *Supprimer*.
+  *Normaliser à -1 dB crête*, *Baisser de 6 dB*, *Supprimer*, *Désélectionner*. [[Escape]] ou
+  un clic ailleurs la désélectionne, et la boucle qu'elle avait posée part avec elle ; clic
+  droit sur la règle ou l'onde › *Retirer la boucle* pour une boucle posée depuis la timeline.
 - **Gomme** (**E**) : glissez sur un bruit (une chaise, une toux) pour l'effacer ; cliquez une
   région pour l'écarter. [[Delete]] écarte la région sous le pointeur.
 - **Original / Retouché**, dans la barre : écoutez le clip tel qu'enregistré ou avec ses

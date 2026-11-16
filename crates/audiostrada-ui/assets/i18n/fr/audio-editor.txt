@@ -45,8 +45,8 @@ Retirer une retouche
 Drag across a span to fill the view with it, click to zoom in, Alt+click to zoom out
 Glissez sur une étendue pour qu'elle remplisse la vue, cliquez pour zoomer, Alt+clic pour dézoomer
 
-Press to hear from there while held, drag to follow the pointer
-Appuyez pour écouter à partir de là tant que vous tenez, glissez pour suivre le pointeur
+Press to hear from there while held, drag to follow the pointer; right-click for the loop
+Appuyez pour écouter à partir de là tant que vous tenez, glissez pour suivre le pointeur ; clic droit pour la boucle
 
 Retouch a region
 Retoucher une région

@@ -182,7 +182,9 @@ take back all of them at once.
 - **Edges**: pull the edge of any region to fit it.
 - **Your own parts**: drag across the waveform to select a part (the loop follows), then drag
   its level line, or right-click it: *Bring up to the voice's level*, *Normalize to -1 dB
-  peak*, *Lower by 6 dB*, *Remove*.
+  peak*, *Lower by 6 dB*, *Remove*, *Deselect*. [[Escape]] or a click elsewhere deselects it,
+  and the loop it set goes with it; right-click the ruler or the waveform › *Remove loop* for a
+  loop set from the timeline.
 - **Eraser** (**E**): drag across a noise (a chair, a cough) to remove it; click a region to set
   it aside. [[Delete]] sets aside the region under the pointer.
 - **Original / Retouched**, in the bar: hear the clip as recorded or with its retouches. They

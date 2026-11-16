@@ -326,8 +326,8 @@ impl Profile {
     }
 
     /// Where the phrases start: a pitch held at least 150 ms, near the voice's level, after
-    /// 250 ms without one.
-    fn onsets(&self) -> Vec<usize> {
+    /// 250 ms without one; with where the voice before them stopped.
+    fn onsets(&self) -> Vec<(usize, Option<usize>)> {
         let voiced: Vec<bool> = (0..self.level.len()).map(|k| self.voiced(k)).collect();
         let mut held = voiced.clone();
         fill_short(&mut held, false, self.steps_of(80.0));
@@ -337,24 +337,28 @@ impl Profile {
             let rested = last_end.is_none_or(|e| a - e >= self.steps_of(250.0));
             let loudest = self.level[a..b].iter().fold(-120.0f32, |m, v| m.max(*v));
             if b - a >= self.steps_of(150.0) && rested && loudest > self.voice - 16.0 {
-                out.push(a);
+                out.push((a, last_end));
             }
             last_end = Some(b);
         }
         out
     }
 
-    /// The breaths: before each phrase, the last soft sound without a clear pitch nor sharp
-    /// highs, from 80 ms to a second, standing out of what surrounds it.
+    /// The breaths: in the rest before each phrase, the longest soft sound without a clear
+    /// pitch nor sharp highs, from 80 ms to a second, standing out of what surrounds it and
+    /// ending within a second of the phrase. A click or the noise of the attack, shorter, is
+    /// passed over.
     pub fn breaths(&self, threshold_db: f32) -> Vec<Range> {
-        let len = self.level.len();
         let mut out = Vec::new();
-        let look = self.steps_of(700.0);
-        for onset in self.onsets() {
-            let from = onset.saturating_sub(look);
+        for (onset, before) in self.onsets() {
+            let rest = onset.saturating_sub(self.steps_of(1500.0));
+            // Clear of the voice before: its release is no breath.
+            let from = before.map_or(rest, |e| rest.max(e + self.steps_of(60.0)));
+            if from >= onset {
+                continue;
+            }
             // The background between the phrases there, under what leaks in.
-            let mut around: Vec<f32> =
-                self.level[onset.saturating_sub(self.steps_of(1500.0))..onset].to_vec();
+            let mut around: Vec<f32> = self.level[rest..onset].to_vec();
             around.sort_by(f32::total_cmp);
             let background = around.get(around.len() / 10).copied().unwrap_or(self.floor);
             let breathy = |k: usize| {
@@ -363,30 +367,19 @@ impl Profile {
                     && self.periodicity[k] < 0.65
                     && self.high[k] < 0.45
             };
-            // Back from the attack: over its consonant, then the breath itself.
-            let mut end = onset;
-            while end > from && !breathy(end - 1) && onset - end < self.steps_of(250.0) {
-                end -= 1;
-            }
-            let mut start = end;
-            let mut gap = 0;
-            while start > from {
-                if breathy(start - 1) {
-                    gap = 0;
-                } else {
-                    gap += 1;
-                    if gap > self.steps_of(60.0) {
-                        break;
-                    }
-                }
-                start -= 1;
-            }
-            start += gap;
-            let length = end.saturating_sub(start);
-            if (self.steps_of(80.0)..=self.steps_of(1000.0)).contains(&length)
-                && !(start..end).any(|k| self.voiced(k))
-            {
-                out.push(self.range((start, end.min(len))));
+            let mut flags: Vec<bool> = (from..onset).map(breathy).collect();
+            fill_short(&mut flags, false, self.steps_of(40.0));
+            let best = runs(&flags)
+                .into_iter()
+                .map(|(a, b)| (from + a, from + b))
+                .filter(|&(a, b)| {
+                    (self.steps_of(80.0)..=self.steps_of(1000.0)).contains(&(b - a))
+                        && onset - b <= self.steps_of(1000.0)
+                        && !(a..b).any(|k| self.voiced(k))
+                })
+                .max_by_key(|&(a, b)| (b - a, b));
+            if let Some(r) = best {
+                out.push(self.range(r));
             }
         }
         out
@@ -1125,6 +1118,35 @@ mod tests {
             silences.iter().all(|s| s.1 <= a || s.0 >= b),
             "the breath is not a silence: {silences:?}"
         );
+    }
+
+    #[test]
+    fn a_breath_far_from_the_phrase_or_before_its_attack_noise_is_found() {
+        let c = Coefficients::design(FilterKind::LowPass, 2500.0, 0.707, 0.0, f64::from(RATE));
+        let breath = |seed| filtered(&noise(0.4, 0.05, seed), &c, 1);
+        let mut x = tone(0.8, 180.0, 0.5);
+        // Half a second of silence between the breath and the phrase.
+        x.extend(vec![0.0; 9_600]);
+        x.extend(breath(4));
+        x.extend(vec![0.0; 24_000]);
+        let second = x.len();
+        x.extend(tone(0.8, 180.0, 0.5));
+        // A breath, then a short noise just before the attack.
+        x.extend(vec![0.0; 9_600]);
+        x.extend(breath(5));
+        x.extend(vec![0.0; 4_000]);
+        x.extend(filtered(&noise(0.03, 0.05, 6), &c, 1));
+        let third = x.len();
+        x.extend(tone(0.8, 180.0, 0.5));
+        let profile = profile(&[&x], RATE);
+        let found = profile.breaths(profile.auto_threshold());
+        assert_eq!(found.len(), 2, "{found:?}");
+        let near = |(a, b): Range, at: usize| {
+            let middle = (a + b) / 2;
+            b - a >= 12_000 && middle < at && at - middle < 48_000
+        };
+        assert!(near(found[0], second - 24_000), "{found:?}");
+        assert!(near(found[1], third - 5_440), "{found:?}");
     }
 
     #[test]
