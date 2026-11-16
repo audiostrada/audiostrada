@@ -1092,6 +1092,8 @@ pub struct Vst3Instance {
     /// plugin's window may change the controller only and say so (`kParamValuesChanged`):
     /// the values that moved are then sent on, or the sound stayed the old preset's.
     heard: HashMap<u32, f64>,
+    /// The sidechain bus is activated (see `set_sidechain_active`).
+    sidechain_active: bool,
 }
 
 impl std::fmt::Debug for Vst3Instance {
@@ -1189,6 +1191,7 @@ impl Vst3Instance {
             editor: None,
             has_editor: None,
             heard: HashMap::new(),
+            sidechain_active: true,
         };
         instance.sync_controller();
         instance.heard = instance.values().into_iter().collect();
@@ -1310,7 +1313,7 @@ impl crate::PluginInstance for Vst3Instance {
             );
             for (dir, count) in [(input, n_in), (output, n_out)] {
                 for i in 0..count {
-                    let on = i == 0 || (aux && dir == input && i == 1);
+                    let on = i == 0 || (aux && self.sidechain_active && dir == input && i == 1);
                     self.component
                         .activateBus(audio, dir, i as int32, on as TBool);
                 }
@@ -1613,6 +1616,10 @@ impl crate::PluginInstance for Vst3Instance {
 
     fn has_sidechain(&mut self) -> bool {
         aux_input(&self.component)
+    }
+
+    fn set_sidechain_active(&mut self, active: bool) {
+        self.sidechain_active = active;
     }
 
     fn has_gui(&mut self) -> bool {

@@ -44,6 +44,7 @@ enum Request {
     Poll,
     HasGui,
     HasSidechain,
+    SetSidechainActive(bool),
     /// Title, the window to stay above and the keys to hand back (see `window`).
     OpenGui(String, u64, Vec<(u32, u16)>),
     CloseGui,
@@ -71,6 +72,7 @@ impl Request {
             Self::Poll => "Poll",
             Self::HasGui => "HasGui",
             Self::HasSidechain => "HasSidechain",
+            Self::SetSidechainActive(_) => "SetSidechainActive",
             Self::OpenGui(..) => "OpenGui",
             Self::CloseGui => "CloseGui",
             Self::RaiseGui => "RaiseGui",
@@ -568,6 +570,10 @@ impl PluginInstance for SandboxInstance {
             self.call(Request::HasSidechain, CALL_TIMEOUT),
             Ok(Response::Flag(true))
         )
+    }
+
+    fn set_sidechain_active(&mut self, active: bool) {
+        let _ = self.call(Request::SetSidechainActive(active), CALL_TIMEOUT);
     }
 
     fn open_gui(&mut self, title: &str) -> Result<(), String> {
@@ -1113,6 +1119,10 @@ impl Host {
             }
             Request::HasGui => Response::Flag(instance.has_gui()),
             Request::HasSidechain => Response::Flag(instance.has_sidechain()),
+            Request::SetSidechainActive(active) => {
+                instance.set_sidechain_active(active);
+                Response::Done
+            }
             Request::OpenGui(title, parent, keys) => {
                 crate::window::set_parent(parent);
                 crate::window::set_grabbed_keys(keys);

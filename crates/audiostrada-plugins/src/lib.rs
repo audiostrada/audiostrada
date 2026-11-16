@@ -165,6 +165,9 @@ pub trait PluginInstance: std::fmt::Debug {
     fn has_sidechain(&mut self) -> bool {
         false
     }
+    /// Whether a track keys the sidechain input: it is activated so at the next `activate`
+    /// (VST3 bus activation, CLAP port activation), for plugins that follow it on their own.
+    fn set_sidechain_active(&mut self, _active: bool) {}
 }
 
 /// Audio side of a plugin instance; runs on audio threads, must not allocate or lock.

@@ -24,7 +24,7 @@ audiostrada-ui = { path = "crates/audiostrada-ui" }
 anyhow = "1.0.104"
 base64 = "0.23.1"
 ed25519-dalek = { version = "3.0.0", default-features = false, features = ["fast"] }
-clack-extensions = { version = "0.2.0", features = ["clack-host", "audio-ports", "gui", "latency", "log", "params", "posix-fd", "state", "timer", "note-ports"] }
+clack-extensions = { version = "0.2.0", features = ["clack-host", "audio-ports", "audio-ports-activation", "gui", "latency", "log", "params", "posix-fd", "state", "timer", "note-ports"] }
 clack-host = "0.2.0"
 vst3 = "0.3.0"
 libloading = "0.9.0"

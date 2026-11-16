@@ -11,6 +11,7 @@ use clack_extensions::audio_ports::{
     AudioPortFlags, AudioPortInfoBuffer, AudioPortRescanFlags, HostAudioPorts, HostAudioPortsImpl,
     PluginAudioPorts,
 };
+use clack_extensions::audio_ports_activation::{PluginAudioPortsActivation, SampleSize};
 use clack_extensions::gui::{
     GuiApiType, GuiConfiguration, GuiSize, HostGui, HostGuiImpl, PluginGui, Window,
 };
@@ -269,6 +270,8 @@ pub struct ClapInstance {
     gui_open: bool,
     /// Host window of an embedded editor.
     window: Option<HostWindow>,
+    /// The sidechain port is activated (see `set_sidechain_active`).
+    sidechain_active: bool,
 }
 
 impl ClapInstance {
@@ -297,6 +300,7 @@ impl ClapInstance {
             gui: None,
             gui_open: false,
             window: None,
+            sidechain_active: true,
         })
     }
 
@@ -440,6 +444,19 @@ impl crate::PluginInstance for ClapInstance {
         max_frames: usize,
     ) -> Result<Box<dyn PluginProcessor>, String> {
         let (in_ports, out_ports) = self.ports();
+        // A plugin that knows whether its sidechain is keyed follows it on its own.
+        if let Some(key) = (0..in_ports.channels.len()).find(|&i| i != in_ports.main)
+            && let Some(mut handle) = self.instance.inactive_plugin_handle()
+            && let Some(ports) = handle.get_extension::<PluginAudioPortsActivation>()
+        {
+            ports.set_active_audio_inactive(
+                &mut handle,
+                true,
+                key as u32,
+                self.sidechain_active,
+                SampleSize::Float32,
+            );
+        }
         let configuration = PluginAudioConfiguration {
             sample_rate: f64::from(sample_rate),
             min_frames_count: 1,
@@ -590,6 +607,10 @@ impl crate::PluginInstance for ClapInstance {
 
     fn has_sidechain(&mut self) -> bool {
         self.ports().0.channels.len() > 1
+    }
+
+    fn set_sidechain_active(&mut self, active: bool) {
+        self.sidechain_active = active;
     }
 
     fn has_gui(&mut self) -> bool {

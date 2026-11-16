@@ -51,6 +51,11 @@ struct PluginSlot {
     /// chosen in a VST3 window comes as an edit of each of its parameters, thousands at once.
     unsent: Vec<(u32, f64)>,
     latency: u32,
+    /// Its sidechain input was activated, a track keying it.
+    keyed: bool,
+    /// A track started or stopped keying it: activated again with its sidechain input on or
+    /// off, as plugins only hear of it then.
+    rekey: bool,
 }
 
 impl PluginSlot {
@@ -203,6 +208,10 @@ impl Plugins {
             }
         };
         let sidechain = instance.has_sidechain();
+        let keyed = sidechain && insert.sidechain.is_some();
+        if sidechain {
+            instance.set_sidechain_active(keyed);
+        }
         let (rate, max) = self.format;
         let mut processor = instance.activate(rate, max)?;
         processor.set_offline(self.offline);
@@ -234,6 +243,8 @@ impl Plugins {
                 unsent,
                 automation: HashMap::new(),
                 latency,
+                keyed,
+                rekey: false,
             }),
         })
     }
@@ -995,6 +1006,7 @@ impl ProjectPlayer {
                         .controls
                         .keyed
                         .store(insert.sidechain.is_some(), Ordering::Relaxed);
+                    plugin.rekey = slot.sidechain && plugin.keyed != insert.sidechain.is_some();
                     for (key, &value) in &insert.params {
                         let (Ok(id), value) = (key.parse::<u32>(), f64::from(value)) else {
                             continue;
@@ -2007,6 +2019,10 @@ impl ProjectPlayer {
                 let InsertKind::Plugin(plugin) = &mut slot.kind else {
                     continue;
                 };
+                if std::mem::take(&mut plugin.rekey) {
+                    tracing::debug!("plugin: activated again for its sidechain input");
+                    restarts.push((channel, slot.id));
+                }
                 let mut heard = 0;
                 while let Some((id, value)) = plugin.controls.from_plugin.try_recv() {
                     heard += 1;
