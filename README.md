@@ -31,7 +31,7 @@ AudioStrada is in active development: features land quickly, and some rough edge
 ## Features
 
 - **Recording**: punch-in, loop recording with every pass on its own take lane, comping,
-  playlists, metronome with a count-in that clicks even from the first bar, pre-roll, input latency compensation, low-latency monitoring.
+  playlists, metronome with a count-in that clicks even from the first bar, pre-roll, input latency compensation, a monitoring mode per track and a low-latency mode to play through the effects.
 - **Editing**: Smart Tool, fades and crossfades, clip gain, Slip, Shuffle and Grid modes, time
   ranges, markers, time-stretch and transpose, clips matched to the project tempo. An audio
   editor finds silences, breaths, sibilants, clicks and clipping and lets you retouch them
@@ -42,28 +42,41 @@ AudioStrada is in active development: features land quickly, and some rough edge
   and brought to its instrument's tone; a style (Transparent, Warm, Clean, Punchy, Big) brings
   its console color, the faders can move toward a balanced mix, and reverbs and echo come from
   four ambiences. Everything stays as ordinary inserts, sends and buses, at the same loudness.
-- **Mixing**: a console with effects and sends on every strip, buses made from the selection
-  in one click and folded from the mixer, groups, VCAs, snapshots, sidechain, analog console
-  colors, monitor effects and a loudness meter.
+- **Mixing**: a console with a channel strip on every track (filters, gate, compressor, EQ and
+  drive, in any order), effects and sends on every strip, buses made from the selection in one
+  click and folded from the mixer, groups, VCAs, snapshots, sidechain, monitor effects and a
+  loudness meter. Console colors (British Bright, British Warm, American Punch, Nashville) on
+  the tracks and in the summing of the buses, with gain staging in one click. A compact mode
+  with narrow strips, instrument icons recognized from the track names, a switch and the
+  latency on every insert, Replace to swap an effect in place.
   Automation with bendable curves drawn, moved and selected point by point or freehand, and Read,
   Touch, Latch, Write and Trim modes. Track freeze.
+- **Rack**: a track's whole chain as modules, from the channel strip to the last effect, with
+  parallel chains drawn as the signal flows (New York compression, parallel saturation, reverb
+  blends), latency compensated between the branches.
 - **Effects**, each with its own editor, factory presets you can hear before choosing, A/B and
-  loudness matching: EQ and
-  Vintage EQ, Compressor (Clean, Bus, Opto, FET), Multiband Compressor, Channel Strip, Gate,
-  Limiter, Maximizer, Transient Shaper, De-esser, Drum Trigger, Pitch Correct, Pitch Shifter,
-  Doubler, Reverb, Delay, Chorus, Flanger, Phaser, Tremolo and Auto-pan, Drive, Tape, Filter,
-  Stereo Imager, Utility, Analyzer and Tuner.
-- **Guitar**: an amp with 16 built-in models, 21 pedals and cabinet impulse responses, which
-  also runs Neural Amp Modeler captures from your library or TONE3000.
-- **MIDI**: an MPE synth, a drum machine, plugin instruments, a piano roll with controller
-  lanes, MIDI devices, overdub, MIDI learn, `.mid` import and export.
+  loudness matching: Strada-EQ and Strada-Tube EQ, Strada-Comp (Clean, Bus, Opto, FET),
+  Strada-MB-Comp, Strada-Channel, Strada-Gate, Strada-Limit, Strada-Max (true peak),
+  Strada-Transient, Strada-DeEss, Strada-Trigger, Strada-Correct (pitch correction),
+  Strada-Pitch (pitch shifter), Strada-Doubler, Strada-Verb, Strada-Delay, Strada-Chorus,
+  Strada-Flanger, Strada-Phaser, Strada-Mod (tremolo, auto-pan), Strada-Drive, Strada-Tape,
+  Strada-Filter, Strada-Wide (stereo imager), Strada-Utility, Strada-Scope (analyzer) and
+  Strada-Tuner. Strada-Verb lets you drag how long each frequency rings on the spectrum,
+  Strada-Delay draws its echoes on the tempo grid, Strada-Drive goes from a touch of color to
+  fuzz.
+- **Guitar**: Strada-Amp, with 16 built-in models, 21 pedals and cabinet impulse responses,
+  which also runs Neural Amp Modeler captures from your library or TONE3000.
+- **MIDI**: Strada-Synth (MPE, wavetables, drag-and-drop modulation), Strada-Drums, plugin
+  instruments, a piano roll with scale folding, chords and a chord track, ghost notes,
+  velocity, probability and MPE lanes, MIDI devices, overdub, MIDI learn, `.mid` import and
+  export.
 - **Plugins**: CLAP, VST3, VST2 and LV2 with their own windows, each plugin in its own process so a
   crashing plugin cannot take the session with it.
 - **Export**: WAV, FLAC, MP3 and Opus, dither, peak or LUFS normalization, stems and a render
   queue.
 - **Workflow**: autosave, crash recovery and project versions, a dockable workspace with
-  detachable panels, themes, a command palette, and editable shortcuts with AudioStrada,
-  Pro Tools, Logic and Reaper presets.
+  detachable panels, full screen on every window, themes, a command palette, and editable
+  shortcuts with AudioStrada, Pro Tools, Logic and Reaper presets.
 - **AI assistants**: Claude, Cursor or Gemini can drive AudioStrada through the Model Context
   Protocol, from the robot button.
 
