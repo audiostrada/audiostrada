@@ -4,9 +4,10 @@
 //! instead, without a pitch sweep. The right side can be offset, the echoes duck while the
 //! input plays, and freeze holds the loop as it is.
 
+use crate::analyzer::{Analyzer, BANDS};
 use crate::line::Line;
 use crate::{
-    Effect, EffectInfo, ParamInfo, choice, lowpass_coefficient, param, pole, switch,
+    Effect, EffectInfo, ParamInfo, choice, gain_to_db, lowpass_coefficient, param, pole, switch,
     time_coefficient,
 };
 
@@ -15,12 +16,25 @@ const MAX_SECONDS: f32 = 8.0;
 const CROSSFADE_MS: f32 = 40.0;
 /// Input level from which ducking is at its full depth.
 const DUCK_FULL: f32 = 0.25;
+/// How long the meters hold the input and the echoes, for the editor's machine.
+const METER_RELEASE_MS: f32 = 60.0;
+
+/// The input and echo levels, then the echoes' spectrum (see [`crate::analyzer`]), drawn
+/// while the window is open.
+pub const ECHO_SPECTRUM: usize = 2;
+const METERS: usize = ECHO_SPECTRUM + BANDS;
+const METER_NAMES: [&str; METERS] = {
+    let mut names = [""; METERS];
+    names[0] = "Input";
+    names[1] = "Echoes";
+    names
+};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "delay",
     name: "Strada-Delay",
     params: &PARAMS,
-    meters: &[],
+    meters: &METER_NAMES,
     instrument: false,
     files: &[],
     category: "Space",
@@ -121,6 +135,11 @@ pub struct Delay {
     glide: f32,
     lp: [f32; 2],
     hp: [f32; 2],
+    /// Input and echo levels for the meters, and how fast they fall.
+    levels: [f32; 2],
+    fall: f32,
+    spectrum: Box<Analyzer>,
+    watched: bool,
 }
 
 impl Default for Delay {
@@ -138,6 +157,10 @@ impl Default for Delay {
             glide: 0.0,
             lp: [0.0; 2],
             hp: [0.0; 2],
+            levels: [0.0; 2],
+            fall: 0.0,
+            spectrum: Box::default(),
+            watched: true,
         };
         delay.allocate();
         delay
@@ -176,15 +199,18 @@ impl Delay {
         self.heads = (self.current, self.current, 1.0);
         self.envelope = 0.0;
         self.glide = time_coefficient(50.0, self.rate);
+        self.fall = time_coefficient(METER_RELEASE_MS, self.rate);
         self.lp = [0.0; 2];
         self.hp = [0.0; 2];
         self.dark = [0.0; 2];
+        self.levels = [0.0; 2];
     }
 }
 
 impl Effect for Delay {
     fn prepare(&mut self, sample_rate: u32, _max_frames: usize) {
         self.rate = sample_rate as f32;
+        self.spectrum.prepare(sample_rate, 0);
         self.allocate();
     }
 
@@ -319,6 +345,13 @@ impl Effect for Delay {
             self.lines[1].push(fb_r);
             let out = if frozen { raw } else { echoes };
             let level = input_l.abs().max(input_r.abs());
+            let heard = out[0].abs().max(out[1].abs());
+            if self.watched {
+                self.spectrum.push(out[0], out[1]);
+            }
+            for (k, x) in [level, heard].into_iter().enumerate() {
+                self.levels[k] = x.max(self.levels[k] * self.fall);
+            }
             let k = if level > self.envelope {
                 duck_attack
             } else {
@@ -342,6 +375,21 @@ impl Effect for Delay {
         self.lp = [0.0; 2];
         self.hp = [0.0; 2];
         self.dark = [0.0; 2];
+        self.levels = [0.0; 2];
+        self.spectrum.reset();
+    }
+
+    fn set_watched(&mut self, watched: bool) {
+        self.watched = watched;
+    }
+
+    fn meters(&self, out: &mut [f32]) {
+        for (o, v) in out.iter_mut().zip(self.levels) {
+            *o = gain_to_db(v);
+        }
+        if let Some(slot) = out.get_mut(ECHO_SPECTRUM..) {
+            self.spectrum.meters(slot);
+        }
     }
 }
 
@@ -578,6 +626,62 @@ mod tests {
         assert!(
             echo(100.0) < echo(0.0) * 0.2,
             "echoes under the playing input"
+        );
+    }
+
+    #[test]
+    fn meters_follow_the_input_and_the_echoes() {
+        let mut delay = clean(&[("time", 600.0), ("feedback", 50.0)]);
+        let mut meters = [0.0; 2];
+        delay.meters(&mut meters);
+        assert!(meters.iter().all(|m| *m < -150.0), "silent: {meters:?}");
+        let (mut l, mut r) = (vec![0.0f32; 24_000], vec![0.0f32; 24_000]);
+        for (i, s) in l.iter_mut().enumerate().take(480) {
+            *s = 0.5 * (i as f32 * 0.06).sin();
+        }
+        r.copy_from_slice(&l);
+        delay.process(&mut l, &mut r);
+        delay.meters(&mut meters);
+        assert!(meters[0] < -60.0, "the input is gone: {meters:?}");
+        assert!(meters[1] < -150.0, "no echo yet: {meters:?}");
+        let (mut l, mut r) = (vec![0.0f32; 7200], vec![0.0f32; 7200]);
+        delay.process(&mut l, &mut r);
+        delay.meters(&mut meters);
+        assert!(meters[1] > -20.0, "the echoes ring on: {meters:?}");
+        delay.reset();
+        delay.meters(&mut meters);
+        assert!(
+            meters.iter().all(|m| *m < -150.0),
+            "after a reset: {meters:?}"
+        );
+    }
+
+    #[test]
+    fn the_echoes_spectrum_shows_the_high_cut() {
+        let mut delay = clean(&[("time", 50.0), ("feedback", 0.0), ("high_cut", 1500.0)]);
+        let tone =
+            |hz: f32, i: usize| 0.25 * (i as f32 * hz * std::f32::consts::TAU / 48_000.0).sin();
+        let mut l: Vec<f32> = (0..48_000)
+            .map(|i| tone(300.0, i) + tone(9000.0, i))
+            .collect();
+        let mut r = l.clone();
+        delay.process(&mut l, &mut r);
+        let mut meters = vec![0.0; METERS];
+        delay.meters(&mut meters);
+        let band = |hz: f32| {
+            (0..BANDS)
+                .min_by(|&a, &b| {
+                    let far = |k| (crate::analyzer::band_frequency(k) / hz).ln().abs();
+                    far(a).total_cmp(&far(b))
+                })
+                .unwrap()
+        };
+        let echoes = &meters[ECHO_SPECTRUM..];
+        assert!(
+            echoes[band(300.0)] - echoes[band(9000.0)] > 10.0,
+            "{} and {}",
+            echoes[band(300.0)],
+            echoes[band(9000.0)]
         );
     }
 }

@@ -120,6 +120,22 @@ impl Default for Analyzer {
 }
 
 impl Analyzer {
+    /// One frame, for effects that analyse a signal they make sample by sample.
+    pub fn push(&mut self, l: f32, r: f32) {
+        self.input[self.filled] = match self.source {
+            1 => l,
+            2 => r,
+            3 => (l - r) * 0.5,
+            _ => (l + r) * 0.5,
+        };
+        self.filled += 1;
+        if self.filled == SIZE {
+            self.analyse(HOP as f32 / self.rate);
+            self.input.copy_within(HOP.., 0);
+            self.filled = SIZE - HOP;
+        }
+    }
+
     fn analyse(&mut self, elapsed: f32) {
         for i in 0..SIZE {
             self.re[i] = self.input[i] * self.window[i];
@@ -172,18 +188,7 @@ impl Effect for Analyzer {
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (l, r) in left.iter().zip(right.iter()) {
-            self.input[self.filled] = match self.source {
-                1 => *l,
-                2 => *r,
-                3 => (l - r) * 0.5,
-                _ => (l + r) * 0.5,
-            };
-            self.filled += 1;
-            if self.filled == SIZE {
-                self.analyse(HOP as f32 / self.rate);
-                self.input.copy_within(HOP.., 0);
-                self.filled = SIZE - HOP;
-            }
+            self.push(*l, *r);
         }
     }
 

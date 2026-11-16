@@ -176,12 +176,24 @@ Pick a space: Room, Hall, Space, Plate, Spring or Shimmer (hover a button for wh
 like). Shimmer is a vast space whose tail rises an octave as it rings; its Shimmer knob sets how
 much.
 
-*Decay* is in seconds; *Pre-delay* holds the tail back from the dry sound; *High cut* and *Low
-cut* trim it; *Width* spreads it; *Ducking* lowers it while the input plays (the tail comes back
-in the gaps); *Mix* sets how much is heard. *Freeze* holds the tail forever, for pads.
+Then a color, the character of an era: **Clean** leaves the tail full and smooth; **80s**, the
+digital reverbs of the 1980s, narrows it to 11 kHz with the grain of 12 bits and a lush chorus;
+**Vintage**, the first digital reverbs and the plates of the 1970s, makes it darker (7 kHz),
+grainier and thinner, with a soft hiss that follows the tail.
 
-The smaller knobs set Size, Early / late, Treble decay, Bass decay, Diffusion and Modulation;
-those a space does not use are greyed. The display shows how the lows and highs fade.
+The display shows how long each frequency rings, in seconds, over the spectrum of the tail (in
+the color's tint) and of the input (a line); the cuts shade its ends, and dashed lines mark a beat
+and a bar at the project's tempo. Drag its points: the green one for the decay, the orange one for
+how long the lows ring and up to where, the blue one for the highs, the red and violet ones for
+the low and high cuts. Double-click a point to reset it. *Fit to the tempo* sets the decay to
+whole quarters of a bar and the pre-delay to a note value.
+
+The main controls are the large ones: *Decay*, with *Freeze* (the tail held forever, for pads),
+*Pre-delay*, in milliseconds or, with *Sync*, as a note value, and *Mix*. Beside them come the
+reflections (Size, Early / late, Diffusion), the motion (the modulation's depth and rate), the
+ducking (how much the tail is lowered while the input plays, and how fast it comes back), the
+tone (the knobs of the display's points), the width and the Shimmer amount. Those a space does
+not use are greyed.
 
 <!-- effect:reverb -->
 
@@ -189,10 +201,21 @@ those a space does not use are greyed. The display shows how the lows and highs 
 
 ![Strada-Delay](img/fx/delay.webp)
 
-Digital, tape or analog echoes. **Digital** gives clean repeats; **Tape** wobbling, saturated
-repeats that darken, and a new time glides like a varispeed; **Analog** (bucket brigade) darker
-repeats the longer the time. Sync to the tempo, ping-pong, a right-channel offset, ducking and
-freeze.
+Pick a machine: **Digital** gives clean repeats, and a new time crossfades in; **Tape**
+wobbling, saturated repeats that darken, and a new time glides like a varispeed; **Analog**
+(bucket brigade) warm repeats, darker the longer the time.
+
+On the left, the echoes on the tempo grid, left above and right below, light up as they are
+heard; ping-pong draws their path. Drag the first echo across for the time and up or down for the
+feedback, and the first one on the right across for its offset. On the right, the tone of the
+repeats over their spectrum: the yellow curve is one pass through the loop, the fainter ones the
+passes after it, darker each time; drag the red and violet points for the low and high cuts.
+
+The main controls are the large ones: *Time*, in milliseconds with *Tap*, or with *Sync* as a
+note value at the project's tempo; *Feedback*, with *Ping-pong* and *Freeze* (what is in the delay
+repeats forever, the input left out); and *Mix*. Beside them come the cuts, wow and flutter and
+drive (tape and analog only), the right side's offset, and ducking (the echoes lowered while the
+input plays, back in the gaps).
 
 <!-- effect:delay -->
 
@@ -244,10 +267,19 @@ shimmering echoes.
 
 ![Strada-Drive](img/fx/drive.webp)
 
-Pick a type (Overdrive, Distortion, Fuzz, Tube, Tape, Transformer, Rectifier); the curve shows
-how it bends the signal. Drive, Tone, Level and Mix are the pedal's knobs; *Low cut* tightens
-the lows before the drive, *Bias* makes the clipping asymmetric (warmer, even harmonics), *Bass*
-and *Middle* shape the sound after it.
+Pick a type (Overdrive, Distortion, Fuzz, Tube, Tape, Transformer, Rectifier). *Drive* goes from
+clean to exaggerated by even steps: the first third adds a little color to a bass or a bus, the
+top a fuzz. Peaks keep their level whatever the drive; *Auto gain* matches the loudness instead,
+so that you judge the color and not the volume. *Output* trims the level, *Mix* blends the dry
+sound back in.
+
+The display shows the spectrum of the input (a line) and of the output, where the added
+harmonics glow. The orange line is how hard each frequency is driven: drag its points for the
+drive, the *Low cut* that keeps the lows out of the saturation, and the *Focus*, a band driven
+harder (to bring a bass forward) or softer than the rest, its tone unchanged. The white line is
+the tone after the drive: drag its points for the *Bass*, the *Middle* (and its frequency) and
+the *Tone*, a high cut. Double-click a point to reset it. *Bias* makes the clipping asymmetric
+(warmer, even harmonics).
 
 <!-- effect:drive -->
 

@@ -1295,8 +1295,8 @@ Lien stéréo
 Reverb
 Réverb
 
-Room, hall, space, plate, spring and shimmer, with freeze and ducking.
-Pièce, salle, espace, plaque, ressort et shimmer, avec gel et ducking.
+Room, hall, space, plate, spring and shimmer, in the color of an era, with freeze and ducking.
+Pièce, salle, espace, plaque, ressort et shimmer, dans la couleur d'une époque, avec gel et ducking.
 
 Room
 Pièce
@@ -7277,3 +7277,135 @@ Baisse jusqu'à {db} dB tant que ces fréquences dépassent le seuil
 
 Boosts up to {db} dB while these frequencies pass the threshold
 Monte jusqu'à {db} dB tant que ces fréquences dépassent le seuil
+
+80s
+Années 80
+
+Today's reverb: full band, dense and smooth
+La réverbe d'aujourd'hui : bande complète, dense et lisse
+
+The digital reverbs of the 1980s: a band up to 11 kHz, the grain of 12 bits, a lush chorus
+Les réverbes numériques des années 80 : une bande jusqu'à 11 kHz, le grain de 12 bits, un chorus ample
+
+The first digital reverbs and the plates of the 1970s: a dark band up to 7 kHz, grainy, with a soft hiss
+Les premières réverbes numériques et les plaques des années 70 : une bande sombre jusqu'à 7 kHz, granuleuse, avec un léger souffle
+
+Fit to the tempo
+Caler sur le tempo
+
+Sets the decay to whole quarters of a bar and the pre-delay to a note value
+Règle le déclin sur des quarts de mesure entiers et le pré-délai sur une valeur de note
+
+{color}: up to {khz} kHz
+{color} : jusqu'à {khz} kHz
+
+Lows
+Graves
+
+Crossover
+Croisement
+
+Vocal: Eighties plate
+Voix : Plaque années 80
+
+Guitar: Seventies plate
+Guitare : Plaque années 70
+
+Drums: Seventies room
+Batterie : Pièce années 70
+
+Keys: Eighties hall
+Claviers : Salle années 80
+
+Pads: Eighties space
+Nappes : Espace années 80
+
+Echoes
+Échos
+
+Frozen: the loop holds
+Gel : la boucle tourne telle quelle
+
+Repeats: ≈ {n}
+Répétitions : ≈ {n}
+
+Reflections
+Réflexions
+
+Low cut {hz}
+Coupe-bas {hz}
+
+High cut {hz}
+Coupe-haut {hz}
+
+Lows {seconds} s below {hz}
+Graves {seconds} s sous {hz}
+
+Decay {seconds} s
+Déclin {seconds} s
+
+Highs {seconds} s at {hz}
+Aigus {seconds} s à {hz}
+
+Drag the points: the decay, how long the lows and the highs ring, the cuts; double-click one to reset it
+Glissez les points : le déclin, la durée des graves et des aigus, les coupes ; double-cliquez sur un point pour le remettre à zéro
+
+Frozen: the tail holds
+Gel : la traîne tient
+
+Decay {seconds} s · {bars} bars at {bpm} BPM · pre-delay {pre} ms
+Déclin {seconds} s · {bars} mesures à {bpm} BPM · pré-délai {pre} ms
+
+{ms} ms · feedback {feedback} %
+{ms} ms · réinjection {feedback} %
+
+Right {offset} ms
+Droite {offset} ms
+
+Drag the first echoes: the time across, the feedback up and down, the right one for its offset; drag the cuts beside
+Glissez les premiers échos : le temps de côté, la réinjection en hauteur, celui de droite pour son décalage ; glissez les coupes à côté
+
+Tone of the repeats
+Tonalité des répétitions
+
+{low} to {high}
+{low} à {high}
+
+Focus
+Focus
+
+Focus frequency
+Fréquence du focus
+
+Middle frequency
+Fréquence des médiums
+
+auto gain
+gain auto
+
+Keeps the level where it came in, whatever the drive, so that you judge the color and not the loudness
+Garde le niveau d'entrée quel que soit le drive, pour juger la couleur et non le volume
+
+Drive {percent} % · {db} dB into the clipping
+Drive {percent} % · {db} dB dans l'écrêtage
+
+Drive {percent} % · {db} dB
+Drive {percent} % · {db} dB
+
+Focus {db} dB at {hz}
+Focus {db} dB à {hz}
+
+focus {db} dB at {hz}
+focus {db} dB à {hz}
+
+Bass {db} dB
+Basses {db} dB
+
+Middle {db} dB at {hz}
+Médiums {db} dB à {hz}
+
+Tone {hz}
+Tonalité {hz}
+
+Drag the points: the orange line is how hard each frequency is driven, the white one the tone after it; double-click a point to reset it
+Glissez les points : la ligne orange montre à quel point chaque fréquence est poussée, la blanche la tonalité après ; double-cliquez sur un point pour le remettre à zéro

@@ -3952,6 +3952,14 @@
     "min": 0,
     "name": "Tambourine reverb send",
     "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "analog",
+    "max": 100,
+    "min": 0,
+    "name": "Analog",
+    "unit": "%"
    }
   ]
  },
@@ -7566,7 +7574,7 @@
  },
  {
   "category": "Space",
-  "description": "Room, hall, space, plate, spring and shimmer, with freeze and ducking.",
+  "description": "Room, hall, space, plate, spring and shimmer, in the color of an era, with freeze and ducking.",
   "id": "reverb",
   "instrument": false,
   "name": "Strada-Verb",
@@ -7763,6 +7771,19 @@
     "min": 50,
     "name": "Ducking release",
     "unit": "ms"
+   },
+   {
+    "choices": [
+     "Clean",
+     "80s",
+     "Vintage"
+    ],
+    "default": 0,
+    "id": "color",
+    "max": 2,
+    "min": 0,
+    "name": "Color",
+    "unit": ""
    }
   ]
  },
@@ -8974,26 +8995,26 @@
     "unit": ""
    },
    {
-    "default": 18,
+    "default": 35,
     "id": "drive",
-    "max": 48,
+    "max": 100,
     "min": 0,
     "name": "Drive",
-    "unit": "dB"
+    "unit": "%"
    },
    {
-    "default": 3500,
+    "default": 20000,
     "id": "tone",
-    "max": 12000,
+    "max": 20000,
     "min": 500,
     "name": "Tone",
     "unit": "Hz"
    },
    {
-    "default": -12,
+    "default": 0,
     "id": "level",
-    "max": 12,
-    "min": -36,
+    "max": 24,
+    "min": -24,
     "name": "Level",
     "unit": "dB"
    },
@@ -9044,6 +9065,30 @@
     "min": 0,
     "name": "Auto gain",
     "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "focus",
+    "max": 12,
+    "min": -12,
+    "name": "Focus",
+    "unit": "dB"
+   },
+   {
+    "default": 1000,
+    "id": "focus_freq",
+    "max": 10000,
+    "min": 40,
+    "name": "Focus frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 800,
+    "id": "mid_freq",
+    "max": 5000,
+    "min": 200,
+    "name": "Middle frequency",
+    "unit": "Hz"
    }
   ]
  },

@@ -1,23 +1,40 @@
 //! Reverb: a room, a hall and a vast space from a modulated feedback delay network with early
 //! reflections, a studio plate (Dattorro), a spring tank, and a shimmer that feeds the space
 //! back an octave up. Shared controls drive every engine, with freeze and ducking of the tail
-//! while the input plays.
+//! while the input plays, and the color of an era (see [`crate::era`]).
 
+use crate::analyzer::{Analyzer, BANDS};
 use crate::delay::{NOTE_NAMES, synced_seconds};
+use crate::era::{self, Era};
 use crate::hall::{self, Hall};
 use crate::plate::{self, Plate};
 use crate::spring::Spring;
-use crate::{Effect, EffectInfo, ParamInfo, choice, param, switch, time_coefficient};
+use crate::{Effect, EffectInfo, ParamInfo, choice, gain_to_db, param, switch, time_coefficient};
+
+pub use crate::era::{BANDS as COLOR_BANDS, CLEAN, COLOR_HINTS, COLORS, EIGHTIES, VINTAGE};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "reverb",
     name: "Strada-Verb",
     params: &PARAMS,
-    meters: &[],
+    meters: &METER_NAMES,
     instrument: false,
     files: &[],
     category: "Space",
-    description: "Room, hall, space, plate, spring and shimmer, with freeze and ducking.",
+    description: "Room, hall, space, plate, spring and shimmer, in the color of an era, with \
+                  freeze and ducking.",
+};
+
+/// The input and tail levels, then the spectra of the input and of the tail (see
+/// [`crate::analyzer`]), drawn while the window is open.
+pub const INPUT_SPECTRUM: usize = 2;
+pub const TAIL_SPECTRUM: usize = INPUT_SPECTRUM + BANDS;
+const METERS: usize = TAIL_SPECTRUM + BANDS;
+const METER_NAMES: [&str; METERS] = {
+    let mut names = [""; METERS];
+    names[0] = "Input";
+    names[1] = "Tail";
+    names
 };
 
 /// Spaces, in parameter order.
@@ -62,6 +79,7 @@ const PARAMS: [ParamInfo; COUNT] = [
     param("mod_rate", "Modulation rate", 0.1, 5.0, 0.37, "Hz"),
     param("crossover", "Bass crossover", 80.0, 1000.0, 250.0, "Hz"),
     param("duck_release", "Ducking release", 50.0, 2000.0, 300.0, "ms"),
+    choice("color", "Color", &COLORS, era::CLEAN as f32),
 ];
 
 const TYPE: usize = 0;
@@ -85,12 +103,15 @@ const PREDELAY_NOTE: usize = 17;
 const MOD_RATE: usize = 18;
 const CROSSOVER: usize = 19;
 const DUCK_RELEASE: usize = 20;
-const COUNT: usize = 21;
+const COLOR: usize = 21;
+const COUNT: usize = 22;
 
 /// Input level from which ducking is at its full depth.
 const DUCK_FULL: f32 = 0.25;
 /// Block in which the shimmer's octave is fed back, in samples.
 const SHIMMER_BLOCK: usize = 64;
+/// How long the meters hold the input and the tail, for the editor's scene.
+const METER_RELEASE_MS: [f32; 2] = [60.0, 150.0];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Engine {
@@ -193,10 +214,17 @@ pub struct Reverb {
     plate: Plate,
     spring: Spring,
     octave: Octave,
+    era: Era,
     wet: [Vec<f32>; 2],
     envelope: f32,
     attack: f32,
     release: f32,
+    /// Input and tail levels for the meters, and how fast they fall.
+    levels: [f32; 2],
+    falls: [f32; 2],
+    /// Spectra of the input and of the tail, computed while the window is open.
+    spectra: Box<[Analyzer; 2]>,
+    watched: bool,
 }
 
 impl std::fmt::Debug for Reverb {
@@ -217,10 +245,15 @@ impl Default for Reverb {
             plate: Plate::default(),
             spring: Spring::default(),
             octave: Octave::default(),
+            era: Era::default(),
             wet: [vec![0.0; 1024], vec![0.0; 1024]],
             envelope: 0.0,
             attack: 0.0,
             release: 0.0,
+            levels: [0.0; 2],
+            falls: [0.0; 2],
+            spectra: Box::default(),
+            watched: true,
         };
         // The engines give the tail alone; the dry signal is mixed here.
         reverb.hall.set_param(12, 100.0);
@@ -242,7 +275,13 @@ impl Reverb {
         self.rate = rate;
         self.attack = 1.0 - time_coefficient(1.0, rate);
         self.release = 1.0 - time_coefficient(self.values[DUCK_RELEASE], rate);
+        self.falls = METER_RELEASE_MS.map(|ms| time_coefficient(ms, rate));
         self.octave.prepare(rate);
+        self.era.set(self.color(), rate);
+    }
+
+    fn color(&self) -> usize {
+        (self.values[COLOR].round().max(0.0) as usize).min(era::VINTAGE)
     }
 
     /// Pre-delay in ms: the note's length at the tempo when synced, within the engines' 200 ms.
@@ -308,13 +347,21 @@ impl Reverb {
             }
             BASS => h.set_param(6, v),
             DIFFUSION => {
+                let v = era::diffusion(self.color(), v);
+                let (h, p, s) = (&mut self.hall, &mut self.plate, &mut self.spring);
                 h.set_param(7, v);
                 p.set_param(4, v);
                 s.diffusion = v;
             }
             MODULATION => {
-                h.set_param(8, v);
-                p.set_param(5, v);
+                let v = era::modulation(self.color(), v);
+                self.hall.set_param(8, v);
+                self.plate.set_param(5, v);
+            }
+            COLOR => {
+                self.era.set(self.color(), self.rate);
+                self.forward(DIFFUSION);
+                self.forward(MODULATION);
             }
             FREEZE => {
                 h.set_param(13, v);
@@ -356,6 +403,9 @@ impl Effect for Reverb {
         self.plate.prepare(sample_rate, max_frames);
         self.spring.prepare(sample_rate);
         self.wet = [vec![0.0; max_frames.max(1)], vec![0.0; max_frames.max(1)]];
+        for spectrum in self.spectra.iter_mut() {
+            spectrum.prepare(sample_rate, max_frames);
+        }
         self.envelope = 0.0;
         self.set_rate(sample_rate as f32);
     }
@@ -400,14 +450,26 @@ impl Effect for Reverb {
             let (wet_l, wet_r) = (&mut wet_l[..n], &mut wet_r[..n]);
             wet_l.copy_from_slice(left);
             wet_r.copy_from_slice(right);
+            if self.watched {
+                self.spectra[0].process(wet_l, wet_r);
+            }
+            self.era.before(wet_l, wet_r);
             match kind {
                 SHIMMER => self.shimmer(wet_l, wet_r),
                 PLATE => self.plate.process(wet_l, wet_r),
                 SPRING => self.spring.process(wet_l, wet_r),
                 _ => self.hall.process(wet_l, wet_r),
             }
+            self.era.after(wet_l, wet_r);
+            if self.watched {
+                self.spectra[1].process(wet_l, wet_r);
+            }
             for i in 0..n {
                 let level = left[i].abs().max(right[i].abs());
+                let tail = wet_l[i].abs().max(wet_r[i].abs());
+                for (k, x) in [level, tail].into_iter().enumerate() {
+                    self.levels[k] = x.max(self.levels[k] * self.falls[k]);
+                }
                 let coefficient = if level > self.envelope {
                     self.attack
                 } else {
@@ -427,7 +489,27 @@ impl Effect for Reverb {
         self.plate.reset();
         self.spring.reset();
         self.octave.reset();
+        self.era.reset();
         self.envelope = 0.0;
+        self.levels = [0.0; 2];
+        for spectrum in self.spectra.iter_mut() {
+            spectrum.reset();
+        }
+    }
+
+    fn set_watched(&mut self, watched: bool) {
+        self.watched = watched;
+    }
+
+    fn meters(&self, out: &mut [f32]) {
+        for (o, v) in out.iter_mut().zip(self.levels) {
+            *o = gain_to_db(v);
+        }
+        for (k, spectrum) in self.spectra.iter().enumerate() {
+            if let Some(slot) = out.get_mut(INPUT_SPECTRUM + k * BANDS..) {
+                spectrum.meters(slot);
+            }
+        }
     }
 }
 
@@ -711,6 +793,144 @@ mod tests {
         let (fast, slow) = (onset(120.0), onset(80.0));
         assert!((6000..6600).contains(&fast), "125 ms at 120 BPM: {fast}");
         assert!((9000..9600).contains(&slow), "187.5 ms at 80 BPM: {slow}");
+    }
+
+    /// Energy of the tail above `hz` against all of it, from a noise burst.
+    fn share_above(color: usize, kind: usize, hz: f32) -> f32 {
+        let mut reverb = reverb(&[(TYPE, kind as f32), (DECAY, 2.0), (COLOR, color as f32)]);
+        let mut seed = 7u32;
+        let n = 48_000;
+        let (mut l, mut r): (Vec<f32>, Vec<f32>) = (0..n)
+            .map(|i| {
+                seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                let s = if i < 4800 {
+                    0.3 * ((seed >> 9) as f32 / 4_194_304.0 - 1.0)
+                } else {
+                    0.0
+                };
+                (s, s)
+            })
+            .unzip();
+        for (cl, cr) in l.chunks_mut(256).zip(r.chunks_mut(256)) {
+            reverb.process(cl, cr);
+        }
+        assert!(l.iter().chain(&r).all(|s| s.is_finite() && s.abs() < 4.0));
+        let window = &l[4800..4800 + 32_768];
+        let fft = realfft::RealFftPlanner::<f32>::new().plan_fft_forward(window.len());
+        let mut frame = window.to_vec();
+        let mut spectrum = fft.make_output_vec();
+        fft.process(&mut frame, &mut spectrum).unwrap();
+        let bin = (hz / 48_000.0 * window.len() as f32) as usize;
+        let total: f32 = spectrum.iter().map(|c| c.norm_sqr()).sum();
+        let high: f32 = spectrum[bin..].iter().map(|c| c.norm_sqr()).sum();
+        high / total.max(1e-30)
+    }
+
+    #[test]
+    fn older_colors_darken_the_tail_in_every_space() {
+        for kind in [HALL, PLATE, SPRING, SHIMMER] {
+            let clean = share_above(era::CLEAN, kind, 12_000.0);
+            let eighties = share_above(era::EIGHTIES, kind, 12_000.0);
+            assert!(
+                eighties < clean * 0.2,
+                "{}: {clean} vs {eighties}",
+                TYPES[kind]
+            );
+            let eighties_mid = share_above(era::EIGHTIES, kind, 8_000.0);
+            let vintage = share_above(era::VINTAGE, kind, 8_000.0);
+            assert!(
+                vintage < eighties_mid * 0.5,
+                "{}: {eighties_mid} vs {vintage}",
+                TYPES[kind]
+            );
+        }
+    }
+
+    #[test]
+    fn clean_is_the_reverb_as_it_was_and_every_color_falls_silent() {
+        let plain = impulse(&mut reverb(&[]), 1.0);
+        let clean = impulse(&mut reverb(&[(COLOR, era::CLEAN as f32)]), 1.0);
+        assert_eq!(plain, clean);
+        for color in [era::EIGHTIES, era::VINTAGE] {
+            let mut r = reverb(&[(COLOR, color as f32), (DECAY, 0.5)]);
+            let (l, _) = impulse(&mut r, 6.0);
+            assert!(energy(&l[..48_000]) > 1e-4, "{color} rings");
+            assert!(
+                l[240_000..].iter().all(|s| s.abs() < 1e-6),
+                "{color} falls silent"
+            );
+            r.reset();
+            let (mut l, mut r_) = (vec![0.0f32; 4800], vec![0.0f32; 4800]);
+            r.process(&mut l, &mut r_);
+            assert_eq!(energy(&l) + energy(&r_), 0.0, "{color} after a reset");
+        }
+    }
+
+    #[test]
+    fn meters_follow_the_input_and_the_tail() {
+        let mut r = reverb(&[(DECAY, 2.0)]);
+        let mut meters = [0.0; 2];
+        r.meters(&mut meters);
+        assert!(meters.iter().all(|m| *m < -150.0), "silent: {meters:?}");
+        let tone: Vec<f32> = (0..9600)
+            .map(|i| 0.5 * (i as f32 * 440.0 * std::f32::consts::TAU / 48_000.0).sin())
+            .collect();
+        let (mut l, mut r_) = (tone.clone(), tone);
+        r.process(&mut l, &mut r_);
+        r.meters(&mut meters);
+        assert!(meters[0] > -7.0 && meters[1] > -40.0, "playing: {meters:?}");
+        for _ in 0..20 {
+            let (mut l, mut r_) = (vec![0.0f32; 2400], vec![0.0f32; 2400]);
+            r.process(&mut l, &mut r_);
+        }
+        let before = meters;
+        r.meters(&mut meters);
+        assert!(meters[0] < -60.0, "the input is gone: {meters:?}");
+        assert!(
+            meters[1] > meters[0] && meters[1] < before[1],
+            "the tail rings on: {meters:?}"
+        );
+    }
+
+    #[test]
+    fn spectra_show_the_input_and_the_tail_with_the_cut() {
+        let mut r = reverb(&[(DECAY, 2.0), (HIGH_CUT, 2000.0)]);
+        let n = 48_000;
+        let tone = |hz: f32| -> Vec<f32> {
+            (0..n)
+                .map(|i| 0.25 * (i as f32 * hz * std::f32::consts::TAU / 48_000.0).sin())
+                .collect()
+        };
+        let mixed: Vec<f32> = tone(300.0)
+            .iter()
+            .zip(tone(8000.0))
+            .map(|(a, b)| a + b)
+            .collect();
+        let (mut l, mut r_) = (mixed.clone(), mixed);
+        for (cl, cr) in l.chunks_mut(256).zip(r_.chunks_mut(256)) {
+            r.process(cl, cr);
+        }
+        let mut meters = vec![0.0; METERS];
+        r.meters(&mut meters);
+        let band = |hz: f32| {
+            (0..BANDS)
+                .min_by(|&a, &b| {
+                    let far = |k| (crate::analyzer::band_frequency(k) / hz).ln().abs();
+                    far(a).total_cmp(&far(b))
+                })
+                .unwrap()
+        };
+        let (input, tail) = (&meters[INPUT_SPECTRUM..], &meters[TAIL_SPECTRUM..]);
+        assert!(
+            (input[band(8000.0)] - input[band(300.0)]).abs() < 3.0,
+            "{input:?}"
+        );
+        assert!(
+            tail[band(300.0)] - tail[band(8000.0)] > 12.0,
+            "the high cut darkens the tail: {} and {}",
+            tail[band(300.0)],
+            tail[band(8000.0)]
+        );
     }
 
     #[test]

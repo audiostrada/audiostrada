@@ -19,6 +19,7 @@ pub mod doubler;
 pub mod drive;
 pub mod drums;
 pub mod eq;
+mod era;
 pub mod filter;
 pub mod flanger;
 pub mod gate;

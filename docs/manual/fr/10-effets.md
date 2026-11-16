@@ -182,17 +182,30 @@ d'enveloppe : du mouvement discret au balayage sauvage.
 ![Strada-Verb](img/fx/reverb.webp)
 
 Choisissez un espace : Pièce, Salle, Espace, Plaque, Ressort ou Shimmer (survolez un bouton pour
-savoir comment il sonne). Le Shimmer est un vaste espace dont la queue monte d'une octave en
+savoir comment il sonne). Le Shimmer est un vaste espace dont la traîne monte d'une octave en
 résonnant ; son bouton Shimmer en règle la quantité.
 
-La décroissance est en secondes ; le pré-délai retarde la queue par rapport au son direct ; le
-coupe-haut et le coupe-bas la taillent ; la largeur l'étale ; le ducking la baisse pendant que
-l'entrée joue (la queue revient dans les blancs) ; le mélange règle ce qu'on entend. *Freeze*
-tient la queue pour toujours, pour des nappes.
+Puis une couleur, le caractère d'une époque : **Clair** garde la traîne pleine et lisse ;
+**Années 80**, les réverbes numériques des années 80, la limite à 11 kHz avec le grain de 12
+bits et un chorus ample ; **Vintage**, les premières réverbes numériques et les plaques des années 70, la
+rend plus sombre (7 kHz), plus granuleuse et moins dense, avec un léger souffle qui suit la
+traîne.
 
-Les petits boutons règlent la taille, premières réflexions / queue, l'amortissement des aigus et
-des graves, la diffusion et la modulation ; ceux qu'un espace n'utilise pas sont grisés.
-L'affichage montre comment s'éteignent les graves et les aigus.
+L'affichage montre combien de temps chaque fréquence résonne, en secondes, sur le spectre de la
+traîne (dans la teinte de la couleur) et celui de l'entrée (une ligne) ; les coupes ombrent ses
+bords, et des pointillés marquent un temps et une mesure au tempo du projet. Glissez ses points :
+le vert pour le déclin, l'orange pour la durée des graves et jusqu'où ils vont, le bleu pour les
+aigus, le rouge et le violet pour le coupe-bas et le coupe-haut. Double-cliquez sur un point pour
+le remettre à zéro. *Caler sur le tempo* règle le déclin sur des quarts de mesure entiers et le
+pré-délai sur une valeur de note.
+
+Les réglages principaux sont les plus grands : le *Déclin*, avec *Geler* (la traîne tenue pour
+toujours, pour des nappes), le *Pré-délai*, en millisecondes ou, avec *Synchro*, en valeur de
+note, et le *Mix*. À côté viennent les réflexions (taille, précoces / tardives, diffusion), le
+mouvement (profondeur et vitesse de la modulation), le ducking (de combien la traîne baisse
+pendant que l'entrée joue, et à quelle vitesse elle revient), la tonalité (les boutons des points
+de l'affichage), la largeur et la quantité de Shimmer. Ceux qu'un espace n'utilise pas sont
+grisés.
 
 <!-- effect:reverb -->
 
@@ -200,11 +213,23 @@ L'affichage montre comment s'éteignent les graves et les aigus.
 
 ![Strada-Delay](img/fx/delay.webp)
 
-Des échos numériques, à bande ou analogiques. **Numérique** donne des répétitions nettes ;
-**Bande** des répétitions qui ondulent, saturent et s'assombrissent, et un changement de temps
-glisse comme un varispeed ; **Analogique** (bucket brigade) des répétitions plus sombres à mesure
-que le temps s'allonge. Calage sur le tempo, ping-pong, décalage du canal droit, ducking et
-freeze.
+Choisissez une machine : **Numérique** donne des répétitions nettes, et un nouveau temps arrive
+en fondu ; **Bande** des répétitions qui ondulent, saturent et s'assombrissent, et un changement
+de temps glisse comme un varispeed ; **Analogique** (bucket brigade) des répétitions chaudes,
+plus sombres à mesure que le temps s'allonge.
+
+À gauche, les échos sur la grille du tempo, la gauche en haut et la droite en bas, s'allument
+quand on les entend ; le ping-pong dessine leur trajet. Glissez le premier écho de côté pour le
+temps, en hauteur pour la réinjection, et le premier écho de droite de côté pour son décalage. À
+droite, la tonalité des répétitions sur leur spectre : la courbe jaune est un passage dans la
+boucle, les plus pâles les passages suivants, plus sombres à chaque fois ; glissez les points
+rouge et violet pour le coupe-bas et le coupe-haut.
+
+Les réglages principaux sont les plus grands : le *Temps*, en millisecondes avec *Tap*, ou avec
+*Synchro* en valeur de note au tempo du projet ; la *Réinjection*, avec *Ping-pong* et *Geler* (ce
+qui est dans le delay se répète pour toujours, sans l'entrée) ; et le *Mix*. À côté viennent les
+coupes, le wow & flutter et le drive (bande et analogique seulement), le décalage de la droite,
+et le ducking (les échos baissés pendant que l'entrée joue, revenant dans les blancs).
 
 <!-- effect:delay -->
 
@@ -256,10 +281,20 @@ Un transpositeur à deux voix, avec délai et réinjection : harmonies, octaves,
 
 ![Strada-Drive](img/fx/drive.webp)
 
-Choisissez un type (Overdrive, Distorsion, Fuzz, Lampe, Bande, Transformateur, Redresseur) ; la
-courbe montre comment il plie le signal. Drive, Tonalité, Niveau et Mélange sont les boutons de la
-pédale ; le coupe-bas resserre les graves avant la saturation, le Bias rend l'écrêtage asymétrique
-(plus chaud, harmoniques paires), Graves et Médiums façonnent le son après.
+Choisissez un type (Overdrive, Distorsion, Fuzz, Lampe, Bande, Transformateur, Redresseur). Le
+*Drive* va du son propre à l'excès par pas réguliers : le premier tiers colore un peu une basse ou
+un bus, le haut donne une fuzz. Les crêtes gardent leur niveau quel que soit le drive ; le *Gain
+auto* égale le volume à la place, pour juger la couleur et non le volume. *Sortie* ajuste le
+niveau, *Mix* remêle le son direct.
+
+L'affichage montre le spectre de l'entrée (une ligne) et celui de la sortie, où brillent les
+harmoniques ajoutées. La ligne orange montre à quel point chaque fréquence est poussée : glissez
+ses points pour le drive, le *Coupe-bas* qui garde les graves hors de la saturation, et le
+*Focus*, une bande poussée plus fort (pour faire ressortir une basse) ou moins que le reste, sans
+changer sa tonalité. La ligne blanche est la tonalité après le drive : glissez ses points pour les
+*Basses*, les *Médiums* (et leur fréquence) et la *Tonalité*, un coupe-haut. Double-cliquez sur un
+point pour le remettre à zéro. Le *Bias* rend l'écrêtage asymétrique (plus chaud, harmoniques
+paires).
 
 <!-- effect:drive -->
 
