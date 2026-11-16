@@ -150,9 +150,11 @@ pub fn choice_row(
 /// A switch as a small button.
 pub fn toggle_chip(ui: &mut Ui, params: &mut dyn EditorParams, id: &str, label: &str, hint: &str) {
     params.toggle(ui, id, |ui, on| {
-        let response = chip(ui, label, *on).on_hover_text(hint);
+        let mut response = chip(ui, label, *on).on_hover_text(hint);
         if response.clicked() {
             *on = !*on;
+            // `toggle` applies changed responses only: a chip reports a click alone.
+            response.mark_changed();
         }
         response
     });
@@ -1019,6 +1021,79 @@ fn controls(ui: &mut Ui, params: &mut dyn EditorParams, kind: usize) {
                     wide_knob(ui, params, id, tr(label), 38.0, tint);
                 });
             });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{Event, PointerButton, RawInput, Rect};
+
+    /// The reverb's parameters, as an editor sees them.
+    struct Values(Vec<f32>);
+
+    impl EditorParams for Values {
+        fn info(&self) -> &'static audiostrada_dsp::EffectInfo {
+            &audiostrada_dsp::reverb::INFO
+        }
+        fn get(&self, id: &str) -> f32 {
+            let i = self.info().params.iter().position(|p| p.id == id);
+            i.map_or(0.0, |i| self.0[i])
+        }
+        fn change(&mut self, id: &str, changed: Option<f32>, _: &Response) {
+            let i = self.info().params.iter().position(|p| p.id == id);
+            if let (Some(i), Some(v)) = (i, changed) {
+                self.0[i] = v;
+            }
+        }
+        fn set_with(&mut self, id: &str, c: Option<f32>, r: &Response, _: &mut dyn FnMut(&mut Ui)) {
+            self.change(id, c, r);
+        }
+        fn edit_many(&mut self, _: &str, _: &[(String, f32)]) {}
+        fn sample_rate(&self) -> u32 {
+            48_000
+        }
+        fn tempo(&self) -> f64 {
+            120.0
+        }
+    }
+
+    /// Draws the freeze switch with `events`; returns where it is.
+    fn draw(ctx: &egui::Context, values: &mut Values, events: Vec<Event>) -> Rect {
+        let mut place = Rect::NOTHING;
+        let input = RawInput {
+            events,
+            ..Default::default()
+        };
+        let _ = ctx.run_ui(input, |ui| {
+            let before = ui.cursor().min;
+            toggle_chip(ui, values, "freeze", "Freeze", "");
+            place = Rect::from_min_size(before, vec2(40.0, 24.0));
+        });
+        place
+    }
+
+    #[test]
+    fn a_chip_switch_turns_on_and_off_when_clicked() {
+        let info = &audiostrada_dsp::reverb::INFO;
+        let mut values = Values(info.params.iter().map(|p| p.default).collect());
+        let ctx = egui::Context::default();
+        for expected in [1.0, 0.0] {
+            let at = draw(&ctx, &mut values, vec![]).center();
+            let button = |pressed| Event::PointerButton {
+                pos: at,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: Default::default(),
+            };
+            draw(
+                &ctx,
+                &mut values,
+                vec![Event::PointerMoved(at), button(true)],
+            );
+            draw(&ctx, &mut values, vec![button(false)]);
+            assert_eq!(values.get("freeze"), expected);
         }
     }
 }
