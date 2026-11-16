@@ -87,6 +87,8 @@ pub struct MixerView {
     /// The instrument the browser was opened to replace ("Change instrument…"); an
     /// instrument chosen otherwise is layered on those leading its track.
     replace_instrument: bool,
+    /// The insert the browser was opened to replace ("Replace…").
+    replacing: Option<(Channel, InsertId)>,
     /// The window to give the focus back to, and when: windows brought to the front for a
     /// track selected take it on the way.
     refocus: Option<(egui::ViewportId, f64)>,
@@ -678,6 +680,8 @@ fn forget_window(ctx: &egui::Context, places: egui::Id, id: egui::ViewportId) {
         d.remove::<u64>(egui::Id::unique(("fit-opened", id)));
         d.remove::<egui::Vec2>(egui::Id::unique(("fit-size", id)));
         d.remove::<(f32, f32, bool)>(egui::Id::unique(("fit-room", id)));
+        d.remove::<bool>(egui::Id::unique(("fit-by-hand", id)));
+        d.remove::<egui::Vec2>(egui::Id::unique(("fit-last-inner", id)));
         d.get_temp_mut_or_default::<WindowPlaces>(places)
             .opened
             .remove(&id);
@@ -814,8 +818,12 @@ fn editor_window(
             let v = i.viewport();
             v.maximized == Some(true) || v.fullscreen == Some(true)
         });
+        // Linux: once resized by hand, the window keeps the size given, its content scrolled;
+        // following the content then fought the hand, the window jumping between both.
+        let by_hand = cfg!(all(unix, not(target_os = "macos")))
+            && resized_by_hand(&ctx, id, frame >= first + 4);
         if let Some((content, room)) =
-            content.filter(|_| held.is_none() && frame >= first + 2 && !maximized)
+            content.filter(|_| held.is_none() && frame >= first + 2 && !maximized && !by_hand)
         {
             let (inner, monitor) = ctx.input(|i| {
                 let v = i.viewport();
@@ -874,6 +882,31 @@ fn editor_window(
         ctx.request_repaint();
     }
     open
+}
+
+/// Whether the window `id` was resized by hand: its size changed to another than the one
+/// last asked for it. Counted once `settled`, after its first frames.
+fn resized_by_hand(ctx: &egui::Context, id: egui::ViewportId, settled: bool) -> bool {
+    let (flag, last_key) = (
+        egui::Id::unique(("fit-by-hand", id)),
+        egui::Id::unique(("fit-last-inner", id)),
+    );
+    if ctx.data(|d| d.get_temp::<bool>(flag)).unwrap_or(false) {
+        return true;
+    }
+    let Some(now) = ctx.input(|i| i.viewport().inner_rect.map(|r| r.size())) else {
+        return false;
+    };
+    let last = ctx.data(|d| d.get_temp::<egui::Vec2>(last_key));
+    ctx.data_mut(|d| d.insert_temp(last_key, now));
+    let asked = ctx.data(|d| d.get_temp::<egui::Vec2>(egui::Id::unique(("fit-size", id))));
+    let moved = last.is_some_and(|l| (now - l).abs().max_elem() > 1.0);
+    let ours = asked.is_some_and(|a| (now - a).abs().max_elem() <= 2.0);
+    let by_hand = settled && moved && !ours;
+    if by_hand {
+        ctx.data_mut(|d| d.insert_temp(flag, true));
+    }
+    by_hand
 }
 
 /// Heights of the strip sections, from the panel height.
@@ -2604,6 +2637,7 @@ impl MixerView {
             fx_fallback: None,
             raise: Vec::new(),
             replace_instrument: false,
+            replacing: None,
             refocus: None,
             error: None,
             browser: Default::default(),
@@ -4424,6 +4458,15 @@ impl MixerView {
                     ui.close();
                 }
                 save_chain_menu(ui, doc, (channel, monitor), owner);
+                if insert.effect != routing::PARALLEL
+                    && ui
+                        .button(tr("Replace…"))
+                        .on_hover_text(tr("Another effect or plugin in its place"))
+                        .clicked()
+                {
+                    self.choose_replacement(channel, monitor, id);
+                    ui.close();
+                }
                 if ui.button(tr("Remove")).clicked() {
                     self.remove_insert(doc, channel, id);
                     ui.close();
@@ -4440,6 +4483,7 @@ impl MixerView {
             );
             if add.clicked() {
                 self.rack.place = None;
+                self.replacing = None;
                 self.browser.borrow_mut().open((channel, monitor));
             }
             self.insert_drop_row(ui, (channel, monitor, shown.len()), add.rect, false);
@@ -4469,6 +4513,7 @@ impl MixerView {
             );
             if slot.clicked() {
                 self.rack.place = None;
+                self.replacing = None;
                 self.browser.borrow_mut().open((channel, monitor));
             }
             self.insert_drop_row(ui, (channel, monitor, shown.len()), slot.rect, false);
@@ -4645,6 +4690,11 @@ impl MixerView {
         // An instrument goes after those leading its track, layered on them (the first one
         // leads), or in place of the first when the browser was opened to change it.
         let replace = std::mem::take(&mut self.replace_instrument);
+        let replacing = self
+            .replacing
+            .take()
+            .filter(|(c, _)| *c == channel)
+            .map(|r| r.1);
         let leading = |doc: &Document, t: TrackId| -> Vec<InsertId> {
             doc.project().track(t).map_or_else(Vec::new, |t| {
                 t.inserts
@@ -4665,21 +4715,33 @@ impl MixerView {
             }
             _ => None,
         };
-        doc.history_mut()
-            .edit(&trf!("Insert {name}", name = name), |p| {
-                added = routing::add_insert(p, channel, key, settings);
-                if monitor
-                    && let Some(i) = p.master.inserts.iter_mut().find(|i| Some(i.id) == added)
-                {
-                    i.monitor = true;
+        let label = if replacing.is_some() {
+            trf!("Replace with {name}", name = name)
+        } else {
+            trf!("Insert {name}", name = name)
+        };
+        doc.history_mut().edit(&label, |p| {
+            added = routing::add_insert(p, channel, key, settings);
+            if monitor && let Some(i) = p.master.inserts.iter_mut().find(|i| Some(i.id) == added) {
+                i.monitor = true;
+            }
+            if let (Some((old, at)), Some(id)) = (replaced, added) {
+                if let Some(old) = old {
+                    routing::remove_insert(p, channel, old);
                 }
-                if let (Some((old, at)), Some(id)) = (replaced, added) {
-                    if let Some(old) = old {
-                        routing::remove_insert(p, channel, old);
-                    }
-                    added = routing::place_insert(p, (channel, id), (channel, false, at), false);
-                }
-            });
+                added = routing::place_insert(p, (channel, id), (channel, false, at), false);
+            }
+            if let (Some(old), Some(id)) = (replacing, added)
+                && routing::replace_insert(p, channel, old, id).is_none()
+            {
+                routing::remove_insert(p, channel, id);
+                added = None;
+            }
+        });
+        if let Some(old) = replacing.filter(|_| added.is_some()) {
+            self.editors.retain(|e| *e != (channel, old));
+            self.open_gui.retain(|e| *e != (channel, old));
+        }
         if let Some((Some(old), _)) = replaced {
             self.editors.retain(|e| *e != (channel, old));
         }
@@ -5271,10 +5333,18 @@ impl MixerView {
             });
     }
 
+    /// Opens the browser to put another effect or plugin in the place of insert `id`.
+    fn choose_replacement(&mut self, channel: Channel, monitor: bool, id: InsertId) {
+        self.rack.place = None;
+        self.replacing = Some((channel, id));
+        self.browser.borrow_mut().open((channel, monitor));
+    }
+
     /// Opens the browser on the instruments for a track: to replace its lead instrument, or
     /// to add one (the first, or a layer on those there).
     pub fn choose_instrument(&mut self, track: TrackId, replace: bool) {
         self.rack.place = None;
+        self.replacing = None;
         self.replace_instrument = replace;
         self.browser
             .borrow_mut()
@@ -5884,8 +5954,10 @@ impl MixerView {
             )
         };
         match (count, first) {
-            (0, _) => self.browser.borrow_mut().open((channel, false)),
-            _ if add => self.browser.borrow_mut().open((channel, false)),
+            _ if add || count == 0 => {
+                self.replacing = None;
+                self.browser.borrow_mut().open((channel, false));
+            }
             (1, Some((id, effect))) if effect != routing::PARALLEL => {
                 if audiostrada_dsp::info(&effect).is_some() {
                     self.show_editor(channel, id);
@@ -5906,6 +5978,10 @@ impl MixerView {
             self.raise.push(id);
         } else {
             self.editors.push((channel, id));
+            // Linux: opened over another floating window, it stayed behind it.
+            if cfg!(all(unix, not(target_os = "macos"))) {
+                self.raise.push(id);
+            }
         }
     }
 

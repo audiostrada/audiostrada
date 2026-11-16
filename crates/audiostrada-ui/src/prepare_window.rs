@@ -197,6 +197,8 @@ enum View {
 
 pub struct PrepareWindow {
     mode: Option<Mode>,
+    /// Just opened: its window comes to the front.
+    raise: bool,
     rows: Vec<Row>,
     view: View,
     tab: Tab,
@@ -263,6 +265,7 @@ impl Default for PrepareWindow {
         let (depth, ambience, wide) = Character::Transparent.place();
         Self {
             mode: None,
+            raise: false,
             rows: Vec::new(),
             view: View::Overview,
             tab: Tab::Mix,
@@ -774,6 +777,7 @@ impl PrepareWindow {
             tracks.truncate(1);
         }
         self.mode = Some(mode);
+        self.raise = true;
         self.spaces_were = write::space_buses(doc.project());
         self.structure = doc.project().tracks.iter().map(|t| t.id).collect();
         self.made.clear();
@@ -1600,6 +1604,10 @@ impl PrepareWindow {
             ctx.set_embed_viewports(true);
         }
         let id = egui::ViewportId::from_hash_of("express-mix");
+        // Linux: a window opened over a floating editor stayed behind it, without the focus.
+        if std::mem::take(&mut self.raise) && cfg!(all(unix, not(target_os = "macos"))) {
+            ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Focus);
+        }
         let builder = egui::ViewportBuilder::default()
             .with_title(format!("{} — AudioStrada", tr("Express Mix")))
             .with_inner_size([WIDTH, HEIGHT])

@@ -1394,6 +1394,7 @@ impl MixerView {
         super::tests::seen("rack add effect".into(), effect.rect);
         if effect.clicked() {
             self.rack.place = Some((channel, place, index));
+            self.replacing = None;
             self.browser.borrow_mut().open((channel, false));
             ui.close();
         }
@@ -2207,6 +2208,14 @@ impl MixerView {
             self.open_insert(channel, insert);
         }
         head.context_menu(|ui| {
+            if ui
+                .button(tr("Replace…"))
+                .on_hover_text(tr("Another effect or plugin in its place"))
+                .clicked()
+            {
+                self.choose_replacement(channel, false, id);
+                ui.close();
+            }
             if ui.button(tr("Remove")).clicked() {
                 self.remove_insert(doc, channel, id);
                 ui.close();

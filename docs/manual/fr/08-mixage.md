@@ -60,7 +60,8 @@ les pistes sélectionnées.
   l'ajoute. Les flèches passent d'une carte à l'autre, [[/]] va à la recherche, [[F]] met l'effet
   choisi en favori.
 - [[Shift]]-clic met un effet en bypass, [[Ctrl]]-clic le retire, le clic droit donne les autres
-  options ; *Sidechain* y choisit la piste qui pilote un effet doté d'une entrée sidechain.
+  options ; *Sidechain* y choisit la piste qui pilote un effet doté d'une entrée sidechain, et
+  *Remplacer…* met un autre effet ou plugin à sa place.
 - Glissez un effet pour le réordonner, ou sur une autre tranche pour l'y copier ([[Alt]] : le
   déplacer). Déposé sur la liste, il va à l'endroit choisi ; ailleurs sur la tranche, en dernier.
 - **Bypass** au-dessus des inserts met en bypass tous les effets de la tranche, et reste allumé

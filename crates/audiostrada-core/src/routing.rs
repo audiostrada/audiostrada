@@ -880,6 +880,40 @@ pub fn remove_insert(project: &mut Project, channel: Channel, id: InsertId) {
     forget(project, channel, &ids);
 }
 
+/// Puts insert `new` of a channel in the place of `old` (in its list or in its branch, among
+/// the monitoring inserts or not), which goes with its automation and MIDI mappings. A
+/// parallel chain takes no place in a branch. Returns the id in place.
+pub fn replace_insert(
+    project: &mut Project,
+    channel: Channel,
+    old: InsertId,
+    new: InsertId,
+) -> Option<InsertId> {
+    if old == new || find_insert(project, channel, old).is_none() {
+        return None;
+    }
+    let list = inserts_mut(project, channel)?;
+    let in_branch = list.iter().all(|i| i.id != old);
+    let mut insert = take(list, new)?;
+    if in_branch && insert.effect == PARALLEL {
+        list.push(insert);
+        return None;
+    }
+    let slot = find_in_mut(list, old)?;
+    insert.monitor = slot.monitor;
+    let removed = std::mem::replace(slot, insert);
+    let mut ids = vec![old];
+    ids.extend(
+        removed
+            .branches
+            .iter()
+            .flat_map(|b| flatten(&b.inserts))
+            .map(|i| i.id),
+    );
+    forget(project, channel, &ids);
+    Some(new)
+}
+
 /// Puts insert `id` of `from` before the `index`-th insert of `to` that is in the same list
 /// (`monitor` or not; past the last one for a larger index), moving it or copying it with a
 /// new id. A move to another channel takes its automation and MIDI mappings along. Returns
@@ -1081,6 +1115,36 @@ mod tests {
         assert_eq!(add_branch(&mut p, c, added), Some(2));
         remove_branch(&mut p, c, added, 0);
         assert_eq!(inserts(&p, c)[0].branches.len(), 2);
+    }
+
+    #[test]
+    fn an_insert_replaced_keeps_its_place_and_drops_its_automation() {
+        let (mut p, a, _, _) = project();
+        let c = Channel::Track(a);
+        let eq = add_insert(&mut p, c, "eq", BTreeMap::new()).unwrap();
+        let comp = add_insert(&mut p, c, "compressor", BTreeMap::new()).unwrap();
+        let delay = add_insert(&mut p, c, "delay", BTreeMap::new()).unwrap();
+        p.track_mut(a)
+            .unwrap()
+            .automation
+            .push(AutomationLane::new(AutomationTarget::Param {
+                insert: comp,
+                param: "ratio".into(),
+            }));
+        let drive = add_insert(&mut p, c, "drive", BTreeMap::new()).unwrap();
+        assert_eq!(replace_insert(&mut p, c, comp, drive), Some(drive));
+        let order: Vec<InsertId> = inserts(&p, c).iter().map(|i| i.id).collect();
+        assert_eq!(order, [eq, drive, delay]);
+        assert!(p.track(a).unwrap().automation.is_empty());
+        // In a branch, and never a parallel chain there.
+        let par = add_parallel(&mut p, c, 3).unwrap();
+        let inner = add_insert_at(&mut p, c, (Some((par, 0)), 0), "compressor").unwrap();
+        let tape = add_insert(&mut p, c, "tape", BTreeMap::new()).unwrap();
+        replace_insert(&mut p, c, inner, tape).unwrap();
+        assert_eq!(inserts(&p, c)[3].branches[0].inserts[0].id, tape);
+        let other = add_parallel(&mut p, c, 4).unwrap();
+        assert!(replace_insert(&mut p, c, tape, other).is_none());
+        assert!(find_insert(&p, c, tape).is_some() && find_insert(&p, c, other).is_some());
     }
 
     #[test]

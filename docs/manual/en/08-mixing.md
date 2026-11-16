@@ -59,7 +59,8 @@ arm the selected tracks.
   adds it. The arrows move between the cards, [[/]] goes to the search, [[F]] stars the chosen
   effect.
 - [[Shift]]-click bypasses an effect, [[Ctrl]]-click removes it, right-click for the other
-  options; *Sidechain* there chooses the track keying an effect that has a sidechain input.
+  options; *Sidechain* there chooses the track keying an effect that has a sidechain input, and
+  *Replace…* puts another effect or plugin in its place.
 - Drag an effect to reorder it, or onto another strip to copy it there ([[Alt]]: move it). Drop
   it on the list to choose the place, anywhere else on the strip to put it last.
 - **Bypass** above the inserts bypasses every effect of the strip, and stays lit while they are

@@ -2064,3 +2064,12 @@ Bypass global
 
 Every effect is bypassed by the global bypass on the master
 Tous les effets sont bypassés par le bypass global du master
+
+Replace…
+Remplacer…
+
+Another effect or plugin in its place
+Un autre effet ou plugin à sa place
+
+Replace with {name}
+Remplacer par {name}
