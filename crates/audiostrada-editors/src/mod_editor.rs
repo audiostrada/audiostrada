@@ -4,19 +4,17 @@
 
 use audiostrada_dsp::filter::lfo_value;
 use audiostrada_dsp::modulator::{CUTTER, MODE_HINTS, MODES, PAN, PATTERN, RING, VIBRATO};
-use eframe::egui::{
-    self, Align2, Color32, FontId, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2,
-};
+use egui::{self, Align2, Color32, FontId, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 
-use crate::drums_editor::{MODULE, modules, screen};
-use crate::effect_editors::Params;
+use crate::controls::EditorParams;
+use crate::controls::{MODULE, modules, screen};
 use crate::i18n::tr;
 use crate::theme;
 
 const ACCENT: Color32 = Color32::from_rgb(178, 132, 240);
 const RIGHT: Color32 = Color32::from_rgb(110, 200, 230);
 
-pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
+pub fn show(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32]) {
     let mode = (params.get("mode").round() as usize).min(MODES.len() - 1);
     screen(ui, |ui| {
         tabs(ui, params, mode);
@@ -80,11 +78,11 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32]) {
             list.iter().map(|(t, v)| (*t, v.clone())).collect();
         modules(ui, params, &list, ACCENT, 46.0);
     });
-    crate::animate(ui.ctx());
+    crate::controls::animate(ui.ctx());
 }
 
 /// The modes, each a tab with its hint.
-fn tabs(ui: &mut Ui, params: &mut Params, mode: usize) {
+fn tabs(ui: &mut Ui, params: &mut dyn EditorParams, mode: usize) {
     let width = ui.available_width();
     let gap = 6.0;
     let (row, _) = ui.allocate_exact_size(vec2(width, 34.0), Sense::hover());
@@ -137,13 +135,13 @@ fn tabs(ui: &mut Ui, params: &mut Params, mode: usize) {
         let changed = (response.clicked() && !chosen).then_some(k as f32);
         params.set("mode", changed, &response);
         if changed.is_some() {
-            params.doc.history_mut().end_gesture();
+            params.end_gesture();
         }
     }
 }
 
 /// What moves, drawn over two cycles with the playhead; the cutter's steps to click.
-fn display(ui: &mut Ui, params: &mut Params, meters: &[f32], mode: usize) {
+fn display(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], mode: usize) {
     let width = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(vec2(width, 180.0), Sense::hover());
     let painter = ui.painter_at(rect);
@@ -274,7 +272,13 @@ fn display(ui: &mut Ui, params: &mut Params, meters: &[f32], mode: usize) {
 
 /// The cutter's steps: each a block to click, lit for its gate's length, the one playing
 /// outlined.
-fn cutter(ui: &mut Ui, painter: &egui::Painter, area: Rect, params: &mut Params, meters: &[f32]) {
+fn cutter(
+    ui: &mut Ui,
+    painter: &egui::Painter,
+    area: Rect,
+    params: &mut dyn EditorParams,
+    meters: &[f32],
+) {
     let count = [4usize, 8, 16][params.get("steps").round().clamp(0.0, 2.0) as usize];
     let playing = meters.get(1).copied().unwrap_or(0.0).round() as usize % count;
     let gate = params.get("gate") / 100.0;
@@ -337,7 +341,7 @@ fn cutter(ui: &mut Ui, painter: &egui::Painter, area: Rect, params: &mut Params,
         );
         if response.clicked() {
             params.set(&key, Some(if on { 0.0 } else { 1.0 }), &response);
-            params.doc.history_mut().end_gesture();
+            params.end_gesture();
         }
     }
 }

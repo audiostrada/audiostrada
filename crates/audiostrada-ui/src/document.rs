@@ -649,7 +649,7 @@ impl Document {
             .filter(|t| self.is_instrument_track(t.id))
             .map(|t| t.id)
             .collect();
-        self.master_level.take(self.player.master_meter(), elapsed);
+        take_readout(&mut self.master_level, self.player.master_meter(), elapsed);
         let project = self.history.project();
         self.levels.retain(|id, _| project.track(*id).is_some());
         for track in &project.tracks {
@@ -664,12 +664,12 @@ impl Document {
                         && track.kind == TrackKind::Audio
                         && !instruments.contains(&track.id) =>
                 {
-                    level.take(input, elapsed);
+                    take_readout(level, input, elapsed);
                     for ch in 0..output.channels() {
                         output.take_peak(ch);
                     }
                 }
-                _ => level.take(output, elapsed),
+                _ => take_readout(level, output, elapsed),
             }
         }
     }
@@ -2544,6 +2544,23 @@ impl Document {
     pub fn dirs(&self) -> &AppDirs {
         &self.dirs
     }
+}
+
+/// Takes a readout's peaks since the last call, `elapsed` seconds ago.
+fn take_readout(
+    level: &mut crate::widgets::MeterState,
+    readout: &audiostrada_engine::meter::MeterReadout,
+    elapsed: f32,
+) {
+    use crate::widgets::{METER_FALL_DB_PER_S, METER_FLOOR};
+    let mut peaks = [METER_FLOOR; 2];
+    for (ch, peak) in peaks.iter_mut().enumerate().take(readout.channels()) {
+        *peak = audiostrada_io::tools::gain_to_db(readout.take_peak(ch));
+    }
+    if readout.channels() == 1 {
+        peaks[1] = peaks[0];
+    }
+    level.push(peaks, elapsed * METER_FALL_DB_PER_S, elapsed);
 }
 
 #[cfg(test)]

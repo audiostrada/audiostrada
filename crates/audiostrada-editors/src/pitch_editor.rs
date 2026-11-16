@@ -4,10 +4,10 @@
 //! Doubler: the stereo field seen from above, the dry sound in the middle and the doubles
 //! placed by side and delay, drifting; then the voices, the character and the output.
 
-use eframe::egui::{self, Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Ui, pos2, vec2};
+use egui::{self, Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Ui, pos2, vec2};
 
-use crate::drums_editor::{MODULE, modules, screen};
-use crate::effect_editors::Params;
+use crate::controls::EditorParams;
+use crate::controls::{MODULE, modules, screen};
 use crate::i18n::tr;
 use crate::theme;
 
@@ -55,7 +55,7 @@ fn interval(semitones: i32) -> String {
     }
 }
 
-pub fn pitch(ui: &mut Ui, params: &mut Params) {
+pub fn pitch(ui: &mut Ui, params: &mut dyn EditorParams) {
     screen(ui, |ui| {
         keyboard(ui, params);
         ui.add_space(10.0);
@@ -112,7 +112,7 @@ pub fn pitch(ui: &mut Ui, params: &mut Params) {
 }
 
 /// Four octaves of keys around the original note; voice A and B lit on theirs.
-fn keyboard(ui: &mut Ui, params: &mut Params) {
+fn keyboard(ui: &mut Ui, params: &mut dyn EditorParams) {
     let width = ui.available_width();
     let (rect, response) = ui.allocate_exact_size(vec2(width, 112.0), Sense::click());
     let painter = ui.painter_at(rect);
@@ -210,19 +210,19 @@ fn keyboard(ui: &mut Ui, params: &mut Params) {
     if let Some(s) = hovered {
         if response.clicked() {
             params.set("a_semis", Some(s as f32), &response);
-            params.doc.history_mut().end_gesture();
+            params.end_gesture();
         } else if response.secondary_clicked() {
             params.set("b_semis", Some(s as f32), &response);
             if !b_on {
                 params.set("b_level", Some(100.0), &response);
             }
-            params.doc.history_mut().end_gesture();
+            params.end_gesture();
         }
     }
 }
 
 /// A voice's interval: its name and value, a semitone down or up.
-fn stepper(ui: &mut Ui, params: &mut Params, voice: &str, color: Color32, width: f32) {
+fn stepper(ui: &mut Ui, params: &mut dyn EditorParams, voice: &str, color: Color32, width: f32) {
     let id = format!("{voice}_semis");
     let semis = params.get(&id).round() as i32;
     let (rect, _) = ui.allocate_exact_size(vec2(width, 52.0), Sense::hover());
@@ -297,12 +297,12 @@ fn stepper(ui: &mut Ui, params: &mut Params, voice: &str, color: Color32, width:
             .then_some((semis + step).clamp(-SPAN, SPAN) as f32);
         params.set(&id, changed, &response);
         if changed.is_some() {
-            params.doc.history_mut().end_gesture();
+            params.end_gesture();
         }
     }
 }
 
-pub fn doubler(ui: &mut Ui, params: &mut Params) {
+pub fn doubler(ui: &mut Ui, params: &mut dyn EditorParams) {
     screen(ui, |ui| {
         field(ui, params);
         ui.add_space(10.0);
@@ -336,12 +336,12 @@ pub fn doubler(ui: &mut Ui, params: &mut Params) {
             46.0,
         );
     });
-    crate::animate(ui.ctx());
+    crate::controls::animate(ui.ctx());
 }
 
 /// The stereo field from above: the dry sound in front, each double at its side and as far
 /// back as it is late, wandering with the drift.
-fn field(ui: &mut Ui, params: &mut Params) {
+fn field(ui: &mut Ui, params: &mut dyn EditorParams) {
     use audiostrada_dsp::doubler::SHAPES;
     let width = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(vec2(width, 220.0), Sense::hover());

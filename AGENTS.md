@@ -17,7 +17,8 @@ the code without breaking it.
 | `audiostrada-mp3` | MP3 encoder helper binary; the LGPL encoder (`shine-rs`) is linked here only |
 | `audiostrada-midi` | MIDI devices, clips, files |
 | `audiostrada-plugins` | CLAP, VST3 and LV2 hosting, each plugin in a sandboxed process |
-| `audiostrada-ui` | egui interface: `lib.rs` (the application), `document.rs` (the open project), `actions.rs`, `keymap.rs`, `layout.rs`, `timeline/`, `mixer.rs`, editors |
+| `audiostrada-editors` | Look and effect editors shared with the AudioStrada plugins: `theme.rs`, `widgets.rs`, `i18n.rs`, `controls.rs` (`EditorParams`), `frame.rs` (`FrameHost`, presets bar, A/B, Match), `presets.rs`, the editors of the built-in effects |
+| `audiostrada-ui` | egui interface: `lib.rs` (the application), `document.rs` (the open project), `actions.rs`, `keymap.rs`, `layout.rs`, `timeline/`, `mixer.rs`, the instruments' and Channel's editors |
 | `audiostrada-license` | Licenses of the official builds |
 | `audiostrada-rt` | Real-time safety tooling: channels, logger, allocation checks |
 | `audiostrada-app` | The `audiostrada` binary and its command line |

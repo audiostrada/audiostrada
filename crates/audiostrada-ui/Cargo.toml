@@ -26,6 +26,7 @@ raw-window-handle.workspace = true
 rfd.workspace = true
 audiostrada-core.workspace = true
 audiostrada-dsp.workspace = true
+audiostrada-editors.workspace = true
 audiostrada-engine.workspace = true
 audiostrada-io.workspace = true
 audiostrada-license.workspace = true

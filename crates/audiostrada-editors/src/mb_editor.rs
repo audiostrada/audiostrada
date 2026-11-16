@@ -3,12 +3,10 @@
 //! sideways; below, the bands as tabs (solo, bypass) and the chosen band's settings.
 
 use audiostrada_dsp::multiband::{BANDS, GAINS, LEVELS};
-use eframe::egui::{
-    self, Align2, Color32, FontId, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2,
-};
+use egui::{self, Align2, Color32, FontId, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 
-use crate::drums_editor::{MODULE, SCREEN, modules, screen};
-use crate::effect_editors::{Params, solo_band};
+use crate::controls::{EditorParams, solo_band};
+use crate::controls::{MODULE, SCREEN, modules, screen};
 use crate::i18n::tr;
 use crate::theme;
 
@@ -23,8 +21,10 @@ const BOTTOM_DB: f32 = -72.0;
 
 #[derive(Debug, Default)]
 pub struct MbState {
-    band: usize,
-    solo: Option<usize>,
+    /// The band shown.
+    pub band: usize,
+    /// The band heard alone.
+    pub solo: Option<usize>,
 }
 
 fn id(band: usize, field: &str) -> String {
@@ -40,7 +40,7 @@ fn names(count: usize) -> &'static [&'static str] {
     }
 }
 
-pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut MbState) {
+pub fn show(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: &mut MbState) {
     let count = params.get("count").round().clamp(0.0, 2.0) as usize + 2;
     state.band = state.band.min(count - 1);
     if state.solo.is_some_and(|s| s >= count) {
@@ -98,7 +98,13 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut MbStat
 }
 
 /// The spectrum and the bands over it.
-fn graph(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut MbState, count: usize) {
+fn graph(
+    ui: &mut Ui,
+    params: &mut dyn EditorParams,
+    meters: &[f32],
+    state: &mut MbState,
+    count: usize,
+) {
     let width = ui.available_width();
     let (rect, back) = ui.allocate_exact_size(vec2(width, 300.0), Sense::click());
     let painter = ui.painter_at(rect);
@@ -140,7 +146,7 @@ fn graph(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut MbState, 
         );
     }
     // The bands' edges.
-    let rate = params.doc.player().engine().sample_rate().max(1) as f32;
+    let rate = params.sample_rate().max(1) as f32;
     let crossovers = audiostrada_dsp::multiband::crossovers(
         &[0.0, params.get("x1"), params.get("x2"), params.get("x3")],
         rate,
@@ -348,7 +354,13 @@ fn graph(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut MbState, 
 }
 
 /// The bands as tabs: each its name, its gain change, its solo and its bypass.
-fn tabs(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut MbState, count: usize) {
+fn tabs(
+    ui: &mut Ui,
+    params: &mut dyn EditorParams,
+    meters: &[f32],
+    state: &mut MbState,
+    count: usize,
+) {
     let width = ui.available_width();
     let gap = 8.0;
     let (row, _) = ui.allocate_exact_size(vec2(width, 40.0), Sense::hover());
@@ -478,28 +490,8 @@ fn tabs(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut MbState, c
                         Some(if bypassed { 0.0 } else { 1.0 }),
                         &response,
                     );
-                    params.doc.history_mut().end_gesture();
+                    params.end_gesture();
                 }
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn every_band_count_band_and_solo_draws() {
-        for count in 0..3 {
-            for band in 0..4 {
-                crate::effect_editors::draw_for_test(
-                    "mb_comp",
-                    &[("count", count as f32)],
-                    2,
-                    |frame, state| {
-                        state.mb.band = band;
-                        state.mb.solo = (frame == 1).then_some(band);
-                    },
-                );
             }
         }
     }

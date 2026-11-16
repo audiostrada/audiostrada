@@ -2240,7 +2240,7 @@ pub(crate) fn monitor_toggle(
     let id = track.id;
     let response = ui.interact(rect, ui.scope_id().with(("monitor", id.0)), Sense::click());
     let hearing = doc.player().monitoring(id);
-    theme::paint_monitor_toggle(ui, rect, &response, track.monitor, hearing, flat);
+    paint_monitor_toggle(ui, rect, &response, track.monitor, hearing, flat);
     let state = if hearing {
         tr("It hears its input now.")
     } else {
@@ -6119,34 +6119,7 @@ impl MixerView {
                 continue;
             };
             let title = format!("{owner}: {}", tr(info.name));
-            let size = match info.id {
-                "eq" => [1040.0, 800.0],
-                "amp_rig" => [1000.0, 960.0],
-                "channel" => [1060.0, 720.0],
-                "synth" => [1180.0, 720.0],
-                "drums" => [1000.0, 720.0],
-                "trigger" => [960.0, 760.0],
-                "tape" => [980.0, 900.0],
-                "mb_comp" => [1000.0, 860.0],
-                "modulator" => [940.0, 640.0],
-                "pitch" => [940.0, 720.0],
-                "doubler" => [900.0, 600.0],
-                "compressor" => [980.0, 720.0],
-                "gate" => [980.0, 700.0],
-                "deesser" => [980.0, 680.0],
-                "transient" => [900.0, 600.0],
-                "limiter" => [900.0, 650.0],
-                "delay" => [980.0, 620.0],
-                "filter" => [1000.0, 600.0],
-                "imager" => [900.0, 620.0],
-                "utility" => [940.0, 480.0],
-                "drive" => [1000.0, 620.0],
-                "pitch_correct" => [860.0, 560.0],
-                "reverb" => [980.0, 800.0],
-                "maximizer" => [900.0, 730.0],
-                "vintage_eq" => [820.0, 660.0],
-                _ => [760.0, 560.0],
-            };
+            let size = audiostrada_editors::window_size(info.id);
             // The rig picks its own files.
             let rig = info.id == "amp_rig";
             let raise = self.raise.contains(&id);
@@ -6245,12 +6218,12 @@ impl MixerView {
             doc.player_mut().set_insert_match(channel, id, false);
             doc.player_mut().set_insert_watched(channel, id, false);
             if let Some(state) = self.editor_states.get_mut(&id) {
-                state.frame.close(doc, channel, id);
+                effect_frame::close(&mut state.frame, doc, channel, id);
                 state.matching = false;
                 state.synth.release(doc);
                 state.drums.release(doc);
                 // A soloed EQ band only lasts while its window is open too.
-                if state.eq_solo.take().is_some() {
+                if state.eq.solo.take().is_some() {
                     let target = AutomationTarget::Param {
                         insert: id,
                         param: "solo".into(),
@@ -6549,6 +6522,94 @@ fn master_side(ui: &mut Ui, left: bool, requests: &mut Vec<crate::actions::Actio
     if ui.button(side).clicked() {
         requests.push(crate::actions::Action::MasterOnLeft);
         ui.close();
+    }
+}
+
+/// The input monitoring button: a speaker, lit while the input is heard; a small "A" in
+/// automatic mode, struck through when off.
+fn paint_monitor_toggle(
+    ui: &Ui,
+    rect: Rect,
+    response: &Response,
+    mode: audiostrada_core::Monitoring,
+    hearing: bool,
+    flat: bool,
+) {
+    use audiostrada_core::Monitoring;
+    let p = theme::current(ui);
+    let fill = if hearing {
+        theme::MONITOR
+    } else if response.hovered() {
+        p.hover
+    } else if flat {
+        Color32::TRANSPARENT
+    } else {
+        p.surface
+    };
+    ui.painter()
+        .rect_filled(rect, if flat { 4.0 } else { 3.0 }, fill);
+    if flat && !hearing && !response.hovered() {
+        // As the track headers' switches: a thin outline at rest.
+        ui.painter().rect_stroke(
+            rect,
+            4.0,
+            egui::Stroke::new(1.0, p.weak.gamma_multiply(0.25)),
+            egui::StrokeKind::Inside,
+        );
+    } else if !hearing && !p.dark {
+        ui.painter().rect_stroke(
+            rect,
+            3.0,
+            egui::Stroke::new(1.0, p.border),
+            egui::StrokeKind::Inside,
+        );
+    }
+    let color = if hearing {
+        Color32::from_rgb(24, 24, 24)
+    } else {
+        p.weak
+    };
+    let s = rect.height() * 0.3;
+    let shift = if mode == Monitoring::Auto { 1.0 } else { 0.5 };
+    let c = rect.center() - vec2(s * shift, 0.0);
+    let body = vec![
+        pos2(c.x - s * 0.7, c.y - s * 0.35),
+        pos2(c.x - s * 0.2, c.y - s * 0.35),
+        pos2(c.x + s * 0.4, c.y - s * 0.9),
+        pos2(c.x + s * 0.4, c.y + s * 0.9),
+        pos2(c.x - s * 0.2, c.y + s * 0.35),
+        pos2(c.x - s * 0.7, c.y + s * 0.35),
+    ];
+    ui.painter()
+        .add(egui::Shape::convex_polygon(body, color, egui::Stroke::NONE));
+    let stroke = egui::Stroke::new(1.3, color);
+    match mode {
+        Monitoring::Off => {
+            ui.painter().line_segment(
+                [pos2(c.x - s, c.y + s), pos2(c.x + s * 1.6, c.y - s)],
+                egui::Stroke::new(1.6, color),
+            );
+        }
+        _ => {
+            for r in [0.75, 1.25] {
+                let points: Vec<egui::Pos2> = (0..=8)
+                    .map(|i| {
+                        let a = (i as f32 / 8.0 - 0.5) * 1.6;
+                        pos2(c.x + s * 0.4 + r * s * a.cos(), c.y + r * s * a.sin())
+                    })
+                    .collect();
+                ui.painter().add(egui::Shape::line(points, stroke));
+            }
+        }
+    }
+    if mode == Monitoring::Auto {
+        ui.painter().text(
+            pos2(rect.right() - 2.0, rect.bottom() - 1.0),
+            egui::Align2::RIGHT_BOTTOM,
+            "A",
+            theme::strong(8.0),
+            color,
+        );
     }
 }
 

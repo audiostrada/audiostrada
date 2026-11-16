@@ -2,6 +2,7 @@
 //! selected to edit; under them, tabs for the pad's sound, the pattern and the kit's effects.
 
 use audiostrada_core::routing::Channel;
+pub(crate) use audiostrada_editors::controls::{MODULE, SCREEN, modules, screen};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -10,7 +11,7 @@ use eframe::egui::{
     self, Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Shape, Stroke, Ui, pos2, vec2,
 };
 
-use crate::effect_editors::{Params, choice_box, named_knob, segmented};
+use crate::effect_editors::{Params, segmented};
 use crate::i18n::tr;
 use crate::theme;
 
@@ -926,9 +927,6 @@ pub(crate) fn factory() -> Vec<crate::presets::Preset> {
     ]
 }
 
-/// The dark screen behind the pads and the pad's editor.
-pub(crate) const SCREEN: Color32 = Color32::from_rgb(16, 19, 25);
-
 /// The color of a pad's family: kicks, snares and claps, hats, toms, cymbals, percussion.
 pub(crate) fn family(pad: usize) -> Color32 {
     use audiostrada_dsp::drums::{KINDS, Kind};
@@ -1335,21 +1333,6 @@ fn cell(
     );
 }
 
-/// The dark screen filling the width, with light controls whatever the theme.
-pub(crate) fn screen(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
-    egui::Frame::new()
-        .fill(SCREEN)
-        .corner_radius(10.0)
-        .inner_margin(12.0)
-        .show(ui, |ui| {
-            let selection = ui.visuals().selection;
-            *ui.visuals_mut() = egui::Visuals::dark();
-            ui.visuals_mut().selection = selection;
-            ui.set_width(ui.available_width());
-            add(ui);
-        });
-}
-
 /// The tabs over the lower half, as wide as the editor.
 fn tabs(ui: &mut Ui, tab: &mut Tab, pad: usize) {
     let p = theme::current(ui);
@@ -1410,104 +1393,6 @@ fn tabs(ui: &mut Ui, tab: &mut Tab, pad: usize) {
         }
     }
 }
-
-/// Modules side by side across the width, each as wide as its knobs, titled in `tint`; the
-/// place of each control, in order, from its top to the bottom of what it drew.
-pub(crate) fn modules(
-    ui: &mut Ui,
-    params: &mut Params,
-    list: &[(&str, Vec<(String, &str)>)],
-    tint: Color32,
-    size: f32,
-) -> Vec<Rect> {
-    let p = theme::current(ui);
-    let gap = 8.0;
-    let mut places = Vec::new();
-    let full = ui.available_width();
-    let count: usize = list.iter().map(|m| m.1.len()).sum();
-    let unit = (full - gap * (list.len().max(1) - 1) as f32) / count.max(1) as f32;
-    let top = ui.cursor().min;
-    let backs: Vec<_> = list.iter().map(|_| ui.painter().add(Shape::Noop)).collect();
-    let (mut x, mut bottom) = (top.x, top.y);
-    let mut rects = Vec::new();
-    for (title, knobs) in list {
-        let width = unit * knobs.len() as f32;
-        let rect = Rect::from_min_size(pos2(x, top.y), vec2(width, 0.0));
-        let inner = rect.shrink2(vec2(8.0, 0.0)).translate(vec2(0.0, 8.0));
-        let builder = egui::UiBuilder::new()
-            .max_rect(Rect::from_min_size(inner.min, vec2(inner.width(), 400.0)))
-            .layout(egui::Layout::top_down(egui::Align::Min));
-        let used = ui
-            .scope_builder(builder, |ui| {
-                ui.label(RichText::new(*title).strong().size(12.0).color(tint));
-                let row = ui.cursor().min;
-                let cell = inner.width() / knobs.len() as f32;
-                let mut low = row.y;
-                for (k, (id, label)) in knobs.iter().enumerate() {
-                    let place = Rect::from_min_size(
-                        pos2(row.x + k as f32 * cell, row.y),
-                        vec2(cell, 200.0),
-                    );
-                    let builder = egui::UiBuilder::new()
-                        .max_rect(place)
-                        .layout(egui::Layout::top_down(egui::Align::Center));
-                    let choice = params.param(id).is_some_and(|p| !p.choices.is_empty());
-                    let toggle = params.param(id).is_some_and(|p| p.toggle);
-                    let shown = ui
-                        .scope_builder(builder, |ui| {
-                            if toggle {
-                                // A switch in a knob's place, level with the knobs' centers.
-                                ui.add_space(size / 2.0 + 2.0);
-                                let on = params.get(id) >= 0.5;
-                                let response = crate::effect_editors::pill_switch(ui, on, label);
-                                let changed =
-                                    response.clicked().then_some(if on { 0.0 } else { 1.0 });
-                                params.set(id, changed, &response);
-                                if changed.is_some() {
-                                    params.doc.history_mut().end_gesture();
-                                }
-                            } else if choice {
-                                // A list in a knob's place, level with the knobs' centers.
-                                ui.label(RichText::new(*label).size(10.5).color(p.weak));
-                                ui.add_space(size / 2.0 - 12.0);
-                                choice_box(ui, params, id);
-                            } else {
-                                named_knob(ui, params, id, label, size, tint);
-                            }
-                        })
-                        .response
-                        .rect;
-                    low = low.max(shown.bottom());
-                    places.push(Rect::from_min_max(
-                        place.min,
-                        pos2(place.right(), shown.bottom()),
-                    ));
-                }
-                ui.allocate_rect(
-                    Rect::from_min_max(row, pos2(row.x + inner.width(), low)),
-                    Sense::hover(),
-                );
-            })
-            .response
-            .rect;
-        bottom = bottom.max(used.bottom() + 8.0);
-        rects.push(rect);
-        x += width + gap;
-    }
-    for (rect, back) in rects.into_iter().zip(backs) {
-        let rect = Rect::from_min_max(rect.min, pos2(rect.right(), bottom));
-        ui.painter()
-            .set(back, Shape::rect_filled(rect, 8.0, MODULE));
-    }
-    ui.allocate_rect(
-        Rect::from_min_max(top, pos2(top.x + full, bottom)),
-        Sense::hover(),
-    );
-    places
-}
-
-/// The panels inside the screen.
-pub(crate) const MODULE: Color32 = Color32::from_rgb(25, 29, 38);
 
 /// The pad being edited: its sound large with its character or file and its main knobs, then
 /// its envelope, pitch, filter and sends.

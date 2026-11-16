@@ -269,7 +269,7 @@ struct Entry {
 }
 
 const PLUGINS: &str = "Plugins";
-const CHAINS: &str = "Chains";
+use audiostrada_editors::frame::CHAINS;
 /// Key prefix of a chain chosen in the browser, followed by its name.
 pub const CHAIN_KEY: &str = "chain:";
 const AUDIOSTRADA: &str = "AudioStrada";
@@ -1251,20 +1251,7 @@ fn choices<'a>(values: impl Iterator<Item = &'a str>) -> Vec<String> {
     out
 }
 
-pub(crate) fn family_color(family: &str) -> Color32 {
-    match family {
-        "Dynamics" => Color32::from_rgb(232, 110, 90),
-        "EQ & Filter" => Color32::from_rgb(240, 170, 70),
-        "Space" => Color32::from_rgb(90, 160, 240),
-        "Modulation" => Color32::from_rgb(160, 120, 240),
-        "Color" => Color32::from_rgb(230, 90, 150),
-        "Stereo" => Color32::from_rgb(70, 200, 200),
-        "Amp & Cab" => Color32::from_rgb(200, 150, 90),
-        "Utility" => Color32::from_rgb(150, 160, 175),
-        CHAINS => Color32::from_rgb(230, 196, 80),
-        _ => Color32::from_rgb(120, 200, 130),
-    }
-}
+pub(crate) use audiostrada_editors::frame::family_color;
 
 fn entries(
     doc: &Document,

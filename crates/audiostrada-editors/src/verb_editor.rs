@@ -7,21 +7,21 @@ use audiostrada_dsp::reverb::{
     CLEAN, COLOR_BANDS, COLOR_HINTS, COLORS, EIGHTIES, INPUT_SPECTRUM, TAIL_SPECTRUM, TYPE_HINTS,
     TYPES, VINTAGE, decay_seconds, uses,
 };
-use eframe::egui::{
+use egui::{
     self, Align, Align2, Color32, FontId, Layout, Pos2, Rect, Response, RichText, Sense, Shape,
     Stroke, Ui, UiBuilder, pos2, vec2,
 };
 
-use crate::effect_editors::{Params, wide_knob};
+use crate::controls::{EditorParams, wide_knob};
 use crate::i18n::tr;
 use crate::{theme, trf, widgets};
 
 /// The points' colors, also the tints of their knobs.
-pub(crate) const LOW_CUT: [u8; 3] = [236, 92, 92];
+pub const LOW_CUT: [u8; 3] = [236, 92, 92];
 const LOWS: [u8; 3] = [240, 160, 64];
 const DECAY: [u8; 3] = [102, 214, 150];
 const HIGHS: [u8; 3] = [92, 176, 255];
-pub(crate) const HIGH_CUT: [u8; 3] = [196, 120, 255];
+pub const HIGH_CUT: [u8; 3] = [196, 120, 255];
 /// The decay drawn from 80 ms to 30 s.
 const SECONDS: (f32, f32) = (0.08, 30.0);
 
@@ -39,19 +39,19 @@ pub struct VerbState {
     held: Option<Point>,
 }
 
-fn index(params: &Params, id: &str, len: usize) -> usize {
+fn index(params: &dyn EditorParams, id: &str, len: usize) -> usize {
     (params.get(id).round().max(0.0) as usize).min(len - 1)
 }
 
-pub(crate) fn rgb(c: [u8; 3]) -> Color32 {
+pub fn rgb(c: [u8; 3]) -> Color32 {
     Color32::from_rgb(c[0], c[1], c[2])
 }
 
-pub(crate) fn rgba(c: [u8; 3], a: f32) -> Color32 {
+pub fn rgba(c: [u8; 3], a: f32) -> Color32 {
     Color32::from_rgba_unmultiplied(c[0], c[1], c[2], (a.clamp(0.0, 1.0) * 255.0) as u8)
 }
 
-pub(crate) fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut VerbState) {
+pub fn show(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: &mut VerbState) {
     let kind = index(params, "type", TYPES.len());
     let color = index(params, "color", COLORS.len());
     ui.horizontal(|ui| {
@@ -68,12 +68,12 @@ pub(crate) fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut
     controls(ui, params, kind);
 }
 
-fn bar_seconds(params: &Params) -> f32 {
-    240.0 / (params.doc.project().tempo.bpm_at_beat(0.0) as f32).max(1.0)
+fn bar_seconds(params: &dyn EditorParams) -> f32 {
+    240.0 / (params.tempo() as f32).max(1.0)
 }
 
 /// Sets the decay to whole quarters of a bar and the pre-delay to a note value.
-fn fit_to_tempo(ui: &mut Ui, params: &mut Params) {
+fn fit_to_tempo(ui: &mut Ui, params: &mut dyn EditorParams) {
     let response = chip(ui, tr("Fit to the tempo"), false).on_hover_text(tr(
         "Sets the decay to whole quarters of a bar and the pre-delay to a note value",
     ));
@@ -86,14 +86,14 @@ fn fit_to_tempo(ui: &mut Ui, params: &mut Params) {
             &response,
         );
         params.set("predelay_sync", Some(1.0), &response);
-        params.doc.history_mut().end_gesture();
+        params.end_gesture();
     }
 }
 
 // ---------------------------------------------------------------- Shared pieces
 
 /// A small button, lit when on.
-pub(crate) fn chip(ui: &mut Ui, label: &str, on: bool) -> Response {
+pub fn chip(ui: &mut Ui, label: &str, on: bool) -> Response {
     let p = theme::current(ui);
     let galley = ui
         .painter()
@@ -129,9 +129,9 @@ fn chip_width(ui: &Ui, label: &str) -> f32 {
 }
 
 /// The values of a choice as small buttons, each with what it does and the parameter's menu.
-pub(crate) fn choice_row(
+pub fn choice_row(
     ui: &mut Ui,
-    params: &mut Params,
+    params: &mut dyn EditorParams,
     id: &str,
     names: &[&'static str],
     hints: &[&'static str],
@@ -148,7 +148,7 @@ pub(crate) fn choice_row(
 }
 
 /// A switch as a small button.
-pub(crate) fn toggle_chip(ui: &mut Ui, params: &mut Params, id: &str, label: &str, hint: &str) {
+pub fn toggle_chip(ui: &mut Ui, params: &mut dyn EditorParams, id: &str, label: &str, hint: &str) {
     params.toggle(ui, id, |ui, on| {
         let response = chip(ui, label, *on).on_hover_text(hint);
         if response.clicked() {
@@ -159,7 +159,7 @@ pub(crate) fn toggle_chip(ui: &mut Ui, params: &mut Params, id: &str, label: &st
 }
 
 /// Small buttons side by side, centered in a column.
-pub(crate) fn chip_row(ui: &mut Ui, labels: &[&str], add: impl FnOnce(&mut Ui)) {
+pub fn chip_row(ui: &mut Ui, labels: &[&str], add: impl FnOnce(&mut Ui)) {
     let width = labels.iter().map(|l| chip_width(ui, l)).sum::<f32>()
         + 4.0 * labels.len().saturating_sub(1) as f32;
     ui.allocate_ui_with_layout(
@@ -173,9 +173,9 @@ pub(crate) fn chip_row(ui: &mut Ui, labels: &[&str], add: impl FnOnce(&mut Ui)) 
 }
 
 /// A knob over note values from the shortest, with its name above and its note below.
-pub(crate) fn note_knob(
+pub fn note_knob(
     ui: &mut Ui,
-    params: &mut Params,
+    params: &mut dyn EditorParams,
     (id, label): (&str, &str),
     size: f32,
     tint: Color32,
@@ -236,7 +236,8 @@ pub(crate) fn note_knob(
 
 /// Where the controls go: the big ones in a card at the left, the others in rows of titled
 /// groups at the right, all cells of a row as wide.
-pub(crate) struct Panel {
+#[derive(Debug)]
+pub struct Panel {
     pub big: Vec<Rect>,
     pub rows: Vec<Vec<Rect>>,
 }
@@ -245,7 +246,7 @@ const PAD: f32 = 12.0;
 const TITLE: f32 = 18.0;
 const ROW_GAP: f32 = 10.0;
 
-pub(crate) fn panel(
+pub fn panel(
     ui: &mut Ui,
     (big, big_width): (usize, f32),
     rows: &[&[(&'static str, usize)]],
@@ -314,7 +315,7 @@ pub(crate) fn panel(
 }
 
 /// Draws in a cell, centered across.
-pub(crate) fn cell<R>(ui: &mut Ui, rect: Rect, add: impl FnOnce(&mut Ui) -> R) -> R {
+pub fn cell<R>(ui: &mut Ui, rect: Rect, add: impl FnOnce(&mut Ui) -> R) -> R {
     ui.scope_builder(
         UiBuilder::new()
             .max_rect(rect)
@@ -328,7 +329,7 @@ pub(crate) fn cell<R>(ui: &mut Ui, rect: Rect, add: impl FnOnce(&mut Ui) -> R) -
 }
 
 /// Draws the big cells, all their contents as low as the tallest is centered.
-pub(crate) fn big_cells(ui: &mut Ui, cells: &[Rect], mut add: impl FnMut(&mut Ui, usize)) {
+pub fn big_cells(ui: &mut Ui, cells: &[Rect], mut add: impl FnMut(&mut Ui, usize)) {
     let key = ui.scope_id().with("big-cells");
     let tallest = ui.data(|d| d.get_temp::<f32>(key));
     let mut measured = 0.0f32;
@@ -353,31 +354,31 @@ pub(crate) fn big_cells(ui: &mut Ui, cells: &[Rect], mut add: impl FnMut(&mut Ui
 }
 
 /// A log axis of frequencies from 20 Hz to 20 kHz over `plot`.
-#[derive(Clone, Copy)]
-pub(crate) struct FreqAxis {
+#[derive(Clone, Copy, Debug)]
+pub struct FreqAxis {
     left: f32,
     width: f32,
 }
 
 impl FreqAxis {
-    pub(crate) fn new(plot: Rect) -> Self {
+    pub fn new(plot: Rect) -> Self {
         Self {
             left: plot.left(),
             width: plot.width(),
         }
     }
 
-    pub(crate) fn x(&self, hz: f32) -> f32 {
+    pub fn x(&self, hz: f32) -> f32 {
         self.left + (hz.max(1.0) / 20.0).ln() / 1000f32.ln() * self.width
     }
 
-    pub(crate) fn hz(&self, x: f32) -> f32 {
+    pub fn hz(&self, x: f32) -> f32 {
         20.0 * (((x - self.left) / self.width).clamp(0.0, 1.0) * 1000f32.ln()).exp()
     }
 }
 
 /// The background of a display: the screen, lit a little from the top.
-pub(crate) fn screen_panel(painter: &egui::Painter, rect: Rect, p: &theme::Palette) {
+pub fn screen_panel(painter: &egui::Painter, rect: Rect, p: &theme::Palette) {
     painter.rect_filled(rect, 8.0, theme::screen(p));
     let mut mesh = egui::Mesh::default();
     let lit = if p.dark {
@@ -406,7 +407,7 @@ pub(crate) fn screen_panel(painter: &egui::Painter, rect: Rect, p: &theme::Palet
 }
 
 /// The decades of `plot`, thin lines with the main frequencies named under it.
-pub(crate) fn freq_grid(
+pub fn freq_grid(
     painter: &egui::Painter,
     plot: Rect,
     axis: FreqAxis,
@@ -446,7 +447,7 @@ fn short_hz(hz: f32) -> String {
     }
 }
 
-pub(crate) fn format_hz(hz: f32) -> String {
+pub fn format_hz(hz: f32) -> String {
     if hz >= 1000.0 {
         format!("{:.2} kHz", hz / 1000.0)
     } else {
@@ -455,7 +456,7 @@ pub(crate) fn format_hz(hz: f32) -> String {
 }
 
 /// A spectrum from the analyzer's bands, smoothed a little, `None` while silent.
-pub(crate) fn spectrum(
+pub fn spectrum(
     levels: Option<&[f32]>,
     axis: FreqAxis,
     y_of_db: impl Fn(f32) -> f32,
@@ -477,7 +478,7 @@ pub(crate) fn spectrum(
 }
 
 /// Fills from a curve down to `bottom`, the color fading away from the curve.
-pub(crate) fn glow(painter: &egui::Painter, points: &[Pos2], bottom: f32, c: [u8; 3], a: f32) {
+pub fn glow(painter: &egui::Painter, points: &[Pos2], bottom: f32, c: [u8; 3], a: f32) {
     let mut mesh = egui::Mesh::default();
     for pt in points {
         mesh.colored_vertex(*pt, rgba(c, a));
@@ -492,7 +493,7 @@ pub(crate) fn glow(painter: &egui::Painter, points: &[Pos2], bottom: f32, c: [u8
 }
 
 /// A band fading across, from `from` (full) to `to` (clear).
-pub(crate) fn shade(painter: &egui::Painter, plot: Rect, (from, to): (f32, f32), c: [u8; 3]) {
+pub fn shade(painter: &egui::Painter, plot: Rect, (from, to): (f32, f32), c: [u8; 3]) {
     let mut mesh = egui::Mesh::default();
     for (x, a) in [(from, 0.2), (to, 0.0)] {
         mesh.colored_vertex(pos2(x, plot.top()), rgba(c, a));
@@ -504,7 +505,7 @@ pub(crate) fn shade(painter: &egui::Painter, plot: Rect, (from, to): (f32, f32),
 }
 
 /// A point to drag: a ring, filled while hovered or held.
-pub(crate) fn handle(painter: &egui::Painter, at: Pos2, c: [u8; 3], lit: bool, back: Color32) {
+pub fn handle(painter: &egui::Painter, at: Pos2, c: [u8; 3], lit: bool, back: Color32) {
     if lit {
         painter.circle_filled(at, 13.0, rgba(c, 0.16));
         painter.circle(at, 7.0, rgb(c), Stroke::new(2.0, Color32::WHITE));
@@ -514,7 +515,7 @@ pub(crate) fn handle(painter: &egui::Painter, at: Pos2, c: [u8; 3], lit: bool, b
 }
 
 /// What a point sets, in a label beside it that stays inside `bounds`.
-pub(crate) fn bubble(painter: &egui::Painter, bounds: Rect, at: Pos2, text: String) {
+pub fn bubble(painter: &egui::Painter, bounds: Rect, at: Pos2, text: String) {
     let galley = painter.layout_no_wrap(text, FontId::monospace(11.0), Color32::WHITE);
     let size = galley.size() + vec2(14.0, 8.0);
     let mut min = at + vec2(-size.x / 2.0, -size.y - 14.0);
@@ -536,7 +537,7 @@ pub(crate) fn bubble(painter: &egui::Painter, bounds: Rect, at: Pos2, text: Stri
 }
 
 /// The gain of one-pole filters at `hz`: a low-pass at `high`, a high-pass at `low`.
-pub(crate) fn band_gain(hz: f32, low: f32, high: f32) -> f32 {
+pub fn band_gain(hz: f32, low: f32, high: f32) -> f32 {
     let lp = 1.0 / (1.0 + (hz / high).powi(2)).sqrt();
     let r = hz / low;
     lp * r / (1.0 + r * r).sqrt()
@@ -555,7 +556,7 @@ struct Tail {
 }
 
 impl Tail {
-    fn of(params: &Params, kind: usize) -> Self {
+    fn of(params: &dyn EditorParams, kind: usize) -> Self {
         Self {
             kind,
             decay: params.get("decay"),
@@ -627,7 +628,7 @@ const INPUT: [u8; 3] = [232, 210, 120];
 
 fn tail_view(
     ui: &mut Ui,
-    params: &mut Params,
+    params: &mut dyn EditorParams,
     meters: &[f32],
     state: &mut VerbState,
     (kind, color): (usize, usize),
@@ -821,7 +822,7 @@ fn tail_view(
             let default = params.param(id).map(|q| q.default);
             params.set(id, default, &response);
         }
-        params.doc.history_mut().end_gesture();
+        params.end_gesture();
     }
     if let Some(k) = state.held {
         let at = response
@@ -869,7 +870,7 @@ fn tail_view(
     }
     let level = |k: usize| meters.get(k).copied().unwrap_or(-200.0);
     if level(0) > -90.0 || level(1) > -90.0 {
-        crate::animate(ui.ctx());
+        crate::controls::animate(ui.ctx());
     }
 }
 
@@ -877,7 +878,7 @@ fn tail_view(
 fn readout(
     painter: &egui::Painter,
     rect: Rect,
-    params: &Params,
+    params: &dyn EditorParams,
     (kind, color): (usize, usize),
     p: &theme::Palette,
 ) {
@@ -896,7 +897,7 @@ fn readout(
         );
     }
     let decay = params.get("decay");
-    let bpm = params.doc.project().tempo.bpm_at_beat(0.0) as f32;
+    let bpm = params.tempo() as f32;
     let pre = if params.get("predelay_sync") >= 0.5 {
         audiostrada_dsp::delay::synced_seconds(params.get("predelay_note"), f64::from(bpm)).min(0.2)
             * 1000.0
@@ -939,7 +940,7 @@ fn legend(painter: &egui::Painter, rect: Rect, tail: [u8; 3], ink: Color32, p: &
 
 // ---------------------------------------------------------------- Controls
 
-fn controls(ui: &mut Ui, params: &mut Params, kind: usize) {
+fn controls(ui: &mut Ui, params: &mut dyn EditorParams, kind: usize) {
     let p = theme::current(ui);
     let accent = p.accent;
     let panel = panel(

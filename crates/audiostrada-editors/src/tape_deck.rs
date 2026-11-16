@@ -4,16 +4,17 @@
 
 use std::f32::consts::{FRAC_PI_2, TAU};
 
-use eframe::egui::{
+use egui::{
     self, Align2, Color32, FontId, Mesh, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui, Vec2, pos2,
     vec2,
 };
 
-use crate::effect_editors::{Params, VuFace};
+use crate::controls::{EditorParams, VuFace};
 use crate::gear::{self, Texture};
 use crate::theme;
 
 /// Where a machine wants its two meters, and their face.
+#[derive(Debug)]
 pub struct Meters {
     pub places: [Rect; 2],
     pub face: VuFace,
@@ -39,7 +40,7 @@ pub fn turns(travel: f32, radius: f32, packs: [f32; 2]) -> [f32; 2] {
     packs.map(|p| travel / (radius * p))
 }
 
-pub fn studio(ui: &mut Ui, rect: Rect, params: &mut Params, travel: f32) -> Meters {
+pub fn studio(ui: &mut Ui, rect: Rect, params: &mut dyn EditorParams, travel: f32) -> Meters {
     let painter = ui.painter_at(rect);
     let w = rect.width();
     let deck = Rect::from_min_size(rect.min, vec2(w, 300.0));
@@ -203,7 +204,7 @@ pub fn studio(ui: &mut Ui, rect: Rect, params: &mut Params, travel: f32) -> Mete
     }
 }
 
-pub fn mastering(ui: &mut Ui, rect: Rect, params: &mut Params, travel: f32) -> Meters {
+pub fn mastering(ui: &mut Ui, rect: Rect, params: &mut dyn EditorParams, travel: f32) -> Meters {
     let w = rect.width();
     let bridge = Rect::from_min_size(rect.min, vec2(w, 150.0));
     let deck = Rect::from_min_max(pos2(rect.left(), bridge.bottom()), rect.max);
@@ -441,7 +442,7 @@ pub fn mastering(ui: &mut Ui, rect: Rect, params: &mut Params, travel: f32) -> M
     }
 }
 
-pub fn vintage(ui: &mut Ui, rect: Rect, params: &mut Params, travel: f32) -> Meters {
+pub fn vintage(ui: &mut Ui, rect: Rect, params: &mut dyn EditorParams, travel: f32) -> Meters {
     let painter = ui.painter_at(rect);
     let w = rect.width();
     let deck = Rect::from_min_size(rect.min, vec2(w, 300.0));
@@ -1189,7 +1190,7 @@ fn choice_knob(
     ui: &mut Ui,
     painter: &Painter,
     c: Pos2,
-    params: &mut Params,
+    params: &mut dyn EditorParams,
     id: &str,
     title: &str,
 ) {
@@ -1286,7 +1287,7 @@ fn choice_knob(
     );
     if knob.clicked() {
         params.set(id, Some(((value + 1) % count) as f32), &knob);
-        params.doc.history_mut().end_gesture();
+        params.end_gesture();
     }
 }
 
@@ -1325,7 +1326,7 @@ fn key(painter: &Painter, rect: Rect, label: &str, lit: bool, red: bool) {
 }
 
 /// A click in `rect` chooses `value` for `id`.
-fn click(ui: &mut Ui, rect: Rect, params: &mut Params, id: &str, value: f32) {
+fn click(ui: &mut Ui, rect: Rect, params: &mut dyn EditorParams, id: &str, value: f32) {
     let response = ui
         .interact(
             rect,
@@ -1335,6 +1336,6 @@ fn click(ui: &mut Ui, rect: Rect, params: &mut Params, id: &str, value: f32) {
         .on_hover_cursor(egui::CursorIcon::PointingHand);
     if response.clicked() {
         params.set(id, Some(value), &response);
-        params.doc.history_mut().end_gesture();
+        params.end_gesture();
     }
 }

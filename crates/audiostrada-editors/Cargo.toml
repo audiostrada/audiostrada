@@ -1,0 +1,19 @@
+[package]
+name = "audiostrada-editors"
+description = "AudioStrada's look and the editors of its built-in effects, shared with the plugins."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+audiostrada-core.workspace = true
+audiostrada-dsp.workspace = true
+egui = { workspace = true, features = ["default_fonts"] }
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

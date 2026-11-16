@@ -1,7 +1,7 @@
 //! Drawn guitar gear: amp heads and cabinets from procedural textures (tolex grain, tweed twill,
 //! grille cloths, brushed metal) made once and tiled, with their light, shadows and hardware.
 
-use eframe::egui::{
+use egui::{
     self, Align2, Color32, ColorImage, FontId, Mesh, Painter, Pos2, Rect, Stroke, TextureHandle,
     TextureOptions, pos2, vec2,
 };
@@ -356,6 +356,7 @@ fn cloth(painter: &Painter, rect: Rect, look: &Look) {
 }
 
 /// Where the head's controls go once it is drawn.
+#[derive(Debug)]
 pub struct Head {
     pub panel: Rect,
     pub plate: Rect,

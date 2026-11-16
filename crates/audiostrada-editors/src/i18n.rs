@@ -41,24 +41,33 @@ static CURRENT: AtomicU8 = AtomicU8::new(ENGLISH);
 
 /// French catalog files, one per part of the interface.
 const FRENCH_FILES: &[&str] = &[
-    include_str!("../assets/i18n/fr/app.txt"),
-    include_str!("../assets/i18n/fr/mixer.txt"),
-    include_str!("../assets/i18n/fr/timeline.txt"),
-    include_str!("../assets/i18n/fr/effects.txt"),
-    include_str!("../assets/i18n/fr/amp.txt"),
-    include_str!("../assets/i18n/fr/windows.txt"),
-    include_str!("../assets/i18n/fr/messages.txt"),
-    include_str!("../assets/i18n/fr/piano.txt"),
-    include_str!("../assets/i18n/fr/drums.txt"),
-    include_str!("../assets/i18n/fr/dialogs.txt"),
-    include_str!("../assets/i18n/fr/dialogs-a.txt"),
-    include_str!("../assets/i18n/fr/dialogs-b.txt"),
-    include_str!("../assets/i18n/fr/dialogs-c.txt"),
-    include_str!("../assets/i18n/fr/audio-editor.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/app.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/mixer.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/timeline.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/effects.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/amp.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/windows.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/messages.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/piano.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/drums.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/dialogs.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/dialogs-a.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/dialogs-b.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/dialogs-c.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/audio-editor.txt"),
 ];
 
 static FRENCH_CATALOG: LazyLock<HashMap<&'static str, &'static str>> =
     LazyLock::new(|| parse(FRENCH_FILES).0);
+
+/// Texts of a program sharing these catalogs (the plugins), looked up after them.
+static MORE_FRENCH: std::sync::OnceLock<HashMap<&'static str, &'static str>> =
+    std::sync::OnceLock::new();
+
+/// Adds catalog files of the same format, for texts AudioStrada does not have; once.
+pub fn add_french(files: &[&'static str]) {
+    let _ = MORE_FRENCH.set(parse(files).0);
+}
 
 /// Entries of catalog files, and the keys given two different translations.
 fn parse(files: &[&'static str]) -> (HashMap<&'static str, &'static str>, Vec<&'static str>) {
@@ -76,6 +85,24 @@ fn parse(files: &[&'static str]) -> (HashMap<&'static str, &'static str>, Vec<&'
         }
     }
     (map, conflicts)
+}
+
+/// The French catalog and the texts it translates twice differently, for AudioStrada's check
+/// that every text has its French.
+pub fn french_catalog() -> (HashMap<&'static str, &'static str>, Vec<&'static str>) {
+    parse(FRENCH_FILES)
+}
+
+/// The entries of catalog files, and the keys given two different translations.
+pub fn parse_catalog(
+    files: &[&'static str],
+) -> (HashMap<&'static str, &'static str>, Vec<&'static str>) {
+    parse(files)
+}
+
+/// How `text` is written as a catalog key.
+pub fn catalog_key(text: &str) -> String {
+    escape(text)
 }
 
 /// Chooses the language of the interface.
@@ -100,8 +127,10 @@ pub fn tr(text: &'static str) -> &'static str {
 }
 
 fn french(text: &str) -> Option<&'static str> {
+    let key = escape(text);
     FRENCH_CATALOG
-        .get(escape(text).as_str())
+        .get(key.as_str())
+        .or_else(|| MORE_FRENCH.get()?.get(key.as_str()))
         .map(|t| unescape(t))
 }
 
@@ -157,103 +186,6 @@ macro_rules! trf {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Texts given to `tr` and `trf!` in the sources.
-    fn keys_in_sources() -> Vec<(String, String)> {
-        let mut keys = Vec::new();
-        let mut stack = vec![std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src")];
-        while let Some(dir) = stack.pop() {
-            for entry in std::fs::read_dir(dir).unwrap().flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    stack.push(path);
-                    continue;
-                }
-                if path.extension().is_none_or(|e| e != "rs") || path.ends_with("i18n.rs") {
-                    continue;
-                }
-                let source = std::fs::read_to_string(&path)
-                    .unwrap()
-                    .replace("\r\n", "\n");
-                for start in ["tr(", "trf!("] {
-                    for (at, _) in source.match_indices(start) {
-                        // The text may be on the next line, as rustfmt puts long ones.
-                        let after = source[at + start.len()..].trim_start();
-                        let Some(rest) = after.strip_prefix('"') else {
-                            continue;
-                        };
-                        if source[..at].ends_with(|c: char| c.is_alphanumeric() || c == '_') {
-                            continue;
-                        }
-                        let mut key = String::new();
-                        let mut chars = rest.chars();
-                        while let Some(c) = chars.next() {
-                            match c {
-                                '"' => break,
-                                '\\' => match chars.next() {
-                                    Some('n') => key.push_str("\\n"),
-                                    Some('\n') => {
-                                        // A line continuation: the next line's indent is dropped.
-                                        let tail: String = chars.clone().collect();
-                                        let skip = tail.len() - tail.trim_start().len();
-                                        for _ in 0..skip {
-                                            chars.next();
-                                        }
-                                    }
-                                    Some(other) => key.push(other),
-                                    None => {}
-                                },
-                                c => key.push(c),
-                            }
-                        }
-                        let file = path.file_name().unwrap().to_string_lossy().into_owned();
-                        keys.push((file, key));
-                    }
-                }
-            }
-        }
-        keys
-    }
-
-    #[test]
-    fn every_text_has_its_french() {
-        let (catalog, conflicts) = parse(FRENCH_FILES);
-        assert!(
-            conflicts.is_empty(),
-            "translated twice differently: {conflicts:?}"
-        );
-        let mut missing: Vec<String> = keys_in_sources()
-            .into_iter()
-            .filter(|(_, key)| !catalog.contains_key(key.as_str()))
-            .map(|(file, key)| format!("{file}: {key}"))
-            .collect();
-        for info in audiostrada_dsp::EFFECTS {
-            let texts = [info.name, info.description, info.category]
-                .into_iter()
-                .chain(info.params.iter().map(|p| p.name))
-                .chain(info.params.iter().flat_map(|p| p.choices.iter().copied()));
-            for text in texts {
-                if !catalog.contains_key(escape(text).as_str()) {
-                    missing.push(format!("{}: {text}", info.id));
-                }
-            }
-        }
-        for action in crate::actions::Action::ALL {
-            for text in [action.name(), action.category()] {
-                if !catalog.contains_key(text) {
-                    missing.push(format!("action: {text}"));
-                }
-            }
-        }
-        missing.sort();
-        missing.dedup();
-        assert!(
-            missing.is_empty(),
-            "{} without French:\n{}",
-            missing.len(),
-            missing.join("\n")
-        );
-    }
 
     #[test]
     fn texts_are_looked_up_and_filled() {

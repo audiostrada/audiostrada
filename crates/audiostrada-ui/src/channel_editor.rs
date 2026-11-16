@@ -9,7 +9,9 @@ use eframe::egui::{
     self, Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, Ui, pos2, vec2,
 };
 
-use crate::effect_editors::{Params, display, module_switch, named_knob, pill_switch, segmented};
+use audiostrada_editors::effects::{display, module_switch};
+
+use crate::effect_editors::{Params, named_knob, pill_switch, segmented};
 use crate::i18n::tr;
 use crate::{theme, trf};
 

@@ -1,6 +1,6 @@
 //! Drawn controls of the console and the effect editors: fader, knob, meter.
 
-use eframe::egui::{
+use egui::{
     self, Align2, Color32, FontId, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui,
     pos2, vec2,
 };
@@ -304,18 +304,6 @@ pub const METER_FALL_DB_PER_S: f32 = 24.0;
 const METER_TOP: f32 = 6.0;
 
 impl MeterState {
-    /// Takes a readout's peaks since the last call, `elapsed` seconds ago.
-    pub fn take(&mut self, readout: &audiostrada_engine::meter::MeterReadout, elapsed: f32) {
-        let mut peaks = [METER_FLOOR; 2];
-        for (ch, peak) in peaks.iter_mut().enumerate().take(readout.channels()) {
-            *peak = audiostrada_io::tools::gain_to_db(readout.take_peak(ch));
-        }
-        if readout.channels() == 1 {
-            peaks[1] = peaks[0];
-        }
-        self.push(peaks, elapsed * METER_FALL_DB_PER_S, elapsed);
-    }
-
     /// Takes new peaks: falls at `fall_db` per call, holds peaks for 1.5 s.
     pub fn push(&mut self, peaks: [f32; 2], fall_db: f32, dt: f32) {
         for (ch, peak) in peaks.into_iter().enumerate() {
@@ -331,7 +319,7 @@ impl MeterState {
     }
 }
 
-pub(crate) fn meter_fraction(db: f32) -> f32 {
+pub fn meter_fraction(db: f32) -> f32 {
     ((db - METER_FLOOR) / (METER_TOP - METER_FLOOR)).clamp(0.0, 1.0)
 }
 
@@ -423,7 +411,7 @@ pub fn meter(ui: &mut Ui, state: &mut MeterState, height: f32) -> Response {
 }
 
 /// A narrow two-bar meter (track headers): the clip light on top, the peak hold as a line.
-pub(crate) fn paint_slim_meter(ui: &Ui, rect: Rect, state: &MeterState) {
+pub fn paint_slim_meter(ui: &Ui, rect: Rect, state: &MeterState) {
     let p = theme::current(ui);
     let painter = ui.painter();
     let clip = Rect::from_min_size(rect.min, vec2(rect.width(), 3.0));
@@ -468,7 +456,7 @@ fn meter_color(db: f32) -> Color32 {
 }
 
 /// Green to yellow to red along the full bar, showing only the lit part.
-pub(crate) fn paint_meter_bar(painter: &egui::Painter, bar: Rect, lit: Rect) {
+pub fn paint_meter_bar(painter: &egui::Painter, bar: Rect, lit: Rect) {
     paint_meter_bar_on(painter, bar, lit, meter_fraction);
 }
 
@@ -507,7 +495,7 @@ fn paint_meter_bar_on(painter: &egui::Painter, bar: Rect, lit: Rect, place: fn(f
 }
 
 /// Separate lights along the bar, lit up to `db`, the others dimmed.
-pub(crate) fn paint_meter_lights(painter: &egui::Painter, bar: Rect, db: f32) {
+pub fn paint_meter_lights(painter: &egui::Painter, bar: Rect, db: f32) {
     const LIGHT: f32 = 3.0;
     const GAP: f32 = 1.0;
     let mut bottom = bar.bottom();

@@ -2,10 +2,9 @@
 //! input and output VU meters, the machine, speed and tape chosen above, then the knobs.
 
 use audiostrada_dsp::tape::{MACHINE_HINTS, TAPE_HINTS};
-use eframe::egui::{self, Align2, Color32, FontId, Rect, Sense, Stroke, Ui, pos2, vec2};
+use egui::{self, Align2, Color32, FontId, Rect, Sense, Stroke, Ui, pos2, vec2};
 
-use crate::drums_editor::{MODULE, modules, screen};
-use crate::effect_editors::{Params, VuFace, segmented, vu_meter};
+use crate::controls::{EditorParams, MODULE, VuFace, modules, screen, segmented, vu_meter};
 use crate::gear::{self, Texture};
 use crate::i18n::tr;
 use crate::tape_deck;
@@ -45,7 +44,7 @@ pub struct TapeState {
     spin: f32,
 }
 
-pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut TapeState) {
+pub fn show(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: &mut TapeState) {
     let machine = (params.get("machine").round() as usize).min(3);
     let (panel, accent) = colors(machine);
     // The reels roll while sound comes in, starting and stopping gently.
@@ -99,7 +98,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut TapeSt
         );
     });
     if sounding || state.spin > 0.002 {
-        crate::animate(ui.ctx());
+        crate::controls::animate(ui.ctx());
     } else {
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_millis(100));
@@ -109,7 +108,7 @@ pub fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut TapeSt
 /// A reel-to-reel machine, its meters where it has them.
 fn deck_face(
     ui: &mut Ui,
-    params: &mut Params,
+    params: &mut dyn EditorParams,
     meters: &[f32],
     state: &mut TapeState,
     machine: usize,
@@ -140,7 +139,13 @@ fn deck_face(
 }
 
 /// A labeled segmented choice.
-fn selector(ui: &mut Ui, params: &mut Params, label: &str, id: &str, hints: &[&'static str]) {
+fn selector(
+    ui: &mut Ui,
+    params: &mut dyn EditorParams,
+    label: &str,
+    id: &str,
+    hints: &[&'static str],
+) {
     ui.vertical(|ui| {
         ui.label(
             egui::RichText::new(label)
@@ -155,7 +160,7 @@ fn selector(ui: &mut Ui, params: &mut Params, label: &str, id: &str, hints: &[&'
 /// the tape running over the heads, and the input and output meters.
 fn machine_face(
     ui: &mut Ui,
-    params: &mut Params,
+    params: &mut dyn EditorParams,
     meters: &[f32],
     state: &mut TapeState,
     panel: Color32,

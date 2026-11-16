@@ -5,11 +5,9 @@
 use audiostrada_dsp::drive::{
     INPUT_SPECTRUM, OUTPUT_SPECTRUM, Response, TYPE_HINTS, TYPES, clip_db,
 };
-use eframe::egui::{
-    self, Align2, Color32, FontId, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2,
-};
+use egui::{self, Align2, Color32, FontId, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 
-use crate::effect_editors::{Params, wide_knob};
+use crate::controls::{EditorParams, wide_knob};
 use crate::i18n::tr;
 use crate::verb_editor::{
     FreqAxis, HIGH_CUT, LOW_CUT, big_cells, bubble, cell, choice_row, format_hz, freq_grid, glow,
@@ -43,7 +41,7 @@ pub struct DriveState {
     held: Option<(Point, Pos2, [f32; 2])>,
 }
 
-pub(crate) fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DriveState) {
+pub fn show(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: &mut DriveState) {
     choice_row(ui, params, "mode", &TYPES, &TYPE_HINTS);
     ui.add_space(8.0);
     display(ui, params, meters, state);
@@ -51,7 +49,7 @@ pub(crate) fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut
     controls(ui, params);
 }
 
-fn mode(params: &Params) -> usize {
+fn mode(params: &dyn EditorParams) -> usize {
     (params.get("mode").round().max(0.0) as usize).min(TYPES.len() - 1)
 }
 
@@ -64,7 +62,7 @@ fn drive_hz(focus: f32, low_cut: f32) -> f32 {
         .unwrap_or(1500.0)
 }
 
-fn display(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DriveState) {
+fn display(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: &mut DriveState) {
     let p = theme::current(ui);
     let width = ui.available_width().max(520.0);
     let (rect, response) = ui.allocate_exact_size(vec2(width, 280.0), Sense::click_and_drag());
@@ -138,7 +136,7 @@ fn display(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DriveSt
         painter.add(Shape::line(points, Stroke::new(1.2, rgba(INPUT, 0.4))));
     }
 
-    let response_of = Response::new(&params.values);
+    let response_of = Response::new(&params.values());
     let along = |f: &dyn Fn(f32) -> f32| -> Vec<Pos2> {
         (0..=200)
             .map(|k| {
@@ -254,7 +252,7 @@ fn display(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DriveSt
             let default = params.param(id).map(|q| q.default);
             params.set(id, default, &response);
         }
-        params.doc.history_mut().end_gesture();
+        params.end_gesture();
     }
     if let Some((k, from, start)) = state.held {
         let at = response
@@ -291,12 +289,12 @@ fn display(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DriveSt
             .is_some_and(|m| m.iter().take(128).any(|db| *db > -100.0))
     };
     if loud(INPUT_SPECTRUM) || loud(OUTPUT_SPECTRUM) {
-        crate::animate(ui.ctx());
+        crate::controls::animate(ui.ctx());
     }
 }
 
 /// The type, the drive and where it is focused.
-fn readout(painter: &egui::Painter, rect: Rect, params: &Params, p: &theme::Palette) {
+fn readout(painter: &egui::Painter, rect: Rect, params: &dyn EditorParams, p: &theme::Palette) {
     let corner = rect.left_top() + vec2(16.0, 12.0);
     painter.text(
         corner,
@@ -354,7 +352,7 @@ fn legend(painter: &egui::Painter, rect: Rect, ink: Color32, p: &theme::Palette)
     }
 }
 
-fn controls(ui: &mut Ui, params: &mut Params) {
+fn controls(ui: &mut Ui, params: &mut dyn EditorParams) {
     let p = theme::current(ui);
     let accent = p.accent;
     let panel = panel(

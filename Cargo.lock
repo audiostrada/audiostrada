@@ -577,6 +577,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "audiostrada-editors"
+version = "0.1.0"
+dependencies = [
+ "audiostrada-core",
+ "audiostrada-dsp",
+ "egui",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "audiostrada-engine"
 version = "0.1.0"
 dependencies = [
@@ -708,6 +719,7 @@ dependencies = [
  "ab_glyph",
  "audiostrada-core",
  "audiostrada-dsp",
+ "audiostrada-editors",
  "audiostrada-engine",
  "audiostrada-io",
  "audiostrada-license",

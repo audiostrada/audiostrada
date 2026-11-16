@@ -21,6 +21,7 @@ pub struct Favorites {
 }
 
 impl Favorites {
+    #[cfg(test)]
     pub fn preset(&self, effect: &str, name: &str) -> bool {
         self.presets.get(effect).is_some_and(|s| s.contains(name))
     }

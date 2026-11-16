@@ -12,6 +12,7 @@ authors = ["AudioStrada contributors"]
 [workspace.dependencies]
 audiostrada-core = { path = "crates/audiostrada-core" }
 audiostrada-dsp = { path = "crates/audiostrada-dsp" }
+audiostrada-editors = { path = "crates/audiostrada-editors" }
 audiostrada-engine = { path = "crates/audiostrada-engine" }
 audiostrada-io = { path = "crates/audiostrada-io" }
 audiostrada-license = { path = "crates/audiostrada-license" }
@@ -39,6 +40,7 @@ flacenc = "0.5.1"
 flate2 = "1.1.10"
 tar = "0.4.46"
 eframe = "0.37.0"
+egui = "0.37.0"
 egui_tiles = "0.18.0"
 alsa = "0.12.1"
 jack = "0.13.5"

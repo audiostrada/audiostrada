@@ -6,11 +6,11 @@
 use std::collections::VecDeque;
 
 use audiostrada_dsp::delay::{ECHO_SPECTRUM, MODEL_HINTS, MODELS, notes_by_length, synced_seconds};
-use eframe::egui::{
+use egui::{
     self, Align2, Color32, FontId, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, pos2, vec2,
 };
 
-use crate::effect_editors::{Params, wide_knob};
+use crate::controls::{EditorParams, wide_knob};
 use crate::i18n::tr;
 use crate::verb_editor::{
     FreqAxis, HIGH_CUT, LOW_CUT, band_gain, big_cells, bubble, cell, chip, chip_row, choice_row,
@@ -67,12 +67,12 @@ pub struct DelayState {
     taps: Vec<f64>,
 }
 
-fn bpm(params: &Params) -> f64 {
-    params.doc.project().tempo.bpm_at_beat(0.0)
+fn bpm(params: &dyn EditorParams) -> f64 {
+    params.tempo()
 }
 
 /// The delay time in seconds, the note's length when synced.
-fn seconds(params: &Params) -> f32 {
+fn seconds(params: &dyn EditorParams) -> f32 {
     if params.get("sync") >= 0.5 {
         synced_seconds(params.get("note"), bpm(params))
     } else {
@@ -81,7 +81,7 @@ fn seconds(params: &Params) -> f32 {
 }
 
 /// Sets the time to `s` seconds: the nearest note value when synced.
-fn set_time(params: &mut Params, s: Option<f32>, response: &Response) {
+fn set_time(params: &mut dyn EditorParams, s: Option<f32>, response: &Response) {
     if params.get("sync") >= 0.5 {
         let beat = 60.0 / bpm(params).max(1.0) as f32;
         let note = s.and_then(|s| {
@@ -118,7 +118,7 @@ fn repeats(feedback: f32) -> usize {
     }
 }
 
-pub(crate) fn show(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DelayState) {
+pub fn show(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: &mut DelayState) {
     let model = (params.get("model").round().max(0.0) as usize).min(MODELS.len() - 1);
     choice_row(ui, params, "model", &MODELS, &MODEL_HINTS);
     ui.add_space(8.0);
@@ -137,7 +137,7 @@ struct Tap {
     n: i32,
 }
 
-fn taps(params: &Params, seconds: f32) -> Vec<Tap> {
+fn taps(params: &dyn EditorParams, seconds: f32) -> Vec<Tap> {
     let frozen = params.get("freeze") >= 0.5;
     let feedback = if frozen {
         1.0
@@ -176,7 +176,7 @@ fn taps(params: &Params, seconds: f32) -> Vec<Tap> {
 
 /// The tone of one pass through the loop at `hz`: the cuts, and the darkening of tape and
 /// analog.
-fn pass_db(params: &Params, model: usize, seconds: f32, hz: f32) -> f32 {
+fn pass_db(params: &dyn EditorParams, model: usize, seconds: f32, hz: f32) -> f32 {
     let (low, high) = (params.get("low_cut"), params.get("high_cut"));
     let dark = match model {
         DIGITAL => 1.0,
@@ -189,7 +189,13 @@ fn pass_db(params: &Params, model: usize, seconds: f32, hz: f32) -> f32 {
     20.0 * (band_gain(hz, low, high) * dark).max(1e-6).log10()
 }
 
-fn display(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DelayState, model: usize) {
+fn display(
+    ui: &mut Ui,
+    params: &mut dyn EditorParams,
+    meters: &[f32],
+    state: &mut DelayState,
+    model: usize,
+) {
     let p = theme::current(ui);
     let width = ui.available_width().max(520.0);
     let (rect, response) = ui.allocate_exact_size(vec2(width, 280.0), Sense::click_and_drag());
@@ -326,7 +332,7 @@ fn display(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DelaySt
     {
         let default = params.param(id).map(|q| q.default);
         params.set(id, default, &response);
-        params.doc.history_mut().end_gesture();
+        params.end_gesture();
     }
     let at = response
         .interact_pointer_pos()
@@ -363,7 +369,7 @@ fn display(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DelaySt
             .back()
             .is_some_and(|(h, _)| state.time - h < f64::from(span))
     {
-        crate::animate(ui.ctx());
+        crate::controls::animate(ui.ctx());
     }
 }
 
@@ -371,7 +377,7 @@ fn display(ui: &mut Ui, params: &mut Params, meters: &[f32], state: &mut DelaySt
 fn echo_zone(
     painter: &egui::Painter,
     zone: Rect,
-    params: &Params,
+    params: &dyn EditorParams,
     state: &DelayState,
     (seconds, p): (f32, &theme::Palette),
 ) -> (Option<Pos2>, Option<Pos2>, f32) {
@@ -512,7 +518,7 @@ fn echo_zone(
 fn tone_zone(
     painter: &egui::Painter,
     zone: Rect,
-    params: &Params,
+    params: &dyn EditorParams,
     meters: &[f32],
     (model, seconds, p): (usize, f32, &theme::Palette),
 ) -> ((Pos2, Pos2), FreqAxis) {
@@ -575,7 +581,7 @@ fn readout(
     painter: &egui::Painter,
     rect: Rect,
     split: f32,
-    params: &Params,
+    params: &dyn EditorParams,
     seconds: f32,
     p: &theme::Palette,
 ) {
@@ -624,7 +630,7 @@ fn readout(
 
 // ---------------------------------------------------------------- Controls
 
-fn tap_button(ui: &mut Ui, params: &mut Params, state: &mut DelayState) {
+fn tap_button(ui: &mut Ui, params: &mut dyn EditorParams, state: &mut DelayState) {
     let now = ui.input(|i| i.time);
     state.taps.retain(|t| now - t < 2.0);
     let response = chip(ui, tr("Tap"), false).on_hover_text(tr(
@@ -636,12 +642,12 @@ fn tap_button(ui: &mut Ui, params: &mut Params, state: &mut DelayState) {
             let n = state.taps.len();
             let interval = (state.taps[n - 1] - state.taps[0]) / (n - 1) as f64;
             params.set("time", Some((interval * 1000.0) as f32), &response);
-            params.doc.history_mut().end_gesture();
+            params.end_gesture();
         }
     }
 }
 
-fn controls(ui: &mut Ui, params: &mut Params, state: &mut DelayState, model: usize) {
+fn controls(ui: &mut Ui, params: &mut dyn EditorParams, state: &mut DelayState, model: usize) {
     let p = theme::current(ui);
     let accent = p.accent;
     let panel = panel(

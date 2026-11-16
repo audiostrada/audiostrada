@@ -10,11 +10,9 @@ mod channel_editor;
 mod clip_tools;
 mod console_ui;
 pub mod control;
-mod delay_editor;
 mod dialog;
 mod dialogs;
 pub mod document;
-mod drive_editor;
 mod drum_rhythms;
 mod drum_sequencer;
 mod drums_editor;
@@ -26,9 +24,11 @@ mod effect_shot;
 mod export_window;
 pub mod extension;
 mod favorites;
-mod gear;
+pub(crate) use audiostrada_editors::gear;
 mod host;
-pub mod i18n;
+pub use audiostrada_editors::{i18n, trf};
+#[cfg(test)]
+mod i18n_check;
 mod inspector;
 mod integrations;
 mod keymap;
@@ -36,17 +36,14 @@ mod layout;
 mod license_window;
 mod listening;
 mod markers;
-mod mb_editor;
 mod metronome_window;
 mod midi_learn;
 mod midi_tools;
 mod mix_tools;
 mod mixer;
-mod mod_editor;
 mod nam_library;
 mod palette;
 mod piano_roll;
-mod pitch_editor;
 mod plots;
 mod plugin_categories;
 mod preferences;
@@ -63,9 +60,7 @@ mod song_tools;
 mod synth_editor;
 mod synth_presets;
 mod tabs;
-mod tape_deck;
-mod tape_editor;
-mod theme;
+pub(crate) use audiostrada_editors::theme;
 mod timeline;
 mod tone3000;
 mod track_icons;
@@ -74,10 +69,9 @@ mod transport;
 mod trigger_editor;
 mod ui_prefs;
 mod updates;
-mod verb_editor;
 mod versions_window;
 mod video_capture;
-mod widgets;
+pub(crate) use audiostrada_editors::widgets;
 
 #[cfg(test)]
 mod app_tests;
@@ -124,7 +118,8 @@ use crate::timeline::TimelineView;
 use crate::transport::{EditMode, EditSettings};
 pub use crate::ui_prefs::{ThemeChoice, UiPrefs, WindowState};
 
-const REFRESH: Duration = Duration::from_millis(33);
+const REFRESH: Duration = audiostrada_editors::REFRESH;
+pub(crate) use audiostrada_editors::controls::{animate, paint_logo};
 /// Repaint rate at rest (stopped, silent): input still repaints at once.
 const IDLE_REFRESH: Duration = Duration::from_millis(250);
 /// At rest with a plugin's window open.
@@ -2287,61 +2282,6 @@ fn pressed_actions(ctx: &egui::Context, keymap: &Keymap) -> Vec<Action> {
     })
 }
 
-/// AudioStrada's mark (packaging/icons/audiostrada-mark.svg) drawn as shapes, sharp at any
-/// size: five slanted rounded bars, centered in `rect` at their own proportions.
-pub(crate) fn paint_logo(painter: &egui::Painter, rect: egui::Rect) {
-    use egui::{Color32, Pos2, pos2};
-    let blue = |alpha: f32| Color32::from_rgb(90, 162, 255).gamma_multiply(alpha);
-    let bars = [
-        (5.0, 25.0, 14.0, blue(0.28)),
-        (16.0, 20.0, 24.0, blue(0.5)),
-        (27.0, 14.0, 36.0, blue(0.75)),
-        (38.0, 7.0, 50.0, Color32::from_rgb(140, 196, 255)),
-        (49.0, 17.0, 30.0, Color32::from_rgb(255, 181, 71)),
-    ];
-    let (width, radius) = (7.0f32, 2.0f32);
-    // skewX(-12 degrees) around y = 32, as in the SVG.
-    let skew = |p: Pos2| pos2(p.x - (12f32).to_radians().tan() * (p.y - 32.0), p.y);
-    let (mut min, mut max) = (pos2(f32::MAX, f32::MAX), pos2(f32::MIN, f32::MIN));
-    for &(x, y, h, _) in &bars {
-        for corner in [
-            pos2(x, y),
-            pos2(x + width, y),
-            pos2(x, y + h),
-            pos2(x + width, y + h),
-        ] {
-            let q = skew(corner);
-            min = min.min(q);
-            max = max.max(q);
-        }
-    }
-    let size = max - min;
-    let scale = (rect.width() / size.x).min(rect.height() / size.y);
-    let origin = rect.center() - size * scale / 2.0;
-    let place = |p: Pos2| origin + (skew(p) - min) * scale;
-    for (x, y, h, color) in bars {
-        // The rounded rectangle's outline, corner by corner, clockwise from the top left.
-        let mut points = Vec::with_capacity(24);
-        let corners = [
-            (pos2(x + radius, y + radius), 180.0f32),
-            (pos2(x + width - radius, y + radius), 270.0),
-            (pos2(x + width - radius, y + h - radius), 0.0),
-            (pos2(x + radius, y + h - radius), 90.0),
-        ];
-        for (center, start) in corners {
-            for k in 0..=5 {
-                let a = (start + 18.0 * k as f32).to_radians();
-                points.push(place(center + radius * egui::vec2(a.cos(), a.sin())));
-            }
-        }
-        painter.add(egui::Shape::convex_polygon(
-            points,
-            color,
-            egui::Stroke::NONE,
-        ));
-    }
-}
-
 impl AudioStradaApp {
     fn menu_bar(&mut self, ui: &mut egui::Ui) -> Vec<Action> {
         let mut chosen = Vec::new();
@@ -3240,17 +3180,6 @@ fn uncover_main(ctx: &egui::Context) {
         audiostrada_plugins::window::raise_parent();
     }
     if (1..3).contains(&frames) {
-        ctx.request_repaint();
-    }
-}
-
-/// Redraws a window that moves on its own (meters, scopes, a held key). On Windows at the
-/// main window's rate: an editor redrawn nonstop on another screen held back the main
-/// window's redraws, the timeline frozen while it played. Elsewhere at every frame, as before.
-pub(crate) fn animate(ctx: &egui::Context) {
-    if cfg!(windows) {
-        ctx.request_repaint_after(REFRESH);
-    } else {
         ctx.request_repaint();
     }
 }
