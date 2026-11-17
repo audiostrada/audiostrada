@@ -2858,6 +2858,9 @@ Strada-Limit
 Strada-Max
 Strada-Max
 
+Strada-Master
+Strada-Master
+
 Strada-Phaser
 Strada-Phaser
 
@@ -2866,6 +2869,9 @@ Strada-Correct
 
 Strada-Verb
 Strada-Verb
+
+Strada-Vocals
+Strada-Vocals
 
 Strada-Synth
 Strada-Synth

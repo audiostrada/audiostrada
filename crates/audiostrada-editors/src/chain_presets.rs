@@ -374,7 +374,7 @@ pub fn master_presets() -> Vec<Preset> {
             tr("Rock: Punchy"),
             PUNCHY,
             CD,
-            [5.0, 60.0, 60.0, 105.0, 10.0, 3.5],
+            [5.0, 60.0, 60.0, 105.0, 10.0, 3.0],
             &[],
         ),
         master(

@@ -1066,11 +1066,13 @@ mod tests {
             events,
             ..Default::default()
         };
-        let _ = ctx.run_ui(input, |ui| {
+        let mut output = ctx.run_ui(input, |ui| {
             let before = ui.cursor().min;
             toggle_chip(ui, values, "freeze", "Freeze", "");
             place = Rect::from_min_size(before, vec2(40.0, 24.0));
         });
+        // No renderer here: the font atlas is dropped unapplied.
+        output.textures_delta.clear();
         place
     }
 

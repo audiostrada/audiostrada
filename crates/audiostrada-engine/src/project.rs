@@ -3657,7 +3657,7 @@ mod tests {
             f.player.sync(f.history.project(), None, &f.media);
             f.player.locate(0);
             f.player.engine_mut().play();
-            render(processor, 40)
+            render(processor, 80)
         };
         let clean = play(&mut f, &mut processor);
         f.history.edit("Console", |p| {
@@ -3667,10 +3667,11 @@ mod tests {
             };
         });
         let colored = play(&mut f, &mut processor);
+        // Past the 30 ms crossfade between two circuits.
         let differs = |a: &[f32], b: &[f32]| {
-            a[1_000..]
+            a[2_500..]
                 .iter()
-                .zip(&b[1_000..])
+                .zip(&b[2_500..])
                 .any(|(x, y)| (x - y).abs() > 1e-3)
         };
         assert!(differs(&clean, &colored));
