@@ -173,7 +173,13 @@ fn run_ui(run: &cli::RunArgs) -> anyhow::Result<()> {
             prefs.ui.clone(),
         )
     };
-    host.start(backend, config);
+    // A sleeping output (a screen's, over DisplayPort) takes seconds to start on macOS: the
+    // window opens meanwhile. Elsewhere some drivers (ASIO) belong to the thread opening them.
+    if cfg!(target_os = "macos") {
+        host.start_in_background(backend, config);
+    } else {
+        host.start(backend, config);
+    }
     if let Some(paths) = doc.borrow().paths() {
         recent.retain(|p| *p != paths.file);
         recent.insert(0, paths.file.clone());

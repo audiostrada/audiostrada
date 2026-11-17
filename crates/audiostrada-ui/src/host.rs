@@ -10,7 +10,7 @@ use audiostrada_rt::channel::{Receiver, Sender, channel};
 use audiostrada_io::tools::{Meters, TestTone};
 use audiostrada_io::{
     AudioBackend, AudioBuffers, AudioCallback, AudioStream, BackendKind, CallbackTime, DeviceInfo,
-    StreamConfig, StreamInfo, StreamStatus, auto_backend, backend,
+    IoError, StreamConfig, StreamInfo, StreamStatus, auto_backend, backend,
 };
 
 const TONE_FREQUENCY: f32 = 440.0;
@@ -65,6 +65,53 @@ impl AudioCallback for Monitor {
     }
 }
 
+/// Plays silence until the application's processor takes over.
+struct Silence;
+
+impl AudioCallback for Silence {
+    fn process(&mut self, _buffers: &mut AudioBuffers<'_>, _time: &CallbackTime) {}
+}
+
+/// A stream just opened, with its meters and the ends that hand it a new processor.
+struct Opened {
+    stream: Result<Box<dyn AudioStream>, IoError>,
+    meters: Option<(Meters, Meters)>,
+    handover: (Sender<Callback>, Receiver<Callback>),
+}
+
+/// Opens a stream on `backend` whose monitor wraps what `inner` makes.
+fn open_monitored(
+    backend: &dyn AudioBackend,
+    config: &StreamConfig,
+    tone_on: &Arc<AtomicBool>,
+    inner: &mut dyn FnMut(&StreamInfo) -> Callback,
+) -> Opened {
+    let mut meters = None;
+    let (to_stream, incoming) = channel(2);
+    let (retired, from_stream) = channel(2);
+    let mut ends = Some((incoming, retired));
+    let stream = backend.open(config, &mut |info| {
+        let (incoming, retired) = ends.take().unwrap_or_else(|| (channel(1).1, channel(1).0));
+        let monitor = Monitor {
+            inner: inner(info),
+            incoming,
+            retired,
+            tone: TestTone::new(TONE_FREQUENCY, TONE_GAIN_DB, info.sample_rate),
+            tone_rate: info.sample_rate,
+            tone_on: Arc::clone(tone_on),
+            inputs: Meters::new(info.inputs as usize),
+            outputs: Meters::new(info.outputs as usize),
+        };
+        meters = Some((monitor.inputs.clone(), monitor.outputs.clone()));
+        Box::new(monitor)
+    });
+    Opened {
+        stream,
+        meters,
+        handover: (to_stream, from_stream),
+    }
+}
+
 /// Devices that appeared and disappeared since the last poll.
 #[derive(Debug, Default)]
 pub struct DeviceChanges {
@@ -75,8 +122,10 @@ pub struct DeviceChanges {
 }
 
 pub struct AudioHost {
-    backend: Option<Box<dyn AudioBackend>>,
+    backend: Option<Arc<dyn AudioBackend>>,
     stream: Option<Box<dyn AudioStream>>,
+    /// A stream being opened on another thread (see [`AudioHost::start_in_background`]).
+    opening: Option<std::thread::JoinHandle<Opened>>,
     config: StreamConfig,
     factory: ProcessorFactory,
     /// Hands the running stream a new processor and takes the old one back.
@@ -103,6 +152,7 @@ impl AudioHost {
         Self {
             backend: None,
             stream: None,
+            opening: None,
             config: StreamConfig::default(),
             factory,
             handover: None,
@@ -117,6 +167,39 @@ impl AudioHost {
 
     /// Connects to `kind` (or the best available backend) and starts a stream with `config`.
     pub fn start(&mut self, kind: Option<BackendKind>, config: StreamConfig) {
+        if self.connect(kind) {
+            self.apply(config);
+        }
+    }
+
+    /// As [`AudioHost::start`], the stream opening on another thread: a sleeping output (a
+    /// screen's) can take seconds to start. The stream plays silence until a later call
+    /// (any, [`AudioHost::poll_devices`] at each frame) hands it the factory's processor.
+    pub fn start_in_background(&mut self, kind: Option<BackendKind>, config: StreamConfig) {
+        if !self.connect(kind) {
+            return;
+        }
+        let Some(backend) = self.backend.clone() else {
+            return;
+        };
+        tracing::info!(?config, "opening the audio stream");
+        self.config = config.clone();
+        let tone_on = Arc::clone(&self.tone_on);
+        let opening = std::thread::Builder::new()
+            .name("audio-open".into())
+            .spawn(move || {
+                open_monitored(backend.as_ref(), &config, &tone_on, &mut |_| {
+                    Box::new(Silence)
+                })
+            });
+        match opening {
+            Ok(handle) => self.opening = Some(handle),
+            Err(_) => self.apply(self.config.clone()),
+        }
+    }
+
+    /// Connects to the backend and lists its devices; false when none could be reached.
+    fn connect(&mut self, kind: Option<BackendKind>) -> bool {
         self.stop();
         let connected = match kind {
             Some(kind) => backend(kind).or_else(|e| {
@@ -127,13 +210,50 @@ impl AudioHost {
         };
         match connected {
             Ok(backend) => {
-                self.backend = Some(backend);
+                self.backend = Some(Arc::from(backend));
                 self.refresh_devices();
-                self.apply(config);
+                true
             }
             Err(e) => {
                 self.backend = None;
                 self.devices.clear();
+                self.error = Some(e.to_string());
+                false
+            }
+        }
+    }
+
+    /// Takes the stream opened in the background once it is ready, or at once when `wait`,
+    /// and gives it the factory's processor. False while it is still opening.
+    fn settle(&mut self, wait: bool) -> bool {
+        let Some(handle) = self.opening.take_if(|h| wait || h.is_finished()) else {
+            return self.opening.is_none();
+        };
+        let Ok(opened) = handle.join() else {
+            self.error = Some("the audio stream could not open".into());
+            return true;
+        };
+        self.finish(opened);
+        if self.stream.is_some() {
+            self.reattach();
+        }
+        true
+    }
+
+    fn finish(&mut self, opened: Opened) {
+        if let Some((inputs, outputs)) = opened.meters {
+            self.input_meters = inputs;
+            self.output_meters = outputs;
+        }
+        match opened.stream {
+            Ok(stream) => {
+                tracing::info!(info = ?stream.info(), "audio stream started");
+                self.stream = Some(stream);
+                self.handover = Some(opened.handover);
+                self.error = None;
+            }
+            Err(e) => {
+                tracing::warn!("cannot open audio stream: {e}");
                 self.error = Some(e.to_string());
             }
         }
@@ -158,47 +278,18 @@ impl AudioHost {
             return;
         };
         let factory = &mut self.factory;
-        let tone_on = &self.tone_on;
-        let mut meters = None;
-        let (to_stream, incoming) = channel(2);
-        let (retired, from_stream) = channel(2);
-        let mut ends = Some((incoming, retired));
-        let opened = backend.open(&self.config, &mut |info| {
-            let (incoming, retired) = ends.take().unwrap_or_else(|| (channel(1).1, channel(1).0));
-            let monitor = Monitor {
-                inner: factory(info),
-                incoming,
-                retired,
-                tone: TestTone::new(TONE_FREQUENCY, TONE_GAIN_DB, info.sample_rate),
-                tone_rate: info.sample_rate,
-                tone_on: Arc::clone(tone_on),
-                inputs: Meters::new(info.inputs as usize),
-                outputs: Meters::new(info.outputs as usize),
-            };
-            meters = Some((monitor.inputs.clone(), monitor.outputs.clone()));
-            Box::new(monitor)
+        let opened = open_monitored(backend.as_ref(), &self.config, &self.tone_on, &mut |info| {
+            factory(info)
         });
-        if let Some((inputs, outputs)) = meters {
-            self.input_meters = inputs;
-            self.output_meters = outputs;
-        }
-        match opened {
-            Ok(stream) => {
-                tracing::info!(info = ?stream.info(), "audio stream started");
-                self.stream = Some(stream);
-                self.handover = Some((to_stream, from_stream));
-                self.error = None;
-            }
-            Err(e) => {
-                tracing::warn!("cannot open audio stream: {e}");
-                self.error = Some(e.to_string());
-            }
-        }
+        self.finish(opened);
     }
 
     /// Re-reads the device list when the backend reports a change and says what changed. A
     /// stream that stopped (its device unplugged) restarts once its devices are back.
     pub fn poll_devices(&mut self) -> Option<DeviceChanges> {
+        if !self.settle(false) {
+            return None;
+        }
         let generation = self.backend.as_ref().map_or(0, |b| b.device_generation());
         if generation == self.device_generation {
             return None;
@@ -239,6 +330,7 @@ impl AudioHost {
     }
 
     pub fn stop(&mut self) {
+        self.settle(true);
         self.handover = None;
         if self.stream.take().is_some() {
             tracing::info!("audio stream stopped");
@@ -249,6 +341,11 @@ impl AudioHost {
     /// keeping the device open: some interfaces misbehave when restarted at once. Reopens the
     /// stream when none runs or the audio thread does not take it.
     pub fn reattach(&mut self) {
+        if self.opening.is_some() {
+            // Settling hands the new stream the factory's processor.
+            self.settle(true);
+            return;
+        }
         let info = self
             .stream
             .as_ref()
@@ -354,5 +451,33 @@ mod tests {
         host.reattach();
         assert!(host.stream().is_some());
         assert_eq!(made.load(Ordering::Relaxed), 3);
+    }
+
+    #[test]
+    fn a_stream_opened_in_the_background_gets_the_processor_once_ready() {
+        let made = Arc::new(AtomicUsize::new(0));
+        let playing = Arc::new(AtomicBool::new(false));
+        let mut host = AudioHost::new({
+            let (made, playing) = (Arc::clone(&made), Arc::clone(&playing));
+            Box::new(move |_| {
+                made.fetch_add(1, Ordering::Relaxed);
+                let playing = Arc::clone(&playing);
+                Box::new(move |_: &mut AudioBuffers<'_>, _: &CallbackTime| {
+                    playing.store(true, Ordering::Relaxed);
+                })
+            })
+        });
+        host.start_in_background(Some(BackendKind::Dummy), StreamConfig::default());
+        let start = Instant::now();
+        while host.stream().is_none() && start.elapsed() < Duration::from_secs(5) {
+            host.poll_devices();
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert!(host.stream().is_some());
+        assert_eq!(made.load(Ordering::Relaxed), 1, "made once, on this thread");
+        while !playing.load(Ordering::Relaxed) && start.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert!(playing.load(Ordering::Relaxed));
     }
 }
