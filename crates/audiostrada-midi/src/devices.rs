@@ -6,17 +6,6 @@ use crate::live::LiveMidi;
 
 const CLIENT: &str = "AudioStrada";
 
-/// Starts the connection to the system's MIDI service in the background. On macOS the first
-/// CoreMIDI client waits for the MIDI server, up to half a second, which otherwise delays the
-/// window; later clients reuse the connection.
-pub fn connect_early() {
-    if cfg!(target_os = "macos") {
-        let _ = std::thread::Builder::new()
-            .name("midi-connect".into())
-            .spawn(|| drop(MidiInput::new(CLIENT)));
-    }
-}
-
 /// Names of the MIDI inputs present now.
 pub fn input_names() -> Vec<String> {
     let Ok(input) = MidiInput::new(CLIENT) else {
