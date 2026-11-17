@@ -778,7 +778,10 @@ impl AudioThread {
                 let mut changes = Vec::with_capacity(MAX_CHANGES);
                 let mut events = Vec::with_capacity(MAX_MIDI);
                 while !s.load(Ordering::Relaxed) {
-                    if !r.request.wait_while(last, Duration::from_millis(100)) {
+                    if !r
+                        .request
+                        .wait_while_or(last, Duration::from_millis(100), &s)
+                    {
                         continue;
                     }
                     last = r.header().request.load(Ordering::Acquire);
@@ -795,7 +798,7 @@ impl AudioThread {
     }
 
     fn stop(self) {
-        self.stop.store(true, Ordering::Relaxed);
+        self.stop.store(true, Ordering::Release);
         self.region.request.wake();
         let _ = self.handle.join();
     }
@@ -920,18 +923,34 @@ mod messages {
     };
 
     /// Wakes the main thread when a request arrives.
-    #[cfg(not(windows))]
+    #[cfg(all(not(windows), not(target_os = "macos")))]
     pub struct Waker;
 
-    #[cfg(not(windows))]
+    #[cfg(all(not(windows), not(target_os = "macos")))]
     impl Waker {
         pub fn new() -> Self {
-            #[cfg(target_os = "macos")]
-            cocoa::start();
             Self
         }
 
         pub fn wake(&self) {}
+    }
+
+    /// Wakes the main thread, waiting for AppKit's events, with an event of our own: without
+    /// it every request waited for the end of the wait.
+    #[cfg(target_os = "macos")]
+    pub struct Waker(Option<cocoa::Poster>);
+
+    #[cfg(target_os = "macos")]
+    impl Waker {
+        pub fn new() -> Self {
+            Self(cocoa::start())
+        }
+
+        pub fn wake(&self) {
+            if let Some(poster) = &self.0 {
+                poster.wake();
+            }
+        }
     }
 
     #[cfg(all(not(windows), not(target_os = "macos")))]
@@ -1017,17 +1036,48 @@ mod messages {
         use std::time::Duration;
 
         use objc2::MainThreadMarker;
-        use objc2::rc::autoreleasepool;
-        use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSEventMask};
-        use objc2_foundation::{NSDate, NSDefaultRunLoopMode};
+        use objc2::rc::{Retained, autoreleasepool};
+        use objc2_app_kit::{
+            NSApplication, NSApplicationActivationPolicy, NSEvent, NSEventMask,
+            NSEventModifierFlags, NSEventType,
+        };
+        use objc2_foundation::{NSDate, NSDefaultRunLoopMode, NSPoint};
+
+        /// The application, posted an event from the thread reading the requests.
+        pub struct Poster(Retained<NSApplication>);
+
+        // SAFETY: other threads only call `postEvent:atStart:`, which AppKit allows from any
+        // thread, and retain or release the application, which are thread safe.
+        unsafe impl Send for Poster {}
+
+        impl Poster {
+            pub fn wake(&self) {
+                autoreleasepool(|_| {
+                    let event = NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2(
+                        NSEventType::ApplicationDefined,
+                        NSPoint::new(0.0, 0.0),
+                        NSEventModifierFlags::empty(),
+                        0.0,
+                        0,
+                        None,
+                        0,
+                        0,
+                        0,
+                    );
+                    if let Some(event) = event {
+                        self.0.postEvent_atStart(&event, false);
+                    }
+                });
+            }
+        }
 
         /// Makes the plugin host an AppKit application without a Dock icon.
-        pub fn start() {
-            if let Some(mtm) = MainThreadMarker::new() {
-                let app = NSApplication::sharedApplication(mtm);
-                app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
-                app.finishLaunching();
-            }
+        pub fn start() -> Option<Poster> {
+            let mtm = MainThreadMarker::new()?;
+            let app = NSApplication::sharedApplication(mtm);
+            app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+            app.finishLaunching();
+            Some(Poster(app))
         }
 
         /// Handles AppKit events for up to `timeout`; false off the main thread.
@@ -1433,5 +1483,26 @@ mod tests {
         std::thread::sleep(Duration::from_millis(20));
         sa.set(7);
         assert!(waiter.join().unwrap());
+    }
+
+    #[test]
+    fn a_stopped_audio_thread_does_not_sleep_out_its_timeout() {
+        let name = shm::unique_name();
+        let a = Shared::create(&name, 4096).unwrap();
+        let b = Shared::open(&name, 4096).unwrap();
+        let (sa, sb) = (a.signal(0, "s").unwrap(), b.signal(0, "s").unwrap());
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = std::sync::Arc::clone(&stop);
+        let waiter = std::thread::spawn(move || {
+            let start = std::time::Instant::now();
+            let changed = sb.wait_while_or(0, Duration::from_secs(5), &flag);
+            (changed, start.elapsed())
+        });
+        std::thread::sleep(Duration::from_millis(20));
+        stop.store(true, std::sync::atomic::Ordering::Release);
+        sa.wake();
+        let (changed, waited) = waiter.join().unwrap();
+        assert!(!changed);
+        assert!(waited < Duration::from_secs(1), "{waited:?}");
     }
 }

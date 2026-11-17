@@ -1,7 +1,7 @@
 //! Shared memory between AudioStrada and a plugin host process, and wake-ups across processes on
 //! counters stored in it (futex on Linux, ulock on macOS, named events on Windows).
 
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 /// A mapped region; the creator removes it on drop.
@@ -246,6 +246,12 @@ impl Signal {
 
     /// Waits while the counter equals `value`, at most `timeout`; true once it changed.
     pub fn wait_while(&self, value: u32, timeout: Duration) -> bool {
+        self.wait_while_or(value, timeout, &AtomicBool::new(false))
+    }
+
+    /// As [`Signal::wait_while`], also returning (false) once `stop` is set and the signal
+    /// woken: a thread being stopped does not sleep out its timeout.
+    pub fn wait_while_or(&self, value: u32, timeout: Duration, stop: &AtomicBool) -> bool {
         let deadline = Instant::now() + timeout;
         // A short spin catches fast answers without a system call.
         for _ in 0..256 {
@@ -259,7 +265,7 @@ impl Signal {
                 return true;
             }
             let now = Instant::now();
-            if now >= deadline {
+            if now >= deadline || stop.load(Ordering::Acquire) {
                 return false;
             }
             self.sleep(value, deadline - now);
