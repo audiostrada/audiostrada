@@ -558,6 +558,8 @@ struct ChannelState {
     slide: f32,
     /// The mod wheel (CC 1), 0 to 1.
     wheel: f32,
+    /// The sustain pedal (CC 64) is down: released keys keep sounding.
+    sustain: bool,
 }
 
 impl Default for ChannelState {
@@ -567,6 +569,7 @@ impl Default for ChannelState {
             pressure: 0.0,
             slide: 0.5,
             wheel: 0.0,
+            sustain: false,
         }
     }
 }
@@ -611,6 +614,8 @@ struct Voice {
     mods: [f32; TARGETS.len()],
     cutoff: f32,
     age: u64,
+    /// The key was released while the sustain pedal was down: it ends with the pedal.
+    sustained: bool,
 }
 
 impl Default for Voice {
@@ -635,6 +640,7 @@ impl Default for Voice {
             held: [0.0; 2],
             env2: 0.0,
             env2_stage: Stage::Idle,
+            sustained: false,
             mods: [0.0; TARGETS.len()],
             cutoff: 0.0,
             age: 0,
@@ -1635,6 +1641,7 @@ impl Synth {
         let sounding = v.stage != Stage::Idle;
         v.key = key;
         v.channel = channel;
+        v.sustained = false;
         v.struck = velocity;
         v.velocity = 1.0 - sensitivity + sensitivity * f32::from(velocity) / 127.0;
         v.target = f32::from(key) - 69.0;
@@ -1706,18 +1713,25 @@ impl Synth {
                     self.values[p::MODE] = 2.0;
                     self.note_on(c, k, vel);
                     self.values[p::MODE] = mode as f32;
+                } else if self.channels[usize::from(channel)].sustain {
+                    self.voices[0].sustained = true;
                 } else {
                     self.voices[0].stage = Stage::Release;
                 }
             }
             return;
         }
+        let sustain = self.channels[usize::from(channel)].sustain;
         for v in self
             .voices
             .iter_mut()
             .filter(|v| v.key == key && v.channel == channel && v.stage != Stage::Idle)
         {
-            v.stage = Stage::Release;
+            if sustain {
+                v.sustained = true;
+            } else {
+                v.stage = Stage::Release;
+            }
         }
     }
 }
@@ -1798,6 +1812,7 @@ impl Effect for Synth {
             // All notes off ends the arpeggio too, held or not: it would play on.
             self.stop_arp();
             for v in &mut self.voices {
+                v.sustained = false;
                 v.stage = if event.data[1] == 120 {
                     Stage::Idle
                 } else {
@@ -1815,8 +1830,20 @@ impl Effect for Synth {
                 (0xD0, pressure) => state.pressure = f32::from(pressure) / 127.0,
                 (0xB0, 74) => state.slide = f32::from(event.data[2]) / 127.0,
                 (0xB0, 1) => state.wheel = f32::from(event.data[2]) / 127.0,
+                (0xB0, 64) => state.sustain = event.data[2] >= 64,
                 (0xB0, 121) => *state = ChannelState::default(),
                 _ => {}
+            }
+            // The pedal lifted (or every controller reset): the keys it held end.
+            if !state.sustain {
+                for v in self
+                    .voices
+                    .iter_mut()
+                    .filter(|v| v.sustained && v.channel == event.channel())
+                {
+                    v.sustained = false;
+                    v.stage = Stage::Release;
+                }
             }
         }
     }
@@ -2134,6 +2161,46 @@ mod tests {
         s.midi(&MidiEvent::note_off(0, 0, 69));
         stereo(&mut s, 80);
         assert!((s.voices[0].note + 12.0).abs() < 0.05, "back to A3");
+    }
+
+    #[test]
+    fn the_sustain_pedal_holds_released_keys_until_it_is_lifted() {
+        let mut s = synth(&[]);
+        s.prepare(48_000, 256);
+        let sounding = |s: &Synth| s.voices.iter().filter(|v| v.stage != Stage::Idle).count();
+        s.midi(&MidiEvent::control(0, 0, 64, 127));
+        s.midi(&MidiEvent::note_on(0, 0, 60, 100));
+        s.midi(&MidiEvent::note_on(0, 0, 64, 100));
+        stereo(&mut s, 10);
+        s.midi(&MidiEvent::note_off(0, 0, 60));
+        s.midi(&MidiEvent::note_off(0, 0, 64));
+        stereo(&mut s, 400);
+        assert_eq!(sounding(&s), 2, "held by the pedal");
+        assert!(s.voices.iter().all(|v| v.stage != Stage::Release));
+        // Another channel's pedal changes nothing here.
+        s.midi(&MidiEvent::control(0, 1, 64, 0));
+        assert_eq!(sounding(&s), 2);
+        s.midi(&MidiEvent::control(0, 0, 64, 0));
+        assert!(
+            s.voices
+                .iter()
+                .filter(|v| v.stage != Stage::Idle)
+                .all(|v| v.stage == Stage::Release),
+            "released with the pedal"
+        );
+        stereo(&mut s, 400);
+        assert_eq!(sounding(&s), 0);
+        // Without the pedal, a released key ends at once.
+        s.midi(&MidiEvent::note_on(0, 0, 60, 100));
+        stereo(&mut s, 10);
+        s.midi(&MidiEvent::note_off(0, 0, 60));
+        assert_eq!(
+            s.voices
+                .iter()
+                .filter(|v| v.stage == Stage::Release)
+                .count(),
+            1
+        );
     }
 
     #[test]
