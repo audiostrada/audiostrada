@@ -538,6 +538,7 @@ dependencies = [
  "audiostrada-io",
  "audiostrada-license",
  "audiostrada-media",
+ "audiostrada-midi",
  "audiostrada-plugins",
  "audiostrada-rt",
  "audiostrada-test-plugin",
