@@ -3335,13 +3335,13 @@ fn readout(ui: &mut Ui, label: &str, value: String, color: Color32) {
         .fill(fill)
         .stroke(edge)
         .corner_radius(6.0)
-        .inner_margin(egui::Margin::symmetric(10, 5))
+        .inner_margin(egui::Margin::symmetric(8, 5))
         .show(ui, |ui| {
-            ui.set_min_width(96.0);
+            ui.set_min_width(84.0);
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing.y = 1.0;
                 ui.label(RichText::new(label).size(9.0).color(p.weak));
-                ui.label(RichText::new(value).monospace().size(15.0).color(color));
+                ui.label(RichText::new(value).monospace().size(14.0).color(color));
             });
         });
 }
