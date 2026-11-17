@@ -1731,6 +1731,14 @@ impl ProjectPlayer {
     }
 
     /// Mute, Dim and Mono of the control room.
+    /// Raises (dB) what the main output plays, never an export: the mix without its effects
+    /// brought to the loudness it has with them.
+    pub fn set_matched_gain(&self, db: f32) {
+        self.control_room
+            .matched
+            .store(db.to_bits(), Ordering::Relaxed);
+    }
+
     pub fn control_room(&self) -> (bool, bool, bool) {
         let room = &self.control_room;
         (

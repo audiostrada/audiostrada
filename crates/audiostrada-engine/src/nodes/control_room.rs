@@ -1,8 +1,8 @@
 //! The control room's listening controls, on the main output only (never in an export):
-//! Mute, Dim and Mono.
+//! Mute, Dim and Mono, and the gain bringing the mix without its effects to its loudness.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use crate::param::Smoothed;
 use crate::{ProcessContext, Processor};
@@ -15,6 +15,8 @@ pub struct ControlRoomControls {
     pub mute: Arc<AtomicBool>,
     pub dim: Arc<AtomicBool>,
     pub mono: Arc<AtomicBool>,
+    /// dB, as the bits of an `f32`.
+    pub matched: Arc<AtomicU32>,
 }
 
 #[derive(Debug)]
@@ -42,11 +44,12 @@ impl Processor for ControlRoom {
         let mute = self.controls.mute.load(Ordering::Relaxed);
         let dim = self.controls.dim.load(Ordering::Relaxed);
         let mono = self.controls.mono.load(Ordering::Relaxed);
+        let matched = f32::from_bits(self.controls.matched.load(Ordering::Relaxed));
         let target = match (mute, dim) {
             (true, _) => 0.0,
             (false, true) => 10f32.powf(DIM_DB / 20.0),
             (false, false) => 1.0,
-        };
+        } * 10f32.powf(matched / 20.0);
         let (start, step) = self.smoothed.ramp(target, b.frames());
         if b.input_channels() < 2 || b.output_channels() < 2 {
             return;

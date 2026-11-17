@@ -9,8 +9,11 @@ Impossible de copier {path}: {error}
 Import {name}
 Importer {name}
 
-Imported {path}
-{path} importé
+Imported {name}
+{name} importé
+
+{count} files imported
+{count} fichiers importés
 
 Cannot import {path}: {error}
 Impossible d'importer {path}: {error}

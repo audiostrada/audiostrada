@@ -44,6 +44,13 @@ pub trait EditorParams {
     fn tempo(&self) -> f64;
     /// Tells the user something.
     fn notify(&mut self, _message: String) {}
+    /// Whether the full settings of `effect`, a stage of a chain, may be opened (a plugin
+    /// needs that plugin's licence or its trial); `Err` says why not.
+    fn stage_access(&self, _effect: &str) -> Result<(), String> {
+        Ok(())
+    }
+    /// Shows where to get `effect`, whose full settings are closed.
+    fn get_stage(&mut self, _effect: &str) {}
 }
 
 impl dyn EditorParams + '_ {

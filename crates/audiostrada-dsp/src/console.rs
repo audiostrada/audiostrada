@@ -283,10 +283,36 @@ impl ConsoleColor {
     /// The console (index into [`MODELS`]), its amount (0 to 100 %), summing a bus rather than
     /// a channel's input, its hiss and crosstalk heard, and the seed of its tolerances (`None`:
     /// a perfect channel).
+    /// Whether these settings build the circuits anew, starting from silence: heard, the
+    /// change is to be crossfaded.
+    pub fn starts_anew(
+        &self,
+        model: usize,
+        amount: f32,
+        bus: bool,
+        noise: bool,
+        seed: Option<u64>,
+    ) -> bool {
+        let colored = recipe(model, bus).is_some() && amount > 0.0;
+        self.redesigns(model, amount, bus, noise, seed) && (colored || self.active())
+    }
+
+    fn redesigns(
+        &self,
+        model: usize,
+        amount: f32,
+        bus: bool,
+        noise: bool,
+        seed: Option<u64>,
+    ) -> bool {
+        let colored = recipe(model, bus).is_some() && amount > 0.0;
+        (model, bus, noise, seed) != (self.model, self.bus, self.noise, self.seed)
+            || colored != self.recipe.is_some()
+    }
+
     pub fn set(&mut self, model: usize, amount: f32, bus: bool, noise: bool, seed: Option<u64>) {
         let recipe = recipe(model, bus).filter(|_| amount > 0.0);
-        let circuit = (model, bus, noise, seed) != (self.model, self.bus, self.noise, self.seed);
-        if circuit || recipe.is_some() != self.recipe.is_some() {
+        if self.redesigns(model, amount, bus, noise, seed) {
             (self.model, self.bus, self.noise, self.seed) = (model, bus, noise, seed);
             self.amount = amount;
             self.recipe = recipe;

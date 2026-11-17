@@ -1,6 +1,6 @@
 # Effets
 
-AudioStrada fournit trente effets et instruments intégrés, la série Strada. Chacun a des presets
+AudioStrada fournit trente-deux effets et instruments intégrés, la série Strada. Chacun a des presets
 d'usine, des presets personnels et la comparaison A/B en haut de sa fenêtre. Ce chapitre les
 parcourt famille par famille ; les tableaux de paramètres donnent la plage et la valeur par défaut
 de chaque réglage.
@@ -34,6 +34,65 @@ de chaque réglage.
 
 Les fenêtres d'effets sont des fenêtres à part, qui peuvent aller sur un autre écran ; recliquer
 sur un insert ramène sa fenêtre au premier plan.
+
+## Chaînes de mastering et de voix
+
+### Strada-Master
+
+![Strada-Master](img/fx/mastering.webp)
+
+Une chaîne de mastering derrière six gros potards : **Timbre** (plus sombre ou plus brillant :
+deux plateaux et un plateau d'air dans les dernières bandes de Strada-EQ), **Cohésion** (les seuils de Strada-MB-Comp), **Couleur**
+(Strada-Tape), **Largeur** (Strada-Wide, le grave gardé au centre), **Sub** (plus ou moins de la
+dernière octave : un plateau grave à 70 Hz, la dernière bande de Strada-EQ, Strada-Wide la gardant au centre) et **Volume** (l'attaque de Strada-Max, Strada-Limit
+gardant les crêtes vraies sous le plafond). Au-dessus, un **style** (*Clair*, *Chaleureux*,
+*Ouvert*, *Percutant*) donne aux étages un point de départ, et une **cible** règle le plafond du
+limiteur et le volume visé (en choisir une déplace le potard Volume de l'écart entre les cibles,
+puis l'ajuste à l'oreille sur quelques secondes de musique) : *Streaming* -14, *Apple Music, podcast* -16, *CD* -9 (crêtes
+jusqu'à -0,3 dB), *Club* -7, *Vinyle* -12 (graves en mono, marge sous les crêtes), *TV, radio*
+-23 LUFS (EBU R128), et *Pré-master*, pour un ingénieur de mastering : rien de maximisé, crêtes
+tenues à -6 dBFS. **Suivre** atteint la cible, puis
+la garde à chaque réglage changé (un potard, le style, les réglages d'un étage) : chaque
+changement est mesuré sur quelques secondes, la sortie contre l'entrée, et compensé. Les
+nuances de la musique ne le font jamais bouger : passages doux et forts gardent leur écart. **Avant, même volume** fait entendre le mix sans
+Strada-Master, porté à son volume, pour juger le traitement sans que le volume parle à sa
+place ; il s'arrête à la fermeture de la fenêtre.
+
+L'affichage dessine le spectre du morceau dans le tunnel du style, son volume des dernières
+secondes face à la cible, l'image stéréo, la crête vraie et la réduction du maximiseur.
+
+La barre du haut est la chaîne : son premier onglet, *Strada-Master*, montre les potards ; les
+autres ouvrent l'éditeur de chaque étage, presets compris. Glissez un étage pour changer l'ordre
+dans lequel le son les traverse ; Strada-Limit reste le dernier. Chaque potard agit autour des
+réglages de l'étage qu'il pilote, sans les changer ; l'éditeur d'un étage montre ses réglages
+tels qu'ils sont joués, potards compris, et ce que vous y changez devient la base autour de
+laquelle les potards agissent. **Écouter et régler**, proposé à la première
+ouverture, fait entendre à l'assistant huit secondes du passage le plus fort : il règle Timbre,
+Cohésion, Largeur, Sub et Volume pour le mix et la cible, puis ajuste le volume une fois la sortie
+stabilisée. Le curseur entre *Vos réglages* et *Assistant* dose sa proposition avec ce que vous
+aviez ; *Annuler* remet vos réglages.
+
+<!-- effect:mastering -->
+
+### Strada-Vocals
+
+![Strada-Vocals](img/fx/vocals.webp)
+
+Une chaîne vocale derrière six gros potards : **Justesse** (Strada-Correct : plus il est fort,
+plus la correction est rapide et ferme), **Timbre** (plus chaud ou plus brillant, avec de l'air
+en haut) et son petit potard **Saturation** (Strada-Drive, d'une touche de chaleur au grain),
+**Comp** (le seuil de Strada-Comp), **Dé-ess** (Strada-DeEss), **Doublage** (Strada-Doubler) et
+**Espace** (Strada-Delay et Strada-Verb, qui s'effacent sous la voix). La **voix** (*Chant*,
+*Rap*, *Parlé*) et l'**espace** (*Pièce*, *Plaque*, *Salle*, *Slapback*, *Écho*) donnent aux
+étages un point de départ. L'affichage dessine le spectre de la voix face à sa cible, la
+justesse des dernières secondes, la note, la compression et le dé-essage. **Prise**, pendant
+l'enregistrement, laisse de côté la justesse et l'espace, et avec eux leur latence.
+
+Comme dans Strada-Master, la barre de la chaîne ouvre et réordonne les étages, et **Écouter et
+régler** règle Timbre, Comp et Dé-ess pour la voix entendue, les seuils du compresseur et du
+dé-esseur à son niveau, et la tonalité de Strada-Correct d'après les notes chantées.
+
+<!-- effect:vocals -->
 
 ## Dynamique
 
@@ -99,7 +158,9 @@ obtenu.
 **Apprendre** écoute pendant que vous jouez le passage le plus fort et règle le seuil pour que la
 sortie atteigne la sonie choisie (-14 LUFS pour le streaming, par exemple). Strada-Max est le
 limiteur de mastering, avec un plafond en crête réelle et une anticipation ; Strada-Limit est un
-limiteur de crêtes pour les pistes et les bus.
+limiteur de crêtes pour les pistes et les bus. **Avant, même volume** fait entendre l'entrée sans le limiteur, portée au
+volume de sa sortie, pour juger la limitation elle-même ; il s'arrête à la fermeture de la
+fenêtre.
 
 <!-- effect:maximizer -->
 
@@ -345,10 +406,31 @@ canaux, alignement temporel en millisecondes et rotation de phase.
 
 ### Strada-Correct
 
-La correction de hauteur automatique pour la voix, du naturel à l'effet robot. Choisissez la
-tonalité et la gamme (ou des notes personnalisées) ; une vitesse de correction de 0 ms donne
-l'effet dur, des valeurs plus hautes une correction naturelle, *Humaniser* laisse un peu de vie
-aux notes tenues.
+La correction de hauteur automatique pour la voix, de la touche légère à la voix en paliers,
+synthétique. L'écran fait défiler la hauteur chantée (en gris) et la hauteur corrigée (en bleu)
+sur les notes de la gamme ; à sa droite, la note chantée et son écart, la note visée, et une
+barre qui montre de combien de cents la voix est déplacée.
+
+- **Naturel** suit les réglages : la *vitesse de correction* est le temps que met la voix à
+  rejoindre sa note (0 ms, c'est immédiat ; de 20 à 60 ms, on entend un chanteur juste),
+  *Humaniser* corrige le centre d'une note tenue et lui laisse son vibrato, la *tolérance*
+  laisse tranquille une note déjà aussi proche, la *quantité* ne corrige qu'une partie du
+  chemin.
+- **Escalier** pose chaque note à plat sur sa cible, tout de suite, quels que soient ces
+  réglages : la voix avance par paliers, sans vibrato ni glissé, comme sur les premiers
+  disques corrigés automatiquement. Choisissez une gamme de peu de notes pour des marches
+  plus larges.
+- **Harmonie** corrige la voix comme *Naturel* et y ajoute une seconde voix qui chante dans
+  la tonalité : une tierce, une quinte, une sixte ou une octave au-dessus, une tierce, une
+  quarte ou une octave en dessous, comptées dans les notes de la gamme (celles de la gamme
+  majeure de la tonalité quand la gamme est chromatique). *Niveau* dose la seconde voix
+  contre la première ; les deux ensemble gardent le volume d'une seule.
+
+Choisissez la tonalité et la gamme (ou cliquez des notes sur le clavier pour une gamme
+personnalisée). Pendant que la voix joue, l'effet écoute la tonalité de ce qui est chanté et
+l'affiche sous le clavier (*Entendu : A mineur*) ; **Utiliser cette tonalité** règle la
+tonalité et la gamme dessus. *Transposer* déplace toute la voix par demi-tons, formants
+conservés.
 
 <!-- effect:pitch_correct -->
 

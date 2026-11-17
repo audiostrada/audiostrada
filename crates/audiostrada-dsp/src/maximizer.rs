@@ -6,7 +6,9 @@
 //! removes.
 
 use crate::limiter::{Core, needed};
-use crate::loudness::{Hold, LIMITER_METERS, LevelMeter, TRUE_PEAK_LAG, TruePeak, limiter_meters};
+use crate::loudness::{
+    Hold, LIMITER_METERS, LevelMeter, SameLoudness, TRUE_PEAK_LAG, TruePeak, limiter_meters,
+};
 use crate::{Effect, EffectInfo, ParamInfo, choice, db_to_gain, param, switch};
 
 pub const INFO: EffectInfo = EffectInfo {
@@ -22,7 +24,7 @@ pub const INFO: EffectInfo = EffectInfo {
 
 const STYLES: [&str; 3] = ["Transparent", "Punchy", "Loud"];
 
-const PARAMS: [ParamInfo; 7] = [
+const PARAMS: [ParamInfo; 8] = [
     param("gain", "Gain", 0.0, 24.0, 4.0, "dB"),
     param("ceiling", "Ceiling", -12.0, 0.0, -1.0, "dB"),
     param("release", "Release", 1.0, 1000.0, 120.0, "ms"),
@@ -30,6 +32,7 @@ const PARAMS: [ParamInfo; 7] = [
     param("link", "Stereo link", 0.0, 100.0, 100.0, "%"),
     switch("unity", "Unity gain", 0.0),
     switch("audition", "Audition", 0.0),
+    switch("compare", "Before, same loudness", 0.0),
 ];
 
 const LOOKAHEAD_MS: f32 = 1.5;
@@ -37,12 +40,13 @@ const LOOKAHEAD_MS: f32 = 1.5;
 #[derive(Debug)]
 pub struct Maximizer {
     rate: f32,
-    values: [f32; 7],
+    values: [f32; 8],
     core: Core,
     true_peak: TruePeak,
     reduction: Hold,
     input_meter: LevelMeter,
     output_meter: LevelMeter,
+    same: SameLoudness,
 }
 
 fn length(rate: f32) -> usize {
@@ -61,6 +65,7 @@ impl Default for Maximizer {
             reduction: Hold::new(48_000),
             input_meter: LevelMeter::new(48_000),
             output_meter: LevelMeter::new(48_000),
+            same: SameLoudness::default(),
         }
     }
 }
@@ -88,7 +93,19 @@ impl Effect for Maximizer {
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
-        let [gain, ceiling, release, style, link, unity, audition] = self.values;
+        let [
+            gain,
+            ceiling,
+            release,
+            style,
+            link,
+            unity,
+            audition,
+            compare,
+        ] = self.values;
+        let compare = compare >= 0.5;
+        let (from, to) = self.same.next(&self.input_meter, &self.output_meter);
+        let n = left.len().max(1) as f32;
         let style = style.round().clamp(0.0, 2.0) as usize;
         let input = db_to_gain(gain);
         let ceiling = db_to_gain(ceiling);
@@ -114,7 +131,7 @@ impl Effect for Maximizer {
             let over = (s.abs() - knee) / (ceiling * 2.0 - knee).max(1e-6);
             s.signum() * (knee + (ceiling * 2.0 - knee) * over.tanh() * 0.5)
         };
-        for (l, r) in left.iter_mut().zip(right.iter_mut()) {
+        for (i, (l, r)) in left.iter_mut().zip(right.iter_mut()).enumerate() {
             self.input_meter.push(*l, *r);
             let boosted = [*l * input, *r * input];
             let peaks = self.true_peak.push(boosted.map(shave));
@@ -127,9 +144,14 @@ impl Effect for Maximizer {
                     limited * unity
                 }
             });
-            (*l, *r) = (out[0], out[1]);
             self.reduction.push(1.0 - gains[0].min(gains[1]));
-            self.output_meter.push(*l, *r);
+            self.output_meter.push(out[0], out[1]);
+            (*l, *r) = if compare {
+                let g = (from + (to - from) * i as f32 / n) / input;
+                (dry[0] * g, dry[1] * g)
+            } else {
+                (out[0], out[1])
+            };
         }
     }
 

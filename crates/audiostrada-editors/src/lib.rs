@@ -1,6 +1,8 @@
 //! AudioStrada's look (theme, fonts, textures, widgets), its translations, and the editors of
 //! its built-in effects, which AudioStrada and the AudioStrada plugins both draw.
 
+pub mod chain_editor;
+pub mod chain_presets;
 pub mod controls;
 pub mod delay_editor;
 pub mod drive_editor;
@@ -25,6 +27,7 @@ pub const REFRESH: std::time::Duration = std::time::Duration::from_millis(33);
 /// Size of the editor window of effect `id`, in points, its bars included.
 pub fn window_size(id: &str) -> [f32; 2] {
     match id {
+        "mastering" | "vocals" => [1100.0, 900.0],
         "eq" => [1040.0, 800.0],
         "amp_rig" => [1000.0, 960.0],
         "channel" => [1060.0, 720.0],
@@ -46,7 +49,7 @@ pub fn window_size(id: &str) -> [f32; 2] {
         "imager" => [900.0, 620.0],
         "utility" => [940.0, 480.0],
         "drive" => [1000.0, 620.0],
-        "pitch_correct" => [860.0, 560.0],
+        "pitch_correct" => [1000.0, 720.0],
         "reverb" => [980.0, 800.0],
         "maximizer" => [900.0, 730.0],
         "vintage_eq" => [820.0, 660.0],

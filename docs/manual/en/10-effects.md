@@ -1,6 +1,6 @@
 # Effects
 
-AudioStrada comes with thirty built-in effects and instruments, the Strada series. Each one has
+AudioStrada comes with thirty-two built-in effects and instruments, the Strada series. Each one has
 factory presets, user presets and A/B comparison at the top of its window. This chapter goes
 through them family by family; the parameter tables give each control's range and default.
 
@@ -29,6 +29,64 @@ through them family by family; the parameter tables give each control's range an
 
 Effect windows are windows of their own, which can go to another screen; clicking an insert
 again brings its window to the front.
+
+## Mastering and vocal chains
+
+### Strada-Master
+
+![Strada-Master](img/fx/mastering.webp)
+
+A mastering chain behind six big knobs: **Tone** (darker or brighter: two shelves and an air
+shelf in Strada-EQ's last bands),
+**Glue** (Strada-MB-Comp's thresholds), **Color** (Strada-Tape), **Width** (Strada-Wide, the
+bass kept in the center), **Sub** (more or less of the lowest octave: a low shelf at 70 Hz, the last band of Strada-EQ, Strada-Wide keeping it in the center)
+and **Loudness** (Strada-Max's drive, Strada-Limit keeping the true peaks under the ceiling).
+Above them, a **style** (*Clean*, *Warm*, *Open*, *Punchy*) sets the stages a starting point,
+and a **target** sets the limiter's ceiling and the loudness aimed at (choosing one moves the
+Loudness knob by the gap between the targets, then trims it by ear over a few seconds of music): *Streaming* -14,
+*Apple Music, podcast* -16, *CD* -9 (peaks up to -0.3 dB), *Club* -7, *Vinyl* -12 (lows in
+mono, room under the peaks), *TV, radio* -23 LUFS (EBU R128), and *Pre-master*, for a
+mastering engineer: nothing maximized, peaks held at -6 dBFS. **Follow** reaches the target,
+then keeps it whenever a setting changes (a knob, the style, a stage's settings): each change is
+measured over a few seconds, the output against the input, and made up for. The music getting
+louder or softer never moves it, so quiet and loud sections keep their difference. **Before, same
+loudness** plays the mix without Strada-Master, raised to its loudness, to hear what the
+processing does without the loudness speaking for it; it stops when the window closes.
+
+The display draws the song's spectrum in the style's tunnel, its loudness over the last seconds
+against the target, the stereo image, the true peak and the maximizer's gain reduction.
+
+The bar at the top is the chain: its first tab, *Strada-Master*, shows the knobs; the others
+open each stage's own editor, its presets included. Drag a stage to change the order the sound
+goes through them; Strada-Limit stays last. Each knob acts around the settings of the stage
+under it, without changing them; a stage's editor shows its settings as they are played, the
+knobs applied, and what you change there becomes the base the knobs act around. **Listen and set**, offered when the effect is first opened,
+lets the assistant hear eight seconds of the loudest passage: it sets Tone, Glue, Width, Sub and
+Loudness for the mix and the target, then trims the loudness once the output has settled. The
+slider between *Your settings* and *Assistant* blends its proposal with what you had; *Undo*
+puts your settings back.
+
+<!-- effect:mastering -->
+
+### Strada-Vocals
+
+![Strada-Vocals](img/fx/vocals.webp)
+
+A vocal chain behind six big knobs: **Tune** (Strada-Correct: more is faster and firmer),
+**Tone** (warmer or brighter, with air on top) with its small **Saturation** knob (Strada-Drive,
+from a touch of warmth to grit), **Comp** (Strada-Comp's threshold), **De-ess** (Strada-DeEss),
+**Double** (Strada-Doubler) and **Space** (Strada-Delay and Strada-Verb, ducked under the
+voice). The **voice** (*Singing*, *Rap*, *Spoken*) and the **space** (*Room*, *Plate*, *Hall*,
+*Slapback*, *Echo*) set the stages a starting point. The display draws the voice's spectrum
+against its target, the pitch sung over the last seconds, the note, the compression and the
+de-essing. **Take**, while recording, leaves out the tuning and the space, and with them their
+latency.
+
+As in Strada-Master, the chain's bar opens and reorders the stages, and **Listen and set** sets
+Tone, Comp and De-ess for the voice heard, the compressor's and de-esser's thresholds at its
+level, and Strada-Correct's key from the notes sung.
+
+<!-- effect:vocals -->
 
 ## Dynamics
 
@@ -92,7 +150,8 @@ output peak, short-term loudness, and how much louder the output is.
 **Learn** listens while you play the loudest part and moves the threshold until the output
 reaches the chosen loudness (-14 LUFS for streaming, for instance). Strada-Max is the mastering
 limiter, with a true-peak ceiling and look-ahead; Strada-Limit is a brickwall peak limiter for
-tracks and buses.
+tracks and buses. **Before, same loudness** plays the input without the limiter, raised to
+its output's loudness, to judge the limiting itself; it stops when the window closes.
 
 <!-- effect:maximizer -->
 
@@ -329,9 +388,27 @@ alignment in milliseconds and phase rotation.
 
 ### Strada-Correct
 
-Automatic pitch correction for the voice, from natural to the robot effect. Choose the key and
-the scale (or *Custom* notes); *Retune speed* at 0 ms gives the hard effect, higher values a
-natural correction, *Humanize* leaves the held notes some life.
+Automatic pitch correction for the voice, from a light touch to the stepped, synthetic voice.
+The display scrolls the pitch sung (grey) and the corrected one (blue) over the notes of the
+scale; at its right, the note sung and how far off it is, the note aimed at, and a bar showing
+by how many cents the voice is being moved.
+
+- **Natural** follows the settings: *Retune speed* is the time the voice takes to reach its
+  note (0 ms is immediate, 20 to 60 ms sounds like a singer in tune), *Humanize* corrects the
+  center of a held note and leaves its vibrato, *Tolerance* leaves alone a note already that
+  close, *Amount* corrects only a part of the way.
+- **Staircase** puts every note flat on its target at once, whatever those settings: the
+  voice moves in steps, vibrato and slides gone, as on the first automatically corrected
+  records. Choose a scale with few notes for wider steps.
+- **Harmony** corrects the voice as *Natural* does and adds a second voice singing along in
+  the key: a third, fifth, sixth or octave above, a third, fourth or octave below, counted in
+  the notes of the scale (of the major scale of the key when the scale is chromatic). *Level*
+  sets the second voice against the first; the pair keeps the loudness of one voice.
+
+Choose the key and the scale (or click notes on the keyboard for a *Custom* one). While the
+voice plays, the effect listens for the key of what is sung and shows it under the keyboard
+(*Heard: A minor*); **Use this key** sets the key and the scale to it. *Transpose* moves the
+whole voice by semitones, formants kept.
 
 <!-- effect:pitch_correct -->
 

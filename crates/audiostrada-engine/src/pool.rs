@@ -45,6 +45,8 @@ struct Shared {
     stop: AtomicBool,
     /// Time spent in the nodes of the current cycle, all threads together (ns).
     spent: AtomicU64,
+    /// The workers go behind everything else (a render in the background of the music).
+    lowered: AtomicBool,
 }
 
 // SAFETY: `cycle` is written by the audio thread only while no worker is inside a cycle
@@ -94,6 +96,7 @@ impl WorkerPool {
             remaining: AtomicUsize::new(0),
             stop: AtomicBool::new(false),
             spent: AtomicU64::new(0),
+            lowered: AtomicBool::new(false),
         });
         let mut handles = Vec::with_capacity(workers);
         for index in 0..workers {
@@ -112,6 +115,13 @@ impl WorkerPool {
             handles,
             adaptive,
             parallel: !adaptive,
+        }
+    }
+
+    /// Puts the workers of a render behind everything else, from their next cycle.
+    pub fn lower(&self) {
+        if !self.adaptive {
+            self.shared.lowered.store(true, Ordering::Relaxed);
         }
     }
 
@@ -213,6 +223,7 @@ fn worker(shared: &Shared, period: std::time::Duration, realtime: bool) {
     }
     let mut seen = 0;
     let mut idle = 0u32;
+    let mut lowered = false;
     loop {
         if shared.stop.load(Ordering::SeqCst) {
             return;
@@ -229,6 +240,10 @@ fn worker(shared: &Shared, period: std::time::Duration, realtime: bool) {
         }
         seen = generation;
         idle = 0;
+        if !lowered && shared.lowered.load(Ordering::Relaxed) {
+            audiostrada_rt::thread::lower_current_thread();
+            lowered = true;
+        }
         shared.busy.fetch_add(1, Ordering::SeqCst);
         if shared.active.load(Ordering::SeqCst) {
             // SAFETY: `active` was seen after registering in `busy`, so the audio thread waits

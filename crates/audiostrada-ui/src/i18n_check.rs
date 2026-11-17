@@ -78,7 +78,7 @@ fn every_text_has_its_french() {
         .filter(|(_, key)| !catalog.contains_key(key.as_str()))
         .map(|(file, key)| format!("{file}: {key}"))
         .collect();
-    for info in audiostrada_dsp::EFFECTS {
+    for info in audiostrada_dsp::EFFECTS.iter() {
         let texts = [info.name, info.description, info.category]
             .into_iter()
             .chain(info.params.iter().map(|p| p.name))

@@ -66,7 +66,11 @@ arm the selected tracks.
 - **Bypass** above the inserts bypasses every effect of the strip, and stays lit while they are
   bypassed. The master has its two on a line of their own: **Bypass master** for its own
   effects, **Global bypass** for every effect of the session (an instrument leading a track keeps
-  playing).
+  playing). Under them, **Same loudness** makes the global bypass a fair comparison: the whole
+  mix is measured in the background with its effects and without them, and while every effect
+  is bypassed the mix is raised (or lowered) by the difference, so you judge what the effects do
+  rather than how loud they make it. It is heard only, never exported, and measured again a
+  moment after each change.
 
 **Effect windows** show, in their bottom bar, the track driving the detection for the effects
 that have a **Sidechain**, the level going in and coming out (peaks and loudness) and the
@@ -264,9 +268,11 @@ part, each with its switch and its amount (50 % is what is proposed).
 - **Same level**, always: what the processing changes is given back on the strip's output, so
   that every track keeps its loudness and louder never passes for better. The fader is the
   Balance's.
-- **Headroom for the master**, by itself when the master has no effects of its own: when the mix
-  peaks above -6 dBFS, a Strada-Utility first on the master lowers it, and a Strada-Max last
-  brings it back (at most 12 dB) with its peaks under -1 dB.
+- **Keep room on the master** (ticked by default): with a Strada-Master, a maximizer or a limiter
+  on the master, when the mix peaks above -6 dBFS, a Strada-Utility first on the master lowers
+  it to -6 dBFS and that effect is raised as much: its processing gets room, the loudness heard
+  stays the same. Without one, the mix is lowered only when it would clip, to -1 dBFS, and the
+  window says so before you apply. Express Mix adds no limiter of its own.
 - **Hand-set modules**: a module of the channel strip (filters, gate, EQ, compressor) you switched
   on and set yourself is left as it is.
 - **Nothing at zero**: with Clean up, Bring out, Balance, Space and Width at 0 and the Transparent

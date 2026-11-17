@@ -87,11 +87,17 @@ const effects = () => JSON.parse(read(effectsFile));
 
 // Factory preset names of each effect, from presets.rs.
 const presets = (() => {
-  const src = read(join(repo, "crates/audiostrada-ui/src/presets.rs"));
+  const src = read(join(repo, "crates/audiostrada-editors/src/presets.rs"));
   const out = {};
   const blocks = src.split(/\n        "([a-z_]+)" => vec!\[/);
   for (let i = 1; i < blocks.length; i += 2) {
     out[blocks[i]] = [...blocks[i + 1].matchAll(/tr\("([^"]+)"\)/g)].map((m) => m[1]);
+  }
+  // The chains' presets, built in their own file.
+  const chains = read(join(repo, "crates/audiostrada-editors/src/chain_presets.rs"));
+  for (const [id, fn] of [["mastering", "master_presets"], ["vocals", "vocal_presets"]]) {
+    const body = chains.split(`pub fn ${fn}()`)[1]?.split("\n}\n")[0] ?? "";
+    out[id] = [...body.matchAll(/tr\("([^"]+)"\)/g)].map((m) => m[1]);
   }
   return out;
 })();
@@ -104,6 +110,9 @@ function effectBlock(lang, id) {
   if (!e) throw new Error(`no effect ${id} in effects.json`);
   const rows = e.params
     .filter((p) => !/^p\d_/.test(p.id))
+    // A chain's stages have their own sections.
+    .filter((p) => !p.id.includes("."))
+    .filter((p) => !(["mastering", "vocals"].includes(id) && ["order", "assisted", "compare"].includes(p.id)))
     // Bands, steps and oscillators alike show once, as "n".
     .filter((p) => !/\b(Band|Step|Osc|LFO|Modulation|Macro) ([2-9]|\d\d)\b/.test(p.name))
     .map((p) => {

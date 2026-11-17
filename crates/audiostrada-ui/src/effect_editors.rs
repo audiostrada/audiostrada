@@ -241,6 +241,13 @@ pub(crate) fn automatable(
     if effect == "mb_comp" {
         return id != "solo";
     }
+    // A chain's knobs; its stages' settings are the base they act around.
+    if matches!(effect, "mastering" | "vocals") {
+        return !id.contains('.') && !audiostrada_dsp::chain::HIDDEN.contains(&id);
+    }
+    if matches!(effect, "maximizer" | "limiter") && id == "compare" {
+        return false;
+    }
     if effect != "eq" {
         return true;
     }
@@ -465,7 +472,7 @@ mod tests {
 
     #[test]
     fn knob_positions_round_trip_every_parameter() {
-        for info in audiostrada_dsp::EFFECTS {
+        for info in audiostrada_dsp::EFFECTS.iter() {
             for p in info.params.iter().filter(|p| !p.toggle && p.max > p.min) {
                 for t in [0.0, 0.3, 1.0] {
                     let back = to_unit(p, from_unit(p, t));
@@ -511,7 +518,7 @@ mod tests {
     /// side: one editor can have far more choices than the others).
     fn draw_choices_quarter(first: usize) {
         let mut drawings = Vec::new();
-        for info in audiostrada_dsp::EFFECTS {
+        for info in audiostrada_dsp::EFFECTS.iter() {
             for param in info.params.iter().filter(|p| !p.choices.is_empty()) {
                 for value in 0..param.choices.len() {
                     drawings.push((info.id, vec![(param.id, value as f32)], 1));
@@ -644,7 +651,7 @@ mod tests {
     #[test]
     fn every_editor_shows_every_parameter() {
         let mut missing = Vec::new();
-        for info in audiostrada_dsp::EFFECTS {
+        for info in audiostrada_dsp::EFFECTS.iter() {
             // The drum machine shows the settings of one voice at a time.
             if matches!(info.id, "amp_rig" | "eq" | "drums" | "mb_comp") {
                 continue;
@@ -698,6 +705,10 @@ mod tests {
                 ("trigger", "snare"),
             ];
             for p in info.params {
+                // A chain's stages show in their own editors, opened from its knobs.
+                if matches!(info.id, "mastering" | "vocals") && p.id.contains('.') {
+                    continue;
+                }
                 // The synth's routings show once used, its LFO notes once synced.
                 // The modulator shows what its mode uses: here the synced tremolo.
                 let modal = info.id == "modulator"

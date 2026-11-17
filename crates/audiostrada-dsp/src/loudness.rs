@@ -314,6 +314,19 @@ impl LevelMeter {
         (lufs(energy) as f32).max(-120.0)
     }
 
+    /// Loudness of the last 400 ms, in LUFS; -120 for silence.
+    pub fn momentary(&self) -> f32 {
+        let n = self.filled.min(4);
+        if n == 0 {
+            return -120.0;
+        }
+        let energy = (1..=n)
+            .map(|k| self.blocks[(self.at + BLOCKS - k) % BLOCKS])
+            .sum::<f64>()
+            / n as f64;
+        (lufs(energy) as f32).max(-120.0)
+    }
+
     /// Loudness since the last reset, gated after BS.1770, in LUFS.
     pub fn integrated(&self) -> f32 {
         self.integrated.value()
@@ -339,6 +352,33 @@ impl LevelMeter {
         for p in &mut self.peaks {
             p.reset();
         }
+    }
+}
+
+/// "Before, same loudness": the unprocessed signal brought to the processed one's short-term
+/// loudness, to compare what an effect does without its loudness speaking for it.
+#[derive(Clone, Copy, Debug)]
+pub struct SameLoudness {
+    gain: f32,
+}
+
+impl Default for SameLoudness {
+    fn default() -> Self {
+        Self { gain: 1.0 }
+    }
+}
+
+impl SameLoudness {
+    /// The gain at the start and at the end of the next block, eased toward the loudness gap
+    /// between `after` and `before`; held while either is silent.
+    pub fn next(&mut self, before: &LevelMeter, after: &LevelMeter) -> (f32, f32) {
+        let (b, a) = (before.short_term(), after.short_term());
+        let from = self.gain;
+        if b > -70.0 && a > -70.0 {
+            let target = 10f32.powf((a - b).clamp(-24.0, 24.0) / 20.0);
+            self.gain += 0.2 * (target - self.gain);
+        }
+        (from, self.gain)
     }
 }
 

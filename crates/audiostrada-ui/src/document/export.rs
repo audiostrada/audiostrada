@@ -289,6 +289,8 @@ impl Rendering {
         let (shared, stop) = (Arc::clone(&progress), Arc::clone(&cancel));
         let path = job.output.clone();
         let handle = std::thread::spawn(move || {
+            // Measured while the music may play: never before the audio.
+            audiostrada_rt::thread::lower_current_thread();
             while !render.render(SLICE_FRAMES) {
                 if stop.load(Ordering::Relaxed) {
                     return Err(tr("Export cancelled").into());
@@ -494,20 +496,19 @@ impl Document {
 
     fn start_render(&mut self, project: &Project) -> Measuring {
         let end = project.length();
-        let render = OfflineRender::new(
+        let render = OfflineRender::in_background(
             project,
             self.paths.as_ref(),
             &self.media,
             self.player.plugins().clone(),
             0,
             end,
-            0.0,
-        )
-        .measured_only();
+        );
         let (player, mut render) = render.split();
         let progress = Arc::new(AtomicU32::new(0));
         let shared = Arc::clone(&progress);
         let handle = std::thread::spawn(move || {
+            audiostrada_rt::thread::lower_current_thread();
             while !render.render(SLICE_FRAMES) {
                 shared.store(render.progress().to_bits(), Ordering::Relaxed);
             }

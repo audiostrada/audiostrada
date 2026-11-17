@@ -67,7 +67,11 @@ les pistes sélectionnées.
 - **Bypass** au-dessus des inserts met en bypass tous les effets de la tranche, et reste allumé
   tant qu'ils le sont. Le master a les deux siens sur une ligne à part : **Bypass master** pour
   ses propres effets, **Bypass global** pour tous les effets de la session (un instrument en tête
-  de piste continue de jouer).
+  de piste continue de jouer). En dessous, **Même volume** rend la comparaison du bypass global
+  honnête : le mix entier est mesuré en arrière-plan avec ses effets et sans eux, et tant que
+  tous les effets sont en bypass, le mix est relevé (ou baissé) de la différence, pour juger ce
+  que font les effets plutôt que le volume qu'ils ajoutent. C'est à l'écoute seulement, jamais à
+  l'export, et mesuré de nouveau un instant après chaque changement.
 
 **Les fenêtres d'effets** montrent, dans leur barre du bas, la piste qui pilote la détection pour
 les effets qui ont un **Sidechain**, le niveau qui entre et qui sort (crêtes et sonie) et le gain
@@ -281,9 +285,11 @@ est ce qui est proposé).
 - **Même niveau**, toujours : ce que les traitements changent est rendu sur la sortie du Channel
   Strip, pour que chaque piste garde son volume et que plus fort ne passe jamais pour mieux. Le
   fader, c'est la Balance.
-- **Marge pour le master**, d'elle-même quand le master n'a pas d'effets à lui : quand le mix
-  dépasse -6 dBFS, un Strada-Utility en tête du master le baisse, et un Strada-Max en dernier le
-  rend (12 dB au plus) avec ses crêtes sous -1 dB.
+- **Garder de la marge sur le master** (coché par défaut) : avec Strada-Master, un maximiseur ou
+  un limiteur sur le master, quand le mix dépasse -6 dBFS, un Strada-Utility en tête du master le
+  baisse à -6 dBFS et cet effet est remonté d'autant : son traitement a de la place, le volume
+  entendu ne change pas. Sans eux, le mix n'est baissé que s'il saturerait, à -1 dBFS, et la
+  fenêtre le dit avant d'appliquer. Express Mix n'ajoute pas de limiteur.
 - **Modules réglés à la main** : un module du Channel Strip (filtres, gate, EQ, compresseur) que
   vous avez allumé et réglé vous-même est laissé tel quel.
 - **Rien à zéro** : avec Nettoyer, Révéler, Balance, Espace et Largeur à 0 et le style

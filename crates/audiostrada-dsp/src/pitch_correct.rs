@@ -1,18 +1,28 @@
-//! Pitch Correct: follows the pitch of a voice (YIN on a decimated copy, refined at full rate,
-//! every 5 ms), picks the nearest note of the chosen scale and moves the voice there with
-//! TD-PSOLA, grains of two periods laid one output period apart, which keeps the formants.
-//! The retune speed glides the correction, humanize corrects the note's center only, and a
-//! note already within the tolerance is left as sung. The scale can be one of its own (notes
-//! picked on a keyboard).
+//! Pitch Correct: follows the pitch of a voice, picks the nearest note of the chosen scale and
+//! moves the voice there with TD-PSOLA, grains of two periods laid one output period apart,
+//! which keeps the formants. The retune speed glides the correction, humanize corrects the
+//! note's center only, and a note already within the tolerance is left as sung. The scale can
+//! be one of its own (notes picked on a keyboard). The staircase mode puts every note flat on
+//! its target at once, for the stepped voice of the first automatic corrections.
+//!
+//! The engine is in [`crate::correct`].
 
-use crate::biquad::{Biquad, Coefficients, FilterKind};
-use crate::{Effect, EffectInfo, ParamInfo, choice, param, time_coefficient};
+use crate::correct::{Corrector, Settings};
+use crate::{Effect, EffectInfo, ParamInfo, choice, param};
 
 pub const INFO: EffectInfo = EffectInfo {
     id: "pitch_correct",
     name: "Strada-Correct",
     params: &PARAMS,
-    meters: &["Input pitch", "Output pitch", "Target note", "Clarity"],
+    meters: &[
+        "Input pitch",
+        "Output pitch",
+        "Target note",
+        "Clarity",
+        "Key heard",
+        "Scale heard",
+        "Key certainty",
+    ],
     instrument: false,
     files: &[],
     category: "Utility",
@@ -83,7 +93,33 @@ pub const SCALE_NAMES: [&str; 9] = [
 ];
 pub const CUSTOM: usize = 8;
 
-const PARAMS: [ParamInfo; 8] = [
+/// How the voice is corrected.
+pub const MODES: [&str; 3] = ["Natural", "Staircase", "Harmony"];
+pub const MODE_HINTS: [&str; 3] = [
+    "Follows the settings below, from a light touch to a tight correction",
+    "Every note flat on its target at once: the stepped, synthetic voice",
+    "Corrected as in Natural, with a second voice singing along in the key",
+];
+pub const STAIRCASE: usize = 1;
+pub const HARMONY: usize = 2;
+/// The harmony voice's interval, and its notes of the scale from the voice.
+pub const HARMONIES: [&str; 7] = [
+    "Third above",
+    "Fifth above",
+    "Sixth above",
+    "Octave above",
+    "Third below",
+    "Fourth below",
+    "Octave below",
+];
+const HARMONY_STEPS: [i32; 7] = [2, 4, 5, 7, -2, -3, -7];
+/// Index of the mode among the parameters.
+const MODE: usize = 8;
+/// Meters of the key heard: its root (-1 without one), its scale as an index of
+/// [`SCALE_NAMES`], and how sure it is (0 to 1).
+pub const KEY_METER: usize = 4;
+
+const PARAMS: [ParamInfo; 11] = [
     choice("key", "Key", &NOTE_NAMES, 0.0),
     choice("scale", "Scale", &SCALE_NAMES, 0.0),
     param("speed", "Retune speed", 0.0, 400.0, 25.0, "ms"),
@@ -92,22 +128,10 @@ const PARAMS: [ParamInfo; 8] = [
     param("transpose", "Transpose", -12.0, 12.0, 0.0, "st"),
     param("notes", "Custom notes", 0.0, 4095.0, 4095.0, ""),
     param("tolerance", "Tolerance", 0.0, 50.0, 0.0, "cents"),
+    choice("mode", "Mode", &MODES, 0.0),
+    choice("harmony", "Harmony", &HARMONIES, 0.0),
+    param("harmony_level", "Harmony level", 0.0, 100.0, 60.0, "%"),
 ];
-
-const LOWEST_HZ: f32 = 70.0;
-const HIGHEST_HZ: f32 = 1200.0;
-/// Rate the pitch is first looked for at.
-const DETECTION_HZ: f32 = 12_000.0;
-const HOP_SECONDS: f32 = 0.005;
-/// Below this mean square (-60 dBFS) there is nothing to follow.
-const SILENCE: f32 = 1e-6;
-/// How much further the current note may be than the nearest one before it changes.
-const HYSTERESIS: f32 = 0.15;
-/// Pseudo-period of the grains when the sound has no pitch.
-const UNVOICED_SECONDS: f32 = 0.004;
-const MARKS: usize = 128;
-/// Full-rate lags tried on each side of the decimated estimate.
-const REACH: usize = 16;
 
 /// Whether `note` (MIDI) belongs to `scale` (0 = chromatic) on `key`; the custom scale is
 /// `notes`, a bit per pitch class from C.
@@ -122,231 +146,36 @@ pub fn in_scale(note: i32, key: i32, scale: usize, notes: u32) -> bool {
     }
 }
 
-fn to_note(hz: f32) -> f32 {
-    69.0 + 12.0 * (hz / 440.0).log2()
-}
-
-fn to_hz(note: f32) -> f32 {
-    440.0 * 2f32.powf((note - 69.0) / 12.0)
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-struct Mark {
-    at: f64,
-    period: f32,
-    voiced: bool,
-}
-
+/// The corrector of the voice, and in the harmony mode the one making the second voice.
 #[derive(Debug)]
 pub struct PitchCorrect {
-    rate: f32,
-    values: [f32; 8],
-    /// Detection: one sample in `factor`, low-passed first.
-    factor: usize,
-    lowpass: [Coefficients; 2],
-    filters: [Biquad; 2],
-    shortest: usize,
-    longest: usize,
-    window: usize,
-    hop: usize,
-    decimated: Vec<f32>,
-    filled: usize,
-    difference: Vec<f32>,
-    /// Full-rate rings: input per channel, its mono sum, overlap-added grains and windows.
-    mask: usize,
-    input: [Vec<f32>; 2],
-    mono: Vec<f32>,
-    output: [Vec<f32>; 2],
-    weight: Vec<f32>,
-    written: u64,
-    latency: usize,
-    marks: [Mark; MARKS],
-    count: usize,
-    next_mark: f64,
-    next_grain: f64,
-    /// Pitch followed: run of voiced readings, the last three, the slow center.
-    run: u32,
-    recent: [f32; 3],
-    pitch: f32,
-    period: f32,
-    center: f32,
-    note: Option<i32>,
-    correction: f32,
-    clarity: f32,
+    values: [f32; 11],
+    engine: Corrector,
+    harmony: Corrector,
+    /// The input given to the harmony, then its output.
+    scratch: [Vec<f32>; 2],
+    /// The harmony was heard last block.
+    harmonizing: bool,
 }
 
 impl Default for PitchCorrect {
     fn default() -> Self {
-        let mut p = Self {
-            rate: 0.0,
+        Self {
             values: PARAMS.map(|p| p.default),
-            factor: 1,
-            lowpass: [Coefficients::IDENTITY; 2],
-            filters: [Biquad::default(); 2],
-            shortest: 0,
-            longest: 0,
-            window: 0,
-            hop: 1,
-            decimated: Vec::new(),
-            filled: 0,
-            difference: Vec::new(),
-            mask: 0,
-            input: [Vec::new(), Vec::new()],
-            mono: Vec::new(),
-            output: [Vec::new(), Vec::new()],
-            weight: Vec::new(),
-            written: 0,
-            latency: 0,
-            marks: [Mark::default(); MARKS],
-            count: 0,
-            next_mark: 0.0,
-            next_grain: 0.0,
-            run: 0,
-            recent: [0.0; 3],
-            pitch: 0.0,
-            period: 0.0,
-            center: 0.0,
-            note: None,
-            correction: 0.0,
-            clarity: 0.0,
-        };
-        p.allocate(48_000.0);
-        p
+            engine: Corrector::new(48_000.0),
+            harmony: Corrector::new(48_000.0),
+            scratch: [Vec::new(), Vec::new()],
+            harmonizing: false,
+        }
     }
 }
 
 impl PitchCorrect {
-    fn allocate(&mut self, rate: f32) {
-        self.rate = rate;
-        self.factor = ((rate / DETECTION_HZ).round() as usize).max(1);
-        let detection = rate / self.factor as f32;
-        let q = [0.541_196_1, 1.306_563];
-        self.lowpass = q.map(|q| {
-            Coefficients::design(
-                FilterKind::LowPass,
-                f64::from(detection * 0.22),
-                q,
-                0.0,
-                f64::from(detection),
-            )
-        });
-        self.shortest = (detection / HIGHEST_HZ) as usize;
-        self.longest = (detection / LOWEST_HZ).ceil() as usize + 1;
-        self.window = self.longest;
-        self.hop = ((detection * HOP_SECONDS).round() as usize).max(1);
-        self.decimated = vec![0.0; self.window + self.longest + 2];
-        self.difference = vec![0.0; self.longest + 2];
-        let longest_period = rate / LOWEST_HZ;
-        // A grain reaches a period after its center, which may wait half a period for its
-        // nearest mark and needs a period of input after that mark.
-        self.latency = (2.5 * longest_period).ceil() as usize + 4;
-        let size = (self.latency + 4 * longest_period as usize + 64).next_power_of_two();
-        self.mask = size - 1;
-        self.input = [vec![0.0; size], vec![0.0; size]];
-        self.mono = vec![0.0; size];
-        self.output = [vec![0.0; size], vec![0.0; size]];
-        self.weight = vec![0.0; size];
-        self.reset();
+    fn mode(&self) -> usize {
+        (self.values[MODE].round().max(0.0) as usize).min(MODES.len() - 1)
     }
 
-    fn unvoiced_period(&self) -> f32 {
-        (self.rate * UNVOICED_SECONDS).round()
-    }
-
-    fn decimate(&mut self, mono: f32) {
-        let mut x = f64::from(mono);
-        for (f, c) in self.filters.iter_mut().zip(&self.lowpass) {
-            x = f.process(c, x);
-        }
-        if !(self.written as usize).is_multiple_of(self.factor) {
-            return;
-        }
-        self.decimated[self.filled] = x as f32;
-        self.filled += 1;
-        if self.filled == self.decimated.len() {
-            self.analyse();
-            self.decimated.copy_within(self.hop.., 0);
-            self.filled -= self.hop;
-        }
-    }
-
-    /// Distance between the latest `window` samples and the ones `lag` before, at full rate.
-    fn full_rate_difference(&self, lag: usize, window: usize) -> f32 {
-        let end = self.written as usize - 1;
-        (0..window)
-            .map(|i| {
-                let at = end.wrapping_sub(i);
-                let d = self.mono[at & self.mask] - self.mono[at.wrapping_sub(lag) & self.mask];
-                d * d
-            })
-            .sum()
-    }
-
-    /// Refines a period found on the decimated copy, near `guess` full-rate samples.
-    fn refine(&self, guess: f32) -> f32 {
-        let window = self.window * self.factor;
-        let center = guess.round() as usize;
-        let reach = self.factor.min(REACH);
-        if self.factor == 1 || center <= reach + 2 {
-            return guess;
-        }
-        let mut sums = [0.0f32; 2 * REACH + 1];
-        let sums = &mut sums[..2 * reach + 1];
-        for (k, sum) in sums.iter_mut().enumerate() {
-            *sum = self.full_rate_difference(center - reach + k, window);
-        }
-        let best = (1..sums.len() - 1)
-            .min_by(|&a, &b| sums[a].total_cmp(&sums[b]))
-            .unwrap_or(reach);
-        if sums[best] > sums[0] || sums[best] > sums[sums.len() - 1] {
-            return guess;
-        }
-        let (a, b, c) = (sums[best - 1], sums[best], sums[best + 1]);
-        let denominator = a - 2.0 * b + c;
-        let shift = if denominator.abs() > 1e-12 {
-            (0.5 * (a - c) / denominator).clamp(-0.5, 0.5)
-        } else {
-            0.0
-        };
-        (center - reach + best) as f32 + shift
-    }
-
-    fn analyse(&mut self) {
-        let energy =
-            self.decimated.iter().map(|s| s * s).sum::<f32>() / self.decimated.len() as f32;
-        let found = (energy > SILENCE)
-            .then(|| {
-                crate::tuner::yin(
-                    &self.decimated,
-                    self.window,
-                    self.shortest,
-                    self.longest,
-                    &mut self.difference,
-                )
-            })
-            .flatten();
-        let Some((lag, clarity)) = found else {
-            self.run = 0;
-            self.note = None;
-            self.clarity = 0.0;
-            self.pitch = 0.0;
-            return;
-        };
-        self.clarity = clarity;
-        let period = self.refine(lag * self.factor as f32);
-        let reading = to_note(self.rate / period);
-        self.recent[self.run as usize % 3] = reading;
-        self.run += 1;
-        let pitch = if self.run >= 3 {
-            // Median of the last three: a lone octave jump is ignored.
-            let [a, b, c] = self.recent;
-            a.max(b).min(a.min(b).max(c))
-        } else {
-            reading
-        };
-        self.pitch = pitch;
-        self.period = self.rate / to_hz(pitch);
-        let hop_rate = self.rate / (self.hop * self.factor) as f32;
+    fn settings(&self) -> Settings {
         let [
             key,
             scale,
@@ -356,136 +185,44 @@ impl PitchCorrect {
             transpose,
             notes,
             tolerance,
+            ..,
         ] = self.values;
-        let notes = notes.round().max(0.0) as u32;
-        if self.run == 1 {
-            self.center = pitch;
-            self.correction = 0.0;
-        } else {
-            let c = time_coefficient(150.0, hop_rate);
-            self.center = pitch + c * (self.center - pitch);
-        }
-        let heard = pitch + humanize / 100.0 * (self.center - pitch);
-        let (key, scale) = (key.round() as i32, scale.round().max(0.0) as usize);
-        let base = heard.round() as i32;
-        let nearest = (base - 6..=base + 6)
-            .filter(|&n| in_scale(n, key, scale, notes))
-            .min_by(|&a, &b| {
-                (heard - a as f32)
-                    .abs()
-                    .total_cmp(&(heard - b as f32).abs())
-            })
-            .unwrap_or(base);
-        let note = match self.note {
-            Some(current)
-                if in_scale(current, key, scale, notes)
-                    && (heard - current as f32).abs()
-                        < (heard - nearest as f32).abs() + HYSTERESIS =>
-            {
-                current
-            }
-            _ => nearest,
-        };
-        self.note = Some(note);
-        // Close enough already: left as sung (flex tuning).
-        let off = note as f32 - heard;
-        let off = if off.abs() * 100.0 < tolerance {
-            0.0
-        } else {
-            off
-        };
-        let goal = off * amount / 100.0 + transpose.round();
-        let c = time_coefficient(speed, hop_rate);
-        self.correction = goal + c * (self.correction - goal);
-    }
-
-    fn place_marks(&mut self) {
-        let now = (self.written - 1) as f64;
-        while self.next_mark <= now {
-            let voiced = self.run > 0;
-            let period = if voiced {
-                self.period
-            } else {
-                self.unvoiced_period()
-            };
-            self.marks[self.count % MARKS] = Mark {
-                at: self.next_mark,
-                period,
-                voiced,
-            };
-            self.count += 1;
-            self.next_mark += f64::from(period);
+        Settings {
+            key: key.round() as i32,
+            scale: scale.round().max(0.0) as usize,
+            notes: notes.round().max(0.0) as u32,
+            speed,
+            humanize,
+            amount,
+            transpose,
+            tolerance,
+            staircase: self.mode() == STAIRCASE,
+            harmony: 0,
         }
     }
 
-    /// The mark nearest to `at`, once a later one shows it is the nearest.
-    fn nearest_mark(&self, at: f64) -> Option<Mark> {
-        let newest = self.marks[(self.count.checked_sub(1)?) % MARKS];
-        if newest.at < at + 0.5 * f64::from(newest.period) {
-            return None;
-        }
-        let mut best = newest;
-        for back in 1..self.count.min(MARKS) {
-            let mark = self.marks[(self.count - 1 - back) % MARKS];
-            if (mark.at - at).abs() < (best.at - at).abs() {
-                best = mark;
-            } else if mark.at < at {
-                break;
-            }
-        }
-        Some(best)
-    }
-
-    fn place_grains(&mut self) {
-        let now = (self.written - 1) as f64;
-        while let Some(mark) = self.nearest_mark(self.next_grain) {
-            let half = f64::from(mark.period);
-            if mark.at + half + 3.0 > now {
-                return;
-            }
-            let at = self.next_grain;
-            let first = (at - half).ceil().max(0.0) as u64;
-            let last = (at + half).floor() as u64;
-            for j in first..=last {
-                let x = j as f64 - at;
-                let w = (0.5 + 0.5 * (std::f64::consts::PI * x / half).cos()) as f32;
-                let source = mark.at + x;
-                let slot = j as usize & self.mask;
-                for ch in 0..2 {
-                    self.output[ch][slot] += w * cubic(&self.input[ch], self.mask, source);
-                }
-                self.weight[slot] += w;
-            }
-            let ratio = if mark.voiced {
-                2f32.powf(self.correction / 12.0).clamp(0.5, 2.0)
-            } else {
-                1.0
-            };
-            self.next_grain += f64::from(mark.period / ratio);
+    /// The harmony voice's settings: the voice's, aimed at the interval chosen.
+    fn harmony_settings(&self) -> Settings {
+        let interval = (self.values[9].round().max(0.0) as usize).min(HARMONIES.len() - 1);
+        Settings {
+            harmony: HARMONY_STEPS[interval],
+            ..self.settings()
         }
     }
-}
-
-/// Cubic Hermite interpolation of the ring `x` at the fractional position `at`.
-fn cubic(x: &[f32], mask: usize, at: f64) -> f32 {
-    let i = at.floor();
-    let t = (at - i) as f32;
-    let i = i as i64;
-    let s = |k: i64| x[(i + k) as usize & mask];
-    let (y0, y1, y2, y3) = (s(-1), s(0), s(1), s(2));
-    let c1 = 0.5 * (y2 - y0);
-    let c2 = y0 - 2.5 * y1 + 2.0 * y2 - 0.5 * y3;
-    let c3 = 0.5 * (y3 - y0) + 1.5 * (y1 - y2);
-    ((c3 * t + c2) * t + c1) * t + y1
 }
 
 impl Effect for PitchCorrect {
-    fn prepare(&mut self, sample_rate: u32, _max_frames: usize) {
-        if sample_rate as f32 != self.rate {
-            self.allocate(sample_rate as f32);
-        } else {
-            self.reset();
+    fn prepare(&mut self, sample_rate: u32, max_frames: usize) {
+        let rate = sample_rate as f32;
+        for engine in [&mut self.engine, &mut self.harmony] {
+            if rate != engine.rate() {
+                engine.allocate(rate);
+            } else {
+                engine.reset();
+            }
         }
+        self.scratch = [vec![0.0; max_frames], vec![0.0; max_frames]];
+        self.harmonizing = false;
     }
 
     fn set_param(&mut self, index: usize, value: f32) {
@@ -495,78 +232,60 @@ impl Effect for PitchCorrect {
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
-        for (l, r) in left.iter_mut().zip(right.iter_mut()) {
-            let slot = self.written as usize & self.mask;
-            self.input[0][slot] = *l;
-            self.input[1][slot] = *r;
-            let mono = 0.5 * (*l + *r);
-            self.mono[slot] = mono;
-            self.written += 1;
-            self.decimate(mono);
-            self.place_marks();
-            self.place_grains();
-            if self.written > self.latency as u64 {
-                let slot = (self.written - 1 - self.latency as u64) as usize & self.mask;
-                let w = self.weight[slot].max(1.0);
-                *l = self.output[0][slot] / w;
-                *r = self.output[1][slot] / w;
-                self.output[0][slot] = 0.0;
-                self.output[1][slot] = 0.0;
-                self.weight[slot] = 0.0;
-            } else {
-                *l = 0.0;
-                *r = 0.0;
+        let n = left.len();
+        let harmonizing = self.mode() == HARMONY && n <= self.scratch[0].len();
+        if harmonizing && !self.harmonizing {
+            self.harmony.reset();
+        }
+        self.harmonizing = harmonizing;
+        if harmonizing {
+            let settings = self.harmony_settings();
+            let [l, r] = &mut self.scratch;
+            let (l, r) = (&mut l[..n], &mut r[..n]);
+            l.copy_from_slice(left);
+            r.copy_from_slice(right);
+            self.harmony.process(l, r, &settings);
+        }
+        let settings = self.settings();
+        self.engine.process(left, right, &settings);
+        if harmonizing {
+            // Two voices that differ add up in power: the pair keeps the level of one.
+            let level = self.values[10].clamp(0.0, 100.0) / 100.0;
+            let keep = 1.0 / (1.0 + level * level).sqrt();
+            let [l, r] = &self.scratch;
+            for i in 0..n {
+                left[i] = (left[i] + level * l[i]) * keep;
+                right[i] = (right[i] + level * r[i]) * keep;
             }
         }
     }
 
     fn reset(&mut self) {
-        self.filters = [Biquad::default(); 2];
-        self.filled = 0;
-        for ring in self
-            .input
-            .iter_mut()
-            .chain(self.output.iter_mut())
-            .chain([&mut self.mono, &mut self.weight])
-        {
-            ring.fill(0.0);
-        }
-        self.written = 0;
-        self.count = 0;
-        self.next_mark = 0.0;
-        self.next_grain = 0.0;
-        self.run = 0;
-        self.pitch = 0.0;
-        self.note = None;
-        self.correction = 0.0;
-        self.clarity = 0.0;
+        self.engine.reset();
+        self.harmony.reset();
     }
 
     fn latency(&self) -> u32 {
-        self.latency as u32
+        self.engine.latency() as u32
     }
 
     fn meters(&self, out: &mut [f32]) {
-        let voiced = self.run > 0;
-        let values = if voiced {
-            [
-                self.pitch,
-                self.pitch + self.correction,
-                self.note.unwrap_or(0) as f32,
-                self.clarity,
-            ]
-        } else {
-            [0.0, 0.0, 0.0, self.clarity]
-        };
-        for (o, v) in out.iter_mut().zip(values) {
-            *o = v;
-        }
+        self.engine.meters(out);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::biquad::{Biquad, Coefficients, FilterKind};
+
+    fn to_note(hz: f32) -> f32 {
+        69.0 + 12.0 * (hz / 440.0).log2()
+    }
+
+    fn to_hz(note: f32) -> f32 {
+        440.0 * 2f32.powf((note - 69.0) / 12.0)
+    }
 
     const RATE: f32 = 48_000.0;
 
@@ -723,6 +442,194 @@ mod tests {
         assert!(p.latency() > 2 * delay - 16);
         let out = run(&mut p, &voice(|_| 440.0, 0.3));
         assert!(out.iter().all(|s| s.is_finite()));
+    }
+
+    /// The settings by their place in the table.
+    const SPEED: usize = 2;
+    const HARMONY_LEVEL: usize = 10;
+
+    /// A voice as a microphone hears it: the breath loud in its upper harmonics, around
+    /// 2 kHz, `breath` times a full-scale noise.
+    fn breathy(hz: f32, seconds: f32, breath: f32) -> Vec<f32> {
+        let mut noise = 777u32;
+        let band = Coefficients::design(FilterKind::BandPass, 2000.0, 1.5, 0.0, f64::from(RATE));
+        let mut filter = Biquad::default();
+        voice(|_| hz, seconds)
+            .into_iter()
+            .map(|s| {
+                noise = noise.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                let white = (noise >> 8) as f32 / (1u32 << 23) as f32 - 1.0;
+                s + breath * filter.process(&band, f64::from(white)) as f32
+            })
+            .collect()
+    }
+
+    /// The meters after each block of `input`, from the block `skip` on.
+    fn follow(p: &mut PitchCorrect, input: &[f32], skip: usize) -> Vec<[f32; 7]> {
+        let mut seen = Vec::new();
+        for (i, block) in input.chunks(256).enumerate() {
+            let (mut l, mut r) = (block.to_vec(), block.to_vec());
+            p.process(&mut l, &mut r);
+            let mut meters = [0.0; 7];
+            p.meters(&mut meters);
+            if i >= skip {
+                seen.push(meters);
+            }
+        }
+        seen
+    }
+
+    /// The pitch of each stretch of 4096 samples of `x`, as notes.
+    fn pitches(x: &[f32]) -> Vec<f32> {
+        let mut difference = vec![0.0; 2048];
+        x.as_chunks::<4096>()
+            .0
+            .iter()
+            .filter_map(|w| crate::tuner::detect(w, RATE, &mut difference))
+            .map(|found| to_note(found.0))
+            .collect()
+    }
+
+    #[test]
+    fn reads_the_pitch_of_a_voice_within_a_cent() {
+        for hz in [82.4f32, 146.8, 261.6, 440.0, 880.0] {
+            // The phase kept in double precision: the tone is on its pitch to the cent.
+            let input: Vec<f32> = (0..(0.6 * RATE) as usize)
+                .map(|i| {
+                    let t = (f64::from(hz) * i as f64 / f64::from(RATE)).fract() as f32;
+                    let t = t * std::f32::consts::TAU;
+                    0.3 * t.sin() + 0.15 * (2.0 * t).sin() + 0.08 * (3.0 * t).sin()
+                })
+                .collect();
+            let mut p = corrector(&[]);
+            for meters in follow(&mut p, &input, 40) {
+                let cents = 100.0 * (meters[0] - to_note(hz));
+                assert!(cents.abs() < 1.0, "{hz} Hz read {cents} cents off");
+            }
+        }
+    }
+
+    #[test]
+    fn follows_a_voice_under_its_breath() {
+        // A3 sung 30 cents sharp, the breath 6 dB under the voice.
+        let input = breathy(to_hz(57.3), 2.0, 0.8);
+        let mut p = corrector(&[(SPEED, 0.0)]);
+        let seen = follow(&mut p, &input, 40);
+        let held = seen
+            .iter()
+            .filter(|m| m[0] > 0.0 && (m[1] - 57.0).abs() < 0.05)
+            .count() as f32
+            / seen.len() as f32;
+        assert!(held > 0.8, "the note is held {held} of the time");
+    }
+
+    #[test]
+    fn the_staircase_flattens_a_vibrato() {
+        // 80 cents of vibrato from end to end around an A3 sung 20 cents sharp.
+        let vibrato = |t: f32| to_hz(57.2 + 0.4 * (t * 5.5 * std::f32::consts::TAU).sin());
+        let input = voice(vibrato, 2.0);
+        let swing = |settings: &[(usize, f32)]| {
+            let out = run(&mut corrector(settings), &input);
+            let heard = pitches(&out[24_000..]);
+            let (low, high) = heard
+                .iter()
+                .fold((f32::MAX, f32::MIN), |(lo, hi), n| (lo.min(*n), hi.max(*n)));
+            (low, high)
+        };
+        let (low, high) = swing(&[(MODE, STAIRCASE as f32)]);
+        assert!(low > 56.95 && high < 57.05, "the staircase: {low}..{high}");
+    }
+
+    #[test]
+    fn the_staircase_reaches_a_new_note_within_30_ms() {
+        // Legato from an A3 to a C4, each a little off.
+        let sung = |t: f32| to_hz(if t < 0.5 { 57.25 } else { 59.8 });
+        let mut p = corrector(&[(MODE, STAIRCASE as f32)]);
+        let seen = follow(&mut p, &voice(sung, 1.0), 0);
+        let block = 256.0 / RATE;
+        let before = seen
+            .iter()
+            .rposition(|m| m[2] == 57.0)
+            .expect("the first note is followed");
+        let after = seen
+            .iter()
+            .position(|m| m[2] == 60.0 && (m[1] - 60.0).abs() < 0.1)
+            .expect("the second note is reached");
+        let seconds = (after as f32 - before as f32) * block;
+        assert!(seconds < 0.03, "{seconds} s from one note to the next");
+        // And every reading after it is on the note.
+        for m in &seen[after..] {
+            assert!((m[1] - 60.0).abs() < 0.02, "{m:?}");
+        }
+    }
+
+    #[test]
+    fn a_change_of_note_leaves_no_click() {
+        // A melody of half steps sung legato, moved to the staircase: the output bends no
+        // more sharply from a sample to the next than the voice itself does.
+        let melody = |t: f32| to_hz(57.3 + ((t / 0.25).floor() % 3.0) * 1.1);
+        let input = voice(melody, 2.0);
+        let sharpest = |x: &[f32]| {
+            x.windows(3)
+                .map(|w| (w[0] - 2.0 * w[1] + w[2]).abs())
+                .fold(0.0, f32::max)
+        };
+        for mode in [0, STAIRCASE] {
+            let mut p = corrector(&[(SPEED, 0.0), (MODE, mode as f32)]);
+            let out = run(&mut p, &input);
+            let (dry, wet) = (sharpest(&input[4800..]), sharpest(&out[4800..]));
+            assert!(wet < 1.25 * dry, "mode {mode}: {wet} against {dry}");
+            let level = 20.0 * (rms(&out[24_000..]) / rms(&input[24_000..])).log10();
+            assert!(level.abs() < 0.5, "mode {mode}: {level} dB");
+        }
+    }
+
+    #[test]
+    fn the_key_of_what_is_sung_is_heard() {
+        // "Frère Jacques" and so on in D major, a quarter of a second a note.
+        let tune = [
+            0, 2, 4, 0, 0, 2, 4, 0, 4, 5, 7, 7, 4, 5, 7, 7, 9, 7, 5, 4, 0, 0,
+        ];
+        let sung = move |t: f32| to_hz(62.0 + tune[(t / 0.25) as usize % tune.len()] as f32);
+        let mut p = corrector(&[]);
+        let mut meters = [0.0; 7];
+        p.meters(&mut meters);
+        assert_eq!(meters[KEY_METER], -1.0, "nothing heard yet");
+        let seen = follow(&mut p, &voice(sung, 6.0), 0);
+        let last = seen.last().unwrap();
+        assert_eq!(
+            (last[KEY_METER], last[KEY_METER + 1]),
+            (2.0, 1.0),
+            "D major"
+        );
+        assert!(last[KEY_METER + 2] > 0.6, "{last:?}");
+        // The key outlives a stop of the transport.
+        p.reset();
+        p.meters(&mut meters);
+        assert_eq!(meters[KEY_METER], 2.0);
+    }
+
+    #[test]
+    fn the_harmony_sings_a_third_above_in_the_key() {
+        // An A3 sung a little sharp, in C major: the third above in the key is a C4.
+        let mut p = corrector(&[(1, 1.0), (MODE, HARMONY as f32), (HARMONY_LEVEL, 100.0)]);
+        let input = voice(|_| to_hz(57.2), 1.0);
+        let out = run(&mut p, &input);
+        let mut meters = [0.0; 7];
+        p.harmony.meters(&mut meters);
+        assert!(
+            (meters[1] - 60.0).abs() < 0.05,
+            "the harmony sings {}",
+            meters[1]
+        );
+        p.meters(&mut meters);
+        assert!(
+            (meters[1] - 57.0).abs() < 0.05,
+            "the voice sings {}",
+            meters[1]
+        );
+        let level = 20.0 * (rms(&out[24_000..]) / rms(&input[24_000..])).log10();
+        assert!(level.abs() < 1.5, "{level} dB");
     }
 
     #[test]

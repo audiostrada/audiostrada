@@ -33,11 +33,21 @@ pub struct EffectsState {
     pub delay: crate::delay_editor::DelayState,
     pub drive: crate::drive_editor::DriveState,
     pub eq: crate::eq_editor::EqState,
+    pub chain: crate::chain_editor::ChainState,
+}
+
+impl EffectsState {
+    /// The window closed: what is heard only while it is open stops, a chain shows its knobs.
+    pub fn close(&mut self) {
+        self.limiter.comparing = false;
+        self.chain.close();
+    }
 }
 
 /// Draws the editor of a built-in effect; parameters without one get knobs.
 pub fn show(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: &mut EffectsState) {
     match params.info().id {
+        "mastering" | "vocals" => crate::chain_editor::show(ui, params, meters, &mut state.chain),
         "eq" => crate::eq_editor::show(ui, params, meters, &mut state.eq),
         "compressor" => compressor(ui, params, meters, state),
         "tuner" => tuner(ui, params, meters),
@@ -244,15 +254,21 @@ fn tuner(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32]) {
     });
 }
 
-/// Pitch Correct: the sung pitch and the corrected one scrolling over the notes of the scale.
+/// Pitch Correct: the sung pitch and the corrected one scrolling over the notes of the scale,
+/// the note sung, the one aimed at and the move between them, then the settings.
 fn pitch_correct(
     ui: &mut Ui,
     params: &mut dyn EditorParams,
     meters: &[f32],
     state: &mut EffectsState,
 ) {
-    use audiostrada_dsp::pitch_correct::{NOTE_NAMES, in_scale};
+    use audiostrada_dsp::pitch_correct::{
+        HARMONY, KEY_METER, MODE_HINTS, MODES, NOTE_NAMES, SCALE_NAMES, STAIRCASE, in_scale,
+    };
     const SPAN: f32 = 14.0;
+    let mode = params.get("mode").round().max(0.0) as usize;
+    cards(ui, params, "mode", &MODES, &MODE_HINTS);
+    ui.add_space(6.0);
     let notes = params.get("notes").round().max(0.0) as u32;
     let p = theme::current(ui);
     let meter = |i: usize| meters.get(i).copied().unwrap_or(0.0);
@@ -272,10 +288,10 @@ fn pitch_correct(
     };
     let key = params.get("key").round() as i32;
     let scale = params.get("scale").round().max(0.0) as usize;
-    let (rect, painter) = display(ui, 210.0);
+    let (rect, painter) = display(ui, 230.0);
     let graph = Rect::from_min_max(
         rect.min + vec2(40.0, 8.0),
-        pos2(rect.right() - 160.0, rect.bottom() - 8.0),
+        pos2(rect.right() - 200.0, rect.bottom() - 8.0),
     );
     let low = view - SPAN / 2.0;
     let to_y = |n: f32| graph.bottom() - (n - low) / SPAN * graph.height();
@@ -334,51 +350,142 @@ fn pitch_correct(
         .into_iter()
         .enumerate()
     {
+        // Under the curves, which the pitch sung keeps in the middle.
         painter.text(
-            graph.left_top() + vec2(8.0, 4.0 + i as f32 * 14.0),
-            Align2::LEFT_TOP,
+            graph.left_bottom() + vec2(8.0 + i as f32 * 96.0, -4.0),
+            Align2::LEFT_BOTTOM,
             text,
             FontId::proportional(10.5),
             color,
         );
     }
-    let readout = pos2(rect.right() - 80.0, rect.center().y);
-    if target > 0.0 {
+    // At the right: the note sung, the one aimed at, and the move from one to the other.
+    let side = Rect::from_min_max(
+        pos2(graph.right() + 12.0, rect.top() + 8.0),
+        rect.max - vec2(10.0, 8.0),
+    );
+    let middle = side.center().x;
+    if target > 0.0 && input > 0.0 {
+        let sung = input.round() as i32;
         painter.text(
-            readout - vec2(0.0, 14.0),
+            pos2(middle, side.top() + 10.0),
             Align2::CENTER_CENTER,
-            name(target as i32),
-            theme::strong(38.0),
-            p.accent,
+            tr("Sung"),
+            FontId::proportional(10.5),
+            p.weak,
         );
         painter.text(
-            readout + vec2(0.0, 26.0),
+            pos2(middle, side.top() + 30.0),
             Align2::CENTER_CENTER,
-            format!("{:+.0} cents", (output - input) * 100.0),
-            FontId::monospace(12.0),
+            format!("{}  {:+.0}", name(sung), (input - sung as f32) * 100.0),
+            FontId::monospace(15.0),
+            p.text,
+        );
+        painter.text(
+            pos2(middle, side.top() + 62.0),
+            Align2::CENTER_CENTER,
+            tr("Target"),
+            FontId::proportional(10.5),
+            p.weak,
+        );
+        painter.text(
+            pos2(middle, side.top() + 96.0),
+            Align2::CENTER_CENTER,
+            name(target as i32),
+            theme::strong(40.0),
+            p.accent,
+        );
+        // The move: a bar from the middle, a semitone at each end.
+        let moved = (output - input) * 100.0;
+        let bar = Rect::from_center_size(
+            pos2(middle, side.bottom() - 44.0),
+            vec2(side.width() - 8.0, 8.0),
+        );
+        painter.rect_filled(bar, 4.0, p.panel);
+        let reach = (moved / 100.0).clamp(-1.0, 1.0) * bar.width() / 2.0;
+        let fill = Rect::from_x_y_ranges(
+            bar.center().x.min(bar.center().x + reach)..=bar.center().x.max(bar.center().x + reach),
+            bar.y_range(),
+        );
+        painter.rect_filled(fill, 4.0, p.accent);
+        painter.line_segment(
+            [
+                pos2(bar.center().x, bar.top() - 3.0),
+                pos2(bar.center().x, bar.bottom() + 3.0),
+            ],
+            Stroke::new(1.0, p.weak),
+        );
+        painter.text(
+            pos2(middle, side.bottom() - 22.0),
+            Align2::CENTER_CENTER,
+            trf!("Moved by {cents} cents", cents = format!("{moved:+.0}")),
+            FontId::monospace(11.5),
             p.weak,
         );
     } else {
         painter.text(
-            readout,
+            side.center(),
             Align2::CENTER_CENTER,
-            tr("Play a note"),
-            theme::strong(15.0),
+            tr("Sing or play a note"),
+            theme::strong(14.0),
             p.weak,
         );
     }
     crate::controls::animate(ui.ctx());
     ui.add_space(8.0);
+    // The key the engine heard in what was sung, to take as the scale.
+    let meter = |i: usize| meters.get(i).copied().unwrap_or(-1.0);
+    let heard = (meter(KEY_METER) >= 0.0 && meter(KEY_METER + 1) >= 1.0).then(|| {
+        (
+            meter(KEY_METER).round() as usize % 12,
+            meter(KEY_METER + 1).round() as usize,
+            meter(KEY_METER + 2),
+        )
+    });
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
-        section_frame(ui, tr("Scale"), p.weak, 118.0, |ui| {
+        section_frame(ui, tr("Scale"), p.weak, 146.0, |ui| {
             ui.horizontal(|ui| {
                 choice_box(ui, params, "key");
                 choice_box(ui, params, "scale");
             });
             ui.add_space(4.0);
             scale_keyboard(ui, params, key, scale, notes);
+            ui.add_space(4.0);
+            ui.horizontal(|ui| match heard {
+                Some((root, kind, sure)) => {
+                    let label = trf!(
+                        "Heard: {key} {scale}",
+                        key = NOTE_NAMES[root],
+                        scale = tr(SCALE_NAMES[kind.min(SCALE_NAMES.len() - 1)]).to_lowercase()
+                    );
+                    ui.label(RichText::new(label).size(11.5).color(p.text))
+                        .on_hover_text(trf!(
+                            "The key of what was sung so far, {percent} % sure",
+                            percent = format!("{:.0}", sure * 100.0)
+                        ));
+                    let same = key == root as i32 && scale == kind;
+                    let response = ui
+                        .add_enabled(!same, egui::Button::new(tr("Use this key")).small())
+                        .on_hover_text(tr("Correct to the key heard"));
+                    if response.clicked() {
+                        params.edit_many(
+                            tr("Use this key"),
+                            &[
+                                ("key".to_owned(), root as f32),
+                                ("scale".to_owned(), kind as f32),
+                            ],
+                        );
+                    }
+                }
+                None => {
+                    let text = tr("Heard: listening for the key...");
+                    ui.label(RichText::new(text).size(11.5).color(p.weak));
+                }
+            });
         });
+        // The staircase goes straight to the note: these settings are not its own.
+        let stepped = mode == STAIRCASE;
         knob_section_items(
             ui,
             params,
@@ -386,8 +493,17 @@ fn pitch_correct(
                 ("Correction", &["speed", "humanize", "tolerance"], None),
                 ("Output", &["amount", "transpose"], None),
             ],
-            &|_| true,
+            &|id| !(stepped && matches!(id, "speed" | "humanize" | "tolerance" | "amount")),
         );
+        section_frame(ui, tr("Harmony"), p.weak, 118.0, |ui| {
+            ui.add_enabled_ui(mode == HARMONY, |ui| {
+                ui.vertical(|ui| {
+                    choice_box(ui, params, "harmony");
+                    ui.add_space(2.0);
+                    wide_knob(ui, params, "harmony_level", tr("Level"), 44.0, p.accent);
+                });
+            });
+        });
     });
 }
 
@@ -2801,6 +2917,7 @@ pub struct LimiterState {
     target: Option<f32>,
     /// When Learn started and when it last moved the threshold.
     learn: Option<(f64, f64)>,
+    comparing: bool,
 }
 
 fn limiter(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: &mut EffectsState) {
@@ -2833,7 +2950,7 @@ fn limiter(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: &m
             ],
             &|_| true,
         );
-        monitor_switches(ui, params);
+        monitor_switches(ui, params, &mut state.limiter.comparing);
     });
 }
 
@@ -2850,14 +2967,14 @@ fn maximizer(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: 
             &[("Release", &["release", "link"], None)],
             &|_| true,
         );
-        monitor_switches(ui, params);
+        monitor_switches(ui, params, &mut state.limiter.comparing);
     });
 }
 
 /// How to listen to a limiter: at the level it came in, or only what it takes away.
-fn monitor_switches(ui: &mut Ui, params: &mut dyn EditorParams) {
+fn monitor_switches(ui: &mut Ui, params: &mut dyn EditorParams, comparing: &mut bool) {
     let p = theme::current(ui);
-    section_frame(ui, tr("Listen"), p.weak, 118.0, |ui| {
+    section_frame(ui, tr("Listen"), p.weak, 146.0, |ui| {
         ui.add_space(4.0);
         for (id, label, hint) in [
             (
@@ -2880,6 +2997,16 @@ fn monitor_switches(ui: &mut Ui, params: &mut dyn EditorParams) {
                 response
             });
             ui.add_space(4.0);
+        }
+        // Heard while the window is open, never saved.
+        params.shown("compare");
+        let response = pill_switch(ui, *comparing, tr("Before, same loudness")).on_hover_text(tr(
+            "Hear the input without the limiter, raised to its output's loudness: what the \
+             limiting does, without the loudness speaking for it",
+        ));
+        if response.clicked() {
+            *comparing = !*comparing;
+            params.hear("compare", comparing.then_some(1.0));
         }
     });
 }

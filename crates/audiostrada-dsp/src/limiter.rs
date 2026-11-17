@@ -5,7 +5,9 @@
 //! (true peak). Unity gain hears the limiting at the level it came in, audition what it
 //! removes.
 
-use crate::loudness::{Hold, LIMITER_METERS, LevelMeter, TRUE_PEAK_LAG, TruePeak, limiter_meters};
+use crate::loudness::{
+    Hold, LIMITER_METERS, LevelMeter, SameLoudness, TRUE_PEAK_LAG, TruePeak, limiter_meters,
+};
 use crate::{Effect, EffectInfo, ParamInfo, db_to_gain, param, switch, time_coefficient};
 
 pub const MAX_LOOKAHEAD_MS: f32 = 5.0;
@@ -31,8 +33,9 @@ pub(crate) mod p {
     pub const TRUE_PEAK: usize = 6;
     pub const UNITY: usize = 7;
     pub const AUDITION: usize = 8;
+    pub const COMPARE: usize = 9;
 }
-const COUNT: usize = 9;
+const COUNT: usize = 10;
 
 const PARAMS: [ParamInfo; COUNT] = [
     param("input", "Input gain", 0.0, 24.0, 0.0, "dB"),
@@ -44,6 +47,7 @@ const PARAMS: [ParamInfo; COUNT] = [
     switch("true_peak", "True peak", 0.0),
     switch("unity", "Unity gain", 0.0),
     switch("audition", "Audition", 0.0),
+    switch("compare", "Before, same loudness", 0.0),
 ];
 
 /// Samples of look-ahead for `ms`.
@@ -237,6 +241,7 @@ pub struct Limiter {
     reduction: Hold,
     input_meter: LevelMeter,
     output_meter: LevelMeter,
+    same: SameLoudness,
 }
 
 impl Default for Limiter {
@@ -249,6 +254,7 @@ impl Default for Limiter {
             reduction: Hold::new(48_000),
             input_meter: LevelMeter::new(48_000),
             output_meter: LevelMeter::new(48_000),
+            same: SameLoudness::default(),
         };
         limiter.configure();
         limiter
@@ -306,7 +312,10 @@ impl Effect for Limiter {
         let true_peak = v[p::TRUE_PEAK] >= 0.5;
         let unity = if v[p::UNITY] >= 0.5 { 1.0 / input } else { 1.0 };
         let audition = v[p::AUDITION] >= 0.5;
-        for (l, r) in left.iter_mut().zip(right.iter_mut()) {
+        let compare = v[p::COMPARE] >= 0.5;
+        let (from, to) = self.same.next(&self.input_meter, &self.output_meter);
+        let n = left.len().max(1) as f32;
+        for (i, (l, r)) in left.iter_mut().zip(right.iter_mut()).enumerate() {
             self.input_meter.push(*l, *r);
             let frame = [*l * input, *r * input];
             let peaks = if true_peak {
@@ -324,8 +333,13 @@ impl Effect for Limiter {
                     limited * unity
                 }
             });
-            (*l, *r) = (out[0], out[1]);
-            self.output_meter.push(*l, *r);
+            self.output_meter.push(out[0], out[1]);
+            (*l, *r) = if compare {
+                let g = (from + (to - from) * i as f32 / n) / input;
+                (dry[0] * g, dry[1] * g)
+            } else {
+                (out[0], out[1])
+            };
         }
     }
 

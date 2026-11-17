@@ -38,10 +38,16 @@ const PLAYHEAD: f32 = 52.0;
 const LIST: f32 = 320.0;
 /// Color of what the cleaning removes.
 const CUT: Color32 = Color32::from_rgb(0xe3, 0xa2, 0x3b);
+/// Color of the Express Mix buttons.
+const EXPRESS: Color32 = Color32::from_rgb(0xf0, 0x8a, 0x34);
 /// Color of the space.
 const SPACE: Color32 = Color32::from_rgb(0x4f, 0xb3, 0xc8);
 /// The mix's peak kept under this (dBFS), room for the master's processing.
 const HEADROOM: f32 = -6.0;
+/// Seconds between two previews while a knob is turned.
+const LIVE: f64 = 0.15;
+/// Tracks rendered at once to keep their loudness, not to take the audio's processor.
+const LEVELING_AT_ONCE: usize = 2;
 /// Color of the spread.
 const WIDE: Color32 = Color32::from_rgb(0x9b, 0x7f, 0xd9);
 /// Color of the balance.
@@ -229,9 +235,16 @@ pub struct PrepareWindow {
     made_for: Groups,
     /// The tracks' order when the window opened.
     structure: Vec<TrackId>,
-    /// Room kept before the master's processing when the mix peaks too high, given back
-    /// after: only when the master has no effects of its own.
+    /// Room kept before the master's processing when the mix peaks too high: asked, and
+    /// possible (several tracks are prepared).
     headroom: bool,
+    room_possible: bool,
+    /// The master has a Strada-Master, a maximizer or a limiter giving the room's loudness back;
+    /// without one, the mix is only lowered when it would clip.
+    compensated: bool,
+    /// While a mix with nothing to give its loudness back is lowered, a limiter on the outputs
+    /// only gives it back, so that before and after compare at the same level; never written.
+    heard_room: Option<audiostrada_core::InsertId>,
     /// The master's effects and room when the window opened.
     master_saved: (Vec<Insert>, Option<audiostrada_core::model::Headroom>),
     /// The master follows the mix measured.
@@ -251,6 +264,44 @@ pub struct PrepareWindow {
     after: bool,
     /// The proposal changed: the preview follows.
     dirty: bool,
+    /// A knob is being turned: the tracks' levels wait for it to be let go.
+    held: bool,
+    /// The doses last frame, and when the preview last followed a knob being turned.
+    last_doses: [f32; 7],
+    last_live: f64,
+}
+
+/// The limiter heard on the outputs only while the room is kept, giving its loudness back with
+/// the peaks held, as `master_headroom` takes it away: set again for `db`, or taken out.
+fn hear_room(
+    p: &mut Project,
+    heard: Option<audiostrada_core::InsertId>,
+    db: Option<f32>,
+) -> Option<audiostrada_core::InsertId> {
+    use audiostrada_core::routing::{self, Channel};
+    let heard = heard.filter(|id| p.master.inserts.iter().any(|i| i.id == *id));
+    let Some(db) = db else {
+        if let Some(id) = heard {
+            routing::remove_insert(p, Channel::Master, id);
+        }
+        return None;
+    };
+    // Made again, it would start with its lookahead empty: a click at every preview.
+    if let Some(id) = heard {
+        routing::set_insert_param(p, Channel::Master, id, "gain", db.min(12.0));
+        return Some(id);
+    }
+    let params = [
+        ("ceiling".to_owned(), -1.0),
+        ("gain".to_owned(), db.min(12.0)),
+    ]
+    .into_iter()
+    .collect();
+    let id = routing::add_insert(p, Channel::Master, "maximizer", params)?;
+    if let Some(insert) = p.master.inserts.iter_mut().find(|i| i.id == id) {
+        insert.monitor = true;
+    }
+    Some(id)
 }
 
 /// The tabs of the settings.
@@ -288,6 +339,9 @@ impl Default for PrepareWindow {
             made_for: Vec::new(),
             structure: Vec::new(),
             headroom: true,
+            room_possible: false,
+            compensated: false,
+            heard_room: None,
             master_saved: (Vec::new(), None),
             master_dirty: false,
             mix: None,
@@ -298,6 +352,9 @@ impl Default for PrepareWindow {
             changes: false,
             after: true,
             dirty: false,
+            held: false,
+            last_doses: [0.0; 7],
+            last_live: 0.0,
         }
     }
 }
@@ -711,6 +768,12 @@ struct Kept {
     intensity: f32,
     #[serde(default, rename = "balance_dose")]
     balance: f32,
+    #[serde(default = "yes")]
+    room: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 fn usual_ambience() -> f32 {
@@ -731,6 +794,7 @@ impl PrepareWindow {
                 .unwrap_or(0),
             intensity: self.flavor.amount,
             balance: self.balance,
+            room: self.headroom,
         }
     }
 
@@ -755,6 +819,7 @@ impl PrepareWindow {
             amount: unit(kept.intensity),
         };
         self.balance = unit(kept.balance);
+        self.headroom = self.room_possible && kept.room;
     }
 
     /// Every track measured.
@@ -811,11 +876,18 @@ impl PrepareWindow {
         });
         self.grouping = tracks.len() > 1 && !grouped && tracks.iter().all(flat);
         let room = project.master.headroom.as_ref();
-        self.headroom = project
-            .master
-            .inserts
-            .iter()
-            .all(|i| room.is_some_and(|h| i.id == h.trim || i.id == h.makeup));
+        // The limiter earlier versions added to give the room back goes when it is set again.
+        let ours = |id| {
+            room.is_some_and(|h| id == h.trim || (Some(id) == h.makeup && h.makeup_gain.is_none()))
+        };
+        self.compensated = project.master.inserts.iter().any(|i| {
+            !i.bypass
+                && !i.monitor
+                && !ours(i.id)
+                && matches!(i.effect.as_str(), "mastering" | "maximizer" | "limiter")
+        });
+        self.room_possible = true;
+        self.headroom = true;
         self.changes = false;
         if let Some(kept) = project
             .extensions
@@ -826,7 +898,7 @@ impl PrepareWindow {
         }
         // One track: nothing that belongs to the whole mix.
         if tracks.len() == 1 {
-            (self.balance, self.headroom) = (0.0, false);
+            (self.balance, self.headroom, self.room_possible) = (0.0, false, false);
         }
         // Prepared before, their instruments are known: no need to check them again.
         let prepared_before = tracks.iter().all(|t| {
@@ -927,6 +999,7 @@ impl PrepareWindow {
                     None => State::Measuring(m),
                     Some(Ok((left, right, rate))) => {
                         State::Analysing(std::thread::spawn(move || {
+                            audiostrada_rt::thread::lower_current_thread();
                             rules::analyse(&left, &right, rate)
                         }))
                     }
@@ -1005,6 +1078,8 @@ impl PrepareWindow {
     /// its settings change; true while some are being computed.
     fn levels(&mut self) -> bool {
         let mut busy = false;
+        let mut running = self.rows.iter().filter(|r| r.leveling.is_some()).count();
+        let mut leveled = false;
         let shifts: Vec<f32> = self.rows.iter().map(|row| self.staged(row).1).collect();
         for (row, shift) in self.rows.iter_mut().zip(shifts) {
             let State::Ready(r) = &row.state else {
@@ -1018,9 +1093,9 @@ impl PrepareWindow {
             {
                 row.level = handle.join().unwrap_or_default();
                 row.level_of = settings;
-                self.dirty = true;
+                leveled = true;
             }
-            if row.leveling.is_none() {
+            if row.leveling.is_none() && !self.held && running < LEVELING_AT_ONCE {
                 let picked: Vec<Step> = chosen(r).iter().map(|s| s.shifted(shift)).collect();
                 let strip = rules::strip_settings(picked.iter());
                 let inserts = rules::inserts(picked.iter());
@@ -1032,12 +1107,19 @@ impl PrepareWindow {
                 if settings != row.level_of {
                     let (excerpt, rate) = (r.analysis.excerpt.clone(), r.analysis.rate);
                     let handle = std::thread::spawn(move || {
+                        audiostrada_rt::thread::lower_current_thread();
                         rules::level_kept(&excerpt, rate, shift, &picked)
                     });
                     row.leveling = Some((settings, handle));
+                    running += 1;
                 }
             }
             busy |= row.leveling.is_some();
+        }
+        // The new levels are heard together, once all are known: each preview rewrites the
+        // tracks, and one after another they would click.
+        if leveled && !busy {
+            self.dirty = true;
         }
         busy
     }
@@ -1070,11 +1152,16 @@ impl PrepareWindow {
         (Some(trim), trim - measured)
     }
 
-    /// How much room is kept on the master, once the mix is measured.
+    /// How much the mix is lowered at the master's input, once measured: down to -6 dBFS when
+    /// the master's processing gives the loudness back, else only when it would clip, to -1.
     fn lowered(&self) -> Option<f32> {
         let peak = self.mix_peak?;
-        (self.headroom && self.changes && peak > HEADROOM)
-            .then(|| ((peak - HEADROOM) * 10.0).ceil() / 10.0)
+        let (over, to) = if self.compensated {
+            (HEADROOM, HEADROOM)
+        } else {
+            (0.0, -1.0)
+        };
+        (self.headroom && self.changes && peak > over).then(|| ((peak - to) * 10.0).ceil() / 10.0)
     }
 
     /// Measures the mix heard, in the background, whenever the proposal changed and every
@@ -1099,7 +1186,7 @@ impl PrepareWindow {
             .rows
             .iter()
             .all(|r| matches!(r.state, State::Ready(_) | State::Failed(_)));
-        if self.mix_stale && ready && self.after && !self.dirty {
+        if self.mix_stale && ready && self.after && !self.dirty && !self.held {
             self.mix_stale = false;
             self.mix = doc.start_mix_render().ok().map(Box::new);
         }
@@ -1132,6 +1219,7 @@ impl PrepareWindow {
         let (console, off) = self.project_console;
         let (made, rows, structure) = (&self.made, &self.rows, &self.structure);
         let master = self.master_saved.clone();
+        self.heard_room = None;
         doc.history_mut().modify_unrecorded(|p| {
             p.console = console;
             p.console_off = off;
@@ -1411,7 +1499,13 @@ impl PrepareWindow {
             let plan: Vec<_> = plan
                 .iter()
                 .filter(|x| !rebuild || !rows.iter().any(|r| r.track == x.0 && r.group.is_some()))
-                .cloned()
+                .map(|(track, prep, send)| {
+                    let prep = Preparation {
+                        hold: true,
+                        ..prep.clone()
+                    };
+                    (*track, prep, *send)
+                })
                 .collect();
             write_all(p, &plan, (flavor, space), &spaces_were, console);
         });
@@ -1466,6 +1560,15 @@ impl PrepareWindow {
                 }
             }
         });
+        if kept.is_some()
+            && let Some(db) = lowered
+            && !self.compensated
+        {
+            doc.notify(trf!(
+                "Express Mix lowered the mix by {db} dB on the master: it would have clipped",
+                db = format!("{db:.1}")
+            ));
+        }
         self.mode = None;
         self.mix = None;
         self.rows.clear();
@@ -1481,6 +1584,30 @@ impl PrepareWindow {
     }
 
     /// Proposes again at the strengths set, keeping what was ticked and dosed by hand.
+    /// While a knob is turned the proposal is heard every so often, in full once let go; the
+    /// tracks' levels, each a render of its own, wait for it.
+    fn follow_knobs(&mut self, ui: &Ui, settled: bool) {
+        let doses = [
+            self.clean.0,
+            self.bring.0,
+            self.depth,
+            self.ambience,
+            self.wide,
+            self.balance,
+            self.flavor.amount,
+        ];
+        let moved = doses != self.last_doses;
+        self.last_doses = doses;
+        self.held = ui.ctx().dragged_id().is_some();
+        let now = ui.input(|i| i.time);
+        if settled {
+            self.dirty = true;
+        } else if moved && self.held && now - self.last_live >= LIVE {
+            self.last_live = now;
+            self.dirty = true;
+        }
+    }
+
     fn repropose(&mut self, mode: Mode) {
         for row in &mut self.rows {
             if let State::Ready(r) = &mut row.state {
@@ -1539,8 +1666,13 @@ impl PrepareWindow {
         if self.master_dirty && self.after && !self.single() {
             self.master_dirty = false;
             let db = self.lowered();
-            doc.history_mut()
-                .modify_unrecorded(|p| write::master_headroom(p, db));
+            let mut heard = self.heard_room.take();
+            let heard_db = db.filter(|_| !self.compensated);
+            doc.history_mut().modify_unrecorded(|p| {
+                write::master_headroom(p, db);
+                heard = hear_room(p, heard, heard_db);
+            });
+            self.heard_room = heard;
         }
         let measuring = self
             .rows
@@ -1900,9 +2032,7 @@ impl PrepareWindow {
         if changed {
             self.repropose(mode);
         }
-        if settled {
-            self.dirty = true;
-        }
+        self.follow_knobs(ui, settled);
     }
 
     /// The tracks being listened to, or what the mix is given, in a few words.
@@ -2317,12 +2447,24 @@ impl PrepareWindow {
                 spaced |= s;
             }
         });
+        if self.room_possible && mode.brings_out() {
+            ui.add_space(10.0);
+            let response = ui
+                .checkbox(&mut self.headroom, tr("Keep room on the master"))
+                .on_hover_text(tr(
+                    "With a Strada-Master, a maximizer or a limiter on the master: the mix is \
+                     lowered at the master's input down to -6 dBFS and the effect raised as much, \
+                     the loudness staying the same. Without one: the mix is only lowered when it \
+                     would clip, to -1 dBFS.",
+                ));
+            if response.changed() {
+                self.master_dirty = true;
+            }
+        }
         if changed {
             self.repropose(mode);
         }
-        if settled || spaced {
-            self.dirty = true;
-        }
+        self.follow_knobs(ui, settled || spaced);
     }
 
     /// What is proposed for one track: who it is, its color and its place in the mix, then its
@@ -2527,6 +2669,27 @@ impl PrepareWindow {
             }
             if chip(ui, "cancel", tr("Cancel"), Face::Plain).clicked() {
                 asked.close = true;
+            }
+            // What applying does to the master's level, told before it is done.
+            if let Some(db) = self.lowered() {
+                let (text, ink) = if self.compensated {
+                    (
+                        trf!(
+                            "Room: the master's input lowered by {db} dB, its processing raised as much",
+                            db = format!("{db:.1}")
+                        ),
+                        p.weak,
+                    )
+                } else {
+                    (
+                        trf!(
+                            "The mix would clip: it is lowered by {db} dB on the master",
+                            db = format!("{db:.1}")
+                        ),
+                        theme::MUTE,
+                    )
+                };
+                ui.label(RichText::new(text).size(11.5).color(ink));
             }
         });
     }
@@ -4309,7 +4472,7 @@ pub fn strip_line(ui: &mut Ui, doc: &mut Document, track: TrackId, width: f32) {
         let hovered = response.hovered();
         let lit = done.is_some() && !bypassed;
         let fill = if lit {
-            theme::mix(p.surface, p.accent, if hovered { 0.85 } else { 0.7 })
+            theme::mix(p.surface, EXPRESS, if hovered { 0.95 } else { 0.8 })
         } else if hovered {
             p.hover
         } else {
@@ -4478,18 +4641,20 @@ pub fn all_button(ui: &mut Ui, doc: &Document) {
     let p = theme::current(ui);
     let text = tr("Express Mix");
     let font = theme::strong(13.0);
-    let galley = ui
-        .painter()
-        .layout_no_wrap(text.to_owned(), font, theme::text_on(p.accent));
+    let width = ui.fonts_mut(|f| {
+        f.layout_no_wrap(text.to_owned(), font.clone(), p.text)
+            .size()
+            .x
+    });
     let height = ui.spacing().interact_size.y;
-    let size = vec2(galley.size().x + 36.0, height);
-    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    let (rect, response) = ui.allocate_exact_size(vec2(width + 36.0, height), Sense::click());
     let fill = theme::mix(
         p.surface,
-        p.accent,
-        if response.hovered() { 0.65 } else { 0.5 },
+        EXPRESS,
+        if response.hovered() { 0.95 } else { 0.8 },
     );
     let ink = theme::text_on(fill);
+    let galley = ui.painter().layout_no_wrap(text.to_owned(), font, ink);
     let painter = ui.painter();
     painter.rect_filled(rect, radius(&p), fill);
     paint_faders(

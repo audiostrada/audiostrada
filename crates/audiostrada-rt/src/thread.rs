@@ -61,6 +61,31 @@ pub fn promote_current_thread(_priority: i32) -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 
+/// Puts the current thread behind everything else, for work done in the background (renders
+/// measured while the music plays) that must never take the processor from the audio.
+#[cfg(target_os = "linux")]
+pub fn lower_current_thread() {
+    // SAFETY: plain libc call on the current thread with an initialized sched_param.
+    unsafe {
+        let param: libc::sched_param = std::mem::zeroed();
+        libc::pthread_setschedparam(libc::pthread_self(), libc::SCHED_IDLE, &param);
+    }
+}
+
+/// Puts the current thread behind everything else (see the Linux version).
+#[cfg(windows)]
+pub fn lower_current_thread() {
+    use windows::Win32::System::Threading::{
+        GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_LOWEST,
+    };
+    // SAFETY: the pseudo handle of the current thread, always valid.
+    let _ = unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST) };
+}
+
+/// Puts the current thread behind everything else (see the Linux version); left as it is here.
+#[cfg(not(any(target_os = "linux", windows)))]
+pub fn lower_current_thread() {}
+
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     #[test]

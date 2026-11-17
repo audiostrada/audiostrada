@@ -8,11 +8,13 @@ pub mod analog;
 pub mod analysis;
 pub mod analyzer;
 pub mod biquad;
+pub mod chain;
 pub mod channel;
 pub mod chorus;
 pub mod compressor;
 pub mod console;
 pub mod convolver;
+mod correct;
 pub mod deesser;
 pub mod delay;
 pub mod doubler;
@@ -93,6 +95,7 @@ pub struct EffectInfo {
 
 /// Families of the effect browser, in display order.
 pub const CATEGORIES: &[&str] = &[
+    "Chains",
     "Dynamics",
     "EQ & Filter",
     "Space",
@@ -306,7 +309,8 @@ pub fn gain_to_db(gain: f32) -> f32 {
     20.0 * gain.max(1e-10).log10()
 }
 
-pub const EFFECTS: &[&EffectInfo] = &[
+/// The built-in effects other than the chains, which are made of them.
+const BASE: &[&EffectInfo] = &[
     &synth::INFO,
     &drums::INFO,
     &channel::INFO,
@@ -339,6 +343,19 @@ pub const EFFECTS: &[&EffectInfo] = &[
     &trigger::INFO,
 ];
 
+/// Every built-in effect, in browser order: the chains' parameter tables are built at start.
+pub static EFFECTS: std::sync::LazyLock<Vec<&'static EffectInfo>> =
+    std::sync::LazyLock::new(|| {
+        let mut all = vec![&*chain::MASTER, &*chain::VOCALS];
+        all.extend_from_slice(BASE);
+        all
+    });
+
+/// A built-in effect that is not a chain.
+pub(crate) fn base_info(id: &str) -> Option<&'static EffectInfo> {
+    BASE.iter().copied().find(|e| e.id == id)
+}
+
 /// The delay an effect adds with these parameter values (in its order), when its settings
 /// change it; `None` when it never changes.
 pub fn declared_latency(id: &str, values: &[f32], rate: u32) -> Option<u32> {
@@ -349,6 +366,31 @@ pub fn declared_latency(id: &str, values: &[f32], rate: u32) -> Option<u32> {
         "limiter" => Some(limiter::latency_of(values, rate as f32)),
         "flanger" => Some(flanger::latency_of(values, rate as f32)),
         "pitch" => Some(pitch::latency_of(values, rate as f32)),
+        // Chains add up their stages, some of them left out in a take: made to be asked.
+        "mastering" | "vocals" => {
+            type Known = Vec<(String, u32, Vec<u32>, u32)>;
+            // Asked at every sync of the engine: the last answers are kept.
+            static KNOWN: std::sync::Mutex<Known> = std::sync::Mutex::new(Vec::new());
+            let bits: Vec<u32> = values.iter().map(|v| v.to_bits()).collect();
+            let mut known = KNOWN.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(k) = known
+                .iter()
+                .find(|k| k.0 == id && k.1 == rate && k.2 == bits)
+            {
+                return Some(k.3);
+            }
+            let mut chain = create(id)?;
+            for (i, &v) in values.iter().enumerate() {
+                chain.set_param(i, v);
+            }
+            chain.prepare(rate, 64);
+            let latency = chain.latency();
+            if known.len() >= 16 {
+                known.remove(0);
+            }
+            known.push((id.to_owned(), rate, bits, latency));
+            Some(latency)
+        }
         "channel" => {
             let index = |id: &str| channel::INFO.params.iter().position(|p| p.id == id);
             let value = |id: &str| {
@@ -380,6 +422,8 @@ pub fn info(id: &str) -> Option<&'static EffectInfo> {
 
 pub fn create(id: &str) -> Option<Box<dyn Effect>> {
     match id {
+        "mastering" => Some(Box::new(chain::Chain::master())),
+        "vocals" => Some(Box::new(chain::Chain::vocals())),
         "utility" => Some(Box::new(utility::Utility::default())),
         "imager" => Some(Box::new(imager::Imager::default())),
         "channel" => Some(Box::new(channel::Channel::with_spectra())),
@@ -426,7 +470,7 @@ mod tests {
 
     #[test]
     fn every_listed_effect_can_be_created() {
-        for info in EFFECTS {
+        for info in EFFECTS.iter() {
             let mut effect = create(info.id).unwrap();
             effect.prepare(48_000, 64);
             for (i, p) in info.params.iter().enumerate() {
@@ -442,7 +486,7 @@ mod tests {
 
     #[test]
     fn every_effect_has_a_family_and_a_description() {
-        for info in EFFECTS {
+        for info in EFFECTS.iter() {
             // The channel strip lives on the strips, not in the browser.
             let family = CATEGORIES.contains(&info.category) || info.id == "channel";
             assert!(family, "{}", info.id);

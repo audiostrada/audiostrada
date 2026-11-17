@@ -543,12 +543,13 @@ pub struct Prepared {
     pub bypassed: Option<Bypassed>,
 }
 
-/// The room kept on the master: a gain first lowering the mix, a limiter last bringing its
-/// loudness back with its peaks held.
+/// The room kept on the master: a gain first lowering the mix. Earlier versions also brought
+/// its loudness back with a limiter last (`makeup`), taken out when the room is set again.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Headroom {
     pub trim: InsertId,
-    pub makeup: InsertId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub makeup: Option<InsertId>,
     /// The limiter was already there: its own gain, given back when the room is taken out.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub makeup_gain: Option<f32>,
@@ -770,6 +771,9 @@ pub struct Project {
     /// Every insert of every track and of the master bypassed, for comparisons.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub all_fx_off: bool,
+    /// The global bypass heard at the loudness the mix has with its effects.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub all_fx_matched: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<ReferenceTrack>,
     /// The loop range is kept, but playback does not loop.
@@ -981,6 +985,7 @@ impl Project {
             groups: Vec::new(),
             groups_off: false,
             all_fx_off: false,
+            all_fx_matched: false,
             loop_off: false,
             loop_fixed: false,
             console: Default::default(),

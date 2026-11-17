@@ -63,7 +63,7 @@ mod tests {
         delete(&root, "clap:org.example/eq", "My / EQ").unwrap();
         assert!(list(Some(&root), "clap:org.example/eq").is_empty());
         // Factory presets only name real parameters.
-        for effect in audiostrada_dsp::EFFECTS {
+        for effect in audiostrada_dsp::EFFECTS.iter() {
             for p in factory(effect.id) {
                 for key in p.params.keys() {
                     assert!(
@@ -79,7 +79,7 @@ mod tests {
 
     #[test]
     fn factory_presets_use_real_parameters() {
-        for info in audiostrada_dsp::EFFECTS {
+        for info in audiostrada_dsp::EFFECTS.iter() {
             for preset in factory(info.id) {
                 for (id, value) in &preset.params {
                     let param = info
@@ -102,7 +102,7 @@ mod tests {
     /// under names that tell them apart, each name with a capital.
     #[test]
     fn every_category_has_three_to_six_presets() {
-        for info in audiostrada_dsp::EFFECTS {
+        for info in audiostrada_dsp::EFFECTS.iter() {
             // The instruments keep banks of their own; the last two are reworked apart.
             if matches!(info.id, "synth" | "drums" | "pitch_correct" | "modulator") {
                 continue;
@@ -169,7 +169,7 @@ mod tests {
         };
         let skip = rate as usize / 2;
         let reference = rms(&input[skip..]);
-        for info in audiostrada_dsp::EFFECTS {
+        for info in audiostrada_dsp::EFFECTS.iter() {
             for preset in builtin(info.id) {
                 let Some(mut fx) = audiostrada_dsp::create(info.id) else {
                     continue;

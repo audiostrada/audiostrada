@@ -27,6 +27,7 @@ use crate::trf;
 
 mod archive;
 mod export;
+mod matching;
 mod processing;
 mod reference;
 pub use processing::{Found, StripSettings};
@@ -301,6 +302,9 @@ pub struct Document {
     media: MediaPool,
     player: ProjectPlayer,
     imports: Vec<Import>,
+    /// Files of the imports under way already added: one message once all are.
+    imported: Vec<String>,
+    matching: matching::Matching,
     synced: Option<(u64, u64)>,
     messages: Vec<String>,
     /// A clip to select and open in its editor, asked for by a window that cannot do it.
@@ -435,6 +439,8 @@ impl Document {
             media: MediaPool::new(48_000, peaks),
             player: ProjectPlayer::new(engine_config()),
             imports: Vec::new(),
+            imported: Vec::new(),
+            matching: Default::default(),
             synced: None,
             messages: Vec::new(),
             preview: None,
@@ -861,8 +867,7 @@ impl Document {
                             edit::resolve_overlaps(p, track, &[clip]);
                         }
                     });
-                    self.messages
-                        .push(trf!("Imported {path}", path = import.path.display()));
+                    self.imported.push(name);
                 }
                 Some(MediaState::Failed(e)) => {
                     self.messages.push(trf!(
@@ -875,6 +880,15 @@ impl Document {
             }
         }
         self.imports = pending;
+        if self.imports.is_empty() {
+            match std::mem::take(&mut self.imported).as_slice() {
+                [] => {}
+                [name] => self.messages.push(trf!("Imported {name}", name = name)),
+                names => self
+                    .messages
+                    .push(trf!("{count} files imported", count = names.len())),
+            }
+        }
     }
 
     /// Sources whose media could not be loaded, with the absolute path and reason.
@@ -2373,6 +2387,7 @@ impl Document {
             self.synced = Some((self.history.revision(), self.media.generation()));
         }
         self.player.update();
+        self.poll_matching();
         self.apply_plugin_feedback();
         if self.player.take_resync() {
             self.synced = None;

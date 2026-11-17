@@ -1,5 +1,5943 @@
 [
  {
+  "category": "Chains",
+  "description": "Mastering chain: tone, glue, tape color, width, sub and loudness in six big knobs, over Strada-EQ, MB-Comp, Tape, Wide, Max and Limit.",
+  "id": "mastering",
+  "instrument": false,
+  "name": "Strada-Master",
+  "params": [
+   {
+    "default": 0,
+    "id": "tone",
+    "max": 100,
+    "min": -100,
+    "name": "Tone",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "glue",
+    "max": 100,
+    "min": 0,
+    "name": "Mix glue",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "color",
+    "max": 100,
+    "min": 0,
+    "name": "Color",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "width",
+    "max": 200,
+    "min": 0,
+    "name": "Width",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "sub",
+    "max": 100,
+    "min": -100,
+    "name": "Sub",
+    "unit": "%"
+   },
+   {
+    "default": 4,
+    "id": "loudness",
+    "max": 18,
+    "min": -12,
+    "name": "Loudness",
+    "unit": "dB"
+   },
+   {
+    "choices": [
+     "Clean",
+     "Warm",
+     "Open",
+     "Punchy"
+    ],
+    "default": 0,
+    "id": "style",
+    "max": 3,
+    "min": 0,
+    "name": "Style",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Streaming",
+     "Apple Music, podcast",
+     "CD",
+     "Club",
+     "Vinyl",
+     "TV, radio",
+     "Pre-master"
+    ],
+    "default": 0,
+    "id": "target",
+    "max": 6,
+    "min": 0,
+    "name": "Target",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "follow",
+    "max": 1,
+    "min": 0,
+    "name": "Follow the target",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "order",
+    "max": 119,
+    "min": 0,
+    "name": "Order",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "assisted",
+    "max": 1,
+    "min": 0,
+    "name": "Assistant offered",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "compare",
+    "max": 1,
+    "min": 0,
+    "name": "Before, same loudness",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b1_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 1 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b1_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 1 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b1_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 1 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b1_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 1 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b1_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 1 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b1_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 1 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b1_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 1 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b1_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 1 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b1_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 1 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b1_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 1 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b2_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 2 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b2_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 2 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b2_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 2 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b2_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 2 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b2_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 2 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b2_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 2 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b2_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 2 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b2_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 2 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b2_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 2 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b2_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 2 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b3_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 3 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b3_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 3 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b3_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 3 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b3_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 3 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b3_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 3 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b3_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 3 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b3_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 3 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b3_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 3 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b3_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 3 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b3_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 3 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b4_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 4 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b4_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 4 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b4_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 4 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b4_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 4 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b4_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 4 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b4_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 4 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b4_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 4 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b4_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 4 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b4_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 4 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b4_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 4 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b5_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 5 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b5_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 5 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b5_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 5 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b5_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 5 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b5_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 5 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b5_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 5 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b5_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 5 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b5_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 5 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b5_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 5 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b5_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 5 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b6_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 6 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b6_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 6 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b6_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 6 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b6_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 6 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b6_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 6 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b6_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 6 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b6_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 6 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b6_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 6 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b6_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 6 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b6_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 6 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b7_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 7 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b7_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 7 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b7_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 7 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b7_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 7 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b7_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 7 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b7_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 7 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b7_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 7 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b7_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 7 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b7_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 7 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b7_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 7 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b8_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 8 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b8_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 8 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b8_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 8 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b8_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 8 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b8_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 8 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b8_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 8 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b8_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 8 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b8_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 8 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b8_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 8 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b8_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 8 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b9_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 9 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b9_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 9 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b9_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 9 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b9_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 9 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b9_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 9 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b9_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 9 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b9_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 9 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b9_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 9 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b9_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 9 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b9_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 9 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b10_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 10 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b10_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 10 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b10_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 10 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b10_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 10 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b10_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 10 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b10_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 10 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b10_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 10 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b10_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 10 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b10_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 10 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b10_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 10 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b11_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 11 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b11_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 11 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b11_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 11 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b11_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 11 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b11_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 11 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b11_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 11 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b11_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 11 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b11_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 11 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b11_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 11 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b11_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 11 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b12_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 12 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b12_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 12 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b12_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 12 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b12_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 12 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b12_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 12 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b12_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 12 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b12_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 12 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b12_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 12 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b12_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 12 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b12_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 12 range",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b13_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 13 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b13_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 13 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 2,
+    "id": "eq.b13_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 13 type",
+    "unit": ""
+   },
+   {
+    "default": 12000,
+    "id": "eq.b13_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 13 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b13_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 13 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0.699999988079071,
+    "id": "eq.b13_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 13 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b13_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 13 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b13_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 13 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b13_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 13 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b13_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 13 range",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b14_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 14 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b14_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 14 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 1,
+    "id": "eq.b14_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 14 type",
+    "unit": ""
+   },
+   {
+    "default": 200,
+    "id": "eq.b14_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 14 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b14_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 14 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0.6000000238418579,
+    "id": "eq.b14_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 14 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b14_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 14 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b14_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 14 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b14_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 14 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b14_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 14 range",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b15_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 15 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b15_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 15 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 2,
+    "id": "eq.b15_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 15 type",
+    "unit": ""
+   },
+   {
+    "default": 4000,
+    "id": "eq.b15_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 15 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b15_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 15 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0.6000000238418579,
+    "id": "eq.b15_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 15 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b15_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 15 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b15_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 15 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b15_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 15 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b15_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 15 range",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b16_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 16 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b16_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 16 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 1,
+    "id": "eq.b16_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 16 type",
+    "unit": ""
+   },
+   {
+    "default": 70,
+    "id": "eq.b16_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 16 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b16_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 16 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0.699999988079071,
+    "id": "eq.b16_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 16 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b16_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 16 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b16_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 16 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b16_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 16 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b16_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 16 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.output",
+    "max": 30,
+    "min": -30,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.solo",
+    "max": 16,
+    "min": 0,
+    "name": "Solo band",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b1_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 1 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b1_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 1 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b1_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 1 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b2_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 2 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b2_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 2 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b2_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 2 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b3_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 3 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b3_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 3 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b3_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 3 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b4_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 4 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b4_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 4 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b4_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 4 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b5_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 5 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b5_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 5 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b5_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 5 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b6_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 6 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b6_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 6 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b6_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 6 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b7_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 7 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b7_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 7 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b7_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 7 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b8_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 8 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b8_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 8 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b8_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 8 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b9_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 9 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b9_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 9 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b9_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 9 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b10_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 10 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b10_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 10 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b10_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 10 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b11_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 11 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b11_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 11 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b11_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 11 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b12_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 12 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b12_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 12 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b12_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 12 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b13_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 13 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b13_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 13 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b13_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 13 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b14_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 14 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b14_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 14 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b14_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 14 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b15_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 15 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b15_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 15 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b15_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 15 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b16_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 16 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b16_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 16 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b16_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 16 release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "eq.auto_gain",
+    "max": 1,
+    "min": 0,
+    "name": "Auto gain",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "2 bands",
+     "3 bands",
+     "4 bands"
+    ],
+    "default": 1,
+    "id": "mb_comp.count",
+    "max": 2,
+    "min": 0,
+    "name": "Bands",
+    "unit": ""
+   },
+   {
+    "default": 150,
+    "id": "mb_comp.x1",
+    "max": 16000,
+    "min": 20,
+    "name": "Crossover 1",
+    "unit": "Hz"
+   },
+   {
+    "default": 2500,
+    "id": "mb_comp.x2",
+    "max": 16000,
+    "min": 20,
+    "name": "Crossover 2",
+    "unit": "Hz"
+   },
+   {
+    "default": 8000,
+    "id": "mb_comp.x3",
+    "max": 16000,
+    "min": 20,
+    "name": "Crossover 3",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "mb_comp.mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "mb_comp.output",
+    "max": 24,
+    "min": -24,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "default": 100,
+    "id": "mb_comp.time",
+    "max": 400,
+    "min": 25,
+    "name": "Time",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "mb_comp.solo",
+    "max": 4,
+    "min": 0,
+    "name": "Solo",
+    "unit": ""
+   },
+   {
+    "default": -20,
+    "id": "mb_comp.b1_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 1 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 1.5,
+    "id": "mb_comp.b1_ratio",
+    "max": 20,
+    "min": 1,
+    "name": "Band 1 ratio",
+    "unit": ":1"
+   },
+   {
+    "default": -40,
+    "id": "mb_comp.b1_below",
+    "max": 0,
+    "min": -80,
+    "name": "Band 1 lift threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "mb_comp.b1_up",
+    "max": 10,
+    "min": 1,
+    "name": "Band 1 lift ratio",
+    "unit": ":1"
+   },
+   {
+    "default": 20,
+    "id": "mb_comp.b1_attack",
+    "max": 300,
+    "min": 0.10000000149011612,
+    "name": "Band 1 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 200,
+    "id": "mb_comp.b1_release",
+    "max": 3000,
+    "min": 5,
+    "name": "Band 1 release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "mb_comp.b1_gain",
+    "max": 24,
+    "min": -24,
+    "name": "Band 1 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "mb_comp.b1_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 1 bypass",
+    "unit": ""
+   },
+   {
+    "default": -22,
+    "id": "mb_comp.b2_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 2 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 1.600000023841858,
+    "id": "mb_comp.b2_ratio",
+    "max": 20,
+    "min": 1,
+    "name": "Band 2 ratio",
+    "unit": ":1"
+   },
+   {
+    "default": -40,
+    "id": "mb_comp.b2_below",
+    "max": 0,
+    "min": -80,
+    "name": "Band 2 lift threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "mb_comp.b2_up",
+    "max": 10,
+    "min": 1,
+    "name": "Band 2 lift ratio",
+    "unit": ":1"
+   },
+   {
+    "default": 10,
+    "id": "mb_comp.b2_attack",
+    "max": 300,
+    "min": 0.10000000149011612,
+    "name": "Band 2 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 150,
+    "id": "mb_comp.b2_release",
+    "max": 3000,
+    "min": 5,
+    "name": "Band 2 release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "mb_comp.b2_gain",
+    "max": 24,
+    "min": -24,
+    "name": "Band 2 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "mb_comp.b2_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 2 bypass",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "mb_comp.b3_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 3 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 1.7999999523162842,
+    "id": "mb_comp.b3_ratio",
+    "max": 20,
+    "min": 1,
+    "name": "Band 3 ratio",
+    "unit": ":1"
+   },
+   {
+    "default": -40,
+    "id": "mb_comp.b3_below",
+    "max": 0,
+    "min": -80,
+    "name": "Band 3 lift threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "mb_comp.b3_up",
+    "max": 10,
+    "min": 1,
+    "name": "Band 3 lift ratio",
+    "unit": ":1"
+   },
+   {
+    "default": 5,
+    "id": "mb_comp.b3_attack",
+    "max": 300,
+    "min": 0.10000000149011612,
+    "name": "Band 3 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 100,
+    "id": "mb_comp.b3_release",
+    "max": 3000,
+    "min": 5,
+    "name": "Band 3 release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "mb_comp.b3_gain",
+    "max": 24,
+    "min": -24,
+    "name": "Band 3 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "mb_comp.b3_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 3 bypass",
+    "unit": ""
+   },
+   {
+    "default": -18,
+    "id": "mb_comp.b4_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 4 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 2,
+    "id": "mb_comp.b4_ratio",
+    "max": 20,
+    "min": 1,
+    "name": "Band 4 ratio",
+    "unit": ":1"
+   },
+   {
+    "default": -40,
+    "id": "mb_comp.b4_below",
+    "max": 0,
+    "min": -80,
+    "name": "Band 4 lift threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "mb_comp.b4_up",
+    "max": 10,
+    "min": 1,
+    "name": "Band 4 lift ratio",
+    "unit": ":1"
+   },
+   {
+    "default": 3,
+    "id": "mb_comp.b4_attack",
+    "max": 300,
+    "min": 0.10000000149011612,
+    "name": "Band 4 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 80,
+    "id": "mb_comp.b4_release",
+    "max": 3000,
+    "min": 5,
+    "name": "Band 4 release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "mb_comp.b4_gain",
+    "max": 24,
+    "min": -24,
+    "name": "Band 4 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "mb_comp.b4_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 4 bypass",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "tape.drive",
+    "max": 24,
+    "min": -12,
+    "name": "Input",
+    "unit": "dB"
+   },
+   {
+    "choices": [
+     "7.5 ips",
+     "15 ips",
+     "30 ips"
+    ],
+    "default": 2,
+    "id": "tape.speed",
+    "max": 2,
+    "min": 0,
+    "name": "Speed",
+    "unit": ""
+   },
+   {
+    "default": 1.5,
+    "id": "tape.bump",
+    "max": 6,
+    "min": 0,
+    "name": "Head bump",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "tape.wow",
+    "max": 100,
+    "min": 0,
+    "name": "Wow & flutter",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "tape.hiss",
+    "max": 100,
+    "min": 0,
+    "name": "Hiss",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "tape.bias",
+    "max": 100,
+    "min": -100,
+    "name": "Bias",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "tape.output",
+    "max": 12,
+    "min": -18,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "default": 60,
+    "id": "tape.mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Studio A80",
+     "Mastering 102",
+     "Vintage J37",
+     "Cassette"
+    ],
+    "default": 1,
+    "id": "tape.machine",
+    "max": 3,
+    "min": 0,
+    "name": "Machine",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "GP9",
+     "456",
+     "250"
+    ],
+    "default": 0,
+    "id": "tape.tape",
+    "max": 2,
+    "min": 0,
+    "name": "Tape",
+    "unit": ""
+   },
+   {
+    "default": 100,
+    "id": "imager.low_width",
+    "max": 200,
+    "min": 0,
+    "name": "Low width",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "imager.mid_width",
+    "max": 200,
+    "min": 0,
+    "name": "Mid width",
+    "unit": "%"
+   },
+   {
+    "default": 115,
+    "id": "imager.high_width",
+    "max": 200,
+    "min": 0,
+    "name": "High width",
+    "unit": "%"
+   },
+   {
+    "default": 250,
+    "id": "imager.low_split",
+    "max": 1000,
+    "min": 60,
+    "name": "Low split",
+    "unit": "Hz"
+   },
+   {
+    "default": 4000,
+    "id": "imager.high_split",
+    "max": 12000,
+    "min": 1000,
+    "name": "High split",
+    "unit": "Hz"
+   },
+   {
+    "default": 120,
+    "id": "imager.mono_bass",
+    "max": 500,
+    "min": 20,
+    "name": "Mono below",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "imager.output",
+    "max": 12,
+    "min": -12,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "imager.stereoize",
+    "max": 100,
+    "min": 0,
+    "name": "Stereoize",
+    "unit": "%"
+   },
+   {
+    "default": 12,
+    "id": "imager.stereoize_time",
+    "max": 30,
+    "min": 1,
+    "name": "Stereoize time",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "maximizer.gain",
+    "max": 24,
+    "min": 0,
+    "name": "Gain",
+    "unit": "dB"
+   },
+   {
+    "default": -1,
+    "id": "maximizer.ceiling",
+    "max": 0,
+    "min": -12,
+    "name": "Ceiling",
+    "unit": "dB"
+   },
+   {
+    "default": 120,
+    "id": "maximizer.release",
+    "max": 1000,
+    "min": 1,
+    "name": "Release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Transparent",
+     "Punchy",
+     "Loud"
+    ],
+    "default": 0,
+    "id": "maximizer.style",
+    "max": 2,
+    "min": 0,
+    "name": "Style",
+    "unit": ""
+   },
+   {
+    "default": 100,
+    "id": "maximizer.link",
+    "max": 100,
+    "min": 0,
+    "name": "Stereo link",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "maximizer.unity",
+    "max": 1,
+    "min": 0,
+    "name": "Unity gain",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "maximizer.audition",
+    "max": 1,
+    "min": 0,
+    "name": "Audition",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "maximizer.compare",
+    "max": 1,
+    "min": 0,
+    "name": "Before, same loudness",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "limiter.input",
+    "max": 24,
+    "min": 0,
+    "name": "Input gain",
+    "unit": "dB"
+   },
+   {
+    "default": -1,
+    "id": "limiter.ceiling",
+    "max": 0,
+    "min": -12,
+    "name": "Ceiling",
+    "unit": "dB"
+   },
+   {
+    "default": 60,
+    "id": "limiter.release",
+    "max": 1000,
+    "min": 1,
+    "name": "Release",
+    "unit": "ms"
+   },
+   {
+    "default": 2,
+    "id": "limiter.lookahead",
+    "max": 5,
+    "min": 0.10000000149011612,
+    "name": "Lookahead",
+    "unit": "ms"
+   },
+   {
+    "default": 1,
+    "id": "limiter.auto",
+    "max": 1,
+    "min": 0,
+    "name": "Auto release",
+    "unit": ""
+   },
+   {
+    "default": 100,
+    "id": "limiter.link",
+    "max": 100,
+    "min": 0,
+    "name": "Stereo link",
+    "unit": "%"
+   },
+   {
+    "default": 1,
+    "id": "limiter.true_peak",
+    "max": 1,
+    "min": 0,
+    "name": "True peak",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "limiter.unity",
+    "max": 1,
+    "min": 0,
+    "name": "Unity gain",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "limiter.audition",
+    "max": 1,
+    "min": 0,
+    "name": "Audition",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "limiter.compare",
+    "max": 1,
+    "min": 0,
+    "name": "Before, same loudness",
+    "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Chains",
+  "description": "Vocal chain: tuning, tone and saturation, compression, de-essing, doubling and space in six big knobs, over Strada-Correct, EQ, Comp, Drive, DeEss, Doubler, Delay and Verb.",
+  "id": "vocals",
+  "instrument": false,
+  "name": "Strada-Vocals",
+  "params": [
+   {
+    "default": 0,
+    "id": "tune",
+    "max": 100,
+    "min": 0,
+    "name": "Pitch correction",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "tone",
+    "max": 100,
+    "min": -100,
+    "name": "Tone",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "drive",
+    "max": 100,
+    "min": 0,
+    "name": "Saturation",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "comp",
+    "max": 100,
+    "min": 0,
+    "name": "Comp",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "deess",
+    "max": 100,
+    "min": 0,
+    "name": "De-ess",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "double",
+    "max": 100,
+    "min": 0,
+    "name": "Double",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "space",
+    "max": 100,
+    "min": 0,
+    "name": "Space",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Singing",
+     "Rap",
+     "Spoken"
+    ],
+    "default": 0,
+    "id": "voice",
+    "max": 2,
+    "min": 0,
+    "name": "Voice",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Room",
+     "Plate",
+     "Hall",
+     "Slapback",
+     "Echo"
+    ],
+    "default": 1,
+    "id": "room",
+    "max": 4,
+    "min": 0,
+    "name": "Space type",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "take",
+    "max": 1,
+    "min": 0,
+    "name": "Take",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "order",
+    "max": 40319,
+    "min": 0,
+    "name": "Order",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "assisted",
+    "max": 1,
+    "min": 0,
+    "name": "Assistant offered",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "C",
+     "C#",
+     "D",
+     "D#",
+     "E",
+     "F",
+     "F#",
+     "G",
+     "G#",
+     "A",
+     "A#",
+     "B"
+    ],
+    "default": 0,
+    "id": "pitch_correct.key",
+    "max": 11,
+    "min": 0,
+    "name": "Key",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Chromatic",
+     "Major",
+     "Minor",
+     "Harmonic minor",
+     "Dorian",
+     "Pentatonic major",
+     "Pentatonic minor",
+     "Blues",
+     "Custom"
+    ],
+    "default": 0,
+    "id": "pitch_correct.scale",
+    "max": 8,
+    "min": 0,
+    "name": "Scale",
+    "unit": ""
+   },
+   {
+    "default": 40,
+    "id": "pitch_correct.speed",
+    "max": 400,
+    "min": 0,
+    "name": "Retune speed",
+    "unit": "ms"
+   },
+   {
+    "default": 30,
+    "id": "pitch_correct.humanize",
+    "max": 100,
+    "min": 0,
+    "name": "Humanize",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "pitch_correct.amount",
+    "max": 100,
+    "min": 0,
+    "name": "Amount",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "pitch_correct.transpose",
+    "max": 12,
+    "min": -12,
+    "name": "Transpose",
+    "unit": "st"
+   },
+   {
+    "default": 4095,
+    "id": "pitch_correct.notes",
+    "max": 4095,
+    "min": 0,
+    "name": "Custom notes",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "pitch_correct.tolerance",
+    "max": 50,
+    "min": 0,
+    "name": "Tolerance",
+    "unit": "cents"
+   },
+   {
+    "choices": [
+     "Natural",
+     "Staircase",
+     "Harmony"
+    ],
+    "default": 0,
+    "id": "pitch_correct.mode",
+    "max": 2,
+    "min": 0,
+    "name": "Mode",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Third above",
+     "Fifth above",
+     "Sixth above",
+     "Octave above",
+     "Third below",
+     "Fourth below",
+     "Octave below"
+    ],
+    "default": 0,
+    "id": "pitch_correct.harmony",
+    "max": 6,
+    "min": 0,
+    "name": "Harmony",
+    "unit": ""
+   },
+   {
+    "default": 60,
+    "id": "pitch_correct.harmony_level",
+    "max": 100,
+    "min": 0,
+    "name": "Harmony level",
+    "unit": "%"
+   },
+   {
+    "default": 1,
+    "id": "eq.b1_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 1 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b1_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 1 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 3,
+    "id": "eq.b1_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 1 type",
+    "unit": ""
+   },
+   {
+    "default": 90,
+    "id": "eq.b1_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 1 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b1_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 1 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b1_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 1 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b1_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 1 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b1_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 1 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b1_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 1 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b1_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 1 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b2_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 2 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b2_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 2 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b2_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 2 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b2_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 2 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b2_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 2 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b2_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 2 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b2_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 2 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b2_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 2 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b2_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 2 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b2_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 2 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b3_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 3 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b3_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 3 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b3_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 3 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b3_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 3 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b3_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 3 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b3_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 3 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b3_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 3 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b3_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 3 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b3_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 3 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b3_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 3 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b4_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 4 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b4_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 4 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b4_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 4 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b4_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 4 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b4_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 4 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b4_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 4 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b4_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 4 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b4_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 4 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b4_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 4 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b4_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 4 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b5_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 5 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b5_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 5 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b5_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 5 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b5_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 5 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b5_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 5 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b5_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 5 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b5_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 5 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b5_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 5 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b5_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 5 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b5_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 5 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b6_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 6 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b6_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 6 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b6_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 6 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b6_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 6 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b6_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 6 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b6_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 6 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b6_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 6 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b6_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 6 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b6_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 6 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b6_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 6 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b7_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 7 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b7_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 7 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b7_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 7 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b7_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 7 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b7_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 7 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b7_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 7 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b7_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 7 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b7_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 7 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b7_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 7 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b7_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 7 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b8_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 8 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b8_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 8 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b8_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 8 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b8_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 8 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b8_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 8 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b8_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 8 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b8_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 8 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b8_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 8 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b8_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 8 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b8_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 8 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b9_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 9 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b9_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 9 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b9_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 9 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b9_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 9 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b9_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 9 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b9_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 9 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b9_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 9 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b9_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 9 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b9_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 9 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b9_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 9 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b10_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 10 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b10_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 10 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b10_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 10 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b10_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 10 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b10_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 10 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b10_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 10 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b10_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 10 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b10_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 10 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b10_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 10 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b10_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 10 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b11_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 11 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b11_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 11 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b11_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 11 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b11_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 11 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b11_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 11 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b11_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 11 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b11_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 11 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b11_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 11 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b11_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 11 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b11_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 11 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b12_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 12 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b12_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 12 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b12_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 12 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b12_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 12 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b12_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 12 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b12_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 12 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b12_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 12 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b12_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 12 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b12_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 12 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b12_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 12 range",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b13_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 13 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b13_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 13 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 2,
+    "id": "eq.b13_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 13 type",
+    "unit": ""
+   },
+   {
+    "default": 12000,
+    "id": "eq.b13_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 13 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b13_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 13 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0.699999988079071,
+    "id": "eq.b13_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 13 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b13_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 13 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b13_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 13 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b13_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 13 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b13_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 13 range",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b14_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 14 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b14_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 14 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 1,
+    "id": "eq.b14_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 14 type",
+    "unit": ""
+   },
+   {
+    "default": 250,
+    "id": "eq.b14_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 14 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b14_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 14 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0.6000000238418579,
+    "id": "eq.b14_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 14 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b14_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 14 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b14_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 14 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b14_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 14 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b14_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 14 range",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b15_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 15 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b15_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 15 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 2,
+    "id": "eq.b15_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 15 type",
+    "unit": ""
+   },
+   {
+    "default": 3500,
+    "id": "eq.b15_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 15 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b15_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 15 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 0.6000000238418579,
+    "id": "eq.b15_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 15 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b15_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 15 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b15_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 15 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b15_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 15 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b15_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 15 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.b16_used",
+    "max": 1,
+    "min": 0,
+    "name": "Band 16 in use",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b16_bypass",
+    "max": 1,
+    "min": 0,
+    "name": "Band 16 bypass",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Bell",
+     "Low shelf",
+     "High shelf",
+     "Low cut",
+     "High cut",
+     "Notch",
+     "Band pass",
+     "Tilt shelf"
+    ],
+    "default": 0,
+    "id": "eq.b16_type",
+    "max": 7,
+    "min": 0,
+    "name": "Band 16 type",
+    "unit": ""
+   },
+   {
+    "default": 1000,
+    "id": "eq.b16_freq",
+    "max": 20000,
+    "min": 20,
+    "name": "Band 16 frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "eq.b16_gain",
+    "max": 30,
+    "min": -30,
+    "name": "Band 16 gain",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "eq.b16_q",
+    "max": 30,
+    "min": 0.10000000149011612,
+    "name": "Band 16 Q",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "6 dB/oct",
+     "12 dB/oct",
+     "18 dB/oct",
+     "24 dB/oct",
+     "36 dB/oct",
+     "48 dB/oct"
+    ],
+    "default": 1,
+    "id": "eq.b16_slope",
+    "max": 5,
+    "min": 0,
+    "name": "Band 16 slope",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "eq.b16_dyn",
+    "max": 1,
+    "min": 0,
+    "name": "Band 16 dynamic",
+    "unit": ""
+   },
+   {
+    "default": -24,
+    "id": "eq.b16_thresh",
+    "max": 0,
+    "min": -60,
+    "name": "Band 16 threshold",
+    "unit": "dB"
+   },
+   {
+    "default": -6,
+    "id": "eq.b16_range",
+    "max": 30,
+    "min": -30,
+    "name": "Band 16 range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.output",
+    "max": 30,
+    "min": -30,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "eq.solo",
+    "max": 16,
+    "min": 0,
+    "name": "Solo band",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b1_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 1 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b1_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 1 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b1_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 1 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b2_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 2 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b2_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 2 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b2_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 2 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b3_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 3 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b3_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 3 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b3_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 3 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b4_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 4 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b4_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 4 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b4_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 4 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b5_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 5 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b5_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 5 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b5_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 5 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b6_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 6 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b6_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 6 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b6_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 6 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b7_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 7 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b7_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 7 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b7_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 7 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b8_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 8 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b8_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 8 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b8_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 8 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b9_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 9 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b9_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 9 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b9_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 9 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b10_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 10 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b10_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 10 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b10_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 10 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b11_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 11 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b11_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 11 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b11_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 11 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b12_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 12 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b12_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 12 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b12_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 12 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b13_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 13 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b13_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 13 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b13_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 13 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b14_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 14 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b14_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 14 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b14_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 14 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b15_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 15 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b15_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 15 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b15_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 15 release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Left",
+     "Right",
+     "Mid",
+     "Side"
+    ],
+    "default": 0,
+    "id": "eq.b16_place",
+    "max": 4,
+    "min": 0,
+    "name": "Band 16 placement",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "eq.b16_attack",
+    "max": 200,
+    "min": 0.10000000149011612,
+    "name": "Band 16 attack",
+    "unit": "ms"
+   },
+   {
+    "default": 120,
+    "id": "eq.b16_release",
+    "max": 2000,
+    "min": 5,
+    "name": "Band 16 release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "eq.auto_gain",
+    "max": 1,
+    "min": 0,
+    "name": "Auto gain",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Clean",
+     "Bus",
+     "Opto",
+     "FET"
+    ],
+    "default": 0,
+    "id": "compressor.type",
+    "max": 3,
+    "min": 0,
+    "name": "Character",
+    "unit": ""
+   },
+   {
+    "default": -20,
+    "id": "compressor.threshold",
+    "max": 0,
+    "min": -60,
+    "name": "Threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 3,
+    "id": "compressor.ratio",
+    "max": 20,
+    "min": 1,
+    "name": "Ratio",
+    "unit": ":1"
+   },
+   {
+    "default": 8,
+    "id": "compressor.attack",
+    "max": 100,
+    "min": 0.05000000074505806,
+    "name": "Attack",
+    "unit": "ms"
+   },
+   {
+    "default": 150,
+    "id": "compressor.release",
+    "max": 1200,
+    "min": 10,
+    "name": "Release",
+    "unit": "ms"
+   },
+   {
+    "default": 1,
+    "id": "compressor.auto",
+    "max": 1,
+    "min": 0,
+    "name": "Auto release",
+    "unit": ""
+   },
+   {
+    "default": 6,
+    "id": "compressor.knee",
+    "max": 24,
+    "min": 0,
+    "name": "Knee",
+    "unit": "dB"
+   },
+   {
+    "default": 3,
+    "id": "compressor.makeup",
+    "max": 24,
+    "min": 0,
+    "name": "Makeup",
+    "unit": "dB"
+   },
+   {
+    "default": 30,
+    "id": "compressor.color",
+    "max": 100,
+    "min": 0,
+    "name": "Color",
+    "unit": "%"
+   },
+   {
+    "default": 20,
+    "id": "compressor.sc_hpf",
+    "max": 500,
+    "min": 20,
+    "name": "Sidechain HPF",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "compressor.mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "compressor.lookahead",
+    "max": 20,
+    "min": 0,
+    "name": "Lookahead",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "compressor.hold",
+    "max": 500,
+    "min": 0,
+    "name": "Hold",
+    "unit": "ms"
+   },
+   {
+    "default": 60,
+    "id": "compressor.range",
+    "max": 60,
+    "min": 0,
+    "name": "Range",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "compressor.auto_gain",
+    "max": 1,
+    "min": 0,
+    "name": "Auto gain",
+    "unit": ""
+   },
+   {
+    "default": 100,
+    "id": "compressor.link",
+    "max": 100,
+    "min": 0,
+    "name": "Stereo link",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "compressor.listen",
+    "max": 1,
+    "min": 0,
+    "name": "Sidechain listen",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Overdrive",
+     "Distortion",
+     "Fuzz",
+     "Tube",
+     "Tape",
+     "Transformer",
+     "Rectifier"
+    ],
+    "default": 3,
+    "id": "drive.mode",
+    "max": 6,
+    "min": 0,
+    "name": "Type",
+    "unit": ""
+   },
+   {
+    "default": 30,
+    "id": "drive.drive",
+    "max": 100,
+    "min": 0,
+    "name": "Drive",
+    "unit": "%"
+   },
+   {
+    "default": 20000,
+    "id": "drive.tone",
+    "max": 20000,
+    "min": 500,
+    "name": "Tone",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "drive.level",
+    "max": 24,
+    "min": -24,
+    "name": "Level",
+    "unit": "dB"
+   },
+   {
+    "default": 100,
+    "id": "drive.mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 20,
+    "id": "drive.low_cut",
+    "max": 600,
+    "min": 20,
+    "name": "Low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "drive.bias",
+    "max": 100,
+    "min": 0,
+    "name": "Bias",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "drive.bass",
+    "max": 12,
+    "min": -12,
+    "name": "Bass",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "drive.mid",
+    "max": 12,
+    "min": -12,
+    "name": "Middle",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "drive.auto_gain",
+    "max": 1,
+    "min": 0,
+    "name": "Auto gain",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "drive.focus",
+    "max": 12,
+    "min": -12,
+    "name": "Focus",
+    "unit": "dB"
+   },
+   {
+    "default": 1000,
+    "id": "drive.focus_freq",
+    "max": 10000,
+    "min": 40,
+    "name": "Focus frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 800,
+    "id": "drive.mid_freq",
+    "max": 5000,
+    "min": 200,
+    "name": "Middle frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": 6500,
+    "id": "deesser.frequency",
+    "max": 12000,
+    "min": 2000,
+    "name": "Frequency",
+    "unit": "Hz"
+   },
+   {
+    "default": -32,
+    "id": "deesser.threshold",
+    "max": 0,
+    "min": -60,
+    "name": "Threshold",
+    "unit": "dB"
+   },
+   {
+    "default": 8,
+    "id": "deesser.range",
+    "max": 24,
+    "min": 0,
+    "name": "Range",
+    "unit": "dB"
+   },
+   {
+    "choices": [
+     "Split",
+     "Wide"
+    ],
+    "default": 0,
+    "id": "deesser.mode",
+    "max": 1,
+    "min": 0,
+    "name": "Mode",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Off",
+     "Trigger",
+     "Delta"
+    ],
+    "default": 0,
+    "id": "deesser.listen",
+    "max": 2,
+    "min": 0,
+    "name": "Listen",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "High pass",
+     "Band pass"
+    ],
+    "default": 0,
+    "id": "deesser.detector",
+    "max": 1,
+    "min": 0,
+    "name": "Detector",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "deesser.relative",
+    "max": 1,
+    "min": 0,
+    "name": "Relative",
+    "unit": ""
+   },
+   {
+    "default": 0.5,
+    "id": "deesser.attack",
+    "max": 10,
+    "min": 0.10000000149011612,
+    "name": "Attack",
+    "unit": "ms"
+   },
+   {
+    "default": 60,
+    "id": "deesser.release",
+    "max": 500,
+    "min": 10,
+    "name": "Release",
+    "unit": "ms"
+   },
+   {
+    "default": 0,
+    "id": "deesser.lookahead",
+    "max": 15,
+    "min": 0,
+    "name": "Lookahead",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "2",
+     "4"
+    ],
+    "default": 0,
+    "id": "doubler.voices",
+    "max": 1,
+    "min": 0,
+    "name": "Voices",
+    "unit": ""
+   },
+   {
+    "default": 8,
+    "id": "doubler.detune",
+    "max": 50,
+    "min": 0,
+    "name": "Detune",
+    "unit": "ct"
+   },
+   {
+    "default": 10,
+    "id": "doubler.delay",
+    "max": 60,
+    "min": 0,
+    "name": "Delay",
+    "unit": "ms"
+   },
+   {
+    "default": 80,
+    "id": "doubler.width",
+    "max": 100,
+    "min": 0,
+    "name": "Width",
+    "unit": "%"
+   },
+   {
+    "default": 30,
+    "id": "doubler.drift",
+    "max": 100,
+    "min": 0,
+    "name": "Drift",
+    "unit": "%"
+   },
+   {
+    "default": 150,
+    "id": "doubler.low_cut",
+    "max": 1000,
+    "min": 20,
+    "name": "Low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 30,
+    "id": "doubler.mix",
+    "max": 100,
+    "min": 0,
+    "name": "Doubles",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "doubler.output",
+    "max": 12,
+    "min": -12,
+    "name": "Output",
+    "unit": "dB"
+   },
+   {
+    "default": 375,
+    "id": "delay.time",
+    "max": 4000,
+    "min": 1,
+    "name": "Time",
+    "unit": "ms"
+   },
+   {
+    "default": 25,
+    "id": "delay.feedback",
+    "max": 95,
+    "min": 0,
+    "name": "Feedback",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "delay.pingpong",
+    "max": 1,
+    "min": 0,
+    "name": "Ping-pong",
+    "unit": ""
+   },
+   {
+    "default": 100,
+    "id": "delay.low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 5000,
+    "id": "delay.high_cut",
+    "max": 20000,
+    "min": 1000,
+    "name": "High cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 12,
+    "id": "delay.mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 1,
+    "id": "delay.sync",
+    "max": 1,
+    "min": 0,
+    "name": "Sync to tempo",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 6,
+    "id": "delay.note",
+    "max": 14,
+    "min": 0,
+    "name": "Note",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Digital",
+     "Tape",
+     "Analog"
+    ],
+    "default": 0,
+    "id": "delay.model",
+    "max": 2,
+    "min": 0,
+    "name": "Model",
+    "unit": ""
+   },
+   {
+    "default": 25,
+    "id": "delay.wow",
+    "max": 100,
+    "min": 0,
+    "name": "Wow & flutter",
+    "unit": "%"
+   },
+   {
+    "default": 30,
+    "id": "delay.drive",
+    "max": 100,
+    "min": 0,
+    "name": "Drive",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "delay.offset",
+    "max": 50,
+    "min": -50,
+    "name": "Right offset",
+    "unit": "ms"
+   },
+   {
+    "default": 60,
+    "id": "delay.duck",
+    "max": 100,
+    "min": 0,
+    "name": "Ducking",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "delay.freeze",
+    "max": 1,
+    "min": 0,
+    "name": "Freeze",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Room",
+     "Hall",
+     "Space",
+     "Plate",
+     "Spring",
+     "Shimmer"
+    ],
+    "default": 1,
+    "id": "reverb.type",
+    "max": 5,
+    "min": 0,
+    "name": "Space",
+    "unit": ""
+   },
+   {
+    "default": 1.399999976158142,
+    "id": "reverb.decay",
+    "max": 20,
+    "min": 0.20000000298023224,
+    "name": "Decay",
+    "unit": "s"
+   },
+   {
+    "default": 30,
+    "id": "reverb.predelay",
+    "max": 200,
+    "min": 0,
+    "name": "Pre-delay",
+    "unit": "ms"
+   },
+   {
+    "default": 100,
+    "id": "reverb.low_cut",
+    "max": 1000,
+    "min": 20,
+    "name": "Low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 9000,
+    "id": "reverb.high_cut",
+    "max": 20000,
+    "min": 1000,
+    "name": "High cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 100,
+    "id": "reverb.width",
+    "max": 150,
+    "min": 0,
+    "name": "Width",
+    "unit": "%"
+   },
+   {
+    "default": 16,
+    "id": "reverb.mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 40,
+    "id": "reverb.duck",
+    "max": 100,
+    "min": 0,
+    "name": "Ducking",
+    "unit": "%"
+   },
+   {
+    "default": 60,
+    "id": "reverb.size",
+    "max": 100,
+    "min": 0,
+    "name": "Size",
+    "unit": "%"
+   },
+   {
+    "default": 40,
+    "id": "reverb.early",
+    "max": 100,
+    "min": 0,
+    "name": "Early / late",
+    "unit": "%"
+   },
+   {
+    "default": 45,
+    "id": "reverb.treble",
+    "max": 100,
+    "min": 10,
+    "name": "Treble decay",
+    "unit": "%"
+   },
+   {
+    "default": 120,
+    "id": "reverb.bass",
+    "max": 200,
+    "min": 50,
+    "name": "Bass decay",
+    "unit": "%"
+   },
+   {
+    "default": 80,
+    "id": "reverb.diffusion",
+    "max": 100,
+    "min": 0,
+    "name": "Diffusion",
+    "unit": "%"
+   },
+   {
+    "default": 40,
+    "id": "reverb.modulation",
+    "max": 100,
+    "min": 0,
+    "name": "Modulation",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "reverb.freeze",
+    "max": 1,
+    "min": 0,
+    "name": "Freeze",
+    "unit": ""
+   },
+   {
+    "default": 50,
+    "id": "reverb.shimmer",
+    "max": 100,
+    "min": 0,
+    "name": "Shimmer",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "reverb.predelay_sync",
+    "max": 1,
+    "min": 0,
+    "name": "Pre-delay sync",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 2,
+    "id": "reverb.predelay_note",
+    "max": 14,
+    "min": 0,
+    "name": "Pre-delay note",
+    "unit": ""
+   },
+   {
+    "default": 0.3700000047683716,
+    "id": "reverb.mod_rate",
+    "max": 5,
+    "min": 0.10000000149011612,
+    "name": "Modulation rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 250,
+    "id": "reverb.crossover",
+    "max": 1000,
+    "min": 80,
+    "name": "Bass crossover",
+    "unit": "Hz"
+   },
+   {
+    "default": 300,
+    "id": "reverb.duck_release",
+    "max": 2000,
+    "min": 50,
+    "name": "Ducking release",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Clean",
+     "80s",
+     "Vintage"
+    ],
+    "default": 0,
+    "id": "reverb.color",
+    "max": 2,
+    "min": 0,
+    "name": "Color",
+    "unit": ""
+   }
+  ]
+ },
+ {
   "category": "Instrument",
   "description": "Polyphonic synthesizer: two oscillators with unison, sub, noise, analog drift, glide, MPE.",
   "id": "synth",
@@ -7165,6 +13103,14 @@
     "min": 0,
     "name": "Audition",
     "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "compare",
+    "max": 1,
+    "min": 0,
+    "name": "Before, same loudness",
+    "unit": ""
    }
   ]
  },
@@ -7234,6 +13180,14 @@
     "max": 1,
     "min": 0,
     "name": "Audition",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "compare",
+    "max": 1,
+    "min": 0,
+    "name": "Before, same loudness",
     "unit": ""
    }
   ]
@@ -8967,6 +14921,44 @@
     "min": 0,
     "name": "Tolerance",
     "unit": "cents"
+   },
+   {
+    "choices": [
+     "Natural",
+     "Staircase",
+     "Harmony"
+    ],
+    "default": 0,
+    "id": "mode",
+    "max": 2,
+    "min": 0,
+    "name": "Mode",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Third above",
+     "Fifth above",
+     "Sixth above",
+     "Octave above",
+     "Third below",
+     "Fourth below",
+     "Octave below"
+    ],
+    "default": 0,
+    "id": "harmony",
+    "max": 6,
+    "min": 0,
+    "name": "Harmony",
+    "unit": ""
+   },
+   {
+    "default": 60,
+    "id": "harmony_level",
+    "max": 100,
+    "min": 0,
+    "name": "Harmony level",
+    "unit": "%"
    }
   ]
  },

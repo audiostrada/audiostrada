@@ -2983,63 +2983,71 @@ impl MixerView {
         ui.separator();
     }
 
-    /// The strips' width: a switch of two states, compact or large, the one in use lit. Laid in
-    /// a right-to-left zone: the last added shows at the left.
+    /// The strips' width: one button showing the mode in use, with its icon, that switches to
+    /// the other.
     fn strips_width_button(ui: &mut Ui, compact: bool, requests: &mut Vec<crate::actions::Action>) {
         let p = theme::current(ui);
         let keys = crate::shortcut_labels(crate::actions::Action::CompactMixer)
             .first()
             .cloned()
             .unwrap_or_default();
-        ui.spacing_mut().item_spacing.x = 0.0;
-        let states = [
+        let (label, hint) = if compact {
             (
-                false,
-                tr("Large mode"),
-                trf!("Every strip full width ({keys})", keys = keys),
-            ),
-            (
-                true,
                 tr("Compact mode"),
                 trf!(
                     "Narrow strips: a click opens one full width ({keys})",
                     keys = keys
                 ),
-            ),
-        ];
-        for (state, label, hint) in states {
-            let on = state == compact;
-            let text = if on {
-                RichText::new(label)
-                    .strong()
-                    .color(theme::text_on(p.accent))
-            } else {
-                RichText::new(label)
-            };
-            // The halves of one control: rounded on their outer side only.
-            let r = 4;
-            let corners = if state {
-                egui::CornerRadius {
-                    nw: r,
-                    sw: r,
-                    ne: 0,
-                    se: 0,
-                }
-            } else {
-                egui::CornerRadius {
-                    nw: 0,
-                    sw: 0,
-                    ne: r,
-                    se: r,
-                }
-            };
-            let mut button = egui::Button::new(text).corner_radius(corners);
-            if on {
-                button = button.fill(p.accent);
-            }
-            if ui.add(button).on_hover_text(hint).clicked() && !on {
-                requests.push(crate::actions::Action::CompactMixer);
-            }
+            )
+        } else {
+            (
+                tr("Large mode"),
+                trf!("Every strip full width ({keys})", keys = keys),
+            )
+        };
+        let ink = Color32::WHITE;
+        let font = egui::TextStyle::Button.resolve(ui.style());
+        let galley = ui.painter().layout_no_wrap(label.to_owned(), font, ink);
+        let pad = ui.spacing().button_padding.x;
+        let icon = 12.0;
+        let size = vec2(
+            2.0 * pad + icon + 5.0 + galley.size().x,
+            ui.spacing().interact_size.y,
+        );
+        let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+        let fill = theme::mix(
+            p.accent,
+            Color32::BLACK,
+            if response.hovered() { 0.2 } else { 0.35 },
+        );
+        let painter = ui.painter();
+        painter.rect_filled(rect, 4.0, fill);
+        let at = Rect::from_center_size(
+            pos2(rect.left() + pad + icon / 2.0, rect.center().y),
+            vec2(icon, icon),
+        );
+        // Narrow strips side by side, or two wide ones.
+        let (count, gap) = if compact { (4, 1.5) } else { (2, 2.0) };
+        let width = (icon - gap * (count - 1) as f32) / count as f32;
+        for k in 0..count {
+            let x = at.left() + k as f32 * (width + gap);
+            painter.rect_filled(
+                Rect::from_min_size(pos2(x, at.top()), vec2(width, icon)),
+                1.0,
+                ink,
+            );
+        }
+        painter.galley(
+            pos2(at.right() + 5.0, rect.center().y - galley.size().y / 2.0),
+            galley,
+            ink,
+        );
+        if response
+            .on_hover_text(hint)
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .clicked()
+        {
+            requests.push(crate::actions::Action::CompactMixer);
         }
     }
 
@@ -4181,6 +4189,47 @@ impl MixerView {
             doc.history_mut()
                 .edit(tr("Bypass all inserts"), |p| p.all_fx_off = !p.all_fx_off);
         }
+        if channel == Channel::Master && !small {
+            Self::same_loudness(ui, doc, false, 0.0);
+        }
+    }
+
+    /// The global bypass heard at the loudness the mix has with its effects.
+    fn same_loudness(ui: &mut Ui, doc: &mut Document, small: bool, width: f32) {
+        let p = theme::current(ui);
+        let on = doc.project().all_fx_matched;
+        let hint = match doc.matched_bypass() {
+            _ if !on => tr(
+                "Hear the global bypass at the same loudness: the mix without its effects raised \
+                 to the loudness it has with them, to judge what they do rather than how loud \
+                 they make it",
+            )
+            .to_owned(),
+            (Some(db), false) => trf!(
+                "Same loudness: without its effects, the mix is raised by {db} dB, heard only, \
+                 never exported. Click to turn it off",
+                db = format!("{db:+.1}")
+            ),
+            _ => tr("Same loudness: measuring the mix with and without its effects…").to_owned(),
+        };
+        let label = tr("Same loudness");
+        let clicked = if small {
+            title_button_wide(ui, label, on.then_some(p.accent), width)
+                .on_hover_text(hint)
+                .clicked()
+        } else {
+            let text = RichText::new(label).size(10.0);
+            let button = if on {
+                egui::Button::new(text.strong().color(theme::text_on(p.accent))).fill(p.accent)
+            } else {
+                egui::Button::new(text.weak())
+            };
+            ui.add(button).on_hover_text(hint).clicked()
+        };
+        if clicked {
+            doc.history_mut()
+                .modify_unrecorded(|p| p.all_fx_matched = !p.all_fx_matched);
+        }
     }
 
     /// The title of a tall strip's insert list, with its bypass buttons.
@@ -4219,6 +4268,11 @@ impl MixerView {
             ui.horizontal(|ui| {
                 ui.set_height(13.0);
                 self.fx_toggles(ui, doc, channel, true);
+            });
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                ui.set_height(13.0);
+                Self::same_loudness(ui, doc, true, ui.available_width());
             });
         }
     }
@@ -6222,6 +6276,14 @@ impl MixerView {
                 state.matching = false;
                 state.synth.release(doc);
                 state.drums.release(doc);
+                // A chain comes back to its knobs, and its comparison stops, with the window.
+                state.effects.close();
+                let target = AutomationTarget::Param {
+                    insert: id,
+                    param: "compare".into(),
+                };
+                doc.player_mut()
+                    .set_override(project, channel, &target, None);
                 // A soloed EQ band only lasts while its window is open too.
                 if state.eq.solo.take().is_some() {
                     let target = AutomationTarget::Param {

@@ -1229,9 +1229,6 @@ A#
 B
 B
 
-Backing vocals: Locked
-Chœurs: verrouillés
-
 # audiostrada_dsp: limiter
 
 Limiter
@@ -7409,3 +7406,562 @@ Tonalité {hz}
 
 Drag the points: the orange line is how hard each frequency is driven, the white one the tone after it; double-click a point to reset it
 Glissez les points : la ligne orange montre à quel point chaque fréquence est poussée, la blanche la tonalité après ; double-cliquez sur un point pour le remettre à zéro
+
+# chain_editor.rs, chain_presets.rs, chain.rs
+
+A hall, ducked under the voice
+Une salle, qui s'efface sous la voix
+
+A plate: smooth and bright, the classic vocal reverb
+Une plaque : douce et brillante, la réverbe classique des voix
+
+A quarter-note echo thrown after the phrases
+Un écho à la noire, lancé après les phrases
+
+A slapback echo, for rock and rap
+Un écho slapback, pour le rock et le rap
+
+A small room, close and natural
+Une petite pièce, proche et naturelle
+
+A sung lead or backing vocal
+Une voix chantée, lead ou chœurs
+
+Acoustic: Folk warmth
+Acoustique : Chaleur folk
+
+Acoustic: Jazz, keeps the dynamics
+Acoustique : Jazz, garde la dynamique
+
+Acoustic: Natural
+Acoustique : Naturel
+
+Assistant
+Assistant
+
+Back to the knobs
+Revenir aux potards
+
+Brighter {n}
+Plus brillant {n}
+
+Brighter, wider top, details brought out
+Plus brillant, aigus plus larges, détails révélés
+
+Bringing the loudness to the target…
+J'amène le volume à la cible…
+
+
+Club
+Club
+
+Darker or brighter, over the EQ's curve
+Plus sombre ou plus brillant, par-dessus la courbe de l'égaliseur
+
+De-ess
+De-ess
+
+De-essing
+Dé-essage
+
+Doubles around the voice, for width
+Des doublures autour de la voix, pour la largeur
+
+Drives the maximizer toward the target; the limiter keeps the true peaks under the ceiling
+Pousse le maximiseur vers la cible ; le limiteur garde les crêtes vraies sous le plafond
+
+Echo and reverb, ducked under the voice
+Écho et réverbe, qui s'effacent sous la voix
+
+Electronic: Club loud
+Électro : Fort pour le club
+
+Electronic: Deep and warm
+Électro : Profond et chaud
+
+Electronic: Wide and bright
+Électro : Large et brillant
+
+Evens the voice out: lowers the compressor's threshold
+Égalise la voix : abaisse le seuil du compresseur
+
+FX: Huge echo
+FX : Écho immense
+
+FX: Robot
+FX : Robot
+
+Fine settings with {name}
+Réglages fins avec {name}
+
+Full settings of {name}
+Tous les réglages de {name}
+
+Get {name}
+Obtenir {name}
+
+Heard the voice at {lufs} LUFS: tone, compression and de-essing set for it.
+Voix entendue à {lufs} LUFS : timbre, compression et dé-essage réglés pour elle.
+
+
+Hip-hop: Crisp and loud
+Hip-hop : Net et fort
+
+Hip-hop: Heavy low end
+Hip-hop : Grave lourd
+
+Hip-hop: Lo-fi and warm
+Hip-hop : Lo-fi et chaud
+
+Holds the mix together: lowers the multiband compressor's thresholds
+Soude le mix : abaisse les seuils du compresseur multibande
+
+Integrated
+Intégré
+
+Key: {key} {scale}.
+Tonalité : {key} {scale}.
+
+Listening… {s} / {total} s
+J'écoute… {s} / {total} s
+
+Lo-fi: Dusty tape
+Lo-fi : Bande poussiéreuse
+
+Lo-fi: Warbly and soft
+Lo-fi : Ondulant et doux
+
+
+Orchestral: Film, wide
+Orchestral : Film, large
+
+Orchestral: Gentle warmth
+Orchestral : Douce chaleur
+
+Orchestral: Transparent
+Orchestral : Transparent
+
+Pitch correction: more is faster and firmer
+Correction de justesse : plus elle est forte, plus elle est rapide et ferme
+
+Play the loudest passage of the song: the assistant listens to it
+Lancez le passage le plus fort du morceau : l'assistant l'écoute
+
+Play the loudest passage: the assistant listens for a few seconds and sets the knobs
+Lancez le passage le plus fort : l'assistant écoute quelques secondes et règle les potards
+
+Podcast: Audiobook
+Podcast : Livre audio
+
+Podcast: Broadcast
+Podcast : Diffusion
+
+Podcast: Clear voice
+Podcast : Voix claire
+
+Podcast: Radio voice
+Podcast : Voix radio
+
+Podcast: Warm audiobook
+Podcast : Livre audio chaleureux
+
+Pop: Airy ballad
+Pop : Ballade aérienne
+
+Pop: Backing stack
+Pop : Chœurs empilés
+
+Pop: Bright and loud
+Pop : Brillant et fort
+
+Pop: Modern lead
+Pop : Lead moderne
+
+Pop: Polished for streaming
+Pop : Soigné pour le streaming
+
+Pop: Tuned and tight
+Pop : Juste et serré
+
+Pop: Warm ballad
+Pop : Ballade chaleureuse
+
+R&B: Late night
+R&B : Tard le soir
+
+R&B: Silky doubles
+R&B : Doublures soyeuses
+
+R&B: Smooth lead
+R&B : Lead velouté
+
+Rap
+Rap
+
+Rap: Ad-libs, wide
+Rap : Ad-libs, larges
+
+Rap: Hard-tuned melodic
+Rap : Mélodique, accordé à fond
+
+Rap: Upfront
+Rap : En avant
+
+Rap: upfront, firm, close
+Rap : en avant, ferme, proche
+
+Rock: Big chorus
+Rock : Gros refrain
+
+Rock: Dense and loud
+Rock : Dense et fort
+
+Rock: Gritty lead
+Rock : Lead granuleux
+
+Rock: Live and open
+Rock : Live et ouvert
+
+Rock: Punchy
+Rock : Percutant
+
+Rock: Raw and close
+Rock : Brut et proche
+
+Rounder lows, softer top, tape at 15 ips
+Graves plus ronds, aigus plus doux, bande à 15 ips
+
+Singer-songwriter: Intimate
+Folk-pop : Intime
+
+Singer-songwriter: Natural
+Folk-pop : Naturel
+
+Singer-songwriter: Warm room
+Folk-pop : Pièce chaleureuse
+
+Singing
+Chant
+
+Softens the S and T sounds
+Adoucit les S et les T
+
+Space type
+Type d'espace
+
+Speech: podcast, voice-over, audiobook
+Parole : podcast, voix off, livre audio
+
+Spoken
+Parlé
+
+Stage presets
+Presets de l'étage
+
+Take
+Prise
+
+Tape warmth and saturation
+Chaleur et saturation de bande
+
+Target
+Cible
+
+Target {lufs} LUFS
+Cible {lufs} LUFS
+
+The stage keeps playing as the knobs and presets set it.
+L'étage continue de jouer comme les potards et les presets le règlent.
+
+The {knob} knob acts around these settings
+Le potard {knob} agit autour de ces réglages
+
+Tight low end, clear low mids, louder
+Grave serré, bas-médiums dégagés, plus fort
+
+Transparent: the mix as it is, only finished
+Transparent : le mix tel quel, seulement fini
+
+
+Warmer or brighter, with air on top
+Plus chaud ou plus brillant, avec de l'air en haut
+
+Warmer {n}
+Plus chaud {n}
+
+While recording: no pitch correction nor space, hence no added latency
+Pendant l'enregistrement : ni correction de justesse ni espace, donc aucune latence ajoutée
+
+Wider or narrower above the bass, which stays in the center
+Plus large ou plus étroit au-dessus du grave, qui reste au centre
+
+Your settings
+Vos réglages
+
+major
+majeur
+
+minor
+mineur
+
+TONE
+TIMBRE
+
+GLUE
+COHÉSION
+
+COLOR
+COULEUR
+
+WIDTH
+LARGEUR
+
+LOUDNESS
+VOLUME
+
+TUNE
+JUSTESSE
+
+COMP
+COMP
+
+DE-ESS
+DÉ-ESS
+
+DOUBLE
+DOUBLAGE
+
+SPACE
+ESPACE
+
+Mix glue
+Cohésion du mix
+
+Pitch correction
+Correction de justesse
+
+Slapback
+Slapback
+
+A loud CD: peaks up to -0.3 dB
+Un CD fort : crêtes jusqu'à -0,3 dB
+
+A vinyl cut: lows in mono, room under the peaks
+Une gravure vinyle : graves en mono, de la marge sous les crêtes
+
+Apple Music, podcast
+Apple Music, podcast
+
+Apple Music, podcasts
+Apple Music, podcasts
+
+Assistant offered
+Assistant proposé
+
+Before, same loudness
+Avant, même volume
+
+Correlation {c}
+Corrélation {c}
+
+Follow
+Suivre
+
+Follow the target
+Suivre la cible
+
+Followed
+Suivi
+
+Following the target
+Suit la cible
+
+Following {lufs} LUFS · {db} dB
+Suit {lufs} LUFS · {db} dB
+
+For DJs and clubs: as loud as it gets
+Pour les DJ et les clubs : aussi fort que possible
+
+For a mastering engineer: nothing maximized, peaks held at -6 dBFS
+Pour un ingénieur de mastering : rien de maximisé, crêtes tenues à -6 dBFS
+
+Hear the input without the limiter, raised to its output's loudness: what the limiting does, without the loudness speaking for it
+Écouter l'entrée sans le limiteur, portée au volume de sa sortie : ce que fait la limitation, sans que le volume parle à sa place
+
+Hear the mix without Strada-Master, raised to its loudness: what the processing does, without the loudness speaking for it
+Écouter le mix sans Strada-Master, porté à son volume : ce que fait le traitement, sans que le volume parle à sa place
+
+Heard {lufs} LUFS, peaks {crest} dB above: tone, glue, width, sub and loudness set for this mix.
+Entendu {lufs} LUFS, crêtes {crest} dB au-dessus : timbre, cohésion, largeur, sub et volume réglés pour ce mix.
+
+Reaches the target, then keeps it whenever a setting changes: each change is measured over a few seconds and made up for. The music getting louder or softer never moves it
+Atteint la cible, puis la garde à chaque réglage changé : chaque changement est mesuré sur quelques secondes et compensé. Les nuances de la musique ne le font jamais bouger
+
+Later
+Plus tard
+
+Listen and set
+Écouter et régler
+
+Loudness, last seconds
+Volume, dernières secondes
+
+Mastering chain: tone, glue, tape color, width, sub and loudness in six big knobs, over Strada-EQ, MB-Comp, Tape, Wide, Max and Limit.
+Chaîne de mastering : timbre, cohésion, couleur de bande, largeur, sub et volume en six gros potards, sur Strada-EQ, MB-Comp, Tape, Wide, Max et Limit.
+
+
+New here? Play the loudest passage and let the assistant set the knobs for this sound.
+Première fois ? Lancez le passage le plus fort et laissez l'assistant régler les potards pour ce son.
+
+Order of the stages
+Ordre des étages
+
+Pitch, last seconds
+Justesse, dernières secondes
+
+Pre-master
+Pré-master
+
+SUB
+SUB
+
+Saturation
+Saturation
+
+Saturation: from a touch of warmth to grit, through Strada-Drive
+Saturation : d'une touche de chaleur au grain, par Strada-Drive
+
+Spotify, YouTube, Deezer, Tidal
+Spotify, YouTube, Deezer, Tidal
+
+TV, radio
+TV, radio
+
+Television and radio (EBU R128)
+Télévision et radio (EBU R128)
+
+The assistant listens to the loudest passage and sets the knobs for it.
+L'assistant écoute le passage le plus fort et règle les potards pour lui.
+
+Vinyl
+Vinyle
+
+Vocal chain: tuning, tone and saturation, compression, de-essing, doubling and space in six big knobs, over Strada-Correct, EQ, Comp, Drive, DeEss, Doubler, Delay and Verb.
+Chaîne vocale : justesse, timbre et saturation, compression, dé-essage, doublage et espace en six gros potards, sur Strada-Correct, EQ, Comp, Drive, DeEss, Doubler, Delay et Verb.
+
+{name}, always last: it keeps the true peaks under the ceiling
+{name}, toujours en dernier : il garde les crêtes vraies sous le plafond
+
+{name}: click to open, drag to move it in the chain
+{name} : cliquez pour l'ouvrir, glissez pour le déplacer dans la chaîne
+
+More or less of the lowest octave: a low shelf at 70 Hz, the last band of the EQ; Wide keeps it in the center
+Plus ou moins de la dernière octave : un plateau grave à 70 Hz, la dernière bande de l'égaliseur ; Wide la garde au centre
+
+Keep room on the master
+Garder de la marge sur le master
+
+With a Strada-Master, a maximizer or a limiter on the master: the mix is lowered at the master's input down to -6 dBFS and the effect raised as much, the loudness staying the same. Without one: the mix is only lowered when it would clip, to -1 dBFS.
+Avec Strada-Master, un maximiseur ou un limiteur sur le master : le mix est baissé à l'entrée du master jusqu'à -6 dBFS et l'effet remonté d'autant, le volume restant le même. Sans eux : le mix n'est baissé que s'il saturerait, à -1 dBFS.
+
+Express Mix lowered the mix by {db} dB on the master: it would have clipped
+Express Mix a baissé le mix de {db} dB sur le master : il aurait saturé
+
+Room: the master's input lowered by {db} dB, its processing raised as much
+Marge : l'entrée du master baissée de {db} dB, son traitement remonté d'autant
+
+The mix would clip: it is lowered by {db} dB on the master
+Le mix saturerait : il est baissé de {db} dB sur le master
+
+Staircase
+Escalier
+
+Follows the settings below, from a light touch to a tight correction
+Suit les réglages ci-dessous, d'une touche légère à une correction serrée
+
+Every note flat on its target at once: the stepped, synthetic voice
+Chaque note à plat sur sa cible, tout de suite : la voix en paliers, synthétique
+
+Sung
+Chanté
+
+Moved by {cents} cents
+Déplacé de {cents} cents
+
+Sing or play a note
+Chantez ou jouez une note
+
+Heard: {key} {scale}
+Entendu : {key} {scale}
+
+The key of what was sung so far, {percent} % sure
+La tonalité de ce qui a été chanté jusqu'ici, sûre à {percent} %
+
+Correct to the key heard
+Corriger vers la tonalité entendue
+
+Heard: listening for the key...
+Entendu : écoute de la tonalité...
+
+Use this key
+Utiliser cette tonalité
+
+Vocal: Ballad, long notes only
+Voix : Ballade, notes longues seulement
+
+Vocal: Backing, locked
+Voix : Chœurs, verrouillés
+
+Staircase: Every semitone
+Escalier : Tous les demi-tons
+
+Staircase: Major scale
+Escalier : Gamme majeure
+
+Staircase: Minor pentatonic
+Escalier : Pentatonique mineure
+
+Staircase: Low and synthetic
+Escalier : Grave et synthétique
+
+FX: Octave up
+Effet : Octave au-dessus
+
+FX: A fifth above, tight
+Effet : Une quinte au-dessus, serrée
+
+Corrected as in Natural, with a second voice singing along in the key
+Corrigée comme en Naturel, avec une seconde voix qui chante dans la tonalité
+
+Harmony level
+Niveau de l'harmonie
+
+Third above
+Tierce au-dessus
+
+Fifth above
+Quinte au-dessus
+
+Sixth above
+Sixte au-dessus
+
+Octave above
+Octave au-dessus
+
+Third below
+Tierce en dessous
+
+Fourth below
+Quarte en dessous
+
+Octave below
+Octave en dessous
+
+Harmony: Third above
+Harmonie : Tierce au-dessus
+
+Harmony: Fifth above, discreet
+Harmonie : Quinte au-dessus, discrète
+
+Harmony: Octave below, doubled
+Harmonie : Octave en dessous, doublée

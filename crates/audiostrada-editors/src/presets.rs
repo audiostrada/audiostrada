@@ -174,6 +174,8 @@ pub fn factory(effect: &str) -> Vec<Preset> {
 
 pub fn builtin(effect: &str) -> Vec<Preset> {
     match effect {
+        "mastering" => crate::chain_presets::master_presets(),
+        "vocals" => crate::chain_presets::vocal_presets(),
         "channel" => vec![
             preset(
                 tr("Vocal: Pop lead"),
@@ -4486,16 +4488,73 @@ pub fn builtin(effect: &str) -> Vec<Preset> {
                 &[("speed", 60.0), ("humanize", 70.0), ("amount", 100.0)],
             ),
             preset(
+                tr("Vocal: Ballad, long notes only"),
+                &[
+                    ("speed", 90.0),
+                    ("humanize", 85.0),
+                    ("tolerance", 12.0),
+                    ("amount", 100.0),
+                ],
+            ),
+            preset(
                 tr("Vocal: Light touch"),
                 &[("speed", 150.0), ("humanize", 60.0), ("amount", 60.0)],
             ),
             preset(
-                tr("Backing vocals: Locked"),
+                tr("Vocal: Backing, locked"),
                 &[("speed", 10.0), ("humanize", 0.0), ("amount", 100.0)],
+            ),
+            preset(tr("Staircase: Every semitone"), &[("mode", 1.0)]),
+            preset(
+                tr("Staircase: Major scale"),
+                &[("mode", 1.0), ("scale", 1.0)],
+            ),
+            preset(
+                tr("Staircase: Minor pentatonic"),
+                &[("mode", 1.0), ("scale", 6.0)],
+            ),
+            preset(
+                tr("Staircase: Low and synthetic"),
+                &[("mode", 1.0), ("transpose", -5.0)],
+            ),
+            preset(
+                tr("Harmony: Third above"),
+                &[
+                    ("mode", 2.0),
+                    ("speed", 15.0),
+                    ("harmony", 0.0),
+                    ("harmony_level", 60.0),
+                ],
+            ),
+            preset(
+                tr("Harmony: Fifth above, discreet"),
+                &[
+                    ("mode", 2.0),
+                    ("speed", 25.0),
+                    ("harmony", 1.0),
+                    ("harmony_level", 35.0),
+                ],
+            ),
+            preset(
+                tr("Harmony: Octave below, doubled"),
+                &[
+                    ("mode", 2.0),
+                    ("speed", 15.0),
+                    ("harmony", 6.0),
+                    ("harmony_level", 70.0),
+                ],
             ),
             preset(
                 tr("FX: Octave down"),
                 &[("speed", 20.0), ("humanize", 50.0), ("transpose", -12.0)],
+            ),
+            preset(
+                tr("FX: Octave up"),
+                &[("speed", 20.0), ("humanize", 50.0), ("transpose", 12.0)],
+            ),
+            preset(
+                tr("FX: A fifth above, tight"),
+                &[("speed", 5.0), ("transpose", 7.0)],
             ),
         ],
         "deesser" => vec![

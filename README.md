@@ -55,15 +55,16 @@ AudioStrada is in active development: features land quickly, and some rough edge
   parallel chains drawn as the signal flows (New York compression, parallel saturation, reverb
   blends), latency compensated between the branches.
 - **Effects**, each with its own editor, factory presets you can hear before choosing, A/B and
-  loudness matching: Strada-EQ and Strada-Tube EQ, Strada-Comp (Clean, Bus, Opto, FET),
-  Strada-MB-Comp, Strada-Channel, Strada-Gate, Strada-Limit, Strada-Max (true peak),
-  Strada-Transient, Strada-DeEss, Strada-Trigger, Strada-Correct (pitch correction),
-  Strada-Pitch (pitch shifter), Strada-Doubler, Strada-Verb, Strada-Delay, Strada-Chorus,
-  Strada-Flanger, Strada-Phaser, Strada-Mod (tremolo, auto-pan), Strada-Drive, Strada-Tape,
-  Strada-Filter, Strada-Wide (stereo imager), Strada-Utility, Strada-Scope (analyzer) and
-  Strada-Tuner. Strada-Verb lets you drag how long each frequency rings on the spectrum,
-  Strada-Delay draws its echoes on the tempo grid, Strada-Drive goes from a touch of color to
-  fuzz.
+  loudness matching: Strada-Master and Strada-Vocals (mastering and vocal chains behind a few
+  big knobs, with an assistant that listens and sets them), Strada-EQ and Strada-Tube EQ,
+  Strada-Comp (Clean, Bus, Opto, FET), Strada-MB-Comp, Strada-Channel, Strada-Gate,
+  Strada-Limit, Strada-Max (true peak), Strada-Transient, Strada-DeEss, Strada-Trigger,
+  Strada-Correct (pitch correction), Strada-Pitch (pitch shifter), Strada-Doubler, Strada-Verb,
+  Strada-Delay, Strada-Chorus, Strada-Flanger, Strada-Phaser, Strada-Mod (tremolo, auto-pan),
+  Strada-Drive, Strada-Tape, Strada-Filter, Strada-Wide (stereo imager), Strada-Utility,
+  Strada-Scope (analyzer) and Strada-Tuner. Strada-Verb lets you drag how long each frequency
+  rings on the spectrum, Strada-Delay draws its echoes on the tempo grid, Strada-Drive goes
+  from a touch of color to fuzz.
 - **Guitar**: Strada-Amp, with 16 built-in models, 21 pedals and cabinet impulse responses,
   which also runs Neural Amp Modeler captures from your library or TONE3000.
 - **MIDI**: Strada-Synth (MPE, wavetables, drag-and-drop modulation), Strada-Drums, plugin

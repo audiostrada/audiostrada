@@ -2073,3 +2073,15 @@ Un autre effet ou plugin à sa place
 
 Replace with {name}
 Remplacer par {name}
+
+Same loudness
+Même volume
+
+Hear the global bypass at the same loudness: the mix without its effects raised to the loudness it has with them, to judge what they do rather than how loud they make it
+Écouter le bypass global à même volume : le mix sans ses effets est porté au volume qu'il a avec eux, pour juger ce qu'ils font plutôt que le volume qu'ils ajoutent
+
+Same loudness: without its effects, the mix is raised by {db} dB, heard only, never exported. Click to turn it off
+Même volume : sans ses effets, le mix est relevé de {db} dB, à l'écoute seulement, jamais à l'export. Cliquer pour le désactiver
+
+Same loudness: measuring the mix with and without its effects…
+Même volume : mesure du mix avec et sans ses effets…

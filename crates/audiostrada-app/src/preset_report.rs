@@ -89,7 +89,7 @@ fn source_of(effect: &str, preset: &str) -> &'static str {
         .or_else(|| by_words(&whole))
         .unwrap_or(match effect {
             "amp_rig" => "guitar_di",
-            "pitch_correct" | "deesser" | "doubler" => "vocal",
+            "pitch_correct" | "deesser" | "doubler" | "vocals" => "vocal",
             _ => "mix",
         })
 }
@@ -602,7 +602,7 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
         }
         None => None,
     };
-    for info in audiostrada_dsp::EFFECTS {
+    for info in audiostrada_dsp::EFFECTS.iter() {
         if info.instrument
             || !(args.effects.is_empty() || args.effects.iter().any(|e| e == info.id))
         {

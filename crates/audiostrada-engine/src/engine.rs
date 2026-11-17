@@ -480,6 +480,11 @@ impl std::fmt::Debug for EngineProcessor {
 }
 
 impl EngineProcessor {
+    /// Puts the worker threads of a render behind everything else, the audio first.
+    pub fn lower_workers(&self) {
+        self.pool.lower();
+    }
+
     /// The worker threads take part (the graph is heavy, or their count was set).
     pub fn parallel(&self) -> bool {
         self.pool.parallel()

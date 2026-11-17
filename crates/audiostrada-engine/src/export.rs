@@ -58,11 +58,40 @@ impl OfflineRender {
         end: u64,
         tail: f64,
     ) -> Self {
-        let rate = media.rate();
         // Every core, whatever the load: a render is not bound to real time.
         let workers = std::thread::available_parallelism()
             .map_or(0, |n| n.get().saturating_sub(1))
             .min(7);
+        Self::with_workers(
+            project,
+            (paths, media, plugins),
+            (start, end, tail),
+            workers,
+        )
+    }
+
+    /// A render measured while the music plays: one worker thread, behind the audio (the
+    /// thread rendering it is lowered by its caller, see `audiostrada_rt::thread`).
+    pub fn in_background(
+        project: &Project,
+        paths: Option<&ProjectPaths>,
+        media: &MediaPool,
+        plugins: Database,
+        start: u64,
+        end: u64,
+    ) -> Self {
+        let render = Self::with_workers(project, (paths, media, plugins), (start, end, 0.0), 1);
+        render.worker.processor.lower_workers();
+        render.measured_only()
+    }
+
+    fn with_workers(
+        project: &Project,
+        (paths, media, plugins): (Option<&ProjectPaths>, &MediaPool, Database),
+        (start, end, tail): (u64, u64, f64),
+        workers: usize,
+    ) -> Self {
+        let rate = media.rate();
         let mut player = ProjectPlayer::new(EngineConfig {
             workers: Some(workers),
         });

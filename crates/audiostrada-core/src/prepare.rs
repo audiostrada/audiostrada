@@ -56,6 +56,9 @@ pub struct Preparation {
     pub gain: Option<f32>,
     /// Channel strip modules set by hand: left as they are.
     pub hands: Vec<String>,
+    /// Heard while it is adjusted: the effects added before and no longer wanted stay in
+    /// place, without action, so that nothing is rebuilt nor the track's delay changes.
+    pub hold: bool,
 }
 
 /// The space bus of a kind (one of [`SPACES`]) the preparation made, if there is one.
@@ -267,13 +270,13 @@ fn strip_mut(project: &mut Project, track: TrackId) -> Option<&mut crate::model:
 }
 
 /// Undoes the parts named of what was prepared before: the modules they set, the effects
-/// added (unless kept: they are about to be set again), the ride, the pan, the send, the
+/// added (but those kept: they are about to be set again), the ride, the pan, the send, the
 /// console color (unless `console` is false: it is left as it is), and the gain on the strip.
 fn take_back(
     project: &mut Project,
     track: TrackId,
     (clean, bring_out): (bool, bool),
-    (keep, keep_out): (bool, bool),
+    (keep, keep_out): (&[InsertId], &[InsertId]),
     console: bool,
     hands: &[String],
 ) {
@@ -301,10 +304,8 @@ fn take_back(
         } else {
             (&done.out_inserts, keep_out)
         };
-        if !kept {
-            for &id in added {
-                routing::remove_insert(project, channel, id);
-            }
+        for &id in added.iter().filter(|id| !kept.contains(id)) {
+            routing::remove_insert(project, channel, id);
         }
         if part {
             continue;
@@ -363,24 +364,59 @@ fn by_hand(hands: &[String], param: &str) -> bool {
     module_of(param).is_some_and(|m| hands.iter().any(|h| h == m))
 }
 
-/// Of what was added for a part, the effects kept in place when the same ones come again.
+/// Of what was added for a part, the effect kept in place for each one wanted, when the same
+/// effect comes again; then those left over.
 fn reusable(
     project: &Project,
     track: TrackId,
     done: &[InsertId],
     wanted: &[&Added],
-) -> Vec<InsertId> {
+) -> (Vec<Option<InsertId>>, Vec<InsertId>) {
     let Some(t) = project.track(track) else {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     };
-    let same = !done.is_empty()
-        && done.len() == wanted.len()
-        && done.iter().zip(wanted).all(|(id, a)| {
-            t.inserts
-                .iter()
-                .any(|i| i.id == *id && i.effect == a.effect)
-        });
-    if same { done.to_vec() } else { Vec::new() }
+    let mut free: Vec<(InsertId, &str)> = done
+        .iter()
+        .filter_map(|id| t.inserts.iter().find(|i| i.id == *id))
+        .map(|i| (i.id, i.effect.as_str()))
+        .collect();
+    let reuse = wanted
+        .iter()
+        .map(|a| {
+            let k = free.iter().position(|f| f.1 == a.effect)?;
+            Some(free.remove(k).0)
+        })
+        .collect();
+    (reuse, free.into_iter().map(|f| f.0).collect())
+}
+
+/// Leaves an effect added before in place without action; false for an effect that cannot.
+fn neutral(project: &mut Project, track: TrackId, id: InsertId) -> bool {
+    let Some(insert) = project
+        .track_mut(track)
+        .and_then(|t| t.inserts.iter_mut().find(|i| i.id == id))
+    else {
+        return false;
+    };
+    let params: Vec<(String, f32)> = match insert.effect.as_str() {
+        "eq" => insert
+            .params
+            .keys()
+            .filter(|k| k.ends_with("_used"))
+            .map(|k| (k.clone(), 0.0))
+            .collect(),
+        "deesser" => vec![("range".to_owned(), 0.0)],
+        "transient" => ["attack", "sustain", "clip", "output"]
+            .into_iter()
+            .map(|k| (k.to_owned(), 0.0))
+            .collect(),
+        _ => return false,
+    };
+    insert.gain_db = 0.0;
+    for (param, value) in params {
+        routing::set_insert_param(project, Channel::Track(track), id, &param, value);
+    }
+    true
 }
 
 /// Places `wanted` one after the other from `after` (else the start of the chain), reusing
@@ -389,14 +425,14 @@ fn place(
     project: &mut Project,
     track: TrackId,
     wanted: &[&Added],
-    reuse: &[InsertId],
+    reuse: &[Option<InsertId>],
     mut after: Option<InsertId>,
 ) -> Option<Vec<InsertId>> {
     let channel = Channel::Track(track);
     let mut added = Vec::new();
     for (k, a) in wanted.iter().enumerate() {
-        let id = match reuse.get(k) {
-            Some(&id) => {
+        let id = match reuse.get(k).copied().flatten() {
+            Some(id) => {
                 // Bands it no longer uses are switched off.
                 let stale: Vec<String> = project
                     .track(track)?
@@ -456,21 +492,25 @@ pub fn prepare(project: &mut Project, track: TrackId, p: &Preparation) -> Option
     let out: Vec<&Added> = p.inserts.iter().filter(|a| a.out).collect();
     // The same effects as last time stay in place, only their settings change: nothing is
     // rebuilt under a preparation heard while it is adjusted.
-    let reuse = if done.cleaned && p.clean {
+    let (reuse, left) = if done.cleaned && p.clean {
         reusable(project, track, &done.inserts, &cleaning)
     } else {
-        Vec::new()
+        Default::default()
     };
-    let reuse_out = if done.brought_out && p.bring_out {
+    let (reuse_out, left_out) = if done.brought_out && p.bring_out {
         reusable(project, track, &done.out_inserts, &out)
     } else {
-        Vec::new()
+        Default::default()
+    };
+    let kept = |reuse: &[Option<InsertId>], left: &[InsertId]| -> Vec<InsertId> {
+        let held = left.iter().filter(|_| p.hold);
+        reuse.iter().flatten().chain(held).copied().collect()
     };
     take_back(
         project,
         track,
         (p.clean, p.bring_out),
-        (!reuse.is_empty(), !reuse_out.is_empty()),
+        (&kept(&reuse, &left), &kept(&reuse_out, &left_out)),
         true,
         &p.hands,
     );
@@ -508,8 +548,20 @@ pub fn prepare(project: &mut Project, track: TrackId, p: &Preparation) -> Option
     if let Some(s) = strip_mut(project, track) {
         s.gain_db += p.strip_gain;
     }
+    // Held without action, else made again later in their place.
+    let hold = |project: &mut Project, placed: &mut Vec<InsertId>, left: &[InsertId]| {
+        for &id in left.iter().filter(|_| p.hold) {
+            if neutral(project, track, id) {
+                placed.push(id);
+            } else {
+                routing::remove_insert(project, channel, id);
+            }
+        }
+    };
     let inserts = if p.clean {
-        place(project, track, &cleaning, &reuse, strip)?
+        let mut placed = place(project, track, &cleaning, &reuse, strip)?;
+        hold(project, &mut placed, &left);
+        placed
     } else {
         before
             .as_ref()
@@ -518,7 +570,9 @@ pub fn prepare(project: &mut Project, track: TrackId, p: &Preparation) -> Option
     };
     let out_inserts = if p.bring_out {
         let after = inserts.last().copied().or(strip);
-        place(project, track, &out, &reuse_out, after)?
+        let mut placed = place(project, track, &out, &reuse_out, after)?;
+        hold(project, &mut placed, &left_out);
+        placed
     } else {
         before
             .as_ref()
@@ -624,7 +678,7 @@ pub fn unprepare(project: &mut Project, track: TrackId) {
         .into_iter()
         .map(str::to_owned)
         .collect();
-    take_back(project, track, (true, true), (false, false), true, &kept);
+    take_back(project, track, (true, true), (&[], &[]), true, &kept);
     if let (Some(trim), Some(t)) = (trim, project.track_mut(track)) {
         t.trim_db = trim;
         if let Some(prepared) = &mut t.prepared {
@@ -633,14 +687,37 @@ pub fn unprepare(project: &mut Project, track: TrackId) {
     }
 }
 
-/// The most the limiter gives back of the room kept, dB: the peaks, lowered to -6 dBFS, then
-/// lose 7 dB at most under its ceiling of -1 dB. Past it the mix stays quieter.
-pub const HEADROOM_MAKEUP: f32 = 12.0;
+/// The parameter of a master effect that gives back the loudness the room took (Strada-Master's
+/// loudness, a maximizer's or a limiter's input gain), with its range and default (dB).
+fn makeup_param(effect: &str) -> Option<(&'static str, f32, f32, f32)> {
+    match effect {
+        "mastering" => Some(("loudness", -12.0, 18.0, 4.0)),
+        "maximizer" => Some(("gain", 0.0, 24.0, 4.0)),
+        "limiter" => Some(("input", 0.0, 24.0, 0.0)),
+        _ => None,
+    }
+}
+
+/// The master effect that gives the room's loudness back: the last one able to, playing and
+/// not only monitored, other than the room's own gain.
+pub fn master_makeup(project: &Project) -> Option<InsertId> {
+    let trim = project.master.headroom.as_ref().map(|h| h.trim);
+    project
+        .master
+        .inserts
+        .iter()
+        .rev()
+        .find(|i| {
+            !i.bypass && !i.monitor && Some(i.id) != trim && makeup_param(&i.effect).is_some()
+        })
+        .map(|i| i.id)
+}
 
 /// Keeps `db` of room before the master's processing, or takes it out (`None`): a
-/// Strada-Utility first lowers the mix by `db`, a Strada-Max last (the one already there, else
-/// a new one) brings its loudness back with its peaks under -1 dB. Set again, the same ones
-/// are kept and only their gains change.
+/// Strada-Utility first lowers the mix by `db`, and the master's own Strada-Master, maximizer
+/// or limiter, when it has one, is raised as much, the loudness heard staying the same.
+/// Set again, the same Utility is kept and the effect raised from its own setting; a limiter
+/// earlier versions added to give the loudness back is taken out.
 pub fn master_headroom(project: &mut Project, db: Option<f32>) {
     let channel = Channel::Master;
     let has = |project: &Project, id: InsertId| project.master.inserts.iter().any(|i| i.id == id);
@@ -648,61 +725,63 @@ pub fn master_headroom(project: &mut Project, db: Option<f32>) {
         .master
         .headroom
         .clone()
-        .filter(|h| has(project, h.trim) && has(project, h.makeup));
-    let Some(db) = db else {
-        if let Some(h) = kept.take() {
-            routing::remove_insert(project, channel, h.trim);
-            match h.makeup_gain {
-                Some(gain) => routing::set_insert_param(project, channel, h.makeup, "gain", gain),
-                None => routing::remove_insert(project, channel, h.makeup),
+        .filter(|h| has(project, h.trim));
+    // The effect raised last time gets its own setting back first.
+    if let Some(h) = &mut kept
+        && let Some(makeup) = h.makeup.take()
+        && has(project, makeup)
+    {
+        let param = project
+            .master
+            .inserts
+            .iter()
+            .find(|i| i.id == makeup)
+            .and_then(|i| makeup_param(&i.effect));
+        match (h.makeup_gain.take(), param) {
+            (Some(value), Some((param, ..))) => {
+                routing::set_insert_param(project, channel, makeup, param, value)
             }
+            _ => routing::remove_insert(project, channel, makeup),
+        }
+    }
+    let Some(db) = db else {
+        if let Some(h) = kept {
+            routing::remove_insert(project, channel, h.trim);
         }
         project.master.headroom = None;
         return;
     };
-    let h = match kept {
+    let mut h = match kept {
         Some(h) => h,
         None => {
             let Some(trim) = routing::add_insert_at(project, channel, (None, 0), "utility") else {
                 return;
             };
-            let found = project
-                .master
-                .inserts
-                .iter()
-                .rev()
-                .find(|i| i.effect == "maximizer" && !i.bypass)
-                .map(|i| (i.id, i.params.get("gain").copied().unwrap_or(4.0)));
-            let (makeup, makeup_gain) = match found {
-                Some((id, gain)) => (id, Some(gain)),
-                None => {
-                    let params = [("ceiling".to_owned(), -1.0)].into_iter().collect();
-                    let Some(id) = routing::add_insert(project, channel, "maximizer", params)
-                    else {
-                        return;
-                    };
-                    (id, None)
-                }
-            };
             Headroom {
                 trim,
-                makeup,
-                makeup_gain,
+                makeup: None,
+                makeup_gain: None,
             }
         }
     };
     routing::set_insert_param(project, channel, h.trim, "gain", -db);
-    let base = h.makeup_gain.unwrap_or(0.0);
-    // The limiter gives the loudness back as long as it does not have to squash the peaks:
-    // past it, the mix stays a little quieter.
-    routing::set_insert_param(
-        project,
-        channel,
-        h.makeup,
-        "gain",
-        (base + db.min(HEADROOM_MAKEUP)).clamp(0.0, 24.0),
-    );
-    project.master.headroom = Some(h);
+    project.master.headroom = Some(h.clone());
+    if let Some(makeup) = master_makeup(project)
+        && let Some(insert) = project.master.inserts.iter().find(|i| i.id == makeup)
+        && let Some((param, min, max, default)) = makeup_param(&insert.effect)
+    {
+        let value = insert.params.get(param).copied().unwrap_or(default);
+        routing::set_insert_param(
+            project,
+            channel,
+            makeup,
+            param,
+            (value + db).clamp(min, max),
+        );
+        h.makeup = Some(makeup);
+        h.makeup_gain = Some(value);
+        project.master.headroom = Some(h);
+    }
 }
 
 /// Bypasses what the preparation of `track` did, to compare, or puts it back: the strip's
@@ -906,6 +985,26 @@ mod tests {
         assert_eq!(before, after, "nothing is rebuilt");
         assert_eq!(inserts[1].params["b1_used"], 0.0, "the band left is off");
         assert_eq!(inserts[1].params["b2_freq"], 500.0);
+    }
+
+    #[test]
+    fn an_effect_no_longer_wanted_is_held_without_action_while_the_preparation_is_heard() {
+        let mut p = Project::new("t", 48_000);
+        let t = p.add_track("Lead vox");
+        prepare(&mut p, t, &cleaning()).unwrap();
+        let ids: Vec<_> = p.track(t).unwrap().inserts.iter().map(|i| i.id).collect();
+        let mut heard = cleaning();
+        heard.inserts.truncate(1);
+        heard.hold = true;
+        prepare(&mut p, t, &heard).unwrap();
+        let inserts = &p.track(t).unwrap().inserts;
+        assert_eq!(inserts.iter().map(|i| i.id).collect::<Vec<_>>(), ids);
+        assert_eq!(inserts[2].params["range"], 0.0, "the de-esser does nothing");
+        heard.hold = false;
+        prepare(&mut p, t, &heard).unwrap();
+        let inserts = &p.track(t).unwrap().inserts;
+        assert_eq!(inserts.len(), 2, "written for good, it goes");
+        assert_eq!(inserts[1].id, ids[1], "the equalizer stays in place");
     }
 
     #[test]
@@ -1245,18 +1344,59 @@ mod tests {
     }
 
     #[test]
-    fn the_limiter_gives_back_no_more_than_it_can_without_squashing() {
+    fn without_effects_on_the_master_the_room_only_lowers_the_mix() {
         let mut p = Project::new("t", 48_000);
         master_headroom(&mut p, Some(4.0));
         let gains = |p: &Project| -> Vec<f32> {
             p.master.inserts.iter().map(|i| i.params["gain"]).collect()
         };
-        assert_eq!(gains(&p), [-4.0, 4.0]);
-        // A mix peaking far too high is lowered all the way, and not brought back whole.
+        assert_eq!(gains(&p), [-4.0]);
         master_headroom(&mut p, Some(15.0));
-        assert_eq!(gains(&p), [-15.0, HEADROOM_MAKEUP]);
+        assert_eq!(gains(&p), [-15.0]);
         master_headroom(&mut p, None);
         assert!(p.master.inserts.is_empty());
+    }
+
+    #[test]
+    fn the_master_s_own_limiter_gives_the_room_back() {
+        let mut p = Project::new("t", 48_000);
+        let params = [("loudness".to_owned(), 3.0)].into_iter().collect();
+        let master = routing::add_insert(&mut p, Channel::Master, "mastering", params).unwrap();
+        let loudness = |p: &Project| {
+            p.master
+                .inserts
+                .iter()
+                .find(|i| i.id == master)
+                .unwrap()
+                .params["loudness"]
+        };
+        master_headroom(&mut p, Some(4.0));
+        assert_eq!(p.master.inserts[0].params["gain"], -4.0);
+        assert_eq!(loudness(&p), 7.0);
+        // Set again, raised from its own setting, not from the last one.
+        master_headroom(&mut p, Some(2.0));
+        assert_eq!(loudness(&p), 5.0);
+        master_headroom(&mut p, None);
+        assert_eq!(loudness(&p), 3.0);
+        assert_eq!(p.master.inserts.len(), 1);
+    }
+
+    #[test]
+    fn the_limiter_of_earlier_versions_goes_when_the_room_is_set_again() {
+        let mut p = Project::new("t", 48_000);
+        let trim =
+            routing::add_insert(&mut p, Channel::Master, "utility", Default::default()).unwrap();
+        let makeup =
+            routing::add_insert(&mut p, Channel::Master, "maximizer", Default::default()).unwrap();
+        p.master.headroom = Some(Headroom {
+            trim,
+            makeup: Some(makeup),
+            makeup_gain: None,
+        });
+        master_headroom(&mut p, Some(3.0));
+        let effects: Vec<&str> = p.master.inserts.iter().map(|i| i.effect.as_str()).collect();
+        assert_eq!(effects, ["utility"]);
+        assert_eq!(p.master.inserts[0].params["gain"], -3.0);
     }
 
     #[test]
