@@ -125,6 +125,11 @@ inherits = "release"
 debug = false
 strip = true
 
+# Benchmarks and measurements: optimized like a release, but quick to rebuild (no LTO,
+# incremental): `scripts/test.sh --profile bench ...`.
 [profile.bench]
 inherits = "release"
 debug = true
+lto = false
+codegen-units = 16
+incremental = true
