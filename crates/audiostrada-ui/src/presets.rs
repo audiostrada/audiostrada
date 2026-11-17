@@ -169,6 +169,7 @@ mod tests {
         };
         let skip = rate as usize / 2;
         let reference = rms(&input[skip..]);
+        let mut failed = Vec::new();
         for info in audiostrada_dsp::EFFECTS.iter() {
             for preset in builtin(info.id) {
                 let Some(mut fx) = audiostrada_dsp::create(info.id) else {
@@ -196,13 +197,14 @@ mod tests {
                     .map(|s| s[0].abs().max(s[1].abs()))
                     .fold(0.0, f32::max);
                 let change = rms(out) - reference;
-                assert!(
-                    peak < 1.0 && (-20.0..10.0).contains(&change),
-                    "{}: {} peaks at {peak}, level {change:+.1} dB",
-                    info.id,
-                    preset.name
-                );
+                if peak >= 1.0 || !(-20.0..10.0).contains(&change) {
+                    failed.push(format!(
+                        "{}: {} peaks at {peak}, level {change:+.1} dB",
+                        info.id, preset.name
+                    ));
+                }
             }
         }
+        assert!(failed.is_empty(), "{}", failed.join("\n"));
     }
 }

@@ -381,7 +381,7 @@ pub fn master_presets() -> Vec<Preset> {
             tr("Rock: Dense and loud"),
             PUNCHY,
             CD,
-            [0.0, 75.0, 70.0, 100.0, 10.0, 4.0],
+            [0.0, 75.0, 70.0, 100.0, 10.0, 3.2],
             &[("maximizer", "Loud: Dense rock")],
         ),
         master(
@@ -395,14 +395,14 @@ pub fn master_presets() -> Vec<Preset> {
             tr("Hip-hop: Heavy low end"),
             PUNCHY,
             CD,
-            [-15.0, 60.0, 50.0, 100.0, 40.0, 2.5],
+            [-15.0, 60.0, 50.0, 100.0, 40.0, 1.7],
             &[],
         ),
         master(
             tr("Hip-hop: Crisp and loud"),
             PUNCHY,
             CD,
-            [15.0, 65.0, 45.0, 105.0, 20.0, 2.5],
+            [15.0, 65.0, 45.0, 105.0, 20.0, 1.9],
             &[],
         ),
         master(
@@ -416,7 +416,7 @@ pub fn master_presets() -> Vec<Preset> {
             tr("Electronic: Club loud"),
             PUNCHY,
             CLUB,
-            [10.0, 70.0, 45.0, 110.0, 30.0, 2.5],
+            [10.0, 70.0, 45.0, 110.0, 30.0, 1.8],
             &[("maximizer", "Loud: EDM maximum")],
         ),
         master(
