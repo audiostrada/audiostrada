@@ -128,20 +128,31 @@ fn merge(peaks: &[Peak]) -> Peak {
 impl Peaks {
     pub fn compute(data: &AudioData) -> Self {
         let mut levels: Vec<Level> = Vec::with_capacity(LEVELS.len());
-        for &frames_per_peak in &LEVELS {
-            let peaks = (0..data.channels())
-                .map(|ch| match levels.last() {
-                    // Coarser levels are built from the previous one, not from the samples.
-                    Some(prev) => {
-                        let ratio = (frames_per_peak / prev.frames_per_peak) as usize;
-                        prev.peaks[ch].chunks(ratio).map(merge).collect()
-                    }
-                    None => finest(
-                        data.channel(ch),
-                        data.sample_rate(),
-                        frames_per_peak as usize,
-                    ),
+        // The finest level reads every sample: one thread per channel.
+        let peaks = std::thread::scope(|scope| {
+            let jobs: Vec<_> = (0..data.channels())
+                .map(|ch| {
+                    scope.spawn(move || {
+                        finest(data.channel(ch), data.sample_rate(), LEVELS[0] as usize)
+                    })
                 })
+                .collect();
+            jobs.into_iter()
+                .map(|job| job.join().unwrap_or_default())
+                .collect()
+        });
+        levels.push(Level {
+            frames_per_peak: LEVELS[0],
+            peaks,
+        });
+        // Coarser levels are built from the previous one, not from the samples.
+        for &frames_per_peak in &LEVELS[1..] {
+            let prev = &levels[levels.len() - 1];
+            let ratio = (frames_per_peak / prev.frames_per_peak) as usize;
+            let peaks = prev
+                .peaks
+                .iter()
+                .map(|channel| channel.chunks(ratio).map(merge).collect())
                 .collect();
             levels.push(Level {
                 frames_per_peak,

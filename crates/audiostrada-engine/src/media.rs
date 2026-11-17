@@ -104,23 +104,33 @@ fn load_job(
     let cache = peaks_dir
         .filter(|_| !edited)
         .and_then(|dir| peaks_cache(dir, path));
-    let peaks = match cache.as_deref().map(Peaks::read) {
-        Some(Ok(peaks)) => peaks,
-        _ => {
-            let peaks = Peaks::compute(&original);
-            if let Some(cache) = &cache
-                && let Err(e) = peaks.write(cache)
-            {
-                tracing::warn!("cannot write peak cache {}: {e}", cache.display());
+    // The peaks and the conversion to the project's rate are made side by side.
+    let (peaks, audio) = std::thread::scope(|scope| {
+        let audio = (original.sample_rate() != rate).then(|| {
+            let original = &original;
+            scope.spawn(move || resample(original, rate).map_err(|e| e.to_string()))
+        });
+        let peaks = match cache.as_deref().map(Peaks::read) {
+            Some(Ok(peaks)) => peaks,
+            _ => {
+                let peaks = Peaks::compute(&original);
+                if let Some(cache) = &cache
+                    && let Err(e) = peaks.write(cache)
+                {
+                    tracing::warn!("cannot write peak cache {}: {e}", cache.display());
+                }
+                peaks
             }
-            peaks
-        }
-    };
-    let audio = if original.sample_rate() == rate {
-        Arc::clone(&original)
-    } else {
-        Arc::new(resample(&original, rate).map_err(|e| e.to_string())?)
-    };
+        };
+        let audio = match audio {
+            Some(job) => Arc::new(
+                job.join()
+                    .unwrap_or_else(|_| Err("resampling panicked".into()))?,
+            ),
+            None => Arc::clone(&original),
+        };
+        Ok::<_, String>((peaks, audio))
+    })?;
     Ok((original, audio, Arc::new(peaks)))
 }
 

@@ -1,6 +1,6 @@
 //! Offline sample rate conversion (FFT based, high quality).
 
-use rubato::audioadapter_buffers::direct::SequentialSliceOfVecs;
+use rubato::audioadapter_buffers::direct::SequentialSlice;
 use rubato::{Fft, FixedSync, Resampler};
 
 use crate::{AudioData, MediaError};
@@ -15,33 +15,39 @@ pub fn resample(data: &AudioData, rate: u32) -> Result<AudioData, MediaError> {
             .collect();
         return Ok(AudioData::new(channels, rate));
     }
+    // One thread per channel: a long file takes seconds per channel.
+    let channels = std::thread::scope(|scope| {
+        let jobs: Vec<_> = (0..data.channels())
+            .map(|c| scope.spawn(move || channel(data.channel(c), data.sample_rate(), rate)))
+            .collect();
+        jobs.into_iter()
+            .map(|job| {
+                job.join()
+                    .unwrap_or_else(|_| Err(MediaError::Resample("resampling panicked".into())))
+            })
+            .collect::<Result<Vec<_>, _>>()
+    })?;
+    Ok(AudioData::new(channels, rate))
+}
+
+fn channel(samples: &[f32], from: u32, to: u32) -> Result<Vec<f32>, MediaError> {
     let error = |e: &dyn std::fmt::Display| MediaError::Resample(e.to_string());
-    let channels = data.channels();
-    let frames = data.frames();
-    let mut resampler = Fft::<f32>::new(
-        data.sample_rate() as usize,
-        rate as usize,
-        CHUNK,
-        channels,
-        FixedSync::Input,
-    )
-    .map_err(|e| error(&e))?;
-    let input: Vec<Vec<f32>> = (0..channels).map(|c| data.channel(c).to_vec()).collect();
+    let frames = samples.len();
+    let mut resampler = Fft::<f32>::new(from as usize, to as usize, CHUNK, 1, FixedSync::Input)
+        .map_err(|e| error(&e))?;
     let out_len = resampler.process_all_needed_output_len(frames);
-    let mut output = vec![vec![0.0; out_len]; channels];
+    let mut output = vec![0.0; out_len];
     let produced = {
-        let input = SequentialSliceOfVecs::new(&input, channels, frames).map_err(|e| error(&e))?;
-        let mut target = SequentialSliceOfVecs::new_mut(&mut output, channels, out_len)
-            .map_err(|e| error(&e))?;
+        let input = SequentialSlice::new(samples, 1, frames).map_err(|e| error(&e))?;
+        let mut target =
+            SequentialSlice::new_mut(&mut output, 1, out_len).map_err(|e| error(&e))?;
         resampler
             .process_all_into_buffer(&input, &mut target, frames, None)
             .map_err(|e| error(&e))?
             .1
     };
-    for channel in &mut output {
-        channel.truncate(produced);
-    }
-    Ok(AudioData::new(output, rate))
+    output.truncate(produced);
+    Ok(output)
 }
 
 #[cfg(test)]
