@@ -1894,7 +1894,8 @@ impl AudioStradaApp {
     }
 
     /// What the document has to say, in the bottom right corner of the main window for a few
-    /// seconds whatever panels are shown, and an archive being written while it is.
+    /// seconds whatever panels are shown, and an archive being written or a plugin scan while
+    /// it runs.
     fn toasts(&mut self, ctx: &egui::Context) {
         let now = Instant::now();
         let (new, archiving) = {
@@ -1904,7 +1905,14 @@ impl AudioStradaApp {
         self.toasts.extend(new.into_iter().map(|m| (m, now)));
         self.toasts
             .retain(|(_, at)| now.duration_since(*at) < Duration::from_secs(8));
-        if self.toasts.is_empty() && !archiving {
+        // Only files not scanned before: a start with nothing new shows nothing.
+        let scan = self
+            .plugin_scan
+            .as_ref()
+            .map(|s| &*s.1)
+            .filter(|p| p.counts().is_some_and(|(done, total)| done < total))
+            .map(effect_browser::scan_status);
+        if self.toasts.is_empty() && !archiving && scan.is_none() {
             return;
         }
         ctx.request_repaint_after(Duration::from_millis(250));
@@ -1941,6 +1949,12 @@ impl AudioStradaApp {
                     toast(ui, p.accent, 1.0, &mut |ui| {
                         ui.spinner();
                         ui.label(tr("Archiving the project…"));
+                    });
+                }
+                if let Some(scan) = &scan {
+                    toast(ui, p.accent, 1.0, &mut |ui| {
+                        ui.spinner();
+                        ui.label(scan);
                     });
                 }
                 for (message, at) in &self.toasts {

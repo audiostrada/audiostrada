@@ -118,6 +118,9 @@ pub(crate) fn agent() -> ureq::Agent {
     let config = config.tls_config(
         ureq::tls::TlsConfig::builder()
             .provider(ureq::tls::TlsProvider::NativeTls)
+            // Windows builds the chain from its own store: it may end at a root missing from
+            // Mozilla's list, which ureq would then refuse.
+            .root_certs(ureq::tls::RootCerts::PlatformVerifier)
             .build(),
     );
     ureq::Agent::new_with_config(config.build())

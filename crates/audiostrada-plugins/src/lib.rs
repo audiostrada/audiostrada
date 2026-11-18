@@ -311,6 +311,18 @@ pub fn own_executable() -> Option<PathBuf> {
     Some(if replaced.exists() { replaced } else { exe })
 }
 
+/// Keeps a child of this console program from opening a console window of its own when
+/// AudioStrada has none (started from the Start menu).
+pub(crate) fn hide_console(command: &mut std::process::Command) {
+    #[cfg(windows)]
+    if !std::io::IsTerminal::is_terminal(&std::io::stderr()) {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000);
+    }
+    #[cfg(not(windows))]
+    let _ = command;
+}
+
 pub fn set_sandbox(host: Option<PathBuf>) {
     if let Ok(mut s) = SANDBOX.lock() {
         *s = host;

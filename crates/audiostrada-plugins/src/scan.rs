@@ -393,7 +393,9 @@ pub fn scan_out_of_process(
     path: &Path,
     timeout: Duration,
 ) -> Result<Vec<PluginDescriptor>, String> {
-    let mut child = Command::new(exe)
+    let mut command = Command::new(exe);
+    crate::hide_console(&mut command);
+    let mut child = command
         .arg(SCAN_COMMAND)
         .arg(format.prefix())
         .arg(path)
