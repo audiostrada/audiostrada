@@ -34,7 +34,14 @@ if [ -n "${AUDIOSTRADA_SIGN_IDENTITY:-}" ]; then
 fi
 dmg=$out/AudioStrada-$version.dmg
 rm -f "$dmg"
-hdiutil create -volname AudioStrada -srcfolder "$app" -ov -format UDZO "$dmg"
+# The app next to a link to Applications, to install it by dragging.
+stage=$out/dmg
+rm -rf "$stage"
+mkdir -p "$stage"
+ditto "$app" "$stage/AudioStrada.app"
+ln -s /Applications "$stage/Applications"
+hdiutil create -volname AudioStrada -srcfolder "$stage" -ov -format UDZO "$dmg"
+rm -rf "$stage"
 if [ -n "${AUDIOSTRADA_SIGN_IDENTITY:-}" ] && [ -n "${AUDIOSTRADA_NOTARY_PROFILE:-}" ]; then
     codesign --force --timestamp --sign "$AUDIOSTRADA_SIGN_IDENTITY" "$dmg"
     xcrun notarytool submit "$dmg" --keychain-profile "$AUDIOSTRADA_NOTARY_PROFILE" --wait
