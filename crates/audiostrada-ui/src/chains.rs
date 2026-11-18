@@ -1,10 +1,9 @@
 //! Effect chains: a channel's inserts saved under a name (settings, plugin states, files) and
-//! added to any channel, plus a few factory chains of built-in effects.
+//! added to any channel.
 
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use audiostrada_core::{Insert, InsertId};
+use audiostrada_core::Insert;
 use serde::{Deserialize, Serialize};
 
 use crate::i18n::tr;
@@ -12,12 +11,11 @@ use crate::i18n::tr;
 const FORMAT: &str = "audiostrada-chain";
 const EXTENSION: &str = "stradachain";
 
-/// A named list of inserts; `factory` ones come with AudioStrada and cannot be deleted.
+/// A named list of inserts.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Chain {
     pub name: String,
     pub inserts: Vec<Insert>,
-    pub factory: bool,
 }
 
 impl Chain {
@@ -28,21 +26,6 @@ impl Chain {
             .map(|i| name_of(&i.effect))
             .collect::<Vec<_>>()
             .join(" → ")
-    }
-
-    /// The name shown: a factory chain's in the chosen language, `name` staying its key.
-    pub fn label(&self) -> String {
-        if !self.factory {
-            return self.name.clone();
-        }
-        match self.name.as_str() {
-            "Vocal" => tr("Vocal"),
-            "Drum bus" => tr("Drum bus"),
-            "Acoustic guitar" => tr("Acoustic guitar"),
-            "Master for streaming" => tr("Master for streaming"),
-            other => other,
-        }
-        .to_owned()
     }
 }
 
@@ -72,7 +55,7 @@ fn path(root: &Path, name: &str) -> PathBuf {
     root.join(format!("{}.{EXTENSION}", clean.trim()))
 }
 
-/// Factory chains first, then the user's, by name.
+/// The user's chains, by name.
 pub fn list(root: Option<&Path>) -> Vec<Chain> {
     let mut user: Vec<Chain> = root
         .and_then(|r| std::fs::read_dir(r).ok())
@@ -98,11 +81,10 @@ pub fn list(root: Option<&Path>) -> Vec<Chain> {
                     i
                 })
                 .collect(),
-            factory: false,
         })
         .collect();
     user.sort_by_key(|c| c.name.to_lowercase());
-    factory().into_iter().chain(user).collect()
+    user
 }
 
 /// Saves `inserts` as the chain `name`, replacing one of that name. Their files must be
@@ -129,117 +111,26 @@ pub fn remove(root: &Path, name: &str) -> Result<(), String> {
     std::fs::remove_file(path(root, name)).map_err(|e| e.to_string())
 }
 
-fn insert(effect: &str, params: &[(&str, f32)]) -> Insert {
-    Insert {
-        id: InsertId(0),
-        effect: effect.to_owned(),
-        bypass: false,
-        params: params
-            .iter()
-            .map(|&(k, v)| (k.to_owned(), v))
-            .collect::<BTreeMap<_, _>>(),
-        state: None,
-        files: BTreeMap::new(),
-        sidechain: None,
-        monitor: false,
-        gain_db: 0.0,
-        branches: Vec::new(),
-        macros: Vec::new(),
-    }
-}
-
-fn factory() -> Vec<Chain> {
-    let chain = |name: &str, inserts: Vec<Insert>| Chain {
-        name: name.to_owned(),
-        inserts,
-        factory: true,
-    };
-    vec![
-        chain(
-            "Vocal",
-            vec![
-                insert(
-                    "eq",
-                    &[
-                        ("b1_used", 1.0),
-                        ("b1_type", 3.0),
-                        ("b1_freq", 90.0),
-                        ("b2_used", 1.0),
-                        ("b2_type", 2.0),
-                        ("b2_freq", 8000.0),
-                        ("b2_gain", 2.0),
-                    ],
-                ),
-                insert(
-                    "compressor",
-                    &[("threshold", -20.0), ("ratio", 3.0), ("attack", 8.0)],
-                ),
-                insert("deesser", &[]),
-                insert("reverb", &[("type", 3.0), ("mix", 15.0)]),
-            ],
-        ),
-        chain(
-            "Drum bus",
-            vec![
-                insert(
-                    "compressor",
-                    &[
-                        ("type", 1.0),
-                        ("ratio", 4.0),
-                        ("attack", 30.0),
-                        ("release", 300.0),
-                        ("makeup", 3.0),
-                        ("sc_hpf", 60.0),
-                        ("mix", 60.0),
-                    ],
-                ),
-                insert("tape", &[("drive", 2.0), ("wow", 0.0)]),
-            ],
-        ),
-        chain(
-            "Acoustic guitar",
-            vec![
-                insert(
-                    "eq",
-                    &[
-                        ("b1_used", 1.0),
-                        ("b1_type", 3.0),
-                        ("b1_freq", 100.0),
-                        ("b2_used", 1.0),
-                        ("b2_freq", 250.0),
-                        ("b2_gain", -2.0),
-                    ],
-                ),
-                insert("compressor", &[("threshold", -22.0), ("ratio", 2.5)]),
-            ],
-        ),
-        chain(
-            "Master for streaming",
-            vec![
-                insert(
-                    "eq",
-                    &[("b1_used", 1.0), ("b1_type", 3.0), ("b1_freq", 30.0)],
-                ),
-                insert(
-                    "compressor",
-                    &[
-                        ("type", 1.0),
-                        ("ratio", 2.0),
-                        ("threshold", -10.0),
-                        ("release", 300.0),
-                        ("makeup", 3.0),
-                        ("sc_hpf", 60.0),
-                    ],
-                ),
-                insert("maximizer", &[("gain", 4.0), ("ceiling", -1.0)]),
-            ],
-        ),
-    ]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use audiostrada_core::InsertId;
+
+    fn insert(effect: &str, params: &[(&str, f32)]) -> Insert {
+        Insert {
+            id: InsertId(0),
+            effect: effect.to_owned(),
+            bypass: false,
+            params: params.iter().map(|&(k, v)| (k.to_owned(), v)).collect(),
+            state: None,
+            files: Default::default(),
+            sidechain: None,
+            monitor: false,
+            gain_db: 0.0,
+            branches: Vec::new(),
+            macros: Vec::new(),
+        }
+    }
 
     #[test]
     fn chains_save_list_and_remove() {
@@ -250,29 +141,11 @@ mod tests {
             .insert("amp".into(), PathBuf::from("/captures/plexi.nam"));
         save(&dir, "My amp", &[amp.clone(), insert("reverb", &[])]).unwrap();
         let all = list(Some(&dir));
-        let mine = all.iter().find(|c| !c.factory).unwrap();
-        assert_eq!(mine.name, "My amp");
-        assert_eq!(mine.inserts[0], amp);
-        assert!(all.iter().any(|c| c.factory && c.name == "Vocal"));
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].name, "My amp");
+        assert_eq!(all[0].inserts[0], amp);
         remove(&dir, "My amp").unwrap();
-        assert!(list(Some(&dir)).iter().all(|c| c.factory));
+        assert!(list(Some(&dir)).is_empty());
         assert!(save(&dir, " ", &[amp]).is_err());
-    }
-
-    #[test]
-    fn factory_chains_use_known_parameters() {
-        for chain in factory() {
-            for insert in &chain.inserts {
-                let info = audiostrada_dsp::info(&insert.effect).unwrap();
-                for key in insert.params.keys() {
-                    assert!(
-                        info.params.iter().any(|p| p.id == key),
-                        "{}: {} has no {key}",
-                        chain.name,
-                        insert.effect
-                    );
-                }
-            }
-        }
     }
 }

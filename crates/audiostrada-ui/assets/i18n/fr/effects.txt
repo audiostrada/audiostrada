@@ -752,14 +752,8 @@ Largeur : Large 130 %
 Vocal
 Voix
 
-Drum bus
-Bus batterie
-
 Acoustic guitar
 Guitare acoustique
-
-Master for streaming
-Master pour le streaming
 
 give the chain a name
 donnez un nom à la chaîne

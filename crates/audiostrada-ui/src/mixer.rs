@@ -461,7 +461,7 @@ fn apply_chain(
 ) -> Vec<InsertId> {
     let mut added = Vec::new();
     doc.history_mut()
-        .edit(&trf!("Add chain {name}", name = chain.label()), |p| {
+        .edit(&trf!("Add chain {name}", name = chain.name), |p| {
             for insert in &chain.inserts {
                 let mut insert = insert.clone();
                 insert.monitor = monitor;
@@ -540,7 +540,6 @@ pub(crate) fn save_chain_dialog(ctx: &egui::Context, doc: &mut Document) {
         .unwrap_or_else(|| {
             let names: Vec<String> = crate::chains::list(crate::chains::root().as_deref())
                 .into_iter()
-                .filter(|c| !c.factory)
                 .map(|c| c.name.to_lowercase())
                 .collect();
             ctx.data_mut(|d| d.insert_temp(existing_id, names.clone()));
@@ -7194,14 +7193,24 @@ mod tests {
     #[test]
     fn a_chain_adds_its_effects_with_their_settings() {
         let mut doc = Document::new(AppDirs::default());
-        let mut track = None;
-        doc.history_mut()
-            .edit("Setup", |p| track = Some(p.add_track("Vox")));
+        let (mut source, mut track) = (None, None);
+        doc.history_mut().edit("Setup", |p| {
+            let from = Channel::Track(p.add_track("Lead"));
+            for (effect, params) in [
+                ("eq", vec![]),
+                ("compressor", vec![("ratio".to_owned(), 3.0)]),
+                ("deesser", vec![]),
+                ("reverb", vec![]),
+            ] {
+                routing::add_insert(p, from, effect, params.into_iter().collect());
+            }
+            (source, track) = (Some(from), Some(p.add_track("Vox")));
+        });
         let channel = Channel::Track(track.unwrap());
-        let vocal = crate::chains::list(None)
-            .into_iter()
-            .find(|c| c.name == "Vocal")
-            .unwrap();
+        let vocal = crate::chains::Chain {
+            name: "Vocal".into(),
+            inserts: routing::inserts(doc.project(), source.unwrap()).to_vec(),
+        };
         let added = super::apply_chain(&mut doc, (channel, false), &vocal);
         let inserts = routing::inserts(doc.project(), channel);
         assert_eq!(added.len(), 4);

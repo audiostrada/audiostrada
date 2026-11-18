@@ -1261,14 +1261,14 @@ fn entries(
 ) -> Vec<Entry> {
     let name_of = |effect: &str| crate::mixer::effect_name(doc, effect);
     let chains = chains.iter().map(|c| {
-        let (name, detail) = (c.label(), c.summary(name_of));
+        let (name, detail) = (c.name.clone(), c.summary(name_of));
         Entry {
             key: format!("{CHAIN_KEY}{}", c.name),
             words: search_words(CHAINS, &[&name, &c.name, &detail]),
             name,
             family: CHAINS,
             detail,
-            removable: !c.factory,
+            removable: true,
             plugin: false,
             vendor: String::new(),
             format: "",

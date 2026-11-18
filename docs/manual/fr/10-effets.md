@@ -29,8 +29,7 @@ de chaque réglage.
 - **Les chaînes d'effets** gardent toute une liste d'effets avec leurs réglages : clic droit sur
   un effet (ou menu de la piste) › *Enregistrer les effets comme chaîne* (sa fenêtre liste les
   effets enregistrés et prévient quand le nom remplace une de vos chaînes), puis ajoutez-la à
-  n'importe quelle piste par *+ insert* › *Chaînes*. Chaînes d'usine : voix, bus batterie, guitare
-  acoustique, master pour le streaming.
+  n'importe quelle piste par *+ insert* › *Chaînes*.
 
 Les fenêtres d'effets sont des fenêtres à part, qui peuvent aller sur un autre écran ; recliquer
 sur un insert ramène sa fenêtre au premier plan.
