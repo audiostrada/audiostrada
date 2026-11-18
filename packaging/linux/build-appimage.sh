@@ -13,10 +13,14 @@ rm -rf "$app"
 mkdir -p "$app/usr/bin" "$app/usr/share/applications" "$app/usr/share/mime/packages" \
     "$app/usr/share/metainfo"
 cp target/dist/audiostrada target/dist/audiostrada-mp3 "$app/usr/bin/"
-cp packaging/linux/audiostrada.desktop "$app/usr/share/applications/"
-cp packaging/linux/audiostrada.desktop "$app/"
+# appimagetool looks for the metainfo under the desktop file's name, and AppStream wants it
+# named after the application id: both take that id here.
+id=com.audiostrada.AudioStrada
+cp packaging/linux/audiostrada.desktop "$app/usr/share/applications/$id.desktop"
+cp packaging/linux/audiostrada.desktop "$app/$id.desktop"
 cp packaging/linux/audiostrada.xml "$app/usr/share/mime/packages/"
-cp packaging/linux/com.audiostrada.AudioStrada.metainfo.xml "$app/usr/share/metainfo/com.audiostrada.AudioStrada.metainfo.xml"
+sed "s|>audiostrada.desktop<|>$id.desktop<|" "packaging/linux/$id.metainfo.xml" \
+    > "$app/usr/share/metainfo/$id.appdata.xml"
 for size in 16 32 48 64 128 256 512; do
     mkdir -p "$app/usr/share/icons/hicolor/${size}x${size}/apps"
     cp "packaging/icons/audiostrada-$size.png" "$app/usr/share/icons/hicolor/${size}x${size}/apps/audiostrada.png"
