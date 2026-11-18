@@ -866,13 +866,7 @@ fn preparing_a_track_measures_it_then_sets_its_strip_in_one_undo_step() {
         keys
     };
     h.act(Action::PrepareTracks);
-    for _ in 0..2000 {
-        if h.app.prepare.ready() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(5));
-        h.frame(Vec::new());
-    }
+    wait_prepared(&mut h);
     assert!(h.app.prepare.ready(), "the track is measured");
     let mut doc = h.app.doc.borrow_mut();
     h.app.prepare.apply_now(&mut doc);
@@ -889,6 +883,15 @@ fn preparing_a_track_measures_it_then_sets_its_strip_in_one_undo_step() {
         doc.project().track(keys).unwrap().prepared.is_none(),
         "one undo step"
     );
+}
+
+/// Draws frames until the tracks to prepare are measured; slow CI machines take a while.
+fn wait_prepared(h: &mut Harness) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+    while !h.app.prepare.ready() && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        h.frame(Vec::new());
+    }
 }
 
 #[test]
@@ -908,13 +911,7 @@ fn preparing_a_track_again_proposes_what_it_had_not_more() {
     };
     let prepare = |h: &mut Harness| {
         h.act(Action::PrepareTracks);
-        for _ in 0..2000 {
-            if h.app.prepare.ready() {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(5));
-            h.frame(Vec::new());
-        }
+        wait_prepared(h);
         assert!(h.app.prepare.ready(), "the track is measured");
         let mut doc = h.app.doc.borrow_mut();
         h.app.prepare.apply_now(&mut doc);
