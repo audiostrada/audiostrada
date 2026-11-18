@@ -267,7 +267,9 @@ that gap needs testing under X11 and Wayland.
 
 AudioStrada's windows and the plugin windows float (`NSFloatingWindowLevel`) while
 AudioStrada or one of its plugin hosts is the active application, and drop to the normal level
-otherwise (`keep_windows_above`, `HostWindow`).
+otherwise (`keep_windows_above`, `HostWindow`). Editors and plugin windows sit one level above
+detached panels. While the main window shows a dialog, it rises one level above them all:
+levels hold across processes, so the sandboxed plugin windows need no message.
 
 ## Commits and documentation
 

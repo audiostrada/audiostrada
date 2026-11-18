@@ -1,20 +1,9 @@
 //! Native top-level windows that host embedded plugin editors (X11 on Linux and BSDs, Win32 on
 //! Windows, AppKit on macOS). Closing the window is reported by [`HostWindow::poll`].
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 static PARENT: AtomicU64 = AtomicU64::new(0);
-static MAIN_COVERED: AtomicBool = AtomicBool::new(false);
-
-/// Whether the main window shows one of its dialogs, which floating windows then leave
-/// uncovered (macOS).
-pub fn set_main_covered(covered: bool) {
-    MAIN_COVERED.store(covered, Ordering::Relaxed);
-}
-
-pub fn main_covered() -> bool {
-    MAIN_COVERED.load(Ordering::Relaxed)
-}
 
 /// The application window that plugin windows stay above (X11 window id or HWND), 0 for none.
 pub fn set_parent(parent: u64) {
@@ -1010,40 +999,40 @@ mod imp {
     }
 
     /// At `level` while AudioStrada is in use, without taking the focus from it; at the normal
-    /// level behind other applications, and behind every window while the main window shows a
-    /// dialog.
+    /// level behind other applications.
     fn keep_above(window: &NSWindow, active: bool, level: NSWindowLevel) {
-        let covered = super::main_covered();
-        let level = if active && !covered {
-            level
-        } else {
-            NSNormalWindowLevel
-        };
+        let level = if active { level } else { NSNormalWindowLevel };
         if window.level() != level {
             window.setLevel(level);
-            if covered {
-                window.orderBack(None);
-            }
         }
     }
 
     /// Keeps the application's other windows (winit's: detached panels, titled `panels`, and
     /// editors) above its main window, given by its content view, as [`HostWindow`] does for
-    /// plugin windows. While the main window shows a dialog (`covered`), they drop to the
-    /// normal level under it.
+    /// plugin windows. While the main window shows a dialog (`covered`), it rises above them
+    /// all, plugin windows of other processes included: a window level holds across processes.
     pub fn keep_windows_above(main: *mut std::ffi::c_void, panels: &[String], covered: bool) {
         let Some(mtm) = MainThreadMarker::new() else {
             return;
         };
         // SAFETY: the main window's live content view, used on the main thread.
         let main = unsafe { main.cast::<NSView>().as_ref() }.and_then(|v| v.window());
-        super::set_main_covered(covered);
         let active = audiostrada_active();
+        if let Some(main) = &main {
+            let level = if active && covered {
+                floating_level(true) + 1
+            } else {
+                NSNormalWindowLevel
+            };
+            if main.level() != level {
+                main.setLevel(level);
+            }
+        }
         for window in NSApplication::sharedApplication(mtm).windows() {
             if Some(&window) != main.as_ref() && window.class().name().to_bytes() == b"WinitWindow"
             {
                 let title = window.title().to_string();
-                let panel = panels.iter().any(|p| *p == title);
+                let panel = panels.contains(&title);
                 keep_above(&window, active, floating_level(!panel));
             }
         }

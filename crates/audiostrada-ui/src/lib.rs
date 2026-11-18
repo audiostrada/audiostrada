@@ -3184,9 +3184,9 @@ fn set_plugin_window_parent(frame: &eframe::Frame) {
 }
 
 /// On macOS the detached panels and editors float above the main window while AudioStrada is
-/// in use, so that they stay in front when it takes the focus, and drop under its dialogs. On Windows they are owned by
-/// it, as Reaper's floating windows are: above it, never behind, out of the taskbar and of
-/// Alt+Tab, minimized with it.
+/// in use, so that they stay in front when it takes the focus; the main window rises above
+/// them while it shows a dialog. On Windows they are owned by it, as Reaper's floating windows
+/// are: above it, never behind, out of the taskbar and of Alt+Tab, minimized with it.
 #[cfg(any(target_os = "macos", windows))]
 fn keep_windows_above(frame: &eframe::Frame, detached: &[Pane]) {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -3266,8 +3266,8 @@ pub(crate) enum Floating {
 static MAIN_COVERED: AtomicBool = AtomicBool::new(false);
 
 /// Lowers the floating windows under the main one while it shows a menu or a dialog: they
-/// drop to the normal level, then the main window comes to the front once (Linux). macOS
-/// does so for dialogs only, in [`keep_windows_above`].
+/// drop to the normal level, then the main window comes to the front once (Linux). On macOS
+/// the main window rises above them instead, for dialogs only, in [`keep_windows_above`].
 fn uncover_main(ctx: &egui::Context) {
     if cfg!(windows) {
         return;
