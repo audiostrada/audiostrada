@@ -2948,6 +2948,9 @@ impl AudioStradaApp {
                                 audiostrada_license::Status::Evaluation => {
                                     ui.colored_label(theme::RECORD, tr("Evaluation"));
                                 }
+                                audiostrada_license::Status::Preview => {
+                                    ui.label(tr("Test version"));
+                                }
                                 audiostrada_license::Status::Licensed(license)
                                 | audiostrada_license::Status::Lapsed(license) => {
                                     ui.label(trf!(

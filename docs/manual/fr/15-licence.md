@@ -10,6 +10,9 @@ Sans licence, les versions officielles tournent en mode évaluation : tout fonct
 compris. Après 20 minutes, le son se coupe un instant toutes les 10 minutes. Une licence supprime
 ces coupures.
 
+Les versions de test, numérotées 0.x avant la version 1.0, tournent sans coupures, avec ou sans
+licence.
+
 ## Saisir une licence
 
 Aide › *Licence…* montre l'état de cet exemplaire : évaluation, ou la licence avec sa formule,

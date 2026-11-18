@@ -10,6 +10,8 @@ Without a licence, the official builds run in evaluation mode: every feature wor
 included. After 20 minutes, the sound drops out for a moment every 10 minutes. A licence removes
 the dropouts.
 
+The test versions, numbered 0.x before version 1.0, run without dropouts, licence or not.
+
 ## Entering a licence
 
 Help › *License…* shows the state of this copy: evaluation, or the licence with its plan, its

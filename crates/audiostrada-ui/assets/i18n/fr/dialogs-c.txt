@@ -33,6 +33,15 @@ Compilé depuis le code source : rien à débloquer
 Evaluation: every feature works, with short dropouts
 Évaluation : tout fonctionne, avec de courtes coupures
 
+Preview: every feature works, without dropouts
+Préversion : tout fonctionne, sans coupures
+
+Test version
+Version de test
+
+This test version runs without dropouts. From version 1.0, a copy without a license runs in evaluation mode.
+Cette version de test fonctionne sans coupures. À partir de la version 1.0, une copie sans licence passe en mode évaluation.
+
 Licensed: thank you for supporting AudioStrada
 Sous licence : merci de soutenir AudioStrada
 
