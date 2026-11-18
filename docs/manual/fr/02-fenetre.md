@@ -40,8 +40,17 @@ vert quand ils peuvent piloter AudioStrada. Un clic ouvre leur fenêtre (voir *A
 
 Glissez un onglet pour réorganiser les panneaux. Clic droit sur un onglet › *Ouvrir dans sa
 propre fenêtre* met un panneau sur un autre écran (le Mixer en général, [[Ctrl+M]]) ; fermer
-cette fenêtre le remet en place. Affichage › *Réinitialiser la disposition* revient à
-l'agencement par défaut.
+cette fenêtre le remet en place.
+
+Affichage › *Disposition* passe d'un agencement à l'autre parmi ceux proposés au premier
+lancement, aussi depuis la palette de commandes :
+
+- **Classique** : la table de mixage sous la timeline, par défaut.
+- **Tranche à gauche** : la tranche de la piste à côté de la timeline, la table de mixage dans
+  son onglet.
+- **Épuré** : la timeline seule.
+- **Mixage sur le second écran** : la table de mixage dans sa propre fenêtre, en plein écran sur
+  l'autre écran (avec deux écrans).
 
 AudioStrada rouvre sa fenêtre, et les panneaux dans leurs propres fenêtres, à la taille et dans
 l'état où ils ont été laissés. Sous Wayland, c'est le système qui place les fenêtres.

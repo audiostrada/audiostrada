@@ -1598,6 +1598,8 @@ impl AudioStradaApp {
                         ctx.send_viewport_cmd_to(window, egui::ViewportCommand::Focus);
                     } else {
                         layout::toggle(&mut self.tree, pane);
+                        self.fit_strip |=
+                            pane == Pane::Strip && layout::is_visible(&self.tree, pane);
                         self.ui_changed();
                     }
                 }
@@ -1651,11 +1653,17 @@ impl AudioStradaApp {
                 }
             }
             Action::ReduceLatency => self.reduce_latency(),
-            Action::ResetLayout => {
-                self.tree = layout::default_tree();
-                self.detached.clear();
-                self.prefs.detached.clear();
-                self.ui_changed();
+            Action::LayoutClassic | Action::LayoutStrip | Action::LayoutUncluttered => {
+                let start = match action {
+                    Action::LayoutStrip => layout::Start::Strip,
+                    Action::LayoutUncluttered => layout::Start::Focus,
+                    _ => layout::Start::Classic,
+                };
+                self.arrange(setup_window::Arrangement::One(start), None);
+            }
+            Action::LayoutTwoScreens => {
+                let window = setup_window::mixer_window(&screens::monitors(ctx), ctx);
+                self.arrange(setup_window::Arrangement::TwoScreens, window);
             }
             Action::ToggleFullscreen => {
                 // Follows the main window; detached panels (mixer, piano roll) go with it, each
@@ -2658,8 +2666,19 @@ impl AudioStradaApp {
                             layout::is_visible(&self.tree, pane) || self.detached.contains(&pane),
                         );
                     }
+                });
+                ui.menu_button(tr("Layout"), |ui| {
+                    for (action, name) in [
+                        (Action::LayoutClassic, "Classic"),
+                        (Action::LayoutStrip, "Strip at the left"),
+                        (Action::LayoutUncluttered, "Uncluttered"),
+                    ] {
+                        item(ui, &mut chosen, action, Some(tr(name).to_owned()), true);
+                    }
                     ui.separator();
-                    item(ui, &mut chosen, Action::ResetLayout, None, true);
+                    let two = screens::monitors(ui.ctx()).len() > 1;
+                    let name = tr("Mixer on the second screen").to_owned();
+                    item(ui, &mut chosen, Action::LayoutTwoScreens, Some(name), two);
                 });
                 check(
                     ui,

@@ -1098,4 +1098,22 @@ fn the_track_strip_column_fits_its_strips_and_resizes() {
     h.frame(vec![press(false, x + 100.0)]);
     h.frame(Vec::new());
     assert!((column(&h).width() - rect.width() - 100.0).abs() < 2.0);
+
+    // Back to the classic layout from the View menu, then the strip shown in it.
+    h.act(Action::LayoutClassic);
+    assert!(layout::is_visible(&h.app.tree, Pane::Mixer));
+    assert!(!layout::is_visible(&h.app.tree, Pane::Strip));
+    h.act(Action::ShowStrip);
+    h.frame(Vec::new());
+    let timeline = h.app.tree.tiles.find_pane(&Pane::Timeline).unwrap();
+    let timeline = h.app.tree.tiles.rect(timeline).unwrap();
+    let shown = column(&h);
+    assert!(
+        shown.right() < timeline.left(),
+        "{shown:?} left of {timeline:?}"
+    );
+    assert!((shown.width() - strips - 12.0).abs() < 2.0, "{shown:?}");
+    h.act(Action::LayoutStrip);
+    assert!(layout::is_visible(&h.app.tree, Pane::Strip));
+    assert!(!layout::is_visible(&h.app.tree, Pane::Mixer));
 }

@@ -36,8 +36,16 @@ drive AudioStrada. A click opens their window (see *AI assistants*).
   timeline as in Logic Pro (View › *Show track strip*). Drag its edge to widen it.
 
 Drag a tab to rearrange the panels. Right-click a tab › *Open in its own window* puts a panel on
-another screen (typically the mixer, [[Ctrl+M]]); closing that window docks it back. View ›
-*Reset layout* restores the default arrangement.
+another screen (typically the mixer, [[Ctrl+M]]); closing that window docks it back.
+
+View › *Layout* switches between the arrangements offered at the first start, also in the
+command palette:
+
+- **Classic**: the mixer under the timeline, the default.
+- **Strip at the left**: the track strip beside the timeline, the mixer in its tab.
+- **Uncluttered**: the timeline alone.
+- **Mixer on the second screen**: the mixer in its own window, full screen on the other screen
+  (with two screens).
 
 AudioStrada reopens its window, and the panels in their own windows, at the size and in the
 state they were left. On Wayland, the system decides where windows go.

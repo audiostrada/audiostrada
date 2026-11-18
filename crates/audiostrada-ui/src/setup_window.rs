@@ -415,7 +415,7 @@ fn draw_sketch(painter: &egui::Painter, r: Rect, arrangement: Arrangement, p: &t
 }
 
 /// The mixer's window on a screen other than the main window's, maximized there.
-fn mixer_window(screens: &[Rect], ctx: &egui::Context) -> Option<WindowState> {
+pub(crate) fn mixer_window(screens: &[Rect], ctx: &egui::Context) -> Option<WindowState> {
     // Screens come in window units; positions are kept in the interface's points.
     let zoom = ctx.zoom_factor().max(0.25);
     let points: Vec<Rect> = screens

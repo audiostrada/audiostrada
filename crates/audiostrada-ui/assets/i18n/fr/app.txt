@@ -254,8 +254,17 @@ Afficher les marqueurs
 Show piano roll
 Afficher le piano roll
 
-Reset layout
-Réinitialiser la disposition
+Classic layout
+Disposition classique
+
+Layout with the strip at the left
+Disposition avec la tranche à gauche
+
+Uncluttered layout
+Disposition épurée
+
+Layout with the mixer on the second screen
+Disposition avec le mixage sur le second écran
 
 Full screen
 Plein écran

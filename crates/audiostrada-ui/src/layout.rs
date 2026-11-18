@@ -95,12 +95,13 @@ pub fn start_tree(start: Start) -> Tree<Pane> {
     let center = tiles.insert_vertical_tile(vec![timeline, bottom]);
     let (root, hidden) = match start {
         Start::Classic | Start::Focus => {
-            let right = tiles.insert_tab_tile(vec![inspector, markers, strip]);
-            let root = tiles.insert_horizontal_tile(vec![browser, center, right]);
+            let left = tiles.insert_tab_tile(vec![strip]);
+            let right = tiles.insert_tab_tile(vec![inspector, markers]);
+            let root = tiles.insert_horizontal_tile(vec![browser, left, center, right]);
             set_shares(
                 &mut tiles,
                 root,
-                &[(browser, 1.0), (center, 4.5), (right, 1.2)],
+                &[(browser, 1.0), (left, 1.3), (center, 4.5), (right, 1.2)],
             );
             // Side panels are one View menu click away.
             let mut hidden = vec![browser, inspector, markers, strip];
@@ -126,6 +127,38 @@ pub fn start_tree(start: Start) -> Tree<Pane> {
     }
     set_shares(&mut tiles, center, &[(timeline, 0.75), (bottom, 1.0)]);
     Tree::new(egui::Id::unique("audiostrada-layout"), root, tiles)
+}
+
+/// Moves `strip` into a column of its own, at the left of the one holding the timeline.
+fn strip_column(tiles: &mut egui_tiles::Tiles<Pane>, strip: TileId) -> bool {
+    let Some(mut column) = tiles.find_pane(&Pane::Timeline) else {
+        return false;
+    };
+    let row = loop {
+        let Some(parent) = tiles.parent_of(column) else {
+            return false;
+        };
+        if let Some(Tile::Container(Container::Linear(linear))) = tiles.get(parent)
+            && linear.dir == egui_tiles::LinearDir::Horizontal
+        {
+            break parent;
+        }
+        column = parent;
+    };
+    if let Some(Tile::Container(old)) = tiles.parent_of(strip).and_then(|p| tiles.get_mut(p)) {
+        old.remove_child(strip);
+    }
+    let own = tiles.insert_tab_tile(vec![strip]);
+    if let Some(Tile::Container(Container::Linear(linear))) = tiles.get_mut(row) {
+        let at = linear
+            .children
+            .iter()
+            .position(|&c| c == column)
+            .unwrap_or(0);
+        linear.children.insert(at, own);
+        linear.shares.set_share(own, 1.3);
+    }
+    true
 }
 
 fn set_shares(tiles: &mut egui_tiles::Tiles<Pane>, container: TileId, shares: &[(TileId, f32)]) {
@@ -157,16 +190,28 @@ pub fn load(saved: Option<&str>) -> Tree<Pane> {
             container.add_child(rack);
         }
     }
-    // Saved before the track strip: a hidden tab beside the inspector.
-    if let Some(tree) = &mut tree
-        && tree.tiles.find_pane(&Pane::Strip).is_none()
-        && let Some(inspector) = tree.tiles.find_pane(&Pane::Inspector)
-        && let Some(parent) = tree.tiles.parent_of(inspector)
-    {
-        let strip = tree.tiles.insert_pane(Pane::Strip);
-        tree.tiles.set_visible(strip, false);
-        if let Some(egui_tiles::Tile::Container(container)) = tree.tiles.get_mut(parent) {
-            container.add_child(strip);
+    // Saved before the track strip, or with it among the inspector's tabs: a hidden column of
+    // its own at the left of the timeline.
+    if let Some(tree) = &mut tree {
+        let tiles = &mut tree.tiles;
+        let strip = tiles.find_pane(&Pane::Strip);
+        let beside_inspector = strip.is_some_and(|s| {
+            !tiles.is_visible(s)
+                && tiles.parent_of(s).is_some_and(|p| {
+                    tiles
+                        .find_pane(&Pane::Inspector)
+                        .and_then(|i| tiles.parent_of(i))
+                        == Some(p)
+                })
+        });
+        if strip.is_none() {
+            let strip = tiles.insert_pane(Pane::Strip);
+            tiles.set_visible(strip, false);
+            strip_column(tiles, strip);
+        } else if let Some(strip) = strip
+            && beside_inspector
+        {
+            strip_column(tiles, strip);
         }
     }
     match tree {
@@ -240,6 +285,9 @@ pub fn set_visible(tree: &mut Tree<Pane>, pane: Pane, visible: bool) {
     }
 }
 
+/// Space between panels.
+const GAP: f32 = 3.0;
+
 /// Gives the column holding `pane` `width` points in its row, as laid out last frame; false
 /// while the row was not laid out yet.
 pub fn fit_width(tree: &mut Tree<Pane>, pane: Pane, width: f32) -> bool {
@@ -251,20 +299,23 @@ pub fn fit_width(tree: &mut Tree<Pane>, pane: Pane, width: f32) -> bool {
         return false;
     };
     let visible: Vec<TileId> = match tiles.get(row) {
-        Some(Tile::Container(Container::Linear(linear))) => linear
-            .children
-            .iter()
-            .copied()
-            .filter(|&c| tiles.is_visible_in_layout(c))
-            .collect(),
+        Some(Tile::Container(Container::Linear(linear)))
+            if linear.dir == egui_tiles::LinearDir::Horizontal =>
+        {
+            linear
+                .children
+                .iter()
+                .copied()
+                .filter(|&c| tiles.is_visible_in_layout(c))
+                .collect()
+        }
         _ => return false,
     };
-    let room: f32 = visible
-        .iter()
-        .filter_map(|&c| tiles.rect(c))
-        .map(|r| r.width())
-        .sum();
-    if visible.len() < 2 || room <= width || tiles.rect(column).is_none() {
+    let Some(row_rect) = tiles.rect(row) else {
+        return false;
+    };
+    let room = row_rect.width() - GAP * (visible.len() as f32 - 1.0);
+    if visible.len() < 2 || room <= width || !visible.contains(&column) {
         return false;
     }
     if let Some(Tile::Container(Container::Linear(linear))) = tiles.get_mut(row) {
@@ -345,7 +396,7 @@ impl Behavior<Pane> for Workspace<'_> {
     }
 
     fn gap_width(&self, _style: &egui::Style) -> f32 {
-        3.0
+        GAP
     }
 
     fn tab_title_spacing(&self, _visuals: &egui::Visuals) -> f32 {
@@ -408,6 +459,46 @@ mod tests {
         let tree = start_tree(Start::Strip);
         let again = load(save(&tree).as_deref());
         assert!(is_visible(&again, Pane::Strip) && !is_visible(&again, Pane::Mixer));
+    }
+
+    #[test]
+    fn an_older_layout_gets_the_track_strip_in_a_column_of_its_own() {
+        let older = |with_strip: bool| {
+            let mut tiles = egui_tiles::Tiles::default();
+            let timeline = tiles.insert_pane(Pane::Timeline);
+            let mut right = vec![
+                tiles.insert_pane(Pane::Inspector),
+                tiles.insert_pane(Pane::Markers),
+            ];
+            if with_strip {
+                let strip = tiles.insert_pane(Pane::Strip);
+                tiles.set_visible(strip, false);
+                right.push(strip);
+            }
+            let bottom = [Pane::Mixer, Pane::PianoRoll, Pane::Rack].map(|p| tiles.insert_pane(p));
+            let bottom = tiles.insert_tab_tile(bottom.to_vec());
+            let center = tiles.insert_vertical_tile(vec![timeline, bottom]);
+            let browser = tiles.insert_pane(Pane::Browser);
+            let right = tiles.insert_tab_tile(right);
+            let root = tiles.insert_horizontal_tile(vec![browser, center, right]);
+            save(&Tree::new(egui::Id::unique("older"), root, tiles))
+        };
+        for with_strip in [false, true] {
+            let tree = load(older(with_strip).as_deref());
+            let tiles = &tree.tiles;
+            let strip = tiles.find_pane(&Pane::Strip).unwrap();
+            let column = tiles.parent_of(strip).unwrap();
+            assert_eq!(tiles.get_container(column).unwrap().num_children(), 1);
+            let Some(Tile::Container(Container::Linear(row))) = tiles.get(tree.root.unwrap())
+            else {
+                panic!("no row");
+            };
+            assert_eq!(
+                row.children[1], column,
+                "between the browser and the timeline"
+            );
+            assert!(!is_visible(&tree, Pane::Strip) && is_visible(&tree, Pane::Inspector));
+        }
     }
 
     #[test]
