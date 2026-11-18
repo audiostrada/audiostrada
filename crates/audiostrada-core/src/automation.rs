@@ -381,8 +381,9 @@ pub fn lane_mut<'a>(track: &'a mut Track, target: &AutomationTarget) -> &'a mut 
     if let Some(i) = track.automation.iter().position(|l| &l.target == target) {
         return &mut track.automation[i];
     }
-    track.automation.push(AutomationLane::new(target.clone()));
-    track.automation.last_mut().expect("just pushed")
+    track
+        .automation
+        .push_mut(AutomationLane::new(target.clone()))
 }
 
 /// The master's lane of `target`, created if missing.
@@ -393,8 +394,9 @@ pub fn master_lane_mut<'a>(
     if let Some(i) = master.automation.iter().position(|l| &l.target == target) {
         return &mut master.automation[i];
     }
-    master.automation.push(AutomationLane::new(target.clone()));
-    master.automation.last_mut().expect("just pushed")
+    master
+        .automation
+        .push_mut(AutomationLane::new(target.clone()))
 }
 
 #[cfg(test)]

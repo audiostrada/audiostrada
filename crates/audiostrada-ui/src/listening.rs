@@ -37,10 +37,7 @@ pub fn hear(
         Channel::Master => (None, "master".to_owned()),
         Channel::Clip(c) => {
             let t = audiostrada_core::edit::track_of_clip(project, c).ok_or("no such clip")?;
-            (
-                Some(t),
-                project.track(t).map(|x| x.name.clone()).unwrap_or_default(),
-            )
+            (Some(t), project.track(t).map_or_default(|x| x.name.clone()))
         }
         Channel::Track(t) => (
             Some(t),

@@ -329,7 +329,7 @@ impl Profile {
     /// 250 ms without one; with where the voice before them stopped.
     fn onsets(&self) -> Vec<(usize, Option<usize>)> {
         let voiced: Vec<bool> = (0..self.level.len()).map(|k| self.voiced(k)).collect();
-        let mut held = voiced.clone();
+        let mut held = voiced;
         fill_short(&mut held, false, self.steps_of(80.0));
         let mut out = Vec::new();
         let mut last_end: Option<usize> = None;

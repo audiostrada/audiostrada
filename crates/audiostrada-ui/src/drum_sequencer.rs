@@ -816,7 +816,7 @@ pub(crate) fn set_bar(
     if bar >= chain.len() || chain[bar] == variation {
         return;
     }
-    let notes = clip.notes.clone().unwrap_or_default();
+    let notes = clip.notes.unwrap_or_default();
     let swing = swing_of(&notes, &grid, 50.0).unwrap_or(50.0);
     let fresh = variation == FILL && !chain.contains(&FILL);
     let mut notes = assign(&notes, &grid, &mut chain, bar, variation, swing);

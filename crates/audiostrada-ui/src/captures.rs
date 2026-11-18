@@ -179,7 +179,7 @@ fn group(entries: Vec<Entry>, root: Option<&Path>) -> Vec<Pack> {
         });
     }
     for e in entries.into_iter().filter(|e| is(e, "nam")) {
-        let dir = e.path.parent().map(PathBuf::from).unwrap_or_default();
+        let dir = e.path.parent().map_or_default(PathBuf::from);
         by_dir.entry(dir).or_default().push(e);
     }
     for (dir, files) in by_dir {

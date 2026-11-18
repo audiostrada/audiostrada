@@ -523,8 +523,7 @@ pub fn prepare(project: &mut Project, track: TrackId, p: &Preparation) -> Option
         routing::strip(project, channel).map(|s| s.id)
     };
     // What is written on the strip, kept to tell later what the hand changed.
-    let mut wrote: Vec<(String, f32)> =
-        before.as_ref().map(|b| b.strip.clone()).unwrap_or_default();
+    let mut wrote: Vec<(String, f32)> = before.as_ref().map_or_default(|b| b.strip.clone());
     let mut write = |project: &mut Project, param: &str, value: f32| {
         let Some(strip) = strip.filter(|_| !by_hand(&p.hands, param)) else {
             return;

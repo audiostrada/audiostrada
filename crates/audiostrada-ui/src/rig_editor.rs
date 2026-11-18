@@ -2444,7 +2444,7 @@ fn browser(ui: &mut Ui, params: &mut Params, state: &mut RigState) {
             (Some(target), Some(root)) => {
                 state.message = None;
                 state.info = None;
-                let session = crate::tone3000::download(root, tone.id, tone.title.clone());
+                let session = crate::tone3000::download(root, tone.id, tone.title);
                 state.session = Some((session, Some(target), Some(category)));
             }
             (Some(_), None) => {}

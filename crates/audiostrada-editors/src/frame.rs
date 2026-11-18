@@ -1101,7 +1101,7 @@ fn top_bar(
                         pos2(tx, cy),
                         Align2::LEFT_CENTER,
                         "›",
-                        font.clone(),
+                        font,
                         theme::mix(p.weak, field_fill(&p), 0.45),
                     )
                     .right()

@@ -834,7 +834,7 @@ impl TimelineView {
                     .on_hover_text(tr("Draw this automation in the large editor"))
                     .clicked()
                 {
-                    self.open_auto_editor(doc, id, target.clone());
+                    self.open_auto_editor(doc, id, target);
                 }
                 // Deleting asks first: the points go with the lane.
                 let remove = column(2.0);

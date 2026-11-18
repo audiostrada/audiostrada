@@ -172,11 +172,6 @@ impl Kind {
             *db = value;
         }
     }
-
-    /// Whether it is of the same sort as `other` (one edit of each sort found by analysis).
-    pub fn same_sort(&self, other: &Kind) -> bool {
-        std::mem::discriminant(self) == std::mem::discriminant(other)
-    }
 }
 
 /// One edit of the stack.

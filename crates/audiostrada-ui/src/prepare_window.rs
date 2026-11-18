@@ -1099,7 +1099,7 @@ impl PrepareWindow {
                 let picked: Vec<Step> = chosen(r).iter().map(|s| s.shifted(shift)).collect();
                 let strip = rules::strip_settings(picked.iter());
                 let inserts = rules::inserts(picked.iter());
-                let mut settings = strip.clone();
+                let mut settings = strip;
                 settings.push(("trim".to_owned(), shift));
                 for (effect, params) in &inserts {
                     settings.extend(params.iter().map(|(k, v)| (format!("{effect}/{k}"), *v)));

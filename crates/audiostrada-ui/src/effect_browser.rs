@@ -514,7 +514,7 @@ impl EffectBrowser {
                 pos2(rect.left() + 10.0, cy),
                 Align2::LEFT_CENTER,
                 &text,
-                font.clone(),
+                font,
                 theme::mix(p.text, p.weak, 0.2),
             );
         effect_frame::paint_glyph(
@@ -884,7 +884,7 @@ impl EffectBrowser {
                     let _ = crate::plugin_categories::save(&self.plugin_families);
                 }
                 if let (Some(key), Some(root)) = (removed, crate::chains::root()) {
-                    let name = key.strip_prefix(CHAIN_KEY).unwrap_or(&key);
+                    let name = key.trim_prefix(CHAIN_KEY);
                     let _ = crate::chains::remove(&root, name);
                     self.chains = crate::chains::list(Some(&root));
                 }

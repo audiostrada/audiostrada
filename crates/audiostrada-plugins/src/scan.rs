@@ -340,7 +340,7 @@ impl Progress {
 
     /// The file being scanned.
     pub fn current(&self) -> String {
-        self.current.lock().map(|c| c.clone()).unwrap_or_default()
+        self.current.lock().map_or_default(|c| c.clone())
     }
 }
 

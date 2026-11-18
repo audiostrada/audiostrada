@@ -608,7 +608,7 @@ impl Document {
         }
         let ext = settings.format.extension();
         let target = target.with_extension(ext);
-        let dir = target.parent().map(Path::to_path_buf).unwrap_or_default();
+        let dir = target.parent().map_or_default(Path::to_path_buf);
         let stem = target
             .file_stem()
             .map_or_else(|| "Mix".to_owned(), |s| s.to_string_lossy().into_owned());
@@ -617,7 +617,7 @@ impl Document {
             pending.push(Job {
                 settings: settings.clone(),
                 project: project.clone(),
-                output: target.clone(),
+                output: target,
                 kind: JobKind::Mix,
                 start,
                 end,

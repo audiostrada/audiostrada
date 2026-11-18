@@ -918,7 +918,7 @@ fn display(ui: &mut Ui, params: &mut Params, state: &TriggerState, color: Color3
     let heard = state.levels.iter().any(|l| l.1 > 1e-3 || l.2 > 1e-3);
     if heard && detection.len() > 1 {
         painter.add(Shape::line(
-            detection.clone(),
+            detection,
             Stroke::new(1.5, color.gamma_multiply(0.9)),
         ));
     }

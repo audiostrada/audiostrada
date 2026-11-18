@@ -435,23 +435,6 @@ impl Instrument {
             other => other,
         }
     }
-
-    /// A rough guess from the sound alone: percussive or held, low or not.
-    pub fn from_sound(analysis: &Analysis) -> Self {
-        let r = &analysis.report;
-        let loudest = (0..r.bands.len())
-            .max_by(|&a, &b| r.bands[a].total_cmp(&r.bands[b]))
-            .unwrap_or(0);
-        let percussive = r.onsets_per_second > 1.5 && r.crest > 16.0;
-        match (percussive, loudest) {
-            (true, 0 | 1) => Kick,
-            (true, 6) if r.bands[1] < -30.0 => HiHat,
-            (true, 6) => Overheads,
-            (true, _) => Drums,
-            (false, 0 | 1) => Bass,
-            _ => Other,
-        }
-    }
 }
 
 /// How far the rules go, from 0 (nothing) to 1 (all the way); 0.5 is the usual dose.

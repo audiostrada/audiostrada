@@ -199,7 +199,7 @@ impl Document {
 
     /// Versions of the project kept at each save, the newest first.
     pub fn versions(&self) -> Vec<(u32, PathBuf)> {
-        self.paths.as_ref().map(file::versions).unwrap_or_default()
+        self.paths.as_ref().map_or_default(file::versions)
     }
 
     /// Brings back a saved version as one undoable step.

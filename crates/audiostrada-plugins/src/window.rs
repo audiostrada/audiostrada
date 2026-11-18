@@ -38,7 +38,7 @@ pub fn set_grabbed_keys(keys: Vec<(u32, u16)>) {
 }
 
 pub fn grabbed_keys() -> Vec<(u32, u16)> {
-    GRABBED.lock().map(|g| g.clone()).unwrap_or_default()
+    GRABBED.lock().map_or_default(|g| g.clone())
 }
 
 /// The native handle given to plugins.

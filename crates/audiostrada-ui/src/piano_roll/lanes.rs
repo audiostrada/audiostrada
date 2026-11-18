@@ -494,10 +494,7 @@ impl PianoRoll {
             shape.push(pos2(next, y));
         }
         if !shape.is_empty() {
-            let mut fill = shape.clone();
-            fill.push(pos2(rect.right(), inner.bottom()));
-            fill.push(pos2(shape[0].x, inner.bottom()));
-            painter.add(Shape::line(shape.clone(), Stroke::new(2.0, color)));
+            painter.add(Shape::line(shape, Stroke::new(2.0, color)));
             for c in &mine {
                 painter.circle_filled(
                     pos2(frame.x(scene.clip_origin + c.time), y_of(c.value)),

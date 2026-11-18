@@ -63,7 +63,6 @@ impl<'a> Dialog<'a> {
     }
 
     /// The color of the band's top edge (the theme's accent otherwise).
-    #[allow(dead_code)]
     pub(crate) fn color(mut self, color: Color32) -> Self {
         self.color = Some(color);
         self

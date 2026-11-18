@@ -149,7 +149,7 @@ fn gesture(glyph: Glyph) -> Option<&'static str> {
 
 fn hint(label: &str, action: Option<Action>, mouse: Option<&str>) -> String {
     let mut text = label.to_owned();
-    let keys = action.map(crate::shortcut_labels).unwrap_or_default();
+    let keys = action.map_or_default(crate::shortcut_labels);
     if !keys.is_empty() {
         text.push('\n');
         text.push_str(&trf!("Keys: {keys}", keys = keys.join(", ")));

@@ -449,7 +449,7 @@ impl Map {
             offset: clip.offset,
             end: clip.end(),
             per: edit::played_per_source(project, clip),
-            timing: clip.edits.as_ref().map(|e| e.timing()).unwrap_or_default(),
+            timing: clip.edits.as_ref().map_or_default(|e| e.timing()),
         }
     }
 
