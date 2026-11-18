@@ -106,6 +106,7 @@ jobs:
 
   macos:
     runs-on: macos-latest
+    timeout-minutes: 120
     env:
       MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
       AUDIOSTRADA_BUNDLE_ID: ${{ vars.AUDIOSTRADA_BUNDLE_ID }}
@@ -125,6 +126,8 @@ jobs:
         run: |
           echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
           security create-keychain -p ci build.keychain
+          # A new keychain locks after 5 minutes: codesign would then wait for a password, forever.
+          security set-keychain-settings -lut 21600 build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p ci build.keychain
           security import certificate.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
@@ -132,7 +135,10 @@ jobs:
           xcrun notarytool store-credentials audiostrada --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
           echo "AUDIOSTRADA_SIGN_IDENTITY=$(security find-identity -v -p codesigning build.keychain | sed -n 's/.*"\(Developer ID Application.*\)"/\1/p' | head -n 1)" >> "$GITHUB_ENV"
           echo "AUDIOSTRADA_NOTARY_PROFILE=audiostrada" >> "$GITHUB_ENV"
-      - run: sh packaging/macos/bundle.sh
+      - name: Bundle, sign and notarize
+        run: |
+          if [ -n "$MACOS_CERTIFICATE" ]; then security unlock-keychain -p ci build.keychain; fi
+          sh packaging/macos/bundle.sh
       - uses: actions/upload-artifact@v7
         with:
           name: macos
