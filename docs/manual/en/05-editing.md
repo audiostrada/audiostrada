@@ -158,7 +158,7 @@ From the Edit menu, or by right-clicking clips or a range:
 
 Double-click an audio clip, or View › *Audio editor of the selected clip*, to retouch it in a
 large window over the timeline; [[Escape]] closes it. It is laid out as the note and automation
-editors, with the same bar, keys ([[F]] frames the clip, [[F11]] fills the main window) and
+editors, with the same bar, keys ([[F]] frames the clip, [[F11]], [[Control+Cmd+F]] on macOS, fills the main window) and
 zoom. Everything happens on the waveform, with the mouse: AudioStrada finds, you decide.
 
 When it opens, AudioStrada listens to the clip. The chips above the waveform say what it found

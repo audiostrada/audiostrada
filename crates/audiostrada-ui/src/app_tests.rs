@@ -715,9 +715,17 @@ fn the_note_editor_opens_on_the_selected_midi_clip_goes_full_screen_and_closes_w
     h.act(Action::AutomationEditor);
     h.act(Action::NoteEditor);
     assert!(h.app.views.borrow().timeline.note_editor_open());
-    // F11 fills the main window with it; Escape comes back to the window, then closes it.
+    // The full screen key (F11, Ctrl+Cmd+F on macOS) fills the main window with it; Escape
+    // comes back to the window, then closes it.
     let full = |h: &Harness| crate::editor_frame::full_screen(&h.ctx, crate::editor_frame::NOTES);
-    h.frame(vec![key(egui::Key::F11)]);
+    let full_key = crate::keymap::full_screen();
+    h.frame(vec![Event::Key {
+        key: full_key.key().unwrap(),
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: full_key.modifiers(),
+    }]);
     h.frame(Vec::new());
     assert!(full(&h));
     h.frame(vec![key(egui::Key::Escape)]);

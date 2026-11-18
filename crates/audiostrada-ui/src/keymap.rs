@@ -56,11 +56,16 @@ pub fn keysym(key: Key) -> Option<u32> {
     Some(named)
 }
 
-/// A key with modifiers. `command` is Ctrl on Linux and Windows, Cmd on macOS.
+const MAC: bool = cfg!(target_os = "macos");
+
+/// A key with modifiers. `command` is Ctrl on Linux and Windows, Cmd on macOS; `ctrl` is the
+/// Control key of macOS, besides Cmd (never set elsewhere).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Shortcut {
     #[serde(default)]
     pub command: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ctrl: bool,
     #[serde(default)]
     pub shift: bool,
     #[serde(default)]
@@ -68,10 +73,23 @@ pub struct Shortcut {
     pub key: String,
 }
 
+/// The full screen key: F11, or the system's Ctrl+Cmd+F on macOS, where F11 lowers the volume.
+pub fn full_screen() -> Shortcut {
+    if MAC {
+        Shortcut {
+            ctrl: true,
+            ..Shortcut::new(true, false, false, Key::F)
+        }
+    } else {
+        Shortcut::new(false, false, false, Key::F11)
+    }
+}
+
 impl Shortcut {
     pub fn new(command: bool, shift: bool, alt: bool, key: Key) -> Self {
         Self {
             command,
+            ctrl: false,
             shift,
             alt,
             key: key.name().to_owned(),
@@ -85,8 +103,38 @@ impl Shortcut {
     pub fn matches(&self, key: Key, modifiers: Modifiers) -> bool {
         self.key() == Some(key)
             && modifiers.command == self.command
+            && self.ctrl == (MAC && modifiers.ctrl)
             && modifiers.shift == self.shift
             && modifiers.alt == self.alt
+    }
+
+    /// The modifiers held for this shortcut, as egui reports them.
+    pub fn modifiers(&self) -> Modifiers {
+        Modifiers {
+            alt: self.alt,
+            ctrl: self.ctrl || (self.command && !MAC),
+            shift: self.shift,
+            mac_cmd: self.command && MAC,
+            command: self.command,
+        }
+    }
+
+    /// Takes a press of this shortcut from the input, true if there was one.
+    pub fn consume(&self, input: &mut eframe::egui::InputState) -> bool {
+        let mut found = false;
+        input.events.retain(|e| match e {
+            eframe::egui::Event::Key {
+                key,
+                pressed: true,
+                modifiers,
+                ..
+            } if self.matches(*key, *modifiers) => {
+                found = true;
+                false
+            }
+            _ => true,
+        });
+        found
     }
 
     /// Human readable form, e.g. "Ctrl+Shift+S" (or "⌘⇧S" on macOS).
@@ -95,6 +143,9 @@ impl Shortcut {
             .key()
             .map_or(self.key.clone(), |k| k.symbol_or_name().to_owned());
         let mut parts: Vec<&str> = Vec::new();
+        if self.ctrl {
+            parts.push(if mac { "⌃" } else { "Ctrl" });
+        }
         if self.command {
             parts.push(if mac { "⌘" } else { "Ctrl" });
         }
@@ -150,7 +201,7 @@ pub struct Keymap {
 }
 
 /// Bumped when default bindings are added, so saved keymaps get them.
-const VERSION: u32 = 17;
+const VERSION: u32 = 18;
 
 impl Default for Keymap {
     fn default() -> Self {
@@ -212,7 +263,6 @@ const COMMON: &[Binding] = &[
     (k(PLAIN, true, true, Key::R), Action::ArmTracks),
     (k(CMD, false, false, Key::M), Action::DetachMixer),
     (k(CMD, false, false, Key::P), Action::DetachPianoRoll),
-    (k(PLAIN, false, false, Key::F11), Action::ToggleFullscreen),
 ];
 
 /// Panels: Alt and a number shows or hides them (added in version 1). Vertical zoom (added
@@ -378,6 +428,7 @@ impl Keymap {
             .map(|&((command, shift, alt, key), action)| {
                 (Shortcut::new(command, shift, alt, key), action)
             })
+            .chain([(full_screen(), Action::ToggleFullscreen)])
             .collect();
         Self {
             preset,
@@ -409,9 +460,21 @@ impl Keymap {
             }
         }
         if self.version < 8 {
+            let key = full_screen();
+            if !self.bindings.iter().any(|(s, _)| *s == key) {
+                self.bindings.push((key, Action::ToggleFullscreen));
+            }
+        }
+        if self.version < 18 && MAC {
+            // Full screen leaves F11, the volume key of Mac keyboards, for Ctrl+Cmd+F.
             let f11 = Shortcut::new(false, false, false, Key::F11);
-            if !self.bindings.iter().any(|(s, _)| *s == f11) {
-                self.bindings.push((f11, Action::ToggleFullscreen));
+            let key = full_screen();
+            if !self.bindings.iter().any(|(s, _)| *s == key) {
+                for (shortcut, action) in &mut self.bindings {
+                    if *shortcut == f11 && *action == Action::ToggleFullscreen {
+                        *shortcut = key.clone();
+                    }
+                }
             }
         }
         for (version, key, action) in [
@@ -439,7 +502,7 @@ impl Keymap {
     pub fn transport_keys(&self) -> Vec<(u32, u16)> {
         self.bindings
             .iter()
-            .filter(|(_, a)| a.category() == "Transport")
+            .filter(|(s, a)| a.category() == "Transport" && !s.ctrl)
             .filter_map(|(s, _)| {
                 let sym = keysym(s.key()?)?;
                 let mods = u16::from(s.shift) | u16::from(s.command) << 2 | u16::from(s.alt) << 3;
@@ -453,10 +516,10 @@ impl Keymap {
         let key = Key::ALL.iter().copied().find(|&k| keysym(k) == Some(sym))?;
         let modifiers = Modifiers {
             shift: mods & 1 != 0,
-            ctrl: mods & 4 != 0,
+            ctrl: mods & 4 != 0 && !MAC,
+            mac_cmd: mods & 4 != 0 && MAC,
             command: mods & 4 != 0,
             alt: mods & 8 != 0,
-            ..Modifiers::NONE
         };
         self.action_for(key, modifiers)
     }
@@ -516,9 +579,9 @@ mod tests {
     fn mods(command: bool, shift: bool, alt: bool) -> Modifiers {
         Modifiers {
             alt,
-            ctrl: command,
+            ctrl: command && !MAC,
             shift,
-            mac_cmd: false,
+            mac_cmd: command && MAC,
             command,
         }
     }
@@ -580,18 +643,50 @@ mod tests {
     }
 
     #[test]
-    fn saved_keymaps_get_full_screen_on_f11() {
+    fn saved_keymaps_get_the_full_screen_key() {
         let mut keymap = Keymap::preset(Preset::AudioStrada);
         keymap
             .bindings
             .retain(|(_, a)| *a != Action::ToggleFullscreen);
         keymap.version = 7;
         keymap.upgrade();
-        let none = mods(false, false, false);
         assert_eq!(
-            keymap.action_for(Key::F11, none),
-            Some(Action::ToggleFullscreen)
+            keymap.shortcuts_for(Action::ToggleFullscreen).next(),
+            Some(&full_screen())
         );
+    }
+
+    #[test]
+    fn full_screen_takes_ctrl_cmd_f_on_macos_and_f11_elsewhere() {
+        let f11 = Shortcut::new(false, false, false, Key::F11);
+        let mut saved = Keymap::preset(Preset::Logic);
+        saved
+            .bindings
+            .retain(|(_, a)| *a != Action::ToggleFullscreen);
+        saved.bindings.push((f11.clone(), Action::ToggleFullscreen));
+        saved.version = 17;
+        saved.upgrade();
+        let fresh = Keymap::preset(Preset::Logic);
+        for map in [&saved, &fresh] {
+            assert_eq!(
+                map.shortcuts_for(Action::ToggleFullscreen)
+                    .collect::<Vec<_>>(),
+                vec![&full_screen()]
+            );
+        }
+        if MAC {
+            assert_eq!(full_screen().label(true), "⌃⌘F");
+            let cmd = mods(true, false, false);
+            let ctrl_cmd = Modifiers { ctrl: true, ..cmd };
+            assert_eq!(
+                fresh.action_for(Key::F, ctrl_cmd),
+                Some(Action::ToggleFullscreen)
+            );
+            assert_eq!(fresh.action_for(Key::F, cmd), Some(Action::Fades));
+            assert_eq!(fresh.action_for(Key::F11, Modifiers::NONE), None);
+        } else {
+            assert_eq!(full_screen(), f11);
+        }
     }
 
     #[test]

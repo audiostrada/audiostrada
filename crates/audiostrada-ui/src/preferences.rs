@@ -683,8 +683,11 @@ impl PreferencesWindow {
         if key == Key::Escape && !modifiers.any() {
             return;
         }
-        let shortcut = Shortcut::new(modifiers.command, modifiers.shift, modifiers.alt, key);
-        let label = shortcut.label(false);
+        let shortcut = Shortcut {
+            ctrl: cfg!(target_os = "macos") && modifiers.ctrl,
+            ..Shortcut::new(modifiers.command, modifiers.shift, modifiers.alt, key)
+        };
+        let label = shortcut.label(cfg!(target_os = "macos"));
         if let Some(previous) = prefs.keymap.bind(shortcut, action) {
             self.notice = Some(trf!(
                 "{shortcut} was used by \"{previous}\"; it now runs \"{action}\".",

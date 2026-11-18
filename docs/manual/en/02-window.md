@@ -66,5 +66,5 @@ quickest way to learn them.
 
 ## Full screen
 
-[[F11]] (View › *Full screen*) fills the screen the window is on, with the mixer and piano roll
+[[F11]] ([[Control+Cmd+F]] on macOS, View › *Full screen*) fills the screen the window is on, with the mixer and piano roll
 windows when they are detached.

@@ -956,11 +956,11 @@ Notes
 Note editor of the selected MIDI clip
 Éditeur de notes du clip MIDI sélectionné
 
-Back to the window (F11 or Esc)
-Revenir à la fenêtre (F11 ou Échap)
+Back to the window ({key} or Esc)
+Revenir à la fenêtre ({key} ou Échap)
 
-Full screen: the editor fills the main window (F11)
-Plein écran : l'éditeur remplit la fenêtre principale (F11)
+Full screen: the editor fills the main window ({key})
+Plein écran : l'éditeur remplit la fenêtre principale ({key})
 
 frame
 cadrer

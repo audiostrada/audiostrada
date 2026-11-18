@@ -168,7 +168,7 @@ Par le menu Édition, ou par un clic droit sur des clips ou une plage :
 Double-cliquez sur un clip audio, ou Affichage › *Éditeur audio du clip sélectionné*, pour le
 retoucher dans une grande fenêtre au-dessus de la timeline ; [[Escape]] la ferme. Il est
 disposé comme les éditeurs de notes et d'automation, avec la même barre, les mêmes touches
-([[F]] cadre le clip, [[F11]] remplit la fenêtre principale) et le même zoom. Tout se passe sur
+([[F]] cadre le clip, [[F11]], [[Contrôle+Cmd+F]] sur macOS, remplit la fenêtre principale) et le même zoom. Tout se passe sur
 la forme d'onde, à la souris : AudioStrada trouve, vous décidez.
 
 À l'ouverture, AudioStrada écoute le clip. Les pastilles au-dessus de l'onde disent ce qu'il a

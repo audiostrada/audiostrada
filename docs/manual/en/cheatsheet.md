@@ -90,7 +90,7 @@
 | [[Alt+Shift]]+wheel | waveform zoom |
 | [[Alt+0]] … [[Alt+6]] | timeline, mixer, piano roll, browser, inspector, markers, rack |
 | [[Ctrl+M]] / [[Ctrl+P]] | mixer / piano roll in a window |
-| [[F11]] | full screen |
+| [[F11]] ([[Control+Cmd+F]] on macOS) | full screen |
 
 ## Mixer
 

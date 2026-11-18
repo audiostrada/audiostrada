@@ -67,7 +67,7 @@ them, or picks the Pro Tools, Logic or Reaper preset. On macOS, [[Cmd]] replaces
 | [[Alt+0]] … [[Alt+6]] | timeline, mixer, piano roll, browser, inspector, markers, rack |
 | [[Ctrl+M]] / [[Ctrl+P]] | mixer / piano roll in its own window |
 | [[Shift+Alt+C]] | compact mixer |
-| [[F11]] | full screen |
+| [[F11]] ([[Control+Cmd+F]] on macOS) | full screen |
 
 ## Files and windows
 

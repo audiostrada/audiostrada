@@ -194,12 +194,16 @@ pub(crate) fn tool_bar(
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.add_space(4.0);
                 let full = full_screen(ui.ctx(), id);
+                let key = full_screen_key_label();
                 let hint = if full {
-                    tr("Back to the window (F11 or Esc)")
+                    trf!("Back to the window ({key} or Esc)", key = key)
                 } else {
-                    tr("Full screen: the editor fills the main window (F11)")
+                    trf!(
+                        "Full screen: the editor fills the main window ({key})",
+                        key = key
+                    )
                 };
-                if button(ui, Glyph::FullScreen, full, hint).clicked() {
+                if button(ui, Glyph::FullScreen, full, &hint).clicked() {
                     set_full_screen(ui.ctx(), id, !full);
                 }
                 ui.add_space(8.0);
@@ -223,7 +227,11 @@ fn keys(tools: &[(Tool, &str)]) -> String {
         .map(|t| trf!("{key}: {tool}", key = t.key().name(), tool = t.name()))
         .collect();
     parts.push(trf!("{key}: {tool}", key = "F", tool = tr("frame")));
-    parts.push(trf!("{key}: {tool}", key = "F11", tool = tr("full screen")));
+    parts.push(trf!(
+        "{key}: {tool}",
+        key = full_screen_key_label(),
+        tool = tr("full screen")
+    ));
     parts.push(trf!("{key}: {tool}", key = tr("Esc"), tool = tr("close")));
     parts.join(" · ")
 }
@@ -240,13 +248,18 @@ pub(crate) fn take_tool_key(ctx: &egui::Context, tools: &[Tool]) -> Option<Tool>
         .find(|t| ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, t.key())))
 }
 
-/// The keys of the editor `id` beside its tools: F11 switches the full screen; F frames, as
-/// in the timeline (true when pressed).
+/// The full screen key as the system writes it (F11, or ⌃⌘F on macOS).
+fn full_screen_key_label() -> String {
+    crate::keymap::full_screen().label(cfg!(target_os = "macos"))
+}
+
+/// The keys of the editor `id` beside its tools: the full screen key (F11, Ctrl+Cmd+F on
+/// macOS) switches its full screen; F frames, as in the timeline (true when pressed).
 pub(crate) fn take_view_keys(ctx: &egui::Context, id: &str) -> bool {
     if ctx.text_edit_focused() {
         return false;
     }
-    if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F11)) {
+    if ctx.input_mut(|i| crate::keymap::full_screen().consume(i)) {
         set_full_screen(ctx, id, !full_screen(ctx, id));
     }
     ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F))

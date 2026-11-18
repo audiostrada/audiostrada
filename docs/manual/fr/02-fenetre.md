@@ -72,5 +72,5 @@ raccourci de chaque commande : c'est le plus rapide pour les apprendre.
 
 ## Plein écran
 
-[[F11]] (Affichage › *Plein écran*) remplit l'écran où se trouve la fenêtre, avec les fenêtres
+[[F11]] ([[Contrôle+Cmd+F]] sur macOS, Affichage › *Plein écran*) remplit l'écran où se trouve la fenêtre, avec les fenêtres
 du Mixer et du piano roll quand elles sont détachées.

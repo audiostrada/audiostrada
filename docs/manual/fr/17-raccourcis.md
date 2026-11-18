@@ -67,7 +67,7 @@ lequel, ou choisit le jeu Pro Tools, Logic ou Reaper. Sous macOS, [[Cmd]] rempla
 | [[Alt+0]] … [[Alt+6]] | timeline, Mixer, piano roll, navigateur, inspecteur, marqueurs, rack |
 | [[Ctrl+M]] / [[Ctrl+P]] | Mixer / piano roll dans sa propre fenêtre |
 | [[Shift+Alt+C]] | Mixer compact |
-| [[F11]] | plein écran |
+| [[F11]] ([[Contrôle+Cmd+F]] sur macOS) | plein écran |
 
 ## Fichiers et fenêtres
 

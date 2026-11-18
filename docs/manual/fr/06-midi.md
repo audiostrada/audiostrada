@@ -21,7 +21,7 @@ Elle est organisée comme l'éditeur d'automation, avec les mêmes touches :
   note ; puis ce qui s'applique aux notes sélectionnées (*Transformer*, supprimer), les grilles
   (le magnétisme et son pas, la gamme), et la vue (**Z** zoom, dézoomer, cadrer les notes). Les
   touches sont rappelées à droite.
-- [[F11]] (ou le bouton à droite de la barre, ou un double-clic sur son titre) fait remplir à
+- [[F11]] ([[Contrôle+Cmd+F]] sur macOS, ou le bouton à droite de la barre, ou un double-clic sur son titre) fait remplir à
   l'éditeur la fenêtre principale ; [[Escape]] revient à la fenêtre, un second la ferme. [[F]]
   cadre les notes, comme il cadre la session dans la timeline.
 - Ce que fait l'outil en main est écrit en haut des notes.

@@ -19,7 +19,7 @@ editor, with the same keys:
   scissors, **E** eraser) and *Chord*, the chord the pencil and the brush add instead of a note;
   then what applies to the selected notes (*Transform*, delete), the grids (the snap and its
   step, the scale), and the view (**Z** zoom, zoom out, frame the notes). The keys are listed at the right.
-- [[F11]] (or the button at the right of the bar, or a double-click on its title) makes the
+- [[F11]] ([[Control+Cmd+F]] on macOS, or the button at the right of the bar, or a double-click on its title) makes the
   editor fill the main window; [[Escape]] comes back to the window, a second one closes it.
   [[F]] frames the notes, as it frames the session in the timeline.
 - What the tool in hand does is written over the top of the notes.
