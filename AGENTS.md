@@ -37,8 +37,9 @@ The toolchain is pinned in `rust-toolchain.toml`. Edition 2024, `rustfmt` at 100
   `AUDIOSTRADA_NO_REALTIME=1`. Arguments go to `cargo test`:
   `scripts/test.sh -p audiostrada-engine sidechain`. Test the crates you touched first, the
   workspace (`scripts/test.sh`) once before committing, in the background. Release builds too
-  stay throttled: `nice -n 19 cargo build -j 4 --release`. CI keeps a plain `cargo test`: its
-  machines have no one to disturb, and the code itself keeps renders and tests off real time.
+  stay throttled: `scripts/build.sh` (a release build of `audiostrada` by default), never
+  while the tests run. CI keeps a plain `cargo test`: its machines have no one to disturb, and
+  the code itself keeps renders and tests off real time.
 - **Light sweeps by default.** The interface tests that click everywhere (`test_sweep::script`)
   click three times sparser, and the level tests check every fourth factory sound, unless
   `AUDIOSTRADA_SWEEP=full` is set, as in CI. Set it after changing an editor's layout or a
