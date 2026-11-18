@@ -171,7 +171,7 @@ pub fn is_project(path: &Path) -> bool {
 /// that its plugins load at once instead of being reported as not installed.
 pub fn plugin_database(ui: &audiostrada_ui::UiPrefs, disabled: bool) -> Database {
     ui.apply_sandbox();
-    if let Some(dir) = dirs::data_dir() {
+    if let Some(dir) = audiostrada_core::profile::data_dir() {
         audiostrada_plugins::guard::set_dir(dir.join("audiostrada"));
     }
     audiostrada_plugins::set_enabled(!disabled && !ui.disable_plugins);

@@ -32,6 +32,8 @@ drive AudioStrada. A click opens their window (see *AI assistants*).
 - **Mixer**, **Piano roll** and **Rack** below, in tabs.
 - **Browser** (audio files), **Inspector** (details of the selected clip or track) and
   **Markers**, from the View menu or [[Alt+3]], [[Alt+4]], [[Alt+5]].
+- **Track strip**: the selected track's mixer strip and the master's, in a column beside the
+  timeline as in Logic Pro (View › *Show track strip*). Drag its edge to widen it.
 
 Drag a tab to rearrange the panels. Right-click a tab › *Open in its own window* puts a panel on
 another screen (typically the mixer, [[Ctrl+M]]); closing that window docks it back. View ›

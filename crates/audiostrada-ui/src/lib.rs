@@ -55,6 +55,7 @@ mod report;
 mod rig_editor;
 mod screens;
 mod settings;
+mod setup_window;
 mod song_bar;
 mod song_tools;
 mod synth_editor;
@@ -84,7 +85,7 @@ pub(crate) fn config_dir() -> Option<PathBuf> {
     if cfg!(test) {
         return Some(audiostrada_core::scratch::dir("test-config"));
     }
-    dirs::config_dir()
+    audiostrada_core::profile::config_dir()
 }
 
 use std::cell::RefCell;
@@ -318,6 +319,8 @@ struct Views {
     doc: Rc<RefCell<Document>>,
     browser: Browser,
     mixer: MixerView,
+    /// The track strip panel: a mixer view of the selected track and the master.
+    strip: MixerView,
     timeline: TimelineView,
     piano: piano_roll::PianoRoll,
     edit: EditSettings,
@@ -338,8 +341,10 @@ impl Views {
     fn has_requests(&self) -> bool {
         !self.timeline.requests.is_empty()
             || !self.mixer.requests.is_empty()
+            || !self.strip.requests.is_empty()
             || self.timeline.stem_request.is_some()
             || self.mixer.stem_request.is_some()
+            || self.strip.stem_request.is_some()
             || self.timeline.clip_effects.is_some()
     }
 }
@@ -364,6 +369,10 @@ impl PaneContent for Views {
                 self.piano.show(ui, &self.edit, clip.as_slice());
             }
             Pane::Rack => self.mixer.rack(ui),
+            Pane::Strip => {
+                self.strip.detached = ui.ctx().viewport_id() != egui::ViewportId::ROOT;
+                self.strip.show(ui);
+            }
         }
     }
 }
@@ -414,6 +423,11 @@ pub struct AudioStradaApp {
     /// Last logged state of the sound cards and of the stream (rate, frames, dropouts).
     audio_state: (Instant, String, (u32, u32, u64)),
     preferences: PreferencesWindow,
+    setup: setup_window::SetupWindow,
+    /// The setup assistant opens at the first frame (the first start).
+    setup_pending: bool,
+    /// The track strip's column is narrowed to its strips once they are drawn.
+    fit_strip: bool,
     audio_settings: AudioSettingsPanel,
     hooks: Hooks,
     plugin_scan: Option<PluginScan>,
@@ -503,6 +517,11 @@ impl AudioStradaApp {
                     mixer.master_left = prefs.master_left;
                     mixer
                 },
+                strip: {
+                    let mut strip = MixerView::new(Rc::clone(&doc));
+                    strip.single = true;
+                    strip
+                },
                 timeline: {
                     let mut timeline = TimelineView::new(Rc::clone(&doc));
                     timeline.header_width = prefs.header_width;
@@ -545,6 +564,9 @@ impl AudioStradaApp {
             ),
             audio_state: (Instant::now(), String::new(), (0, 0, 0)),
             preferences: PreferencesWindow::default(),
+            setup: setup_window::SetupWindow::default(),
+            setup_pending: false,
+            fit_strip: false,
             audio_settings: AudioSettingsPanel::default(),
             hooks,
             recent,
@@ -1073,6 +1095,51 @@ impl AudioStradaApp {
         self.views.borrow_mut().extensions.push(extension);
     }
 
+    /// Applies a change made in the audio settings (preferences or setup assistant).
+    fn apply_audio_change(&mut self, change: SettingsChange) {
+        match change {
+            SettingsChange::None => {}
+            SettingsChange::Backend(kind) => {
+                self.host.select_backend(kind);
+                (self.hooks.audio_changed)(&self.host);
+            }
+            SettingsChange::Config(config) => {
+                self.host.apply(config);
+                (self.hooks.audio_changed)(&self.host);
+            }
+        }
+    }
+
+    /// Opens the setup assistant once the window is up: the first start.
+    pub fn open_setup(&mut self) {
+        self.setup_pending = true;
+    }
+
+    /// The layout chosen in the setup assistant, in place of the current one.
+    fn arrange(
+        &mut self,
+        arrangement: setup_window::Arrangement,
+        window: Option<ui_prefs::WindowState>,
+    ) {
+        for pane in self.detached.clone() {
+            self.reattach(pane);
+        }
+        let start = match arrangement {
+            setup_window::Arrangement::One(start) => start,
+            setup_window::Arrangement::TwoScreens => layout::Start::Classic,
+        };
+        self.tree = layout::start_tree(start);
+        self.fit_strip = start == layout::Start::Strip;
+        if arrangement == setup_window::Arrangement::TwoScreens {
+            if let Some(state) = window {
+                self.prefs.pane_windows.retain(|(p, _)| *p != Pane::Mixer);
+                self.prefs.pane_windows.push((Pane::Mixer, state));
+            }
+            self.detach(Pane::Mixer);
+        }
+        self.ui_changed();
+    }
+
     pub fn listen(&mut self, port: u16) -> Result<(), String> {
         if self.control.as_ref().is_some_and(|c| c.port == port) {
             return Ok(());
@@ -1310,6 +1377,7 @@ impl AudioStradaApp {
             Action::License => self.license_window.open(),
             Action::ReportIssue => self.feedback.open(),
             Action::Assistants => self.assistants_window.open(),
+            Action::Setup => self.setup.open(ctx),
             Action::AddVca => mixer::add_vca(&mut self.doc.borrow_mut()),
             Action::AddBus => mixer::add_bus(&mut self.doc.borrow_mut()),
             Action::CleanUpTracks | Action::BringOutTracks | Action::PrepareTracks => {
@@ -1520,7 +1588,8 @@ impl AudioStradaApp {
             | Action::ShowInspector
             | Action::ShowMarkers
             | Action::ShowPianoRoll
-            | Action::ShowRack => {
+            | Action::ShowRack
+            | Action::ShowStrip => {
                 if let Some(pane) = Pane::from_action(action) {
                     if self.detached.contains(&pane) {
                         // Brings its window forward; Detach or closing the window docks it back.
@@ -1990,6 +2059,9 @@ impl AudioStradaApp {
                         if pane == Pane::Mixer {
                             views.mixer.windows(&ctx);
                         }
+                        if pane == Pane::Strip {
+                            views.strip.windows(&ctx);
+                        }
                         asked |= views.has_requests();
                         if let Ok(mut doc) = views.doc.try_borrow_mut() {
                             mixer::save_chain_dialog(&ctx, &mut doc);
@@ -2075,11 +2147,13 @@ impl AudioStradaApp {
             }
             actions.append(&mut views.timeline.requests);
             actions.append(&mut views.mixer.requests);
+            actions.append(&mut views.strip.requests);
             views
                 .timeline
                 .stem_request
                 .take()
                 .or(views.mixer.stem_request.take())
+                .or(views.strip.stem_request.take())
         };
         if let Some(track) = stem {
             self.export_track(ctx, track);
@@ -2575,6 +2649,7 @@ impl AudioStradaApp {
                             Pane::Markers => Action::ShowMarkers,
                             Pane::PianoRoll => Action::ShowPianoRoll,
                             Pane::Rack => Action::ShowRack,
+                            Pane::Strip => Action::ShowStrip,
                         };
                         check(
                             ui,
@@ -2686,6 +2761,7 @@ impl AudioStradaApp {
                 item(ui, &mut chosen, Action::ReportIssue, None, true);
                 ui.separator();
                 item(ui, &mut chosen, Action::Assistants, None, true);
+                item(ui, &mut chosen, Action::Setup, None, true);
                 item(ui, &mut chosen, Action::License, None, true);
                 item(ui, &mut chosen, Action::About, None, true);
             });
@@ -3489,9 +3565,19 @@ impl eframe::App for AudioStradaApp {
         if let Some(pane) = detach {
             self.detach(pane);
         }
+        if self.fit_strip {
+            // The pane's margins around the strips.
+            let width = self.views.borrow().strip.single_width + 12.0;
+            if width > 12.0 && layout::fit_width(&mut self.tree, Pane::Strip, width) {
+                self.fit_strip = false;
+            }
+        }
         // Docked, the mixer's windows belong to the main window (detached, to the mixer's).
         if !self.detached.contains(&Pane::Mixer) {
             self.views.borrow_mut().mixer.windows(&ctx);
+        }
+        if !self.detached.contains(&Pane::Strip) {
+            self.views.borrow_mut().strip.windows(&ctx);
         }
         self.detached_windows(&ctx);
         for extension in &mut self.views.borrow_mut().extensions {
@@ -3508,6 +3594,21 @@ impl eframe::App for AudioStradaApp {
         if export_changed {
             self.ui_changed();
         }
+        if std::mem::take(&mut self.setup_pending) {
+            self.setup.open(&ctx);
+        }
+        let setup = self
+            .setup
+            .show(&ctx, &mut self.prefs, &mut self.audio_settings, &self.host);
+        if setup.midi_changed {
+            self.open_midi_inputs();
+        }
+        if let Some((arrangement, window)) = setup.layout {
+            self.arrange(arrangement, window);
+        } else if setup.ui_changed {
+            self.ui_changed();
+        }
+        self.apply_audio_change(setup.audio);
         let database = self.doc.borrow().player().plugins().clone();
         let outcome = self.preferences.show(
             &ctx,
@@ -3538,17 +3639,7 @@ impl eframe::App for AudioStradaApp {
                 full,
             ));
         }
-        match outcome.audio {
-            SettingsChange::None => {}
-            SettingsChange::Backend(kind) => {
-                self.host.select_backend(kind);
-                (self.hooks.audio_changed)(&self.host);
-            }
-            SettingsChange::Config(config) => {
-                self.host.apply(config);
-                (self.hooks.audio_changed)(&self.host);
-            }
-        }
+        self.apply_audio_change(outcome.audio);
         for action in actions {
             self.run(&ctx, action);
         }
@@ -3578,7 +3669,10 @@ impl eframe::App for AudioStradaApp {
             }
             (self.hooks.ui_changed)(&self.prefs);
         }
-        self.ask_for_updates(&ctx);
+        // The assistant asks it itself.
+        if !self.setup.is_open() && !self.setup_pending {
+            self.ask_for_updates(&ctx);
+        }
         if self.crashes.show(&ctx, &mut self.prefs) {
             self.ui_changed();
         }

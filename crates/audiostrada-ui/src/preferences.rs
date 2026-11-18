@@ -700,42 +700,9 @@ impl PreferencesWindow {
 
     fn midi(&mut self, ui: &mut egui::Ui, prefs: &mut UiPrefs, outcome: &mut PrefsOutcome) {
         let open = self.midi_open.clone();
-        let mut refresh = false;
-        let ports = self
-            .midi_ports
-            .get_or_insert_with(audiostrada_midi::devices::input_names)
-            .clone();
-        card(ui, Some(tr("Inputs")), |ui| {
-            if ports.is_empty() {
-                ui.label(RichText::new(tr("No MIDI input found.")).color(theme::current(ui).weak));
-            }
-            for (i, name) in ports.iter().enumerate() {
-                if i > 0 {
-                    divider(ui);
-                }
-                let mut enabled = !prefs.midi_disabled.contains(name);
-                ui.horizontal(|ui| {
-                    if ui.checkbox(&mut enabled, name).changed() {
-                        if enabled {
-                            prefs.midi_disabled.retain(|n| n != name);
-                        } else {
-                            prefs.midi_disabled.push(name.clone());
-                        }
-                        outcome.ui_changed = true;
-                        outcome.midi_changed = true;
-                    }
-                    if enabled && !open.contains(name) {
-                        ui.label(RichText::new(tr("unavailable")).small().color(WARN));
-                    }
-                });
-            }
-            ui.add_space(8.0);
-            refresh = ui.button(tr("Refresh")).clicked();
-        });
-        if refresh {
-            self.midi_ports = None;
-            outcome.midi_changed = true;
-        }
+        let (toggled, refreshed) = midi_inputs(ui, prefs, &mut self.midi_ports, Some(&open));
+        outcome.ui_changed |= toggled;
+        outcome.midi_changed |= toggled || refreshed;
         hint(
             ui,
             tr(
@@ -877,6 +844,51 @@ impl PreferencesWindow {
 }
 
 /// A shortcut, drawn as a key.
+/// The MIDI inputs, each to tick; `open` names the inputs that opened, the others enabled
+/// being marked unavailable. Whether the choice changed, and whether the list was refreshed.
+pub(crate) fn midi_inputs(
+    ui: &mut egui::Ui,
+    prefs: &mut UiPrefs,
+    ports: &mut Option<Vec<String>>,
+    open: Option<&[String]>,
+) -> (bool, bool) {
+    let mut toggled = false;
+    let mut refresh = false;
+    let names = ports
+        .get_or_insert_with(audiostrada_midi::devices::input_names)
+        .clone();
+    card(ui, Some(tr("Inputs")), |ui| {
+        if names.is_empty() {
+            ui.label(RichText::new(tr("No MIDI input found.")).color(theme::current(ui).weak));
+        }
+        for (i, name) in names.iter().enumerate() {
+            if i > 0 {
+                divider(ui);
+            }
+            let mut enabled = !prefs.midi_disabled.contains(name);
+            ui.horizontal(|ui| {
+                if ui.checkbox(&mut enabled, name).changed() {
+                    if enabled {
+                        prefs.midi_disabled.retain(|n| n != name);
+                    } else {
+                        prefs.midi_disabled.push(name.clone());
+                    }
+                    toggled = true;
+                }
+                if enabled && open.is_some_and(|open| !open.contains(name)) {
+                    ui.label(RichText::new(tr("unavailable")).small().color(WARN));
+                }
+            });
+        }
+        ui.add_space(8.0);
+        refresh = ui.button(tr("Refresh")).clicked();
+    });
+    if refresh {
+        *ports = None;
+    }
+    (toggled, refresh)
+}
+
 fn key_chip(ui: &mut egui::Ui, text: &str) {
     let p = theme::current(ui);
     let font = egui::FontId::monospace(12.0);
@@ -1461,7 +1473,7 @@ fn plugins_tab(
 
 /// A small picture of a theme: a strip with its meter, fader cap and accent, rounded as the
 /// theme rounds; the chosen one is outlined.
-fn theme_card(
+pub(crate) fn theme_card(
     ui: &mut egui::Ui,
     name: &str,
     p: crate::theme::Palette,

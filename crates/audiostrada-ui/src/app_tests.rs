@@ -439,6 +439,7 @@ fn sweep_app(part: usize) {
         Action::ShowBrowser,
         Action::ShowInspector,
         Action::ShowMarkers,
+        Action::ShowStrip,
     ] {
         h.act(action);
         for events in crate::test_sweep::script(band, 90.0, false) {
@@ -1001,4 +1002,100 @@ fn an_express_mix_balances_the_faders_and_gives_each_instrument_its_space() {
     doc.history_mut().undo();
     assert!(space_buses(doc.project()).is_empty());
     assert_eq!(doc.project().track(tracks[0]).unwrap().gain_db, 0.0);
+}
+
+#[test]
+fn the_setup_assistant_opens_at_the_first_start_and_sets_the_layout() {
+    use crate::layout::Start;
+    use crate::setup_window::Arrangement;
+    let mut h = Harness::with_song("setup");
+    h.frame(Vec::new());
+    assert!(!h.app.setup.is_open(), "not without a first start");
+    h.app.open_setup();
+    h.frame(Vec::new());
+    assert!(h.app.setup.is_open());
+    // Its steps and controls, clicked through.
+    h.answer_dialogs();
+    h.act(Action::Setup);
+    assert!(h.app.setup.is_open(), "the Help menu opens it again");
+
+    h.frame_with(Vec::new(), |app, _| {
+        app.arrange(Arrangement::One(Start::Strip), None)
+    });
+    assert!(layout::is_visible(&h.app.tree, Pane::Strip));
+    assert!(!layout::is_visible(&h.app.tree, Pane::Mixer));
+    let first = h.app.doc.borrow().project().tracks[0].id;
+    h.app.doc.borrow_mut().set_track_selection(vec![first]);
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+
+    let window = ui_prefs::WindowState {
+        size: [1100.0, 560.0],
+        position: Some([1960.0, 40.0]),
+        maximized: true,
+    };
+    h.frame_with(Vec::new(), |app, _| {
+        app.arrange(Arrangement::TwoScreens, Some(window))
+    });
+    assert_eq!(h.app.detached, vec![Pane::Mixer]);
+    assert!(h.app.prefs.pane_windows.contains(&(Pane::Mixer, window)));
+    assert!(!layout::is_visible(&h.app.tree, Pane::Strip));
+
+    h.frame_with(Vec::new(), |app, _| {
+        app.arrange(Arrangement::One(Start::Classic), None)
+    });
+    assert!(
+        h.app.detached.is_empty(),
+        "the mixer comes back in the window"
+    );
+    assert!(layout::is_visible(&h.app.tree, Pane::Mixer));
+}
+
+#[test]
+fn the_track_strip_column_fits_its_strips_and_resizes() {
+    use crate::layout::Start;
+    use crate::setup_window::Arrangement;
+    use eframe::egui::{PointerButton, pos2};
+    let mut h = Harness::with_song("strip-column");
+    let first = h.app.doc.borrow().project().tracks[0].id;
+    h.app.doc.borrow_mut().set_track_selection(vec![first]);
+    h.frame_with(Vec::new(), |app, _| {
+        app.arrange(Arrangement::One(Start::Strip), None)
+    });
+    for _ in 0..4 {
+        h.frame(Vec::new());
+    }
+    assert!(!layout::is_visible(&h.app.tree, Pane::Inspector));
+    let column = |h: &Harness| {
+        let strip = h.app.tree.tiles.find_pane(&Pane::Strip).unwrap();
+        let parent = h.app.tree.tiles.parent_of(strip).unwrap();
+        h.app.tree.tiles.rect(parent).unwrap()
+    };
+    let strips = h.app.views.borrow().strip.single_width;
+    let rect = column(&h);
+    assert!(
+        strips > 200.0,
+        "the track and the master side by side: {strips}"
+    );
+    assert!(
+        (rect.width() - strips - 12.0).abs() < 2.0,
+        "{rect:?} for {strips}"
+    );
+
+    let (x, y) = (rect.right() + 1.5, 500.0);
+    let press = |pressed, x| Event::PointerButton {
+        pos: pos2(x, y),
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: Default::default(),
+    };
+    h.frame(vec![Event::PointerMoved(pos2(x, y))]);
+    h.frame(vec![press(true, x)]);
+    for i in 1..=10 {
+        h.frame(vec![Event::PointerMoved(pos2(x + 10.0 * i as f32, y))]);
+    }
+    h.frame(vec![press(false, x + 100.0)]);
+    h.frame(Vec::new());
+    assert!((column(&h).width() - rect.width() - 100.0).abs() < 2.0);
 }

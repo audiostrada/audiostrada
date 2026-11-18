@@ -58,10 +58,15 @@ pub struct Prefs {
 }
 
 fn path() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("audiostrada").join("preferences.toml"))
+    audiostrada_core::profile::config_dir().map(|d| d.join("audiostrada").join("preferences.toml"))
 }
 
 impl Prefs {
+    /// No preferences saved yet: the first start (of this profile).
+    pub fn first_start() -> bool {
+        path().is_some_and(|p| !p.exists())
+    }
+
     /// Loads preferences, falling back to defaults when missing or unreadable.
     pub fn load() -> Self {
         let Some(path) = path() else {

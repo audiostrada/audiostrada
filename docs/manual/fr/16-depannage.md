@@ -11,6 +11,7 @@
 | **De courtes coupures toutes les dix minutes** | C'est le mode évaluation : saisissez une licence (Aide › *Licence…*). |
 | **Un plugin se comporte mal** | Clic droit sur son insert › *Recharger le plugin*, ou retirez-le. Les plugins ne peuvent pas faire planter AudioStrada. |
 | **AudioStrada plante au démarrage à cause d'un plugin** | Lancez-le avec `audiostrada --disable-third-party-plugins`, puis retirez le plugin. |
+| **Un problème qui vient peut-être de vos réglages** | Lancez `audiostrada --fresh` : des réglages vides, comme au premier lancement, les vôtres restant intacts. |
 | **Fenêtres floues sous Wayland** | Décochez *Plusieurs écrans* dans Préférences › Général. |
 | **Un assistant n'arrive pas à se connecter** | Vérifiez que le bouton robot est vert, puis redémarrez l'assistant. |
 
@@ -27,6 +28,8 @@
 | `audiostrada play FICHIER…` | joue des fichiers audio ou un projet |
 | `audiostrada render FICHIER… --output SORTIE.wav` | mixe des fichiers audio ou un projet en un fichier WAV |
 | `audiostrada compare A B` | compare deux fichiers audio échantillon par échantillon (test d'annulation) |
+| `audiostrada --fresh` | démarre comme au tout premier lancement, avec des réglages vides effacés au lancement suivant ; les vôtres ne sont ni lus ni modifiés |
+| `audiostrada --profile DOSSIER` | garde les réglages, presets, caches et journal dans DOSSIER au lieu des vôtres |
 
 ## Signaler un problème
 

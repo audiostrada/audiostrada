@@ -18,6 +18,14 @@ Ouvrez un projet en double-cliquant sur un fichier `.strada`, ou lancez AudioStr
 menu de votre système. Sans licence, AudioStrada tourne en mode évaluation : tout fonctionne,
 export compris (voir *Licence et mises à jour*).
 
+## L'assistant de configuration
+
+Au premier lancement, un court assistant demande quatre choses, chaque étape pouvant être passée :
+la langue, le thème et les raccourcis clavier (ceux de Pro Tools, Logic Pro ou Reaper si vous en
+venez) ; la carte son ; les entrées MIDI ; et la disposition des panneaux. S'il trouve deux
+écrans, il propose la table de mixage en plein écran sur le second. Aide › *Assistant de
+configuration…* le rouvre.
+
 ## Régler le son
 
 Sous Linux, AudioStrada joue par PipeWire sans réglage ; JACK et ALSA sont aussi disponibles.

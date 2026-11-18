@@ -18,6 +18,13 @@ Open a project by double-clicking a `.strada` file, or start AudioStrada from th
 system. Without a licence, AudioStrada runs in evaluation mode: every feature works, export
 included (see *Licence and updates*).
 
+## The setup assistant
+
+At the first start, a short assistant asks four things, each step skippable: the language,
+theme and keyboard shortcuts (those of Pro Tools, Logic Pro or Reaper if you come from them);
+the sound card; the MIDI inputs; and the layout of the panels. Two screens found, it offers the
+mixer full screen on the second one. Help › *Setup assistant…* opens it again.
+
 ## Set up the sound
 
 On Linux, AudioStrada plays through PipeWire with no setup; JACK and ALSA are also available. On

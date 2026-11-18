@@ -12,6 +12,7 @@ pub mod history;
 pub mod legacy;
 pub mod model;
 pub mod prepare;
+pub mod profile;
 pub mod routing;
 pub mod scratch;
 pub mod section;

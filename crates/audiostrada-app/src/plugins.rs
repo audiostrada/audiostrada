@@ -8,7 +8,7 @@ use audiostrada_plugins::scan::{self, Database};
 
 /// Where the plugin list is cached between runs.
 pub fn database_path() -> Option<PathBuf> {
-    dirs::cache_dir().map(|d| d.join("audiostrada").join("plugins.json"))
+    audiostrada_core::profile::cache_dir().map(|d| d.join("audiostrada").join("plugins.json"))
 }
 
 /// Child-process side of a scan: prints the plugins of one file as JSON.

@@ -11,6 +11,9 @@ Window options:
   --control <PORT>    Let `audiostrada mcp --connect <PORT>` drive this window
   --disable-third-party-plugins
                       Neither scan nor load CLAP, VST3, LV2 or AU plugins (built-in effects stay)
+  --fresh             Start as on the very first launch, with empty settings: your own are
+                      neither read nor changed, and these are thrown away at the next start
+  --profile <DIR>     Keep the settings, presets, caches and log in DIR instead of your own
 
 Commands:
   diagnose           Check the system for low-latency audio and print fixes
@@ -131,6 +134,10 @@ pub struct RunArgs {
     /// Port of the control channel.
     pub control: Option<u16>,
     pub disable_plugins: bool,
+    /// A new, empty profile for this run only.
+    pub fresh: bool,
+    /// A profile folder in place of the user's own.
+    pub profile: Option<PathBuf>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -399,9 +406,17 @@ fn parse_run(mut args: impl Iterator<Item = String>) -> Result<Command, String> 
         match arg.as_str() {
             "--control" => run.control = Some(port(args.next(), "--control")?),
             "--disable-third-party-plugins" => run.disable_plugins = true,
+            "--fresh" => run.fresh = true,
+            "--profile" => {
+                let dir = args.next().ok_or("--profile needs a folder")?;
+                run.profile = Some(dir.into());
+            }
             other if other.starts_with('-') => return Err(format!("unknown option '{other}'")),
             file => run.files.push(file.into()),
         }
+    }
+    if run.fresh && run.profile.is_some() {
+        return Err("--fresh and --profile cannot go together".into());
     }
     Ok(Command::Run(run))
 }
@@ -425,6 +440,27 @@ mod tests {
     }
 
     #[test]
+    fn a_fresh_start_or_a_profile_is_chosen_but_not_both() {
+        assert_eq!(
+            parse_str("--fresh song.strada"),
+            Ok(Command::Run(RunArgs {
+                fresh: true,
+                files: vec!["song.strada".into()],
+                ..RunArgs::default()
+            }))
+        );
+        assert_eq!(
+            parse_str("--profile /tmp/tester"),
+            Ok(Command::Run(RunArgs {
+                profile: Some("/tmp/tester".into()),
+                ..RunArgs::default()
+            }))
+        );
+        assert!(parse_str("--profile").is_err());
+        assert!(parse_str("--fresh --profile /tmp/tester").is_err());
+    }
+
+    #[test]
     fn bare_files_open_the_app() {
         assert_eq!(
             parse_str("a.wav b.flac"),
@@ -443,6 +479,7 @@ mod tests {
                 files: vec!["song.strada".into()],
                 control: Some(9000),
                 disable_plugins: true,
+                ..RunArgs::default()
             }))
         );
         assert!(parse_str("--control").is_err());

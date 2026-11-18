@@ -198,9 +198,19 @@ pub fn official_key() -> Option<[u8; 32]> {
     PUBLIC_KEY.and_then(from_hex)
 }
 
+static DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// The configuration folder the license is kept in, when not the user's (a profile).
+pub fn set_dir(dir: PathBuf) {
+    let _ = DIR.set(dir);
+}
+
 /// Where the license is kept.
 pub fn path() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("audiostrada").join("license.txt"))
+    DIR.get()
+        .cloned()
+        .or_else(dirs::config_dir)
+        .map(|d| d.join("audiostrada").join("license.txt"))
 }
 
 /// The saved license, if it is valid.

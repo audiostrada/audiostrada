@@ -10,9 +10,7 @@ const LOG_ENV: &str = "AUDIOSTRADA_LOG";
 
 /// The window's log, the previous session's kept beside it as `audiostrada.log.1`.
 pub fn path() -> Option<PathBuf> {
-    dirs::state_dir()
-        .or_else(dirs::cache_dir)
-        .map(|d| d.join("audiostrada").join("audiostrada.log"))
+    audiostrada_core::profile::state_dir().map(|d| d.join("audiostrada").join("audiostrada.log"))
 }
 
 /// Logs to the standard error, and to the log file too when `to_file` (the window).

@@ -11,6 +11,7 @@
 | **Short dropouts every ten minutes** | That is the evaluation mode: enter a licence (Help › *License…*). |
 | **A plugin misbehaves** | Right-click its insert › *Reload plugin*, or remove it. Plugins cannot crash AudioStrada itself. |
 | **AudioStrada crashes at start because of a plugin** | Start it with `audiostrada --disable-third-party-plugins`, then remove the plugin. |
+| **A problem that may come from your settings** | Start with `audiostrada --fresh`: empty settings, as on the first start, yours left untouched. |
 | **Blurry windows on Wayland** | Untick *Several screens* in Preferences › General. |
 | **An assistant cannot connect** | Check that the robot button is green, then restart the assistant. |
 
@@ -27,6 +28,8 @@
 | `audiostrada play FILE…` | plays audio files or a project |
 | `audiostrada render FILE… --output OUT.wav` | mixes audio files or a project into a WAV file |
 | `audiostrada compare A B` | compares two audio files sample by sample (null test) |
+| `audiostrada --fresh` | starts as on the very first start, with empty settings thrown away at the next start; yours are neither read nor changed |
+| `audiostrada --profile DIR` | keeps the settings, presets, caches and log in DIR instead of your own |
 
 ## Reporting a problem
 

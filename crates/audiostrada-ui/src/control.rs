@@ -1306,7 +1306,13 @@ pub struct Request {
 
 /// Where the control channel's token is kept (readable by the user only).
 fn token_file() -> Option<PathBuf> {
-    crate::config_dir().map(|d| d.join("audiostrada").join("control-token"))
+    // The user's own folder, whatever the profile: `audiostrada mcp --connect` looks there.
+    let dir = if cfg!(test) {
+        crate::config_dir()
+    } else {
+        audiostrada_core::profile::user_config_dir()
+    };
+    dir.map(|d| d.join("audiostrada").join("control-token"))
 }
 
 fn write_token(token: &str) -> Result<(), String> {

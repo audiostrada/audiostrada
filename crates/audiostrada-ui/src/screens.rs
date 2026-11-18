@@ -42,35 +42,76 @@ pub fn fullscreen(
 /// Index, in winit's order (RandR CRTCs in use), of the screen holding a point in pixels.
 #[cfg(target_os = "linux")]
 fn x11_screen_at(x: f32, y: f32) -> Option<usize> {
+    x11_screens()
+        .iter()
+        .position(|&[left, top, w, h]| x >= left && x < left + w && y >= top && y < top + h)
+}
+
+/// The screens in use under X11, in winit's order, as `[x, y, width, height]` in pixels.
+#[cfg(target_os = "linux")]
+fn x11_screens() -> Vec<[f32; 4]> {
     use x11rb::connection::Connection;
     use x11rb::protocol::randr::ConnectionExt;
 
-    let (connection, screen) = x11rb::connect(None).ok()?;
-    let root = connection.setup().roots.get(screen)?.root;
-    let resources = connection
+    let Ok((connection, screen)) = x11rb::connect(None) else {
+        return Vec::new();
+    };
+    let Some(root) = connection.setup().roots.get(screen).map(|s| s.root) else {
+        return Vec::new();
+    };
+    let Some(resources) = connection
         .randr_get_screen_resources_current(root)
-        .ok()?
-        .reply()
-        .ok()?;
-    let mut index = 0;
-    for crtc in resources.crtcs {
-        let info = connection
-            .randr_get_crtc_info(crtc, x11rb::CURRENT_TIME)
-            .ok()?
-            .reply()
-            .ok()?;
-        if info.width == 0 || info.height == 0 || info.outputs.is_empty() {
-            continue;
+        .ok()
+        .and_then(|c| c.reply().ok())
+    else {
+        return Vec::new();
+    };
+    resources
+        .crtcs
+        .iter()
+        .filter_map(|&crtc| {
+            connection
+                .randr_get_crtc_info(crtc, x11rb::CURRENT_TIME)
+                .ok()?
+                .reply()
+                .ok()
+        })
+        .filter(|info| info.width > 0 && info.height > 0 && !info.outputs.is_empty())
+        .map(|info| {
+            [
+                f32::from(info.x),
+                f32::from(info.y),
+                f32::from(info.width),
+                f32::from(info.height),
+            ]
+        })
+        .collect()
+}
+
+/// The screens, in the units windows are placed in (pixels over the display scale); empty
+/// when the system does not tell (Wayland without X11).
+pub fn monitors(ctx: &egui::Context) -> Vec<egui::Rect> {
+    let scale = ctx
+        .input(|i| i.viewport().native_pixels_per_point)
+        .unwrap_or(1.0)
+        .max(0.25);
+    let rect = |[x, y, w, h]: [f32; 4], per: f32| {
+        egui::Rect::from_min_size(egui::pos2(x / per, y / per), egui::vec2(w / per, h / per))
+    };
+    #[cfg(target_os = "linux")]
+    {
+        if !X11.load(Ordering::Relaxed) {
+            return Vec::new();
         }
-        let (left, top) = (f32::from(info.x), f32::from(info.y));
-        if x >= left
-            && x < left + f32::from(info.width)
-            && y >= top
-            && y < top + f32::from(info.height)
-        {
-            return Some(index);
-        }
-        index += 1;
+        x11_screens().into_iter().map(|r| rect(r, scale)).collect()
     }
-    None
+    #[cfg(not(target_os = "linux"))]
+    {
+        // Windows gives pixels, macOS points already.
+        let per = if cfg!(windows) { scale } else { 1.0 };
+        audiostrada_plugins::window::monitors()
+            .into_iter()
+            .map(|[x, y, w, h]| rect([x as f32, y as f32, w as f32, h as f32], per))
+            .collect()
+    }
 }

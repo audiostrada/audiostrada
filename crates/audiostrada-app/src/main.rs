@@ -24,6 +24,9 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    if let Command::Run(run) = &command {
+        use_profile(run);
+    }
     logging::init(matches!(command, Command::Run(_)));
     let result = match command {
         Command::Run(run) => run_ui(&run),
@@ -109,16 +112,38 @@ fn measure_command(args: cli::MeasureArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// A profile in place of the user's folders, set before anything reads them (the log first).
+fn use_profile(run: &cli::RunArgs) {
+    let root = if run.fresh {
+        audiostrada_core::scratch::dir("fresh")
+    } else if let Some(dir) = &run.profile {
+        dir.clone()
+    } else {
+        return;
+    };
+    audiostrada_core::profile::set(root.clone());
+    if let Some(config) = audiostrada_core::profile::config_dir() {
+        audiostrada_license::set_dir(config);
+    }
+    if run.fresh {
+        eprintln!(
+            "Fresh start: settings kept in {} and thrown away at the next start",
+            root.display()
+        );
+    }
+}
+
 fn app_dirs() -> AppDirs {
     // A capture of an effect's window (a development aid) neither offers a recovery nor
     // leaves one.
     let capture = std::env::var_os("AUDIOSTRADA_SCREENSHOT_EFFECT").is_some();
     AppDirs {
-        recovery: dirs::data_dir()
+        recovery: audiostrada_core::profile::data_dir()
             .filter(|_| !capture)
             .map(|d| d.join("audiostrada").join("recovery")),
-        peaks: dirs::cache_dir().map(|d| d.join("audiostrada").join("peaks")),
-        recordings: dirs::data_dir().map(|d| d.join("audiostrada").join("recordings")),
+        peaks: audiostrada_core::profile::cache_dir().map(|d| d.join("audiostrada").join("peaks")),
+        recordings: audiostrada_core::profile::data_dir()
+            .map(|d| d.join("audiostrada").join("recordings")),
     }
 }
 
@@ -141,6 +166,7 @@ fn run_ui(run: &cli::RunArgs) -> anyhow::Result<()> {
     detach_own_console();
     tracing::info!(version = env!("CARGO_PKG_VERSION"), "AudioStrada starting");
     audiostrada_ui::install_crash_reports(logging::path());
+    let first_start = prefs::Prefs::first_start();
     let prefs = Rc::new(RefCell::new(prefs::Prefs::load()));
     let dirs = app_dirs();
     let project_file = files.iter().find(|f| audio::is_project(f));
@@ -224,6 +250,9 @@ fn run_ui(run: &cli::RunArgs) -> anyhow::Result<()> {
         audiostrada_ui::AudioStradaApp::new(host, doc, dirs, ui_prefs, recent, recovery, hooks);
     if let Some(port) = run.control {
         app.listen(port).map_err(anyhow::Error::msg)?;
+    }
+    if first_start {
+        app.open_setup();
     }
     audiostrada_ui::run(app).map_err(|e| anyhow::anyhow!("{e}"))
 }

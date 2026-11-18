@@ -1118,6 +1118,82 @@ impl std::fmt::Debug for HostWindow {
     }
 }
 
+/// The screens' rectangles `[x, y, width, height]` in the desktop's coordinates: pixels on
+/// Windows, points from the top left of the main screen on macOS. Empty elsewhere (X11 lists
+/// them in the interface).
+pub fn monitors() -> Vec<[f64; 4]> {
+    monitors_of_system()
+}
+
+#[cfg(windows)]
+fn monitors_of_system() -> Vec<[f64; 4]> {
+    use windows::Win32::Foundation::{LPARAM, RECT};
+    use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, HDC, HMONITOR};
+    use windows::core::BOOL;
+
+    unsafe extern "system" fn add(_: HMONITOR, _: HDC, rect: *mut RECT, list: LPARAM) -> BOOL {
+        // SAFETY: `list` is the vector below, alive during the enumeration; `rect` is the
+        // monitor's rectangle or null.
+        unsafe {
+            if let (Some(list), Some(r)) = ((list.0 as *mut Vec<[f64; 4]>).as_mut(), rect.as_ref())
+            {
+                list.push([
+                    f64::from(r.left),
+                    f64::from(r.top),
+                    f64::from(r.right - r.left),
+                    f64::from(r.bottom - r.top),
+                ]);
+            }
+        }
+        true.into()
+    }
+    let mut list: Vec<[f64; 4]> = Vec::new();
+    // SAFETY: the callback only writes into `list`, which outlives the call.
+    let _ = unsafe {
+        EnumDisplayMonitors(
+            None,
+            None,
+            Some(add),
+            LPARAM(&mut list as *mut Vec<[f64; 4]> as isize),
+        )
+    };
+    list
+}
+
+#[cfg(target_os = "macos")]
+fn monitors_of_system() -> Vec<[f64; 4]> {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::NSScreen;
+
+    let Some(mtm) = MainThreadMarker::new() else {
+        return Vec::new();
+    };
+    let screens = NSScreen::screens(mtm);
+    let frames: Vec<_> = (0..screens.count())
+        .map(|i| screens.objectAtIndex(i).frame())
+        .collect();
+    // AppKit counts from the bottom left of the main screen, upwards.
+    let Some(main) = frames.first().map(|f| f.size.height) else {
+        return Vec::new();
+    };
+    frames
+        .iter()
+        .map(|f| {
+            [
+                f.origin.x,
+                main - (f.origin.y + f.size.height),
+                f.size.width,
+                f.size.height,
+            ]
+        })
+        .collect()
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn monitors_of_system() -> Vec<[f64; 4]> {
+    Vec::new()
+}
+
 #[cfg(all(test, unix, not(target_os = "macos")))]
 mod tests {
     use x11rb::connection::Connection;

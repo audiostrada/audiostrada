@@ -51,6 +51,11 @@ const FADER_MAX_DB: f32 = audiostrada_core::model::MAX_TRACK_GAIN_DB;
 #[derive(Debug)]
 pub struct MixerView {
     doc: Rc<RefCell<Document>>,
+    /// Only the selected track's strip and the master's (the track strip panel).
+    pub single: bool,
+    /// Width of the track strip and of the whole panel's strips, measured when drawn.
+    single_strip: f32,
+    pub single_width: f32,
     /// Narrow strips, but for the one opened by a click.
     pub compact: bool,
     /// The master at the left of the tracks.
@@ -2613,6 +2618,9 @@ impl MixerView {
     pub fn new(doc: Rc<RefCell<Document>>) -> Self {
         Self {
             doc,
+            single: false,
+            single_strip: STRIP_WIDTH + 18.0,
+            single_width: 0.0,
             compact: false,
             master_left: false,
             rack: Default::default(),
@@ -2678,12 +2686,15 @@ impl MixerView {
     }
 
     pub fn show(&mut self, ui: &mut Ui) {
-        self.toolbar(ui);
-        self.missing_media(ui);
+        if !self.single {
+            self.toolbar(ui);
+            self.missing_media(ui);
+        }
         let doc_rc = Rc::clone(&self.doc);
         let mut doc = doc_rc.borrow_mut();
         doc.update_levels();
         let project = doc.project().clone();
+        let shown = doc.selected_tracks().first().copied();
         let master_width = STRIP_WIDTH + 40.0;
         // Strips fill the panel: the fader takes what the other sections leave.
         let available = ui.available_height() - 16.0;
@@ -2786,12 +2797,14 @@ impl MixerView {
                 // The strips' own height: the area and the separator take all the room.
                 let top = ui.cursor().top();
                 self.strips_bottom = top;
-                ui.horizontal_top(|ui| {
+                let row = ui.horizontal_top(|ui| {
                     if self.master_left {
                         self.master_strip(ui, &mut doc, &project);
                         ui.separator();
                     }
-                    let width = if self.master_left {
+                    let width = if self.single {
+                        self.single_strip
+                    } else if self.master_left {
                         ui.available_width()
                     } else {
                         (ui.available_width() - master_width - 8.0).max(80.0)
@@ -2804,22 +2817,33 @@ impl MixerView {
                                 .id_salt("mixer-strips")
                                 .auto_shrink([false, true])
                                 .show(ui, |ui| {
-                                    ui.horizontal_top(|ui| {
+                                    let strips = ui.horizontal_top(|ui| {
                                         for (index, depth) in routing::visible_tracks(&project) {
                                             let track = &project.tracks[index];
-                                            if self.compact && self.expanded != Some(track.id) {
+                                            if self.single && shown != Some(track.id) {
+                                                continue;
+                                            }
+                                            if self.compact
+                                                && !self.single
+                                                && self.expanded != Some(track.id)
+                                            {
                                                 self.narrow_strip(ui, &mut doc, &project, track);
                                             } else {
                                                 self.strip(ui, &mut doc, &project, track, depth);
                                             }
                                         }
-                                        if project.tracks.is_empty() {
+                                        if self.single && shown.is_none() {
+                                            ui.weak(tr("Select a track to see its strip."));
+                                        } else if project.tracks.is_empty() {
                                             ui.weak(tr(
                                         "No tracks yet. Import audio, or add a track with the \
                                          buttons above.",
                                     ));
                                         }
                                     });
+                                    if self.single && shown.is_some() {
+                                        self.single_strip = strips.response.rect.width();
+                                    }
                                 });
                         },
                     );
@@ -2828,10 +2852,14 @@ impl MixerView {
                         self.master_strip(ui, &mut doc, &project);
                     }
                 });
+                if self.single {
+                    self.single_width = row.response.rect.width();
+                }
                 self.strips_bottom - top
             });
         self.fit = Some((scrolled.inner, scrolled.inner_rect.height()));
-        if empty.clicked() {
+        // The strip panel shows the selection: a click beside it leaves it.
+        if empty.clicked() && !self.single {
             doc.set_track_selection(Vec::new());
         }
         empty.context_menu(|ui| add_items(ui, &mut self.requests));

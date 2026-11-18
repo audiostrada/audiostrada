@@ -1462,3 +1462,95 @@ Scan des plugins : {done} sur {total}
 
 New plugins show here once the scan is done; the ones already known can be used now.
 Les nouveaux plugins apparaîtront ici à la fin du scan ; ceux déjà connus sont utilisables dès maintenant.
+
+# setup_window.rs
+
+Setup assistant…
+Assistant de configuration…
+
+Show track strip
+Afficher la tranche de la piste
+
+Track strip
+Tranche de la piste
+
+Select a track to see its strip.
+Sélectionnez une piste pour voir sa tranche.
+
+Welcome to AudioStrada
+Bienvenue dans AudioStrada
+
+Your language, your look and the shortcuts you know
+Votre langue, votre apparence et les raccourcis que vous connaissez
+
+The sound card AudioStrada plays and records through
+La carte son par laquelle AudioStrada joue et enregistre
+
+The keyboards and controllers that play the instruments
+Les claviers et contrôleurs qui jouent les instruments
+
+Where the panels go
+Où se placent les panneaux
+
+Welcome
+Bienvenue
+
+Layout
+Disposition
+
+Skip
+Passer
+
+Next
+Suivant
+
+Finish
+Terminer
+
+Back
+Retour
+
+Coming from another program? Use the shortcuts you know.
+Vous venez d'un autre logiciel ? Gardez les raccourcis que vous connaissez.
+
+One screen
+Un écran
+
+Two screens
+Deux écrans
+
+Classic
+Classique
+
+The mixer under the timeline
+La table de mixage sous la timeline
+
+Strip at the left
+Tranche à gauche
+
+The selected track's strip beside the timeline, as in Logic Pro
+La tranche de la piste sélectionnée à côté de la timeline, comme dans Logic Pro
+
+Uncluttered
+Épuré
+
+The timeline alone, the other panels a key away
+La timeline seule, les autres panneaux à une touche
+
+Mixer on the second screen
+Mixage sur le second écran
+
+The timeline here, the mixer full screen on the other one
+La timeline ici, la table de mixage en plein écran sur l'autre
+
+Only one screen was found. Plug in another one, then open this assistant again from the Help menu.
+Un seul écran a été trouvé. Branchez-en un autre, puis rouvrez cet assistant depuis le menu Aide.
+
+Check once a day whether a new version is out
+Vérifier une fois par jour si une nouvelle version est sortie
+
+Only a short version file is downloaded from the web site: nothing about you or your projects is sent.
+Seul un court fichier de version est téléchargé depuis le site : rien sur vous ni sur vos projets n'est envoyé.
+
+Panels can be moved, shown and hidden at any time from the View menu.
+Les panneaux se déplacent, s'affichent et se masquent à tout moment depuis le menu Affichage.

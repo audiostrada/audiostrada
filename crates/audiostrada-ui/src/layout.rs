@@ -17,14 +17,17 @@ pub enum Pane {
     Markers,
     PianoRoll,
     Rack,
+    /// The selected track's strip and the master's, in a column.
+    Strip,
 }
 
 impl Pane {
-    pub const ALL: [Pane; 7] = [
+    pub const ALL: [Pane; 8] = [
         Pane::Timeline,
         Pane::Mixer,
         Pane::PianoRoll,
         Pane::Rack,
+        Pane::Strip,
         Pane::Browser,
         Pane::Inspector,
         Pane::Markers,
@@ -40,6 +43,7 @@ impl Pane {
             Pane::Markers => tr("Markers"),
             Pane::PianoRoll => tr("Piano roll"),
             Pane::Rack => tr("Rack"),
+            Pane::Strip => tr("Track strip"),
         }
     }
 
@@ -52,12 +56,32 @@ impl Pane {
             Action::ShowMarkers => Pane::Markers,
             Action::ShowPianoRoll => Pane::PianoRoll,
             Action::ShowRack => Pane::Rack,
+            Action::ShowStrip => Pane::Strip,
             _ => return None,
         })
     }
 }
 
 pub fn default_tree() -> Tree<Pane> {
+    start_tree(Start::Classic)
+}
+
+/// The layouts offered at the first start, for one screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Start {
+    /// The timeline over the mixer.
+    Classic,
+    /// The selected track's strip in a column left of the timeline; the mixer a key away.
+    Strip,
+    /// The timeline alone; every other panel a key away.
+    Focus,
+}
+
+impl Start {
+    pub const ALL: [Start; 3] = [Start::Classic, Start::Strip, Start::Focus];
+}
+
+pub fn start_tree(start: Start) -> Tree<Pane> {
     let mut tiles = egui_tiles::Tiles::default();
     let browser = tiles.insert_pane(Pane::Browser);
     let timeline = tiles.insert_pane(Pane::Timeline);
@@ -66,20 +90,41 @@ pub fn default_tree() -> Tree<Pane> {
     let markers = tiles.insert_pane(Pane::Markers);
     let piano = tiles.insert_pane(Pane::PianoRoll);
     let rack = tiles.insert_pane(Pane::Rack);
+    let strip = tiles.insert_pane(Pane::Strip);
     let bottom = tiles.insert_tab_tile(vec![mixer, piano, rack]);
     let center = tiles.insert_vertical_tile(vec![timeline, bottom]);
-    let right = tiles.insert_tab_tile(vec![inspector, markers]);
-    let root = tiles.insert_horizontal_tile(vec![browser, center, right]);
-    // Side panels are one View menu click away.
-    for id in [browser, inspector, markers] {
+    let (root, hidden) = match start {
+        Start::Classic | Start::Focus => {
+            let right = tiles.insert_tab_tile(vec![inspector, markers, strip]);
+            let root = tiles.insert_horizontal_tile(vec![browser, center, right]);
+            set_shares(
+                &mut tiles,
+                root,
+                &[(browser, 1.0), (center, 4.5), (right, 1.2)],
+            );
+            // Side panels are one View menu click away.
+            let mut hidden = vec![browser, inspector, markers, strip];
+            if start == Start::Focus {
+                hidden.extend([mixer, piano, rack]);
+            }
+            (root, hidden)
+        }
+        Start::Strip => {
+            let left = tiles.insert_tab_tile(vec![strip]);
+            let right = tiles.insert_tab_tile(vec![browser, inspector, markers]);
+            let root = tiles.insert_horizontal_tile(vec![left, center, right]);
+            set_shares(
+                &mut tiles,
+                root,
+                &[(left, 1.3), (center, 4.5), (right, 1.2)],
+            );
+            (root, vec![browser, inspector, markers, mixer, piano, rack])
+        }
+    };
+    for id in hidden {
         tiles.set_visible(id, false);
     }
     set_shares(&mut tiles, center, &[(timeline, 0.75), (bottom, 1.0)]);
-    set_shares(
-        &mut tiles,
-        root,
-        &[(browser, 1.0), (center, 4.5), (right, 1.2)],
-    );
     Tree::new(egui::Id::unique("audiostrada-layout"), root, tiles)
 }
 
@@ -110,6 +155,18 @@ pub fn load(saved: Option<&str>) -> Tree<Pane> {
         let rack = tree.tiles.insert_pane(Pane::Rack);
         if let Some(egui_tiles::Tile::Container(container)) = tree.tiles.get_mut(parent) {
             container.add_child(rack);
+        }
+    }
+    // Saved before the track strip: a hidden tab beside the inspector.
+    if let Some(tree) = &mut tree
+        && tree.tiles.find_pane(&Pane::Strip).is_none()
+        && let Some(inspector) = tree.tiles.find_pane(&Pane::Inspector)
+        && let Some(parent) = tree.tiles.parent_of(inspector)
+    {
+        let strip = tree.tiles.insert_pane(Pane::Strip);
+        tree.tiles.set_visible(strip, false);
+        if let Some(egui_tiles::Tile::Container(container)) = tree.tiles.get_mut(parent) {
+            container.add_child(strip);
         }
     }
     match tree {
@@ -181,6 +238,46 @@ pub fn set_visible(tree: &mut Tree<Pane>, pane: Pane, visible: bool) {
     if let Some(id) = tree.tiles.find_pane(&pane) {
         tree.tiles.set_visible(id, visible);
     }
+}
+
+/// Gives the column holding `pane` `width` points in its row, as laid out last frame; false
+/// while the row was not laid out yet.
+pub fn fit_width(tree: &mut Tree<Pane>, pane: Pane, width: f32) -> bool {
+    let tiles = &mut tree.tiles;
+    let Some(column) = tiles.find_pane(&pane).and_then(|p| tiles.parent_of(p)) else {
+        return false;
+    };
+    let Some(row) = tiles.parent_of(column) else {
+        return false;
+    };
+    let visible: Vec<TileId> = match tiles.get(row) {
+        Some(Tile::Container(Container::Linear(linear))) => linear
+            .children
+            .iter()
+            .copied()
+            .filter(|&c| tiles.is_visible_in_layout(c))
+            .collect(),
+        _ => return false,
+    };
+    let room: f32 = visible
+        .iter()
+        .filter_map(|&c| tiles.rect(c))
+        .map(|r| r.width())
+        .sum();
+    if visible.len() < 2 || room <= width || tiles.rect(column).is_none() {
+        return false;
+    }
+    if let Some(Tile::Container(Container::Linear(linear))) = tiles.get_mut(row) {
+        let others: f32 = visible
+            .iter()
+            .filter(|&&c| c != column)
+            .map(|&c| linear.shares[c])
+            .sum();
+        linear
+            .shares
+            .set_share(column, others * width / (room - width));
+    }
+    true
 }
 
 /// Brings the pane's tab to the front of its tab group.
@@ -288,6 +385,30 @@ impl Behavior<Pane> for Workspace<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_starting_layout_holds_every_panel_and_shows_its_own() {
+        for start in Start::ALL {
+            let tree = start_tree(start);
+            assert!(
+                Pane::ALL.iter().all(|p| tree.tiles.find_pane(p).is_some()),
+                "{start:?}"
+            );
+            assert!(is_visible(&tree, Pane::Timeline), "{start:?}");
+            let shown = |pane| is_visible(&tree, pane);
+            match start {
+                Start::Classic => assert!(shown(Pane::Mixer) && !shown(Pane::Strip)),
+                Start::Strip => {
+                    assert!(shown(Pane::Strip) && !shown(Pane::Mixer) && !shown(Pane::Inspector))
+                }
+                Start::Focus => assert!(!shown(Pane::Mixer) && !shown(Pane::Strip)),
+            }
+        }
+        // Saved and read back, each stays as it was.
+        let tree = start_tree(Start::Strip);
+        let again = load(save(&tree).as_deref());
+        assert!(is_visible(&again, Pane::Strip) && !is_visible(&again, Pane::Mixer));
+    }
 
     #[test]
     fn a_layout_with_panels_since_removed_keeps_the_others() {

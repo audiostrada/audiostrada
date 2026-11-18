@@ -34,6 +34,9 @@ vert quand ils peuvent piloter AudioStrada. Un clic ouvre leur fenêtre (voir *A
 - **Mixer**, **Piano roll** et **Rack** en dessous, en onglets.
 - **Navigateur** (fichiers audio), **Inspecteur** (détails du clip ou de la piste sélectionnés)
   et **Marqueurs**, par le menu Affichage ou [[Alt+3]], [[Alt+4]], [[Alt+5]].
+- **Tranche de la piste** : la tranche de mixage de la piste sélectionnée et celle du master, en
+  colonne à côté de la timeline comme dans Logic Pro (Affichage › *Afficher la tranche de la
+  piste*). Tirez son bord pour l'élargir.
 
 Glissez un onglet pour réorganiser les panneaux. Clic droit sur un onglet › *Ouvrir dans sa
 propre fenêtre* met un panneau sur un autre écran (le Mixer en général, [[Ctrl+M]]) ; fermer
