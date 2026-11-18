@@ -49,6 +49,8 @@ enum Request {
     OpenGui(String, u64, Vec<(u32, u16)>),
     CloseGui,
     RaiseGui,
+    /// The main window shows a dialog: the plugin window drops under it (macOS).
+    MainCovered(bool),
     Activate {
         shm: String,
         sample_rate: u32,
@@ -76,6 +78,7 @@ impl Request {
             Self::OpenGui(..) => "OpenGui",
             Self::CloseGui => "CloseGui",
             Self::RaiseGui => "RaiseGui",
+            Self::MainCovered(_) => "MainCovered",
             Self::Activate { .. } => "Activate",
             Self::Deactivate => "Deactivate",
         }
@@ -221,6 +224,8 @@ pub struct SandboxInstance {
     processor_alive: Arc<AtomicBool>,
     active: bool,
     gui_open: bool,
+    /// What the host was last told of the main window's dialogs.
+    covered_sent: bool,
     last_state: Option<Vec<u8>>,
     /// Display texts already asked for, as the generic editor redraws them every frame.
     texts: HashMap<(u32, u64), Option<String>>,
@@ -288,6 +293,7 @@ impl SandboxInstance {
             processor_alive: Arc::new(AtomicBool::new(false)),
             active: false,
             gui_open: false,
+            covered_sent: false,
             last_state: None,
             texts: HashMap::new(),
         };
@@ -544,6 +550,11 @@ impl PluginInstance for SandboxInstance {
                 return vec![PluginRequest::Crashed];
             }
             return Vec::new();
+        }
+        let covered = crate::window::main_covered();
+        if cfg!(target_os = "macos") && self.gui_open && covered != self.covered_sent {
+            self.covered_sent = covered;
+            let _ = self.call(Request::MainCovered(covered), CALL_TIMEOUT);
         }
         match self.call(Request::Poll, CALL_TIMEOUT) {
             Ok(Response::Requests(requests)) => {
@@ -1191,6 +1202,10 @@ impl Host {
                 instance.raise_gui();
                 Response::Done
             }
+            Request::MainCovered(covered) => {
+                crate::window::set_main_covered(covered);
+                Response::Done
+            }
             Request::Activate {
                 shm,
                 sample_rate,
@@ -1413,6 +1428,7 @@ mod tests {
             Request::SetParam(1, 0.0),
             Request::CloseGui,
             Request::RaiseGui,
+            Request::MainCovered(false),
         ] {
             assert!(matches!(host.handle(request), Response::Done));
         }

@@ -1,9 +1,20 @@
 //! Native top-level windows that host embedded plugin editors (X11 on Linux and BSDs, Win32 on
 //! Windows, AppKit on macOS). Closing the window is reported by [`HostWindow::poll`].
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 static PARENT: AtomicU64 = AtomicU64::new(0);
+static MAIN_COVERED: AtomicBool = AtomicBool::new(false);
+
+/// Whether the main window shows one of its dialogs, which floating windows then leave
+/// uncovered (macOS).
+pub fn set_main_covered(covered: bool) {
+    MAIN_COVERED.store(covered, Ordering::Relaxed);
+}
+
+pub fn main_covered() -> bool {
+    MAIN_COVERED.load(Ordering::Relaxed)
+}
 
 /// The application window that plugin windows stay above (X11 window id or HWND), 0 for none.
 pub fn set_parent(parent: u64) {
@@ -976,7 +987,7 @@ mod imp {
     use objc2::{MainThreadMarker, MainThreadOnly};
     use objc2_app_kit::{
         NSApplication, NSBackingStoreType, NSFloatingWindowLevel, NSNormalWindowLevel,
-        NSRunningApplication, NSView, NSWindow, NSWindowStyleMask, NSWorkspace,
+        NSRunningApplication, NSView, NSWindow, NSWindowLevel, NSWindowStyleMask, NSWorkspace,
     };
     use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
 
@@ -992,32 +1003,48 @@ mod imp {
         ours.is_some() && front.executableURL() == ours
     }
 
-    /// Above AudioStrada's main window while AudioStrada is in use, without taking the focus
-    /// from it; at the normal level behind other applications.
-    fn keep_above(window: &NSWindow, active: bool) {
-        let level = if active {
-            NSFloatingWindowLevel
+    /// Detached panels float above the main window, editors and plugin windows one level
+    /// higher (`editor`): clicking a panel never covers them.
+    fn floating_level(editor: bool) -> NSWindowLevel {
+        NSFloatingWindowLevel + NSWindowLevel::from(editor)
+    }
+
+    /// At `level` while AudioStrada is in use, without taking the focus from it; at the normal
+    /// level behind other applications, and behind every window while the main window shows a
+    /// dialog.
+    fn keep_above(window: &NSWindow, active: bool, level: NSWindowLevel) {
+        let covered = super::main_covered();
+        let level = if active && !covered {
+            level
         } else {
             NSNormalWindowLevel
         };
         if window.level() != level {
             window.setLevel(level);
+            if covered {
+                window.orderBack(None);
+            }
         }
     }
 
-    /// Keeps the application's other windows (winit's: detached panels, editors) above its main
-    /// window, given by its content view, as [`HostWindow`] does for plugin windows.
-    pub fn keep_windows_above(main: *mut std::ffi::c_void) {
+    /// Keeps the application's other windows (winit's: detached panels, titled `panels`, and
+    /// editors) above its main window, given by its content view, as [`HostWindow`] does for
+    /// plugin windows. While the main window shows a dialog (`covered`), they drop to the
+    /// normal level under it.
+    pub fn keep_windows_above(main: *mut std::ffi::c_void, panels: &[String], covered: bool) {
         let Some(mtm) = MainThreadMarker::new() else {
             return;
         };
         // SAFETY: the main window's live content view, used on the main thread.
         let main = unsafe { main.cast::<NSView>().as_ref() }.and_then(|v| v.window());
+        super::set_main_covered(covered);
         let active = audiostrada_active();
         for window in NSApplication::sharedApplication(mtm).windows() {
             if Some(&window) != main.as_ref() && window.class().name().to_bytes() == b"WinitWindow"
             {
-                keep_above(&window, active);
+                let title = window.title().to_string();
+                let panel = panels.iter().any(|p| *p == title);
+                keep_above(&window, active, floating_level(!panel));
             }
         }
     }
@@ -1051,7 +1078,7 @@ mod imp {
             unsafe { window.setReleasedWhenClosed(false) };
             window.setTitle(&NSString::from_str(title));
             window.center();
-            keep_above(&window, true);
+            keep_above(&window, true, floating_level(true));
             let mut host = Self { window, mtm };
             host.raise();
             Ok(host)
@@ -1082,7 +1109,7 @@ mod imp {
 
         /// True once the user closed the window (ordered out, not merely minimized).
         pub fn poll(&mut self) -> bool {
-            keep_above(&self.window, audiostrada_active());
+            keep_above(&self.window, audiostrada_active(), floating_level(true));
             !self.window.isVisible() && !self.window.isMiniaturized()
         }
     }

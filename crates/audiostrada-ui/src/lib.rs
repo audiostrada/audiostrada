@@ -3184,21 +3184,21 @@ fn set_plugin_window_parent(frame: &eframe::Frame) {
 }
 
 /// On macOS the detached panels and editors float above the main window while AudioStrada is
-/// in use, so that they stay in front when it takes the focus. On Windows they are owned by
+/// in use, so that they stay in front when it takes the focus, and drop under its dialogs. On Windows they are owned by
 /// it, as Reaper's floating windows are: above it, never behind, out of the taskbar and of
 /// Alt+Tab, minimized with it.
 #[cfg(any(target_os = "macos", windows))]
-#[cfg_attr(target_os = "macos", allow(unused_variables))]
 fn keep_windows_above(frame: &eframe::Frame, detached: &[Pane]) {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     let handle = frame.window_handle().map(|h| h.as_raw());
+    let panels: Vec<String> = detached.iter().map(|&p| pane_window_title(p)).collect();
     #[cfg(target_os = "macos")]
     if let Ok(RawWindowHandle::AppKit(h)) = handle {
-        audiostrada_plugins::window::keep_windows_above(h.ns_view.as_ptr());
+        let covered = MAIN_COVERED.load(Ordering::Relaxed);
+        audiostrada_plugins::window::keep_windows_above(h.ns_view.as_ptr(), &panels, covered);
     }
     #[cfg(windows)]
     if let Ok(RawWindowHandle::Win32(h)) = handle {
-        let panels: Vec<String> = detached.iter().map(|&p| pane_window_title(p)).collect();
         audiostrada_plugins::window::own_windows(h.hwnd.get() as u64, &panels);
     }
 }
@@ -3266,19 +3266,26 @@ pub(crate) enum Floating {
 static MAIN_COVERED: AtomicBool = AtomicBool::new(false);
 
 /// Lowers the floating windows under the main one while it shows a menu or a dialog: they
-/// drop to the normal level, then the main window comes to the front once (Linux only).
+/// drop to the normal level, then the main window comes to the front once (Linux). macOS
+/// does so for dialogs only, in [`keep_windows_above`].
 fn uncover_main(ctx: &egui::Context) {
-    if cfg!(any(windows, target_os = "macos")) {
+    if cfg!(windows) {
         return;
     }
-    let covered = ctx.any_popup_open()
-        || ctx.memory(|m| {
-            m.top_modal_layer().is_some()
-                || m.areas()
-                    .visible_layer_ids()
-                    .iter()
-                    .any(|l| l.order == egui::Order::Middle)
-        });
+    let dialog = ctx.memory(|m| {
+        m.top_modal_layer().is_some()
+            || m.areas()
+                .visible_layer_ids()
+                .iter()
+                .any(|l| l.order == egui::Order::Middle)
+    });
+    if cfg!(target_os = "macos") {
+        if MAIN_COVERED.swap(dialog, Ordering::Relaxed) != dialog {
+            ctx.request_repaint();
+        }
+        return;
+    }
+    let covered = ctx.any_popup_open() || dialog;
     MAIN_COVERED.store(covered, Ordering::Relaxed);
     let id = egui::Id::unique("main-covered-frames");
     let frames = ctx.data_mut(|d| {
