@@ -63,7 +63,12 @@ fn fetch() -> Option<Release> {
         return None;
     }
     let text = response.body_mut().read_to_string().ok()?;
-    serde_json::from_str(&text).ok()
+    let release: Release = serde_json::from_str(&text).ok()?;
+    // Its page opens in the browser: only one of the site's.
+    release
+        .url
+        .starts_with(&format!("{}/", audiostrada_license::SITE))
+        .then_some(release)
 }
 
 /// `version` comes after `current` (dotted numbers, as 1.2.10).

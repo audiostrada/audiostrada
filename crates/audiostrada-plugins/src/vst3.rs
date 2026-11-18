@@ -610,7 +610,7 @@ impl IBStreamTrait for MemoryStream {
             m if m == IBStream_::IStreamSeekMode_::kIBSeekEnd as u32 => len,
             _ => return kInvalidArgument,
         };
-        let target = (base + pos).clamp(0, len);
+        let target = base.saturating_add(pos).clamp(0, len);
         self.position.set(target as usize);
         // SAFETY: the plugin passes a writable position or null.
         if let Some(result) = unsafe { result.as_mut() } {

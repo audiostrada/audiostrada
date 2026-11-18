@@ -53,10 +53,11 @@ impl Shared {
     fn map(name: &str, len: usize, create: bool) -> Result<Self, String> {
         use std::os::fd::AsRawFd;
         let path = path(name);
-        let file = std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create_new(create)
+        let mut options = std::fs::OpenOptions::new();
+        options.read(true).write(true).create_new(create);
+        // Other users of the machine must not read the audio in /dev/shm.
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let file = options
             .open(&path)
             .map_err(|e| format!("shared memory {}: {e}", path.display()))?;
         // A region left half made would stay in /dev/shm.

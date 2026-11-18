@@ -138,7 +138,7 @@ unsafe extern "C" fn write(
         bridge
             .writes
             .borrow_mut()
-            .push((port, *(buffer as *const f32)));
+            .push((port, (buffer as *const f32).read_unaligned()));
     }
 }
 

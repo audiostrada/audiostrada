@@ -463,7 +463,11 @@ fn fetch_models(
                     .any(|(i, _, _): &(Option<i64>, _, _)| *i == id)
                 {
                     let name = m.get("name").and_then(|v| v.as_str()).unwrap_or("model");
-                    let url = m.get("model_url").and_then(|v| v.as_str());
+                    // The sign-in token goes with the request: never over plain HTTP.
+                    let url = m
+                        .get("model_url")
+                        .and_then(|v| v.as_str())
+                        .filter(|u| u.starts_with("https://"));
                     if let Some(url) = url {
                         models.push((id, name.to_owned(), url.to_owned()));
                     }

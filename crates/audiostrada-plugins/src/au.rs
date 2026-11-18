@@ -793,10 +793,12 @@ unsafe extern "C-unwind" fn pull_input(
         let buffers = std::slice::from_raw_parts_mut((*data).mBuffers.as_mut_ptr(), count);
         for (i, buffer) in buffers.iter_mut().enumerate() {
             let source = &input.channels[i.min(1)];
-            let n = (frames as usize).min(source.len());
+            let mut n = (frames as usize).min(source.len());
             if buffer.mData.is_null() {
                 buffer.mData = source.as_ptr().cast_mut().cast();
             } else {
+                // Never past the unit's own buffer.
+                n = n.min(buffer.mDataByteSize as usize / 4);
                 std::ptr::copy_nonoverlapping(source.as_ptr(), buffer.mData.cast::<f32>(), n);
             }
             buffer.mDataByteSize = (n * 4) as u32;
