@@ -568,6 +568,7 @@ impl EngineProcessor {
 
     /// Processes one block; usable directly for offline rendering.
     pub fn render(&mut self, buffers: &mut AudioBuffers<'_>) {
+        let _flush = audiostrada_rt::NoDenormals::new();
         self.handle_commands();
         buffers.clear_outputs();
         let Some(schedule) = self.schedule.as_deref_mut() else {

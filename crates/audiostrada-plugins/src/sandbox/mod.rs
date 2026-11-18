@@ -775,6 +775,7 @@ impl AudioThread {
             .name("plugin audio".into())
             .spawn(move || {
                 let _ = audiostrada_rt::thread::promote_audio_thread(period);
+                let _flush = audiostrada_rt::NoDenormals::new();
                 let mut changes = Vec::with_capacity(MAX_CHANGES);
                 let mut events = Vec::with_capacity(MAX_MIDI);
                 while !s.load(Ordering::Relaxed) {

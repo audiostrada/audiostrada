@@ -218,6 +218,7 @@ impl Drop for WorkerPool {
 }
 
 fn worker(shared: &Shared, period: std::time::Duration, realtime: bool) {
+    let _flush = audiostrada_rt::NoDenormals::new();
     if realtime && let Err(e) = audiostrada_rt::thread::promote_audio_thread(period) {
         tracing::debug!("engine worker without real-time priority: {e}");
     }
