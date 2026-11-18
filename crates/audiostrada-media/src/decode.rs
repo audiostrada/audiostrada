@@ -32,6 +32,8 @@ pub fn load(path: &Path) -> Result<AudioData, MediaError> {
         .default_track(TrackType::Audio)
         .ok_or_else(|| MediaError::Unsupported("no audio track".into()))?;
     let track_id = track.id;
+    // Reserved once rather than grown packet by packet; a header claiming too much is ignored.
+    let expected = track.num_frames.map_or(0, |n| n.min(1 << 31) as usize);
     let params = track
         .codec_params
         .as_ref()
@@ -66,13 +68,22 @@ pub fn load(path: &Path) -> Result<AudioData, MediaError> {
         };
         sample_rate = decoded.spec().rate();
         decoded.copy_to_vecs_planar(&mut packet_planes);
-        channels.resize_with(packet_planes.len(), Vec::new);
+        channels.resize_with(packet_planes.len(), || {
+            let mut channel = Vec::new();
+            let _ = channel.try_reserve_exact(expected);
+            channel
+        });
         for (channel, plane) in channels.iter_mut().zip(&packet_planes) {
             channel.extend_from_slice(plane);
         }
     }
     if channels.is_empty() || sample_rate == 0 {
         return Err(MediaError::Decode("no audio decoded".into()));
+    }
+    for channel in &mut channels {
+        if channel.capacity() > channel.len() / 4 * 5 + 1024 {
+            channel.shrink_to_fit();
+        }
     }
     Ok(AudioData::new(channels, sample_rate))
 }

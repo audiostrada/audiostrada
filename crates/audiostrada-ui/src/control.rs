@@ -364,6 +364,8 @@ pub(crate) fn params_map(value: Option<&Value>) -> std::collections::BTreeMap<St
 /// Waits for imports, media loading and renders to finish.
 fn wait_idle(doc: &mut Document) -> Result<(), String> {
     let end = Instant::now() + WAIT;
+    // A project just opened asks for its media at its first update.
+    doc.update();
     while doc.busy() || doc.export_progress().is_some() {
         doc.update();
         if Instant::now() > end {

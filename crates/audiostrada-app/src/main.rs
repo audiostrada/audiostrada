@@ -176,6 +176,9 @@ fn run_ui(run: &cli::RunArgs) -> anyhow::Result<()> {
     // A sleeping output (a screen's, over DisplayPort) takes seconds to start on macOS: the
     // window opens meanwhile. Elsewhere some drivers (ASIO) belong to the thread opening them.
     if cfg!(target_os = "macos") {
+        if let Some(rate) = config.sample_rate {
+            doc.borrow_mut().expect_rate(rate);
+        }
         host.start_in_background(backend, config);
     } else {
         host.start(backend, config);

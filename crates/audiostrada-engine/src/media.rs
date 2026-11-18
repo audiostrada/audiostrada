@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, mpsc};
+use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -33,6 +33,26 @@ struct Loaded {
     path: PathBuf,
     rate: u32,
     result: Result<LoadOutput, String>,
+}
+
+/// Files loaded at once: each takes a few threads and its whole audio in memory, so a large
+/// project would otherwise decode everything together.
+fn loading_slot() -> impl Drop {
+    static SLOTS: (Mutex<usize>, Condvar) = (Mutex::new(0), Condvar::new());
+    struct Slot;
+    impl Drop for Slot {
+        fn drop(&mut self) {
+            *SLOTS.0.lock().unwrap_or_else(|e| e.into_inner()) -= 1;
+            SLOTS.1.notify_one();
+        }
+    }
+    let most = thread::available_parallelism().map_or(2, |n| (n.get() / 3).clamp(2, 6));
+    let mut busy = SLOTS.0.lock().unwrap_or_else(|e| e.into_inner());
+    while *busy >= most {
+        busy = SLOTS.1.wait(busy).unwrap_or_else(|e| e.into_inner());
+    }
+    *busy += 1;
+    Slot
 }
 
 /// Decoded media keyed by absolute path, at the engine sample rate.
@@ -174,6 +194,7 @@ impl MediaPool {
             path.file_name().unwrap_or_default().to_string_lossy()
         );
         let spawned = thread::Builder::new().name(name).spawn(move || {
+            let _slot = loading_slot();
             let result = load_job(&path, (original, file_data), rate, peaks_dir.as_deref());
             let _ = tx.send(Loaded { path, rate, result });
         });

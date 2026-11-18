@@ -409,6 +409,9 @@ pub(crate) fn lane_in<'a>(
     lanes.last_mut()
 }
 
+/// The rate of the last audio stream, for projects opened later to decode their media at it.
+static STREAM_RATE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(48_000);
+
 impl Document {
     fn with(project: Project, paths: Option<ProjectPaths>, dirs: AppDirs, dirty: bool) -> Self {
         let mut history = History::new(Project::default());
@@ -436,7 +439,15 @@ impl Document {
             paths,
             dirs,
             untitled_autosave,
-            media: MediaPool::new(48_000, peaks),
+            // Tests run side by side: each starts at the same rate.
+            media: MediaPool::new(
+                if cfg!(test) {
+                    48_000
+                } else {
+                    STREAM_RATE.load(std::sync::atomic::Ordering::Relaxed)
+                },
+                peaks,
+            ),
             player: ProjectPlayer::new(engine_config()),
             imports: Vec::new(),
             imported: Vec::new(),
@@ -470,8 +481,15 @@ impl Document {
             levels_read: std::time::Instant::now(),
         };
         doc.controllers = doc.player.live_midi().reader();
-        doc.request_media();
+        // The media loads at the first update: a tab restored in the background waits until
+        // it is shown, and the stream's rate is known by then.
         doc
+    }
+
+    /// The rate the stream about to open will run at, when known before it opens: the media
+    /// then decodes at it rather than once more when the stream starts.
+    pub fn expect_rate(&mut self, rate: u32) {
+        self.media.set_rate(rate);
     }
 
     /// Asks the main window to select a clip and open it in the piano roll.
@@ -2414,6 +2432,7 @@ impl Document {
             sample_rate
         };
         self.media.set_rate(sample_rate);
+        STREAM_RATE.store(sample_rate, std::sync::atomic::Ordering::Relaxed);
         let processor = self.player.processor(sample_rate, max_frames);
         self.synced = None;
         processor
