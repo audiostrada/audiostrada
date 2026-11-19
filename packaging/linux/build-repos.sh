@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds the APT and RPM repositories of packages.audiostrada.com into <out>, from the .deb and
-# .rpm files in <packages>, signed with gpg's default key (the packages key).
+# .rpm files in <packages>, signed with gpg's default key (the packages key), and its home page.
 # Needs apt-ftparchive (apt-utils), createrepo_c and gpg.
 set -eu
 packages=$(realpath "$1")
@@ -11,7 +11,14 @@ pool=$out/deb/pool/main/a/audiostrada
 mkdir -p "$pool" "$out/deb/dists/stable/main/binary-amd64" "$out/rpm"
 cp "$packages"/*.deb "$pool/"
 cp "$packages"/*.rpm "$out/rpm/"
-cp packaging/linux/audiostrada-packages.asc "$out/"
+cp packaging/linux/audiostrada-packages.asc packaging/linux/audiostrada.sources \
+    packaging/linux/audiostrada.repo "$out/"
+# The home page, listing the packages, newest first.
+list=$(for dir in deb/pool/main/a/audiostrada rpm; do
+    (cd "$out/$dir" && ls | sort -rV) | sed "s|.*|    <li><a href=\"$dir/&\">&</a></li>|"
+done)
+awk -v list="$list" '$0 == "@PACKAGES@" { print list; next } 1' packaging/linux/repo-index.html \
+    > "$out/index.html"
 cd "$out/deb"
 apt-ftparchive packages pool > dists/stable/main/binary-amd64/Packages
 gzip -9kn dists/stable/main/binary-amd64/Packages

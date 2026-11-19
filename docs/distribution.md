@@ -76,7 +76,9 @@ binaires non signés.
 Quand une release est publiée (jamais un brouillon), `.github/workflows/packages.yml` reprend
 les `.deb` et `.rpm` des trois dernières, construit les dépôts (`packaging/linux/build-repos.sh`),
 les signe et les envoie dans le bucket R2 `audiostrada-packages`, servi sur
-`packages.audiostrada.com`. Il faut les secrets `R2_ACCESS_KEY_ID` et `R2_SECRET_ACCESS_KEY` (un
+`packages.audiostrada.com`, avec une page d'accueil (`packaging/linux/repo-index.html` : ajout
+du dépôt à la main, clé, liste des paquets). Une règle Cloudflare de réécriture d'URL (zone
+audiostrada.com) sert `/index.html` pour `/`. Il faut les secrets `R2_ACCESS_KEY_ID` et `R2_SECRET_ACCESS_KEY` (un
 jeton d'API R2 en lecture et écriture sur ce bucket) et la variable `CLOUDFLARE_ACCOUNT_ID`.
 
 ## Publier une version
