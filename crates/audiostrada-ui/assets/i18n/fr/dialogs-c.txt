@@ -125,3 +125,15 @@ AudioStrada n'a pas pu faire ce qui était demandé
 
 Copy the message
 Copier le message
+
+License activated
+Licence activée
+
+License saved
+Licence enregistrée
+
+Thank you for supporting AudioStrada
+Merci de soutenir AudioStrada
+
+Its updates ended before this version was released
+Ses mises à jour ont pris fin avant la sortie de cette version

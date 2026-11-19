@@ -15,7 +15,9 @@ ces coupures.
 Aide › *Licence…* montre l'état de cet exemplaire : évaluation, ou la licence avec sa formule,
 son titulaire et jusqu'à quand les mises à jour sont incluses.
 
-- *Saisir une licence* : collez la licence, ou *Ouvrir un fichier…*, puis *Activer*.
+- *Saisir une licence* : collez la licence, ou *Ouvrir un fichier…*, puis *Activer*. Déposer le
+  fichier de licence sur la fenêtre marche aussi. La fenêtre se ferme alors et *Licence activée*
+  montre la formule, le titulaire et les mises à jour incluses.
 - *Acheter une licence* ouvre la boutique sur audiostrada.com.
 - *Retrouver ma licence* et *Gérer mon abonnement* ouvrent votre compte sur audiostrada.com, pour
   récupérer la licence, changer l'abonnement ou le résilier.

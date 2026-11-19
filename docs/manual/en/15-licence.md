@@ -15,7 +15,9 @@ the dropouts.
 Help › *License…* shows the state of this copy: evaluation, or the licence with its plan, its
 holder and until when updates are included.
 
-- *Enter a license*: paste the licence, or *Open a file…*, then *Activate*.
+- *Enter a license*: paste the licence, or *Open a file…*, then *Activate*. Dropping the licence
+  file on the window works too. The window then closes and *License activated* shows the plan,
+  the holder and the updates included.
 - *Buy a license* opens the shop on audiostrada.com.
 - *Find my license* and *Manage my subscription* open your account on audiostrada.com, to get
   the licence again, change the subscription or cancel it.

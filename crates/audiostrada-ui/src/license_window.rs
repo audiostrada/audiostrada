@@ -15,6 +15,8 @@ pub struct LicenseWindow {
     error: Option<String>,
     /// Removing the license was asked: the actions band asks to confirm.
     removing: bool,
+    /// A license was just entered: the window closed, a confirmation shows its details.
+    confirmed: bool,
 }
 
 impl LicenseWindow {
@@ -22,6 +24,7 @@ impl LicenseWindow {
         self.open = true;
         self.error = None;
         self.removing = false;
+        self.confirmed = false;
     }
 
     /// Takes a license dropped on the window or opened from a file.
@@ -38,12 +41,17 @@ impl LicenseWindow {
                 audiostrada_engine::evaluation::set_active(status.evaluation());
                 self.text.clear();
                 self.error = None;
+                self.open = false;
+                self.confirmed = true;
             }
             Err(e) => self.error = Some(error_text(&e)),
         }
     }
 
     pub fn show(&mut self, ctx: &egui::Context, status: &mut Status) {
+        if self.confirmed {
+            self.confirmation(ctx, status);
+        }
         if !self.open {
             return;
         }
@@ -166,6 +174,35 @@ impl LicenseWindow {
         }
         self.open = open && !close;
     }
+
+    /// The license just entered, with its details, so that nobody wonders whether it worked.
+    fn confirmation(&mut self, ctx: &egui::Context, status: &Status) {
+        let (title, detail) = match status {
+            Status::Lapsed(_) => (
+                tr("License saved"),
+                tr("Its updates ended before this version was released"),
+            ),
+            _ => (
+                tr("License activated"),
+                tr("Thank you for supporting AudioStrada"),
+            ),
+        };
+        let mut open = true;
+        let mut ok = false;
+        dialog::Dialog::new("license-done", title)
+            .detail(detail)
+            .width(480.0)
+            .modal()
+            .show(ctx, &mut open, |ui, part| match part {
+                dialog::Part::Body => summary(ui, status),
+                dialog::Part::Actions => dialog::buttons(ui, |ui| {
+                    ok = dialog::primary(ui, tr("OK"), true).clicked();
+                }),
+            });
+        if !open || ok {
+            self.confirmed = false;
+        }
+    }
 }
 
 /// What this copy may do: the state in its color, then the license's details.
@@ -279,6 +316,13 @@ mod tests {
             }
             window.offer("not a license".into(), &mut status);
             assert!(window.error.is_some());
+            assert!(window.open, "a wrong text keeps the window open");
+            window.confirmed = true;
+            ctx.run_ui(egui::RawInput::default(), |ui| {
+                window.show(ui.ctx(), &mut status)
+            })
+            .drop_without_applying_deltas();
+            assert!(window.confirmed, "the confirmation waits for OK");
             ctx.run_ui(egui::RawInput::default(), |ui| {
                 window.show(ui.ctx(), &mut status)
             })
