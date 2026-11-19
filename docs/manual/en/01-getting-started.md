@@ -14,6 +14,8 @@ Download the package for your system from **audiostrada.com/download**:
 | Windows | the `-setup.exe` installer |
 | macOS | the `.dmg` disk image |
 
+AudioStrada needs a 64-bit Windows 10 or 11, or macOS 11 or later.
+
 Open a project by double-clicking a `.strada` file, or start AudioStrada from the menu of your
 system. Without a licence, AudioStrada runs in evaluation mode: every feature works, export
 included (see *Licence and updates*).
