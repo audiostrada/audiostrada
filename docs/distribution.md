@@ -71,8 +71,7 @@ binaires non signés.
 - **Linux** : la clé GPG des paquets (secret `PACKAGES_GPG_KEY`, la clé privée en armure,
   sans phrase de passe ; sa clé publique est `packaging/linux/audiostrada-packages.asc`) signe
   les `.rpm` et les index des dépôts. Les variantes `official` du `.deb` et du `.rpm` ajoutent
-  le dépôt et cette clé publique au système. Flatpak est écarté pour l'instant : l'accès aux
-  plugins installés sur le système y est limité.
+  le dépôt et cette clé publique au système.
 
 ## Dépôts APT et RPM
 
@@ -84,6 +83,35 @@ du dépôt à la main, clé, liste des paquets). Une règle Cloudflare de rééc
 audiostrada.com) sert `/index.html` pour `/`. Il faut les secrets `R2_ACCESS_KEY_ID` et `R2_SECRET_ACCESS_KEY` (un
 jeton d'API R2 en lecture et écriture sur ce bucket) et la variable `CLOUDFLARE_ACCOUNT_ID`.
 
+## Flathub et Snap Store
+
+Les magasins reçoivent eux aussi les binaires officiels (feature `official`, mode évaluation
+sans licence). Ils mettent AudioStrada à jour eux-mêmes : sous Flatpak (`FLATPAK_ID`) ou Snap
+(`SNAP`), la vérification des mises à jour n'est pas proposée (`updates::offered`).
+`.github/workflows/stores.yml` construit les deux sur une pull request qui touche
+`packaging/`, et à chaque release publiée.
+
+- **Flathub** (`packaging/flatpak`) : `manifest.sh` écrit dans `target/flatpak/` le manifeste,
+  ses sources Cargo (flatpak-cargo-generator) et `flathub.json`. Avec un tag (`manifest.sh
+  v1.0.0`), ce sont les fichiers du dépôt Flathub : le workflow les publie en artefact
+  `flathub` à chaque release. La recette compile depuis les sources avec la Rust de
+  `rust-toolchain.toml` (l'extension Rust du SDK est en retard) et lilv pour LV2.
+  - Plugins : ceux du dossier personnel (`~/.clap`, `~/.vst3`, `~/.lv2`) et ceux des extensions
+    `org.freedesktop.LinuxAudio.Plugins.*`, montées dans `/app/extensions/Plugins`. Ceux de la
+    distribution (`/usr/lib/vst3`...) restent invisibles.
+  - Première soumission : une pull request sur `flathub/flathub` (branche `new-pr`) avec les
+    fichiers de l'artefact. Ensuite, chaque version : une pull request sur
+    `flathub/com.audiostrada.AudioStrada` avec les nouveaux fichiers. La fiche « vérifiée »
+    demande un jeton dans `https://audiostrada.com/.well-known/org.flathub.VerifiedApps.txt`.
+- **Snap Store** (`packaging/snap`) : `build-snap.sh` emballe les binaires dans un snap
+  `core24` en confinement *classic*, comme le `.deb` : plugins partout sur le système, liés à
+  ses bibliothèques (glibc 2.39 ou plus). Le confinement classic demande l'accord de Canonical
+  (forum.snapcraft.io, catégorie « store-requests »). Le workflow publie sur le canal `stable`
+  quand le secret `SNAPCRAFT_STORE_CREDENTIALS` existe :
+  `snapcraft export-login --snaps=audiostrada --acls package_access,package_push,package_update,package_release -`.
+- **Métadonnées** : `packaging/linux/com.audiostrada.AudioStrada.metainfo.xml` (captures dans
+  `packaging/linux/screenshots`, servies depuis `main`) reçoit une ligne `<release>` par version.
+
 ## Publier une version
 
 0. Mettre à jour la table des familles de plugins : `scripts/update-plugindb.py` télécharge la
@@ -92,8 +120,10 @@ jeton d'API R2 en lecture et écriture sur ce bucket) et la variable `CLOUDFLARE
    plugin vont dans `plugin_families_extra.tsv`, que le script ne touche pas.
 1. Monter `version` dans `Cargo.toml`, écrire les notes de version (une section `## <version>`
    en tête de `crates/audiostrada-ui/assets/whats-new/en.md` et `fr.md` : la fenêtre Quoi de neuf
-   les montre après la mise à jour, la release GitHub reprend l'anglais), commiter.
+   les montre après la mise à jour, la release GitHub reprend l'anglais), ajouter une ligne
+   `<release>` dans `packaging/linux/com.audiostrada.AudioStrada.metainfo.xml`, commiter.
 2. `git tag v0.2.0 && git push origin v0.2.0` : le CI construit et signe, puis crée un
    brouillon de release avec les paquets, `SHA256SUMS` et `latest.json`.
 3. Essayer les paquets du brouillon (au moins un par système), puis publier la release.
    Le site et la vérification des mises à jour suivent la dernière release publiée.
+4. Flathub : ouvrir la pull request de la version avec l'artefact `flathub` du workflow Stores.

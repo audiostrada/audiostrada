@@ -49,4 +49,5 @@ version ; il se rouvre à tout moment.
 Sous Linux, les paquets `.deb` et `.rpm` ajoutent aussi le dépôt de paquets d'AudioStrada : les
 nouvelles versions arrivent ensuite avec les mises à jour du système (`sudo apt upgrade`,
 `sudo dnf upgrade` ou le gestionnaire de mises à jour), et la fenêtre de mise à jour donne la
-commande. Sinon, elle télécharge le bon paquet.
+commande. Sinon, elle télécharge le bon paquet. Installé depuis Flathub ou le Snap Store,
+AudioStrada est mis à jour par le magasin, et la vérification n'est pas proposée.

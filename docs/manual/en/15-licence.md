@@ -47,3 +47,5 @@ opened again at any time.
 On Linux, the `.deb` and `.rpm` packages also add AudioStrada's package repository: new versions
 then come with the system's updates (`sudo apt upgrade`, `sudo dnf upgrade` or the software
 updater), and the update window gives the command. Otherwise it downloads the right package.
+Installed from Flathub or the Snap Store, AudioStrada is updated by the store, and the check is
+not offered.

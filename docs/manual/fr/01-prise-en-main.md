@@ -14,6 +14,8 @@ Téléchargez le paquet de votre système sur **audiostrada.com/download** :
 | Windows | l'installeur `-setup.exe` |
 | macOS | l'image disque `.dmg` |
 
+Sous Linux, AudioStrada est aussi sur Flathub et dans le Snap Store (la logithèque d'Ubuntu).
+
 Ouvrez un projet en double-cliquant sur un fichier `.strada`, ou lancez AudioStrada depuis le
 menu de votre système. Sans licence, AudioStrada tourne en mode évaluation : tout fonctionne,
 export compris (voir *Licence et mises à jour*).

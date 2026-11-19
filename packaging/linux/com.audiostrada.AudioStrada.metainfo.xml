@@ -9,16 +9,23 @@
     <name>David Jean Louis</name>
   </developer>
   <url type="homepage">https://audiostrada.com</url>
+  <url type="bugtracker">https://github.com/audiostrada/audiostrada/issues</url>
+  <url type="help">https://audiostrada.com/manual/</url>
+  <url type="vcs-browser">https://github.com/audiostrada/audiostrada</url>
   <description>
     <p>
       AudioStrada is a digital audio workstation: multitrack recording and editing, a mixing
       console with buses and VCAs, automation, CLAP, VST3 and LV2 plugins running in their own
       processes, MIDI instruments with a piano roll, built-in effects including a Neural Amp
-      Modeler amp, time stretching, and export to WAV and FLAC.
+      Modeler amp, time stretching, and export to WAV, FLAC and MP3.
     </p>
     <p>
       On Linux it plays through PipeWire with no configuration, and also supports JACK and
       ALSA.
+    </p>
+    <p>
+      This official build runs in evaluation mode, muting the sound briefly from time to time,
+      until a license bought on audiostrada.com is installed.
     </p>
   </description>
   <launchable type="desktop-id">audiostrada.desktop</launchable>
@@ -30,5 +37,26 @@
     <binary>audiostrada</binary>
     <mediatype>application/x-audiostrada-project</mediatype>
   </provides>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Tracks and mixer in the main window</caption>
+      <image>https://raw.githubusercontent.com/audiostrada/audiostrada/main/packaging/linux/screenshots/main-window.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The mixing console in its own window</caption>
+      <image>https://raw.githubusercontent.com/audiostrada/audiostrada/main/packaging/linux/screenshots/mixer.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Strada-Synth, the built-in synthesizer</caption>
+      <image>https://raw.githubusercontent.com/audiostrada/audiostrada/main/packaging/linux/screenshots/synth.png</image>
+    </screenshot>
+  </screenshots>
+  <branding>
+    <color type="primary" scheme_preference="light">#8cc4ff</color>
+    <color type="primary" scheme_preference="dark">#232b37</color>
+  </branding>
   <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-11-18"/>
+  </releases>
 </component>

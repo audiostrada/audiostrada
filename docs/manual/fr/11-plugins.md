@@ -12,6 +12,11 @@ leurs plugins. Les plugins 32 bits ne tournent pas. *Rechercher de nouveaux plug
 cherche les nouveaux ; *Tout réanalyser* oublie la liste en cache et analyse à nouveau chaque
 plugin. Les plugins Windows ne tournent pas sous Linux.
 
+Installé depuis Flathub, AudioStrada voit les plugins de votre dossier personnel (`~/.clap`,
+`~/.vst3`, `~/.lv2`) et ceux installés comme extensions Flatpak
+(`org.freedesktop.LinuxAudio.Plugins.*`), mais pas ceux de la distribution (`/usr/lib/vst3`...) :
+prenez un autre paquet pour ceux-là.
+
 Les nouveaux plugins sont analysés en arrière-plan au démarrage d'AudioStrada. Pendant le scan,
 le navigateur d'effets montre où il en est (Préférences › Plugins aussi) ; les plugins déjà
 connus restent utilisables, les nouveaux apparaissent à la fin.

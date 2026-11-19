@@ -1,0 +1,30 @@
+name: audiostrada
+title: AudioStrada
+version: '@VERSION@'
+adopt-info: audiostrada
+license: GPL-3.0-or-later
+icon: root/usr/share/icons/hicolor/256x256/apps/audiostrada.png
+base: core24
+grade: stable
+# Classic, as the .deb: plugins anywhere on the system, linked against its libraries.
+confinement: classic
+platforms:
+  amd64:
+
+apps:
+  audiostrada:
+    command: usr/bin/audiostrada
+    common-id: com.audiostrada.AudioStrada
+    desktop: usr/share/applications/audiostrada.desktop
+
+parts:
+  audiostrada:
+    plugin: dump
+    source: root
+    parse-info: [usr/share/metainfo/com.audiostrada.AudioStrada.metainfo.xml]
+
+lint:
+  ignore:
+    # The binaries use the system's libraries, as the .deb (glibc 2.39 or later).
+    - classic
+    - library

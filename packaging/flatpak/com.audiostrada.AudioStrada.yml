@@ -1,0 +1,116 @@
+id: com.audiostrada.AudioStrada
+runtime: org.freedesktop.Platform
+runtime-version: '26.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.llvm22
+command: audiostrada
+finish-args:
+  - --share=ipc
+  - --share=network
+  # The windows run in X11 mode by default, Wayland included (Preferences).
+  - --socket=x11
+  - --socket=pulseaudio
+  - --filesystem=xdg-run/pipewire-0
+  # Sound cards and MIDI devices through ALSA.
+  - --device=all
+  # Projects, recordings, samples and plugins (~/.clap, ~/.vst3, ~/.lv2) live anywhere.
+  - --filesystem=home
+  - --filesystem=/media
+  - --filesystem=/run/media
+  - --filesystem=/mnt
+add-extensions:
+  org.freedesktop.LinuxAudio.Plugins:
+    directory: extensions/Plugins
+    version: '26.08'
+    add-ld-path: lib
+    merge-dirs: ladspa;dssi;lv2;clap;vst;vst3
+    subdirectories: true
+    no-autodownload: true
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /share/doc
+  - '*.a'
+modules:
+  # lilv and its libraries, loaded at run time for LV2 plugins.
+  - name: lv2
+    buildsystem: meson
+    config-opts: [-Ddocs=disabled, -Dplugins=disabled, -Dtests=disabled]
+    sources:
+      - type: archive
+        url: https://lv2plug.in/spec/lv2-1.18.10.tar.xz
+        sha256: 78c51bcf21b54e58bb6329accbb4dae03b2ed79b520f9a01e734bd9de530953f
+  - name: zix
+    buildsystem: meson
+    config-opts: [-Dbenchmarks=disabled, -Ddocs=disabled, -Dtests=disabled, -Dtests_cpp=disabled]
+    sources:
+      - type: archive
+        url: https://download.drobilla.net/zix-0.8.2.tar.xz
+        sha256: 4c73aab0f8cbbfe56b00c8c6d648316021e699c5ae6cbf254391ef309047e67b
+  - name: serd
+    buildsystem: meson
+    config-opts: [-Ddocs=disabled, -Dman=disabled, -Dtests=disabled, -Dtools=disabled]
+    sources:
+      - type: archive
+        url: https://download.drobilla.net/serd-0.32.10.tar.xz
+        sha256: b0e93b49e52f01a049475b7886ef140407115a32d3b1e5dc5f95141c88275d1c
+  - name: sord
+    buildsystem: meson
+    config-opts: [-Dbindings_cpp=disabled, -Ddocs=disabled, -Dman=disabled, -Dtests=disabled, -Dtools=disabled]
+    sources:
+      - type: archive
+        url: https://download.drobilla.net/sord-0.16.22.tar.xz
+        sha256: bb23b34b216579136795d518cffa73d91cf205594ce9accebfd408afb839173f
+  - name: sratom
+    buildsystem: meson
+    config-opts: [-Ddocs=disabled, -Dtests=disabled]
+    sources:
+      - type: archive
+        url: https://download.drobilla.net/sratom-0.6.22.tar.xz
+        sha256: 0209b7d0f22c96abb416722ed735b0933be47931ecff4aa4b26ded7760b4f252
+  - name: lilv
+    buildsystem: meson
+    config-opts: [-Dbindings_cpp=disabled, -Dbindings_py=disabled, -Ddocs=disabled, -Dtests=disabled, -Dtools=disabled]
+    sources:
+      - type: archive
+        url: https://download.drobilla.net/lilv-0.28.0.tar.xz
+        sha256: 8dcb70adb5cf072335115a6b091f4113710bdc73abaadaa3f9e9c1e55957b149
+
+  - name: audiostrada
+    buildsystem: simple
+    build-options:
+      append-path: /run/build/audiostrada/rust/bin:/usr/lib/sdk/llvm22/bin
+      prepend-ld-library-path: /usr/lib/sdk/llvm22/lib
+      env:
+        CARGO_HOME: /run/build/audiostrada/cargo
+        CARGO_NET_OFFLINE: 'true'
+        LIBCLANG_PATH: /usr/lib/sdk/llvm22/lib
+        # The official build: evaluation mode until a license is installed (see release.yml).
+        AUDIOSTRADA_LICENSE_KEY: c78f253b5e9b46adafc623db671f6bc16b848dc756a19376d4a19927adc8cb82
+        AUDIOSTRADA_RELEASE_DATE: '@DATE@'
+    build-commands:
+      # The Rust of rust-toolchain.toml: the SDK's extension may lag behind.
+      - ./rust-dist/install.sh --prefix=/run/build/audiostrada/rust --components=rustc,cargo,rust-std-x86_64-unknown-linux-gnu --disable-ldconfig
+      - cargo --offline fetch --locked --verbose
+      - cargo --offline build --locked -p audiostrada-app --profile dist --features official
+      - cargo --offline build --locked -p audiostrada-mp3 --profile dist
+      - install -Dm755 -t /app/bin target/dist/audiostrada target/dist/audiostrada-mp3
+      - install -Dm644 packaging/linux/audiostrada.desktop /app/share/applications/${FLATPAK_ID}.desktop
+      - desktop-file-edit --set-icon=${FLATPAK_ID} /app/share/applications/${FLATPAK_ID}.desktop
+      - sed "s|name=\"audiostrada\"|name=\"${FLATPAK_ID}\"|" packaging/linux/audiostrada.xml > mime.xml
+      - install -Dm644 mime.xml /app/share/mime/packages/${FLATPAK_ID}.xml
+      - sed "s|>audiostrada.desktop<|>${FLATPAK_ID}.desktop<|" packaging/linux/${FLATPAK_ID}.metainfo.xml > metainfo.xml
+      - install -Dm644 metainfo.xml /app/share/metainfo/${FLATPAK_ID}.metainfo.xml
+      - |
+        for size in 16 32 48 64 128 256 512; do
+          install -Dm644 packaging/icons/audiostrada-$size.png /app/share/icons/hicolor/${size}x${size}/apps/${FLATPAK_ID}.png
+        done
+      - install -d /app/extensions/Plugins
+    sources:
+      - type: archive
+        url: https://static.rust-lang.org/dist/rust-1.100.0-x86_64-unknown-linux-gnu.tar.xz
+        sha256: 98ee6bec240e1cfe944f17e7092412dc5ef6e008484bb668c6936d35a7d15acd
+        dest: rust-dist
+      - audiostrada-source.json
+      - cargo-sources.json

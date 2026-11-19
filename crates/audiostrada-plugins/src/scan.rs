@@ -44,6 +44,7 @@ pub fn default_dirs(format: Format) -> Vec<PathBuf> {
                 out.extend(home.map(|h| h.join(".clap")));
                 out.push(PathBuf::from("/usr/lib/clap"));
                 out.push(PathBuf::from("/usr/local/lib/clap"));
+                out.extend(flatpak_dir("clap"));
             }
         }
         Format::Vst3 => {
@@ -58,6 +59,7 @@ pub fn default_dirs(format: Format) -> Vec<PathBuf> {
                 out.extend(home.map(|h| h.join(".vst3")));
                 out.push(PathBuf::from("/usr/lib/vst3"));
                 out.push(PathBuf::from("/usr/local/lib/vst3"));
+                out.extend(flatpak_dir("vst3"));
             }
         }
         Format::Vst2 => {
@@ -81,6 +83,7 @@ pub fn default_dirs(format: Format) -> Vec<PathBuf> {
                 out.push(PathBuf::from("/usr/lib/vst"));
                 out.push(PathBuf::from("/usr/local/lib/vst"));
                 out.push(PathBuf::from("/usr/lib/lxvst"));
+                out.extend(flatpak_dir("vst"));
             }
         }
         Format::Lv2 => {
@@ -92,6 +95,7 @@ pub fn default_dirs(format: Format) -> Vec<PathBuf> {
                 out.extend(home.map(|h| h.join(".lv2")));
                 out.push(PathBuf::from("/usr/lib/lv2"));
                 out.push(PathBuf::from("/usr/local/lib/lv2"));
+                out.extend(flatpak_dir("lv2"));
             }
         }
         Format::Au => {
@@ -142,6 +146,11 @@ fn vst2_registry_dir() -> Option<PathBuf> {
 #[cfg(not(windows))]
 fn vst2_registry_dir() -> Option<PathBuf> {
     None
+}
+
+/// Plugins of the org.freedesktop.LinuxAudio.Plugins extensions, when running as a Flatpak.
+fn flatpak_dir(format: &str) -> Option<PathBuf> {
+    std::env::var_os("FLATPAK_ID").map(|_| PathBuf::from("/app/extensions/Plugins").join(format))
 }
 
 fn dirs_home() -> Option<PathBuf> {
