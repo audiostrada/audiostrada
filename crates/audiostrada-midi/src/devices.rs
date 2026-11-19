@@ -6,8 +6,17 @@ use crate::live::LiveMidi;
 
 const CLIENT: &str = "AudioStrada";
 
+/// The system can have MIDI ports. Linux needs the ALSA sequencer, missing from containers and
+/// CI machines; without it, ALSA prints an error at every attempt.
+fn available() -> bool {
+    !cfg!(target_os = "linux") || std::path::Path::new("/dev/snd/seq").exists()
+}
+
 /// Names of the MIDI inputs present now.
 pub fn input_names() -> Vec<String> {
+    if !available() {
+        return Vec::new();
+    }
     let Ok(input) = MidiInput::new(CLIENT) else {
         return Vec::new();
     };
@@ -48,7 +57,11 @@ impl MidiInputs {
     ) -> (Self, Vec<String>) {
         let mut connections = Vec::new();
         let mut errors = Vec::new();
-        let count = MidiInput::new(CLIENT).map_or(0, |i| i.port_count());
+        let count = if available() {
+            MidiInput::new(CLIENT).map_or(0, |i| i.port_count())
+        } else {
+            0
+        };
         for index in 0..count {
             let Ok(input) = MidiInput::new(CLIENT) else {
                 continue;
@@ -90,6 +103,9 @@ impl MidiInputs {
 
 /// Names of the MIDI outputs present now.
 pub fn output_names() -> Vec<String> {
+    if !available() {
+        return Vec::new();
+    }
     let Ok(output) = midir::MidiOutput::new(CLIENT) else {
         return Vec::new();
     };
@@ -171,6 +187,9 @@ impl MidiOutputs {
 }
 
 fn connect(port: &str) -> Option<midir::MidiOutputConnection> {
+    if !available() {
+        return None;
+    }
     let output = midir::MidiOutput::new(CLIENT).ok()?;
     let found = output
         .ports()
