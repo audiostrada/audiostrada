@@ -175,7 +175,10 @@ jobs:
           (cd dist && sha256sum -- * > SHA256SUMS)
           # Read by the update check of the official builds (crates/audiostrada-ui/src/updates.rs).
           printf '{"version":"%s","date":"%s","url":"%s/download"}\n' "$version" "$date" "$SITE_URL" > dist/latest.json
+          # The release notes: this version's section of What's new (crates/audiostrada-ui/src/whats_new.rs).
+          awk -v v="## $version" '$0 == v {on=1; next} /^## / {on=0} on' crates/audiostrada-ui/assets/whats-new/en.md > notes.md
       - uses: softprops/action-gh-release@v3
         with:
           draft: true
+          body_path: notes.md
           files: dist/**/*

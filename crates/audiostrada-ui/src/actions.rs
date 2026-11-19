@@ -87,6 +87,8 @@ actions! {
     GoToStart => ("Transport", "Go to start"),
     GoToEnd => ("Transport", "Go to end"),
     ToggleLoop => ("Transport", "Toggle loop"),
+    Manual => ("Help", "Manual"),
+    WhatsNew => ("Help", "What's new"),
     KeyboardShortcuts => ("Help", "Keyboard shortcuts…"),
     About => ("Help", "About AudioStrada"),
     License => ("Help", "License…"),

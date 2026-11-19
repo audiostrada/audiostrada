@@ -41,7 +41,10 @@ mode évaluation (coupures de 1,5 s toutes les 10 min après 20 min). Une compil
 - `AUDIOSTRADA_RELEASE_DATE` : date du commit du tag, posée par le CI. Une licence couvre les
   versions dont la date est antérieure à la fin de ses mises à jour.
 - Le job `release` ajoute `SHA256SUMS` et `latest.json` (version, date, page de
-  téléchargement), lu par la vérification des mises à jour des binaires officiels.
+  téléchargement), lu par la vérification des mises à jour des binaires officiels. La fenêtre de
+  mise à jour télécharge l'installeur par `/get/<type>`, le vérifie avec `SHA256SUMS` et, si
+  l'exemplaire en cours est signé, exige la même signature (équipe Apple, sujet du certificat
+  Windows) avant de le lancer.
 - Le site est `SITE` dans `crates/audiostrada-license/src/lib.rs` et `SITE_URL` dans le workflow.
 
 ## Signature
@@ -87,7 +90,9 @@ jeton d'API R2 en lecture et écriture sur ce bucket) et la variable `CLOUDFLARE
    dernière base de [PluginDB](https://github.com/blakebratcher/plugindb) et dit ce qui change.
    Relire, puis commiter `crates/audiostrada-ui/assets/plugindb.tsv`. Les corrections d'un
    plugin vont dans `plugin_families_extra.tsv`, que le script ne touche pas.
-1. Monter `version` dans `Cargo.toml`, ajouter les notes de version, commiter.
+1. Monter `version` dans `Cargo.toml`, écrire les notes de version (une section `## <version>`
+   en tête de `crates/audiostrada-ui/assets/whats-new/en.md` et `fr.md` : la fenêtre Quoi de neuf
+   les montre après la mise à jour, la release GitHub reprend l'anglais), commiter.
 2. `git tag v0.2.0 && git push origin v0.2.0` : le CI construit et signe, puis crée un
    brouillon de release avec les paquets, `SHA256SUMS` et `latest.json`.
 3. Essayer les paquets du brouillon (au moins un par système), puis publier la release.

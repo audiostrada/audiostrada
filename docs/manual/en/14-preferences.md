@@ -31,7 +31,7 @@ command's name opens the keyboard shortcuts already searched.
 - **Play key**: *Stop goes back to where playback started*, or stays where it is.
 - **Several screens**: puts each window back on its screen (X11 mode, see *Plugins*).
 - **New versions**: *Check once a day* tells you when a new official build is out. Nothing is
-  installed on its own: AudioStrada points you to the download page.
+  installed on its own: the update window installs it when you ask (see *Licence and updates*).
 
 ## Audio
 

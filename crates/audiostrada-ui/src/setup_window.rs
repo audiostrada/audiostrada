@@ -147,7 +147,7 @@ impl SetupWindow {
             self.step = step;
         }
         if finish {
-            if audiostrada_license::OFFICIAL {
+            if crate::updates::offered() {
                 prefs.check_updates = Some(self.check_updates);
             }
             let window = (self.arrangement == Arrangement::TwoScreens)
@@ -191,7 +191,7 @@ impl SetupWindow {
                 );
             }
         });
-        if audiostrada_license::OFFICIAL {
+        if crate::updates::offered() {
             ui.add_space(8.0);
             ui.checkbox(
                 &mut self.check_updates,

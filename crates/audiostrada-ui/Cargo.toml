@@ -54,7 +54,7 @@ x11rb = { workspace = true, features = ["randr"] }
 libc.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-windows = { workspace = true, features = ["Win32_Storage_FileSystem"] }
+windows = { workspace = true, features = ["Win32_Storage_FileSystem", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
 ureq = { workspace = true, features = ["native-tls"] }

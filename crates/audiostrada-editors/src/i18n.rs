@@ -118,6 +118,11 @@ pub fn set_language(language: Language) {
     CURRENT.store(if french { FRENCH } else { ENGLISH }, Ordering::Relaxed);
 }
 
+/// The interface speaks French.
+pub fn is_french() -> bool {
+    CURRENT.load(Ordering::Relaxed) == FRENCH
+}
+
 /// `text` in the chosen language.
 pub fn tr(text: &'static str) -> &'static str {
     if CURRENT.load(Ordering::Relaxed) == ENGLISH {

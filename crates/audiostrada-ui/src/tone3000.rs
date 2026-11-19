@@ -108,8 +108,13 @@ fn query(text: &str, key: &str) -> Option<String> {
 }
 
 pub(crate) fn agent() -> ureq::Agent {
+    agent_with_timeout(Duration::from_secs(120))
+}
+
+/// An agent for transfers that may last long, as an installer.
+pub(crate) fn agent_with_timeout(timeout: Duration) -> ureq::Agent {
     let config = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(120)))
+        .timeout_global(Some(timeout))
         .http_status_as_error(false);
     // Tests never reach the network: every request goes to a closed local port.
     #[cfg(test)]

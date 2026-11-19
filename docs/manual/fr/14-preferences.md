@@ -31,8 +31,8 @@ page. Tapé là, le nom d'une commande ouvre les raccourcis clavier déjà filtr
 - **Touche de lecture** : le stop revient là où la lecture a commencé, ou reste où il est.
 - **Plusieurs écrans** : remet chaque fenêtre sur son écran (mode X11, voir *Plugins*).
 - **Nouvelles versions** : *Vérifier une fois par jour* vous prévient quand une nouvelle version
-  officielle sort. Rien ne s'installe tout seul : AudioStrada vous dirige vers la page de
-  téléchargement.
+  officielle sort. Rien ne s'installe tout seul : la fenêtre de mise à jour l'installe quand vous
+  le demandez (voir *Licence et mises à jour*).
 
 ## Audio
 

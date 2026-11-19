@@ -1256,7 +1256,7 @@ fn general(ui: &mut egui::Ui, prefs: &mut UiPrefs) -> bool {
             );
         });
     }
-    if audiostrada_license::OFFICIAL {
+    if crate::updates::offered() {
         card(ui, Some(tr("Updates")), |ui| {
             row(ui, tr("New versions"), None, |ui| {
                 let mut check = prefs.check_updates == Some(true);

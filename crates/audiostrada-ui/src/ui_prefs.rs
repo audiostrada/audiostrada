@@ -223,6 +223,8 @@ pub struct UiPrefs {
     pub tab: usize,
     /// Official builds look for new versions once a day; `None` until the user was asked.
     pub check_updates: Option<bool>,
+    /// The version started last, to show what is new after an update.
+    pub seen_version: Option<String>,
     /// Day of the last check (YYYY-MM-DD).
     pub updates_checked: Option<String>,
     /// Crash reports sent without asking (`Some(true)`), else offered at the next start.
@@ -277,6 +279,7 @@ impl Default for UiPrefs {
             tabs: Vec::new(),
             tab: 0,
             check_updates: None,
+            seen_version: None,
             updates_checked: None,
             send_crash_reports: None,
             header_width: 210.0,

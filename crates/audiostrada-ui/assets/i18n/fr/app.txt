@@ -1563,3 +1563,78 @@ Seul un court fichier de version est téléchargé depuis le site : rien sur vou
 
 Panels can be moved, shown and hidden at any time from the View menu.
 Les panneaux se déplacent, s'affichent et se masquent à tout moment depuis le menu Affichage.
+
+What's new
+Quoi de neuf
+
+AudioStrada {version}
+AudioStrada {version}
+
+Version {version}
+Version {version}
+
+The download stopped
+Le téléchargement s'est arrêté
+
+Download
+Télécharger
+
+Open the download page
+Ouvrir la page de téléchargement
+
+Install now
+Installer maintenant
+
+Open it and quit
+L'ouvrir et quitter
+
+Try again
+Réessayer
+
+Download and install
+Télécharger et installer
+
+Download in the browser
+Télécharger dans le navigateur
+
+Your system installs it with its other updates (the software updater), or in a terminal:
+Votre système l'installe avec ses autres mises à jour (le gestionnaire de mises à jour), ou dans un terminal :
+
+The new package also adds AudioStrada's package repository: later versions then come with your system's updates.
+Le nouveau paquet ajoute aussi le dépôt de paquets d'AudioStrada : les versions suivantes arrivent ensuite avec les mises à jour du système.
+
+Start AudioStrada from the new AppImage, in place of this one.
+Lancez AudioStrada depuis la nouvelle AppImage, à la place de celle-ci.
+
+AudioStrada downloads the installer and checks it. It then closes, asking to save your projects, and the installer starts.
+AudioStrada télécharge l'installeur et le vérifie. Il se ferme ensuite, en proposant d'enregistrer vos projets, et l'installeur démarre.
+
+AudioStrada downloads the disk image and checks it. In its window, drag AudioStrada onto Applications, replacing this version, then start it again.
+AudioStrada télécharge l'image disque et la vérifie. Dans sa fenêtre, glissez AudioStrada sur Applications en remplaçant cette version, puis relancez-le.
+
+The download page has every package.
+La page de téléchargement propose tous les paquets.
+
+{done} / {total} MB
+{done} / {total} Mo
+
+Downloaded and checked.
+Téléchargé et vérifié.
+
+Cannot reach the web site
+Impossible de joindre le site
+
+Download cancelled
+Téléchargement annulé
+
+The download does not match the release: it was not kept
+Le téléchargement ne correspond pas à la version publiée : il n'a pas été gardé
+
+The installer is not signed by AudioStrada's publisher: it was not kept
+L'installeur n'est pas signé par l'éditeur d'AudioStrada : il n'a pas été gardé
+
+Cannot start the installer
+Impossible de lancer l'installeur
+
+Without a license, it runs in evaluation mode too
+Sans licence, elle tourne aussi en mode évaluation

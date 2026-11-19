@@ -63,6 +63,7 @@ version précédente : rien n'est jamais perdu.
 Chaque commande est dans les menus et dans la **palette de commandes** ([[Ctrl+Shift+P]]), qui
 la trouve par son nom et affiche son raccourci. **Aide › Raccourcis clavier** ([[Ctrl+/]]) les
 liste tous, et le clic droit montre les options de presque tout : clips, en-têtes de pistes,
-règle, tranches du Mixer, inserts, faders et boutons.
+règle, tranches du Mixer, inserts, faders et boutons. **Aide › Manuel** ouvre ce manuel sur le
+site.
 
 > **Remarque** Sous macOS, [[Cmd]] remplace [[Ctrl]] dans tous les raccourcis de ce manuel.

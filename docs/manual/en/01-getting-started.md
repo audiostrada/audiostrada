@@ -61,6 +61,6 @@ ever lost.
 Every command is in the menus and in the **command palette** ([[Ctrl+Shift+P]]), which finds it
 by name and shows its shortcut. **Help › Keyboard shortcuts** ([[Ctrl+/]]) lists them all, and
 right-clicking almost anything shows its options: clips, track headers, the ruler, mixer strips,
-inserts, faders and knobs.
+inserts, faders and knobs. **Help › Manual** opens this manual on the web site.
 
 > **Note** On macOS, [[Cmd]] replaces [[Ctrl]] in every shortcut of this manual.

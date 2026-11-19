@@ -1,5 +1,5 @@
-//! New versions of the official builds, checked once a day when the user agreed. Nothing is
-//! installed: the user is pointed to the download page.
+//! New versions of the official builds, checked once a day when the user agreed. Stores update
+//! their copies themselves; elsewhere the update window brings the new version.
 
 use std::sync::mpsc::{Receiver, channel};
 
@@ -17,6 +17,68 @@ pub struct Release {
     pub url: String,
 }
 
+/// Official builds look for new versions, unless Flathub or the Snap Store installed them.
+pub fn offered() -> bool {
+    audiostrada_license::OFFICIAL && install() != Install::Store
+}
+
+/// How this copy was installed, which decides how a new version reaches it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Install {
+    /// The Windows installer.
+    Windows,
+    /// The macOS disk image.
+    MacOs,
+    /// The .deb package; true when it added AudioStrada's APT repository.
+    Deb(bool),
+    /// The .rpm package; true when it added AudioStrada's RPM repository.
+    Rpm(bool),
+    AppImage,
+    /// Flathub or the Snap Store, which update it themselves.
+    Store,
+    /// Built from source, or unknown.
+    Other,
+}
+
+pub fn install() -> Install {
+    use std::path::Path;
+    if cfg!(windows) {
+        return Install::Windows;
+    }
+    if cfg!(target_os = "macos") {
+        return Install::MacOs;
+    }
+    let var = |name| std::env::var_os(name).is_some();
+    if var("FLATPAK_ID") || var("SNAP") {
+        return Install::Store;
+    }
+    if var("APPIMAGE") {
+        return Install::AppImage;
+    }
+    let packaged = std::env::current_exe().is_ok_and(|exe| exe.starts_with("/usr/"));
+    if packaged && Path::new("/var/lib/dpkg/info/audiostrada.list").exists() {
+        return Install::Deb(Path::new("/etc/apt/sources.list.d/audiostrada.sources").exists());
+    }
+    if packaged && Path::new("/var/lib/rpm").exists() {
+        return Install::Rpm(Path::new("/etc/yum.repos.d/audiostrada.repo").exists());
+    }
+    Install::Other
+}
+
+impl Install {
+    /// This copy's installer among the latest release's files, as the site's `/get/` names it.
+    pub fn file(self) -> Option<&'static str> {
+        match self {
+            Install::Windows => Some("windows"),
+            Install::MacOs => Some("macos"),
+            Install::Deb(_) => Some("deb"),
+            Install::Rpm(_) => Some("rpm"),
+            Install::AppImage => Some("appimage"),
+            Install::Store | Install::Other => None,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Updates {
     pending: Option<Receiver<Option<Release>>>,
@@ -29,7 +91,7 @@ pub struct Updates {
 impl Updates {
     /// Starts the daily check if it is due; true when `prefs` changed.
     pub fn start(&mut self, prefs: &mut UiPrefs) -> bool {
-        if self.done || !audiostrada_license::OFFICIAL || prefs.check_updates != Some(true) {
+        if self.done || !offered() || prefs.check_updates != Some(true) {
             return false;
         }
         self.done = true;
@@ -72,7 +134,7 @@ fn fetch() -> Option<Release> {
 }
 
 /// `version` comes after `current` (dotted numbers, as 1.2.10).
-fn newer(version: &str, current: &str) -> bool {
+pub fn newer(version: &str, current: &str) -> bool {
     let parts = |v: &str| -> Vec<u64> {
         v.trim_start_matches('v')
             .split(['.', '-'])

@@ -57,6 +57,7 @@ impl Harness {
         // English, as the other tests of this process expect (the language is global).
         let prefs = UiPrefs {
             check_updates: Some(false),
+            seen_version: Some(crate::whats_new::CURRENT.to_owned()),
             language: crate::i18n::Language::English,
             ..UiPrefs::default()
         };
@@ -1007,6 +1008,30 @@ fn an_express_mix_balances_the_faders_and_gives_each_instrument_its_space() {
     doc.history_mut().undo();
     assert!(space_buses(doc.project()).is_empty());
     assert_eq!(doc.project().track(tracks[0]).unwrap().gain_db, 0.0);
+}
+
+#[test]
+fn what_is_new_opens_once_after_an_update() {
+    let mut h = Harness::new("whats-new");
+    h.app.prefs.seen_version = Some("0.0.1".into());
+    h.frame(Vec::new());
+    assert!(h.app.whats_new.is_open());
+    assert_eq!(
+        h.app.prefs.seen_version.as_deref(),
+        Some(whats_new::CURRENT)
+    );
+    // Its controls, clicked through.
+    h.answer_dialogs();
+
+    let mut h = Harness::new("whats-new-first");
+    h.app.prefs.seen_version = None;
+    h.app.open_setup();
+    h.frame(Vec::new());
+    assert!(!h.app.whats_new.is_open(), "not at the first start");
+    assert_eq!(
+        h.app.prefs.seen_version.as_deref(),
+        Some(whats_new::CURRENT)
+    );
 }
 
 #[test]

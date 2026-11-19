@@ -69,9 +69,11 @@ mod track_menu;
 mod transport;
 mod trigger_editor;
 mod ui_prefs;
+mod update_window;
 mod updates;
 mod versions_window;
 mod video_capture;
+mod whats_new;
 pub(crate) use audiostrada_editors::widgets;
 
 #[cfg(test)]
@@ -457,6 +459,10 @@ pub struct AudioStradaApp {
     license: audiostrada_license::Status,
     license_window: license_window::LicenseWindow,
     updates: updates::Updates,
+    update_window: update_window::UpdateWindow,
+    whats_new: whats_new::WhatsNew,
+    /// The version noted at this start (What's new after an update).
+    version_noted: bool,
     /// Tool calls from `audiostrada mcp --connect`, when started with `--control`.
     control: Option<control::Server>,
     /// The last tools assistants called: (tool, when).
@@ -596,6 +602,9 @@ impl AudioStradaApp {
             },
             license_window: license_window::LicenseWindow::default(),
             updates: updates::Updates::default(),
+            update_window: update_window::UpdateWindow::default(),
+            whats_new: whats_new::WhatsNew::default(),
+            version_noted: false,
             control,
             control_log: Default::default(),
             assistants_window: Default::default(),
@@ -976,9 +985,34 @@ impl AudioStradaApp {
         }
     }
 
+    /// Notes this version, showing what is new when it replaced another one (never at the first
+    /// start, where the setup assistant opens).
+    fn note_version(&mut self) {
+        self.version_noted = true;
+        let current = whats_new::CURRENT;
+        if self.prefs.seen_version.as_deref() == Some(current) {
+            return;
+        }
+        if !self.setup.is_open() && !self.setup_pending {
+            self.whats_new
+                .after_update(self.prefs.seen_version.as_deref());
+        }
+        self.prefs.seen_version = Some(current.to_owned());
+        self.ui_changed();
+    }
+
+    /// Whether the license covers `release`, for the update's button and window.
+    fn coverage(&self, release: &updates::Release) -> &'static str {
+        match self.license.license() {
+            Some(license) if license.covers(&release.date) => tr("Included in your license"),
+            Some(_) => tr("Released after your updates ended: renew to use it"),
+            None => tr("Without a license, it runs in evaluation mode too"),
+        }
+    }
+
     /// Official builds ask once whether to look for new versions.
     fn ask_for_updates(&mut self, ctx: &egui::Context) {
-        if !audiostrada_license::OFFICIAL || self.prefs.check_updates.is_some() {
+        if !updates::offered() || self.prefs.check_updates.is_some() {
             return;
         }
         let mut answer = None;
@@ -1372,6 +1406,15 @@ impl AudioStradaApp {
                         p.loop_off = !on;
                     });
             }
+            Action::Manual => {
+                let page = if i18n::is_french() {
+                    "fr/manual/"
+                } else {
+                    "manual/"
+                };
+                ctx.open_url(egui::OpenUrl::new_tab(audiostrada_license::link(page)));
+            }
+            Action::WhatsNew => self.whats_new.open(),
             Action::KeyboardShortcuts => self.preferences.open_keyboard(),
             Action::About => self.about = true,
             Action::License => self.license_window.open(),
@@ -2788,6 +2831,9 @@ impl AudioStradaApp {
                 }
             }
             ui.menu_button(tr("Help"), |ui| {
+                item(ui, &mut chosen, Action::Manual, None, true);
+                item(ui, &mut chosen, Action::WhatsNew, None, true);
+                ui.separator();
                 item(ui, &mut chosen, Action::KeyboardShortcuts, None, true);
                 item(ui, &mut chosen, Action::CommandPalette, None, true);
                 ui.separator();
@@ -2850,24 +2896,16 @@ impl AudioStradaApp {
                 if robot.on_hover_text(hint).clicked() {
                     self.assistants_window.open();
                 }
-                if let Some(release) = self.updates.found.clone() {
-                    let covered = match self.license.license() {
-                        Some(license) if license.covers(&release.date) => {
-                            tr("Included in your license")
-                        }
-                        Some(_) => tr("Released after your updates ended: renew to use it"),
-                        None => tr("Download it from the web site"),
-                    };
+                if let Some(release) = &self.updates.found {
                     let text = trf!("Version {version} available", version = release.version);
                     if ui
                         .add(egui::Button::new(
                             egui::RichText::new(text).small().strong(),
                         ))
-                        .on_hover_text(covered)
+                        .on_hover_text(self.coverage(release))
                         .clicked()
                     {
-                        ui.ctx().open_url(egui::OpenUrl::new_tab(&release.url));
-                        self.updates.found = None;
+                        self.update_window.open();
                     }
                 }
                 if self.license.evaluation() {
@@ -3687,6 +3725,15 @@ impl eframe::App for AudioStradaApp {
         self.dialogs(&ctx);
         self.file_dialogs(&ctx);
         self.license_window.show(&ctx, &mut self.license);
+        if let Some(release) = self.updates.found.clone() {
+            let coverage = self.coverage(&release);
+            if let Some(update_window::Outcome::Quit) =
+                self.update_window.show(&ctx, &release, coverage)
+            {
+                self.quit(&ctx);
+            }
+        }
+        self.whats_new.show(&ctx);
         let listening = self.control.as_ref().map(|c| c.port);
         if let Some(change) = self.assistants_window.show(
             &ctx,
@@ -3712,6 +3759,9 @@ impl eframe::App for AudioStradaApp {
         // The assistant asks it itself.
         if !self.setup.is_open() && !self.setup_pending {
             self.ask_for_updates(&ctx);
+        }
+        if !self.version_noted {
+            self.note_version();
         }
         if self.crashes.show(&ctx, &mut self.prefs) {
             self.ui_changed();

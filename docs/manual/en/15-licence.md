@@ -35,9 +35,15 @@ working.
 ## Updates
 
 With *Check once a day* ticked (Preferences › General), AudioStrada tells you when a new version
-is out and points you to the download page. Install it over the current one: projects,
-preferences and presets stay.
+is out: click *Version … available* at the top right. On Windows and macOS, *Download and
+install* downloads the installer and checks it (the release's checksums, and the signature of
+AudioStrada's publisher); on Windows AudioStrada then closes, asking to save your projects, and
+the installer starts; on macOS the disk image opens: drag AudioStrada onto Applications,
+replacing the old one. Projects, preferences and presets stay.
+
+After an update, Help › *What's new* opens by itself with the notes of the new version; it can be
+opened again at any time.
 
 On Linux, the `.deb` and `.rpm` packages also add AudioStrada's package repository: new versions
 then come with the system's updates (`sudo apt upgrade`, `sudo dnf upgrade` or the software
-updater).
+updater), and the update window gives the command. Otherwise it downloads the right package.
