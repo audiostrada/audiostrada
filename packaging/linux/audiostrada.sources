@@ -1,0 +1,6 @@
+Types: deb
+URIs: https://packages.audiostrada.com/deb
+Suites: stable
+Components: main
+Architectures: amd64
+Signed-By: /etc/apt/keyrings/audiostrada-packages.asc

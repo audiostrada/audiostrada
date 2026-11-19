@@ -1,6 +1,6 @@
 [package]
 name = "audiostrada-app"
-description = "AudioStrada digital audio workstation."
+description = "Digital audio workstation"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -46,7 +46,7 @@ libc.workspace = true
 
 [package.metadata.deb]
 name = "audiostrada"
-maintainer = "AudioStrada contributors"
+maintainer = "AudioStrada <support@audiostrada.com>"
 copyright = "AudioStrada contributors"
 license-file = ["../../LICENSE", "0"]
 extended-description = """\
@@ -75,6 +75,14 @@ assets = [
     ["../../README.md", "usr/share/doc/audiostrada/README.md", "644"],
 ]
 
+# Official builds (release workflow) also add AudioStrada's APT repository, for updates.
+[package.metadata.deb.variants.official]
+name = "audiostrada"
+merge-assets.append = [
+    ["../../packaging/linux/audiostrada.sources", "etc/apt/sources.list.d/audiostrada.sources", "644"],
+    ["../../packaging/linux/audiostrada-packages.asc", "etc/apt/keyrings/audiostrada-packages.asc", "644"],
+]
+
 [package.metadata.generate-rpm]
 name = "audiostrada"
 summary = "Digital audio workstation"
@@ -87,6 +95,21 @@ assets = [
     { source = "../../packaging/icons/audiostrada-256.png", dest = "/usr/share/icons/hicolor/256x256/apps/audiostrada.png", mode = "644" },
     { source = "../../packaging/icons/audiostrada-512.png", dest = "/usr/share/icons/hicolor/512x512/apps/audiostrada.png", mode = "644" },
     { source = "../../packaging/icons/audiostrada-48.png", dest = "/usr/share/icons/hicolor/48x48/apps/audiostrada.png", mode = "644" },
+]
+
+# Official builds also add AudioStrada's RPM repository. A variant replaces the whole list.
+[package.metadata.generate-rpm.variants.official]
+assets = [
+    { source = "target/release/audiostrada", dest = "/usr/bin/audiostrada", mode = "755" },
+    { source = "target/release/audiostrada-mp3", dest = "/usr/bin/audiostrada-mp3", mode = "755" },
+    { source = "../../packaging/linux/audiostrada.desktop", dest = "/usr/share/applications/audiostrada.desktop", mode = "644" },
+    { source = "../../packaging/linux/audiostrada.xml", dest = "/usr/share/mime/packages/audiostrada.xml", mode = "644" },
+    { source = "../../packaging/linux/com.audiostrada.AudioStrada.metainfo.xml", dest = "/usr/share/metainfo/com.audiostrada.AudioStrada.metainfo.xml", mode = "644" },
+    { source = "../../packaging/icons/audiostrada-256.png", dest = "/usr/share/icons/hicolor/256x256/apps/audiostrada.png", mode = "644" },
+    { source = "../../packaging/icons/audiostrada-512.png", dest = "/usr/share/icons/hicolor/512x512/apps/audiostrada.png", mode = "644" },
+    { source = "../../packaging/icons/audiostrada-48.png", dest = "/usr/share/icons/hicolor/48x48/apps/audiostrada.png", mode = "644" },
+    { source = "../../packaging/linux/audiostrada.repo", dest = "/etc/yum.repos.d/audiostrada.repo", mode = "644", config = "noreplace" },
+    { source = "../../packaging/linux/audiostrada-packages.asc", dest = "/etc/pki/rpm-gpg/RPM-GPG-KEY-audiostrada", mode = "644" },
 ]
 
 [package.metadata.generate-rpm.recommends]

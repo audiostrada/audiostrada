@@ -38,3 +38,7 @@ continue de fonctionner.
 Avec *Vérifier une fois par jour* coché (Préférences › Général), AudioStrada vous prévient quand
 une nouvelle version sort et vous dirige vers la page de téléchargement. Installez-la par-dessus
 l'actuelle : projets, préférences et presets restent.
+
+Sous Linux, les paquets `.deb` et `.rpm` ajoutent aussi le dépôt de paquets d'AudioStrada : les
+nouvelles versions arrivent ensuite avec les mises à jour du système (`sudo apt upgrade`,
+`sudo dnf upgrade` ou le gestionnaire de mises à jour).

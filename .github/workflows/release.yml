@@ -34,8 +34,18 @@ jobs:
       - run: cargo install cargo-deb --version 3.8.0 --locked
       - run: cargo install cargo-generate-rpm --version 0.21.1 --locked
       - run: cargo build -p audiostrada-mp3 --profile dist --locked
-      - run: cargo deb -p audiostrada-app --locked --features "$AUDIOSTRADA_FEATURES"
-      - run: cargo generate-rpm -p crates/audiostrada-app --profile dist
+      # The official variants add the APT and RPM repositories (packages.yml publishes them).
+      - run: cargo deb -p audiostrada-app --locked --features "$AUDIOSTRADA_FEATURES" --variant official
+      - name: RPM
+        env:
+          PACKAGES_GPG_KEY: ${{ secrets.PACKAGES_GPG_KEY }}
+        run: |
+          if [ -n "$PACKAGES_GPG_KEY" ]; then
+            printf '%s\n' "$PACKAGES_GPG_KEY" > "$RUNNER_TEMP/packages-key.asc"
+            sign="--signing-key $RUNNER_TEMP/packages-key.asc"
+          fi
+          cargo generate-rpm -p crates/audiostrada-app --profile dist --variant official ${sign:-}
+          rm -f "$RUNNER_TEMP/packages-key.asc"
       - name: AppImage
         run: |
           curl -sSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage

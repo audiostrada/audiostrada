@@ -65,9 +65,19 @@ binaires non signés.
 
   Même signé, SmartScreen peut avertir les premières semaines, le temps que la réputation se
   construise.
-- **Linux** : rien à signer pour les paquets eux-mêmes ; `SHA256SUMS` permet de vérifier un
-  téléchargement. Un dépôt APT/RPM signé viendra plus tard. Flatpak est écarté pour
-  l'instant : l'accès aux plugins installés sur le système y est limité.
+- **Linux** : la clé GPG des paquets (secret `PACKAGES_GPG_KEY`, la clé privée en armure,
+  sans phrase de passe ; sa clé publique est `packaging/linux/audiostrada-packages.asc`) signe
+  les `.rpm` et les index des dépôts. Les variantes `official` du `.deb` et du `.rpm` ajoutent
+  le dépôt et cette clé publique au système. Flatpak est écarté pour l'instant : l'accès aux
+  plugins installés sur le système y est limité.
+
+## Dépôts APT et RPM
+
+Quand une release est publiée (jamais un brouillon), `.github/workflows/packages.yml` reprend
+les `.deb` et `.rpm` des trois dernières, construit les dépôts (`packaging/linux/build-repos.sh`),
+les signe et les envoie dans le bucket R2 `audiostrada-packages`, servi sur
+`packages.audiostrada.com`. Il faut les secrets `R2_ACCESS_KEY_ID` et `R2_SECRET_ACCESS_KEY` (un
+jeton d'API R2 en lecture et écriture sur ce bucket) et la variable `CLOUDFLARE_ACCOUNT_ID`.
 
 ## Publier une version
 

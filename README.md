@@ -91,7 +91,8 @@ AudioStrada is in active development: features land quickly, and some rough edge
 ## Get AudioStrada
 
 **Official builds.** Signed installers for Linux (`.deb`, `.rpm`, AppImage), Windows and macOS
-are on [audiostrada.com](https://audiostrada.com/download). They are free to try: without a
+are on [audiostrada.com](https://audiostrada.com/download); the Linux packages also add
+AudioStrada's APT or RPM repository, for updates. They are free to try: without a
 license, the sound drops out briefly every 10 minutes after the first 20. A yearly subscription
 removes the dropouts, brings every update of the year and funds the development; every version
 released during the subscription stays yours.

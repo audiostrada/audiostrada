@@ -37,3 +37,7 @@ working.
 With *Check once a day* ticked (Preferences › General), AudioStrada tells you when a new version
 is out and points you to the download page. Install it over the current one: projects,
 preferences and presets stay.
+
+On Linux, the `.deb` and `.rpm` packages also add AudioStrada's package repository: new versions
+then come with the system's updates (`sudo apt upgrade`, `sudo dnf upgrade` or the software
+updater).

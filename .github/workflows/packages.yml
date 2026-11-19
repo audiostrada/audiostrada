@@ -1,0 +1,50 @@
+name: Packages
+
+# Puts the .deb and .rpm of the three latest published releases in the APT and RPM repositories
+# of packages.audiostrada.com (the Cloudflare R2 bucket audiostrada-packages), signed with the
+# packages key. Runs when a release is published, never for a draft.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: packages
+
+jobs:
+  repositories:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo apt-get update && sudo apt-get install -y apt-utils createrepo-c
+      - name: Packages of the latest releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tags=$(gh release list --exclude-drafts --exclude-pre-releases --limit 3 \
+            --json tagName --jq '.[].tagName')
+          for tag in $tags; do
+            gh release download "$tag" --pattern '*.deb' --pattern '*.rpm' --dir packages
+          done
+      - name: Signing key
+        env:
+          PACKAGES_GPG_KEY: ${{ secrets.PACKAGES_GPG_KEY }}
+        run: printf '%s\n' "$PACKAGES_GPG_KEY" | gpg --batch --import
+      - run: sh packaging/linux/build-repos.sh packages repo
+      - name: Upload
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # R2 does not take the checksums newer AWS clients add to every request.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          R2: https://${{ vars.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          bucket=s3://audiostrada-packages
+          # The packages first, then the indexes naming them, then the packages no index names.
+          aws s3 sync repo "$bucket" --endpoint-url "$R2" --exclude '*' \
+            --include '*.deb' --include '*.rpm' --cache-control 'public, max-age=31536000, immutable'
+          aws s3 sync repo "$bucket" --endpoint-url "$R2" --exclude '*.deb' --exclude '*.rpm' \
+            --cache-control 'no-cache'
+          aws s3 sync repo "$bucket" --endpoint-url "$R2" --delete
