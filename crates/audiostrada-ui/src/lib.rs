@@ -3263,6 +3263,11 @@ fn set_plugin_window_parent(frame: &eframe::Frame) {
         Ok(RawWindowHandle::Xlib(h)) => u64::from(h.window),
         Ok(RawWindowHandle::Xcb(h)) => u64::from(h.window.get()),
         Ok(RawWindowHandle::Win32(h)) => h.hwnd.get() as u64,
+        // A window number: the plugin hosts hide their windows while it is minimized.
+        #[cfg(target_os = "macos")]
+        Ok(RawWindowHandle::AppKit(h)) => {
+            audiostrada_plugins::window::window_number(h.ns_view.as_ptr())
+        }
         _ => 0,
     };
     audiostrada_plugins::window::set_parent(parent);

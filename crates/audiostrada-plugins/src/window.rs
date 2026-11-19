@@ -18,6 +18,10 @@ pub fn parent() -> u64 {
 /// owned by another process's window shares its input queue, so a busy plugin host would
 /// block AudioStrada. [`HostWindow`] follows such a parent instead.
 pub fn owner() -> u64 {
+    // On macOS the parent is a window number, which nothing can be owned by.
+    if cfg!(target_os = "macos") {
+        return 0;
+    }
     let parent = parent();
     #[cfg(windows)]
     if parent != 0 && !imp::in_this_process(parent) {
@@ -972,15 +976,44 @@ mod imp {
 
 #[cfg(target_os = "macos")]
 mod imp {
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+
     use objc2::rc::Retained;
     use objc2::{MainThreadMarker, MainThreadOnly};
     use objc2_app_kit::{
         NSApplication, NSBackingStoreType, NSFloatingWindowLevel, NSNormalWindowLevel,
-        NSRunningApplication, NSView, NSWindow, NSWindowLevel, NSWindowStyleMask, NSWorkspace,
+        NSRunningApplication, NSView, NSWindow, NSWindowLevel, NSWindowNumberListOptions,
+        NSWindowStyleMask, NSWorkspace,
     };
     use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
 
     use super::NativeHandle;
+
+    /// The number of the window holding `view`, which every process can look for: AudioStrada's
+    /// main window, for [`super::set_parent`].
+    pub fn window_number(view: *mut std::ffi::c_void) -> u64 {
+        // SAFETY: a live content view, used on the main thread.
+        unsafe { view.cast::<NSView>().as_ref() }
+            .and_then(|v| v.window())
+            .map_or(0, |w| w.windowNumber() as u64)
+    }
+
+    /// AudioStrada's main window is on a screen: neither minimized nor hidden. True when it is
+    /// not known.
+    fn main_shown(mtm: MainThreadMarker) -> bool {
+        let main = super::parent() as isize;
+        if main == 0 {
+            return true;
+        }
+        let options =
+            NSWindowNumberListOptions::AllApplications | NSWindowNumberListOptions::AllSpaces;
+        NSWindow::windowNumbersWithOptions(options, mtm)
+            .is_none_or(|shown| shown.iter().any(|n| n.integerValue() == main))
+    }
+
+    /// The application's windows ordered out while the main window is minimized.
+    static HIDDEN: Mutex<Vec<isize>> = Mutex::new(Vec::new());
 
     /// True while AudioStrada is the active application: the application itself or one of its
     /// plugin hosts (the same executable), whose windows take the focus from it.
@@ -1018,6 +1051,10 @@ mod imp {
         // SAFETY: the main window's live content view, used on the main thread.
         let main = unsafe { main.cast::<NSView>().as_ref() }.and_then(|v| v.window());
         let active = audiostrada_active();
+        // Minimized with the main window, as on Windows: left on the screen, they would keep
+        // AudioStrada in front, and neither the Dock nor the app switcher would bring it back.
+        let minimized = main.as_ref().is_some_and(|m| m.isMiniaturized());
+        let mut hidden = HIDDEN.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(main) = &main {
             let level = if active && covered {
                 floating_level(true) + 1
@@ -1031,10 +1068,24 @@ mod imp {
         for window in NSApplication::sharedApplication(mtm).windows() {
             if Some(&window) != main.as_ref() && window.class().name().to_bytes() == b"WinitWindow"
             {
+                let number = window.windowNumber();
+                if minimized {
+                    if window.isVisible() {
+                        window.orderOut(None);
+                        hidden.push(number);
+                    }
+                    continue;
+                }
                 let title = window.title().to_string();
                 let panel = panels.contains(&title);
                 keep_above(&window, active, floating_level(!panel));
+                if hidden.contains(&number) {
+                    window.orderFront(None);
+                }
             }
+        }
+        if !minimized {
+            hidden.clear();
         }
     }
 
@@ -1044,6 +1095,9 @@ mod imp {
     pub struct HostWindow {
         window: Retained<NSWindow>,
         mtm: MainThreadMarker,
+        /// Ordered out while AudioStrada's main window is minimized or hidden.
+        hidden: bool,
+        checked: Instant,
     }
 
     impl HostWindow {
@@ -1068,7 +1122,12 @@ mod imp {
             window.setTitle(&NSString::from_str(title));
             window.center();
             keep_above(&window, true, floating_level(true));
-            let mut host = Self { window, mtm };
+            let mut host = Self {
+                window,
+                mtm,
+                hidden: false,
+                checked: Instant::now(),
+            };
             host.raise();
             Ok(host)
         }
@@ -1086,6 +1145,7 @@ mod imp {
         }
 
         pub fn raise(&mut self) {
+            self.hidden = false;
             self.window.makeKeyAndOrderFront(None);
             // `activate` only exists from macOS 14 on.
             #[allow(deprecated)]
@@ -1096,10 +1156,22 @@ mod imp {
             Vec::new()
         }
 
-        /// True once the user closed the window (ordered out, not merely minimized).
+        /// True once the user closed the window (ordered out, not merely minimized). Hides it
+        /// while AudioStrada's main window is minimized or hidden, and shows it again after.
         pub fn poll(&mut self) -> bool {
             keep_above(&self.window, audiostrada_active(), floating_level(true));
-            !self.window.isVisible() && !self.window.isMiniaturized()
+            if self.checked.elapsed() >= Duration::from_millis(200) {
+                self.checked = Instant::now();
+                let shown = main_shown(self.mtm);
+                if !shown && !self.hidden && self.window.isVisible() {
+                    self.window.orderOut(None);
+                    self.hidden = true;
+                } else if shown && self.hidden {
+                    self.window.orderFront(None);
+                    self.hidden = false;
+                }
+            }
+            !self.hidden && !self.window.isVisible() && !self.window.isMiniaturized()
         }
     }
 
@@ -1119,10 +1191,10 @@ pub fn allow_foreground(pid: u32) {
     #[cfg(not(windows))]
     let _ = pid;
 }
-#[cfg(target_os = "macos")]
-pub use imp::keep_windows_above;
 #[cfg(all(unix, not(target_os = "macos")))]
 pub use imp::raise_parent;
+#[cfg(target_os = "macos")]
+pub use imp::{keep_windows_above, window_number};
 #[cfg(windows)]
 pub use imp::{own_windows, release_windows};
 

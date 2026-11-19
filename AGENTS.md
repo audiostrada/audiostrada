@@ -271,6 +271,11 @@ otherwise (`keep_windows_above`, `HostWindow`). Editors and plugin windows sit o
 detached panels. While the main window shows a dialog, it rises one level above them all:
 levels hold across processes, so the sandboxed plugin windows need no message.
 
+While the main window is minimized, its other windows are ordered out and come back with it
+(`keep_windows_above`). The plugin windows hide while it is minimized or hidden: the parent
+given to plugin hosts is the main window's number, which `HostWindow::poll` looks for among
+the windows on screen.
+
 ## Commits and documentation
 
 - Commit messages: one short line saying what changed for the user, often prefixed by the area
