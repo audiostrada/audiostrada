@@ -46,12 +46,12 @@ fn endpoint_ids() -> Vec<String> {
     let mut ids = Vec::new();
     for direction in [Direction::Capture, Direction::Render] {
         if let Ok(id) = enumerator
-            .get_default_device(&direction)
+            .get_default_device(direction)
             .and_then(|d| d.get_id())
         {
             ids.push(format!("default:{id}"));
         }
-        if let Ok(collection) = enumerator.get_device_collection(&direction) {
+        if let Ok(collection) = enumerator.get_device_collection(direction) {
             ids.extend(
                 (&collection)
                     .into_iter()
@@ -95,11 +95,11 @@ impl AudioBackend for WasapiBackend {
         let mut devices = Vec::new();
         for direction in [Direction::Capture, Direction::Render] {
             let default_id = enumerator
-                .get_default_device(&direction)
+                .get_default_device(direction)
                 .and_then(|d| d.get_id())
                 .ok();
             let collection = enumerator
-                .get_device_collection(&direction)
+                .get_device_collection(direction)
                 .map_err(backend_error)?;
             for device in (&collection).into_iter().flatten() {
                 let Ok(id) = device.get_id() else { continue };
@@ -189,7 +189,7 @@ impl Endpoint {
                 .get_device(id)
                 .map_err(|_| IoError::DeviceNotFound(id.into()))?,
             None => enumerator
-                .get_default_device(&direction)
+                .get_default_device(direction)
                 .map_err(backend_error)?,
         };
         let name = device.get_friendlyname().unwrap_or_default();
@@ -198,7 +198,7 @@ impl Endpoint {
         let channels = usize::from(mix.get_nchannels());
         let mix_rate = mix.get_samplespersec();
         let rate = rate.unwrap_or(mix_rate);
-        let format = WaveFormat::new(32, 32, &SampleType::Float, rate as usize, channels, None);
+        let format = WaveFormat::new(32, 32, SampleType::Float, rate as usize, channels, None);
 
         let low_latency = (rate == mix_rate)
             .then(|| client.get_shared_mode_engine_period(&format).ok())
@@ -219,7 +219,7 @@ impl Endpoint {
                 ),
             };
             client
-                .initialize_client(&format, &direction, &mode)
+                .initialize_client(&format, direction, mode, None)
                 .map_err(backend_error)?;
         }
         let event = client.set_get_eventhandle().map_err(backend_error)?;
@@ -366,7 +366,7 @@ impl Session {
                 .map_err(backend_error)? as usize;
             bytes.fill(0);
             client
-                .write_to_device(frames, &bytes[..frames * endpoint.block_align], None)
+                .write_to_device(&bytes[..frames * endpoint.block_align], None)
                 .map_err(backend_error)?;
         }
         if let Some((endpoint, ..)) = &self.capture {
@@ -439,7 +439,7 @@ impl Session {
                 frames,
             );
             client
-                .write_to_device(frames, &bytes[..len], None)
+                .write_to_device(&bytes[..len], None)
                 .map_err(backend_error)?;
             done += frames;
         }
