@@ -55,7 +55,6 @@ impl LicenseWindow {
         let detail = match status {
             Status::Unofficial => tr("Built from source: nothing to unlock"),
             Status::Evaluation => tr("Evaluation: every feature works, with short dropouts"),
-            Status::Preview => tr("Preview: every feature works, without dropouts"),
             Status::Licensed(_) => tr("Licensed: thank you for supporting AudioStrada"),
             Status::Lapsed(_) => tr("Updates ended: this version runs in evaluation mode"),
         };
@@ -178,7 +177,6 @@ fn summary(ui: &mut egui::Ui, status: &Status) {
         Status::Licensed(_) => (tr("Licensed"), p.accent),
         Status::Lapsed(_) => (tr("Updates ended"), theme::RECORD),
         Status::Evaluation => (tr("Evaluation"), theme::RECORD),
-        Status::Preview => (tr("Test version"), p.accent),
     };
     dialog::well(ui, |ui| {
         ui.label(RichText::new(title).font(theme::strong(17.0)).color(color));
@@ -190,9 +188,6 @@ fn summary(ui: &mut egui::Ui, status: &Status) {
             }
             Status::Evaluation => {
                 ui.label(tr("Every feature works, export included. After 20 minutes, the sound drops out for a moment every 10 minutes. A license removes the dropouts and pays for the development."));
-            }
-            Status::Preview => {
-                ui.label(tr("This test version runs without dropouts. From version 1.0, a copy without a license runs in evaluation mode."));
             }
             Status::Licensed(license) | Status::Lapsed(license) => {
                 ui.add_space(4.0);

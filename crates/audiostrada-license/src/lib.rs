@@ -15,8 +15,6 @@ pub use date::today;
 
 /// Built by the release CI: without a license, the build runs in evaluation mode.
 pub const OFFICIAL: bool = cfg!(feature = "official");
-/// A 0.x version, tested before the release: it runs without dropouts, licensed or not.
-pub const PREVIEW: bool = env!("CARGO_PKG_VERSION").as_bytes()[0] == b'0';
 /// Release date of this build (YYYY-MM-DD).
 pub const RELEASE_DATE: &str = env!("AUDIOSTRADA_RELEASE_DATE");
 /// Public key the licenses are checked against (hex), given to official builds.
@@ -101,23 +99,20 @@ pub enum Status {
     /// The paid updates ended before this version was released.
     Lapsed(License),
     Evaluation,
-    /// An official preview without a license (see [`PREVIEW`]).
-    Preview,
 }
 
 impl Status {
     pub fn evaluation(&self) -> bool {
         match self {
-            Self::Evaluation => true,
-            Self::Lapsed(_) => !PREVIEW,
-            Self::Unofficial | Self::Licensed(_) | Self::Preview => false,
+            Self::Evaluation | Self::Lapsed(_) => true,
+            Self::Unofficial | Self::Licensed(_) => false,
         }
     }
 
     pub fn license(&self) -> Option<&License> {
         match self {
             Self::Licensed(license) | Self::Lapsed(license) => Some(license),
-            Self::Unofficial | Self::Evaluation | Self::Preview => None,
+            Self::Unofficial | Self::Evaluation => None,
         }
     }
 }
@@ -130,7 +125,6 @@ pub fn status(license: Option<License>) -> Status {
     match license {
         Some(license) if license.covers(RELEASE_DATE) => Status::Licensed(license),
         Some(license) => Status::Lapsed(license),
-        None if PREVIEW => Status::Preview,
         None => Status::Evaluation,
     }
 }
@@ -355,8 +349,7 @@ mod tests {
         let status = Status::Licensed(life.clone());
         assert!(!status.evaluation());
         assert_eq!(status.license(), Some(&life));
-        assert_eq!(Status::Lapsed(life).evaluation(), !PREVIEW);
-        assert!(!Status::Preview.evaluation());
+        assert!(Status::Lapsed(life).evaluation());
         assert!(Status::Evaluation.evaluation());
         assert_eq!(Status::Evaluation.license(), None);
     }
