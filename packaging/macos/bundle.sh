@@ -40,7 +40,10 @@ rm -rf "$stage"
 mkdir -p "$stage"
 ditto "$app" "$stage/AudioStrada.app"
 ln -s /Applications "$stage/Applications"
-hdiutil create -volname AudioStrada -srcfolder "$stage" -ov -format UDZO "$dmg"
+# hdiutil's own estimate left the image too small for the app: its apparent size, with room.
+size=$(find "$stage/AudioStrada.app" -type f -exec stat -f %z {} + |
+    awk '{ s += $1 } END { print int(s / 1048576 * 1.2) + 50 }')
+hdiutil create -volname AudioStrada -srcfolder "$stage" -size "${size}m" -ov -format UDZO "$dmg"
 rm -rf "$stage"
 if [ -n "${AUDIOSTRADA_SIGN_IDENTITY:-}" ] && [ -n "${AUDIOSTRADA_NOTARY_PROFILE:-}" ]; then
     codesign --force --timestamp --sign "$AUDIOSTRADA_SIGN_IDENTITY" "$dmg"
