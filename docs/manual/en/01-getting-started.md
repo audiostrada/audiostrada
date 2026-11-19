@@ -16,6 +16,11 @@ Download the package for your system from **audiostrada.com/download**:
 
 AudioStrada needs a 64-bit Windows 10 or 11, or macOS 11 or later.
 
+The AppImage runs from where you downloaded it. At its first start, AudioStrada offers to install
+it for you, with no administrator password: it goes in your programs (`~/.local/bin`), in the
+applications menu, and opens `.strada` files. Preferences › General installs or uninstalls it
+later.
+
 Open a project by double-clicking a `.strada` file, or start AudioStrada from the menu of your
 system. Without a licence, AudioStrada runs in evaluation mode: every feature works, export
 included (see *Licence and updates*).

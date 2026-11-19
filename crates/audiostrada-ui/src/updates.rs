@@ -79,6 +79,80 @@ impl Install {
     }
 }
 
+impl Install {
+    /// The system brings new versions by itself, whatever the license covers.
+    pub fn automatic(self) -> bool {
+        matches!(
+            self,
+            Install::Deb(true) | Install::Rpm(true) | Install::Store
+        )
+    }
+
+    /// The command that keeps this version when the system updates.
+    pub fn hold_command(self) -> Option<&'static str> {
+        match self {
+            Install::Deb(true) => Some("sudo apt-mark hold audiostrada"),
+            Install::Rpm(true) => Some("sudo dnf versionlock add audiostrada"),
+            Install::Store if flatpak() => Some("flatpak mask com.audiostrada.AudioStrada"),
+            Install::Store => Some("sudo snap refresh --hold audiostrada"),
+            _ => None,
+        }
+    }
+
+    /// The command that goes back to `version` and keeps it; Flathub has none by version.
+    pub fn back_command(self, version: &str) -> Option<String> {
+        match self {
+            Install::Deb(true) => Some(format!(
+                "sudo apt install --allow-downgrades audiostrada={version}-1 && sudo apt-mark \
+                 hold audiostrada"
+            )),
+            Install::Rpm(true) => Some(format!(
+                "sudo dnf downgrade audiostrada-{version} && sudo dnf versionlock add audiostrada"
+            )),
+            // The Snap Store keeps the previous version on the computer.
+            Install::Store if !flatpak() => {
+                Some("sudo snap revert audiostrada && sudo snap refresh --hold audiostrada".into())
+            }
+            _ => None,
+        }
+    }
+}
+
+fn flatpak() -> bool {
+    std::env::var_os("FLATPAK_ID").is_some()
+}
+
+/// A published version, as `releases/index.json` on the web site lists them.
+#[derive(Clone, Debug, Deserialize)]
+pub struct Published {
+    pub version: String,
+    /// Release date (YYYY-MM-DD).
+    pub date: String,
+}
+
+/// The latest version released by `until`, the last day of a license's updates.
+pub fn last_covered(published: &[Published], until: &str) -> Option<String> {
+    published
+        .iter()
+        .filter(|p| p.date.as_str() <= until)
+        .map(|p| p.version.as_str())
+        .reduce(|a, b| if newer(b, a) { b } else { a })
+        .map(str::to_owned)
+}
+
+/// The versions the web site lists; `None` when it cannot be reached.
+pub fn published() -> Option<Vec<Published>> {
+    if cfg!(test) {
+        return None;
+    }
+    let url = audiostrada_license::link("releases/index.json");
+    let mut response = crate::tone3000::agent().get(&url).call().ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    serde_json::from_str(&response.body_mut().read_to_string().ok()?).ok()
+}
+
 #[derive(Debug, Default)]
 pub struct Updates {
     pending: Option<Receiver<Option<Release>>>,
@@ -154,5 +228,36 @@ mod tests {
         assert!(newer("v1.10.0", "1.9.3"));
         assert!(!newer("0.1.0", "0.1.0"));
         assert!(!newer("0.0.9", "0.1.0"));
+    }
+
+    #[test]
+    fn the_last_version_covered_is_the_latest_released_by_the_end_of_the_updates() {
+        let published = |list: &[(&str, &str)]| -> Vec<Published> {
+            list.iter()
+                .map(|(version, date)| Published {
+                    version: (*version).into(),
+                    date: (*date).into(),
+                })
+                .collect()
+        };
+        let list = published(&[
+            ("1.10.0", "2027-06-01"),
+            ("1.9.0", "2027-03-01"),
+            ("1.2.0", "2027-01-15"),
+            ("1.0.0", "2026-12-01"),
+        ]);
+        assert_eq!(last_covered(&list, "2027-03-01").as_deref(), Some("1.9.0"));
+        assert_eq!(last_covered(&list, "2027-12-31").as_deref(), Some("1.10.0"));
+        assert_eq!(last_covered(&list, "2026-11-30"), None);
+    }
+
+    #[test]
+    fn going_back_names_the_version_for_the_package_manager() {
+        let deb = Install::Deb(true).back_command("1.2.0").unwrap();
+        assert!(deb.contains("audiostrada=1.2.0-1") && deb.ends_with("apt-mark hold audiostrada"));
+        let rpm = Install::Rpm(true).back_command("1.2.0").unwrap();
+        assert!(rpm.starts_with("sudo dnf downgrade audiostrada-1.2.0 "));
+        assert_eq!(Install::Deb(false).back_command("1.2.0"), None);
+        assert!(!Install::Windows.automatic() && Install::Rpm(true).automatic());
     }
 }

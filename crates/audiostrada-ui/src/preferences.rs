@@ -137,6 +137,9 @@ impl Tab {
                 if audiostrada_license::OFFICIAL {
                     names.push("New versions");
                 }
+                if crate::appimage::state().is_some() {
+                    names.push("AppImage");
+                }
                 names
             }
             Tab::Audio => vec![
@@ -1267,7 +1270,48 @@ fn general(ui: &mut egui::Ui, prefs: &mut UiPrefs) -> bool {
             });
         });
     }
+    if let Some(state) = crate::appimage::state() {
+        card(ui, Some(tr("Installation")), |ui| appimage(ui, state));
+    }
     changed
+}
+
+fn appimage(ui: &mut egui::Ui, state: crate::appimage::State) {
+    use crate::appimage::State;
+    let help = match state {
+        State::Installed => tr("Installed for you: in your programs and the applications menu."),
+        State::Managed => tr("Kept by another application, which puts it in the menu."),
+        State::Loose => tr("Not installed: AudioStrada runs from the file you downloaded."),
+    };
+    let said = egui::Id::unique("appimage-installation");
+    row(ui, tr("AppImage"), Some(help), |ui| {
+        let result = match state {
+            State::Installed => ui.button(tr("Uninstall")).clicked().then(|| {
+                crate::appimage::uninstall().map(|()| {
+                    tr("Uninstalled. AudioStrada keeps running until you close it.").to_owned()
+                })
+            }),
+            State::Loose => ui.button(tr("Install")).clicked().then(|| {
+                crate::appimage::running()
+                    .ok_or_else(|| tr("AudioStrada does not run from an AppImage").to_owned())
+                    .and_then(|file| crate::appimage::install(&file))
+                    .map(|_| tr("Installed: start it from the applications menu.").to_owned())
+            }),
+            State::Managed => None,
+        };
+        if let Some(result) = result {
+            ui.data_mut(|d| d.insert_temp(said, result));
+        }
+        if let Some(result) = ui.data(|d| d.get_temp::<Result<String, String>>(said)) {
+            match result {
+                Ok(text) => ui.label(text),
+                Err(e) => ui.colored_label(
+                    theme::RECORD,
+                    trf!("Cannot change the installation: {error}", error = e),
+                ),
+            };
+        }
+    });
 }
 
 fn recording(ui: &mut egui::Ui, prefs: &mut UiPrefs) -> bool {

@@ -77,7 +77,8 @@ binaires non signés.
 ## Dépôts APT et RPM
 
 Quand une release est publiée (jamais un brouillon), `.github/workflows/packages.yml` reprend
-les `.deb` et `.rpm` des trois dernières, construit les dépôts (`packaging/linux/build-repos.sh`),
+les `.deb` et `.rpm` de toutes les releases (une licence dont les mises à jour sont finies peut
+revenir à la dernière version qu'elle couvre), construit les dépôts (`packaging/linux/build-repos.sh`),
 les signe et les envoie dans le bucket R2 `audiostrada-packages`, servi sur
 `packages.audiostrada.com`, avec une page d'accueil (`packaging/linux/repo-index.html` : ajout
 du dépôt à la main, clé, liste des paquets). Une règle Cloudflare de réécriture d'URL (zone

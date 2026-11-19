@@ -254,5 +254,10 @@ fn run_ui(run: &cli::RunArgs) -> anyhow::Result<()> {
     if first_start {
         app.open_setup();
     }
-    audiostrada_ui::run(app).map_err(|e| anyhow::anyhow!("{e}"))
+    audiostrada_ui::run(app).map_err(|e| anyhow::anyhow!("{e}"))?;
+    // Updated AppImage: the new version starts once this one has let the sound card go.
+    if let Some(program) = audiostrada_ui::appimage::take_restart() {
+        std::process::Command::new(program).spawn()?;
+    }
+    Ok(())
 }

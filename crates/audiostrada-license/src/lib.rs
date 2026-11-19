@@ -11,7 +11,7 @@ use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
 mod date;
-pub use date::today;
+pub use date::{days_after, today};
 
 /// Built by the release CI: without a license, the build runs in evaluation mode.
 pub const OFFICIAL: bool = cfg!(feature = "official");

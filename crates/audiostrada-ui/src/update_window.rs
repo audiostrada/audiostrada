@@ -1,7 +1,8 @@
 //! The update window: brings the version the update check found, the way this copy was
 //! installed. On Windows and macOS it downloads the installer, checks it against the release's
 //! SHA-256 sums and, when this copy is signed, checks that the same publisher signed it, then
-//! starts it. The Linux packages come with the system's updates once their repository is added.
+//! starts it. The AppImage is replaced (or installed) the same way, then started again. The
+//! Linux packages come with the system's updates once their repository is added.
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -22,7 +23,8 @@ use crate::updates::{Install, Release};
 /// What the application does once the window is answered.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Outcome {
-    /// The installer runs: AudioStrada closes, asking to save the projects.
+    /// The installer runs, or the new AppImage once AudioStrada has closed: it closes, asking
+    /// to save the projects.
     Quit,
 }
 
@@ -90,7 +92,7 @@ impl UpdateWindow {
                     (_, Install::Deb(true) | Install::Rpm(true)) => {
                         close = dialog::primary(ui, tr("Close"), true).clicked();
                     }
-                    (_, Install::Deb(false) | Install::Rpm(false) | Install::AppImage) => {
+                    (_, Install::Deb(false) | Install::Rpm(false)) => {
                         browser = dialog::primary(ui, tr("Download"), true).clicked();
                         close = dialog::secondary(ui, tr("Later")).clicked();
                     }
@@ -102,10 +104,10 @@ impl UpdateWindow {
                         close = dialog::secondary(ui, tr("Cancel")).clicked();
                     }
                     (State::Ready(_), _) => {
-                        let text = if install == Install::Windows {
-                            tr("Install now")
-                        } else {
-                            tr("Open it and quit")
+                        let text = match install {
+                            Install::Windows => tr("Install now"),
+                            Install::AppImage => tr("Update and restart"),
+                            _ => tr("Open it and quit"),
                         };
                         run = dialog::primary(ui, text, true).clicked();
                         close = dialog::secondary(ui, tr("Later")).clicked();
@@ -133,7 +135,12 @@ impl UpdateWindow {
         }
         let mut outcome = None;
         if run && let State::Ready(path) = &self.state {
-            match launch(path) {
+            let started = if install == Install::AppImage {
+                crate::appimage::update(path).map(crate::appimage::restart_with)
+            } else {
+                launch(path)
+            };
+            match started {
                 Ok(()) => {
                     outcome = Some(Outcome::Quit);
                     close = true;
@@ -178,9 +185,17 @@ impl UpdateWindow {
                 "The new package also adds AudioStrada's package repository: later versions then \
                  come with your system's updates.",
             ),
-            Install::AppImage => {
-                tr("Start AudioStrada from the new AppImage, in place of this one.")
-            }
+            Install::AppImage => match crate::appimage::state() {
+                Some(crate::appimage::State::Loose) => tr(
+                    "AudioStrada downloads the new AppImage and checks it, then installs it: in \
+                     your programs, the applications menu, and for .strada files. It then \
+                     starts again, asking to save your projects. You can delete this copy.",
+                ),
+                _ => tr(
+                    "AudioStrada downloads the new AppImage and checks it, replaces this one with \
+                     it, then starts again, asking to save your projects.",
+                ),
+            },
             Install::Windows => tr(
                 "AudioStrada downloads the installer and checks it. It then closes, asking to save \
                  your projects, and the installer starts.",

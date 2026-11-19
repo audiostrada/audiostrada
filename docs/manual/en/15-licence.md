@@ -47,3 +47,27 @@ opened again at any time.
 On Linux, the `.deb` and `.rpm` packages also add AudioStrada's package repository: new versions
 then come with the system's updates (`sudo apt upgrade`, `sudo dnf upgrade` or the software
 updater), and the update window gives the command. Otherwise it downloads the right package.
+The AppImage updates itself like the Windows and macOS versions: *Download and install* checks
+the new AppImage, puts it in place of the installed one (installing it if it was not), and
+AudioStrada starts again.
+
+### Keeping a version
+
+The package repositories, Flathub and the Snap Store install new versions by themselves, even
+those released after your updates ended, which run in evaluation mode. A month before the end,
+AudioStrada tells you so and gives the command that keeps the installed version; after such an
+update, it gives the one that goes back to the last version your licence covers.
+
+| Installed with | Keep this version | Let updates in again |
+|---|---|---|
+| `.deb` | `sudo apt-mark hold audiostrada` | `sudo apt-mark unhold audiostrada` |
+| `.rpm` | `sudo dnf versionlock add audiostrada` | `sudo dnf versionlock delete audiostrada` |
+| Snap Store | `sudo snap refresh --hold audiostrada` | `sudo snap refresh --unhold audiostrada` |
+| Flathub | `flatpak mask com.audiostrada.AudioStrada` | `flatpak mask --remove com.audiostrada.AudioStrada` |
+
+To go back to version 1.2.0, for example: `sudo apt install --allow-downgrades
+audiostrada=1.2.0-1` or `sudo dnf downgrade audiostrada-1.2.0`; `sudo snap revert audiostrada`
+goes back to the previous version. On Flathub, `flatpak remote-info --log flathub
+com.audiostrada.AudioStrada` lists the earlier versions, and `flatpak update
+--commit=<commit> com.audiostrada.AudioStrada` installs one. On older Fedora versions,
+`versionlock` comes with the `python3-dnf-plugin-versionlock` package.

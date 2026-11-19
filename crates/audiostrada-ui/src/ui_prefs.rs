@@ -227,6 +227,12 @@ pub struct UiPrefs {
     pub seen_version: Option<String>,
     /// Day of the last check (YYYY-MM-DD).
     pub updates_checked: Option<String>,
+    /// The offer to install the AppImage was answered.
+    pub appimage_asked: bool,
+    /// The end of the updates told for this date (YYYY-MM-DD), when the system updates by itself.
+    pub updates_end_noted: Option<String>,
+    /// The version the way back to a covered one was told for.
+    pub lapsed_noted: Option<String>,
     /// Crash reports sent without asking (`Some(true)`), else offered at the next start.
     pub send_crash_reports: Option<bool>,
     /// Width of the timeline's track headers.
@@ -281,6 +287,9 @@ impl Default for UiPrefs {
             check_updates: None,
             seen_version: None,
             updates_checked: None,
+            appimage_asked: false,
+            updates_end_noted: None,
+            lapsed_noted: None,
             send_crash_reports: None,
             header_width: 210.0,
             mixer_compact: false,

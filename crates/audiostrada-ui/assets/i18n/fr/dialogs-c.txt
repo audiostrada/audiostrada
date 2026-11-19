@@ -137,3 +137,96 @@ Merci de soutenir AudioStrada
 
 Its updates ended before this version was released
 Ses mises à jour ont pris fin avant la sortie de cette version
+
+No home folder
+Pas de dossier personnel
+
+AudioStrada does not run from an AppImage
+AudioStrada ne tourne pas depuis une AppImage
+
+Install AudioStrada
+Installer AudioStrada
+
+As a package would, for you only
+Comme un paquet, pour vous seulement
+
+AudioStrada runs from the AppImage file you downloaded. Installed, it goes in your programs and in the applications menu, opens .strada files, and its updates replace it.
+AudioStrada tourne depuis le fichier AppImage que vous avez téléchargé. Une fois installé, il rejoint vos programmes et le menu des applications, ouvre les fichiers .strada, et ses mises à jour le remplacent.
+
+You can do it later in Preferences, General.
+Vous pourrez le faire plus tard dans Préférences, Général.
+
+Install
+Installer
+
+Not now
+Pas maintenant
+
+AudioStrada is installed: start it from the applications menu
+AudioStrada est installé : lancez-le depuis le menu des applications
+
+Cannot install AudioStrada: {error}
+Impossible d'installer AudioStrada : {error}
+
+Installation
+Installation
+
+AppImage
+AppImage
+
+Installed for you: in your programs and the applications menu.
+Installé pour vous : dans vos programmes et le menu des applications.
+
+Kept by another application, which puts it in the menu.
+Géré par une autre application, qui le met dans le menu.
+
+Not installed: AudioStrada runs from the file you downloaded.
+Non installé : AudioStrada tourne depuis le fichier que vous avez téléchargé.
+
+Uninstall
+Désinstaller
+
+Uninstalled. AudioStrada keeps running until you close it.
+Désinstallé. AudioStrada reste ouvert jusqu'à ce que vous le fermiez.
+
+Installed: start it from the applications menu.
+Installé : lancez-le depuis le menu des applications.
+
+Cannot change the installation: {error}
+Impossible de modifier l'installation : {error}
+
+Version {version} came after your updates
+La version {version} est sortie après vos mises à jour
+
+Your updates ended on {date}: this version runs in evaluation mode
+Vos mises à jour se sont terminées le {date} : cette version tourne en mode évaluation
+
+Your system installed it with its other updates. Renew your license to unlock it, or go back to the last version your license covers.
+Votre système l'a installée avec ses autres mises à jour. Renouvelez votre licence pour la débloquer, ou revenez à la dernière version que couvre votre licence.
+
+Looking for the last version covered…
+Recherche de la dernière version couverte…
+
+Version {version} in a terminal, kept at the next updates:
+La version {version}, dans un terminal, gardée aux prochaines mises à jour :
+
+Your license covers version {version}: the manual tells how to go back to it.
+Votre licence couvre la version {version} : le manuel explique comment y revenir.
+
+The manual tells how to go back to an earlier version.
+Le manuel explique comment revenir à une version précédente.
+
+Renew
+Renouveler
+
+Your updates end on {date}
+Vos mises à jour se terminent le {date}
+
+Your system installs new versions by itself
+Votre système installe les nouvelles versions tout seul
+
+Versions released after {date} will run in evaluation mode. Renew your license, or keep this version when your system updates:
+Les versions sorties après le {date} tourneront en mode évaluation. Renouvelez votre licence, ou gardez cette version lors des mises à jour du système :
+
+The manual tells how to let the updates in again after renewing.
+Le manuel explique comment réautoriser les mises à jour après un renouvellement.

@@ -48,4 +48,27 @@ version ; il se rouvre à tout moment.
 Sous Linux, les paquets `.deb` et `.rpm` ajoutent aussi le dépôt de paquets d'AudioStrada : les
 nouvelles versions arrivent ensuite avec les mises à jour du système (`sudo apt upgrade`,
 `sudo dnf upgrade` ou le gestionnaire de mises à jour), et la fenêtre de mise à jour donne la
-commande. Sinon, elle télécharge le bon paquet.
+commande. Sinon, elle télécharge le bon paquet. L'AppImage se met à jour comme les versions
+Windows et macOS : *Télécharger et installer* vérifie la nouvelle AppImage, la met à la place de
+celle qui est installée (en l'installant si elle ne l'était pas), et AudioStrada redémarre.
+
+### Garder une version
+
+Les dépôts de paquets, Flathub et le Snap Store installent les nouvelles versions tout seuls, même
+celles sorties après la fin de vos mises à jour, qui tournent en mode évaluation. Un mois avant la
+fin, AudioStrada vous prévient et donne la commande qui garde la version installée ; après une
+telle mise à jour, il donne celle qui revient à la dernière version couverte par votre licence.
+
+| Installé avec | Garder cette version | Réautoriser les mises à jour |
+|---|---|---|
+| `.deb` | `sudo apt-mark hold audiostrada` | `sudo apt-mark unhold audiostrada` |
+| `.rpm` | `sudo dnf versionlock add audiostrada` | `sudo dnf versionlock delete audiostrada` |
+| Snap Store | `sudo snap refresh --hold audiostrada` | `sudo snap refresh --unhold audiostrada` |
+| Flathub | `flatpak mask com.audiostrada.AudioStrada` | `flatpak mask --remove com.audiostrada.AudioStrada` |
+
+Pour revenir à la version 1.2.0, par exemple : `sudo apt install --allow-downgrades
+audiostrada=1.2.0-1` ou `sudo dnf downgrade audiostrada-1.2.0` ; `sudo snap revert audiostrada`
+revient à la version précédente. Sur Flathub, `flatpak remote-info --log flathub
+com.audiostrada.AudioStrada` liste les versions précédentes, et `flatpak update
+--commit=<commit> com.audiostrada.AudioStrada` en installe une. Sur les anciennes versions de
+Fedora, `versionlock` vient avec le paquet `python3-dnf-plugin-versionlock`.

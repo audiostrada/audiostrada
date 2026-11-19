@@ -1603,8 +1603,14 @@ Votre système l'installe avec ses autres mises à jour (le gestionnaire de mise
 The new package also adds AudioStrada's package repository: later versions then come with your system's updates.
 Le nouveau paquet ajoute aussi le dépôt de paquets d'AudioStrada : les versions suivantes arrivent ensuite avec les mises à jour du système.
 
-Start AudioStrada from the new AppImage, in place of this one.
-Lancez AudioStrada depuis la nouvelle AppImage, à la place de celle-ci.
+AudioStrada downloads the new AppImage and checks it, then installs it: in your programs, the applications menu, and for .strada files. It then starts again, asking to save your projects. You can delete this copy.
+AudioStrada télécharge la nouvelle AppImage et la vérifie, puis l'installe : dans vos programmes, dans le menu des applications et pour les fichiers .strada. Il redémarre ensuite, en proposant d'enregistrer vos projets. Vous pourrez supprimer cette copie.
+
+AudioStrada downloads the new AppImage and checks it, replaces this one with it, then starts again, asking to save your projects.
+AudioStrada télécharge la nouvelle AppImage et la vérifie, remplace celle-ci, puis redémarre en proposant d'enregistrer vos projets.
+
+Update and restart
+Mettre à jour et redémarrer
 
 AudioStrada downloads the installer and checks it. It then closes, asking to save your projects, and the installer starts.
 AudioStrada télécharge l'installeur et le vérifie. Il se ferme ensuite, en proposant d'enregistrer vos projets, et l'installeur démarre.

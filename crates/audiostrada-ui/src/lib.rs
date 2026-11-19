@@ -2,6 +2,7 @@
 
 mod actions;
 mod add_tracks;
+pub mod appimage;
 mod assistants_window;
 mod browser;
 mod captures;
@@ -71,6 +72,7 @@ mod trigger_editor;
 mod ui_prefs;
 mod update_window;
 mod updates;
+mod updates_end;
 mod versions_window;
 mod video_capture;
 mod whats_new;
@@ -460,6 +462,7 @@ pub struct AudioStradaApp {
     license_window: license_window::LicenseWindow,
     updates: updates::Updates,
     update_window: update_window::UpdateWindow,
+    updates_end: updates_end::UpdatesEnd,
     whats_new: whats_new::WhatsNew,
     /// The version noted at this start (What's new after an update).
     version_noted: bool,
@@ -603,6 +606,7 @@ impl AudioStradaApp {
             license_window: license_window::LicenseWindow::default(),
             updates: updates::Updates::default(),
             update_window: update_window::UpdateWindow::default(),
+            updates_end: updates_end::UpdatesEnd::default(),
             whats_new: whats_new::WhatsNew::default(),
             version_noted: false,
             control,
@@ -1048,6 +1052,52 @@ impl AudioStradaApp {
         if let Some(answer) = answer {
             self.prefs.check_updates = Some(answer);
             self.ui_changed();
+        }
+    }
+
+    /// Offers to install the AppImage it runs from, once (the preferences can do it later).
+    fn offer_install(&mut self, ctx: &egui::Context) {
+        if self.prefs.appimage_asked
+            || updates::offered() && self.prefs.check_updates.is_none()
+            || appimage::state() != Some(appimage::State::Loose)
+        {
+            return;
+        }
+        let mut install = false;
+        let mut answered = false;
+        let mut open = true;
+        dialog::Dialog::new("install-appimage", tr("Install AudioStrada"))
+            .detail(tr("As a package would, for you only"))
+            .width(460.0)
+            .modal()
+            .show(ctx, &mut open, |ui, part| match part {
+                dialog::Part::Body => {
+                    ui.label(tr(
+                        "AudioStrada runs from the AppImage file you downloaded. Installed, it \
+                         goes in your programs and in the applications menu, opens .strada files, \
+                         and its updates replace it.",
+                    ));
+                    dialog::hint(ui, tr("You can do it later in Preferences, General."));
+                }
+                dialog::Part::Actions => {
+                    dialog::buttons(ui, |ui| {
+                        install = dialog::primary(ui, tr("Install"), true).clicked();
+                        answered = dialog::secondary(ui, tr("Not now")).clicked();
+                    });
+                }
+            });
+        if !(install || answered || !open) {
+            return;
+        }
+        self.prefs.appimage_asked = true;
+        self.ui_changed();
+        if install && let Some(appimage) = appimage::running() {
+            match appimage::install(&appimage) {
+                Ok(_) => self.doc.borrow_mut().notify(
+                    tr("AudioStrada is installed: start it from the applications menu").into(),
+                ),
+                Err(e) => self.error = Some(trf!("Cannot install AudioStrada: {error}", error = e)),
+            }
         }
     }
 
@@ -3756,6 +3806,10 @@ impl eframe::App for AudioStradaApp {
         // The assistant asks it itself.
         if !self.setup.is_open() && !self.setup_pending {
             self.ask_for_updates(&ctx);
+            self.offer_install(&ctx);
+            if self.updates_end.show(&ctx, &self.license, &mut self.prefs) {
+                self.ui_changed();
+            }
         }
         if !self.version_noted {
             self.note_version();

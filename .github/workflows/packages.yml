@@ -1,8 +1,9 @@
 name: Packages
 
-# Puts the .deb and .rpm of the three latest published releases in the APT and RPM repositories
-# of packages.audiostrada.com (the Cloudflare R2 bucket audiostrada-packages), signed with the
-# packages key. Runs when a release is published, never for a draft.
+# Puts the .deb and .rpm of every published release in the APT and RPM repositories of
+# packages.audiostrada.com (the Cloudflare R2 bucket audiostrada-packages), signed with the
+# packages key: a license whose updates ended can go back to the last version it covers. Runs
+# when a release is published, never for a draft.
 on:
   release:
     types: [published]
@@ -17,11 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y apt-utils createrepo-c
-      - name: Packages of the latest releases
+      - name: Packages of every release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tags=$(gh release list --exclude-drafts --exclude-pre-releases --limit 3 \
+          tags=$(gh release list --exclude-drafts --exclude-pre-releases --limit 1000 \
             --json tagName --jq '.[].tagName')
           for tag in $tags; do
             gh release download "$tag" --pattern '*.deb' --pattern '*.rpm' --dir packages
