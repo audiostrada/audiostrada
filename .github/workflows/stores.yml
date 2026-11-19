@@ -1,0 +1,96 @@
+name: Stores
+
+# Flathub and the Snap Store (see docs/distribution.md). On a pull request touching the
+# packaging, both packages are built to check them. When a release is published, the snap goes
+# to the Snap Store (with the secret SNAPCRAFT_STORE_CREDENTIALS) and the files of the Flathub
+# repository for that tag come out as the artifact "flathub".
+on:
+  pull_request:
+    paths:
+      - packaging/flatpak/**
+      - packaging/snap/**
+      - packaging/linux/**
+      - .github/workflows/stores.yml
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  AUDIOSTRADA_FEATURES: official
+  AUDIOSTRADA_LICENSE_KEY: ${{ vars.AUDIOSTRADA_LICENSE_KEY }}
+  AUDIOSTRADA_REPORTS: ${{ vars.AUDIOSTRADA_REPORTS }}
+
+jobs:
+  flatpak-manifest:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Manifest and Cargo sources
+        env:
+          TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet "aiohttp<4" "tomlkit<1"
+          export PATH="$RUNNER_TEMP/venv/bin:$PATH"
+          curl -sSfL -o "$RUNNER_TEMP/flatpak-cargo-generator.py" \
+            https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/41c20aa10819cdb2a4f3ca171758a96d1955c018/cargo/flatpak-cargo-generator.py
+          CARGO_GENERATOR="$RUNNER_TEMP/flatpak-cargo-generator.py" sh packaging/flatpak/manifest.sh $TAG
+      - uses: actions/upload-artifact@v7
+        with:
+          name: flathub
+          path: target/flatpak
+
+  flatpak:
+    needs: flatpak-manifest
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: flathub
+          path: target/flatpak
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: target/flatpak/com.audiostrada.AudioStrada.yml
+          bundle: audiostrada.flatpak
+      # Flathub's checks; some permissions may need an exception from its reviewers.
+      - name: Flathub lint
+        continue-on-error: true
+        run: |
+          flatpak install -y --noninteractive flathub org.flatpak.Builder
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest target/flatpak/com.audiostrada.AudioStrada.yml
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo
+
+  snap:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Release date
+        run: echo "AUDIOSTRADA_RELEASE_DATE=$(git log -1 --format=%cs)" >> "$GITHUB_ENV"
+      - run: sudo apt-get update && sudo apt-get install -y libpipewire-0.3-dev libspa-0.2-dev libclang-dev libasound2-dev libjack-jackd2-dev
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo snap install snapcraft --classic
+      - run: sh packaging/snap/build-snap.sh
+        env:
+          SNAPCRAFT: sudo snapcraft
+      - uses: actions/upload-artifact@v7
+        with:
+          name: snap
+          path: target/snap/*.snap
+      - name: Snap Store
+        if: github.event_name == 'release'
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          if [ -z "$SNAPCRAFT_STORE_CREDENTIALS" ]; then
+            echo "No SNAPCRAFT_STORE_CREDENTIALS: the snap is not published."
+            exit 0
+          fi
+          snapcraft upload --release=stable target/snap/*.snap
