@@ -1,3 +1,11 @@
+## 0.2.1
+
+- L'AppImage s'installe d'elle-même : à son premier lancement, AudioStrada propose de la ranger dans vos programmes et le menu des applications, sans mot de passe administrateur, et d'ouvrir les fichiers `.strada` avec elle. Préférences › Général l'installe ou la désinstalle ensuite.
+- L'AppImage se met maintenant à jour comme les versions Windows et macOS : *Télécharger et installer* la remplace par la nouvelle version et AudioStrada redémarre.
+- Un mois avant la fin des mises à jour de votre licence, AudioStrada vous prévient et, si votre système installe les nouvelles versions de lui-même (dépôt de paquets, Flathub, Snap Store), donne la commande qui garde la version installée.
+- macOS : les fenêtres flottantes et celles des plugins se cachent maintenant quand la fenêtre principale est réduite, et reviennent avec elle.
+- Windows : l'installeur demande maintenant Windows 10 ou plus récent.
+
 ## 0.2.0
 
 - Les mises à jour s'installent depuis AudioStrada : cliquez sur *Version … disponible*, puis sur *Télécharger et installer*. Sous Windows et macOS, AudioStrada télécharge l'installeur, le vérifie et le lance.
