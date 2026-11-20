@@ -16,7 +16,10 @@ Téléchargez le paquet de votre système sur **audiostrada.com/download** :
 
 AudioStrada demande Windows 10 ou 11 en 64 bits, ou macOS 11 ou plus récent.
 
-L'AppImage tourne depuis l'endroit où vous l'avez téléchargée. À son premier lancement,
+Le navigateur enregistre l'AppImage sans le droit de s'exécuter : donnez-le dans les propriétés
+du fichier (*Exécutable en tant que programme* sous GNOME, *Est exécutable* sous KDE) ou avec
+`chmod +x AudioStrada-*.AppImage`, puis ouvrez-la. L'AppImage tourne depuis l'endroit où vous
+l'avez téléchargée. À son premier lancement,
 AudioStrada propose de l'installer pour vous, sans mot de passe administrateur : il rejoint vos
 programmes (`~/.local/bin`) et le menu des applications, et ouvre les fichiers `.strada`.
 Préférences › Général l'installe ou le désinstalle plus tard.
