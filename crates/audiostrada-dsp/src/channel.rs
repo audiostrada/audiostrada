@@ -68,6 +68,129 @@ pub const CHARACTERS: [&str; 5] = [
     "Nashville",
 ];
 
+/// How a console style's EQ draws its bands: its shelves (their Q, how far towards the mids
+/// they really turn over, how far they go for the gain set), its bells (their width for the Q
+/// set, how they narrow as the gain grows, their gain and center) and its outer bands switched
+/// to bells. Fitted on reference consoles' curves.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EqStyle {
+    pub shelf_q: f32,
+    pub shelf_spread: f32,
+    pub shelf_gain: f32,
+    pub broad: f32,
+    pub proportional: f32,
+    pub bell_gain: f32,
+    pub bell_freq: f32,
+    pub outer_broad: f32,
+}
+
+impl EqStyle {
+    fn nyquist(freq: f32, rate: f64) -> f64 {
+        f64::from(freq).min(rate * 0.45)
+    }
+
+    /// A shelf at the frequency marked, of the gain set.
+    pub fn shelf(&self, kind: FilterKind, freq: f32, gain: f32, rate: f64) -> Coefficients {
+        let freq = if kind == FilterKind::LowShelf {
+            freq * self.shelf_spread
+        } else {
+            freq / self.shelf_spread
+        };
+        Coefficients::design(
+            kind,
+            Self::nyquist(freq, rate),
+            f64::from(self.shelf_q),
+            f64::from(gain * self.shelf_gain),
+            rate,
+        )
+    }
+
+    fn narrowing(&self, gain: f32) -> f32 {
+        1.0 + gain.abs() / 15.0 * self.proportional
+    }
+
+    /// A mid band's bell at the frequency marked, of the gain and Q set.
+    pub fn bell(&self, freq: f32, gain: f32, q: f32, rate: f64) -> Coefficients {
+        Coefficients::design(
+            FilterKind::Peak,
+            Self::nyquist(freq * self.bell_freq, rate),
+            f64::from(q * self.broad * self.narrowing(gain)),
+            f64::from(gain * self.bell_gain),
+            rate,
+        )
+    }
+
+    /// An outer band switched to a bell.
+    pub fn outer_bell(&self, freq: f32, gain: f32, rate: f64) -> Coefficients {
+        Coefficients::design(
+            FilterKind::Peak,
+            Self::nyquist(freq, rate),
+            f64::from(0.7 * self.outer_broad * self.narrowing(gain)),
+            f64::from(gain * self.bell_gain),
+            rate,
+        )
+    }
+}
+
+/// The styles, in the order of [`CHARACTERS`]: soft, then each console's as fitted.
+pub const EQ_STYLES: [EqStyle; 5] = [
+    // Soft: the strip's own, plain.
+    EqStyle {
+        shelf_q: 0.7,
+        shelf_spread: 1.0,
+        shelf_gain: 1.0,
+        broad: 1.0,
+        proportional: 0.0,
+        bell_gain: 1.0,
+        bell_freq: 1.0,
+        outer_broad: 1.0,
+    },
+    // British Warm.
+    EqStyle {
+        shelf_q: 0.765,
+        shelf_spread: 2.183,
+        shelf_gain: 0.97,
+        broad: 0.248,
+        proportional: 0.246,
+        bell_gain: 0.903,
+        bell_freq: 1.036,
+        outer_broad: 0.204,
+    },
+    // British Bright.
+    EqStyle {
+        shelf_q: 0.479,
+        shelf_spread: 2.728,
+        shelf_gain: 1.034,
+        broad: 0.514,
+        proportional: 0.0,
+        bell_gain: 1.045,
+        bell_freq: 0.89,
+        outer_broad: 0.508,
+    },
+    // American Punch.
+    EqStyle {
+        shelf_q: 0.471,
+        shelf_spread: 3.164,
+        shelf_gain: 1.067,
+        broad: 0.345,
+        proportional: 1.135,
+        bell_gain: 0.967,
+        bell_freq: 1.018,
+        outer_broad: 0.393,
+    },
+    // Nashville.
+    EqStyle {
+        shelf_q: 0.464,
+        shelf_spread: 1.05,
+        shelf_gain: 1.264,
+        broad: 0.376,
+        proportional: 0.96,
+        bell_gain: 0.992,
+        bell_freq: 0.991,
+        outer_broad: 0.491,
+    },
+];
+
 /// The modules, by the id of their switch, in their default order.
 pub const MODULES: [&str; 5] = ["filters", "gate", "comp", "eq", "drive"];
 
@@ -265,33 +388,19 @@ impl Channel {
                 rate,
             ));
         }
-        let band = |kind, freq: f32, gain: f32, q: f64| {
-            Coefficients::design(kind, f64::from(freq).min(nyquist), q, f64::from(gain), rate)
-        };
-        // Each console's EQ: broad bells, or a Q that narrows as the gain grows; its shelves.
-        let character = v[p::CHARACTER].round() as usize;
-        let (shelf, broad, proportional) = match character {
-            1 => (1.0, 0.7, 0.0),
-            2 => (0.8, 1.0, 1.2),
-            3 => (0.7, 1.0, 2.0),
-            4 => (0.6, 0.85, 0.0),
-            _ => (0.7, 1.0, 0.0),
-        };
-        let bell = |q: f32, gain: f32| {
-            f64::from(q) * broad * (1.0 + f64::from(gain.abs()) / 15.0 * proportional)
-        };
-        // The outer bands as bells: broad, as on the consoles that switch them.
+        // Each console's EQ: how its shelves and bells are drawn (see `EqStyle`).
+        let style = &EQ_STYLES[(v[p::CHARACTER].round().max(0.0) as usize).min(EQ_STYLES.len() - 1)];
         let outer = |kind, bell_on: bool, freq: f32, gain: f32| {
             if bell_on {
-                band(FilterKind::Peak, freq, gain, bell(0.7, gain))
+                style.outer_bell(freq, gain, rate)
             } else {
-                band(kind, freq, gain, shelf)
+                style.shelf(kind, freq, gain, rate)
             }
         };
         self.bands = [
             outer(FilterKind::LowShelf, v[p::LOW_BELL] >= 0.5, v[18], v[19]),
-            band(FilterKind::Peak, v[20], v[21], bell(v[22], v[21])),
-            band(FilterKind::Peak, v[23], v[24], bell(v[25], v[24])),
+            style.bell(v[20], v[21], v[22], rate),
+            style.bell(v[23], v[24], v[25], rate),
             outer(FilterKind::HighShelf, v[p::HIGH_BELL] >= 0.5, v[26], v[27]),
         ];
     }
@@ -797,9 +906,10 @@ mod tests {
         discrete.set_param(p::EQ, 1.0);
         discrete.set_param(index("lmf_gain"), 12.0);
         discrete.set_param(p::CHARACTER, 3.0);
-        // Same peak, narrower bell: less boost an octave away.
-        assert!((soft.eq_response_db(400.0) - discrete.eq_response_db(400.0)).abs() < 0.2);
-        assert!(discrete.eq_response_db(800.0) < soft.eq_response_db(800.0) - 1.0);
+        // Nearly the same peak, the broader bell the console has at the default Q: more boost
+        // an octave away.
+        assert!((soft.eq_response_db(400.0) - discrete.eq_response_db(400.0)).abs() < 0.8);
+        assert!(discrete.eq_response_db(800.0) > soft.eq_response_db(800.0) + 1.0);
     }
 
     #[test]
