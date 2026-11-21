@@ -4,6 +4,7 @@
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::drive::{Oversampler, Taps};
+use crate::cell;
 use crate::{
     DETECTOR_HOLD_MS, Effect, EffectInfo, ParamInfo, PeakHold, choice, db_to_gain, gain_to_db,
     key_peak, param, switch, time_coefficient,
@@ -32,7 +33,9 @@ pub const TYPE_HINTS: [&str; 4] = [
 ];
 
 pub const CLEAN: usize = 0;
+pub const BUS: usize = 1;
 pub const OPTO: usize = 2;
+pub const FET: usize = 3;
 
 const UNIFIED: [ParamInfo; 17] = [
     choice("type", "Character", &TYPES, 0.0),
@@ -64,6 +67,7 @@ mod p {
     pub const TYPE: usize = 0;
     pub const ATTACK: usize = 3;
     pub const RELEASE: usize = 4;
+    pub const AUTO: usize = 5;
     pub const SC_HPF: usize = 9;
     pub const LOOKAHEAD: usize = 11;
     pub const HOLD: usize = 12;
@@ -94,15 +98,20 @@ pub fn latency_of(values: &[f32], rate: f32) -> u32 {
     (lookahead * 0.001 * rate).round() as u32 + if kind == CLEAN { 0 } else { COLOR_LATENCY }
 }
 
+/// The gain cell's curve of a character for its settings (see `cell`).
+pub fn curve_of(kind: usize, threshold: f32, ratio: f32, knee: f32) -> cell::Curve {
+    match kind {
+        CLEAN => cell::CLEAN.curve(threshold, ratio, knee),
+        OPTO => cell::Curve::ratio(threshold, ratio),
+        FET => cell::fet_curve(threshold, ratio),
+        _ => cell::BUS.curve(threshold, ratio, 0.0),
+    }
+}
+
 /// Gain change in dB a character's static curve gives at an input level, within the range.
 pub fn reduction_at(kind: usize, level: f32, values: (f32, f32, f32), range: f32) -> f32 {
     let (threshold, ratio, knee) = values;
-    let change = if kind == CLEAN {
-        gain_computer(level, threshold, ratio, knee)
-    } else {
-        crate::vintage::curve(kind - 1, level - threshold, ratio)
-    };
-    change.max(-range)
+    (-curve_of(kind, threshold, ratio, knee).reduction(level)).max(-range)
 }
 
 /// Makeup that brings a compressed signal back near its level, from the settings only (so it
@@ -120,18 +129,9 @@ pub struct Compressor {
     rate: f32,
     hpf: Coefficients,
     hpf_state: [Biquad; 2],
-    /// Gain change per side in dB: fast and slow envelopes, the one applied, hold left.
-    envelope: [f32; 2],
-    slow: [f32; 2],
+    /// Gain change per side in dB, the one applied, and the hold left.
     current: [f32; 2],
     held: [usize; 2],
-    /// The detector's level per side, held over a cycle (see `PeakHold`): from each sample
-    /// alone, the gain only reached its depth at the crests, and the attack took 1.7 times
-    /// as long as set.
-    peaks: [PeakHold; 2],
-    attack: f32,
-    release: f32,
-    slow_release: f32,
     hold: usize,
     /// Lookahead delay of the audio, per side.
     line: [Vec<f32>; 2],
@@ -140,6 +140,13 @@ pub struct Compressor {
     /// Wet and dry through the same oversampling, so they stay aligned in the mix.
     wet: [Oversampler; 2],
     dry: [Oversampler; 2],
+    /// The Opto and FET characters' cells and their times, and the filter taking out the offset
+    /// their amplifier makes.
+    cells: [cell::Cell; 2],
+    grain: [cell::Grain; 2],
+    cell_times: cell::Times,
+    dc: Coefficients,
+    dc_state: [Biquad; 2],
     reduction: f32,
     levels: [f32; 2],
 }
@@ -151,20 +158,19 @@ impl Default for Compressor {
             rate: 48_000.0,
             hpf: Coefficients::IDENTITY,
             hpf_state: Default::default(),
-            envelope: [0.0; 2],
-            slow: [0.0; 2],
             current: [0.0; 2],
             held: [0; 2],
-            peaks: [PeakHold::new(480), PeakHold::new(480)],
-            attack: 0.0,
-            release: 0.0,
-            slow_release: 0.0,
             hold: 0,
             line: [Vec::new(), Vec::new()],
             at: 0,
             delay: 0,
             wet: [Oversampler::new(Taps::Long), Oversampler::new(Taps::Long)],
             dry: [Oversampler::new(Taps::Long), Oversampler::new(Taps::Long)],
+            cells: Default::default(),
+            grain: Default::default(),
+            cell_times: cell::Times::default(),
+            dc: Coefficients::IDENTITY,
+            dc_state: Default::default(),
             reduction: 0.0,
             levels: [-120.0; 2],
         };
@@ -180,17 +186,39 @@ impl Compressor {
 
     /// Times, filter and delay from the settings.
     fn update(&mut self) {
-        let kind = self.kind();
         let rate = self.rate;
-        let (attack, release) = if kind == OPTO {
-            // The optical cell attacks in about 10 ms and lets go in two stages.
-            (10.0, 60.0)
+        // Each character's gain cell (see `cell`): the clean and bus ones take the attack and
+        // release set as their references hear them, the optical one sets its own times, the
+        // FET takes them, its release slowing as it is held.
+        let (attack, release, auto) = (
+            self.values[p::ATTACK],
+            self.values[p::RELEASE],
+            self.values[p::AUTO] >= 0.5,
+        );
+        self.cell_times = if self.kind() == CLEAN {
+            cell::Times::new(&cell::CLEAN.tuning(attack, release, auto), rate)
+        } else if self.kind() == BUS {
+            cell::Times::new(&cell::BUS.tuning(attack, release, auto), rate)
+        } else if self.kind() == FET {
+            let base = if self.values[2] >= 19.5 {
+                cell::FET_ALL
+            } else {
+                cell::FET
+            };
+            let release = self.values[p::RELEASE];
+            cell::Times::new(
+                &cell::Tuning {
+                    attack_ms: self.values[p::ATTACK],
+                    release_ms: release * base.release_ms / cell::FET.release_ms,
+                    release_charged_ms: release * base.release_charged_ms / cell::FET.release_ms,
+                    ..base
+                },
+                rate,
+            )
         } else {
-            (self.values[p::ATTACK], self.values[p::RELEASE])
+            cell::Times::new(&cell::OPTO, rate)
         };
-        self.attack = time_coefficient(attack, rate);
-        self.release = time_coefficient(release, rate);
-        self.slow_release = time_coefficient(if kind == OPTO { 2500.0 } else { 1200.0 }, rate);
+        self.dc = Coefficients::first_order(true, 5.0, f64::from(rate));
         self.hold = (self.values[p::HOLD] * 0.001 * rate) as usize;
         let hz = self.values[p::SC_HPF];
         self.hpf = if hz > 20.5 {
@@ -210,11 +238,11 @@ impl Compressor {
     }
 
     fn clear(&mut self) {
-        self.envelope = [0.0; 2];
-        self.slow = [0.0; 2];
         self.current = [0.0; 2];
         self.held = [0; 2];
-        self.peaks.iter_mut().for_each(PeakHold::clear);
+        self.cells.iter_mut().for_each(cell::Cell::clear);
+        self.grain.iter_mut().for_each(cell::Grain::clear);
+        self.dc_state = Default::default();
         self.hpf_state = Default::default();
         for line in &mut self.line {
             line.fill(0.0);
@@ -230,7 +258,13 @@ impl Compressor {
         let vintage = kind != CLEAN;
         let model = kind.saturating_sub(1);
         let (threshold, ratio, knee) = (v[1], v[2], v[6]);
-        let two_stage = kind == OPTO || (v[5] >= 0.5 && (kind == CLEAN || kind == 1));
+        let uses_cell = kind == OPTO || kind == FET;
+        let cell_curve = curve_of(kind, threshold, ratio, knee);
+        let cell_amp = if kind == FET {
+            &cell::FET_AMP
+        } else {
+            &cell::OPTO_AMP
+        };
         let range = -v[13];
         let makeup = v[7]
             + if v[14] >= 0.5 {
@@ -241,6 +275,8 @@ impl Compressor {
         let makeup = db_to_gain(makeup);
         let (amount, wet, link, listen) =
             (v[8] / 100.0, v[10] / 100.0, v[15] / 100.0, v[16] >= 0.5);
+        // The Opto and FET characters' color at its default (30 %) is the unit's.
+        let cell_color = amount / 0.3;
         let size = self.line[0].len().max(1);
         let mut deepest = 0.0f32;
         let (mut peak_in, mut peak_out) = (0.0f32, 0.0f32);
@@ -259,45 +295,21 @@ impl Compressor {
                 self.hpf_state[1].process(&self.hpf, f64::from(kr)) as f32,
             ];
             peak_in = peak_in.max(l.abs().max(r.abs()));
-            let held = [
-                self.peaks[0].push(heard[0].abs()),
-                self.peaks[1].push(heard[1].abs()),
-            ];
-            let both = held[0].max(held[1]);
-            for (ch, side) in held.iter().enumerate() {
-                let detected = link * both + (1.0 - link) * side;
-                let mut level = gain_to_db(detected);
-                // The optical cell listens to its own output.
-                if kind == OPTO {
-                    level += self.current[ch];
-                }
-                let target = if vintage {
-                    crate::vintage::curve(model, level - threshold, ratio)
-                } else {
-                    gain_computer(level, threshold, ratio, knee)
-                }
-                .max(range);
-                let attacking = target < self.envelope[ch];
-                if attacking {
+            // The cell's detection follows the signal itself; the hold keeps the reduction
+            // from letting go for its time.
+            let loudest = heard[0].abs().max(heard[1].abs());
+            for ch in 0..2 {
+                let lit = link * loudest + (1.0 - link) * heard[ch].abs();
+                let reduction = -self.cells[ch].push(&self.cell_times, lit, &cell_curve);
+                let target = reduction.max(range);
+                if target < self.current[ch] {
                     self.held[ch] = self.hold;
-                }
-                let holding = !attacking && self.held[ch] > 0;
-                if holding {
+                    self.current[ch] = target;
+                } else if self.held[ch] > 0 {
                     self.held[ch] -= 1;
                 } else {
-                    for (env, rel) in [
-                        (&mut self.envelope[ch], self.release),
-                        (&mut self.slow[ch], self.slow_release),
-                    ] {
-                        let c = if target < *env { self.attack } else { rel };
-                        *env = target + c * (*env - target);
-                    }
+                    self.current[ch] = target;
                 }
-                self.current[ch] = if two_stage {
-                    0.5 * (self.envelope[ch] + self.slow[ch])
-                } else {
-                    self.envelope[ch]
-                };
             }
             deepest = deepest.min(self.current[0].min(self.current[1]));
             // The audio comes out of the lookahead line, late by the delay.
@@ -310,7 +322,14 @@ impl Compressor {
             for ch in 0..2 {
                 let gain = db_to_gain(self.current[ch]) * makeup;
                 let (mut processed, mut dry) = (delayed[ch] * gain, delayed[ch]);
-                if vintage {
+                if uses_cell {
+                    processed =
+                        self.grain[ch].pass(&self.cell_times, processed, -self.current[ch]);
+                    processed = self.wet[ch].run(processed, |x| cell::shape(x, cell_amp, cell_color));
+                    processed =
+                        self.dc_state[ch].process(&self.dc, f64::from(processed)) as f32;
+                    dry = self.dry[ch].run(dry, |x| x);
+                } else if vintage {
                     processed =
                         self.wet[ch].run(processed, |x| crate::vintage::color(model, amount, x));
                     dry = self.dry[ch].run(dry, |x| x);
@@ -336,8 +355,6 @@ impl Effect for Compressor {
         let size = (MAX_LOOKAHEAD_MS * 0.001 * self.rate).ceil() as usize + 2;
         self.line = [vec![0.0; size], vec![0.0; size]];
         self.at = 0;
-        let hold = (DETECTOR_HOLD_MS * 0.001 * self.rate) as usize;
-        self.peaks = [PeakHold::new(hold), PeakHold::new(hold)];
         self.update();
         self.clear();
     }
@@ -515,9 +532,8 @@ mod tests {
     #[test]
     fn the_attack_and_release_take_the_times_set() {
         // A 1 kHz tone jumps 30 dB, well over the threshold, then drops back: the gain change
-        // reaches 63 % of its depth in about the attack time, and recovers 63 % of it in
-        // about the release time (plus the detector's hold). Detected sample by sample, the
-        // attack took 1.7 times as long as set.
+        // reaches 63 % of its depth and recovers 63 % of it in the times the clean reference
+        // takes for these settings, about half the attack set and 0.4 times the release.
         let index = |id: &str| UNIFIED.iter().position(|p| p.id == id).unwrap();
         let mut c = Compressor::default();
         for (id, v) in [
@@ -559,13 +575,13 @@ mod tests {
             .iter()
             .position(|g| *g < 0.63 * deepest)
             .unwrap();
-        assert!((7..=13).contains(&attack), "attack 10 ms takes {attack} ms");
+        assert!((3..=9).contains(&attack), "attack 10 ms takes {attack} ms");
         let release = gain[1100..]
             .iter()
             .position(|g| *g > 0.37 * deepest)
             .unwrap();
         assert!(
-            (90..=125).contains(&release),
+            (25..=80).contains(&release),
             "release 100 ms takes {release} ms"
         );
     }
@@ -627,9 +643,9 @@ mod tests {
         c.prepare(48_000, 256);
         let (mut l, mut r) = (vec![0.5f32; 256], vec![0.5f32; 256]);
         c.process(&mut l, &mut r);
-        assert!(c.envelope[0] < -1.0);
+        assert!(c.current[0] < -1.0);
         c.set_param(0, OPTO as f32);
-        assert_eq!(c.envelope[0], 0.0, "back at rest");
+        assert_eq!(c.current[0], 0.0, "back at rest");
         assert!(uses(CLEAN, "knee") && !uses(OPTO, "knee"));
         assert!(!uses(OPTO, "attack") && uses(CLEAN, "release"));
         assert!(uses(1, "auto") && uses(CLEAN, "auto") && !uses(3, "auto"));
@@ -753,7 +769,7 @@ mod tests {
         c.prepare(48_000, 256);
         run(&mut c, &loud);
         run(&mut c, &vec![0.0; 4_800]);
-        assert!(c.envelope[0] < -10.0, "{}", c.envelope[0]);
+        assert!(c.current[0] < -10.0, "{}", c.current[0]);
     }
 
     #[test]

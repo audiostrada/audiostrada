@@ -9,6 +9,7 @@ pub mod analysis;
 pub mod analyzer;
 pub mod biquad;
 pub mod chain;
+pub mod cell;
 pub mod channel;
 pub mod chorus;
 pub mod compressor;
