@@ -1660,7 +1660,7 @@ fn detection_curve(ui: &mut Ui, params: &mut dyn EditorParams, size: egui::Vec2)
 }
 
 /// A frequency response from 20 Hz to 20 kHz on a dB range, with labeled grid lines.
-fn response_plot(
+pub fn response_plot(
     ui: &mut Ui,
     height: f32,
     range: f32,
@@ -1892,7 +1892,7 @@ fn vintage_eq(ui: &mut Ui, params: &mut dyn EditorParams) {
 
 /// The faceplate of the tube EQ, as the old hardware in its teal paint: lit from the top left,
 /// darker toward the bottom, its edges bevelled, rack slots at its ends and chrome screws.
-fn paint_faceplate(painter: &egui::Painter, rect: Rect, plate: &Plate) {
+pub fn paint_faceplate(painter: &egui::Painter, rect: Rect, plate: &Plate) {
     theme::gradient_rect(painter, rect, plate.bottom, plate.top);
     // A soft light from the top left, fading out across the plate.
     let light = pos2(
@@ -1984,17 +1984,18 @@ fn paint_faceplate(painter: &egui::Painter, rect: Rect, plate: &Plate) {
 
 /// Colors of the tube EQ's faceplate: the teal paint of the old hardware with white lettering,
 /// whatever the theme, as the tape machines keep their look.
-struct Plate {
-    top: Color32,
-    bottom: Color32,
-    ink: Color32,
-    knob: Color32,
-    head: Color32,
-    edge: Color32,
+#[derive(Clone, Copy, Debug)]
+pub struct Plate {
+    pub top: Color32,
+    pub bottom: Color32,
+    pub ink: Color32,
+    pub knob: Color32,
+    pub head: Color32,
+    pub edge: Color32,
 }
 
 impl Plate {
-    const TEAL: Plate = Plate {
+    pub const TEAL: Plate = Plate {
         top: Color32::from_rgb(36, 112, 130),
         bottom: Color32::from_rgb(23, 80, 96),
         ink: Color32::from_rgb(244, 246, 242),
@@ -2052,7 +2053,7 @@ fn paint_pointer_knob(painter: &egui::Painter, center: Pos2, r: f32, angle: f32,
 
 /// A knob of the faceplate in `cell`: its name, a scale from 0 to 10 (or -12 to +12), the
 /// value under it.
-fn plate_knob(
+pub fn plate_knob(
     ui: &mut Ui,
     params: &mut dyn EditorParams,
     id: &str,
@@ -2156,7 +2157,7 @@ fn plate_knob(
 
 /// A rotary selector of the faceplate in `cell`, its positions written around it: click a
 /// position, or the knob for the next one; drag or wheel to step.
-fn plate_switch(
+pub fn plate_switch(
     ui: &mut Ui,
     params: &mut dyn EditorParams,
     id: &str,
