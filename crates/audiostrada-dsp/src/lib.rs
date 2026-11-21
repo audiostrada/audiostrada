@@ -32,6 +32,7 @@ mod line;
 pub mod loudness;
 pub mod maximizer;
 pub mod measure;
+pub mod measure_dynamics;
 pub mod modulator;
 pub mod multiband;
 mod nam;

@@ -219,7 +219,7 @@ fn load(path: &Path) -> anyhow::Result<Fingerprint> {
 }
 
 /// A file name for a reference's name.
-fn slug(name: &str) -> String {
+pub(crate) fn slug(name: &str) -> String {
     let mut out = String::new();
     for c in name.chars() {
         if c.is_alphanumeric() {
