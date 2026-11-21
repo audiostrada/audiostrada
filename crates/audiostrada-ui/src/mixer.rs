@@ -27,6 +27,8 @@ use audiostrada_core::groups::{self, Link};
 mod rack;
 
 const STRIP_WIDTH: f32 = 104.0;
+/// The gap between two strips.
+const STRIP_GAP: f32 = 3.0;
 /// The switches beside a full strip's fader (mute, solo, arm, input, automation), one under
 /// the other: the fader is never shorter, or the strips would not follow it.
 const MIN_FADER: f32 = 5.0 * 20.0 + 4.0 * 3.0 + 4.0;
@@ -1894,13 +1896,8 @@ pub(crate) fn route_to_new_bus(doc: &mut Document, tracks: &[TrackId]) -> Result
     Ok(())
 }
 
-/// A button 13 px tall for a section title, lit with `lit` when given: drawn by hand so that
-/// it lines up with the title whatever the style's button height.
-fn title_button(ui: &mut Ui, text: &str, lit: Option<Color32>) -> Response {
-    title_button_wide(ui, text, lit, 0.0)
-}
-
-/// A title button at least `width` wide.
+/// A button 13 px tall for a section title, at least `width` wide, lit with `lit` when given:
+/// drawn by hand so that it lines up with the title whatever the style's button height.
 fn title_button_wide(ui: &mut Ui, text: &str, lit: Option<Color32>, width: f32) -> Response {
     let p = theme::current(ui);
     let font = egui::FontId::proportional(8.5);
@@ -2454,6 +2451,7 @@ fn section(
     if let Some(title) = title {
         ui.horizontal(|ui| {
             ui.set_height(13.0);
+            ui.add_space(4.0);
             ui.label(RichText::new(title).size(8.0).color(p.weak));
         });
     }
@@ -2695,7 +2693,7 @@ impl MixerView {
         doc.update_levels();
         let project = doc.project().clone();
         let shown = doc.selected_tracks().first().copied();
-        let master_width = STRIP_WIDTH + 40.0;
+        let master_width = STRIP_WIDTH + 44.0;
         // Strips fill the panel: the fader takes what the other sections leave.
         let available = ui.available_height() - 16.0;
         // Last frame's strips, which `top_height` and `bottom_height` measured.
@@ -2818,11 +2816,20 @@ impl MixerView {
                                 .auto_shrink([false, true])
                                 .show(ui, |ui| {
                                     let strips = ui.horizontal_top(|ui| {
+                                        let mut first = true;
                                         for (index, depth) in routing::visible_tracks(&project) {
                                             let track = &project.tracks[index];
                                             if self.single && shown != Some(track.id) {
                                                 continue;
                                             }
+                                            // A narrower gap than the item spacing, which the
+                                            // strips' contents keep.
+                                            if !first {
+                                                ui.add_space(
+                                                    STRIP_GAP - ui.spacing().item_spacing.x,
+                                                );
+                                            }
+                                            first = false;
                                             if self.compact
                                                 && !self.single
                                                 && self.expanded != Some(track.id)
@@ -3133,18 +3140,20 @@ impl MixerView {
             .stroke(stroke)
             .corner_radius(6.0)
             .inner_margin(egui::Margin {
-                left: 4,
-                right: 4,
+                left: 6,
+                right: 6,
                 top: 0,
                 bottom: 6,
             })
             .show(ui, |ui| {
-                ui.set_width(width);
+                // No wider than the cap: a wider child would spill past the margin.
+                let inner = width + 4.0;
+                ui.set_width(inner);
                 ui.with_layout(Layout::top_down(Align::Center), |ui| {
-                    ui.set_width(width);
+                    ui.set_width(inner);
                     halo = Some(ui.painter().add(egui::Shape::Noop));
-                    // Room for the cap, drawn once the frame is known; its width sets the strip's.
-                    ui.allocate_exact_size(vec2(width + 8.0, 4.0), Sense::hover());
+                    // Room for the cap, drawn once the frame is known.
+                    ui.allocate_exact_size(vec2(inner, 4.0), Sense::hover());
                     ui.add_space(2.0);
                     add(ui);
                 });
@@ -3299,7 +3308,7 @@ impl MixerView {
                     if self.full_strips {
                         ui.add_space(3.0);
                         self.channel_section(ui, doc, channel, width);
-                        self.inserts_title(ui, doc, channel, tr("INSERTS"), true);
+                        self.inserts_title(ui, doc, channel, "FX / INSERTS", true);
                         section(ui, None, sizes.fx, ("inserts", id.0), |ui| {
                             self.inserts_section(
                                 ui,
@@ -4271,6 +4280,7 @@ impl MixerView {
         ui.add_space(2.0);
         ui.horizontal(|ui| {
             ui.set_height(13.0);
+            ui.add_space(4.0);
             ui.label(
                 RichText::new(title)
                     .size(8.5)
@@ -4281,11 +4291,6 @@ impl MixerView {
                     ui.add_space(2.0);
                     if channel != Channel::Master {
                         self.fx_toggles(ui, doc, channel, true);
-                    }
-                    let rack = title_button(ui, tr("Rack"), None)
-                        .on_hover_text(tr("Open this chain in the rack"));
-                    if rack.clicked() {
-                        self.reveal_rack(doc, channel);
                     }
                 });
             }
@@ -4339,7 +4344,7 @@ impl MixerView {
             self.channel_section(ui, doc, channel, ui.available_width());
             ui.add_space(6.0);
             ui.label(
-                RichText::new(tr("INSERTS"))
+                RichText::new("FX / INSERTS")
                     .size(8.5)
                     .color(theme::current(ui).weak),
             );
@@ -5178,7 +5183,7 @@ impl MixerView {
                 if full {
                     ui.add_space(3.0);
                     self.channel_section(ui, doc, Channel::Master, width);
-                    self.inserts_title(ui, doc, Channel::Master, tr("INSERTS"), true);
+                    self.inserts_title(ui, doc, Channel::Master, "FX / INSERTS", true);
                     section(ui, None, sizes.fx, "master-inserts", |ui| {
                         self.inserts_section(
                             ui,

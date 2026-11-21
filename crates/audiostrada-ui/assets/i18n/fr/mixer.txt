@@ -744,9 +744,6 @@ Q haut-médium
 High pass
 Passe-haut
 
-INSERTS
-INSERTS
-
 Low gain
 Gain grave
 
@@ -1049,9 +1046,6 @@ Afficher le rack
 
 Rack
 Rack
-
-Open this chain in the rack
-Ouvrir cette chaîne dans le rack
 
 Parallel chain
 Chaîne parallèle
