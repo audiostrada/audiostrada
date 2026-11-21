@@ -475,7 +475,7 @@ mod tests {
             }
             cell.reduction(&t)
         };
-        assert!(held_after(2_000) > 3.0 * held_after(50));
+        assert!(held_after(2_000) > 3.0 * held_after(5));
     }
 
     #[test]

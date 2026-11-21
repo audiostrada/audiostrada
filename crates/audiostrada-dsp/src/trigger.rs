@@ -714,7 +714,8 @@ impl Effect for Trigger {
                 for (name, v) in [
                     ("threshold", threshold),
                     ("ratio", ratio),
-                    ("makeup", 0.6 * (-threshold - 6.0) * (1.0 - 1.0 / ratio)),
+                    // What the bus character takes back, as measured on a sample.
+                    ("makeup", 0.32 * (-threshold - 6.0) * (1.0 - 1.0 / ratio)),
                 ] {
                     if let Some(i) = info.params.iter().position(|q| q.id == name) {
                         self.comp.set_param(i, v);

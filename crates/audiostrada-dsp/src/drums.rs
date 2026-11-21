@@ -1150,7 +1150,8 @@ impl Effect for Drums {
                 for (name, v) in [
                     ("threshold", threshold),
                     ("ratio", ratio),
-                    ("makeup", 0.6 * (-threshold - 4.0) * (1.0 - 1.0 / ratio)),
+                    // What the bus character takes back, as measured on a kit.
+                    ("makeup", 0.4 * (-threshold - 4.0) * (1.0 - 1.0 / ratio)),
                 ] {
                     set_named(&mut *self.comp, "compressor", name, v);
                 }
