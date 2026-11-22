@@ -204,10 +204,10 @@ fn the_fingerprints_tell_the_consoles_apart() {
     let bright = harmonics(2, MEASURED, -12.0);
     let punch = harmonics(3, MEASURED, -12.0);
     let nashville = harmonics(4, MEASURED, -12.0);
-    // An API's even harmonics, an SSL channel's odd ones.
+    // American Punch's even harmonics, British Bright's odd ones.
     assert!(punch[0] > punch[1] + 6.0, "{punch:?}");
     assert!(bright[1] > bright[0] + 6.0, "{bright:?}");
-    // The Neve the richest, the Harrison the cleanest.
+    // British Warm the richest, Nashville the cleanest.
     let total = |h: [f32; 5]| h.iter().map(|d| 10f32.powf(d / 10.0)).sum::<f32>();
     assert!(total(warm) > total(punch) && total(warm) > total(bright));
     assert!(total(nashville) < total(bright) && total(nashville) < total(punch));

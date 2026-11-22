@@ -601,8 +601,8 @@ mod tests {
 
     #[test]
     fn tails_are_diffuse_soon_and_do_not_ring() {
-        // Measured against Valhalla's: Room 9 dB, VintageVerb's hall 12.9, Plate 12.7, its
-        // plate diffuse after 30 ms. Before 16 lines with all-passes in them, the room rang at
+        // Measured against reference reverbs: room 9 dB, hall 12.9, plate 12.7, the plate
+        // diffuse after 30 ms. Before 16 lines with all-passes in them, the room rang at
         // 14.3 dB; before two more input all-passes, the plate took 195 ms.
         for (kind, decay, most_ring, diffuse) in [
             (ROOM, 1.0, 11.0, 0.08),

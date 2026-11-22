@@ -55,8 +55,8 @@ const EARLY: [(f32, f32, f32); 12] = [
     (0.733, 0.20, 0.3),
 ];
 /// The lines' sway at full modulation. More smears the modes further but is heard as a
-/// pitch wobble on held notes; Valhalla's rooms show both lower, which the diffusion inside
-/// the loop gets closer to.
+/// pitch wobble on held notes; the reference reverbs show both lower, which the diffusion
+/// inside the loop gets closer to.
 const MAX_MOD_MS: f32 = 0.72;
 /// Input into each line, and output taken from each: the tail's level against the early
 /// reflections, as it was voiced with 8 lines.

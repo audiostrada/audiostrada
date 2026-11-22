@@ -21,7 +21,7 @@ const PARAMS: [ParamInfo; 10] = [
 const PAPER_RATE: f32 = 29_761.0;
 /// Two input all-passes more than the paper (lengths at its rate): the tank gets a denser
 /// burst, and the tail is diffuse within 30 ms instead of 200, as on a real plate (and as
-/// Valhalla's).
+/// the reference reverbs).
 const EXTRA: [f32; 2] = [331.0, 241.0];
 const MAX_PREDELAY_MS: f32 = 200.0;
 

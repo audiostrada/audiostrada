@@ -97,10 +97,12 @@ translations (Piste, Prise, Écoute, Mode prise…).
 the manual (`<!-- effect:id -->` in `docs/manual/{en,fr}`, after
 `node docs/manual/build.mjs --effects`). Parameter ids are stored in projects: never rename one.
 
-**Measurements.** No third-party plugin is named in this repository: not in code, comments,
-commit messages or files. The reference plugins AudioStrada's models are fitted on, and their
-fingerprints, live in the private repository `audiostrada-measurements`, cloned at
-`measurements/private/` (ignored here); see `measurements/README.md`.
+**Measurements.** The plugins and hardware AudioStrada's models are measured or fitted against
+are never named in this repository: not in code, comments, commit messages or files; models
+take AudioStrada's own names (British Warm, Opto…). They and their fingerprints live in the
+private repository `audiostrada-measurements`, cloned at `measurements/private/` (ignored
+here); see `measurements/README.md`. Naming a plugin elsewhere (the plugin catalog, a hosting
+quirk) stays fine.
 
 **Comments.** Few and short, in English: one or two lines saying why, not what. Documentation
 comments on public items and modules, in the same plain style. No emojis, no em dashes.

@@ -7,7 +7,7 @@ plugins' audio.
 
 - `references/builtin.toml`: AudioStrada's own consoles.
 - `private/`: the reference plugins and their fingerprints, in a private repository cloned
-  here, which this one ignores: no third-party plugin is ever named in this repository (code,
+  here, which this one ignores: no measured plugin is ever named in this repository (code,
   comments, commit messages, files). Its README says which model is fitted on what.
 
   ```

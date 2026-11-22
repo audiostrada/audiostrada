@@ -6,7 +6,7 @@
 /docs/manual/dist
 
 # The reference plugins and their fingerprints: the private measurements repository, cloned
-# here (see measurements/README.md). Never in this one: no third-party plugin is named here.
+# here (see measurements/README.md). Never in this one: no measured plugin is named here.
 measurements/private/
 # What would be left outside it by mistake.
 measurements/fingerprints/

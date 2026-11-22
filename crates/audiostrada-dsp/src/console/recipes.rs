@@ -85,14 +85,13 @@ use Reading::{H2, H3, Thd};
 /// The targets of `model` (an index into `MODELS`), channel or bus, from plugins modelling the
 /// console each one is after, set neutral.
 ///
-/// - British Warm, a Neve: transformers, the lows distort most, 2nd and 3rd harmonics alike.
-/// - British Bright, an SSL 4000: the channel flat in frequency, odd harmonics (its VCA); the
-///   bus colored, even ones, the lows heavy but tamer than its reference's (it saturates them
-///   even at -36 dBFS).
-/// - American Punch, an API: even harmonics. No bus measured: one a little hotter than the
-///   channel.
-/// - Nashville, a Harrison 32C: the channel nearly clean, the bus's drive making odd harmonics,
-///   heaviest in the lows.
+/// - British Warm: transformers, the lows distort most, 2nd and 3rd harmonics alike.
+/// - British Bright: the channel flat in frequency, odd harmonics (its VCA); the bus colored,
+///   even ones, the lows heavy but tamer than its reference's (it saturates them even at
+///   -36 dBFS).
+/// - American Punch: even harmonics. No bus measured: one a little hotter than the channel.
+/// - Nashville: the channel nearly clean, the bus's drive making odd harmonics, heaviest in the
+///   lows.
 pub fn targets(model: usize, bus: bool) -> &'static [Target] {
     match (model, bus) {
         (1, false) => {
@@ -271,7 +270,7 @@ pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
     };
     // Settings found by `fit_recipes` (console/tests.rs) on the targets above.
     Some(match (model, bus) {
-        // A Neve: an input transformer, its hysteresis holding the lows, into a class A
+        // British Warm: an input transformer, its hysteresis holding the lows, into a class A
         // amplifier.
         (1, false) => Recipe {
             input: Some(iron(30.0, 31.25, 0.95, 0.95)),
@@ -291,7 +290,7 @@ pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
             noise: noise(-82.0, -110.0),
             ..none
         },
-        // An SSL channel: op-amps and the VCA of its dynamics, no transformer on its way.
+        // British Bright: op-amps and the VCA of its dynamics, no transformer on its way.
         (2, false) => Recipe {
             op_amp: Some((26.0, 13.0)),
             vca: Some((-94.0, -91.5)),
@@ -313,7 +312,7 @@ pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
             noise: noise(-84.0, -110.0),
             ..none
         },
-        // An API: a discrete amplifier, even harmonics, into its output transformer.
+        // American Punch: a discrete amplifier, even harmonics, into its output transformer.
         (3, false) => Recipe {
             class_a: Some(class_a(36.0, 0.0252)),
             output: Some(iron(25.0, 26.5, 0.0067, 0.5)),
@@ -331,8 +330,8 @@ pub fn recipe(model: usize, bus: bool) -> Option<Recipe> {
             noise: noise(-83.0, -110.0),
             ..none
         },
-        // A Harrison 32C: op-amps, nearly clean; its input transformer's hysteresis, a trace
-        // in the lows.
+        // Nashville: op-amps, nearly clean; its input transformer's hysteresis, a trace in the
+        // lows.
         (4, false) => Recipe {
             input: Some(iron(30.0, 55.0, 0.2824, 0.396)),
             op_amp: Some((27.0, 13.0)),
