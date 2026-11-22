@@ -823,8 +823,9 @@ mod imp {
     /// in front, they leave the topmost band and stand just behind it. A window over one of
     /// the `menus` steps aside, behind the window showing it, until the menu closes; the plugin
     /// hosts read the menu on the main window (see [`menu_over`]). Cheap: call it at each
-    /// frame, windows opened or moved since are placed on the next one.
-    pub fn own_windows(main: u64, panels: &[String], menus: &[Menu]) {
+    /// frame, windows opened or moved since are placed on the next one. Returns the titles of
+    /// the panels minimized (the main window not), which go back into it.
+    pub fn own_windows(main: u64, panels: &[String], menus: &[Menu]) -> Vec<String> {
         let main = hwnd(main);
         let windows = winit_windows(main);
         let panel_windows: Vec<HWND> = windows
@@ -981,6 +982,15 @@ mod imp {
             let _ = unsafe { SetWindowPos(window, Some(HWND_NOTOPMOST), 0, 0, 0, 0, flags) };
         }
         keep_maximized(&panel_windows, minimized, front);
+        if minimized {
+            return Vec::new();
+        }
+        windows
+            .iter()
+            // SAFETY: plain Win32 call on one of this thread's windows.
+            .filter(|(w, _)| panel_windows.contains(w) && unsafe { IsIconic(*w) }.as_bool())
+            .map(|(_, title)| title.clone())
+            .collect()
     }
 
     thread_local! {
@@ -1533,9 +1543,9 @@ mod imp {
         panels: &[String],
         covered: bool,
         menus: &[(Option<String>, Vec<[f64; 4]>)],
-    ) {
+    ) -> Vec<String> {
         let Some(mtm) = MainThreadMarker::new() else {
-            return;
+            return Vec::new();
         };
         // SAFETY: the main window's live content view, used on the main thread.
         let main = unsafe { main.cast::<NSView>().as_ref() }.and_then(|v| v.window());
@@ -1568,6 +1578,9 @@ mod imp {
             .collect();
         let mut aside = ASIDE.lock().unwrap_or_else(|e| e.into_inner());
         let mut still = Vec::new();
+        // Panels minimized: they go back into the main window. egui does not follow the
+        // minimized state on macOS while running.
+        let mut docked = Vec::new();
         for window in windows {
             if Some(&window) != main.as_ref() && window.class().name().to_bytes() == b"WinitWindow"
             {
@@ -1581,6 +1594,10 @@ mod imp {
                 }
                 let title = window.title().to_string();
                 let panel = panels.contains(&title);
+                if panel && window.isMiniaturized() {
+                    docked.push(title);
+                    continue;
+                }
                 let frame = top_left_frame(&window, mtm);
                 let over = showing.iter().find(|(owner, areas)| {
                     *owner != number && areas.iter().any(|a| overlaps(a, &frame))
@@ -1603,6 +1620,7 @@ mod imp {
         if !minimized {
             hidden.clear();
         }
+        docked
     }
 
     /// The numbers of this process's plugin windows, and AudioStrada's keys pressed in them:
@@ -2265,6 +2283,31 @@ mod windows_tests {
             imp::own_windows(main_id, &panels, &[]);
             assert!(IsZoomed(mixer).as_bool(), "maximized again");
         }
+        destroy(&[mixer, main]);
+    }
+
+    /// A panel minimized is told, to go back into the main window; panels hidden with the
+    /// main window minimized are not.
+    #[test]
+    fn a_minimized_panel_is_told_to_dock_back() {
+        let main = window("Main — dock", 0);
+        let mixer = window("Mixer — dock", 2000);
+        let (main_id, panels) = (main.0 as u64, vec!["Mixer — dock".to_owned()]);
+        assert!(imp::own_windows(main_id, &panels, &[]).is_empty());
+        // SAFETY: plain Win32 calls on windows of this test.
+        unsafe {
+            let _ = ShowWindow(mixer, SW_MINIMIZE);
+        }
+        assert_eq!(imp::own_windows(main_id, &panels, &[]), panels);
+        // SAFETY: as above.
+        unsafe {
+            let _ = ShowWindow(mixer, SW_RESTORE);
+            let _ = ShowWindow(main, SW_MINIMIZE);
+        }
+        assert!(
+            imp::own_windows(main_id, &panels, &[]).is_empty(),
+            "hidden with the main window"
+        );
         destroy(&[mixer, main]);
     }
 

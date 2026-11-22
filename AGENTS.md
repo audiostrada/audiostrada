@@ -234,7 +234,10 @@ Windowing changes have broken another system almost every time, so:
   viewport's pass, the menus it shows (its `Foreground` areas while a popup is open) on the
   desktop, in the system's units. `stepping_aside` holds the rule, tested everywhere.
 - A detached panel minimized while the main window is not goes back in. The main window's
-  pass looks (`dock_minimized_panels`): eframe no longer runs a minimized viewport's callback.
+  pass looks (`dock_minimized_panels`): eframe no longer runs a minimized viewport's callback,
+  so its own pass never sees it. egui may not have seen the minimize either (on macOS it never
+  follows that state while running): Windows and macOS ask the system, `own_windows` and
+  `keep_windows_above` returning the minimized panels.
 
 ### Windows
 

@@ -2311,7 +2311,8 @@ impl AudioStradaApp {
     /// A detached panel minimized goes back into the main window, as when it is closed. Its
     /// own window no longer runs once minimized (eframe draws nothing it would not show): the
     /// main window looks, at each of its passes. Hidden with the main window minimized, a
-    /// panel stays.
+    /// panel stays. Windows and macOS also ask the system (see `keep_windows_above`): egui
+    /// may not have seen the minimize there.
     fn dock_minimized_panels(&mut self, ctx: &egui::Context) {
         if ctx.input(|i| i.viewport().minimized == Some(true)) {
             return;
@@ -2423,6 +2424,22 @@ struct DetachedInbox {
 thread_local! {
     /// The inbox, for the effect windows the panels open.
     static INBOX: RefCell<Option<Rc<RefCell<DetachedInbox>>>> = const { RefCell::new(None) };
+}
+
+/// A menu button's shortcut at its right. egui draws it weak, gray on the selection's blue
+/// when the button is selected: it then takes the selection's text color.
+fn menu_shortcut<'a>(
+    ui: &egui::Ui,
+    button: egui::Button<'a>,
+    label: String,
+    selected: bool,
+) -> egui::Button<'a> {
+    if selected {
+        let color = ui.visuals().selection.stroke.color;
+        button.right_text(egui::RichText::new(label).color(color))
+    } else {
+        button.shortcut_text(label)
+    }
 }
 
 /// The keys of `action` in the current keymap, for tooltips.
@@ -2618,7 +2635,7 @@ impl AudioStradaApp {
                       text: Option<&str>| {
             let mut button = egui::Button::new(text.unwrap_or(action.label())).selected(on);
             if let Some(label) = keymap.label(action, mac) {
-                button = button.shortcut_text(label);
+                button = menu_shortcut(ui, button, label, on);
             }
             if ui.add(button).clicked() {
                 chosen.push(action);
@@ -2628,7 +2645,7 @@ impl AudioStradaApp {
         let check = |ui: &mut egui::Ui, chosen: &mut Vec<Action>, action: Action, on: bool| {
             let mut button = egui::Button::new(action.label()).selected(on);
             if let Some(label) = keymap.label(action, mac) {
-                button = button.shortcut_text(label);
+                button = menu_shortcut(ui, button, label, on);
             }
             if ui.add(button).clicked() {
                 chosen.push(action);
@@ -3410,8 +3427,9 @@ fn keep_out_of_taskbar(ctx: &egui::Context) {
 /// are: above it, never behind, out of the taskbar and of Alt+Tab, minimized with it.
 /// On Windows, a window over a menu of another one steps aside until it closes (see
 /// [`windowing`]).
+/// Returns the panels minimized (the main window not), which go back into it.
 #[cfg(any(target_os = "macos", windows))]
-fn keep_windows_above(ctx: &egui::Context, frame: &eframe::Frame, detached: &[Pane]) {
+fn keep_windows_above(ctx: &egui::Context, frame: &eframe::Frame, detached: &[Pane]) -> Vec<Pane> {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     let handle = frame.window_handle().map(|h| h.as_raw());
     let panels: Vec<String> = detached.iter().map(|&p| pane_window_title(p)).collect();
@@ -3430,12 +3448,13 @@ fn keep_windows_above(ctx: &egui::Context, frame: &eframe::Frame, detached: &[Pa
                 (m.title, areas)
             })
             .collect();
-        audiostrada_plugins::window::keep_windows_above(
+        let minimized = audiostrada_plugins::window::keep_windows_above(
             h.ns_view.as_ptr(),
             &panels,
             covered,
             &menus,
         );
+        return panes_titled(detached, &minimized);
     }
     #[cfg(windows)]
     if let Ok(RawWindowHandle::Win32(h)) = handle {
@@ -3450,8 +3469,21 @@ fn keep_windows_above(ctx: &egui::Context, frame: &eframe::Frame, detached: &[Pa
                     .collect(),
             })
             .collect();
-        audiostrada_plugins::window::own_windows(h.hwnd.get() as u64, &panels, &menus);
+        let minimized =
+            audiostrada_plugins::window::own_windows(h.hwnd.get() as u64, &panels, &menus);
+        return panes_titled(detached, &minimized);
     }
+    Vec::new()
+}
+
+/// The panels among `detached` whose windows are titled `titles`.
+#[cfg(any(target_os = "macos", windows))]
+fn panes_titled(detached: &[Pane], titles: &[String]) -> Vec<Pane> {
+    detached
+        .iter()
+        .copied()
+        .filter(|&p| titles.contains(&pane_window_title(p)))
+        .collect()
 }
 
 /// A window besides the main one: its level (see [`floating_level`]) and, on Windows, no
@@ -3741,7 +3773,10 @@ impl eframe::App for AudioStradaApp {
             self.doc.borrow_mut().note_dropouts(status.xruns());
         }
         #[cfg(any(target_os = "macos", windows))]
-        keep_windows_above(ctx, frame, &self.detached);
+        {
+            let minimized = keep_windows_above(ctx, frame, &self.detached);
+            self.inbox.borrow_mut().closed.extend(minimized);
+        }
         #[cfg(all(unix, not(target_os = "macos")))]
         keep_out_of_taskbar(ctx);
         if self
