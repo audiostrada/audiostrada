@@ -3495,6 +3495,11 @@ fn keep_windows_above(ctx: &egui::Context, frame: &eframe::Frame, detached: &[Pa
     #[cfg(target_os = "macos")]
     if let Ok(RawWindowHandle::AppKit(h)) = handle {
         let covered = MAIN_COVERED.load(Ordering::Relaxed);
+        // A menu closed by its last click is seen on the next pass only, which nothing else
+        // asks for: until then windows stay aside and a dialog opened from it under them.
+        if covered || !menus.is_empty() {
+            ctx.request_repaint_after(Duration::from_millis(50));
+        }
         let menus: Vec<(Option<String>, Vec<[f64; 4]>)> = menus
             .into_iter()
             .map(|m| {

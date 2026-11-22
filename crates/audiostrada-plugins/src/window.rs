@@ -1924,10 +1924,22 @@ mod imp {
         ours.is_some() && front.executableURL() == ours
     }
 
-    /// Detached panels float above the main window, editors and plugin windows one level
-    /// higher (`editor`): clicking a panel never covers them.
-    fn floating_level(editor: bool) -> NSWindowLevel {
-        NSFloatingWindowLevel + NSWindowLevel::from(editor)
+    /// The levels of AudioStrada's windows while it is in use, from the bottom: detached panels
+    /// float above the main window, the other floating windows (editors, browser, dialogs and
+    /// plugin windows) in one band above them, so that clicking a panel never covers them and
+    /// the last one clicked is in front; a window showing a menu or a dialog drawn inside it
+    /// rises above them all. Levels hold across processes, so the plugin hosts' windows need
+    /// no message.
+    fn panel_level() -> NSWindowLevel {
+        NSFloatingWindowLevel
+    }
+
+    fn band_level() -> NSWindowLevel {
+        NSFloatingWindowLevel + 1
+    }
+
+    fn over_all_level() -> NSWindowLevel {
+        NSFloatingWindowLevel + 2
     }
 
     /// The class of winit's windows, which key-value observing renames
@@ -1946,11 +1958,11 @@ mod imp {
     }
 
     /// Keeps the application's other windows (winit's: detached panels, titled `panels`, and
-    /// editors) above its main window, given by its content view, as [`HostWindow`] does for
-    /// plugin windows. While the main window shows a dialog (`covered`), it rises above them
-    /// all, plugin windows of other processes included: a window level holds across processes.
-    /// A window over one of the `menus` (the title of the window showing it, `None` for the
-    /// main one, and its areas) drops to the normal level behind that window until it closes.
+    /// the others) above its main window, given by its content view, as [`HostWindow`] does
+    /// for plugin windows, at the levels above. While the main window shows a dialog
+    /// (`covered`), it rises above them all, plugin windows of other processes included. A
+    /// window over one of the `menus` (the title of the window showing it, `None` for the main
+    /// one, and its areas) drops behind that window until it closes.
     pub fn keep_windows_above(
         main: *mut std::ffi::c_void,
         panels: &[String],
@@ -1967,9 +1979,32 @@ mod imp {
         // AudioStrada in front, and neither the Dock nor the app switcher would bring it back.
         let minimized = main.as_ref().is_some_and(|m| m.isMiniaturized());
         let mut hidden = HIDDEN.lock().unwrap_or_else(|e| e.into_inner());
+        let app = NSApplication::sharedApplication(mtm);
+        let windows = app.windows();
+        // Where each of the application's windows rests while AudioStrada is in use.
+        let resting = |window: &NSWindow| -> NSWindowLevel {
+            if Some(window) == main.as_deref() {
+                NSNormalWindowLevel
+            } else if panels.contains(&window.title().to_string()) {
+                panel_level()
+            } else {
+                band_level()
+            }
+        };
+        // The windows showing a menu, by number, with the menus' areas and their own level.
+        let showing: Vec<(isize, NSWindowLevel, &Vec<[f64; 4]>)> = menus
+            .iter()
+            .filter_map(|(title, areas)| {
+                let owner = match title {
+                    None => main.clone()?,
+                    Some(t) => windows.iter().find(|w| w.title().to_string() == *t)?,
+                };
+                Some((owner.windowNumber(), resting(&owner), areas))
+            })
+            .collect();
         if let Some(main) = &main {
             let level = if active && covered {
-                floating_level(true) + 1
+                over_all_level()
             } else {
                 NSNormalWindowLevel
             };
@@ -1977,58 +2012,65 @@ mod imp {
                 main.setLevel(level);
             }
         }
-        let windows = NSApplication::sharedApplication(mtm).windows();
-        // The windows showing a menu, by number, with the menus' areas.
-        let showing: Vec<(isize, &Vec<[f64; 4]>)> = menus
-            .iter()
-            .filter_map(|(title, areas)| {
-                let owner = match title {
-                    None => main.clone()?,
-                    Some(t) => windows.iter().find(|w| w.title().to_string() == *t)?,
-                };
-                Some((owner.windowNumber(), areas))
-            })
-            .collect();
         let mut aside = ASIDE.lock().unwrap_or_else(|e| e.into_inner());
         let mut still = Vec::new();
+        let mut back = false;
         // Panels minimized: they go back into the main window. egui does not follow the
         // minimized state on macOS while running.
         let mut docked = Vec::new();
         for window in windows {
-            if Some(&window) != main.as_ref() && is_winit_window(window.class().name().to_bytes()) {
-                let number = window.windowNumber();
-                if minimized {
-                    if window.isVisible() {
-                        window.orderOut(None);
-                        hidden.push(number);
-                    }
-                    continue;
+            if Some(&window) == main.as_ref() || !is_winit_window(window.class().name().to_bytes())
+            {
+                continue;
+            }
+            let number = window.windowNumber();
+            if minimized {
+                if window.isVisible() {
+                    window.orderOut(None);
+                    hidden.push(number);
                 }
-                let title = window.title().to_string();
-                let panel = panels.contains(&title);
-                if panel && window.isMiniaturized() {
-                    docked.push(title);
-                    continue;
+                continue;
+            }
+            let title = window.title().to_string();
+            if panels.contains(&title) && window.isMiniaturized() {
+                docked.push(title);
+                continue;
+            }
+            let level = resting(&window);
+            let frame = top_left_frame(&window, mtm);
+            let over = showing.iter().find(|(owner, _, areas)| {
+                *owner != number && areas.iter().any(|a| overlaps(a, &frame))
+            });
+            // Behind the window showing the menu, at its level: no lower, or it would go
+            // behind the main window too.
+            if let Some(&(owner, owner_level, _)) = over {
+                keep_above(&window, active, level.min(owner_level));
+                if !aside.contains(&number) {
+                    window.orderWindow_relativeTo(NSWindowOrderingMode::Below, owner);
                 }
-                let frame = top_left_frame(&window, mtm);
-                let over = showing.iter().find(|(owner, areas)| {
-                    *owner != number && areas.iter().any(|a| overlaps(a, &frame))
-                });
-                if let Some(&(owner, _)) = over {
-                    keep_above(&window, false, NSNormalWindowLevel);
-                    if !aside.contains(&number) {
-                        window.orderWindow_relativeTo(NSWindowOrderingMode::Below, owner);
-                    }
-                    still.push(number);
-                    continue;
-                }
-                keep_above(&window, active, floating_level(!panel));
-                if hidden.contains(&number) {
-                    window.orderFront(None);
-                }
+                still.push(number);
+                continue;
+            }
+            keep_above(&window, active, level);
+            // Back from aside: behind the other floating windows, never over one opened
+            // from the menu (About).
+            if aside.contains(&number) {
+                window.orderBack(None);
+                back = true;
+            }
+            if hidden.contains(&number) {
+                window.orderFront(None);
             }
         }
         *aside = still;
+        // The window in use comes back to the front of the band.
+        if back
+            && let Some(key) = app.keyWindow()
+            && Some(&key) != main.as_ref()
+            && !aside.contains(&key.windowNumber())
+        {
+            key.orderFront(None);
+        }
         if !minimized {
             hidden.clear();
         }
@@ -2182,7 +2224,7 @@ mod imp {
             unsafe { window.setReleasedWhenClosed(false) };
             window.setTitle(&NSString::from_str(title));
             window.center();
-            keep_above(&window, true, floating_level(true));
+            keep_above(&window, true, band_level());
             watch_keys(window.windowNumber());
             let mut host = Self {
                 window,
@@ -2227,7 +2269,7 @@ mod imp {
         /// True once the user closed the window (ordered out, not merely minimized). Hides it
         /// while AudioStrada's main window is minimized or hidden, and shows it again after.
         pub fn poll(&mut self) -> bool {
-            keep_above(&self.window, audiostrada_active(), floating_level(true));
+            keep_above(&self.window, audiostrada_active(), band_level());
             if self.checked.elapsed() >= Duration::from_millis(200) {
                 self.checked = Instant::now();
                 let shown = main_shown(self.mtm);
@@ -2260,6 +2302,11 @@ mod imp {
             assert!(is_winit_window(b"NSKVONotifying_WinitWindow"));
             assert!(!is_winit_window(b"NSKVONotifying_TUINSWindow"));
             assert!(!is_winit_window(b"NSWindow"));
+        }
+
+        #[test]
+        fn panels_float_under_the_band_and_a_covered_main_window_above_it() {
+            assert!(panel_level() < band_level() && band_level() < over_all_level());
         }
     }
 }
