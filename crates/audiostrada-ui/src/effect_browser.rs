@@ -286,8 +286,17 @@ struct CardOut {
     star: bool,
 }
 
+/// Set when a browser opens, for the application to look for plugins installed meanwhile.
+static OPENED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether a browser opened since the last call.
+pub fn take_opened() -> bool {
+    OPENED.swap(false, std::sync::atomic::Ordering::Relaxed)
+}
+
 impl EffectBrowser {
     pub fn open(&mut self, target: Target) {
+        OPENED.store(true, std::sync::atomic::Ordering::Relaxed);
         self.raise = true;
         self.target = Some(target);
         self.filter.clear();

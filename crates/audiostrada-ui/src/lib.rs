@@ -453,6 +453,11 @@ pub struct AudioStradaApp {
     /// When the startup scan for new plugins starts: once the window is up, so that it does
     /// not slow the start down (the cached list serves meanwhile).
     scan_at: Option<std::time::Instant>,
+    /// The scan running looks for plugins installed while AudioStrada runs: its progress shows
+    /// only once it has files to scan.
+    scan_quiet: bool,
+    /// Since when no window of AudioStrada has the focus (another application in front).
+    background_since: Option<std::time::Instant>,
     recent: Vec<PathBuf>,
     pending: Option<Pending>,
     recovery: Option<RecoveryOffer>,
@@ -521,8 +526,9 @@ impl AudioStradaApp {
         for pane in &detached {
             layout::set_visible(&mut tree, *pane, false);
         }
-        let scan_at = audiostrada_plugins::enabled()
-            .then(|| std::time::Instant::now() + std::time::Duration::from_secs(3));
+        // Tests keep it at the start, as they expect.
+        let delay = std::time::Duration::from_secs(if cfg!(test) { 0 } else { 3 });
+        let scan_at = audiostrada_plugins::enabled().then(|| std::time::Instant::now() + delay);
         // AI assistants switched on in a previous session listen again.
         let control = if prefs.assistants {
             control::listen(prefs.assistants_port)
@@ -534,6 +540,8 @@ impl AudioStradaApp {
         Self {
             plugin_scan: None,
             scan_at,
+            scan_quiet: false,
+            background_since: None,
             host,
             views: Rc::new(RefCell::new(Views {
                 doc: Rc::clone(&doc),
@@ -1908,6 +1916,41 @@ impl AudioStradaApp {
         }
         self.views.borrow_mut().timeline.take_editor_keys(ctx);
         pressed_actions(ctx, &self.prefs.keymap)
+    }
+
+    /// Plugins installed while AudioStrada runs: when it comes back to the front after ten
+    /// seconds or more behind another application (an installer, say), or when the effect
+    /// browser opens, the plugin folders are listed again in the background, and what is new
+    /// is scanned there, quietly. Files still being written wait for the next time.
+    fn look_for_new_plugins(&mut self, ctx: &egui::Context) {
+        let active = ctx.input(|i| i.raw.viewports.values().any(|v| v.focused == Some(true)));
+        let came_back = match (active, self.background_since) {
+            (false, None) => {
+                self.background_since = Some(std::time::Instant::now());
+                false
+            }
+            (true, Some(since)) => {
+                self.background_since = None;
+                since.elapsed() >= std::time::Duration::from_secs(10)
+            }
+            _ => false,
+        };
+        let opened = effect_browser::take_opened();
+        // Tests set their own plugin list, which a scan would replace.
+        if cfg!(test)
+            || !(came_back || opened)
+            || self.plugin_scan.is_some()
+            || self.scan_at.is_some()
+            || !audiostrada_plugins::enabled()
+        {
+            return;
+        }
+        self.scan_quiet = true;
+        self.plugin_scan = Some(start_scan(
+            &mut self.hooks.plugin_scan,
+            self.prefs.plugin_dirs.clone(),
+            false,
+        ));
     }
 
     /// Help › Check for updates: the official builds ask the web site now; the others say
@@ -3583,6 +3626,7 @@ impl eframe::App for AudioStradaApp {
         {
             self.scan_at = None;
             if self.plugin_scan.is_none() {
+                self.scan_quiet = false;
                 self.plugin_scan = Some(start_scan(
                     &mut self.hooks.plugin_scan,
                     self.prefs.plugin_dirs.clone(),
@@ -3592,10 +3636,13 @@ impl eframe::App for AudioStradaApp {
         } else if let Some(at) = self.scan_at {
             ctx.request_repaint_after(at.saturating_duration_since(std::time::Instant::now()));
         }
+        self.look_for_new_plugins(ctx);
+        let quiet = self.scan_quiet;
         let progress = self
             .plugin_scan
             .as_ref()
-            .map(|s| std::sync::Arc::clone(&s.1));
+            .map(|s| std::sync::Arc::clone(&s.1))
+            .filter(|p| !quiet || p.counts().is_some_and(|(_, total)| total > 0));
         self.doc.borrow_mut().set_plugin_scan(progress);
         if self.plugin_scan.as_ref().is_some_and(|s| s.0.is_finished())
             && let Some(Ok(database)) = self.plugin_scan.take().map(|s| s.0.join())
@@ -3845,6 +3892,7 @@ impl eframe::App for AudioStradaApp {
             && self.plugin_scan.is_none()
             && audiostrada_plugins::enabled()
         {
+            self.scan_quiet = false;
             self.plugin_scan = Some(start_scan(
                 &mut self.hooks.plugin_scan,
                 self.prefs.plugin_dirs.clone(),

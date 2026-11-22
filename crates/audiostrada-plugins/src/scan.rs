@@ -199,6 +199,12 @@ fn is_bundle(path: &Path) -> bool {
     })
 }
 
+/// A file modified at `stamp` is still settling at `now` (seconds): less than `settle` ago.
+/// A date in the future (a wrong clock) does not hold it back.
+fn settling(stamp: u64, now: u64, settle: u64) -> bool {
+    stamp <= now && now - stamp < settle
+}
+
 fn modified(path: &Path) -> u64 {
     std::fs::metadata(path)
         .and_then(|m| m.modified())
@@ -263,6 +269,20 @@ impl Database {
 
     /// Files to scan: new or modified since the last scan. Removed files are forgotten.
     pub fn pending(&mut self, extra_dirs: &[PathBuf]) -> Vec<(Format, PathBuf)> {
+        self.pending_settled(extra_dirs, 0)
+    }
+
+    /// As [`Self::pending`], leaving out the files modified less than `settle` seconds ago:
+    /// an installer may still be writing them, and a plugin scanned half copied would fail.
+    /// They are taken by a later scan.
+    pub fn pending_settled(
+        &mut self,
+        extra_dirs: &[PathBuf],
+        settle: u64,
+    ) -> Vec<(Format, PathBuf)> {
+        let now = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
         let mut seen = Vec::new();
         let mut pending = Vec::new();
         for format in Format::ALL {
@@ -270,6 +290,10 @@ impl Database {
             dirs.extend(extra_dirs.iter().cloned());
             for path in find_files(format, &dirs) {
                 let stamp = modified(&path);
+                if settling(stamp, now, settle) {
+                    seen.push(path);
+                    continue;
+                }
                 // A scanner that did not start says nothing of the plugin: it is tried again.
                 if self.files.get(&path).is_none_or(|f| {
                     f.modified != stamp
@@ -344,6 +368,9 @@ impl Progress {
     }
 }
 
+/// Seconds a file of a background scan must have been left alone before it is scanned.
+const SETTLE: u64 = 10;
+
 /// Loads the cached database (or starts afresh when `full`), scans what changed in child
 /// processes of `exe`, and saves the result to `cache`.
 pub fn scan_in_background(
@@ -353,13 +380,36 @@ pub fn scan_in_background(
     full: bool,
     progress: Arc<Progress>,
 ) -> std::thread::JoinHandle<Database> {
+    scan_with(cache, extra_dirs, exe, full, 0, progress)
+}
+
+/// As [`scan_in_background`] for what changed since the last scan, while AudioStrada runs
+/// (at its start, or back from another application): files still being installed wait for a
+/// later scan (see [`Database::pending_settled`]).
+pub fn scan_new_in_background(
+    cache: PathBuf,
+    extra_dirs: Vec<PathBuf>,
+    exe: PathBuf,
+    progress: Arc<Progress>,
+) -> std::thread::JoinHandle<Database> {
+    scan_with(cache, extra_dirs, exe, false, SETTLE, progress)
+}
+
+fn scan_with(
+    cache: PathBuf,
+    extra_dirs: Vec<PathBuf>,
+    exe: PathBuf,
+    full: bool,
+    settle: u64,
+    progress: Arc<Progress>,
+) -> std::thread::JoinHandle<Database> {
     std::thread::spawn(move || {
         let mut database = if full {
             Database::default()
         } else {
             Database::load(&cache)
         };
-        let pending = database.pending(&extra_dirs);
+        let pending = database.pending_settled(&extra_dirs, settle);
         progress.total.store(pending.len(), Ordering::Relaxed);
         progress.listed.store(true, Ordering::Relaxed);
         for (format, path) in &pending {
@@ -478,6 +528,37 @@ pub fn scan_out_of_process(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn files_still_being_installed_wait_for_a_later_scan() {
+        let now = 1_000_000;
+        assert!(settling(now - 3, now, 10), "written 3 s ago: waits");
+        assert!(!settling(now - 10, now, 10), "left alone 10 s: scanned");
+        assert!(
+            !settling(now + 60, now, 10),
+            "a date in the future does not hold it back"
+        );
+        assert!(!settling(now, now, 0), "nothing waits without a delay");
+    }
+
+    #[test]
+    fn a_plugin_just_copied_is_scanned_once_it_has_settled() {
+        let dir = audiostrada_core::scratch::dir("scan-settle");
+        let file = dir.join("fresh.clap");
+        std::fs::write(&file, b"").unwrap();
+        let mut db = Database::default();
+        let extra = std::slice::from_ref(&dir);
+        assert!(
+            !db.pending_settled(extra, SETTLE)
+                .iter()
+                .any(|(_, p)| *p == file),
+            "just copied: left for later"
+        );
+        assert!(
+            db.pending(extra).iter().any(|(_, p)| *p == file),
+            "without a delay: taken"
+        );
+    }
 
     #[cfg(unix)]
     #[test]

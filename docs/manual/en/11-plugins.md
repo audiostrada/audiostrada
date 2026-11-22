@@ -15,7 +15,9 @@ do not run on Linux.
 New plugins are scanned in the background a few seconds after AudioStrada starts, at a low
 priority, so that the start is not slowed down. While the scan runs, the effect browser shows how
 far it is (and Preferences › Plugins too); the plugins already known can be used meanwhile, the
-new ones show when it ends, and a message names them.
+new ones show when it ends, and a message names them. A plugin installed while AudioStrada runs
+is found the same way when you come back to AudioStrada after the installer, or when the effect
+browser opens.
 
 From a terminal, `audiostrada plugins` lists the installed plugins, `--rescan` scans them again.
 

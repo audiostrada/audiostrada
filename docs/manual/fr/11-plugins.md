@@ -15,7 +15,9 @@ plugin. Les plugins Windows ne tournent pas sous Linux.
 Les nouveaux plugins sont analysés en arrière-plan quelques secondes après le démarrage
 d'AudioStrada, en basse priorité, pour ne pas le ralentir. Pendant le scan, le navigateur
 d'effets montre où il en est (Préférences › Plugins aussi) ; les plugins déjà connus restent
-utilisables, les nouveaux apparaissent à la fin et un message les nomme.
+utilisables, les nouveaux apparaissent à la fin et un message les nomme. Un plugin installé
+pendant qu'AudioStrada tourne est trouvé de la même façon quand vous revenez à AudioStrada après
+l'installeur, ou à l'ouverture du navigateur d'effets.
 
 Dans un terminal, `audiostrada plugins` liste les plugins installés, `--rescan` les analyse à
 nouveau.
