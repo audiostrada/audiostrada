@@ -2321,7 +2321,14 @@ impl AudioStradaApp {
             .detached
             .iter()
             .copied()
-            .filter(|&p| ctx.input_for(pane_window(p), |i| i.viewport().minimized == Some(true)))
+            .filter(|&p| {
+                ctx.input(|i| {
+                    i.raw
+                        .viewports
+                        .get(&pane_window(p))
+                        .is_some_and(|v| v.minimized == Some(true))
+                })
+            })
             .collect();
         self.inbox.borrow_mut().closed.extend(minimized);
     }
