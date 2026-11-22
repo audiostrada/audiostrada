@@ -1930,6 +1930,12 @@ mod imp {
         NSFloatingWindowLevel + NSWindowLevel::from(editor)
     }
 
+    /// The class of winit's windows, which key-value observing renames
+    /// (`NSKVONotifying_WinitWindow`): an exact match missed every floating window.
+    fn is_winit_window(class: &[u8]) -> bool {
+        class.ends_with(b"WinitWindow")
+    }
+
     /// At `level` while AudioStrada is in use, without taking the focus from it; at the normal
     /// level behind other applications.
     fn keep_above(window: &NSWindow, active: bool, level: NSWindowLevel) {
@@ -1989,8 +1995,7 @@ mod imp {
         // minimized state on macOS while running.
         let mut docked = Vec::new();
         for window in windows {
-            if Some(&window) != main.as_ref() && window.class().name().to_bytes() == b"WinitWindow"
-            {
+            if Some(&window) != main.as_ref() && is_winit_window(window.class().name().to_bytes()) {
                 let number = window.windowNumber();
                 if minimized {
                     if window.isVisible() {
@@ -2242,6 +2247,19 @@ mod imp {
         fn drop(&mut self) {
             forget_keys(self.window.windowNumber());
             self.window.close();
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn winit_windows_are_found_under_key_value_observing() {
+            assert!(is_winit_window(b"WinitWindow"));
+            assert!(is_winit_window(b"NSKVONotifying_WinitWindow"));
+            assert!(!is_winit_window(b"NSKVONotifying_TUINSWindow"));
+            assert!(!is_winit_window(b"NSWindow"));
         }
     }
 }
