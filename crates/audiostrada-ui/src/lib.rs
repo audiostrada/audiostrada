@@ -2215,6 +2215,7 @@ impl AudioStradaApp {
             }
             self.windows_changed = true;
         }
+        self.dock_minimized_panels(ctx);
         for pane in self.detached.clone() {
             let opened = *self.pane_opened.entry(pane).or_insert_with(|| {
                 self.prefs
@@ -2279,12 +2280,8 @@ impl AudioStradaApp {
                     .iter()
                     .find(|(p, _)| *p == pane)
                     .map(|(_, s)| *s);
-                // Minimized, the panel goes back into the main window, as when it is closed;
-                // hidden with the main window minimized, it stays. Its place is not kept then.
+                // Minimized, its place is not kept (see `dock_minimized_panels`).
                 let minimized = ctx.input(|i| i.viewport().minimized == Some(true));
-                let main_minimized = ctx.input_for(egui::ViewportId::ROOT, |i| {
-                    i.viewport().minimized == Some(true)
-                });
                 if !minimized
                     && let Some(state) =
                         ui_prefs::WindowState::read(&ctx, previous.or(Some(opened)))
@@ -2292,7 +2289,7 @@ impl AudioStradaApp {
                     inbox.windows.retain(|(p, _)| *p != pane);
                     inbox.windows.push((pane, state));
                 }
-                if ctx.input(|i| i.viewport().close_requested()) || (minimized && !main_minimized) {
+                if ctx.input(|i| i.viewport().close_requested()) {
                     inbox.closed.push(pane);
                     asked = true;
                 }
@@ -2309,6 +2306,23 @@ impl AudioStradaApp {
                 }
             });
         }
+    }
+
+    /// A detached panel minimized goes back into the main window, as when it is closed. Its
+    /// own window no longer runs once minimized (eframe draws nothing it would not show): the
+    /// main window looks, at each of its passes. Hidden with the main window minimized, a
+    /// panel stays.
+    fn dock_minimized_panels(&mut self, ctx: &egui::Context) {
+        if ctx.input(|i| i.viewport().minimized == Some(true)) {
+            return;
+        }
+        let minimized: Vec<Pane> = self
+            .detached
+            .iter()
+            .copied()
+            .filter(|&p| ctx.input_for(pane_window(p), |i| i.viewport().minimized == Some(true)))
+            .collect();
+        self.inbox.borrow_mut().closed.extend(minimized);
     }
 
     /// Runs what the panels asked for: menu commands, exports, detached windows' shortcuts.

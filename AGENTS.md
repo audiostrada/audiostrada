@@ -233,7 +233,8 @@ Windowing changes have broken another system almost every time, so:
 - [windowing.rs](crates/audiostrada-ui/src/windowing.rs) notes, at the end of every
   viewport's pass, the menus it shows (its `Foreground` areas while a popup is open) on the
   desktop, in the system's units. `stepping_aside` holds the rule, tested everywhere.
-- A detached panel minimized while the main window is not goes back in (`detached_windows`).
+- A detached panel minimized while the main window is not goes back in. The main window's
+  pass looks (`dock_minimized_panels`): eframe no longer runs a minimized viewport's callback.
 
 ### Windows
 
