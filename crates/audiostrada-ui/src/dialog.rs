@@ -96,12 +96,19 @@ impl<'a> Dialog<'a> {
                 spread: 0,
                 color: Color32::from_black_alpha(110),
             });
+        // A window of its own, except drawn inside the main one (tests, screenshots).
+        if !ctx.embed_viewports() {
+            if self.window(ctx, &p, &mut add) {
+                *open = false;
+            }
+            return;
+        }
         let width = self.width.min(ctx.content_rect().width() - 32.0);
         let mut closed = false;
         let mut content = |ui: &mut Ui, closed: &mut bool| {
             ui.set_width(width);
             ui.spacing_mut().item_spacing.y = 0.0;
-            if self.header(ui, &p, width) {
+            if self.header(ui, &p, width).0 {
                 *closed = true;
             }
             egui::Frame::new()
@@ -136,9 +143,117 @@ impl<'a> Dialog<'a> {
         }
     }
 
-    /// The title band; true when its close button was clicked.
-    fn header(&self, ui: &mut Ui, p: &Palette, width: f32) -> bool {
-        let (rect, _) = ui.allocate_exact_size(vec2(width, TITLE), Sense::hover());
+    /// Shows it in a window of its own, as the other floating windows: on any screen, in front
+    /// of them when opened, the transport's shortcuts working there. It opens centered on the
+    /// window it comes from and fits its content; it is moved by its title band. A modal one
+    /// dims that window and takes its clicks until it closes. True once closed.
+    fn window(
+        &self,
+        ctx: &egui::Context,
+        p: &Palette,
+        add: &mut impl FnMut(&mut Ui, Part),
+    ) -> bool {
+        let id = egui::ViewportId::from_hash_of(("dialog", self.id));
+        let size_key = egui::Id::unique(("dialog-size", self.id));
+        let place_key = egui::Id::unique(("dialog-place", self.id));
+        let width = self.width;
+        let size = ctx
+            .data(|d| d.get_temp::<egui::Vec2>(size_key))
+            .unwrap_or(vec2(width, 320.0));
+        // Chosen once per opening: a position that changes between frames moves the window.
+        let place = ctx
+            .data(|d| d.get_temp::<egui::Pos2>(place_key))
+            .or_else(|| {
+                let around = ctx.input(|i| i.viewport().outer_rect).or_else(|| {
+                    ctx.input_for(egui::ViewportId::ROOT, |i| i.viewport().outer_rect)
+                })?;
+                let place = (around.center() - size / 2.0).max(around.min);
+                ctx.data_mut(|d| d.insert_temp(place_key, place));
+                // Linux: a window opened over a floating one stayed behind it, unfocused.
+                if cfg!(all(unix, not(target_os = "macos"))) {
+                    ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Focus);
+                }
+                Some(place)
+            });
+        let mut builder = egui::ViewportBuilder::default()
+            .with_title(format!("{} — AudioStrada", self.title))
+            .with_inner_size(size)
+            .with_decorations(false)
+            .with_resizable(false);
+        if let Some(place) = place {
+            builder = builder.with_position(place);
+        }
+        let builder = crate::floating_builder(ctx, id, crate::Floating::Dialog, builder);
+        let modal = self.modal;
+        let closed = ctx.show_viewport_immediate(id, builder, |ui, _| {
+            let ctx = ui.ctx().clone();
+            let mut closed = ctx.input(|i| i.viewport().close_requested());
+            // Before the shortcuts, which may bind it.
+            if modal && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+                closed = true;
+            }
+            crate::window_shortcuts(&ctx);
+            let frame = egui::Frame::new()
+                .fill(p.panel)
+                .stroke(Stroke::new(1.0, p.border));
+            egui::CentralPanel::default().frame(frame).show(ui, |ui| {
+                ui.set_width(width);
+                ui.spacing_mut().item_spacing.y = 0.0;
+                let (close, band) = self.header(ui, p, width);
+                closed |= close;
+                if band.drag_started() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                }
+                egui::Frame::new()
+                    .inner_margin(egui::Margin::symmetric(20, 16))
+                    .show(ui, |ui| {
+                        ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+                        ui.set_width(width - 40.0);
+                        add(ui, Part::Body);
+                    });
+                footer(ui, p, width, |ui| add(ui, Part::Actions));
+                // The window follows its content.
+                let wanted = vec2(width, ui.min_rect().height().ceil());
+                let inner = ctx.input(|i| i.viewport().inner_rect.map(|r| r.size()));
+                if inner.is_some_and(|s| (s - wanted).abs().max_elem() > 1.0)
+                    && ctx.data(|d| d.get_temp::<egui::Vec2>(size_key)) != Some(wanted)
+                {
+                    ctx.data_mut(|d| d.insert_temp(size_key, wanted));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(wanted));
+                }
+            });
+            closed
+        });
+        if modal && !closed {
+            self.backdrop(ctx, id);
+        }
+        if closed {
+            ctx.data_mut(|d| d.remove::<egui::Pos2>(place_key));
+            ctx.request_repaint();
+        }
+        closed
+    }
+
+    /// Dims the window a modal dialog comes from and takes its clicks, which bring the dialog
+    /// to the front instead.
+    fn backdrop(&self, ctx: &egui::Context, dialog: egui::ViewportId) {
+        let rect = ctx.content_rect();
+        egui::Area::new(egui::Id::unique(("dialog-backdrop", self.id)))
+            .order(egui::Order::Foreground)
+            .fixed_pos(rect.min)
+            .show(ctx, |ui| {
+                ui.painter()
+                    .rect_filled(rect, 0.0, Color32::from_black_alpha(90));
+                if ui.allocate_rect(rect, Sense::click()).clicked() {
+                    ctx.send_viewport_cmd_to(dialog, egui::ViewportCommand::Focus);
+                }
+            });
+    }
+
+    /// The title band; true when its close button was clicked, and the band's response (a
+    /// drag on it moves a dialog's window).
+    fn header(&self, ui: &mut Ui, p: &Palette, width: f32) -> (bool, Response) {
+        let (rect, band) = ui.allocate_exact_size(vec2(width, TITLE), Sense::click_and_drag());
         let painter = ui.painter().clone();
         let bar = paint_header_band(&painter, p, rect, self.color.unwrap_or(p.accent));
         let (weak, detail) = (p.weak, self.detail.clone());
@@ -161,7 +276,7 @@ impl<'a> Dialog<'a> {
         );
         let close =
             Rect::from_center_size(pos2(bar.right() - 24.0, bar.center().y), vec2(28.0, 28.0));
-        glyph_button(
+        let closed = glyph_button(
             ui,
             close,
             ui.scope_id().with("dialog-close"),
@@ -170,7 +285,8 @@ impl<'a> Dialog<'a> {
             true,
         )
         .on_hover_text(crate::i18n::tr("Close"))
-        .clicked()
+        .clicked();
+        (closed, band)
     }
 }
 

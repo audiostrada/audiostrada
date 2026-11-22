@@ -676,6 +676,7 @@ dependencies = [
  "audiostrada-midi",
  "audiostrada-rt",
  "audiostrada-test-plugin",
+ "block2 0.6.2",
  "clack-extensions",
  "clack-host",
  "libc",

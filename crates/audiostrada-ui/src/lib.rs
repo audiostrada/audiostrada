@@ -76,6 +76,7 @@ mod updates_end;
 mod versions_window;
 mod video_capture;
 mod whats_new;
+mod windowing;
 pub(crate) use audiostrada_editors::widgets;
 
 #[cfg(test)]
@@ -2214,14 +2215,6 @@ impl AudioStradaApp {
             }
             self.windows_changed = true;
         }
-        // A panel's window closes at the end of the first frame it is not shown in: the
-        // windows it owns go to the main window before.
-        let shown = egui::Id::unique("detached-panels-shown");
-        let before: Vec<Pane> = ctx.data_mut(|d| d.get_temp(shown)).unwrap_or_default();
-        for pane in before.into_iter().filter(|p| !self.detached.contains(p)) {
-            release_panel_windows(&pane_window_title(pane));
-        }
-        ctx.data_mut(|d| d.insert_temp(shown, self.detached.clone()));
         for pane in self.detached.clone() {
             let opened = *self.pane_opened.entry(pane).or_insert_with(|| {
                 self.prefs
@@ -2286,11 +2279,20 @@ impl AudioStradaApp {
                     .iter()
                     .find(|(p, _)| *p == pane)
                     .map(|(_, s)| *s);
-                if let Some(state) = ui_prefs::WindowState::read(&ctx, previous.or(Some(opened))) {
+                // Minimized, the panel goes back into the main window, as when it is closed;
+                // hidden with the main window minimized, it stays. Its place is not kept then.
+                let minimized = ctx.input(|i| i.viewport().minimized == Some(true));
+                let main_minimized = ctx.input_for(egui::ViewportId::ROOT, |i| {
+                    i.viewport().minimized == Some(true)
+                });
+                if !minimized
+                    && let Some(state) =
+                        ui_prefs::WindowState::read(&ctx, previous.or(Some(opened)))
+                {
                     inbox.windows.retain(|(p, _)| *p != pane);
                     inbox.windows.push((pane, state));
                 }
-                if ctx.input(|i| i.viewport().close_requested()) {
+                if ctx.input(|i| i.viewport().close_requested()) || (minimized && !main_minimized) {
                     inbox.closed.push(pane);
                     asked = true;
                 }
@@ -3370,33 +3372,72 @@ fn set_plugin_window_parent(frame: &eframe::Frame) {
     audiostrada_plugins::window::set_parent(parent);
 }
 
+/// Linux: AudioStrada's windows besides the main one stay out of the taskbar, the pager and
+/// Alt+Tab. Checked when windows open, and every two seconds for those mapped later.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn keep_out_of_taskbar(ctx: &egui::Context) {
+    let count = ctx.input(|i| i.raw.viewports.len());
+    let now = ctx.input(|i| i.time);
+    let key = egui::Id::unique("taskbar-checked");
+    let (last_count, last_time) = ctx
+        .data(|d| d.get_temp::<(usize, f64)>(key))
+        .unwrap_or((0, f64::MIN));
+    if count > 1 && (count != last_count || now - last_time >= 2.0) {
+        ctx.data_mut(|d| d.insert_temp(key, (count, now)));
+        audiostrada_plugins::window::keep_out_of_taskbar(audiostrada_plugins::window::parent());
+    } else if count != last_count {
+        ctx.data_mut(|d| d.insert_temp(key, (count, last_time)));
+    }
+}
+
 /// On macOS the detached panels and editors float above the main window while AudioStrada is
 /// in use, so that they stay in front when it takes the focus; the main window rises above
 /// them while it shows a dialog. On Windows they are owned by it, as Reaper's floating windows
 /// are: above it, never behind, out of the taskbar and of Alt+Tab, minimized with it.
+/// On Windows, a window over a menu of another one steps aside until it closes (see
+/// [`windowing`]).
 #[cfg(any(target_os = "macos", windows))]
-fn keep_windows_above(frame: &eframe::Frame, detached: &[Pane]) {
+fn keep_windows_above(ctx: &egui::Context, frame: &eframe::Frame, detached: &[Pane]) {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     let handle = frame.window_handle().map(|h| h.as_raw());
     let panels: Vec<String> = detached.iter().map(|&p| pane_window_title(p)).collect();
+    // The menus of windows still open.
+    let menus: Vec<windowing::Menus> = windowing::menus()
+        .into_iter()
+        .filter(|m| ctx.input(|i| i.raw.viewports.contains_key(&m.viewport)))
+        .collect();
     #[cfg(target_os = "macos")]
     if let Ok(RawWindowHandle::AppKit(h)) = handle {
         let covered = MAIN_COVERED.load(Ordering::Relaxed);
-        audiostrada_plugins::window::keep_windows_above(h.ns_view.as_ptr(), &panels, covered);
+        let menus: Vec<(Option<String>, Vec<[f64; 4]>)> = menus
+            .into_iter()
+            .map(|m| {
+                let areas = m.areas.iter().map(|a| a.map(f64::from)).collect();
+                (m.title, areas)
+            })
+            .collect();
+        audiostrada_plugins::window::keep_windows_above(
+            h.ns_view.as_ptr(),
+            &panels,
+            covered,
+            &menus,
+        );
     }
     #[cfg(windows)]
     if let Ok(RawWindowHandle::Win32(h)) = handle {
-        audiostrada_plugins::window::own_windows(h.hwnd.get() as u64, &panels);
+        let menus: Vec<audiostrada_plugins::window::Menu> = menus
+            .into_iter()
+            .map(|m| audiostrada_plugins::window::Menu {
+                window: m.title,
+                areas: m
+                    .areas
+                    .iter()
+                    .map(|a| a.map(|v| v.round() as i32))
+                    .collect(),
+            })
+            .collect();
+        audiostrada_plugins::window::own_windows(h.hwnd.get() as u64, &panels, &menus);
     }
-}
-
-/// Windows: a detached panel's window is about to close; the windows it owns go to the main
-/// window first, or Windows would destroy them with it.
-fn release_panel_windows(title: &str) {
-    #[cfg(windows)]
-    audiostrada_plugins::window::release_windows(audiostrada_plugins::window::parent(), title);
-    #[cfg(not(windows))]
-    let _ = title;
 }
 
 /// A window besides the main one: its level (see [`floating_level`]) and, on Windows, no
@@ -3409,14 +3450,28 @@ pub(crate) fn floating_builder(
     kind: Floating,
     builder: egui::ViewportBuilder,
 ) -> egui::ViewportBuilder {
-    let builder = builder.with_window_level(floating_level(ctx, kind));
+    let builder = builder.with_window_level(floating_level(ctx, id, kind));
+    // Linux: hidden while the main window is minimized, as Windows and macOS do it
+    // themselves (see `keep_windows_above`).
+    let builder = if cfg!(all(unix, not(target_os = "macos"))) {
+        let minimized = ctx.input_for(egui::ViewportId::ROOT, |i| {
+            i.viewport().minimized == Some(true)
+        });
+        builder.with_visible(!minimized)
+    } else {
+        builder
+    };
     if !cfg!(windows) {
         return builder;
     }
-    let builder = builder.with_taskbar(false).with_minimize_button(false);
+    // A panel minimized goes back into the main window (see `detached_windows`): it keeps its
+    // minimize box. Another owned window would minimize to a stub over the taskbar.
+    let builder = builder
+        .with_taskbar(false)
+        .with_minimize_button(kind == Floating::Panel);
     let opener = match kind {
         Floating::Panel => egui::ViewportId::ROOT,
-        Floating::Browser | Floating::Editor(_) => ctx.viewport_id(),
+        Floating::Browser | Floating::Editor(_) | Floating::Dialog => ctx.viewport_id(),
     };
     if builder.position.is_some() {
         return builder;
@@ -3446,15 +3501,24 @@ pub(crate) enum Floating {
     Editor(egui::ViewportId),
     /// A detached panel.
     Panel,
+    /// A dialog (see [`dialog::Dialog`]), shown from the viewport drawing it.
+    Dialog,
 }
 
 /// Whether the main window shows a menu, a popup or a dialog that floating windows must not
 /// cover, as of its last frame.
 static MAIN_COVERED: AtomicBool = AtomicBool::new(false);
 
-/// Lowers the floating windows under the main one while it shows a menu or a dialog: they
-/// drop to the normal level, then the main window comes to the front once (Linux). On macOS
-/// the main window rises above them instead, for dialogs only, in [`keep_windows_above`].
+thread_local! {
+    /// Linux: the floating windows stepped aside for a menu, and the window showing it.
+    static ASIDE: RefCell<Vec<(egui::ViewportId, egui::ViewportId)>> =
+        const { RefCell::new(Vec::new()) };
+}
+
+/// Lowers the floating windows under a window showing a menu or a dialog (Linux): those over
+/// one of its menus (see [`windowing::stepping_aside`]) or, for a dialog drawn inside the main
+/// window, all of them drop to the normal level, then that window comes to the front once. On
+/// macOS the main window rises above them instead, for dialogs only, in [`keep_windows_above`].
 fn uncover_main(ctx: &egui::Context) {
     if cfg!(windows) {
         return;
@@ -3472,19 +3536,56 @@ fn uncover_main(ctx: &egui::Context) {
         }
         return;
     }
-    let covered = ctx.any_popup_open() || dialog;
-    MAIN_COVERED.store(covered, Ordering::Relaxed);
-    let id = egui::Id::unique("main-covered-frames");
-    let frames = ctx.data_mut(|d| {
-        let f = d.get_temp_mut_or_default::<u8>(id);
-        *f = if covered { f.saturating_add(1) } else { 0 };
-        *f
+    MAIN_COVERED.store(dialog, Ordering::Relaxed);
+    let viewports: Vec<egui::ViewportId> = ctx.input(|i| i.raw.viewports.keys().copied().collect());
+    let menus: Vec<(egui::ViewportId, Vec<windowing::Area>)> = windowing::menus()
+        .into_iter()
+        .filter(|m| viewports.contains(&m.viewport))
+        .map(|m| (m.viewport, m.areas))
+        .collect();
+    let windows: Vec<(egui::ViewportId, windowing::Area)> = viewports
+        .iter()
+        .filter(|&&v| v != egui::ViewportId::ROOT)
+        .filter_map(|&v| Some((v, windowing::outer_area(ctx, v)?)))
+        .collect();
+    let aside = windowing::stepping_aside(&windows, &menus);
+    let raised: Vec<egui::ViewportId> = ASIDE.with(|a| {
+        let before = std::mem::replace(&mut *a.borrow_mut(), aside.clone());
+        aside
+            .iter()
+            .filter(|k| !before.contains(k))
+            .map(|&(_, owner)| owner)
+            .collect()
     });
-    // The levels change on this frame, the main window comes up on a later one.
+    // The levels change on this frame, the window showing the menu comes up on a later one.
+    let id = egui::Id::unique("covered-frames");
+    let covering = dialog
+        .then_some(egui::ViewportId::ROOT)
+        .or(raised.first().copied());
+    let (frames, owner) = ctx.data_mut(|d| {
+        let (f, o) = d.get_temp_mut_or_default::<(u8, Option<egui::ViewportId>)>(id);
+        if let Some(c) = covering {
+            *o = Some(c);
+        }
+        *f = if dialog || !aside.is_empty() {
+            f.saturating_add(1)
+        } else {
+            0
+        };
+        (*f, *o)
+    });
     #[cfg(all(unix, not(target_os = "macos")))]
     if frames == 3 {
-        audiostrada_plugins::window::raise_parent();
+        match owner {
+            Some(v) if v != egui::ViewportId::ROOT => {
+                if let Some(title) = ctx.input_for(v, |i| i.viewport().title.clone()) {
+                    audiostrada_plugins::window::raise_titled(&title);
+                }
+            }
+            _ => audiostrada_plugins::window::raise_parent(),
+        }
     }
+    let _ = owner;
     if (1..3).contains(&frames) {
         ctx.request_repaint();
     }
@@ -3492,21 +3593,27 @@ fn uncover_main(ctx: &egui::Context) {
 
 /// Level of AudioStrada's windows besides the main one. macOS and Windows keep them above it
 /// themselves while AudioStrada is in use (see [`keep_windows_above`]). Elsewhere the browser
-/// floats, an editor floats while the main window, its own or the one drawing it has the
-/// focus, and panels stay normal; none floats over a menu, a dialog or a file chooser.
-pub(crate) fn floating_level(ctx: &egui::Context, kind: Floating) -> egui::WindowLevel {
+/// and dialogs float, an editor floats while the main window, its own or the one drawing it
+/// has the focus, and panels stay normal; none floats over a dialog or a file chooser, nor
+/// over a menu it covers (see [`uncover_main`]).
+pub(crate) fn floating_level(
+    ctx: &egui::Context,
+    id: egui::ViewportId,
+    kind: Floating,
+) -> egui::WindowLevel {
     if cfg!(windows) {
         return egui::WindowLevel::Normal;
     }
     if cfg!(target_os = "macos") {
         return egui::WindowLevel::AlwaysOnTop;
     }
-    if MAIN_COVERED.load(Ordering::Relaxed) || dialogs::any_open() {
+    let aside = ASIDE.with(|a| a.borrow().iter().any(|&(w, _)| w == id));
+    if aside || MAIN_COVERED.load(Ordering::Relaxed) || dialogs::any_open() {
         return egui::WindowLevel::Normal;
     }
     let focused = |v| ctx.input_for(v, |i| i.viewport().focused.unwrap_or(false));
     let floats = match kind {
-        Floating::Browser => true,
+        Floating::Browser | Floating::Dialog => true,
         Floating::Editor(id) => {
             focused(egui::ViewportId::ROOT) || focused(ctx.viewport_id()) || focused(id)
         }
@@ -3596,6 +3703,7 @@ impl eframe::App for AudioStradaApp {
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if !self.prefs_applied {
             set_plugin_window_parent(frame);
+            windowing::install(ctx);
             self.prefs.keymap.upgrade();
             self.prefs.apply(ctx);
             self.prefs_applied = true;
@@ -3619,7 +3727,9 @@ impl eframe::App for AudioStradaApp {
             self.doc.borrow_mut().note_dropouts(status.xruns());
         }
         #[cfg(any(target_os = "macos", windows))]
-        keep_windows_above(frame, &self.detached);
+        keep_windows_above(ctx, frame, &self.detached);
+        #[cfg(all(unix, not(target_os = "macos")))]
+        keep_out_of_taskbar(ctx);
         if self
             .scan_at
             .is_some_and(|at| std::time::Instant::now() >= at)

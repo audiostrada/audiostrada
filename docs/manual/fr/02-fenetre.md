@@ -40,7 +40,14 @@ vert quand ils peuvent piloter AudioStrada. Un clic ouvre leur fenêtre (voir *A
 
 Glissez un onglet pour réorganiser les panneaux. Clic droit sur un onglet › *Ouvrir dans sa
 propre fenêtre* met un panneau sur un autre écran (le Mixer en général, [[Ctrl+M]]) ; fermer
-cette fenêtre le remet en place.
+ou réduire cette fenêtre le remet en place.
+
+Les autres fenêtres (effets, plugins, navigateur d'effets, Express Mix, Préférences et les autres
+dialogues) flottent au-dessus de la fenêtre principale et des panneaux, la dernière ouverte
+devant, et vont sur n'importe quel écran. Tant qu'un menu est ouvert, une fenêtre posée dessus
+s'écarte jusqu'à sa fermeture. Elles se masquent avec la fenêtre principale quand elle est
+réduite : la barre des tâches, le Dock et [[Alt+Tab]] ne montrent que la fenêtre principale
+d'AudioStrada.
 
 Affichage › *Disposition* passe d'un agencement à l'autre parmi ceux proposés au premier
 lancement, aussi depuis la palette de commandes :
