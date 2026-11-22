@@ -31,7 +31,7 @@ use objc2_core_audio::{
     kAudioObjectPropertyScopeInput, kAudioObjectPropertyScopeOutput, kAudioObjectUnknown,
 };
 use objc2_core_audio_types::{
-    AudioBuffer, AudioBufferList, AudioStreamBasicDescription, AudioTimeStamp,
+    AudioBuffer, AudioBufferList, AudioStreamBasicDescription, AudioTimeStamp, AudioTimeStampFlags,
     kAudioFormatFlagIsFloat, kAudioFormatFlagIsNonInterleaved, kAudioFormatFlagIsPacked,
     kAudioFormatLinearPCM,
 };
@@ -397,6 +397,28 @@ struct Duplex {
     in_ptrs: Vec<*const f32>,
     out_ptrs: Vec<*mut f32>,
     runner: CallbackRunner,
+    gaps: Gaps,
+}
+
+/// Cycles the device played without us: CoreAudio says nothing when a callback comes late,
+/// but the next one starts further on than where the last one ended.
+#[derive(Default)]
+struct Gaps {
+    next: Option<f64>,
+}
+
+impl Gaps {
+    /// True when the cycle starting at `time` skipped some of the device's samples.
+    fn missed(&mut self, time: &AudioTimeStamp, frames: u32) -> bool {
+        if !time.mFlags.contains(AudioTimeStampFlags::SampleTimeValid) {
+            self.next = None;
+            return false;
+        }
+        let start = time.mSampleTime;
+        let missed = self.next.is_some_and(|next| start > next + 0.5);
+        self.next = Some(start + f64::from(frames));
+        missed
+    }
 }
 
 impl Duplex {
@@ -410,6 +432,10 @@ impl Duplex {
         let n = frames as usize;
         if n > MAX_FRAMES {
             return -1;
+        }
+        // SAFETY: CoreAudio hands a valid timestamp to the callback.
+        if self.gaps.missed(unsafe { time.as_ref() }, frames) {
+            self.runner.status().add_xruns(1);
         }
         if let Some(input) = &mut self.input {
             // SAFETY: called from this unit's callback with its own arguments.
@@ -695,6 +721,7 @@ impl CoreAudioBackend {
             in_ptrs,
             out_ptrs: vec![ptr::null_mut(); outputs],
             runner,
+            gaps: Gaps::default(),
         });
         let refcon = ptr::from_mut(duplex.as_mut()).cast();
         unit.set_callback(hw_out == 0, duplex_proc, refcon)?;
@@ -785,5 +812,38 @@ impl AudioStream for CoreAudioStream {
 
     fn status(&self) -> &StreamStatus {
         &self.status
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn at(sample: f64) -> AudioTimeStamp {
+        // SAFETY: a plain C struct, all zeros valid.
+        let mut time: AudioTimeStamp = unsafe { std::mem::zeroed() };
+        time.mSampleTime = sample;
+        time.mFlags = AudioTimeStampFlags::SampleTimeValid;
+        time
+    }
+
+    #[test]
+    fn a_cycle_starting_after_the_last_one_ended_is_a_dropout() {
+        let mut gaps = Gaps::default();
+        assert!(!gaps.missed(&at(1000.0), 256));
+        assert!(!gaps.missed(&at(1256.0), 256));
+        // One cycle of 256 frames played without a callback.
+        assert!(gaps.missed(&at(1768.0), 256));
+        assert!(!gaps.missed(&at(2024.0), 256));
+    }
+
+    #[test]
+    fn a_timestamp_without_sample_time_starts_counting_again() {
+        let mut gaps = Gaps::default();
+        assert!(!gaps.missed(&at(0.0), 256));
+        // SAFETY: as in `at`.
+        let unknown: AudioTimeStamp = unsafe { std::mem::zeroed() };
+        assert!(!gaps.missed(&unknown, 256));
+        assert!(!gaps.missed(&at(90_000.0), 256));
     }
 }
