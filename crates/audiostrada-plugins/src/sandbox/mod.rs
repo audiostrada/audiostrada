@@ -58,6 +58,23 @@ enum Request {
 }
 
 impl Request {
+    /// Whether it may be served while the plugin runs a modal loop of its own (its preset
+    /// browser, a file chooser, a menu): what an in-process host also asks from its timers
+    /// meanwhile. Loading, opening or closing the window, starting or stopping the audio wait
+    /// for the loop to end, so as not to pull the plugin's editor from under it.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    fn served_in_modal_loops(&self) -> bool {
+        !matches!(
+            self,
+            Self::Load(_)
+                | Self::LoadState(_)
+                | Self::OpenGui(..)
+                | Self::CloseGui
+                | Self::Activate { .. }
+                | Self::Deactivate
+        )
+    }
+
     /// For the log, without the payload (a state can weigh megabytes).
     fn name(&self) -> &'static str {
         match self {
@@ -858,9 +875,58 @@ fn serve(
     }
 }
 
+/// Answers one request on stdout; false once AudioStrada is gone.
+fn answer(host: &mut Host, id: u64, request: Request) -> bool {
+    let response = host.handle(request);
+    let line = serde_json::to_string(&(id, response)).unwrap_or_default();
+    let mut out = std::io::stdout().lock();
+    writeln!(out, "{PREFIX}{line}")
+        .and_then(|()| out.flush())
+        .is_ok()
+}
+
 /// Entry point of `audiostrada plugin-host`: serves one plugin until stdin closes.
 pub fn run_host() -> i32 {
+    use std::cell::{Cell, RefCell};
+    use std::rc::Rc;
+
     let (tx, requests) = mpsc::channel::<(u64, Request)>();
+    let requests = Rc::new(requests);
+    let host = Rc::new(RefCell::new(Host::default()));
+    // A request that waited for the end of a plugin's modal loop.
+    let held: Rc<RefCell<Option<(u64, Request)>>> = Rc::new(RefCell::new(None));
+    let gone = Rc::new(Cell::new(false));
+    #[cfg(windows)]
+    let modal = {
+        let (host, requests, held, gone) = (
+            Rc::clone(&host),
+            Rc::clone(&requests),
+            Rc::clone(&held),
+            Rc::clone(&gone),
+        );
+        messages::serve_in_modal_loops(Box::new(move || {
+            // A request being served started the loop: the others wait for it.
+            let Ok(mut host) = host.try_borrow_mut() else {
+                return;
+            };
+            if held.borrow().is_some() || gone.get() {
+                return;
+            }
+            while let Ok((id, request)) = requests.try_recv() {
+                if !request.served_in_modal_loops() {
+                    *held.borrow_mut() = Some((id, request));
+                    return;
+                }
+                if !answer(&mut host, id, request) {
+                    gone.set(true);
+                    return;
+                }
+            }
+        }))
+    };
+    #[cfg(windows)]
+    let waker = messages::Waker::new(modal);
+    #[cfg(not(windows))]
     let waker = messages::Waker::new();
     std::thread::spawn(move || {
         for line in std::io::stdin().lock().lines() {
@@ -878,23 +944,26 @@ pub fn run_host() -> i32 {
         drop(tx);
         waker.wake();
     });
-    let mut host = Host::default();
     loop {
-        match messages::next_request(&requests, Duration::from_millis(10)) {
+        let waiting = held.borrow_mut().take();
+        let next = match waiting {
+            Some(request) => Ok(request),
+            None => messages::next_request(&requests, Duration::from_millis(10)),
+        };
+        if gone.get() {
+            break;
+        }
+        match next {
             Ok((id, request)) => {
-                let response = host.handle(request);
-                let line = serde_json::to_string(&(id, response)).unwrap_or_default();
-                let mut out = std::io::stdout().lock();
-                if writeln!(out, "{PREFIX}{line}")
-                    .and_then(|()| out.flush())
-                    .is_err()
-                {
+                if !answer(&mut host.borrow_mut(), id, request) {
                     break;
                 }
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {}
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
+        let mut host = host.borrow_mut();
+        let host = &mut *host;
         if let Some(instance) = &mut host.instance {
             host.pending.extend(instance.poll());
         }
@@ -904,7 +973,7 @@ pub fn run_host() -> i32 {
         std::thread::sleep(Duration::from_secs(3));
         std::process::exit(0);
     });
-    host.shutdown();
+    host.borrow_mut().shutdown();
     0
 }
 
@@ -915,14 +984,88 @@ mod messages {
     use std::time::Duration;
 
     #[cfg(windows)]
+    use std::cell::{Cell, RefCell};
+
+    #[cfg(windows)]
     use windows::Win32::{
-        Foundation::{LPARAM, WPARAM},
-        System::Threading::GetCurrentThreadId,
+        Foundation::{HWND, LPARAM, LRESULT, WPARAM},
+        System::{LibraryLoader::GetModuleHandleW, Threading::GetCurrentThreadId},
         UI::WindowsAndMessaging::{
-            DispatchMessageW, MSG, MsgWaitForMultipleObjects, PM_NOREMOVE, PM_REMOVE, PeekMessageW,
-            PostThreadMessageW, QS_ALLINPUT, TranslateMessage, WM_NULL,
+            CreateWindowExW, DefWindowProcW, DispatchMessageW, HWND_MESSAGE, MSG,
+            MsgWaitForMultipleObjects, PM_NOREMOVE, PM_REMOVE, PeekMessageW, PostMessageW,
+            PostThreadMessageW, QS_ALLINPUT, RegisterClassW, SetTimer, TranslateMessage,
+            WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_NULL, WM_TIMER, WNDCLASSW,
         },
     };
+    #[cfg(windows)]
+    use windows::core::w;
+
+    #[cfg(windows)]
+    thread_local! {
+        /// What serves the requests from inside a plugin's modal loop (see
+        /// [`serve_in_modal_loops`]), and the window whose message [`dispatch`] hands on.
+        static SERVE: RefCell<Option<Box<dyn FnMut()>>> = const { RefCell::new(None) };
+        static DISPATCHING: Cell<isize> = const { Cell::new(0) };
+    }
+
+    /// The window receiving [`Waker::wake`]'s messages and a timer's, in a plugin's modal
+    /// loop too.
+    #[cfg(windows)]
+    #[derive(Clone, Copy)]
+    pub struct Modal(isize);
+
+    /// Windows: a plugin running a modal loop of its own (its preset browser, a file chooser,
+    /// a menu) keeps this thread inside it, in `dispatch`, until it closes, and the requests
+    /// waited: after 10 s AudioStrada stopped the host as not responding. Such a loop still
+    /// dispatches the messages of this thread's windows: a hidden one, woken with each
+    /// request and by a timer, has `serve` answer them from inside it.
+    #[cfg(windows)]
+    pub fn serve_in_modal_loops(serve: Box<dyn FnMut()>) -> Option<Modal> {
+        unsafe extern "system" fn procedure(h: HWND, m: u32, w: WPARAM, l: LPARAM) -> LRESULT {
+            // Not when `dispatch` hands this window's own message on: the main loop serves
+            // then. Inside another window's message, a plugin's loop runs.
+            if (m == WM_APP || m == WM_TIMER) && DISPATCHING.with(Cell::get) != h.0 as isize {
+                SERVE.with(|serve| {
+                    if let Ok(mut serve) = serve.try_borrow_mut()
+                        && let Some(serve) = serve.as_mut()
+                    {
+                        serve();
+                    }
+                });
+                return LRESULT(0);
+            }
+            // SAFETY: default handling, with what Windows handed us.
+            unsafe { DefWindowProcW(h, m, w, l) }
+        }
+        SERVE.with(|s| *s.borrow_mut() = Some(serve));
+        // SAFETY: plain Win32 calls on this thread, with valid arguments.
+        unsafe {
+            let instance = GetModuleHandleW(None).ok()?.into();
+            RegisterClassW(&WNDCLASSW {
+                lpfnWndProc: Some(procedure),
+                hInstance: instance,
+                lpszClassName: w!("AudioStradaPluginHostRequests"),
+                ..Default::default()
+            });
+            let window = CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("AudioStradaPluginHostRequests"),
+                w!(""),
+                WINDOW_STYLE::default(),
+                0,
+                0,
+                0,
+                0,
+                Some(HWND_MESSAGE),
+                None,
+                Some(instance),
+                None,
+            )
+            .ok()?;
+            SetTimer(Some(window), 1, 100, None);
+            Some(Modal(window.0 as isize))
+        }
+    }
 
     /// Wakes the main thread when a request arrives.
     #[cfg(all(not(windows), not(target_os = "macos")))]
@@ -963,26 +1106,32 @@ mod messages {
         requests.recv_timeout(timeout)
     }
 
-    /// Wakes the main thread when a request arrives, with a thread message.
+    /// Wakes the main thread when a request arrives, with a thread message, and the window
+    /// serving requests inside a plugin's modal loop, where thread messages are lost.
     #[cfg(windows)]
-    pub struct Waker(u32);
+    pub struct Waker(u32, Option<Modal>);
 
     #[cfg(windows)]
     impl Waker {
         /// On the main thread, whose message queue it creates.
-        pub fn new() -> Self {
+        pub fn new(modal: Option<Modal>) -> Self {
             let mut msg = MSG::default();
             // SAFETY: plain Win32 calls on the current thread.
             unsafe {
                 let _ = PeekMessageW(&mut msg, None, 0, 0, PM_NOREMOVE);
-                Self(GetCurrentThreadId())
+                Self(GetCurrentThreadId(), modal)
             }
         }
 
         pub fn wake(&self) {
-            // SAFETY: plain Win32 call; a lost message only delays the request to the timeout.
+            // SAFETY: plain Win32 calls; a lost message only delays the request to the timeout
+            // (or to the timer, in a modal loop).
             unsafe {
                 let _ = PostThreadMessageW(self.0, WM_NULL, WPARAM(0), LPARAM(0));
+                if let Some(Modal(window)) = self.1 {
+                    let window = HWND(window as *mut std::ffi::c_void);
+                    let _ = PostMessageW(Some(window), WM_APP, WPARAM(0), LPARAM(0));
+                }
             }
         }
     }
@@ -1121,8 +1270,98 @@ mod messages {
                 && PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool()
             {
                 let _ = TranslateMessage(&msg);
+                // Which window's message is handed on, for `serve_in_modal_loops`.
+                let before = DISPATCHING.with(|d| d.replace(msg.hwnd.0 as isize));
                 DispatchMessageW(&msg);
+                DISPATCHING.with(|d| d.set(before));
             }
+        }
+    }
+
+    #[cfg(all(test, windows))]
+    #[allow(clippy::unwrap_used)]
+    mod tests {
+        use std::cell::Cell;
+        use std::rc::Rc;
+        use std::time::{Duration, Instant};
+
+        use windows::Win32::UI::WindowsAndMessaging::{DestroyWindow, WM_USER};
+
+        use super::*;
+
+        /// A plugin's window that runs a modal loop of its own for 300 ms when it gets
+        /// `WM_USER`, as a preset browser or a file chooser does.
+        unsafe extern "system" fn plugin(h: HWND, m: u32, w: WPARAM, l: LPARAM) -> LRESULT {
+            if m == WM_USER {
+                let start = Instant::now();
+                let mut msg = MSG::default();
+                while start.elapsed() < Duration::from_millis(300) {
+                    // SAFETY: standard message pumping on this thread's queue.
+                    unsafe {
+                        while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                            let _ = TranslateMessage(&msg);
+                            DispatchMessageW(&msg);
+                        }
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                return LRESULT(0);
+            }
+            // SAFETY: default handling, with what Windows handed us.
+            unsafe { DefWindowProcW(h, m, w, l) }
+        }
+
+        #[test]
+        fn requests_are_served_inside_a_plugins_modal_loop_only() {
+            let served = Rc::new(Cell::new(0));
+            let counted = Rc::clone(&served);
+            let modal =
+                serve_in_modal_loops(Box::new(move || counted.set(counted.get() + 1))).unwrap();
+            let waker = Waker::new(Some(modal));
+            // Out of any modal loop the main loop serves: the window leaves the request.
+            waker.wake();
+            dispatch();
+            assert_eq!(served.get(), 0, "served by the main loop");
+            // SAFETY: plain Win32 calls with valid arguments, on this test's thread.
+            let window = unsafe {
+                let instance = GetModuleHandleW(None).unwrap().into();
+                RegisterClassW(&WNDCLASSW {
+                    lpfnWndProc: Some(plugin),
+                    hInstance: instance,
+                    lpszClassName: w!("TestPluginModalLoop"),
+                    ..Default::default()
+                });
+                let window = CreateWindowExW(
+                    WINDOW_EX_STYLE::default(),
+                    w!("TestPluginModalLoop"),
+                    w!(""),
+                    WINDOW_STYLE::default(),
+                    0,
+                    0,
+                    0,
+                    0,
+                    Some(HWND_MESSAGE),
+                    None,
+                    Some(instance),
+                    None,
+                )
+                .unwrap();
+                PostMessageW(Some(window), WM_USER, WPARAM(0), LPARAM(0)).unwrap();
+                window
+            };
+            // A request while the plugin's loop runs, posted from the thread reading them.
+            let (tx, rx) = std::sync::mpsc::channel::<()>();
+            let posted = std::thread::spawn(move || {
+                rx.recv().unwrap();
+                std::thread::sleep(Duration::from_millis(50));
+                waker.wake();
+            });
+            tx.send(()).unwrap();
+            dispatch();
+            posted.join().unwrap();
+            assert!(served.get() >= 1, "served from inside the plugin's loop");
+            // SAFETY: the test's window, destroyed once.
+            let _ = unsafe { DestroyWindow(window) };
         }
     }
 }
