@@ -1858,6 +1858,7 @@ mod imp {
     use std::time::{Duration, Instant};
 
     use objc2::rc::Retained;
+    use objc2::runtime::NSObjectProtocol;
     use objc2::{MainThreadMarker, MainThreadOnly};
     use objc2_app_kit::{
         NSApplication, NSBackingStoreType, NSEvent, NSEventMask, NSEventModifierFlags,
@@ -2314,6 +2315,23 @@ mod imp {
         })
     }
 
+    /// Lets the plugin host `pid` make itself the active application when it raises its
+    /// window: since macOS 14 the active application has to yield it.
+    pub fn allow_foreground(pid: u32) {
+        let Some(mtm) = MainThreadMarker::new() else {
+            return;
+        };
+        let app = NSApplication::sharedApplication(mtm);
+        if !app.respondsToSelector(objc2::sel!(yieldActivationToApplication:)) {
+            return;
+        }
+        if let Some(host) =
+            NSRunningApplication::runningApplicationWithProcessIdentifier(pid as libc::pid_t)
+        {
+            app.yieldActivationToApplication(&host);
+        }
+    }
+
     /// An AppKit window whose content view holds the plugin's editor. Its process cannot be
     /// owned by AudioStrada's window (another process): it floats above AudioStrada's windows
     /// while AudioStrada is in use instead.
@@ -2373,9 +2391,15 @@ mod imp {
         pub fn raise(&mut self) {
             self.hidden = false;
             self.window.makeKeyAndOrderFront(None);
-            // `activate` only exists from macOS 14 on.
-            #[allow(deprecated)]
-            NSApplication::sharedApplication(self.mtm).activateIgnoringOtherApps(true);
+            let app = NSApplication::sharedApplication(self.mtm);
+            // From macOS 14 on, activation is cooperative: AudioStrada yields it first (see
+            // `allow_foreground`), and the forced activation is ignored.
+            if app.respondsToSelector(objc2::sel!(activate)) {
+                app.activate();
+            } else {
+                #[allow(deprecated)]
+                app.activateIgnoringOtherApps(true);
+            }
         }
 
         /// AudioStrada's keys pressed in the window since the last call (see `watch_keys`).
@@ -2437,11 +2461,11 @@ mod imp {
 
 pub use imp::HostWindow;
 
-/// Lets a plugin host bring its window to the front (Windows; nothing elsewhere).
+/// Lets a plugin host bring its window to the front (Windows and macOS; nothing elsewhere).
 pub fn allow_foreground(pid: u32) {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     imp::allow_foreground(pid);
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     let _ = pid;
 }
 #[cfg(all(unix, not(target_os = "macos")))]
