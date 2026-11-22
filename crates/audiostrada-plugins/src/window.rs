@@ -460,11 +460,11 @@ mod imp {
         DestroyWindow, EnumThreadWindows, EnumWindows, GWL_EXSTYLE, GWLP_HWNDPARENT, GetClassNameW,
         GetForegroundWindow, GetPropW, GetWindowLongPtrW, GetWindowRect, GetWindowTextW,
         GetWindowThreadProcessId, HWND_NOTOPMOST, HWND_TOP, HWND_TOPMOST, IsIconic, IsWindow,
-        IsWindowVisible, RegisterClassW, RemovePropW, SW_HIDE, SW_SHOW, SW_SHOWNOACTIVATE,
-        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetForegroundWindow, SetPropW,
-        SetWindowLongPtrW, SetWindowPos, ShowWindow, WINDOW_EX_STYLE, WINDOW_STYLE, WM_CLOSE,
-        WNDCLASSW, WS_CAPTION, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_OVERLAPPED,
-        WS_SYSMENU,
+        IsWindowVisible, IsZoomed, RegisterClassW, RemovePropW, SW_HIDE, SW_MAXIMIZE, SW_SHOW,
+        SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+        SetForegroundWindow, SetPropW, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+        WINDOW_EX_STYLE, WINDOW_STYLE, WM_CLOSE, WNDCLASSW, WS_CAPTION, WS_EX_APPWINDOW,
+        WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_OVERLAPPED, WS_SYSMENU,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         CallNextHookEx, GA_ROOT, GetAncestor, MSG, SetWindowsHookExW, WH_GETMESSAGE, WM_KEYDOWN,
@@ -928,10 +928,35 @@ mod imp {
         let mut sorted: Vec<HWND> = floating.iter().copied().filter(|&w| !is_aside(w)).collect();
         sorted.sort_by_key(|&w| std::cmp::Reverse(rank(w)));
         let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
+        // Back from aside: behind the windows of the band, not over a window opened meanwhile
+        // (About chosen in the menu it stepped aside for).
+        let returning: Vec<HWND> = before
+            .iter()
+            .map(|&(w, _)| handle_of(w))
+            .filter(|&w| floating.contains(&w) && !is_aside(w))
+            .collect();
         match band {
             Some(Band::Top) => {
-                for &window in sorted.iter().filter(|&&w| !is_topmost(w)) {
+                for &window in sorted
+                    .iter()
+                    .filter(|&&w| !is_topmost(w) && !returning.contains(&w))
+                {
                     place_behind(window, None);
+                }
+                if !returning.is_empty() {
+                    let order = z_order();
+                    let rank = |w: HWND| order.iter().position(|&o| o == w).unwrap_or(0);
+                    let lowest = sorted
+                        .iter()
+                        .copied()
+                        .filter(|&w| is_topmost(w) && !returning.contains(&w))
+                        .max_by_key(|&w| rank(w));
+                    for &window in &returning {
+                        place_behind(window, None);
+                        if let Some(lowest) = lowest {
+                            place_behind(window, Some(lowest));
+                        }
+                    }
                 }
             }
             Some(Band::Behind(front)) if changed => {
@@ -955,6 +980,57 @@ mod imp {
             // SAFETY: plain Win32 call on one of this thread's windows.
             let _ = unsafe { SetWindowPos(window, Some(HWND_NOTOPMOST), 0, 0, 0, 0, flags) };
         }
+        keep_maximized(&panel_windows, minimized, front);
+    }
+
+    thread_local! {
+        /// The panels maximized before the main window was minimized, and when it came back.
+        static ZOOMED: RefCell<(Vec<isize>, Option<std::time::Instant>, bool)> =
+            const { RefCell::new((Vec::new(), None, false)) };
+    }
+
+    /// Panels maximized when the main window is minimized are maximized again when it comes
+    /// back: Windows shows them again, but a maximized one on another screen came back at its
+    /// normal size. The window in front before keeps the focus.
+    fn keep_maximized(panels: &[HWND], minimized: bool, front: HWND) {
+        ZOOMED.with(|z| {
+            let (zoomed, restored, was_minimized) = &mut *z.borrow_mut();
+            if minimized {
+                *was_minimized = true;
+                *restored = None;
+                return;
+            }
+            if std::mem::take(was_minimized) {
+                *restored = Some(std::time::Instant::now());
+            }
+            let settling =
+                restored.is_some_and(|t| t.elapsed() < std::time::Duration::from_millis(1500));
+            let mut fixed = false;
+            for &panel in panels {
+                // SAFETY: plain Win32 calls on one of this thread's windows.
+                unsafe {
+                    if settling
+                        && zoomed.contains(&(panel.0 as isize))
+                        && !IsZoomed(panel).as_bool()
+                    {
+                        let _ = ShowWindow(panel, SW_MAXIMIZE);
+                        fixed = true;
+                    }
+                }
+            }
+            if fixed && !front.is_invalid() {
+                // SAFETY: plain Win32 call; AudioStrada is in front.
+                let _ = unsafe { SetForegroundWindow(front) };
+            }
+            if !settling {
+                *zoomed = panels
+                    .iter()
+                    // SAFETY: plain Win32 calls on this thread's windows.
+                    .filter(|&&p| unsafe { IsZoomed(p).as_bool() && IsWindowVisible(p).as_bool() })
+                    .map(|p| p.0 as isize)
+                    .collect();
+            }
+        });
     }
 
     #[cfg(test)]
@@ -1246,6 +1322,16 @@ mod imp {
                 match wanted {
                     Stand::Top => {
                         let _ = SetWindowPos(self.hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, flags);
+                        // Back in the band from elsewhere (aside for a menu, behind a dialog
+                        // or another application): behind the window of AudioStrada just
+                        // activated, About opened from that menu say, not over it.
+                        if self.stand != Stand::Top
+                            && front != audiostrada
+                            && main_process
+                            && topmost(front)
+                        {
+                            let _ = SetWindowPos(self.hwnd, Some(front), 0, 0, 0, 0, flags);
+                        }
                         self.refused = (!topmost(self.hwnd)).then(std::time::Instant::now);
                     }
                     // Already under the windows in front, above AudioStrada's: left there.
@@ -1992,9 +2078,10 @@ mod windows_tests {
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DestroyWindow, GWL_EXSTYLE, GWLP_HWNDPARENT,
-        GetForegroundWindow, GetWindowLongPtrW, HWND_TOP, HWND_TOPMOST, RegisterClassW,
-        SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetForegroundWindow,
-        SetWindowPos, ShowWindow, WNDCLASSW, WS_EX_APPWINDOW, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW,
+        GetForegroundWindow, GetWindowLongPtrW, HWND_TOP, HWND_TOPMOST, IsZoomed, RegisterClassW,
+        SW_MINIMIZE, SW_RESTORE, SW_SHOWMAXIMIZED, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOMOVE,
+        SWP_NOSIZE, SetForegroundWindow, SetWindowPos, ShowWindow, WNDCLASSW, WS_EX_APPWINDOW,
+        WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, MSG, PM_REMOVE, PeekMessageW, PostMessageW, TranslateMessage, WM_KEYDOWN,
@@ -2155,6 +2242,30 @@ mod windows_tests {
         assert!(z_rank(over) < z_rank(main), "in front of the main window");
         assert_eq!(imp::published_menu(main), None);
         destroy(&[away, over, main]);
+    }
+
+    /// A panel maximized on its screen when the main window is minimized is maximized again
+    /// when the main window comes back.
+    #[test]
+    fn a_maximized_panel_comes_back_maximized_with_the_main_window() {
+        let main = window("Main — zoom", 0);
+        let mixer = window("Mixer — zoom", 2000);
+        let (main_id, panels) = (main.0 as u64, vec!["Mixer — zoom".to_owned()]);
+        // SAFETY: plain Win32 calls on windows of this test.
+        unsafe {
+            imp::own_windows(main_id, &panels, &[]);
+            let _ = ShowWindow(mixer, SW_SHOWMAXIMIZED);
+            imp::own_windows(main_id, &panels, &[]);
+            let _ = ShowWindow(main, SW_MINIMIZE);
+            imp::own_windows(main_id, &panels, &[]);
+            let _ = ShowWindow(main, SW_RESTORE);
+            // What was seen: back at its normal size.
+            let _ = ShowWindow(mixer, SW_SHOWNOACTIVATE);
+            let _ = ShowWindow(mixer, SW_RESTORE);
+            imp::own_windows(main_id, &panels, &[]);
+            assert!(IsZoomed(mixer).as_bool(), "maximized again");
+        }
+        destroy(&[mixer, main]);
     }
 
     #[test]

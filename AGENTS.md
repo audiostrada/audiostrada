@@ -252,13 +252,18 @@ Windowing changes have broken another system almost every time, so:
   rewrites the extended style on state changes, and `own_windows` puts back what it took.
 - **Menus:** a window over a menu steps aside behind the window showing it. Behind the main
   window it is unowned meanwhile (an owned window cannot go behind its owner), then owned and
-  topmost again once the menu closes. The plugin hosts read the menu from two properties of
+  topmost again once the menu closes, behind the windows of the band: never over a window
+  opened from that menu (About), which the plugin hosts respect too (`follow` going back to
+  the band puts its window behind AudioStrada's window just activated). The plugin hosts read the menu from two properties of
   the main window (`AudioStradaMenuWindow`, `AudioStradaMenuArea`: the union of the menu's
   areas packed in 16-bit numbers).
 - **Taskbar and Alt+Tab:** `floating_builder` sets `with_taskbar(false)` and no minimize box,
   except for panels, which dock back when minimized. winit also gives every window
   `WS_EX_APPWINDOW`, which puts even owned windows in Alt+Tab, and sets it again whenever a
   window's state changes. `own_windows` therefore removes it at every frame.
+- **Maximized panels:** Windows shows the panels again when the main window comes back from
+  minimized, but a maximized one came back at its normal size; `keep_maximized` maximizes it
+  again, the window in front keeping the focus.
 - **Window positions:** a position given to `ViewportBuilder` must not change from one frame
   to the next, or egui moves the window. `floating_builder` and dialogs compute it once.
 - **Sandboxed plugin windows** live in the plugin host process. Never make them owned by, or
@@ -289,6 +294,7 @@ Windowing changes have broken another system almost every time, so:
   `floating_windows_are_owned_by_the_main_window_and_float_above_panels` (the band part needs
   the test to get the foreground, else it says so and checks the rest),
   `windows_over_a_menu_step_aside_until_it_closes`, `a_menu_area_crosses_processes_whole`,
+  `a_maximized_panel_comes_back_maximized_with_the_main_window`,
   `plugin_windows_hand_back_audiostradas_keys`.
 
 ### Linux (X11; Wayland runs in X11 mode)
