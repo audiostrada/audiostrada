@@ -544,6 +544,7 @@ mod tests {
     #[test]
     fn a_plugin_just_copied_is_scanned_once_it_has_settled() {
         let dir = audiostrada_core::scratch::dir("scan-settle");
+        std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("fresh.clap");
         std::fs::write(&file, b"").unwrap();
         let mut db = Database::default();
