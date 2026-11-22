@@ -1,5 +1,5 @@
 //! What each console is made of, channel and bus, and what it must measure: figures read off
-//! the reference plugins (`measurements/references/windows.toml`), never their audio. The
+//! the reference plugins (in the private measurements repository), never their audio. The
 //! stages' settings come from `fit`, which pushes them toward the targets.
 
 use crate::analog::amplifier::ClassASettings;
