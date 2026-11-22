@@ -386,6 +386,32 @@ pub fn scan_in_background(
 /// The error of a scanner that could not be started (the program, not the plugin).
 const NOT_STARTED: &str = "cannot start the scanner";
 
+/// A scanner runs below everything else: loading a plugin can take seconds of processor, and
+/// the scan in the background must not slow AudioStrada down, nor the audio.
+fn low_priority(command: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const BELOW_NORMAL_PRIORITY_CLASS: u32 = 0x0000_4000;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let hidden = !std::io::IsTerminal::is_terminal(&std::io::stderr());
+        command.creation_flags(
+            BELOW_NORMAL_PRIORITY_CLASS | if hidden { CREATE_NO_WINDOW } else { 0 },
+        );
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        // SAFETY: setpriority is async-signal-safe, as `pre_exec` requires.
+        unsafe {
+            command.pre_exec(|| {
+                libc::setpriority(libc::PRIO_PROCESS, 0, 10);
+                Ok(())
+            });
+        }
+    }
+}
+
 /// Runs `exe plugin-scan FORMAT PATH` and parses its output; crashes and hangs become errors.
 pub fn scan_out_of_process(
     exe: &Path,
@@ -395,6 +421,7 @@ pub fn scan_out_of_process(
 ) -> Result<Vec<PluginDescriptor>, String> {
     let mut command = Command::new(exe);
     crate::hide_console(&mut command);
+    low_priority(&mut command);
     let mut child = command
         .arg(SCAN_COMMAND)
         .arg(format.prefix())

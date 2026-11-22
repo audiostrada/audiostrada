@@ -89,6 +89,7 @@ actions! {
     ToggleLoop => ("Transport", "Toggle loop"),
     Manual => ("Help", "Manual"),
     WhatsNew => ("Help", "What's new"),
+    CheckUpdates => ("Help", "Check for updates"),
     KeyboardShortcuts => ("Help", "Keyboard shortcuts…"),
     About => ("Help", "About AudioStrada"),
     License => ("Help", "License…"),

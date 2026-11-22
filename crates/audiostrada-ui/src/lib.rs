@@ -254,6 +254,21 @@ type PluginScan = (
     std::sync::Arc<audiostrada_plugins::scan::Progress>,
 );
 
+/// What a scan tells of the plugins it found that were not there before.
+fn new_plugins_message(names: &[String]) -> Option<String> {
+    Some(match names {
+        [] => return None,
+        [one] => trf!("New plugin: {name}", name = one),
+        [_, _] | [_, _, _] => trf!("New plugins: {names}", names = names.join(", ")),
+        [first, second, rest @ ..] => trf!(
+            "{count} new plugins: {names} and {others} more",
+            count = names.len(),
+            names = format!("{first}, {second}"),
+            others = rest.len()
+        ),
+    })
+}
+
 fn start_scan(hook: &mut PluginScanHook, dirs: Vec<PathBuf>, full: bool) -> PluginScan {
     let progress = std::sync::Arc::default();
     (hook(dirs, full, std::sync::Arc::clone(&progress)), progress)
@@ -435,6 +450,9 @@ pub struct AudioStradaApp {
     audio_settings: AudioSettingsPanel,
     hooks: Hooks,
     plugin_scan: Option<PluginScan>,
+    /// When the startup scan for new plugins starts: once the window is up, so that it does
+    /// not slow the start down (the cached list serves meanwhile).
+    scan_at: Option<std::time::Instant>,
     recent: Vec<PathBuf>,
     pending: Option<Pending>,
     recovery: Option<RecoveryOffer>,
@@ -503,9 +521,8 @@ impl AudioStradaApp {
         for pane in &detached {
             layout::set_visible(&mut tree, *pane, false);
         }
-        let mut hooks = hooks;
-        let plugin_scan = audiostrada_plugins::enabled()
-            .then(|| start_scan(&mut hooks.plugin_scan, prefs.plugin_dirs.clone(), false));
+        let scan_at = audiostrada_plugins::enabled()
+            .then(|| std::time::Instant::now() + std::time::Duration::from_secs(3));
         // AI assistants switched on in a previous session listen again.
         let control = if prefs.assistants {
             control::listen(prefs.assistants_port)
@@ -515,7 +532,8 @@ impl AudioStradaApp {
             None
         };
         Self {
-            plugin_scan,
+            plugin_scan: None,
+            scan_at,
             host,
             views: Rc::new(RefCell::new(Views {
                 doc: Rc::clone(&doc),
@@ -1465,6 +1483,7 @@ impl AudioStradaApp {
                 ctx.open_url(egui::OpenUrl::new_tab(audiostrada_license::link(page)));
             }
             Action::WhatsNew => self.whats_new.open(),
+            Action::CheckUpdates => self.check_updates(),
             Action::KeyboardShortcuts => self.preferences.open_keyboard(),
             Action::About => self.about = true,
             Action::License => self.license_window.open(),
@@ -1889,6 +1908,40 @@ impl AudioStradaApp {
         }
         self.views.borrow_mut().timeline.take_editor_keys(ctx);
         pressed_actions(ctx, &self.prefs.keymap)
+    }
+
+    /// Help › Check for updates: the official builds ask the web site now; the others say
+    /// where their new versions come from.
+    fn check_updates(&mut self) {
+        if updates::offered() {
+            self.updates.check_now();
+            return;
+        }
+        let message = if updates::install() == updates::Install::Store {
+            tr("Your store keeps AudioStrada up to date")
+        } else {
+            tr("Only the official builds of AudioStrada look for updates")
+        };
+        self.doc.borrow_mut().notify(message.to_owned());
+    }
+
+    /// What a check asked for found: the update window for a newer version, else a message.
+    fn tell_update_check(&mut self, checked: Option<updates::Checked>) {
+        let message = match checked {
+            None => return,
+            Some(updates::Checked::Newer) => {
+                self.update_window.open();
+                return;
+            }
+            Some(updates::Checked::UpToDate) => trf!(
+                "AudioStrada {version} is up to date",
+                version = env!("CARGO_PKG_VERSION")
+            ),
+            Some(updates::Checked::Failed) => {
+                tr("Could not check for updates: audiostrada.com cannot be reached").to_owned()
+            }
+        };
+        self.doc.borrow_mut().notify(message);
     }
 
     /// Asks where to write one track and exports it with the last export settings.
@@ -2883,6 +2936,7 @@ impl AudioStradaApp {
             ui.menu_button(tr("Help"), |ui| {
                 item(ui, &mut chosen, Action::Manual, None, true);
                 item(ui, &mut chosen, Action::WhatsNew, None, true);
+                item(ui, &mut chosen, Action::CheckUpdates, None, true);
                 ui.separator();
                 item(ui, &mut chosen, Action::KeyboardShortcuts, None, true);
                 item(ui, &mut chosen, Action::CommandPalette, None, true);
@@ -3523,6 +3577,21 @@ impl eframe::App for AudioStradaApp {
         }
         #[cfg(any(target_os = "macos", windows))]
         keep_windows_above(frame, &self.detached);
+        if self
+            .scan_at
+            .is_some_and(|at| std::time::Instant::now() >= at)
+        {
+            self.scan_at = None;
+            if self.plugin_scan.is_none() {
+                self.plugin_scan = Some(start_scan(
+                    &mut self.hooks.plugin_scan,
+                    self.prefs.plugin_dirs.clone(),
+                    false,
+                ));
+            }
+        } else if let Some(at) = self.scan_at {
+            ctx.request_repaint_after(at.saturating_duration_since(std::time::Instant::now()));
+        }
         let progress = self
             .plugin_scan
             .as_ref()
@@ -3543,6 +3612,19 @@ impl eframe::App for AudioStradaApp {
                 .failures()
                 .filter(|(p, _)| !known.iter().any(|k| k == p))
                 .count();
+            let before: std::collections::HashSet<String> =
+                doc.player().plugins().plugins().map(|d| d.key()).collect();
+            let added: Vec<String> = database
+                .plugins()
+                .filter(|d| !before.contains(&d.key()))
+                .map(|d| d.name.clone())
+                .collect();
+            // The first scan finds them all: nothing new to tell then.
+            if !before.is_empty()
+                && let Some(message) = new_plugins_message(&added)
+            {
+                doc.notify(message);
+            }
             doc.set_plugins(database);
             if failed > 0 {
                 doc.notify(trf!(
@@ -3823,7 +3905,8 @@ impl eframe::App for AudioStradaApp {
             self.ui_changed();
         }
         self.feedback.show(&ctx);
-        self.updates.poll();
+        let checked = self.updates.poll();
+        self.tell_update_check(checked);
         if self.updates.start(&mut self.prefs) {
             self.ui_changed();
         }
@@ -3944,6 +4027,24 @@ fn license_file(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_scan_names_the_new_plugins_it_found() {
+        let names = |n: &[&str]| n.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        assert_eq!(new_plugins_message(&[]), None);
+        assert_eq!(
+            new_plugins_message(&names(&["Pro-Q 4"])).as_deref(),
+            Some("New plugin: Pro-Q 4")
+        );
+        assert_eq!(
+            new_plugins_message(&names(&["A", "B", "C"])).as_deref(),
+            Some("New plugins: A, B, C")
+        );
+        assert_eq!(
+            new_plugins_message(&names(&["A", "B", "C", "D", "E"])).as_deref(),
+            Some("5 new plugins: A, B and 3 more")
+        );
+    }
 
     #[test]
     fn effect_windows_run_the_shortcuts() {

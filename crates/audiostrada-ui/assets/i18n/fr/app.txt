@@ -1644,3 +1644,27 @@ Impossible de lancer l'installeur
 
 Without a license, it runs in evaluation mode too
 Sans licence, elle tourne aussi en mode évaluation
+
+Check for updates
+Rechercher des mises à jour
+
+Your store keeps AudioStrada up to date
+Votre boutique d'applications tient AudioStrada à jour
+
+Only the official builds of AudioStrada look for updates
+Seules les versions officielles d'AudioStrada recherchent des mises à jour
+
+AudioStrada {version} is up to date
+AudioStrada {version} est à jour
+
+Could not check for updates: audiostrada.com cannot be reached
+Impossible de rechercher des mises à jour : audiostrada.com est injoignable
+
+New plugin: {name}
+Nouveau plugin : {name}
+
+New plugins: {names}
+Nouveaux plugins : {names}
+
+{count} new plugins: {names} and {others} more
+{count} nouveaux plugins : {names} et {others} autres

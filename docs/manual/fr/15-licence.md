@@ -42,6 +42,9 @@ ensuite en proposant d'enregistrer vos projets, et l'installeur démarre ; sous 
 disque s'ouvre : glissez AudioStrada sur Applications en remplaçant l'ancien. Projets,
 préférences et presets restent.
 
+Aide › *Rechercher des mises à jour* vérifie tout de suite, quelle que soit la préférence, et
+vous dit quand votre version est la dernière.
+
 Après une mise à jour, Aide › *Quoi de neuf* s'ouvre tout seul avec les notes de la nouvelle
 version ; il se rouvre à tout moment.
 

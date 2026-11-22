@@ -153,9 +153,20 @@ pub fn published() -> Option<Vec<Published>> {
     serde_json::from_str(&response.body_mut().read_to_string().ok()?).ok()
 }
 
+/// What a check asked for (Help menu) found, to be told.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Checked {
+    Newer,
+    UpToDate,
+    /// The site could not be reached.
+    Failed,
+}
+
 #[derive(Debug, Default)]
 pub struct Updates {
     pending: Option<Receiver<Option<Release>>>,
+    /// The check running was asked for: its outcome is told, whatever it is.
+    asked: bool,
     /// Checked (or found not due) in this session.
     done: bool,
     /// A newer version than this one.
@@ -174,21 +185,39 @@ impl Updates {
             return false;
         }
         prefs.updates_checked = Some(today);
+        self.fetch();
+        true
+    }
+
+    /// Checks now, whatever the day and the preference (Help › Check for updates); `poll`
+    /// then tells what was found.
+    pub fn check_now(&mut self) {
+        self.asked = true;
+        self.done = true;
+        if self.pending.is_none() {
+            self.fetch();
+        }
+    }
+
+    fn fetch(&mut self) {
         let (tx, rx) = channel();
         self.pending = Some(rx);
         std::thread::spawn(move || {
             let _ = tx.send(fetch());
         });
-        true
     }
 
-    pub fn poll(&mut self) {
-        if let Some(rx) = &self.pending
-            && let Ok(release) = rx.try_recv()
-        {
-            self.pending = None;
-            self.found = release.filter(|r| newer(&r.version, env!("CARGO_PKG_VERSION")));
-        }
+    /// Takes the check's outcome once it is there; what it found for a check asked for.
+    pub fn poll(&mut self) -> Option<Checked> {
+        let release = self.pending.as_ref()?.try_recv().ok()?;
+        self.pending = None;
+        let reached = release.is_some();
+        self.found = release.filter(|r| newer(&r.version, env!("CARGO_PKG_VERSION")));
+        std::mem::take(&mut self.asked).then_some(match (&self.found, reached) {
+            (Some(_), _) => Checked::Newer,
+            (None, true) => Checked::UpToDate,
+            (None, false) => Checked::Failed,
+        })
     }
 }
 

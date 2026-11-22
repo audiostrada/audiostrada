@@ -41,6 +41,9 @@ AudioStrada's publisher); on Windows AudioStrada then closes, asking to save you
 the installer starts; on macOS the disk image opens: drag AudioStrada onto Applications,
 replacing the old one. Projects, preferences and presets stay.
 
+Help › *Check for updates* looks right away, whatever the preference, and says when your version
+is the latest.
+
 After an update, Help › *What's new* opens by itself with the notes of the new version; it can be
 opened again at any time.
 
