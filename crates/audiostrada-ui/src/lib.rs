@@ -3403,22 +3403,76 @@ fn set_plugin_window_parent(frame: &eframe::Frame) {
     audiostrada_plugins::window::set_parent(parent);
 }
 
-/// Linux: AudioStrada's windows besides the main one stay out of the taskbar, the pager and
-/// Alt+Tab. Checked when windows open, and every two seconds for those mapped later.
+/// Linux: AudioStrada's windows besides the main one stay above it, as owned windows do on
+/// Windows (see [`audiostrada_plugins::window::follow_main`]), but for those stepping behind it
+/// for one of its menus or dialogs (see [`uncover_main`]). Notes whether AudioStrada is in
+/// front, for [`floating_level`]. Returns the panels minimized (the main window not).
 #[cfg(all(unix, not(target_os = "macos")))]
-fn keep_out_of_taskbar(ctx: &egui::Context) {
-    let count = ctx.input(|i| i.raw.viewports.len());
-    let now = ctx.input(|i| i.time);
-    let key = egui::Id::unique("taskbar-checked");
-    let (last_count, last_time) = ctx
-        .data(|d| d.get_temp::<(usize, f64)>(key))
-        .unwrap_or((0, f64::MIN));
-    if count > 1 && (count != last_count || now - last_time >= 2.0) {
-        ctx.data_mut(|d| d.insert_temp(key, (count, now)));
-        audiostrada_plugins::window::keep_out_of_taskbar(audiostrada_plugins::window::parent());
-    } else if count != last_count {
-        ctx.data_mut(|d| d.insert_temp(key, (count, last_time)));
+fn keep_windows_above(ctx: &egui::Context, detached: &[Pane]) -> Vec<Pane> {
+    let viewports: Vec<egui::ViewportId> = ctx.input(|i| i.raw.viewports.keys().copied().collect());
+    let title = |v| viewport_title(ctx, v);
+    let covered = MAIN_COVERED.load(Ordering::Relaxed);
+    let back = ASIDE.with(|a| {
+        let a = a.borrow();
+        let key = egui::Id::unique("aside-before");
+        let before = ctx
+            .data_mut(|d| d.get_temp::<Vec<egui::ViewportId>>(key))
+            .unwrap_or_default();
+        let now: Vec<egui::ViewportId> = a.iter().map(|&(w, _)| w).collect();
+        let back = before.iter().any(|w| !now.contains(w));
+        ctx.data_mut(|d| d.insert_temp(key, now));
+        back
+    });
+    if back {
+        audiostrada_plugins::window::window_back_from_aside();
     }
+    let behind: Vec<String> = ASIDE.with(|a| {
+        let a = a.borrow();
+        viewports
+            .iter()
+            .filter(|&&v| v != egui::ViewportId::ROOT)
+            .filter(|&&v| {
+                covered
+                    || a.iter()
+                        .any(|&(w, owner)| w == v && owner == egui::ViewportId::ROOT)
+            })
+            .filter_map(|&v| title(v))
+            .collect()
+    });
+    let panels: Vec<String> = detached.iter().map(|&p| pane_window_title(p)).collect();
+    let main = audiostrada_plugins::window::parent();
+    // The plugin hosts' windows step aside for it themselves.
+    let menu = windowing::menus()
+        .into_iter()
+        .filter(|m| viewports.contains(&m.viewport))
+        .find_map(|m| {
+            let union = m.areas.iter().copied().reduce(|u, a| {
+                [
+                    u[0].min(a[0]),
+                    u[1].min(a[1]),
+                    u[2].max(a[2]),
+                    u[3].max(a[3]),
+                ]
+            })?;
+            let title = (m.viewport != egui::ViewportId::ROOT)
+                .then(|| viewport_title(ctx, m.viewport))
+                .flatten();
+            Some((title, union.map(|v| v.round() as i32)))
+        });
+    audiostrada_plugins::window::publish_menu(main, menu.as_ref().map(|(t, a)| (t.as_deref(), *a)));
+    let followed = audiostrada_plugins::window::follow_main(main, &behind, &panels);
+    if APP_ACTIVE.swap(followed.active, Ordering::Relaxed) != followed.active {
+        ctx.request_repaint();
+    }
+    // A plugin window or another application taking the front tells this process nothing.
+    if viewports.len() > 1 {
+        ctx.request_repaint_after(Duration::from_millis(250));
+    }
+    detached
+        .iter()
+        .copied()
+        .filter(|&p| followed.minimized.contains(&pane_window_title(p)))
+        .collect()
 }
 
 /// On macOS the detached panels and editors float above the main window while AudioStrada is
@@ -3497,6 +3551,11 @@ pub(crate) fn floating_builder(
     builder: egui::ViewportBuilder,
 ) -> egui::ViewportBuilder {
     let builder = builder.with_window_level(floating_level(ctx, id, kind));
+    if cfg!(all(unix, not(target_os = "macos")))
+        && let Some(title) = &builder.title
+    {
+        TITLES.with(|t| t.borrow_mut().insert(id, title.clone()));
+    }
     // Linux: hidden while the main window is minimized, as Windows and macOS do it
     // themselves (see `keep_windows_above`).
     let builder = if cfg!(all(unix, not(target_os = "macos"))) {
@@ -3555,6 +3614,24 @@ pub(crate) enum Floating {
 /// cover, as of its last frame.
 static MAIN_COVERED: AtomicBool = AtomicBool::new(false);
 
+/// Linux: whether AudioStrada or one of its plugin windows is the active window.
+static APP_ACTIVE: AtomicBool = AtomicBool::new(true);
+
+thread_local! {
+    /// Linux: each floating viewport's title, from its builder. winit reports none on X11
+    /// (egui's viewport title stays empty), and the system's windows are found by title.
+    static TITLES: RefCell<std::collections::HashMap<egui::ViewportId, String>> =
+        RefCell::new(std::collections::HashMap::new());
+}
+
+/// Linux: the title of a viewport besides the main one, as given to the system.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn viewport_title(ctx: &egui::Context, id: egui::ViewportId) -> Option<String> {
+    TITLES
+        .with(|t| t.borrow().get(&id).cloned())
+        .or_else(|| ctx.input_for(id, |i| i.viewport().title.clone()))
+}
+
 thread_local! {
     /// Linux: the floating windows stepped aside for a menu, and the window showing it.
     static ASIDE: RefCell<Vec<(egui::ViewportId, egui::ViewportId)>> =
@@ -3603,47 +3680,59 @@ fn uncover_main(ctx: &egui::Context) {
             .map(|&(_, owner)| owner)
             .collect()
     });
-    // The levels change on this frame, the window showing the menu comes up on a later one.
-    let id = egui::Id::unique("covered-frames");
+    // The levels and transients change on this frame: the window showing the menu comes up
+    // once the window manager has applied them, or it stays under them.
+    let id = egui::Id::unique("covered-since");
     let covering = dialog
         .then_some(egui::ViewportId::ROOT)
         .or(raised.first().copied());
-    let (frames, owner) = ctx.data_mut(|d| {
-        let (f, o) = d.get_temp_mut_or_default::<(u8, Option<egui::ViewportId>)>(id);
-        if let Some(c) = covering {
-            *o = Some(c);
+    let now = ctx.input(|i| i.time);
+    let (since, raised_once, owner) = ctx.data_mut(|d| {
+        let (since, done, o) =
+            d.get_temp_mut_or_default::<(Option<f64>, bool, Option<egui::ViewportId>)>(id);
+        if covering.is_some() && (!raised.is_empty() || since.is_none()) {
+            *o = covering;
+            *since = Some(now);
+            *done = false;
         }
-        *f = if dialog || !aside.is_empty() {
-            f.saturating_add(1)
-        } else {
-            0
-        };
-        (*f, *o)
+        if !dialog && aside.is_empty() {
+            *since = None;
+        }
+        (*since, *done, *o)
+    });
+    let Some(since) = since else {
+        return;
+    };
+    if raised_once {
+        return;
+    }
+    if now - since < 0.2 {
+        ctx.request_repaint_after(Duration::from_millis(50));
+        return;
+    }
+    ctx.data_mut(|d| {
+        d.get_temp_mut_or_default::<(Option<f64>, bool, Option<egui::ViewportId>)>(id)
+            .1 = true;
     });
     #[cfg(all(unix, not(target_os = "macos")))]
-    if frames == 3 {
-        match owner {
-            Some(v) if v != egui::ViewportId::ROOT => {
-                if let Some(title) = ctx.input_for(v, |i| i.viewport().title.clone()) {
-                    audiostrada_plugins::window::raise_titled(&title);
-                }
+    match owner {
+        Some(v) if v != egui::ViewportId::ROOT => {
+            if let Some(title) = viewport_title(ctx, v) {
+                audiostrada_plugins::window::raise_titled(&title);
             }
-            _ => audiostrada_plugins::window::raise_parent(),
         }
+        _ => audiostrada_plugins::window::raise_parent(),
     }
     let _ = owner;
-    if (1..3).contains(&frames) {
-        ctx.request_repaint();
-    }
 }
 
 /// Level of AudioStrada's windows besides the main one. macOS and Windows keep them above it
-/// themselves while AudioStrada is in use (see [`keep_windows_above`]). Elsewhere the browser
-/// and dialogs float, an editor floats while the main window, its own or the one drawing it
-/// has the focus, and panels stay normal; none floats over a dialog or a file chooser, nor
-/// over a menu it covers (see [`uncover_main`]).
+/// themselves while AudioStrada is in use (see [`keep_windows_above`]). Elsewhere every one but
+/// the panels floats while AudioStrada or one of its plugin windows is in front, as the topmost
+/// band on Windows; none floats over a dialog or a file chooser, nor over a menu it covers
+/// (see [`uncover_main`]).
 pub(crate) fn floating_level(
-    ctx: &egui::Context,
+    _ctx: &egui::Context,
     id: egui::ViewportId,
     kind: Floating,
 ) -> egui::WindowLevel {
@@ -3657,15 +3746,7 @@ pub(crate) fn floating_level(
     if aside || MAIN_COVERED.load(Ordering::Relaxed) || dialogs::any_open() {
         return egui::WindowLevel::Normal;
     }
-    let focused = |v| ctx.input_for(v, |i| i.viewport().focused.unwrap_or(false));
-    let floats = match kind {
-        Floating::Browser | Floating::Dialog => true,
-        Floating::Editor(id) => {
-            focused(egui::ViewportId::ROOT) || focused(ctx.viewport_id()) || focused(id)
-        }
-        Floating::Panel => false,
-    };
-    if floats {
+    if kind != Floating::Panel && APP_ACTIVE.load(Ordering::Relaxed) {
         egui::WindowLevel::AlwaysOnTop
     } else {
         egui::WindowLevel::Normal
@@ -3778,7 +3859,10 @@ impl eframe::App for AudioStradaApp {
             self.inbox.borrow_mut().closed.extend(minimized);
         }
         #[cfg(all(unix, not(target_os = "macos")))]
-        keep_out_of_taskbar(ctx);
+        {
+            let minimized = keep_windows_above(ctx, &self.detached);
+            self.inbox.borrow_mut().closed.extend(minimized);
+        }
         if self
             .scan_at
             .is_some_and(|at| std::time::Instant::now() >= at)

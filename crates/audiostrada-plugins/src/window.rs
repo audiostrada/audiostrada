@@ -101,19 +101,70 @@ mod imp {
         Some(connection.intern_atom(false, name).ok()?.reply().ok()?.atom)
     }
 
+    /// The server's time, read from a property change on a window of our own: Mutter refuses
+    /// an activation stamped 0 coming after a newer user action.
+    fn server_time(connection: &RustConnection, root: u32) -> u32 {
+        let Ok(window) = connection.generate_id() else {
+            return 0;
+        };
+        let aux = CreateWindowAux::new().event_mask(EventMask::PROPERTY_CHANGE);
+        let created = connection.create_window(
+            0,
+            window,
+            root,
+            -1,
+            -1,
+            1,
+            1,
+            0,
+            WindowClass::INPUT_ONLY,
+            0,
+            &aux,
+        );
+        let Some(name) = atom(connection, b"_AUDIOSTRADA_TIME") else {
+            return 0;
+        };
+        if created.is_err()
+            || connection
+                .change_property8(PropMode::APPEND, window, name, AtomEnum::STRING, &[])
+                .is_err()
+            || connection.flush().is_err()
+        {
+            return 0;
+        }
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(200);
+        let mut time = 0;
+        while std::time::Instant::now() < deadline {
+            match connection.poll_for_event() {
+                Ok(Some(Event::PropertyNotify(e))) if e.window == window => {
+                    time = e.time;
+                    break;
+                }
+                Ok(Some(_)) => {}
+                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(1)),
+                Err(_) => break,
+            }
+        }
+        let _ = connection.destroy_window(window);
+        time
+    }
+
     fn activate(connection: &RustConnection, root: u32, window: u32) {
         let Some(active) = atom(connection, b"_NET_ACTIVE_WINDOW") else {
             return;
         };
+        let time = server_time(connection, root);
         // Source 2, as a pager: the window manager obeys.
-        let event = ClientMessageEvent::new(32, window, active, [2, 0, 0, 0, 0]);
-        let _ = connection.send_event(
-            false,
-            root,
-            EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
-            event,
-        );
-        let _ = connection.flush();
+        let event = ClientMessageEvent::new(32, window, active, [2, time, 0, 0, 0]);
+        // Checked: XWayland may drop a request of a connection closed right after it.
+        let _ = connection
+            .send_event(
+                false,
+                root,
+                EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+                event,
+            )
+            .map(|c| c.check());
     }
 
     fn cardinals(connection: &RustConnection, window: u32, name: &[u8]) -> Vec<u32> {
@@ -155,39 +206,274 @@ mod imp {
         b"_KDE_NET_WM_STATE_SKIP_SWITCHER",
     ];
 
-    /// Keeps this process's windows besides `main` out of the taskbar, the pager and the
-    /// window switcher. A few requests per window: call it now and then, or when windows open.
-    pub fn keep_out_of_taskbar(main: u64) {
-        let Ok((connection, screen)) = x11rb::connect(None) else {
-            return;
+    /// What [`follow_main`] found.
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct Followed {
+        /// AudioStrada, or one of its plugin windows, is the active window.
+        pub active: bool,
+        /// Titles of the panels minimized while the main window is not.
+        pub minimized: Vec<String>,
+    }
+
+    struct Follower {
+        connection: RustConnection,
+        root: u32,
+        /// Windows looked at: whether they are this process's, and whether we made them
+        /// transient for the main window.
+        ours: std::collections::HashMap<u32, bool>,
+        transient: std::collections::HashMap<u32, bool>,
+        skipped: std::collections::HashSet<u32>,
+        /// A window just back above the main window, after which the active one is raised.
+        reraise: bool,
+        /// A window back from aside for another window's menu (see [`window_back_from_aside`]).
+        back: bool,
+        /// Titles of the windows maximized: the window manager forgets it while they are
+        /// unmapped with the main window minimized.
+        maximized: std::collections::HashSet<String>,
+        /// When the main window was last seen minimized: windows mapped again with it are
+        /// not brought to the front, as a window just opened is.
+        hidden_at: Option<std::time::Instant>,
+        /// The last answer, given again for 100 ms while `behind` stays the same.
+        last: Option<(std::time::Instant, Vec<String>, Followed)>,
+        /// The menu last published (see [`publish_menu`]).
+        published: Option<(Option<String>, [i32; 4])>,
+    }
+
+    thread_local! {
+        static FOLLOWER: std::cell::RefCell<Option<Follower>> =
+            const { std::cell::RefCell::new(None) };
+    }
+
+    /// Keeps this process's windows besides `main` above it, as Windows does with owned
+    /// windows: transient for it (Mutter then refuses no focus between them), out of the
+    /// taskbar, the pager and the window switcher. Those titled in `behind` are not, so that
+    /// they can step behind it for one of its menus. A few requests per window.
+    pub fn follow_main(main: u64, behind: &[String], panels: &[String]) -> Followed {
+        let Ok(main) = u32::try_from(main) else {
+            return Followed::default();
         };
-        let root = connection.setup().roots[screen].root;
-        let (Some(state), Some(skipped)) = (
-            atom(&connection, b"_NET_WM_STATE"),
-            SKIPPED
-                .iter()
-                .map(|n| atom(&connection, n))
-                .collect::<Option<Vec<u32>>>(),
-        ) else {
-            return;
-        };
-        for window in own_clients(&connection, root) {
-            if u64::from(window) == main {
-                continue;
-            }
-            let has = cardinals(&connection, window, b"_NET_WM_STATE");
-            for &skip in skipped.iter().filter(|s| !has.contains(s)) {
-                // Action 1: add.
-                let event = ClientMessageEvent::new(32, window, state, [1, skip, 0, 1, 0]);
-                let _ = connection.send_event(
-                    false,
-                    root,
-                    EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
-                    event,
-                );
-            }
+        if main == 0 {
+            return Followed::default();
         }
-        let _ = connection.flush();
+        with_follower(|f| f.follow(main, behind, panels)).unwrap_or_default()
+    }
+
+    /// A window got its level back after stepping aside for a menu: it may cover the window
+    /// opened from that menu, which [`follow_main`] brings to the front again on its next call.
+    pub fn window_back_from_aside() {
+        with_follower(|f| f.back = true);
+    }
+
+    /// The property of the main window naming the window showing a menu and the menu's area
+    /// on the desktop (left, top, right, bottom): plugin windows over it step aside.
+    const MENU: &[u8] = b"_AUDIOSTRADA_MENU";
+
+    /// Tells the plugin hosts the menu open in one of this process's windows (`None` for the
+    /// main one), as the union of its areas; `None` once it closes. Writes on change only.
+    pub fn publish_menu(main: u64, menu: Option<(Option<&str>, [i32; 4])>) {
+        let Ok(main) = u32::try_from(main) else {
+            return;
+        };
+        if main == 0 {
+            return;
+        }
+        with_follower(|f| f.publish_menu(main, menu));
+    }
+
+    fn with_follower<T>(run: impl FnOnce(&mut Follower) -> T) -> Option<T> {
+        FOLLOWER.with(|f| {
+            let mut f = f.borrow_mut();
+            if f.is_none() {
+                let (connection, screen) = x11rb::connect(None).ok()?;
+                let root = connection.setup().roots[screen].root;
+                *f = Some(Follower {
+                    connection,
+                    root,
+                    ours: Default::default(),
+                    transient: Default::default(),
+                    skipped: Default::default(),
+                    reraise: false,
+                    back: false,
+                    maximized: Default::default(),
+                    hidden_at: None,
+                    last: None,
+                    published: None,
+                });
+            }
+            f.as_mut().map(run)
+        })
+    }
+
+    /// The menu published by AudioStrada's main window `parent`: the window showing it, and
+    /// its area.
+    fn menu_of(connection: &RustConnection, parent: u32) -> Option<(u32, [i32; 4])> {
+        let v = cardinals(connection, parent, MENU);
+        (v.len() == 5).then(|| (v[0], [v[1], v[2], v[3], v[4]].map(|x| x as i32)))
+    }
+
+    impl Follower {
+        fn publish_menu(&mut self, main: u32, menu: Option<(Option<&str>, [i32; 4])>) {
+            let menu = menu.map(|(t, a)| (t.map(str::to_owned), a));
+            if menu == self.published {
+                return;
+            }
+            let c = &self.connection;
+            let Some(property) = atom(c, MENU) else {
+                return;
+            };
+            let window = match &menu {
+                Some((Some(title), _)) => own_clients(c, self.root)
+                    .into_iter()
+                    .find(|&w| name_of(c, w).as_deref() == Some(title.as_str())),
+                Some((None, _)) => Some(main),
+                None => None,
+            };
+            let _ = match (window, &menu) {
+                (Some(w), Some((_, a))) => c
+                    .change_property32(
+                        PropMode::REPLACE,
+                        main,
+                        property,
+                        AtomEnum::CARDINAL,
+                        &[w, a[0] as u32, a[1] as u32, a[2] as u32, a[3] as u32],
+                    )
+                    .map(drop),
+                _ => c.delete_property(main, property).map(drop),
+            };
+            let _ = c.flush();
+            self.published = menu;
+        }
+
+        fn follow(&mut self, main: u32, behind: &[String], panels: &[String]) -> Followed {
+            if let Some((at, b, followed)) = &self.last
+                && b == behind
+                && at.elapsed() < std::time::Duration::from_millis(100)
+            {
+                return followed.clone();
+            }
+            let followed = self.look(main, behind, panels);
+            self.last = Some((std::time::Instant::now(), behind.to_vec(), followed.clone()));
+            followed
+        }
+
+        fn look(&mut self, main: u32, behind: &[String], panels: &[String]) -> Followed {
+            let c = &self.connection;
+            let pid = std::process::id();
+            let clients = cardinals(c, self.root, b"_NET_CLIENT_LIST");
+            self.ours.retain(|w, _| clients.contains(w));
+            self.transient.retain(|w, _| clients.contains(w));
+            self.skipped.retain(|w| clients.contains(w));
+            let mut windows = Vec::new();
+            for &w in &clients {
+                let ours = *self
+                    .ours
+                    .entry(w)
+                    .or_insert_with(|| cardinals(c, w, b"_NET_WM_PID").first() == Some(&pid));
+                if ours && w != main {
+                    windows.push(w);
+                }
+            }
+            let (Some(state), Some(hidden)) =
+                (atom(c, b"_NET_WM_STATE"), atom(c, b"_NET_WM_STATE_HIDDEN"))
+            else {
+                return Followed::default();
+            };
+            let main_hidden = cardinals(c, main, b"_NET_WM_STATE").contains(&hidden);
+            if main_hidden {
+                self.hidden_at = Some(std::time::Instant::now());
+            }
+            let restoring = self
+                .hidden_at
+                .is_some_and(|at| at.elapsed() < std::time::Duration::from_secs(2));
+            let mut opened = None;
+            let skipped: Vec<u32> = SKIPPED.iter().filter_map(|n| atom(c, n)).collect();
+            let maximize: Vec<u32> = [
+                b"_NET_WM_STATE_MAXIMIZED_VERT",
+                b"_NET_WM_STATE_MAXIMIZED_HORZ",
+            ]
+            .iter()
+            .filter_map(|n| atom(c, *n))
+            .collect();
+            let mut minimized = Vec::new();
+            let mut lifted = false;
+            for w in windows {
+                let name = name_of(c, w).unwrap_or_default();
+                let want = !behind.contains(&name);
+                if self.transient.get(&w) != Some(&want) {
+                    let _ = if want {
+                        c.change_property32(
+                            PropMode::REPLACE,
+                            w,
+                            AtomEnum::WM_TRANSIENT_FOR,
+                            AtomEnum::WINDOW,
+                            &[main],
+                        )
+                        .map(drop)
+                    } else {
+                        c.delete_property(w, AtomEnum::WM_TRANSIENT_FOR.into())
+                            .map(drop)
+                    };
+                    lifted |= want && self.transient.contains_key(&w);
+                    self.transient.insert(w, want);
+                }
+                let states = cardinals(c, w, b"_NET_WM_STATE");
+                let full = maximize.iter().all(|m| states.contains(m));
+                if self.skipped.insert(w) {
+                    opened = Some(w);
+                    let mut added: Vec<u32> = skipped
+                        .iter()
+                        .copied()
+                        .filter(|s| !states.contains(s))
+                        .collect();
+                    if !full && self.maximized.contains(&name) {
+                        added.extend(maximize.iter().copied());
+                    }
+                    for &skip in &added {
+                        // Action 1: add.
+                        let event = ClientMessageEvent::new(32, w, state, [1, skip, 0, 1, 0]);
+                        let _ = c.send_event(
+                            false,
+                            self.root,
+                            EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+                            event,
+                        );
+                    }
+                } else if !main_hidden && full {
+                    self.maximized.insert(name.clone());
+                } else if !main_hidden {
+                    self.maximized.remove(&name);
+                }
+                if !main_hidden && states.contains(&hidden) && panels.contains(&name) {
+                    minimized.push(name);
+                }
+            }
+            let active_window = cardinals(c, self.root, b"_NET_ACTIVE_WINDOW")
+                .first()
+                .copied()
+                .unwrap_or(0);
+            let active = active_window != 0
+                && (self.ours.get(&active_window) == Some(&true)
+                    || cardinals(c, active_window, b"WM_TRANSIENT_FOR").first() == Some(&main));
+            // A window back above the main one may cover the window opened since (About from
+            // the menu it stepped aside for): that one comes up again on the next call.
+            if self.reraise && active && active_window != main {
+                activate(c, self.root, active_window);
+            }
+            // The last window opened comes to the front with the focus, whatever its screen:
+            // its own request may come before it is transient, and then be refused.
+            if let Some(w) = opened
+                && self.last.is_some()
+                && active
+                && !restoring
+                && !main_hidden
+                && !behind.contains(&name_of(c, w).unwrap_or_default())
+            {
+                activate(c, self.root, w);
+            }
+            self.reraise = lifted || std::mem::take(&mut self.back);
+            let _ = c.flush();
+            Followed { active, minimized }
+        }
     }
 
     /// True while AudioStrada's main window `parent` is minimized.
@@ -210,6 +496,10 @@ mod imp {
         /// Unmapped while AudioStrada's main window is minimized; when it was last checked.
         hidden: bool,
         checked: std::time::Instant,
+        /// Floating above other windows, as AudioStrada's own are while it is in front.
+        above: bool,
+        /// Stepped aside for a menu of this window of AudioStrada's (see [`publish_menu`]).
+        aside: Option<u32>,
     }
 
     impl HostWindow {
@@ -309,6 +599,8 @@ mod imp {
                 pressed: Vec::new(),
                 hidden: false,
                 checked: std::time::Instant::now(),
+                above: false,
+                aside: None,
             })
         }
 
@@ -328,22 +620,118 @@ mod imp {
         pub fn raise(&mut self) {
             let aux = ConfigureWindowAux::new().stack_mode(StackMode::ABOVE);
             let _ = self.connection.configure_window(self.window, &aux);
-            if let Ok(reply) = self
-                .connection
-                .intern_atom(false, b"_NET_ACTIVE_WINDOW")
-                .map(|c| c.reply())
-                && let Ok(active) = reply
-            {
-                // Source 1: an application asks; the window manager decides.
-                let event = ClientMessageEvent::new(32, self.window, active.atom, [1, 0, 0, 0, 0]);
-                let _ = self.connection.send_event(
+            let _ = self.connection.flush();
+            // Another connection: reading the server's time there takes no event of ours.
+            if let Ok((connection, _)) = x11rb::connect(None) {
+                activate(&connection, self.root, self.window);
+            }
+        }
+
+        /// Floats while AudioStrada's main window, one of its windows or a plugin window
+        /// is active, as AudioStrada's floating windows do; under another application else.
+        fn follow_parent(&mut self, parent: u32) {
+            let c = &self.connection;
+            let active = cardinals(c, self.root, b"_NET_ACTIVE_WINDOW")
+                .first()
+                .copied()
+                .unwrap_or(0);
+            let pid = |w| cardinals(c, w, b"_NET_WM_PID").first().copied();
+            let ours = active != 0
+                && (active == parent
+                    || pid(active).is_some_and(|p| Some(p) == pid(parent))
+                    || cardinals(c, active, b"WM_TRANSIENT_FOR").first() == Some(&parent));
+            if ours == self.above {
+                return;
+            }
+            let (Some(state), Some(above)) =
+                (atom(c, b"_NET_WM_STATE"), atom(c, b"_NET_WM_STATE_ABOVE"))
+            else {
+                return;
+            };
+            self.above = ours;
+            let event =
+                ClientMessageEvent::new(32, self.window, state, [u32::from(ours), above, 0, 1, 0]);
+            let _ = c.send_event(
+                false,
+                self.root,
+                EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+                event,
+            );
+        }
+
+        /// Steps behind AudioStrada's window showing a menu this one covers part of, and
+        /// comes back once it closes, behind the window active then (one opened from the menu).
+        fn step_aside(&mut self, parent: u32) {
+            let c = &self.connection;
+            let frame = (|| {
+                let at = c
+                    .translate_coordinates(self.window, self.root, 0, 0)
+                    .ok()?
+                    .reply()
+                    .ok()?;
+                let size = c.get_geometry(self.window).ok()?.reply().ok()?;
+                let (x, y) = (i32::from(at.dst_x), i32::from(at.dst_y));
+                Some([x, y, x + i32::from(size.width), y + i32::from(size.height)])
+            })();
+            let over = menu_of(c, parent).filter(|&(w, a)| {
+                w != self.window
+                    && frame
+                        .is_some_and(|f| f[0] < a[2] && a[0] < f[2] && f[1] < a[3] && a[1] < f[3])
+            });
+            let Some(state) = atom(c, b"_NET_WM_STATE") else {
+                return;
+            };
+            let send = |data: [u32; 5]| {
+                let event = ClientMessageEvent::new(32, self.window, state, data);
+                let _ = c.send_event(
                     false,
                     self.root,
                     EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
                     event,
                 );
+            };
+            match (over, self.aside) {
+                (Some((menu, _)), None) => {
+                    if let Some(above) = atom(c, b"_NET_WM_STATE_ABOVE") {
+                        send([0, above, 0, 1, 0]);
+                    }
+                    self.above = false;
+                    // Transient for the main window, it could not go behind it.
+                    if menu == parent {
+                        let _ = c.delete_property(self.window, AtomEnum::WM_TRANSIENT_FOR.into());
+                    }
+                    let _ = c.flush();
+                    if let Ok((other, _)) = x11rb::connect(None) {
+                        activate(&other, self.root, menu);
+                    }
+                    self.aside = Some(menu);
+                }
+                (None, Some(_)) => {
+                    let _ = c.change_property32(
+                        PropMode::REPLACE,
+                        self.window,
+                        AtomEnum::WM_TRANSIENT_FOR,
+                        AtomEnum::WINDOW,
+                        &[parent],
+                    );
+                    self.aside = None;
+                    self.follow_parent(parent);
+                    let c = &self.connection;
+                    let _ = c.sync();
+                    let active = cardinals(c, self.root, b"_NET_ACTIVE_WINDOW")
+                        .first()
+                        .copied()
+                        .unwrap_or(0);
+                    if self.above
+                        && active != 0
+                        && active != self.window
+                        && let Ok((other, _)) = x11rb::connect(None)
+                    {
+                        activate(&other, self.root, active);
+                    }
+                }
+                _ => {}
             }
-            let _ = self.connection.flush();
         }
 
         /// Handles pending events; true once the user closed the window. Hides it while
@@ -355,13 +743,32 @@ mod imp {
                 let minimized = parent != 0 && minimized(&self.connection, parent);
                 if minimized != self.hidden {
                     self.hidden = minimized;
-                    let _ = if minimized {
-                        self.connection.unmap_window(self.window)
+                    if minimized {
+                        let _ = self.connection.unmap_window(self.window);
                     } else {
-                        self.connection.map_window(self.window)
-                    };
-                    let _ = self.connection.flush();
+                        // A withdrawn window may lose its states: set again before mapping.
+                        let c = &self.connection;
+                        let skipped: Vec<u32> = SKIPPED.iter().filter_map(|n| atom(c, n)).collect();
+                        if let Some(state) = atom(c, b"_NET_WM_STATE") {
+                            let _ = c.change_property32(
+                                PropMode::REPLACE,
+                                self.window,
+                                state,
+                                AtomEnum::ATOM,
+                                &skipped,
+                            );
+                        }
+                        self.above = false;
+                        let _ = c.map_window(self.window);
+                    }
                 }
+                if parent != 0 && !minimized {
+                    self.step_aside(parent);
+                    if self.aside.is_none() {
+                        self.follow_parent(parent);
+                    }
+                }
+                let _ = self.connection.flush();
             }
             while let Ok(Some(event)) = self.connection.poll_for_event() {
                 match event {
@@ -1848,10 +2255,12 @@ pub fn allow_foreground(pid: u32) {
     #[cfg(not(windows))]
     let _ = pid;
 }
+#[cfg(all(unix, not(target_os = "macos")))]
+pub use imp::{
+    Followed, follow_main, publish_menu, raise_parent, raise_titled, window_back_from_aside,
+};
 #[cfg(windows)]
 pub use imp::{Menu, own_windows};
-#[cfg(all(unix, not(target_os = "macos")))]
-pub use imp::{keep_out_of_taskbar, raise_parent, raise_titled};
 #[cfg(target_os = "macos")]
 pub use imp::{keep_windows_above, window_number};
 
@@ -2019,6 +2428,122 @@ mod tests {
         settle(&mut host);
         assert!(mapped(), "back with it");
         set_parent(0);
+    }
+
+    /// AudioStrada's other windows are kept transient for the main one, but those stepping
+    /// behind it for a menu; panels minimized are told; AudioStrada is active while one of its
+    /// windows is. The test stands in for the window manager's lists. Needs
+    /// AUDIOSTRADA_TEST_X11_KEYS and a display (Xvfb).
+    #[test]
+    fn floating_windows_stay_transient_for_the_main_window_but_while_stepping_behind() {
+        use x11rb::protocol::xproto::{AtomEnum, PropMode};
+        if std::env::var_os("AUDIOSTRADA_TEST_X11_KEYS").is_none() {
+            eprintln!("AUDIOSTRADA_TEST_X11_KEYS not set, skipping");
+            return;
+        }
+        let (c, screen) = x11rb::connect(None).unwrap();
+        let root = c.setup().roots[screen].root;
+        let atom = |n: &[u8]| c.intern_atom(false, n).unwrap().reply().unwrap().atom;
+        let (pid, name, utf8) = (
+            atom(b"_NET_WM_PID"),
+            atom(b"_NET_WM_NAME"),
+            atom(b"UTF8_STRING"),
+        );
+        let window = |title: &str, ours: bool| {
+            let w = c.generate_id().unwrap();
+            c.create_window(
+                x11rb::COPY_DEPTH_FROM_PARENT,
+                w,
+                root,
+                0,
+                0,
+                100,
+                100,
+                0,
+                WindowClass::INPUT_OUTPUT,
+                x11rb::COPY_FROM_PARENT,
+                &CreateWindowAux::new(),
+            )
+            .unwrap();
+            if ours {
+                c.change_property32(
+                    PropMode::REPLACE,
+                    w,
+                    pid,
+                    AtomEnum::CARDINAL,
+                    &[std::process::id()],
+                )
+                .unwrap();
+            }
+            c.change_property8(PropMode::REPLACE, w, name, utf8, title.as_bytes())
+                .unwrap();
+            w
+        };
+        let (main, mixer, editor) = (
+            window("Main", true),
+            window("Mixer", true),
+            window("Editor", true),
+        );
+        let other = window("Other", false);
+        let set = |w: u32, property: &[u8], kind: AtomEnum, values: &[u32]| {
+            c.change_property32(PropMode::REPLACE, w, atom(property), kind, values)
+                .unwrap();
+            c.sync().unwrap();
+        };
+        set(
+            root,
+            b"_NET_CLIENT_LIST",
+            AtomEnum::WINDOW,
+            &[main, mixer, editor, other],
+        );
+        set(root, b"_NET_ACTIVE_WINDOW", AtomEnum::WINDOW, &[editor]);
+        let transient = |w: u32| {
+            c.get_property(false, w, AtomEnum::WM_TRANSIENT_FOR, AtomEnum::WINDOW, 0, 1)
+                .unwrap()
+                .reply()
+                .unwrap()
+                .value32()
+                .and_then(|mut v| v.next())
+        };
+        let panels = ["Mixer".to_owned()];
+        let followed = follow_main(u64::from(main), &[], &panels);
+        c.sync().unwrap();
+        assert!(followed.active, "one of its windows is active");
+        assert_eq!(transient(mixer), Some(main));
+        assert_eq!(transient(editor), Some(main));
+        assert_eq!(
+            transient(other),
+            None,
+            "another application's window is left alone"
+        );
+        follow_main(u64::from(main), &["Editor".to_owned()], &panels);
+        c.sync().unwrap();
+        assert_eq!(transient(editor), None, "stepping behind the main window");
+        assert_eq!(transient(mixer), Some(main));
+        follow_main(u64::from(main), &[], &panels);
+        c.sync().unwrap();
+        assert_eq!(transient(editor), Some(main), "back above it");
+        let hidden = atom(b"_NET_WM_STATE_HIDDEN");
+        set(mixer, b"_NET_WM_STATE", AtomEnum::ATOM, &[hidden]);
+        set(root, b"_NET_ACTIVE_WINDOW", AtomEnum::WINDOW, &[other]);
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        let followed = follow_main(u64::from(main), &[], &panels);
+        assert!(!followed.active, "another application is active");
+        assert_eq!(followed.minimized, panels, "a panel minimized docks back");
+        set(main, b"_NET_WM_STATE", AtomEnum::ATOM, &[hidden]);
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        let followed = follow_main(u64::from(main), &[], &panels);
+        assert!(
+            followed.minimized.is_empty(),
+            "hidden with the main window: it stays"
+        );
+        for w in [main, mixer, editor, other] {
+            c.destroy_window(w).unwrap();
+        }
+        c.delete_property(root, atom(b"_NET_CLIENT_LIST")).unwrap();
+        c.delete_property(root, atom(b"_NET_ACTIVE_WINDOW"))
+            .unwrap();
+        c.sync().unwrap();
     }
 
     /// Space pressed while a plugin's window inside ours has the focus comes to AudioStrada, not to

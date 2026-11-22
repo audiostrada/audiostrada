@@ -303,25 +303,56 @@ Windowing changes have broken another system almost every time, so:
 
 ### Linux (X11; Wayland runs in X11 mode)
 
-- `floating_level` sets the window levels. The browser and dialogs float; an editor floats
-  while the main window, its own window or the one drawing it has the focus; panels stay at
-  the normal level.
-- Floating windows over a menu drop to the normal level and the window showing the menu comes
-  to the front once (`uncover_main`, `raise_titled`); all of them drop under a dialog drawn in
-  the main window, and under file choosers.
-- While the main window is minimized, the floating viewports are hidden (`with_visible` in
-  `floating_builder`); plugin windows unmap themselves while it has `_NET_WM_STATE_HIDDEN`.
-- `keep_out_of_taskbar` adds `_NET_WM_STATE_SKIP_TASKBAR`, `SKIP_PAGER` and
-  `_KDE_NET_WM_STATE_SKIP_SWITCHER` to this process's windows besides the main one, when
-  windows open and every two seconds; plugin windows get them before they are mapped.
-- Plugin windows are `WM_TRANSIENT_FOR` the main window; the transport's keys are grabbed.
-- Making the egui windows transient for the main window was tried and reverted (commit
-  0ec8c08), probably because windows could no longer go to another screen.
-- Test: `plugin_windows_hide_while_the_main_window_is_minimized` (Xvfb,
-  `AUDIOSTRADA_TEST_X11_KEYS`).
+Tried on GNOME Shell 50 (Mutter, Wayland session, AudioStrada through XWayland), two screens,
+2026-11-22, driving the windows from a probe (`_NET_ACTIVE_WINDOW`, `_NET_MOVERESIZE_WINDOW`,
+`_NET_WM_STATE`, `WM_CHANGE_STATE`) and reading `_NET_CLIENT_LIST_STACKING`. Not tried on KWin
+or other window managers yet.
 
-Panels can still go behind the main window here, unlike the expected behavior above. Closing
-that gap needs testing under X11 and Wayland.
+- **Above the main window:** `follow_main` ([window.rs](crates/audiostrada-plugins/src/window.rs)),
+  called from `keep_windows_above` ([lib.rs](crates/audiostrada-ui/src/lib.rs)), makes every
+  other window of the process `WM_TRANSIENT_FOR` the main one, as owned windows on Windows: it
+  never goes behind it, and Mutter then gives the focus between AudioStrada's windows without
+  "is ready" notices. On Mutter transient windows still move to another screen and maximize
+  there (the worry behind the revert of 0ec8c08). Mutter restacks neither on `ConfigureWindow`
+  nor on `_NET_RESTACK_WINDOW`, so restacking is no alternative.
+- **The band:** every floating window but the panels floats (`floating_level`, egui's
+  `AlwaysOnTop`, `_NET_WM_STATE_ABOVE`) while the active window is AudioStrada's or a plugin
+  window (transient for the main one); with another application in front, none does.
+  Sandboxed plugin windows do the same in `HostWindow::poll`.
+- **Titles:** winit reports no window title on X11, so egui's viewport titles stay empty.
+  The system's windows are found by the titles `floating_builder` saw (`viewport_title`).
+- **Activation:** Mutter refuses `_NET_ACTIVE_WINDOW` stamped 0 after a newer user action
+  (the window only demands attention): `activate` sends the server's time, and checks the
+  request: XWayland may drop one sent on a connection closed right after it. The last window
+  opened is activated by `follow_main` once it is listed, since its own request may come
+  before it is transient; not those mapped again with the main window.
+- **Menus:** the floating windows over a menu drop to the normal level (`uncover_main`); over
+  one of the main window's they also stop being transient meanwhile, so that it can come above
+  them. The window showing the menu is activated 200 ms later, once the window manager has
+  applied those changes. Once it closes they are transient again and the active window
+  (About, opened from the menu) is activated again on top. The main
+  window publishes the menu in `_AUDIOSTRADA_MENU` (window, left, top, right, bottom):
+  sandboxed plugin windows over it step aside the same way.
+- **Main window minimized:** the floating viewports are hidden (`with_visible` in
+  `floating_builder`); plugin windows unmap themselves while it has `_NET_WM_STATE_HIDDEN`. The
+  window manager forgets states of unmapped windows: `follow_main` maximizes again the windows
+  that were, and plugin windows set their states again before mapping.
+- **Taskbar, pager, Alt+Tab:** `follow_main` adds `_NET_WM_STATE_SKIP_TASKBAR`, `SKIP_PAGER` and
+  `_KDE_NET_WM_STATE_SKIP_SWITCHER` to every window but the main one; plugin windows get them
+  before they are mapped. Mutter refuses to minimize a window skipping the taskbar (and a
+  transient one): on GNOME a detached panel cannot be minimized, so it docks back only when
+  closed. Window managers that allow it report `_NET_WM_STATE_HIDDEN`, which `follow_main`
+  returns and docks.
+- Plugin windows are `WM_TRANSIENT_FOR` the main window; the transport's keys are grabbed.
+- **Trying it without touching the desktop:** `dbus-run-session gnome-shell --headless
+  --wayland --wayland-display=<name> --virtual-monitor 1920x1080 --virtual-monitor 1920x1080`
+  runs the same Mutter with two screens and its own XWayland (its display and auth file are in
+  its log and in `$XDG_RUNTIME_DIR/.mutter-Xwaylandauth.*`). Its XTEST goes through the
+  remote desktop portal, which asks permission: drive the main window with
+  `AUDIOSTRADA_RECORD_SCRIPT` instead, and read `_NET_CLIENT_LIST_STACKING`.
+- Tests (Xvfb, `AUDIOSTRADA_TEST_X11_KEYS`):
+  `plugin_windows_hide_while_the_main_window_is_minimized`,
+  `floating_windows_stay_transient_for_the_main_window_but_while_stepping_behind`.
 
 ### macOS
 
