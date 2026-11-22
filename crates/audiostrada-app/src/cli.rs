@@ -33,6 +33,10 @@ Commands:
                      Fingerprint a built-in console
   measure-report FILE.json|DIR... --output PAGE.html
                      Compare fingerprints (or every one of a folder) on one page of charts
+  measure-dynamics FILE.toml [--out DIR]
+                     Measure compressors set as the file says: static curve and harmonics,
+                     response by frequency while compressing, attack and release after steps
+                     held for different times; a JSON file each
   measure-presets --audio DIR [EFFECT...] [--only TEXT] [--write DIR] [--presets FILE.json]
                      Play every factory preset on a sound of its kind (vocal.wav, kick.wav,
                      mix.wav... of DIR) and on a tone: loudness, peaks, gain reduction, change by
@@ -95,6 +99,10 @@ pub enum Command {
     MeasureReport {
         files: Vec<PathBuf>,
         output: PathBuf,
+    },
+    MeasureDynamics {
+        references: PathBuf,
+        out: PathBuf,
     },
     PluginParams(String),
     MeasurePresets(crate::preset_report::Args),
@@ -211,6 +219,26 @@ pub fn parse(mut args: impl Iterator<Item = String>) -> Result<Command, String> 
             return match (files.is_empty(), output) {
                 (false, Some(output)) => Ok(Command::MeasureReport { files, output }),
                 _ => Err("'measure-report' needs fingerprints and --output <FILE>".into()),
+            };
+        }
+        "measure-dynamics" => {
+            let (mut references, mut out) = (None, None);
+            while let Some(arg) = args.next() {
+                match arg.as_str() {
+                    "--out" => out = args.next().map(PathBuf::from),
+                    other if other.starts_with("--") => {
+                        return Err(format!("unknown option '{other}' for measure-dynamics"));
+                    }
+                    _ if references.is_none() => references = Some(arg.into()),
+                    _ => return Err("'measure-dynamics' takes one references file".into()),
+                }
+            }
+            return match references {
+                Some(references) => Ok(Command::MeasureDynamics {
+                    references,
+                    out: out.unwrap_or_else(|| "dynamics".into()),
+                }),
+                None => Err("'measure-dynamics' needs a references file".into()),
             };
         }
         "measure-presets" => {

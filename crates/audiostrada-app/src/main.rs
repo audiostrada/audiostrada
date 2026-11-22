@@ -1,5 +1,6 @@
 mod audio;
 mod cli;
+mod dynamics;
 mod license;
 mod logging;
 mod measure;
@@ -69,6 +70,7 @@ fn main() -> ExitCode {
         } => audiostrada_ui::control::serve_remote(port).map_err(anyhow::Error::msg),
         Command::Measure(args) => measure_command(args),
         Command::MeasureReport { files, output } => measure::report(&files, &output),
+        Command::MeasureDynamics { references, out } => dynamics::references(&references, &out),
         Command::PluginParams(query) => measure::plugin_params(&query),
         Command::MeasurePresets(args) => preset_report::run(&args),
         Command::License(cli::LicenseCommand::Keygen) => license::keygen(),
