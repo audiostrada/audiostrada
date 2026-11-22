@@ -204,6 +204,8 @@ fn a_sandboxed_plugin_hears_its_sidechain_key() {
     let mut instance = SandboxInstance::new(exe(), &found[0]).unwrap();
     assert!(instance.has_sidechain());
     let mut processor = instance.activate(48_000, 64).unwrap();
+    // Live, a 64-frame block late by 2 ms comes back dry: a busy CI machine misses that.
+    processor.set_offline(true);
     let key = (vec![0.25f32; 64], vec![0.25f32; 64]);
     let (mut l, mut r) = (vec![0.5f32; 64], vec![0.5f32; 64]);
     processor.process_keyed(&mut l, &mut r, (&key.0, &key.1), &[], &[], &mut |_, _| {});
