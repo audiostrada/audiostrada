@@ -1853,6 +1853,7 @@ mod imp {
 
 #[cfg(target_os = "macos")]
 mod imp {
+    use std::ptr::NonNull;
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
 
@@ -1863,6 +1864,9 @@ mod imp {
         NSFloatingWindowLevel, NSNormalWindowLevel, NSRunningApplication, NSScreen, NSView,
         NSWindow, NSWindowLevel, NSWindowNumberListOptions, NSWindowOrderingMode,
         NSWindowStyleMask, NSWorkspace,
+    };
+    use objc2_core_foundation::{
+        CFArray, CFDictionary, CFNumber, CFNumberType, CFRetained, CFString,
     };
     use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
 
@@ -1942,6 +1946,12 @@ mod imp {
         NSFloatingWindowLevel + 2
     }
 
+    /// A window kept above one rising above the plugin hosts' windows for its menu, in the same
+    /// order as at rest.
+    fn lifted_level(level: NSWindowLevel) -> NSWindowLevel {
+        level + over_all_level() + 1 - panel_level()
+    }
+
     /// The class of winit's windows, which key-value observing renames
     /// (`NSKVONotifying_WinitWindow`): an exact match missed every floating window.
     fn is_winit_window(class: &[u8]) -> bool {
@@ -1957,12 +1967,98 @@ mod imp {
         }
     }
 
+    #[link(name = "CoreGraphics", kind = "framework")]
+    unsafe extern "C" {
+        fn CGWindowListCopyWindowInfo(option: u32, relative_to: u32) -> *mut CFArray;
+    }
+
+    /// The frames on screen of the plugin hosts' windows (the processes of AudioStrada's
+    /// executable but this one), from the top left of the main screen, in points.
+    fn plugin_host_frames() -> Vec<[f64; 4]> {
+        // On screen only, without the desktop's own windows.
+        const OPTIONS: u32 = 1 | 16;
+        // SAFETY: a plain query; the array returned is ours to release.
+        let Some(list) = NonNull::new(unsafe { CGWindowListCopyWindowInfo(OPTIONS, 0) }) else {
+            return Vec::new();
+        };
+        // SAFETY: a +1 reference from a Copy function.
+        let list = unsafe { CFRetained::from_raw(list) };
+        let ours = NSRunningApplication::currentApplication().executableURL();
+        let me = std::process::id() as i64;
+        let bounds_key = CFString::from_static_str("kCGWindowBounds");
+        let number = |dict: &CFDictionary, key: &str| -> Option<f64> {
+            let key = CFString::from_str(key);
+            // SAFETY: the window list's values are CFNumbers under these keys.
+            unsafe {
+                let value = dict.value((&*key as *const CFString).cast());
+                let value = value.cast::<CFNumber>().as_ref()?;
+                let mut out = 0.0f64;
+                value
+                    .value(CFNumberType::Float64Type, (&mut out as *mut f64).cast())
+                    .then_some(out)
+            }
+        };
+        let mut hosts: Vec<(i64, bool)> = Vec::new();
+        let mut frames = Vec::new();
+        for i in 0..list.count() {
+            // SAFETY: the window list holds dictionaries.
+            let Some(dict) = (unsafe { list.value_at_index(i).cast::<CFDictionary>().as_ref() })
+            else {
+                continue;
+            };
+            let Some(pid) = number(dict, "kCGWindowOwnerPID").map(|p| p as i64) else {
+                continue;
+            };
+            if pid == me {
+                continue;
+            }
+            let host = match hosts.iter().find(|(p, _)| *p == pid) {
+                Some(&(_, host)) => host,
+                None => {
+                    let host = ours.is_some()
+                        && NSRunningApplication::runningApplicationWithProcessIdentifier(
+                            pid as libc::pid_t,
+                        )
+                        .and_then(|app| app.executableURL())
+                            == ours;
+                    hosts.push((pid, host));
+                    host
+                }
+            };
+            if !host {
+                continue;
+            }
+            // SAFETY: the bounds are a dictionary of CFNumbers.
+            let Some(bounds) = (unsafe {
+                dict.value((&*bounds_key as *const CFString).cast())
+                    .cast::<CFDictionary>()
+                    .as_ref()
+            }) else {
+                continue;
+            };
+            if let (Some(x), Some(y), Some(w), Some(h)) = (
+                number(bounds, "X"),
+                number(bounds, "Y"),
+                number(bounds, "Width"),
+                number(bounds, "Height"),
+            ) {
+                frames.push([x, y, x + w, y + h]);
+            }
+        }
+        frames
+    }
+
+    /// Windows lifted above the main window showing a menu, by number.
+    static LIFTED: Mutex<Vec<isize>> = Mutex::new(Vec::new());
+
     /// Keeps the application's other windows (winit's: detached panels, titled `panels`, and
     /// the others) above its main window, given by its content view, as [`HostWindow`] does
     /// for plugin windows, at the levels above. While the main window shows a dialog
     /// (`covered`), it rises above them all, plugin windows of other processes included. A
     /// window over one of the `menus` (the title of the window showing it, `None` for the main
-    /// one, and its areas) drops behind that window until it closes.
+    /// one, and its areas) drops behind that window until it closes; a plugin host's window
+    /// cannot be told, so the window showing the menu rises above it instead, the other
+    /// windows of this process staying where they are.
     pub fn keep_windows_above(
         main: *mut std::ffi::c_void,
         panels: &[String],
@@ -2002,8 +2098,19 @@ mod imp {
                 Some((owner.windowNumber(), resting(&owner), areas))
             })
             .collect();
+        // The window showing a menu that a plugin host's window covers.
+        let rising = if showing.is_empty() {
+            None
+        } else {
+            let hosts = plugin_host_frames();
+            showing
+                .iter()
+                .find(|(_, _, areas)| areas.iter().any(|a| hosts.iter().any(|h| overlaps(a, h))))
+                .map(|&(owner, ..)| owner)
+        };
+        let main_number = main.as_ref().map(|m| m.windowNumber());
         if let Some(main) = &main {
-            let level = if active && covered {
+            let level = if active && (covered || rising == main_number) {
                 over_all_level()
             } else {
                 NSNormalWindowLevel
@@ -2013,7 +2120,9 @@ mod imp {
             }
         }
         let mut aside = ASIDE.lock().unwrap_or_else(|e| e.into_inner());
+        let mut lifted = LIFTED.lock().unwrap_or_else(|e| e.into_inner());
         let mut still = Vec::new();
+        let mut still_lifted = Vec::new();
         let mut back = false;
         // Panels minimized: they go back into the main window. egui does not follow the
         // minimized state on macOS while running.
@@ -2051,6 +2160,17 @@ mod imp {
                 still.push(number);
                 continue;
             }
+            // The window showing the menu rises above the plugin hosts' windows; the others
+            // of the band stay above it, and the panels too when it is the main window, in the
+            // same order.
+            let level = match rising {
+                Some(r) if r == number => over_all_level(),
+                Some(r) if Some(r) == main_number || level == band_level() => {
+                    still_lifted.push(number);
+                    lifted_level(level)
+                }
+                _ => level,
+            };
             keep_above(&window, active, level);
             // Back from aside: behind the other floating windows, never over one opened
             // from the menu (About).
@@ -2058,11 +2178,13 @@ mod imp {
                 window.orderBack(None);
                 back = true;
             }
+            back |= lifted.contains(&number) && !still_lifted.contains(&number);
             if hidden.contains(&number) {
                 window.orderFront(None);
             }
         }
         *aside = still;
+        *lifted = still_lifted;
         // The window in use comes back to the front of the band.
         if back
             && let Some(key) = app.keyWindow()
@@ -2305,8 +2427,10 @@ mod imp {
         }
 
         #[test]
-        fn panels_float_under_the_band_and_a_covered_main_window_above_it() {
+        fn windows_lifted_for_a_menu_keep_their_order_above_the_window_showing_it() {
             assert!(panel_level() < band_level() && band_level() < over_all_level());
+            assert!(lifted_level(panel_level()) > over_all_level());
+            assert!(lifted_level(band_level()) > lifted_level(panel_level()));
         }
     }
 }
