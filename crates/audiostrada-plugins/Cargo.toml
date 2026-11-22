@@ -31,6 +31,7 @@ x11rb = { workspace = true, features = ["xtest"] }
 
 # AppKit windows for plugin editors, CoreFoundation bundles for VST3, AudioToolbox for AU.
 [target.'cfg(target_os = "macos")'.dependencies]
+block2.workspace = true
 objc2.workspace = true
 objc2-app-kit.workspace = true
 objc2-audio-toolbox.workspace = true

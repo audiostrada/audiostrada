@@ -20,6 +20,8 @@ pub enum MediaState {
 struct Entry {
     state: MediaState,
     original: Option<Arc<AudioData>>,
+    /// `audio` locked in RAM, as the audio thread reads it (dropped before it).
+    resident: Option<audiostrada_rt::Resident>,
     audio: Option<Arc<AudioData>>,
     peaks: Option<Arc<Peaks>>,
     /// Engine rate the pending or current `audio` was made for.
@@ -213,6 +215,7 @@ impl MediaPool {
             Entry {
                 state: MediaState::Loading,
                 original: None,
+                resident: None,
                 audio: None,
                 peaks: None,
                 rate: self.rate,
@@ -245,6 +248,7 @@ impl MediaPool {
         for (path, entry) in &mut self.entries {
             if entry.rate != rate && !matches!(entry.state, MediaState::Failed(_)) {
                 entry.rate = rate;
+                entry.resident = None;
                 entry.audio = None;
                 entry.state = MediaState::Loading;
                 jobs.push((path.clone(), entry.original.clone()));
@@ -269,6 +273,10 @@ impl MediaPool {
             match loaded.result {
                 Ok((original, audio, peaks)) => {
                     entry.original = Some(original);
+                    entry.resident = None;
+                    let channels: Vec<&[f32]> =
+                        (0..audio.channels()).map(|ch| audio.channel(ch)).collect();
+                    entry.resident = audiostrada_rt::keep_resident(&channels);
                     entry.audio = Some(audio);
                     entry.peaks = Some(peaks);
                     entry.state = MediaState::Ready;

@@ -1147,3 +1147,45 @@ fn the_track_strip_column_fits_its_strips_and_resizes() {
     assert!(layout::is_visible(&h.app.tree, Pane::Strip));
     assert!(!layout::is_visible(&h.app.tree, Pane::Mixer));
 }
+
+/// A detached panel minimized docks back into the main window, as when it is closed; one
+/// hidden with the main window minimized stays detached. The main window looks: a minimized
+/// window no longer runs its own passes.
+#[test]
+fn a_detached_panel_minimized_goes_back_into_the_main_window() {
+    let mut h = Harness::new("minimized-panel");
+    h.app.detach(Pane::Mixer);
+    h.frame(Vec::new());
+    let pass = |h: &mut Harness, mixer: bool, main: bool| {
+        let mut viewports = egui::ViewportIdMap::default();
+        let info = |minimized| egui::ViewportInfo {
+            minimized: Some(minimized),
+            ..Default::default()
+        };
+        viewports.insert(egui::ViewportId::ROOT, info(main));
+        viewports.insert(pane_window(Pane::Mixer), info(mixer));
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1600.0, 1000.0))),
+            viewports,
+            ..Default::default()
+        };
+        let (app, frame) = (&mut h.app, &mut h.frame);
+        h.ctx
+            .run_ui(input, |ui| {
+                eframe::App::logic(app, ui.ctx(), frame);
+                eframe::App::ui(app, ui, frame);
+            })
+            .drop_without_applying_deltas();
+    };
+    pass(&mut h, true, true);
+    pass(&mut h, true, true);
+    assert_eq!(
+        h.app.detached,
+        vec![Pane::Mixer],
+        "hidden with the main window"
+    );
+    pass(&mut h, true, false);
+    pass(&mut h, false, false);
+    assert!(h.app.detached.is_empty(), "minimized: docked");
+    assert!(layout::is_visible(&h.app.tree, Pane::Mixer));
+}

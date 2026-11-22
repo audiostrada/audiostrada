@@ -67,4 +67,4 @@ that (Preferences › General › *Several screens*); untick it if a fractional 
 150 %) makes the windows blurry, at the cost of windows that can fall behind.
 
 In a plugin's own window, the transport's shortcuts ([[Space]], [[R]], [[Home]], [[L]]…) go to
-AudioStrada rather than to the plugin, on Linux; the other keys stay the plugin's.
+AudioStrada rather than to the plugin, on every system; the other keys stay the plugin's.

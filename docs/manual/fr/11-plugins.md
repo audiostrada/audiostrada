@@ -70,4 +70,4 @@ Sous Wayland, AudioStrada tourne en mode X11 pour cela (Préférences › Géné
 floues, au prix de fenêtres qui peuvent passer derrière.
 
 Dans la fenêtre d'un plugin, les raccourcis du transport ([[Space]], [[R]], [[Home]], [[L]]…) vont
-à AudioStrada plutôt qu'au plugin, sous Linux ; les autres touches restent au plugin.
+à AudioStrada plutôt qu'au plugin, sur tous les systèmes ; les autres touches restent au plugin.

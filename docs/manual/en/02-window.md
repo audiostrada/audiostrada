@@ -36,7 +36,14 @@ drive AudioStrada. A click opens their window (see *AI assistants*).
   timeline as in Logic Pro (View › *Show track strip*). Drag its edge to widen it.
 
 Drag a tab to rearrange the panels. Right-click a tab › *Open in its own window* puts a panel on
-another screen (typically the mixer, [[Ctrl+M]]); closing that window docks it back.
+another screen (typically the mixer, [[Ctrl+M]]); closing or minimizing that window docks it
+back.
+
+The other windows (effects, plugins, the effect browser, Express Mix, Preferences and the other
+dialogs) float above the main window and the panels, the last one opened in front, and go to any
+screen. While a menu is open, a window over it steps aside until it closes. They hide with the
+main window when it is minimized: the taskbar, the Dock and [[Alt+Tab]] show AudioStrada's main
+window only.
 
 View › *Layout* switches between the arrangements offered at the first start, also in the
 command palette:

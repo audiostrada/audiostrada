@@ -162,7 +162,8 @@ comments on public items and modules, in the same plain style. No emojis, no em 
 ## Windowing: floating windows
 
 AudioStrada opens windows besides the main one: detached panels (mixer, piano roll, rack),
-effect editors, the effect browser, and plugin windows (built-in, third-party in process, and
+effect editors, the effect browser, Express Mix, every dialog (`dialog::Dialog`: About,
+Preferences, Export, confirmations…), and plugin windows (built-in, third-party in process, and
 third-party in a sandboxed plugin host, which is another process). They must behave the same
 on every system, as Reaper's floating windows do.
 
@@ -172,20 +173,29 @@ on every system, as Reaper's floating windows do.
 - A detached panel never covers a window put over it, on whatever screen. For example, the
   mixer maximized on a second screen, clicked, does not hide the browser or a plugin window
   placed over it.
+- The last window opened or clicked (an editor, a plugin, Express Mix, a dialog) is in front
+  of the other floating windows, whatever screen it is on.
 - Floating windows move freely from one screen to another.
 - AudioStrada shows as one application in the taskbar, the Dock and Alt+Tab: floating
   windows have no entry of their own.
 - Minimizing the main window hides the floating windows; restoring it brings them back.
+- Closing or minimizing a detached panel docks it back into the main window.
 - A window opens centered on the window it was opened from, so on that window's screen. It
   then opens where it was last left, if that is still on a screen.
-- Opening a window that is already open brings it to the front. It must never get lost
-  behind another window with no way to get it back.
-- Floating windows never cover AudioStrada's dialogs (file choosers, messages).
+- Opening a window that is already open, or clicking its effect in the mixer, brings it to
+  the front. It must never get lost behind another window with no way to get it back.
+- Menus are drawn inside their window (egui), so no system lets them rise above another
+  window: a floating window over an open menu steps aside, behind the window showing it, until
+  the menu closes. Windows elsewhere stay where they are.
+- Floating windows never cover AudioStrada's system dialogs (file choosers, messages).
 - When another application is in front, floating windows do not cover it.
+- The transport's shortcuts (Space, R, Home…) work in every window: panels, editors, dialogs,
+  Express Mix, and plugin windows in or out of process.
 
 Test any windowing change with two screens and the mixer detached and maximized on the
 second one. Open the browser and a third-party plugin from the mixer, move them over it,
-click the mixer, then open them again.
+click the mixer, then open them again. Open Preferences over a plugin window, open a menu
+under a plugin window, minimize the main window, minimize the mixer.
 
 When driving the real windows from a script (`SetCursorPos`, `mouse_event`), move the mouse
 a few pixels before clicking: egui-winit drops a click whose window has had no cursor
@@ -212,32 +222,62 @@ Windowing changes have broken another system almost every time, so:
 - **Say what was tested.** Before proposing a windowing change, list which systems it reaches;
   after it, tell the user which ones were tried and which still need trying.
 
-### Windows (implemented)
+### Shared code
 
-- **AudioStrada's own windows** (winit viewports) are owned by another window, set with
+- `floating_builder` ([lib.rs](crates/audiostrada-ui/src/lib.rs)) builds every floating
+  viewport, with its `Floating` kind (`Panel`, `Editor`, `Browser`, `Dialog`).
+- Dialogs are immediate viewports without decorations, moved by their title band, sized to
+  their content ([dialog.rs](crates/audiostrada-ui/src/dialog.rs)). A modal one dims the
+  window it comes from and takes its clicks. Drawn inside the main window (tests,
+  screenshots: `embed_viewports`), they stay egui windows and modals as before.
+- [windowing.rs](crates/audiostrada-ui/src/windowing.rs) notes, at the end of every
+  viewport's pass, the menus it shows (its `Foreground` areas while a popup is open) on the
+  desktop, in the system's units. `stepping_aside` holds the rule, tested everywhere.
+- A detached panel minimized while the main window is not goes back in. The main window's
+  pass looks (`dock_minimized_panels`): eframe no longer runs a minimized viewport's callback,
+  so its own pass never sees it. egui may not have seen the minimize either (on macOS it never
+  follows that state while running): Windows and macOS ask the system, `own_windows` and
+  `keep_windows_above` returning the minimized panels.
+
+### Windows
+
+- **AudioStrada's own windows** (winit viewports) are all owned by the main window, set with
   `SetWindowLongPtrW(GWLP_HWNDPARENT)` in `own_windows`
-  ([window.rs](crates/audiostrada-plugins/src/window.rs)). The UI calls it at every frame
-  from `keep_windows_above` ([lib.rs](crates/audiostrada-ui/src/lib.rs)).
-  - Detached panels are owned by the main window.
-  - Every other window (editors, browser) is owned by the panel it overlaps most, else by the
-    main window. Windows then keeps it above that panel.
-- **Taskbar and Alt+Tab:** `floating_builder` sets `with_taskbar(false)` and no minimize box.
-  winit also gives every window `WS_EX_APPWINDOW`, which puts even owned windows in Alt+Tab,
-  and sets it again whenever a window's state changes. `own_windows` therefore removes it at
-  every frame.
-- **Closing a panel:** Windows destroys owned windows with their owner, behind winit's back,
-  and eframe never recovers such a window. Before a panel's window closes, `release_windows`
-  hands its windows to the main window (see `detached_windows`).
+  ([window.rs](crates/audiostrada-plugins/src/window.rs)), called at every frame from
+  `keep_windows_above` ([lib.rs](crates/audiostrada-ui/src/lib.rs)). Windows then keeps them
+  above it, hides them while it is minimized, and keeps them out of the taskbar.
+- **The topmost band:** while AudioStrada (main window, one of its windows, or a plugin window
+  of its own or of a plugin host) is in front, every floating window but the panels is
+  topmost, so a panel clicked never covers them, and the last one activated is in front of
+  the others. Windows entering the band are put there from the back to the front, keeping
+  their order. With one of AudioStrada's system dialogs or another application in front, they
+  leave the band once and stand just behind that window (only out of the band behind a shell
+  window). Panels are never topmost. egui's window level stays `Normal` on Windows: winit
+  rewrites the extended style on state changes, and `own_windows` puts back what it took.
+- **Menus:** a window over a menu steps aside behind the window showing it. Behind the main
+  window it is unowned meanwhile (an owned window cannot go behind its owner), then owned and
+  topmost again once the menu closes, behind the windows of the band: never over a window
+  opened from that menu (About), which the plugin hosts respect too (`follow` going back to
+  the band puts its window behind AudioStrada's window just activated). The plugin hosts read the menu from two properties of
+  the main window (`AudioStradaMenuWindow`, `AudioStradaMenuArea`: the union of the menu's
+  areas packed in 16-bit numbers).
+- **Taskbar and Alt+Tab:** `floating_builder` sets `with_taskbar(false)` and no minimize box,
+  except for panels, which dock back when minimized. winit also gives every window
+  `WS_EX_APPWINDOW`, which puts even owned windows in Alt+Tab, and sets it again whenever a
+  window's state changes. `own_windows` therefore removes it at every frame.
+- **Maximized panels:** Windows shows the panels again when the main window comes back from
+  minimized, but a maximized one came back at its normal size; `keep_maximized` maximizes it
+  again, the window in front keeping the focus.
 - **Window positions:** a position given to `ViewportBuilder` must not change from one frame
-  to the next, or egui moves the window. `floating_builder` computes the centered position
-  once per viewport.
+  to the next, or egui moves the window. `floating_builder` and dialogs compute it once.
 - **Sandboxed plugin windows** live in the plugin host process. Never make them owned by, or
   children of, a window of AudioStrada's process: Windows would then share input between the
   two processes, and a busy plugin host would freeze AudioStrada. `HostWindow::follow` keeps
-  them in place instead:
+  them in place instead, as the topmost band above:
   - topmost while one of AudioStrada's winit windows, or a plugin window, is in front;
-  - just behind one of AudioStrada's dialogs in front;
+  - just behind one of AudioStrada's system dialogs in front;
   - left under another application when that one is in front;
+  - behind AudioStrada's window showing a menu it covers part of;
   - hidden while the main window is minimized.
 
   These windows use the tool window style, to stay out of the taskbar and Alt+Tab. Windows
@@ -249,39 +289,124 @@ Windowing changes have broken another system almost every time, so:
   even from AudioStrada in front, all ignored; FabFilter's are fine). `follow` then retries
   twice a second at most, and clicking the plugin's slot still brings the window to the front
   (activation is not refused).
-- **Plugin windows in AudioStrada's process** (sandbox off) are owned by the main window.
+- **Plugin windows in AudioStrada's process** (sandbox off) are owned by the main window and
+  in the topmost band with the other floating windows.
 - **Redraws:** a window redrawn nonstop holds back the main window's redraws (its clicks kept
   for later, the timeline frozen). Editors that move on their own call `animate`, which
   redraws at the main window's rate on Windows; `raw_input_hook` avoids the same with lent keys.
-- **Test:** `floating_windows_are_owned_by_the_panel_under_them` in `window.rs` checks the
-  ownership rules on real Win32 windows.
+- **Tests** on real Win32 windows in `window.rs`:
+  `floating_windows_are_owned_by_the_main_window_and_float_above_panels` (the band part needs
+  the test to get the foreground, else it says so and checks the rest),
+  `windows_over_a_menu_step_aside_until_it_closes`, `a_menu_area_crosses_processes_whole`,
+  `a_maximized_panel_comes_back_maximized_with_the_main_window`,
+  `plugin_windows_hand_back_audiostradas_keys`.
 
 ### Linux (X11; Wayland runs in X11 mode)
 
-- `floating_level` sets the window levels. The browser floats; an editor floats while the
-  main window, its own window or the one drawing it has the focus; panels stay at the normal
-  level.
-- Floating windows drop under the main window's menus, dialogs and file choosers
-  (`uncover_main`).
-- Plugin windows are `WM_TRANSIENT_FOR` the main window.
-- Making the egui windows transient for the main window was tried and reverted (commit
-  0ec8c08).
+Tried on GNOME Shell 50 (Mutter, Wayland session, AudioStrada through XWayland), two screens,
+2026-11-22, driving the windows from a probe (`_NET_ACTIVE_WINDOW`, `_NET_MOVERESIZE_WINDOW`,
+`_NET_WM_STATE`, `WM_CHANGE_STATE`) and reading `_NET_CLIENT_LIST_STACKING`. Not tried on KWin
+or other window managers yet.
 
-Panels can still go behind the main window here, unlike the expected behavior above. Closing
-that gap needs testing under X11 and Wayland.
+- **Above the main window:** `follow_main` ([window.rs](crates/audiostrada-plugins/src/window.rs)),
+  called from `keep_windows_above` ([lib.rs](crates/audiostrada-ui/src/lib.rs)), makes every
+  other window of the process `WM_TRANSIENT_FOR` the main one, as owned windows on Windows: it
+  never goes behind it, and Mutter then gives the focus between AudioStrada's windows without
+  "is ready" notices. On Mutter transient windows still move to another screen and maximize
+  there (the worry behind the revert of 0ec8c08). Mutter restacks neither on `ConfigureWindow`
+  nor on `_NET_RESTACK_WINDOW`, so restacking is no alternative.
+- **The band:** every floating window but the panels floats (`floating_level`, egui's
+  `AlwaysOnTop`, `_NET_WM_STATE_ABOVE`) while the active window is AudioStrada's or a plugin
+  window (transient for the main one); with another application in front, none does.
+  Sandboxed plugin windows do the same in `HostWindow::poll`.
+- **Titles:** winit reports no window title on X11, so egui's viewport titles stay empty.
+  The system's windows are found by the titles `floating_builder` saw (`viewport_title`).
+- **Activation:** Mutter refuses `_NET_ACTIVE_WINDOW` stamped 0 after a newer user action
+  (the window only demands attention): `activate` sends the server's time, and checks the
+  request: XWayland may drop one sent on a connection closed right after it. The last window
+  opened is activated by `follow_main` once it is listed, since its own request may come
+  before it is transient; not those mapped again with the main window.
+- **Menus:** the floating windows over a menu drop to the normal level (`uncover_main`); over
+  one of the main window's they also stop being transient meanwhile, so that it can come above
+  them. The window showing the menu is activated 200 ms later, once the window manager has
+  applied those changes. Once it closes they are transient again and the active window
+  (About, opened from the menu) is activated again on top. The main
+  window publishes the menu in `_AUDIOSTRADA_MENU` (window, left, top, right, bottom):
+  sandboxed plugin windows over it step aside the same way.
+- **Main window minimized:** the floating viewports are hidden (`with_visible` in
+  `floating_builder`); plugin windows unmap themselves while it has `_NET_WM_STATE_HIDDEN`. The
+  window manager forgets states of unmapped windows: `follow_main` maximizes again the windows
+  that were, and plugin windows set their states again before mapping.
+- **Taskbar, pager, Alt+Tab:** `follow_main` adds `_NET_WM_STATE_SKIP_TASKBAR`, `SKIP_PAGER` and
+  `_KDE_NET_WM_STATE_SKIP_SWITCHER` to every window but the main one; plugin windows get them
+  before they are mapped. Mutter refuses to minimize a window skipping the taskbar (and a
+  transient one): on GNOME a detached panel cannot be minimized, so it docks back only when
+  closed. Window managers that allow it report `_NET_WM_STATE_HIDDEN`, which `follow_main`
+  returns and docks.
+- Plugin windows are `WM_TRANSIENT_FOR` the main window; the transport's keys are grabbed.
+- **Trying it without touching the desktop:** `dbus-run-session gnome-shell --headless
+  --wayland --wayland-display=<name> --virtual-monitor 1920x1080 --virtual-monitor 1920x1080`
+  runs the same Mutter with two screens and its own XWayland (its display and auth file are in
+  its log and in `$XDG_RUNTIME_DIR/.mutter-Xwaylandauth.*`). Its XTEST goes through the
+  remote desktop portal, which asks permission: drive the main window with
+  `AUDIOSTRADA_RECORD_SCRIPT` instead, and read `_NET_CLIENT_LIST_STACKING`.
+- Tests (Xvfb, `AUDIOSTRADA_TEST_X11_KEYS`):
+  `plugin_windows_hide_while_the_main_window_is_minimized`,
+  `floating_windows_stay_transient_for_the_main_window_but_while_stepping_behind`.
 
 ### macOS
 
-AudioStrada's windows and the plugin windows float (`NSFloatingWindowLevel`) while
-AudioStrada or one of its plugin hosts is the active application, and drop to the normal level
-otherwise (`keep_windows_above`, `HostWindow`). Editors and plugin windows sit one level above
-detached panels. While the main window shows a dialog, it rises one level above them all:
-levels hold across processes, so the sandboxed plugin windows need no message.
+Tried on macOS 26.4.1 (Mac mini M1), one screen (3008×1692 points), 2026-11-22, with a
+third-party plugin in the sandbox (FabFilter Pro-Q 4, CLAP), driving the windows with
+synthetic events (`CGEventPost`) and reading the real order with `CGWindowListCopyWindowInfo`.
+Not tried yet: two screens, separate Spaces on and off, Stage Manager, restoring from the Dock.
 
-While the main window is minimized, its other windows are ordered out and come back with it
-(`keep_windows_above`). The plugin windows hide while it is minimized or hidden: the parent
-given to plugin hosts is the main window's number, which `HostWindow::poll` looks for among
-the windows on screen.
+- **Finding the windows:** `keep_windows_above` ([window.rs](crates/audiostrada-plugins/src/window.rs)),
+  called at every frame from `keep_windows_above` ([lib.rs](crates/audiostrada-ui/src/lib.rs)),
+  handles winit's windows by class name. Key-value observing renames that class
+  (`NSKVONotifying_WinitWindow`): an exact match left every floating window alone, with no
+  level, no stepping aside and no hiding with the main window (`is_winit_window`).
+- **Levels**, while AudioStrada or one of its plugin hosts is the active application, the
+  normal level otherwise (`keep_above`, `HostWindow::poll`): detached panels float
+  (`NSFloatingWindowLevel`), every other floating window (editors, browser, Express Mix,
+  dialogs, plugin windows of every process) one level above them, in one band, so that a panel
+  clicked never covers them and the last one clicked or raised is in front. The main window
+  rises one level above the band while it shows a dialog drawn inside it. Levels hold across
+  processes, so the plugin hosts' windows need no message.
+- **Menus:** a window of this process over a menu drops behind the window showing it, at that
+  window's level (not lower, or a window over the mixer's menu would go behind the main window
+  too). Once the menu closes it goes to the back of the band (`orderBack`) and the key window
+  (About, chosen from the menu) is ordered front again. The main window is redrawn every 50 ms
+  while a menu or an inner dialog is noted: the pass closing a menu does not see it closed, and
+  without another one the windows stayed aside and About under them for a second.
+- **Sandboxed plugin windows over a menu** cannot be told to move: `plugin_host_frames` reads
+  the frames of the windows of AudioStrada's executable in other processes from
+  `CGWindowListCopyWindowInfo` (no permission needed for frames), and the window showing a
+  menu that one of them covers rises above the band until it closes. This process's windows
+  not over the menu are lifted along (`lifted_level`), in the same order, so they stay where
+  they were; only the plugin windows go under it meanwhile. No request was added to the
+  sandbox protocol.
+- **Bringing a plugin window to the front:** since macOS 14 activation is cooperative.
+  `allow_foreground` yields the activation to the plugin host before `OpenGui` and `RaiseGui`
+  (`yieldActivationToApplication`), and `HostWindow::raise` calls `activate`; older systems
+  keep `activateIgnoringOtherApps`.
+- **Main window minimized:** its other windows are ordered out and come back with it; plugin
+  windows hide while it is minimized or hidden (the parent given to plugin hosts is the main
+  window's number, which `HostWindow::poll` looks for among the windows on screen). Restoring
+  through Accessibility brought everything back; the Dock ignores synthetic clicks, so the Dock
+  itself still needs a hand on the mouse. A detached panel minimized docks back.
+- **Full screen:** every floating window and plugin window gets
+  `NSWindowCollectionBehaviorFullScreenAuxiliary`, and shows over the main window in its full
+  screen Space.
+- **Keys:** a local key monitor (`watch_keys`) takes the transport's keys from plugin windows
+  before the plugin sees them; Space was checked in a plugin window, Preferences, an editor
+  and Express Mix.
+- **Driving it from a script:** send the modifier keys' own presses and releases
+  (`flagsChanged`), not only flags on the key: winit otherwise keeps Command held, and the next
+  click on a mixer slot is a Command-click, which removes the effect. The first click on a
+  window of AudioStrada that is not the key window may only make it key.
+- Tests: `winit_windows_are_found_under_key_value_observing`,
+  `windows_lifted_for_a_menu_keep_their_order_above_the_window_showing_it`.
 
 ## Commits and documentation
 
