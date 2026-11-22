@@ -356,19 +356,57 @@ or other window managers yet.
 
 ### macOS
 
-AudioStrada's windows and the plugin windows float (`NSFloatingWindowLevel`) while
-AudioStrada or one of its plugin hosts is the active application, and drop to the normal level
-otherwise (`keep_windows_above`, `HostWindow`). Editors, dialogs and plugin windows sit one
-level above detached panels. While the main window shows a dialog drawn inside it, it rises
-one level above them all: levels hold across processes, so the sandboxed plugin windows need
-no message. A window of AudioStrada over a menu drops to the normal level, ordered behind the
-window showing it, until the menu closes; sandboxed plugin windows do not step aside yet.
+Tried on macOS 26.4.1 (Mac mini M1), one screen (3008×1692 points), 2026-11-22, with a
+third-party plugin in the sandbox (FabFilter Pro-Q 4, CLAP), driving the windows with
+synthetic events (`CGEventPost`) and reading the real order with `CGWindowListCopyWindowInfo`.
+Not tried yet: two screens, separate Spaces on and off, Stage Manager, restoring from the Dock.
 
-While the main window is minimized, its other windows are ordered out and come back with it
-(`keep_windows_above`). The plugin windows hide while it is minimized or hidden: the parent
-given to plugin hosts is the main window's number, which `HostWindow::poll` looks for among
-the windows on screen. A local key monitor (`watch_keys`) takes the transport's keys from
-plugin windows before the plugin sees them.
+- **Finding the windows:** `keep_windows_above` ([window.rs](crates/audiostrada-plugins/src/window.rs)),
+  called at every frame from `keep_windows_above` ([lib.rs](crates/audiostrada-ui/src/lib.rs)),
+  handles winit's windows by class name. Key-value observing renames that class
+  (`NSKVONotifying_WinitWindow`): an exact match left every floating window alone, with no
+  level, no stepping aside and no hiding with the main window (`is_winit_window`).
+- **Levels**, while AudioStrada or one of its plugin hosts is the active application, the
+  normal level otherwise (`keep_above`, `HostWindow::poll`): detached panels float
+  (`NSFloatingWindowLevel`), every other floating window (editors, browser, Express Mix,
+  dialogs, plugin windows of every process) one level above them, in one band, so that a panel
+  clicked never covers them and the last one clicked or raised is in front. The main window
+  rises one level above the band while it shows a dialog drawn inside it. Levels hold across
+  processes, so the plugin hosts' windows need no message.
+- **Menus:** a window of this process over a menu drops behind the window showing it, at that
+  window's level (not lower, or a window over the mixer's menu would go behind the main window
+  too). Once the menu closes it goes to the back of the band (`orderBack`) and the key window
+  (About, chosen from the menu) is ordered front again. The main window is redrawn every 50 ms
+  while a menu or an inner dialog is noted: the pass closing a menu does not see it closed, and
+  without another one the windows stayed aside and About under them for a second.
+- **Sandboxed plugin windows over a menu** cannot be told to move: `plugin_host_frames` reads
+  the frames of the windows of AudioStrada's executable in other processes from
+  `CGWindowListCopyWindowInfo` (no permission needed for frames), and the window showing a
+  menu that one of them covers rises above the band until it closes. This process's windows
+  not over the menu are lifted along (`lifted_level`), in the same order, so they stay where
+  they were; only the plugin windows go under it meanwhile. No request was added to the
+  sandbox protocol.
+- **Bringing a plugin window to the front:** since macOS 14 activation is cooperative.
+  `allow_foreground` yields the activation to the plugin host before `OpenGui` and `RaiseGui`
+  (`yieldActivationToApplication`), and `HostWindow::raise` calls `activate`; older systems
+  keep `activateIgnoringOtherApps`.
+- **Main window minimized:** its other windows are ordered out and come back with it; plugin
+  windows hide while it is minimized or hidden (the parent given to plugin hosts is the main
+  window's number, which `HostWindow::poll` looks for among the windows on screen). Restoring
+  through Accessibility brought everything back; the Dock ignores synthetic clicks, so the Dock
+  itself still needs a hand on the mouse. A detached panel minimized docks back.
+- **Full screen:** every floating window and plugin window gets
+  `NSWindowCollectionBehaviorFullScreenAuxiliary`, and shows over the main window in its full
+  screen Space.
+- **Keys:** a local key monitor (`watch_keys`) takes the transport's keys from plugin windows
+  before the plugin sees them; Space was checked in a plugin window, Preferences, an editor
+  and Express Mix.
+- **Driving it from a script:** send the modifier keys' own presses and releases
+  (`flagsChanged`), not only flags on the key: winit otherwise keeps Command held, and the next
+  click on a mixer slot is a Command-click, which removes the effect. The first click on a
+  window of AudioStrada that is not the key window may only make it key.
+- Tests: `winit_windows_are_found_under_key_value_observing`,
+  `windows_lifted_for_a_menu_keep_their_order_above_the_window_showing_it`.
 
 ## Commits and documentation
 
