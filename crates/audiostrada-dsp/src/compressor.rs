@@ -3,8 +3,8 @@
 //! a filtered and audible sidechain, stereo link, auto gain and an aligned dry mix.
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
-use crate::drive::{Oversampler, Taps};
 use crate::cell;
+use crate::drive::{Oversampler, Taps};
 use crate::{
     DETECTOR_HOLD_MS, Effect, EffectInfo, ParamInfo, PeakHold, choice, db_to_gain, gain_to_db,
     key_peak, param, switch, time_coefficient,
@@ -323,11 +323,10 @@ impl Compressor {
                 let gain = db_to_gain(self.current[ch]) * makeup;
                 let (mut processed, mut dry) = (delayed[ch] * gain, delayed[ch]);
                 if uses_cell {
+                    processed = self.grain[ch].pass(&self.cell_times, processed, -self.current[ch]);
                     processed =
-                        self.grain[ch].pass(&self.cell_times, processed, -self.current[ch]);
-                    processed = self.wet[ch].run(processed, |x| cell::shape(x, cell_amp, cell_color));
-                    processed =
-                        self.dc_state[ch].process(&self.dc, f64::from(processed)) as f32;
+                        self.wet[ch].run(processed, |x| cell::shape(x, cell_amp, cell_color));
+                    processed = self.dc_state[ch].process(&self.dc, f64::from(processed)) as f32;
                     dry = self.dry[ch].run(dry, |x| x);
                 } else if vintage {
                     processed =

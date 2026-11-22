@@ -77,7 +77,9 @@ fn distance(model: &Dynamics, reference: &Dynamics) -> f64 {
                 add(a, b, 1.0);
             }
         }
-        for s in [0.0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0] {
+        for s in [
+            0.0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0,
+        ] {
             if let (Some(a), Some(b)) = (near(&m.release, s * 1e3), near(&r.release, s * 1e3)) {
                 add(a, b, 3.0);
             }
@@ -185,7 +187,13 @@ fn fit_amp(files: &[Dynamics]) -> Amp {
     let read = |amp: &Amp, level: f32| {
         let a = db_to_gain(level);
         let x: Vec<f32> = (0..4_800)
-            .map(|i| shape(a * (i as f32 * std::f32::consts::TAU / 48.0).sin(), amp, 1.0))
+            .map(|i| {
+                shape(
+                    a * (i as f32 * std::f32::consts::TAU / 48.0).sin(),
+                    amp,
+                    1.0,
+                )
+            })
             .collect();
         let f = amplitude(&x, 100.0).max(1e-12);
         (
@@ -205,12 +213,27 @@ fn fit_amp(files: &[Dynamics]) -> Amp {
             .iter()
             .map(|&(level, h2, h3)| {
                 let (m2, m3) = read(&amp, level);
-                f64::from((m2.max(-90.0) - h2.max(-90.0)).powi(2) + (m3.max(-90.0) - h3.max(-90.0)).powi(2))
+                f64::from(
+                    (m2.max(-90.0) - h2.max(-90.0)).powi(2)
+                        + (m3.max(-90.0) - h3.max(-90.0)).powi(2),
+                )
             })
             .sum()
     };
-    let start = vec![FET_AMP.even * 100.0, FET_AMP.odd * 100.0, FET_AMP.ceiling.log2(), FET_AMP.sharpness];
-    to_amp(&descend("amp", start, vec![0.5, 0.5, 0.25, 0.5], 40, cost, |_| {}))
+    let start = vec![
+        FET_AMP.even * 100.0,
+        FET_AMP.odd * 100.0,
+        FET_AMP.ceiling.log2(),
+        FET_AMP.sharpness,
+    ];
+    to_amp(&descend(
+        "amp",
+        start,
+        vec![0.5, 0.5, 0.25, 0.5],
+        40,
+        cost,
+        |_| {},
+    ))
 }
 
 fn main() {
@@ -221,7 +244,9 @@ fn main() {
         let (role, path) = arg.split_once('=').expect("ROLE=FILE");
         by.entry(role.to_owned()).or_default().push(load(path));
     }
-    let get = |role: &str| -> Vec<&Dynamics> { by.get(role).map(|v| v.iter().collect()).unwrap_or_default() };
+    let get = |role: &str| -> Vec<&Dynamics> {
+        by.get(role).map(|v| v.iter().collect()).unwrap_or_default()
+    };
     let report = std::cell::RefCell::new(String::new());
     let save = |text: &str| {
         let _ = std::fs::write(&out, text);
@@ -229,7 +254,11 @@ fn main() {
     // Output 24 adds nothing: the gain into the cell is the small-signal gain.
     let into_cell = |t: &Dynamics| (t.small_gain_db, 0.0);
 
-    let amp = if by.contains_key("amp") { fit_amp(&by["amp"]) } else { FET_AMP };
+    let amp = if by.contains_key("amp") {
+        fit_amp(&by["amp"])
+    } else {
+        FET_AMP
+    };
     let _ = writeln!(report.borrow_mut(), "{amp:#?}");
     save(&report.borrow());
 
@@ -237,11 +266,31 @@ fn main() {
     let base = get("base");
     let mut tuning = FET;
     let mut shapes = [
-        Shape { threshold: -25.0, slope: 0.83, bend: 0.0 },
-        Shape { threshold: -22.0, slope: 0.9, bend: 0.0 },
-        Shape { threshold: -20.0, slope: 0.93, bend: 0.0 },
-        Shape { threshold: -19.0, slope: 0.96, bend: 0.0 },
-        Shape { threshold: -22.0, slope: 0.9, bend: 0.0 },
+        Shape {
+            threshold: -25.0,
+            slope: 0.83,
+            bend: 0.0,
+        },
+        Shape {
+            threshold: -22.0,
+            slope: 0.9,
+            bend: 0.0,
+        },
+        Shape {
+            threshold: -20.0,
+            slope: 0.93,
+            bend: 0.0,
+        },
+        Shape {
+            threshold: -19.0,
+            slope: 0.96,
+            bend: 0.0,
+        },
+        Shape {
+            threshold: -22.0,
+            slope: 0.9,
+            bend: 0.0,
+        },
     ];
     if let Some(t) = base.first() {
         shapes[0].threshold = onset(t) + t.small_gain_db + 1.0;
@@ -265,7 +314,11 @@ fn main() {
                 grain_odd: v[11].max(0.0) / 100.0,
                 grain_onset_db: v[12].clamp(0.2, 20.0),
             },
-            Shape { threshold: v[13], slope: v[14].clamp(0.3, 1.2), bend: v[15] / 100.0 },
+            Shape {
+                threshold: v[13],
+                slope: v[14].clamp(0.3, 1.2),
+                bend: v[15] / 100.0,
+            },
         )
     };
     let t = &tuning;
@@ -308,7 +361,12 @@ fn main() {
     save(&report.borrow());
 
     // 2 and 3. Attack and release at 1 and 7.
-    for (role, release) in [("attack1", false), ("attack7", false), ("release1", true), ("release7", true)] {
+    for (role, release) in [
+        ("attack1", false),
+        ("attack7", false),
+        ("release1", true),
+        ("release7", true),
+    ] {
         let targets = get(role);
         if targets.is_empty() {
             continue;
@@ -317,19 +375,40 @@ fn main() {
             let ms = 2f32.powf(v[0]);
             if release {
                 let k = ms / tuning.release_ms;
-                Tuning { release_ms: ms, release_charged_ms: tuning.release_charged_ms * k, ..tuning }
+                Tuning {
+                    release_ms: ms,
+                    release_charged_ms: tuning.release_charged_ms * k,
+                    ..tuning
+                }
             } else {
-                Tuning { attack_ms: ms, ..tuning }
+                Tuning {
+                    attack_ms: ms,
+                    ..tuning
+                }
             }
         };
-        let start = vec![if release { tuning.release_ms } else { tuning.attack_ms }.log2()
-            + match role {
-                "attack1" => 1.5,
-                "attack7" => -2.0,
-                "release1" => 2.0,
-                _ => -2.0,
-            }];
-        let best = descend(role, start, vec![0.5], 20, |v| error_of(&at(v), shapes[0], amp, &targets, into_cell), |_| {});
+        let start = vec![
+            if release {
+                tuning.release_ms
+            } else {
+                tuning.attack_ms
+            }
+            .log2()
+                + match role {
+                    "attack1" => 1.5,
+                    "attack7" => -2.0,
+                    "release1" => 2.0,
+                    _ => -2.0,
+                },
+        ];
+        let best = descend(
+            role,
+            start,
+            vec![0.5],
+            20,
+            |v| error_of(&at(v), shapes[0], amp, &targets, into_cell),
+            |_| {},
+        );
         let ms = 2f32.powf(best[0]);
         let _ = writeln!(report.borrow_mut(), "{role} {ms:.3} ms");
         save(&report.borrow());
@@ -343,8 +422,19 @@ fn main() {
         }
         let t = targets[0];
         let start = vec![onset(t) + t.small_gain_db + 1.0, shapes[k].slope, 0.0];
-        let to = |v: &[f32]| Shape { threshold: v[0], slope: v[1].clamp(0.3, 1.2), bend: v[2] / 100.0 };
-        let best = descend(role, start, vec![1.0, 0.03, 0.2], 20, |v| error_of(&tuning, to(v), amp, &targets, into_cell), |_| {});
+        let to = |v: &[f32]| Shape {
+            threshold: v[0],
+            slope: v[1].clamp(0.3, 1.2),
+            bend: v[2] / 100.0,
+        };
+        let best = descend(
+            role,
+            start,
+            vec![1.0, 0.03, 0.2],
+            20,
+            |v| error_of(&tuning, to(v), amp, &targets, into_cell),
+            |_| {},
+        );
         shapes[k] = to(&best);
         let _ = writeln!(report.borrow_mut(), "{role} {:?}", shapes[k]);
         save(&report.borrow());
@@ -367,7 +457,11 @@ fn main() {
                     grain_odd: v[7].max(0.0) / 100.0,
                     ..tuning
                 },
-                Shape { threshold: v[8], slope: v[9].clamp(0.3, 1.3), bend: v[10] / 100.0 },
+                Shape {
+                    threshold: v[8],
+                    slope: v[9].clamp(0.3, 1.3),
+                    bend: v[10] / 100.0,
+                },
             )
         };
         let t = all[0];
@@ -387,10 +481,17 @@ fn main() {
         ];
         let mut steps = vec![0.5; 5];
         steps.extend([0.05, 0.2, 0.2, 1.0, 0.03, 0.2]);
-        let best = descend("all", start, steps, 20, |v| {
-            let (t, s) = to(v);
-            error_of(&t, s, amp, &all, into_cell)
-        }, |_| {});
+        let best = descend(
+            "all",
+            start,
+            steps,
+            20,
+            |v| {
+                let (t, s) = to(v);
+                error_of(&t, s, amp, &all, into_cell)
+            },
+            |_| {},
+        );
         let (t, s) = to(&best);
         let _ = writeln!(report.borrow_mut(), "FET_ALL {t:#?}\nall {s:?}");
         save(&report.borrow());

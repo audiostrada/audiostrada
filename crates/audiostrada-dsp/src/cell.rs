@@ -482,7 +482,10 @@ mod tests {
     fn the_amplifier_is_clean_when_quiet_and_bounded() {
         assert!((shape(1e-3, &OPTO_AMP, 1.0) - 1e-3).abs() < 1e-6);
         for x in [-10.0f32, -2.0, 2.0, 10.0] {
-            assert!(shape(x, &OPTO_AMP, 1.0).abs() <= OPTO_AMP.ceiling * 1.01, "{x}");
+            assert!(
+                shape(x, &OPTO_AMP, 1.0).abs() <= OPTO_AMP.ceiling * 1.01,
+                "{x}"
+            );
         }
     }
 }

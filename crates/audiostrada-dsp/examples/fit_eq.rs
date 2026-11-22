@@ -111,7 +111,7 @@ fn main() {
             .sum()
     };
     let mut best = vec![0.7, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
-    let mut steps = vec![0.1, 0.5, 0.1, 0.5, 0.5, 0.1, 0.1, 0.5];
+    let mut steps = [0.1, 0.5, 0.1, 0.5, 0.5, 0.1, 0.1, 0.5];
     let mut best_cost = cost(&best);
     for _ in 0..400 {
         let mut moved = false;

@@ -407,7 +407,6 @@ pub fn measure(
     }
 }
 
-
 /// Frequencies of [`curve`]: twelve per octave from 20 Hz to 20 kHz, on the 10 Hz grid the
 /// readings need (so the lowest ones are fewer).
 pub fn curve_freqs() -> Vec<f32> {
@@ -498,13 +497,19 @@ pub fn echo(
     let mut repeats = Vec::new();
     for k in 2..env.len().saturating_sub(2) {
         let v = env[k];
-        if v > click_peak * 1e-3 && (k - 2..=k + 2).all(|j| env[j] <= v) && repeats.len() < 12 {
-            if repeats.last().is_none_or(|&(t, _): &(f32, f32)| ms(k * step) - t > 30.0) {
-                repeats.push((ms(k * step), db(f64::from(v / click_peak))));
-            }
+        if v > click_peak * 1e-3
+            && (k - 2..=k + 2).all(|j| env[j] <= v)
+            && repeats.len() < 12
+            && repeats
+                .last()
+                .is_none_or(|&(t, _): &(f32, f32)| ms(k * step) - t > 30.0)
+        {
+            repeats.push((ms(k * step), db(f64::from(v / click_peak))));
         }
     }
-    let first = repeats.first().map_or(samples(0.3), |r| (r.0 * RATE as f32 / 1_000.0) as usize);
+    let first = repeats
+        .first()
+        .map_or(samples(0.3), |r| (r.0 * RATE as f32 / 1_000.0) as usize);
     // Bursts of 60 ms, their echo read where the first repeat comes, 40 ms in.
     let burst = samples(0.06);
     let read_burst = |process: &mut dyn FnMut(&mut [f32], &mut [f32]), freq: f32, level: f32| {
@@ -521,10 +526,12 @@ pub fn echo(
         let h3 = db(amplitude(x, 3.0 * cycles) / f.max(1e-12));
         (db(f / f64::from(gain(level))), h3)
     };
-    let color = [100.0, 200.0, 500.0, 1_000.0, 2_000.0, 3_000.0, 5_000.0, 8_000.0]
-        .iter()
-        .map(|&f| (f, read_burst(process, f, -24.0).0))
-        .collect();
+    let color = [
+        100.0, 200.0, 500.0, 1_000.0, 2_000.0, 3_000.0, 5_000.0, 8_000.0,
+    ]
+    .iter()
+    .map(|&f| (f, read_burst(process, f, -24.0).0))
+    .collect();
     let drive = [-36.0, -24.0, -18.0, -12.0, -6.0, 0.0]
         .iter()
         .map(|&l| {
@@ -567,7 +574,12 @@ pub fn echo(
     let mean = cents.iter().sum::<f32>() / cents.len().max(1) as f32;
     let mut sorted = cents.clone();
     sorted.sort_by(f32::total_cmp);
-    let q = |p: f32| sorted.get(((sorted.len().max(1) - 1) as f32 * p) as usize).copied().unwrap_or(0.0);
+    let q = |p: f32| {
+        sorted
+            .get(((sorted.len().max(1) - 1) as f32 * p) as usize)
+            .copied()
+            .unwrap_or(0.0)
+    };
     let crossings = cents
         .windows(2)
         .filter(|w| (w[0] - mean) * (w[1] - mean) < 0.0)
@@ -632,5 +644,4 @@ mod tests {
         assert!(half > 20.0 && half < 200.0, "{half}");
         assert!(d.response_quiet.iter().all(|&(_, g)| g.abs() < 0.1));
     }
-
 }

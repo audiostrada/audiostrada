@@ -11,9 +11,9 @@
 //! curve; `--tube` the settings whose harmonics and loss of level the amplifier is fitted on.
 //! The measured plugin's working gain (its small-signal gain) is read from each file.
 
+use audiostrada_dsp::cell::{Amp, Cell, Curve, Grain, OPTO, OPTO_AMP, Times, Tuning, shape};
 use audiostrada_dsp::measure::{RATE, amplitude};
 use audiostrada_dsp::measure_dynamics::{Dynamics, measure};
-use audiostrada_dsp::cell::{Cell, Curve, Grain, OPTO_AMP, OPTO, Times, Amp, Tuning, shape};
 use audiostrada_dsp::{db_to_gain, gain_to_db};
 
 /// Output level above which the reference's own output stage takes part (dBFS): those
@@ -47,8 +47,16 @@ fn model(
         for (a, b) in l.iter_mut().zip(r.iter_mut()) {
             let reduction = cell.push(&times, a.abs().max(b.abs()), &curve);
             let g = db_to_gain(-reduction);
-            *a = shape(grain[0].pass(&times, *a * g, reduction) * makeup, &tube, 1.0);
-            *b = shape(grain[1].pass(&times, *b * g, reduction) * makeup, &tube, 1.0);
+            *a = shape(
+                grain[0].pass(&times, *a * g, reduction) * makeup,
+                &tube,
+                1.0,
+            );
+            *b = shape(
+                grain[1].pass(&times, *b * g, reduction) * makeup,
+                &tube,
+                1.0,
+            );
         }
     }
 }
@@ -111,10 +119,7 @@ impl Fit {
         };
         let at = TIMES + 5;
         for (k, s) in self.shapes.iter_mut().enumerate() {
-            *s = (
-                v[at + 2 * k].clamp(0.3, 1.2),
-                v[at + 1 + 2 * k] / 100.0,
-            );
+            *s = (v[at + 2 * k].clamp(0.3, 1.2), v[at + 1 + 2 * k] / 100.0);
         }
         self.thresholds = v[at + 4..].to_vec();
     }
@@ -163,7 +168,9 @@ fn distance(model: &Dynamics, reference: &Dynamics, static_only: bool) -> f64 {
     }
     for (m, r) in model.steps.iter().zip(&reference.steps) {
         add(m.reduction_end_db, r.reduction_end_db, 2.0);
-        for t in [1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0, 49.0, 100.0, 200.0, 299.0] {
+        for t in [
+            1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0, 49.0, 100.0, 200.0, 299.0,
+        ] {
             if let (Some(a), Some(b)) = (near(&m.attack, t), near(&r.attack, t)) {
                 add(a, b, 1.0);
             }
@@ -177,8 +184,7 @@ fn distance(model: &Dynamics, reference: &Dynamics, static_only: bool) -> f64 {
         }
     }
     // What the detection hears: the reduction by frequency against 1 kHz, at -18 dBFS.
-    if let (Some(m), Some(r)) = (model.response_loud.first(), reference.response_loud.first())
-    {
+    if let (Some(m), Some(r)) = (model.response_loud.first(), reference.response_loud.first()) {
         let at = |p: &[(f32, f32)], f: f32| p.iter().find(|q| q.0 == f).map(|q| q.1);
         let (m1, r1) = (at(&m.points, 1_000.0), at(&r.points, 1_000.0));
         for f in [30.0, 50.0, 100.0, 200.0, 500.0, 2_000.0, 5_000.0, 10_000.0] {
@@ -196,7 +202,15 @@ fn run_target(fit: &Fit, target: &Target, threshold: f32, static_only: bool) -> 
     let curve = fit.curve(threshold, target.limit);
     let mut process = model(&fit.tuning, curve, target.print.small_gain_db, fit.tube);
     let step = target.print.steps.first().map(|s| s.level);
-    let print = measure("model", Vec::new(), &mut process, 0, 8.0, !static_only, step);
+    let print = measure(
+        "model",
+        Vec::new(),
+        &mut process,
+        0,
+        8.0,
+        !static_only,
+        step,
+    );
     distance(&print, &target.print, static_only)
 }
 
@@ -281,7 +295,13 @@ fn fit_tube(files: &[Dynamics]) -> Amp {
         let a = db_to_gain(level);
         let n = 4_800;
         let x: Vec<f32> = (0..n)
-            .map(|i| shape(a * (i as f32 * std::f32::consts::TAU / 48.0).sin(), tube, 1.0))
+            .map(|i| {
+                shape(
+                    a * (i as f32 * std::f32::consts::TAU / 48.0).sin(),
+                    tube,
+                    1.0,
+                )
+            })
             .collect();
         let f = amplitude(&x, 100.0).max(1e-12);
         (
@@ -311,7 +331,12 @@ fn fit_tube(files: &[Dynamics]) -> Amp {
             })
             .sum()
     };
-    let start = vec![OPTO_AMP.even, OPTO_AMP.odd, OPTO_AMP.ceiling.log2(), OPTO_AMP.sharpness];
+    let start = vec![
+        OPTO_AMP.even,
+        OPTO_AMP.odd,
+        OPTO_AMP.ceiling.log2(),
+        OPTO_AMP.sharpness,
+    ];
     let best = descend(start, vec![0.01, 0.01, 0.25, 0.5], 1e-4, 60, cost);
     to_tube(&best)
 }
@@ -373,7 +398,10 @@ fn main() {
         fit.set(&best);
     }
     println!("{:#?}", fit.tuning);
-    println!("comp (slope, bend) {:?}, limit {:?}", fit.shapes[0], fit.shapes[1]);
+    println!(
+        "comp (slope, bend) {:?}, limit {:?}",
+        fit.shapes[0], fit.shapes[1]
+    );
     for (t, th) in targets.iter().zip(&fit.thresholds) {
         let kind = if t.limit { "limit" } else { "comp" };
         println!("{kind} {} -> threshold {th:.2}", t.mark);

@@ -389,7 +389,8 @@ impl Channel {
             ));
         }
         // Each console's EQ: how its shelves and bells are drawn (see `EqStyle`).
-        let style = &EQ_STYLES[(v[p::CHARACTER].round().max(0.0) as usize).min(EQ_STYLES.len() - 1)];
+        let style =
+            &EQ_STYLES[(v[p::CHARACTER].round().max(0.0) as usize).min(EQ_STYLES.len() - 1)];
         let outer = |kind, bell_on: bool, freq: f32, gain: f32| {
             if bell_on {
                 style.outer_bell(freq, gain, rate)

@@ -76,7 +76,9 @@ fn distance(model: &Dynamics, reference: &Dynamics) -> f64 {
                 add(a, b, 1.0);
             }
         }
-        for s in [0.0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0] {
+        for s in [
+            0.0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0,
+        ] {
             if let (Some(a), Some(b)) = (near(&m.release, s * 1e3), near(&r.release, s * 1e3)) {
                 add(a, b, 3.0);
             }
@@ -159,7 +161,13 @@ fn fit_amp(files: &[Dynamics]) -> Amp {
     let read = |amp: &Amp, level: f32| {
         let a = db_to_gain(level);
         let x: Vec<f32> = (0..4_800)
-            .map(|i| shape(a * (i as f32 * std::f32::consts::TAU / 48.0).sin(), amp, 1.0))
+            .map(|i| {
+                shape(
+                    a * (i as f32 * std::f32::consts::TAU / 48.0).sin(),
+                    amp,
+                    1.0,
+                )
+            })
             .collect();
         let f = amplitude(&x, 100.0).max(1e-12);
         (
@@ -179,12 +187,27 @@ fn fit_amp(files: &[Dynamics]) -> Amp {
             .iter()
             .map(|&(level, h2, h3)| {
                 let (m2, m3) = read(&amp, level);
-                f64::from((m2.max(-90.0) - h2.max(-90.0)).powi(2) + (m3.max(-90.0) - h3.max(-90.0)).powi(2))
+                f64::from(
+                    (m2.max(-90.0) - h2.max(-90.0)).powi(2)
+                        + (m3.max(-90.0) - h3.max(-90.0)).powi(2),
+                )
             })
             .sum()
     };
-    let start = vec![OPTO_AMP.even * 100.0, OPTO_AMP.odd * 100.0, OPTO_AMP.ceiling.log2(), OPTO_AMP.sharpness];
-    to_amp(&descend("amp", start, vec![0.5, 0.5, 0.25, 0.5], 40, cost, |_| {}))
+    let start = vec![
+        OPTO_AMP.even * 100.0,
+        OPTO_AMP.odd * 100.0,
+        OPTO_AMP.ceiling.log2(),
+        OPTO_AMP.sharpness,
+    ];
+    to_amp(&descend(
+        "amp",
+        start,
+        vec![0.5, 0.5, 0.25, 0.5],
+        40,
+        cost,
+        |_| {},
+    ))
 }
 
 struct Target {
@@ -244,7 +267,10 @@ fn main() {
     };
 
     // 1. The base: shared constants, the curve, the thresholds, time constant 2.
-    let base: Vec<&Target> = by.get("base").map(|v| v.iter().collect()).unwrap_or_default();
+    let base: Vec<&Target> = by
+        .get("base")
+        .map(|v| v.iter().collect())
+        .unwrap_or_default();
     let mut marks: Vec<f32> = base.iter().map(|t| t.mark).collect();
     marks.sort_by(f32::total_cmp);
     marks.dedup();
@@ -332,23 +358,22 @@ fn main() {
             .collect();
         run_all(&tuning, &shapes)
     };
-    let given: Option<Vec<f32>> = std::env::var("MU_BASE")
-        .ok()
-        .map(|v| v.split(',').map(|x| x.trim().parse().expect("a number")).collect());
+    let given: Option<Vec<f32>> = std::env::var("MU_BASE").ok().map(|v| {
+        v.split(',')
+            .map(|x| x.trim().parse().expect("a number"))
+            .collect()
+    });
     let best = match given {
         Some(v) => v,
-        None => {
-            let best = descend("base", start, steps, 25, cost_base, |v| {
-                let (t, s) = to_base(v);
-                save(&format!(
-                    "{}\nbase {t:#?}\ncurve {s:?}\nthresholds {:?} at {:?}\n",
-                    report.borrow(),
-                    &v[15..],
-                    marks
-                ));
-            });
-            best
-        }
+        None => descend("base", start, steps, 25, cost_base, |v| {
+            let (t, s) = to_base(v);
+            save(&format!(
+                "{}\nbase {t:#?}\ncurve {s:?}\nthresholds {:?} at {:?}\n",
+                report.borrow(),
+                &v[15..],
+                marks
+            ));
+        }),
     };
     let (tuning, (slope, bend)) = to_base(&best);
     let ths = best[15..].to_vec();
@@ -409,7 +434,12 @@ fn main() {
         let _ = writeln!(
             report.borrow_mut(),
             "{role}: attack {:.3} release {:.1} charged {:.1} charge {:.1} memory release {:.1} memory {:.3}",
-            t.attack_ms, t.release_ms, t.release_charged_ms, t.charge_ms, t.memory_release_ms, t.memory
+            t.attack_ms,
+            t.release_ms,
+            t.release_charged_ms,
+            t.charge_ms,
+            t.memory_release_ms,
+            t.memory
         );
         save(&report.borrow());
     }

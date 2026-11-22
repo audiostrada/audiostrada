@@ -9,7 +9,7 @@
 //! is fitted with the rest, since the reference's scale may not be AudioStrada's. The best
 //! constants so far are written to OUT.txt after each round.
 
-use audiostrada_dsp::cell::{Cell, Character, Grain, Times, BUS, CLEAN};
+use audiostrada_dsp::cell::{BUS, CLEAN, Cell, Character, Grain, Times};
 use audiostrada_dsp::db_to_gain;
 use audiostrada_dsp::measure::RATE;
 use audiostrada_dsp::measure_dynamics::{Dynamics, measure};
@@ -41,12 +41,16 @@ fn distance(model: &Dynamics, reference: &Dynamics) -> f64 {
     }
     for (m, r) in model.steps.iter().zip(&reference.steps) {
         add(m.reduction_end_db, r.reduction_end_db, 2.0);
-        for t in [0.0, 1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 20.0, 30.0, 49.0, 100.0, 299.0] {
+        for t in [
+            0.0, 1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 20.0, 30.0, 49.0, 100.0, 299.0,
+        ] {
             if let (Some(a), Some(b)) = (near(&m.attack, t), near(&r.attack, t)) {
                 add(a, b, 1.0);
             }
         }
-        for s in [0.0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0, 7.0] {
+        for s in [
+            0.0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0, 7.0,
+        ] {
             if let (Some(a), Some(b)) = (near(&m.release, s * 1e3), near(&r.release, s * 1e3)) {
                 add(a, b, 3.0);
             }
@@ -158,7 +162,9 @@ fn main() {
                 .zip(&v[13..])
                 .map(|(t, &th)| scope.spawn(move || run(&c, t, th)))
                 .collect();
-            jobs.into_iter().map(|j| j.join().unwrap_or(f64::MAX)).sum::<f64>()
+            jobs.into_iter()
+                .map(|j| j.join().unwrap_or(f64::MAX))
+                .sum::<f64>()
         })
     };
     let (mut best, mut steps) = (start, steps);

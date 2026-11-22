@@ -53,7 +53,6 @@ fn eight() -> f32 {
     8.0
 }
 
-
 /// The first number of a plugin's text for a value, in the smaller of its units when the text
 /// switches between two (`1.00 s` after `990 ms`, `1.2 kHz` after `990 Hz`).
 fn number(text: &str) -> Option<f64> {
