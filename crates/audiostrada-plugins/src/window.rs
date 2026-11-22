@@ -1863,8 +1863,8 @@ mod imp {
     use objc2_app_kit::{
         NSApplication, NSBackingStoreType, NSEvent, NSEventMask, NSEventModifierFlags,
         NSFloatingWindowLevel, NSNormalWindowLevel, NSRunningApplication, NSScreen, NSView,
-        NSWindow, NSWindowLevel, NSWindowNumberListOptions, NSWindowOrderingMode,
-        NSWindowStyleMask, NSWorkspace,
+        NSWindow, NSWindowCollectionBehavior, NSWindowLevel, NSWindowNumberListOptions,
+        NSWindowOrderingMode, NSWindowStyleMask, NSWorkspace,
     };
     use objc2_core_foundation::{
         CFArray, CFDictionary, CFNumber, CFNumberType, CFRetained, CFString,
@@ -1965,6 +1965,15 @@ mod imp {
         let level = if active { level } else { NSNormalWindowLevel };
         if window.level() != level {
             window.setLevel(level);
+        }
+    }
+
+    /// Shown over the main window in full screen too, which has a Space of its own.
+    fn join_full_screen(window: &NSWindow) {
+        let behavior = window.collectionBehavior();
+        if !behavior.contains(NSWindowCollectionBehavior::FullScreenAuxiliary) {
+            window
+                .setCollectionBehavior(behavior | NSWindowCollectionBehavior::FullScreenAuxiliary);
         }
     }
 
@@ -2146,6 +2155,7 @@ mod imp {
                 docked.push(title);
                 continue;
             }
+            join_full_screen(&window);
             let level = resting(&window);
             let frame = top_left_frame(&window, mtm);
             let over = showing.iter().find(|(owner, _, areas)| {
@@ -2364,6 +2374,7 @@ mod imp {
             unsafe { window.setReleasedWhenClosed(false) };
             window.setTitle(&NSString::from_str(title));
             window.center();
+            join_full_screen(&window);
             keep_above(&window, true, band_level());
             watch_keys(window.windowNumber());
             let mut host = Self {
