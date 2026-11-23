@@ -51,18 +51,16 @@ impl Document {
             let Some(clip) = edit::clip(project, id).filter(|c| c.notes.is_none()) else {
                 continue;
             };
-            let Some(source) = project.sources.get(&clip.source) else {
-                continue;
-            };
             let Some(data) = audiostrada_engine::project::clip_media(project, self.paths(), clip)
-                .and_then(|path| self.media().original(&path).cloned())
+                .and_then(|path| self.media().audio(&path).cloned())
             else {
                 continue;
             };
-            let ratio = f64::from(source.sample_rate) / f64::from(project.sample_rate.max(1));
+            let rate = data.sample_rate();
+            let ratio = f64::from(rate) / f64::from(project.sample_rate.max(1));
             let from = ((clip.offset as f64 * ratio) as usize).min(data.frames());
             let to = (((clip.offset + clip.length) as f64 * ratio) as usize).min(data.frames());
-            let frames = |ms: f32| (ms.max(0.0) / 1000.0 * source.sample_rate as f32) as usize;
+            let frames = |ms: f32| (ms.max(0.0) / 1000.0 * rate as f32) as usize;
             let silence = SilenceSettings {
                 // A quieter clip plays its audio quieter.
                 threshold_db: settings.threshold_db - clip.gain_db,

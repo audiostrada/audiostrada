@@ -707,7 +707,12 @@ impl TimelineView {
         let pixels = visible.width().ceil() as usize + 1;
         let start = clip.offset as f64 * ratio + first_px as f64 * source_per_px;
         let peaks = doc.media().peaks(&path);
-        let original = doc.media().original(&path);
+        // The samples only below the peaks' finest level: asked for, they stay in memory.
+        let original = peaks
+            .as_ref()
+            .is_none_or(|p| source_per_px < f64::from(p.finest()))
+            .then(|| doc.media().original(&path))
+            .flatten();
         let channels = match (&peaks, &original) {
             (Some(p), _) => p.channels(),
             (None, Some(d)) => d.channels(),
@@ -868,6 +873,7 @@ impl TimelineView {
                             column.mean_square /= slice.len().max(1) as f32;
                         }
                     }
+                    (Some(peaks), None) => peaks.query(c, start, source_per_px, &mut these),
                     _ => return,
                 }
                 if n == 0 {

@@ -71,7 +71,7 @@ impl Document {
         };
         let path: PathBuf = self.resolve(&reference.path);
         if self.reference_lufs.as_ref().is_none_or(|(p, _)| *p != path)
-            && let Some(audio) = self.media.original(&path)
+            && let Some(audio) = self.media.audio(&path)
         {
             let mut analyzer = LoudnessAnalyzer::new(audio.sample_rate());
             let right = audio.channel(audio.channels().min(2) - 1);

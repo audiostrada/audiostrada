@@ -1,6 +1,7 @@
 //! Background loading of media files: decoding, peak caches and resampling to the engine rate.
 
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, mpsc};
@@ -19,7 +20,11 @@ pub enum MediaState {
 #[derive(Debug)]
 struct Entry {
     state: MediaState,
+    /// Dropped when unread for [`KEEP_ORIGINAL`] if it is not `audio` itself, decoded again
+    /// when asked for.
     original: Option<Arc<AudioData>>,
+    original_read: Instant,
+    format: Option<(usize, u32, usize)>,
     /// `audio` locked in RAM, as the audio thread reads it (dropped before it).
     resident: Option<audiostrada_rt::Resident>,
     audio: Option<Arc<AudioData>>,
@@ -27,6 +32,9 @@ struct Entry {
     /// Engine rate the pending or current `audio` was made for.
     rate: u32,
 }
+
+/// How long an original at another rate than the engine's stays in memory once unread.
+const KEEP_ORIGINAL: Duration = Duration::from_secs(30);
 
 /// Decoded original, audio at the engine rate, and peaks.
 type LoadOutput = (Arc<AudioData>, Arc<AudioData>, Arc<Peaks>);
@@ -65,6 +73,12 @@ pub struct MediaPool {
     tx: mpsc::Sender<Loaded>,
     rx: mpsc::Receiver<Loaded>,
     generation: u64,
+    /// Originals asked for since the last poll.
+    asked: RefCell<HashSet<PathBuf>>,
+    keep_original: Duration,
+    reloading: HashSet<PathBuf>,
+    reloaded_tx: mpsc::Sender<(PathBuf, Result<Arc<AudioData>, String>)>,
+    reloaded_rx: mpsc::Receiver<(PathBuf, Result<Arc<AudioData>, String>)>,
 }
 
 impl std::fmt::Debug for MediaPool {
@@ -159,6 +173,7 @@ fn load_job(
 impl MediaPool {
     pub fn new(rate: u32, peaks_dir: Option<PathBuf>) -> Self {
         let (tx, rx) = mpsc::channel();
+        let (reloaded_tx, reloaded_rx) = mpsc::channel();
         Self {
             rate,
             peaks_dir,
@@ -166,6 +181,11 @@ impl MediaPool {
             tx,
             rx,
             generation: 0,
+            asked: RefCell::default(),
+            keep_original: KEEP_ORIGINAL,
+            reloading: HashSet::new(),
+            reloaded_tx,
+            reloaded_rx,
         }
     }
 
@@ -215,6 +235,8 @@ impl MediaPool {
             Entry {
                 state: MediaState::Loading,
                 original: None,
+                original_read: Instant::now(),
+                format: None,
                 resident: None,
                 audio: None,
                 peaks: None,
@@ -272,7 +294,13 @@ impl MediaPool {
             }
             match loaded.result {
                 Ok((original, audio, peaks)) => {
+                    entry.format = Some((
+                        original.channels(),
+                        original.sample_rate(),
+                        original.frames(),
+                    ));
                     entry.original = Some(original);
+                    entry.original_read = Instant::now();
                     entry.resident = None;
                     let channels: Vec<&[f32]> =
                         (0..audio.channels()).map(|ch| audio.channel(ch)).collect();
@@ -291,7 +319,59 @@ impl MediaPool {
         if changed {
             self.generation += 1;
         }
+        self.keep_originals();
         changed
+    }
+
+    /// Decodes again the originals asked for, drops those unread for a while.
+    fn keep_originals(&mut self) {
+        while let Ok((path, result)) = self.reloaded_rx.try_recv() {
+            self.reloading.remove(&path);
+            match (self.entries.get_mut(&path), result) {
+                (Some(entry), Ok(data)) if entry.original.is_none() => {
+                    entry.original = Some(data);
+                    entry.original_read = Instant::now();
+                }
+                (_, Err(e)) => tracing::warn!("cannot decode {} again: {e}", path.display()),
+                _ => {}
+            }
+        }
+        let now = Instant::now();
+        for path in self.asked.take() {
+            let Some(entry) = self.entries.get_mut(&path) else {
+                continue;
+            };
+            entry.original_read = now;
+            if entry.original.is_none()
+                && matches!(entry.state, MediaState::Ready)
+                && self.reloading.insert(path.clone())
+            {
+                let (file, _) = audiostrada_core::parse_variant(&path);
+                let file_data = (file != path)
+                    .then(|| self.entries.get(&file).and_then(|e| e.original.clone()))
+                    .flatten();
+                let tx = self.reloaded_tx.clone();
+                let spawned = thread::Builder::new()
+                    .name("audiostrada-reload".into())
+                    .spawn(move || {
+                        let _slot = loading_slot();
+                        let result = decode(&path, file_data).map(Arc::new);
+                        let _ = tx.send((path, result));
+                    });
+                if let Err(e) = spawned {
+                    tracing::error!("cannot start media loader: {e}");
+                }
+            }
+        }
+        for entry in self.entries.values_mut() {
+            let shared = match (&entry.original, &entry.audio) {
+                (Some(original), Some(audio)) => Arc::ptr_eq(original, audio),
+                _ => true,
+            };
+            if !shared && now.duration_since(entry.original_read) > self.keep_original {
+                entry.original = None;
+            }
+        }
     }
 
     /// Polls until nothing is loading or `timeout` elapses; returns true if all finished.
@@ -309,11 +389,19 @@ impl MediaPool {
         }
     }
 
+    /// Files loading, originals decoded again included.
     pub fn loading(&self) -> usize {
         self.entries
             .values()
             .filter(|e| matches!(e.state, MediaState::Loading))
             .count()
+            + self.reloading.len()
+            + self
+                .asked
+                .borrow()
+                .iter()
+                .filter(|p| self.reloads(p))
+                .count()
     }
 
     pub fn state(&self, path: &Path) -> Option<&MediaState> {
@@ -325,9 +413,28 @@ impl MediaPool {
         self.entries.get(path).and_then(|e| e.audio.as_ref())
     }
 
-    /// Decoded audio at its own rate, once loaded.
+    /// Decoded audio at its own rate, once loaded. At another rate than the engine's it is
+    /// dropped when unread for a while: asking for it decodes it again, `None` meanwhile.
     pub fn original(&self, path: &Path) -> Option<&Arc<AudioData>> {
-        self.entries.get(path).and_then(|e| e.original.as_ref())
+        let entry = self.entries.get(path)?;
+        let mut asked = self.asked.borrow_mut();
+        if !asked.contains(path) {
+            asked.insert(path.to_path_buf());
+        }
+        entry.original.as_ref()
+    }
+
+    /// Whether asking for the original of `path` decodes it again.
+    fn reloads(&self, path: &Path) -> bool {
+        self.entries
+            .get(path)
+            .is_some_and(|e| e.original.is_none() && matches!(e.state, MediaState::Ready))
+            && !self.reloading.contains(path)
+    }
+
+    /// Channels, rate and frames of the decoded file, once loaded.
+    pub fn format(&self, path: &Path) -> Option<(usize, u32, usize)> {
+        self.entries.get(path)?.format
     }
 
     pub fn peaks(&self, path: &Path) -> Option<&Arc<Peaks>> {
@@ -396,6 +503,29 @@ mod tests {
         assert!(pool.wait(Duration::from_secs(10)));
         assert!(pool.failures().is_empty());
         assert_eq!(pool.audio(&file).unwrap().sample_rate(), 48_000);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn an_original_at_another_rate_is_dropped_unread_and_decoded_again_when_asked() {
+        let dir = temp("reload");
+        let other = dir.join("other.wav");
+        let same = dir.join("same.wav");
+        write_wav(&other, &AudioData::new(vec![vec![0.5; 44_100]], 44_100)).unwrap();
+        write_wav(&same, &AudioData::new(vec![vec![0.5; 48_000]], 48_000)).unwrap();
+        let mut pool = MediaPool::new(48_000, None);
+        pool.keep_original = Duration::from_millis(50);
+        pool.request(&other);
+        pool.request(&same);
+        assert!(pool.wait(Duration::from_secs(10)));
+        thread::sleep(Duration::from_millis(100));
+        pool.poll();
+        assert!(pool.original(&other).is_none());
+        assert!(pool.original(&same).is_some());
+        assert_eq!(pool.format(&other), Some((1, 44_100, 44_100)));
+        assert!(pool.audio(&other).is_some());
+        assert!(pool.wait(Duration::from_secs(10)));
+        assert_eq!(pool.original(&other).unwrap().frames(), 44_100);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

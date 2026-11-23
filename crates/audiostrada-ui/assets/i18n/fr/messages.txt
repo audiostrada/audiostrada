@@ -239,3 +239,6 @@ Loudness de la référence
 
 {count} plugin file(s) could not be loaded and are ignored: see Preferences, Plugins
 {count} fichier(s) de plugins n'ont pas pu être chargés et sont ignorés : voir Préférences, Plugins
+
+This project's audio is larger than this computer can keep in memory: playback may stop for an instant when the system runs short of memory
+L'audio de ce projet dépasse ce que cet ordinateur peut garder en mémoire : la lecture peut s'interrompre un instant quand le système manque de mémoire
