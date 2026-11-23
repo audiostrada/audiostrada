@@ -767,7 +767,7 @@ fn track_audio(
     let mut out = vec![0.0f32; len];
     for clip in clips {
         let Some(data) = audiostrada_engine::project::clip_media(project, doc.paths(), clip)
-            .and_then(|p| doc.media().original(&p).cloned())
+            .and_then(|p| doc.media().audio(&p).cloned())
         else {
             continue;
         };
@@ -2134,7 +2134,7 @@ impl TimelineView {
         // The clip, drawn to fill its band; while a retouch is made ready, as it last was.
         let ready = |c: &audiostrada_core::Clip| {
             audiostrada_engine::project::clip_media(project, doc.paths(), c).is_some_and(|p| {
-                doc.media().peaks(&p).is_some() || doc.media().original(&p).is_some()
+                doc.media().peaks(&p).is_some() || doc.media().format(&p).is_some()
             })
         };
         let mut shown_clip = if ready(clip) {

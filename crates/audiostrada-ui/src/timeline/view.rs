@@ -246,7 +246,7 @@ impl TimelineView {
             else {
                 continue;
             };
-            let Some(data) = doc.media().original(&path) else {
+            let Some(data) = doc.media().audio(&path) else {
                 continue;
             };
             let onsets = Rc::clone(self.onsets.entry((path, strong)).or_insert_with(|| {

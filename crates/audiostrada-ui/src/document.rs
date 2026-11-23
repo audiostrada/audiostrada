@@ -850,14 +850,15 @@ impl Document {
             }
             match self.media.state(&import.path) {
                 Some(MediaState::Ready) => {
-                    let Some(data) = self.media.original(&import.path) else {
+                    let Some((channels, sample_rate, frames)) = self.media.format(&import.path)
+                    else {
                         continue;
                     };
                     let source = Source {
                         path: import.stored.clone(),
-                        channels: data.channels() as u16,
-                        sample_rate: data.sample_rate(),
-                        frames: data.frames() as u64,
+                        channels: channels as u16,
+                        sample_rate,
+                        frames: frames as u64,
                     };
                     let name = import
                         .path
@@ -1879,7 +1880,7 @@ impl Document {
                 }
             };
         }
-        let Some(data) = self.media.original(&path).cloned() else {
+        let Some(data) = self.media.audio(&path).cloned() else {
             return Some(None);
         };
         let ratio = f64::from(data.sample_rate()) / f64::from(project.sample_rate) / c.stretch;
@@ -2393,6 +2394,18 @@ impl Document {
         self.update_reference();
         self.poll_recording();
         let media_changed = self.media.poll();
+        if audiostrada_rt::take_over_budget() {
+            static TOLD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+            if !TOLD.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                self.notify(
+                    tr(
+                        "This project's audio is larger than this computer can keep in memory: \
+                         playback may stop for an instant when the system runs short of memory",
+                    )
+                    .to_owned(),
+                );
+            }
+        }
         // A file already loaded (imported again) brings no change: its import goes on anyway.
         if media_changed || !self.imports.is_empty() {
             self.finish_imports();

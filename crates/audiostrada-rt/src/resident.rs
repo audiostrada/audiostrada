@@ -30,6 +30,7 @@ fn keep_within(slices: &[&[f32]], budget: usize) -> Option<Resident> {
     let before = LOCKED.fetch_add(bytes, Ordering::Relaxed);
     if before + bytes > budget {
         LOCKED.fetch_sub(bytes, Ordering::Relaxed);
+        OVER_BUDGET.store(true, Ordering::Relaxed);
         note_refused("over the budget for locked audio");
         return None;
     }
@@ -61,6 +62,14 @@ impl Drop for Resident {
 /// Bytes currently locked.
 pub fn resident_bytes() -> usize {
     LOCKED.load(Ordering::Relaxed)
+}
+
+static OVER_BUDGET: AtomicBool = AtomicBool::new(false);
+
+/// Whether audio was left pageable since the last call because it is larger than the share of
+/// memory it may lock (not because the system refuses).
+pub fn take_over_budget() -> bool {
+    OVER_BUDGET.swap(false, Ordering::Relaxed)
 }
 
 fn note_refused(why: &str) {
@@ -99,18 +108,72 @@ fn unlock((start, len): (usize, usize)) {
     }
 }
 
-// Windows locks within the process's working set only (`VirtualLock`): not done yet.
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn physical_memory() -> usize {
+    use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+    let mut status = MEMORYSTATUSEX {
+        dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32,
+        ..Default::default()
+    };
+    // SAFETY: `status` is a valid MEMORYSTATUSEX with its length set.
+    match unsafe { GlobalMemoryStatusEx(&mut status) } {
+        Ok(()) => usize::try_from(status.ullTotalPhys).unwrap_or(usize::MAX),
+        Err(_) => 0,
+    }
+}
+
+/// Windows locks pages within the process's working set only: it grows by what is locked.
+#[cfg(windows)]
+fn grow_working_set(by: isize) -> bool {
+    use windows::Win32::System::Threading::{
+        GetCurrentProcess, GetProcessWorkingSetSize, SetProcessWorkingSetSize,
+    };
+    let (mut min, mut max) = (0usize, 0usize);
+    // SAFETY: the pseudo handle of the current process and two valid out pointers.
+    unsafe {
+        let process = GetCurrentProcess();
+        if GetProcessWorkingSetSize(process, &mut min, &mut max).is_err() {
+            return false;
+        }
+        let min = min.saturating_add_signed(by);
+        let max = max.saturating_add_signed(by).max(min);
+        SetProcessWorkingSetSize(process, min, max).is_ok()
+    }
+}
+
+#[cfg(windows)]
+fn lock((start, len): (usize, usize)) -> bool {
+    use windows::Win32::System::Memory::VirtualLock;
+    if !grow_working_set(len as isize) {
+        return false;
+    }
+    // SAFETY: the range is a live slice; locking only pins its pages.
+    let locked = unsafe { VirtualLock(start as *const std::ffi::c_void, len) }.is_ok();
+    if !locked {
+        grow_working_set(-(len as isize));
+    }
+    locked
+}
+
+#[cfg(windows)]
+fn unlock((start, len): (usize, usize)) {
+    use windows::Win32::System::Memory::VirtualUnlock;
+    // SAFETY: as in `lock`; unlocking a range never touches its contents.
+    let _ = unsafe { VirtualUnlock(start as *const std::ffi::c_void, len) };
+    grow_working_set(-(len as isize));
+}
+
+#[cfg(not(any(unix, windows)))]
 fn physical_memory() -> usize {
     0
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn lock(_: (usize, usize)) -> bool {
     false
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn unlock(_: (usize, usize)) {}
 
 #[cfg(test)]
@@ -118,11 +181,11 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     fn decoded_audio_is_locked_and_unlocked_with_its_guard() {
         let audio = vec![0.25f32; 1 << 20];
         let before = resident_bytes();
-        let resident = keep_resident(&[&audio]).expect("macOS locks a few megabytes");
+        let resident = keep_resident(&[&audio]).expect("a few megabytes are locked");
         assert_eq!(resident_bytes(), before + (4 << 20));
         drop(resident);
         assert_eq!(resident_bytes(), before);
@@ -134,5 +197,6 @@ mod tests {
         let before = resident_bytes();
         assert!(keep_within(&[&audio], before + 1024).is_none());
         assert_eq!(resident_bytes(), before);
+        assert!(take_over_budget());
     }
 }
