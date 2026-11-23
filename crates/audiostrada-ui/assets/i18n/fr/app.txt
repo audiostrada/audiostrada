@@ -1668,3 +1668,36 @@ Nouveaux plugins : {names}
 
 {count} new plugins: {names} and {others} more
 {count} nouveaux plugins : {names} et {others} autres
+
+Open a project of another DAW…
+Ouvrir un projet d'un autre logiciel…
+
+Export as DAWproject…
+Exporter en DAWproject…
+
+Project of another DAW
+Projet d'un autre logiciel
+
+Open a project of another DAW
+Ouvrir un projet d'un autre logiciel
+
+DAWproject or Reaper project
+Projet DAWproject ou Reaper
+
+Export as DAWproject
+Exporter en DAWproject
+
+Exported to {file}
+Exporté dans {file}
+
+Cannot export the DAWproject: {error}
+Impossible d'exporter le DAWproject : {error}
+
+Left out (no equivalent here): {name}
+Laissé de côté (pas d'équivalent ici) : {name}
+
+Plugin without its settings: {name}
+Plugin sans ses réglages : {name}
+
+Audio file not found: {file}
+Fichier audio introuvable : {file}

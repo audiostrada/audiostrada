@@ -39,8 +39,9 @@ you did just before.
 
 ## Questions
 
-**Can I open my projects from another DAW?** AudioStrada imports audio and MIDI files: export
-your tracks as stems from the other DAW, then drop them on the timeline.
+**Can I open my projects from another DAW?** Yes for a DAWproject (Bitwig Studio, Studio One,
+Cubase…) or a Reaper project: see *Projects of other DAWs*. From any other DAW, export your
+tracks as stems, then drop them on the timeline.
 
 **Where are my recordings?** In the `Audio` folder of the project.
 

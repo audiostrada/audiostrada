@@ -50,6 +50,8 @@ actions! {
     Export => ("File", "Export…"),
     ImportMidi => ("File", "Import MIDI file…"),
     ExportMidi => ("File", "Export MIDI file…"),
+    ImportDawProject => ("File", "Open a project of another DAW…"),
+    ExportDawProject => ("File", "Export as DAWproject…"),
     Quit => ("File", "Quit"),
     Undo => ("Edit", "Undo"),
     Redo => ("Edit", "Redo"),

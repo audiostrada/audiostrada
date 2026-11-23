@@ -39,8 +39,9 @@ et ce que vous faisiez juste avant.
 
 ## Questions
 
-**Puis-je ouvrir mes projets d'un autre logiciel ?** AudioStrada importe les fichiers audio et
-MIDI : exportez vos pistes en stems depuis l'autre logiciel, puis déposez-les sur la timeline.
+**Puis-je ouvrir mes projets d'un autre logiciel ?** Oui pour un DAWproject (Bitwig Studio,
+Studio One, Cubase…) ou un projet Reaper : voir *Projets d'autres logiciels*. Depuis un autre
+logiciel, exportez vos pistes en stems, puis déposez-les sur la timeline.
 
 **Où sont mes enregistrements ?** Dans le dossier `Audio` du projet.
 

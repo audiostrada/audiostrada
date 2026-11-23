@@ -12,6 +12,42 @@ use symphonia::core::meta::MetadataOptions;
 
 use crate::{AudioData, MediaError};
 
+/// Channels, sample rate and length of a file, read from its header when it tells them, else by
+/// decoding it.
+pub fn probe(path: &Path) -> Result<(u16, u32, u64), MediaError> {
+    let file = File::open(path)?;
+    let source = MediaSourceStream::new(Box::new(file), Default::default());
+    let mut hint = Hint::new();
+    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        hint.with_extension(ext);
+    }
+    let format = symphonia::default::get_probe()
+        .probe(
+            &hint,
+            source,
+            FormatOptions::default(),
+            MetadataOptions::default(),
+        )
+        .map_err(|e| MediaError::Unsupported(e.to_string()))?;
+    let track = format
+        .default_track(TrackType::Audio)
+        .ok_or_else(|| MediaError::Unsupported("no audio track".into()))?;
+    let params = track.codec_params.as_ref().and_then(|p| p.audio());
+    let rate = params.and_then(|p| p.sample_rate);
+    let channels = params
+        .and_then(|p| p.channels.as_ref())
+        .map(|c| c.count() as u16);
+    if let (Some(rate), Some(channels), Some(frames)) = (rate, channels, track.num_frames) {
+        return Ok((channels, rate, frames));
+    }
+    let data = load(path)?;
+    Ok((
+        data.channels() as u16,
+        data.sample_rate(),
+        data.frames() as u64,
+    ))
+}
+
 /// Decodes a whole file at its native sample rate.
 pub fn load(path: &Path) -> Result<AudioData, MediaError> {
     let file = File::open(path)?;

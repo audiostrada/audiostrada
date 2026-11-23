@@ -14,6 +14,7 @@ audiostrada-core = { path = "crates/audiostrada-core" }
 audiostrada-dsp = { path = "crates/audiostrada-dsp" }
 audiostrada-editors = { path = "crates/audiostrada-editors" }
 audiostrada-engine = { path = "crates/audiostrada-engine" }
+audiostrada-interchange = { path = "crates/audiostrada-interchange" }
 audiostrada-io = { path = "crates/audiostrada-io" }
 audiostrada-license = { path = "crates/audiostrada-license" }
 audiostrada-media = { path = "crates/audiostrada-media" }
@@ -54,6 +55,7 @@ objc2-core-audio-types = "0.3.2"
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFArray", "CFBundle", "CFData", "CFDictionary", "CFError", "CFNumber", "CFPropertyList", "CFString", "CFURL"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSDate", "NSGeometry", "NSRunLoop", "NSString", "NSURL"] }
 pipewire = "0.10.1"
+roxmltree = "0.21.2"
 rfd = "0.18.0"
 raw-window-handle = "0.6.2"
 rtrb = "0.4.0"

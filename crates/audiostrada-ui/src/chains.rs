@@ -129,6 +129,7 @@ mod tests {
             gain_db: 0.0,
             branches: Vec::new(),
             macros: Vec::new(),
+            name: None,
         }
     }
 

@@ -608,6 +608,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "audiostrada-interchange"
+version = "0.2.1"
+dependencies = [
+ "audiostrada-core",
+ "audiostrada-media",
+ "flate2",
+ "roxmltree",
+]
+
+[[package]]
 name = "audiostrada-io"
 version = "0.2.1"
 dependencies = [
@@ -723,6 +733,7 @@ dependencies = [
  "audiostrada-dsp",
  "audiostrada-editors",
  "audiostrada-engine",
+ "audiostrada-interchange",
  "audiostrada-io",
  "audiostrada-license",
  "audiostrada-media",

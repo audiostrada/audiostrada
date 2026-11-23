@@ -75,6 +75,8 @@ AudioStrada is in active development: features land quickly, and some rough edge
   crashing plugin cannot take the session with it.
 - **Export**: WAV, FLAC, MP3 and Opus, dither, peak or LUFS normalization, stems and a render
   queue.
+- **Other DAWs**: DAWproject import and export (Bitwig Studio, Studio One, Cubase…), Reaper
+  project import.
 - **Workflow**: autosave, crash recovery and project versions, a dockable workspace with
   detachable panels, full screen on every window, themes, a command palette, and editable
   shortcuts with AudioStrada, Pro Tools, Logic and Reaper presets.

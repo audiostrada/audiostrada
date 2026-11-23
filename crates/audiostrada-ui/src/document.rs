@@ -505,11 +505,50 @@ impl Document {
         Self::with(Project::default(), None, dirs, false)
     }
 
+    /// Opens a project; one of another DAW is first written as an AudioStrada project beside it.
     pub fn open(path: &Path, dirs: AppDirs) -> Result<Self, ProjectError> {
+        if audiostrada_interchange::is_foreign(path) {
+            let imported = audiostrada_interchange::import(path).map_err(ProjectError::Import)?;
+            let mut doc = Self::open(&imported.file, dirs)?;
+            for w in &imported.warnings {
+                doc.notify(interchange_warning(w));
+            }
+            return Ok(doc);
+        }
         let project = file::load(path)?;
         let mut doc = Self::with(project, Some(ProjectPaths::new(path)), dirs, false);
         doc.recover_takes();
         Ok(doc)
+    }
+
+    /// Writes the project as a DAWproject, for other DAWs; says what could not go.
+    pub fn export_dawproject(&mut self, out: &Path) {
+        // Plugins under their names, for the other DAW to show and find.
+        fn name(inserts: &mut [audiostrada_core::Insert], plugins: &Database) {
+            for i in inserts {
+                if let Some(p) = plugins.find(&i.effect) {
+                    i.name = Some(p.name.clone());
+                }
+                for b in &mut i.branches {
+                    name(&mut b.inserts, plugins);
+                }
+            }
+        }
+        let mut project = self.project().clone();
+        let plugins = self.player.plugins();
+        for t in &mut project.tracks {
+            name(&mut std::sync::Arc::make_mut(t).inserts, plugins);
+        }
+        name(&mut project.master.inserts, plugins);
+        match audiostrada_interchange::dawproject::export(&project, self.paths(), out) {
+            Ok(warnings) => {
+                self.notify(trf!("Exported to {file}", file = out.display()));
+                for w in &warnings {
+                    self.notify(interchange_warning(w));
+                }
+            }
+            Err(e) => self.notify(trf!("Cannot export the DAWproject: {error}", error = e)),
+        }
     }
 
     /// Opens the autosave of a project in place of the saved file, keeping the file location.
@@ -2608,6 +2647,18 @@ fn take_readout(
         peaks[1] = peaks[0];
     }
     level.push(peaks, elapsed * METER_FALL_DB_PER_S, elapsed);
+}
+
+/// What a project of another DAW lost on its way, in the interface's words.
+fn interchange_warning(w: &audiostrada_interchange::Warning) -> String {
+    use audiostrada_interchange::Warning;
+    match w {
+        Warning::Left(name) => trf!("Left out (no equivalent here): {name}", name = name),
+        Warning::NoSettings(name) => {
+            trf!("Plugin without its settings: {name}", name = name)
+        }
+        Warning::Missing(path) => trf!("Audio file not found: {file}", file = path.display()),
+    }
 }
 
 #[cfg(test)]
