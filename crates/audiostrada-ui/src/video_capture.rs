@@ -3,6 +3,8 @@
 //! (30), from `AUDIOSTRADA_RECORD_AFTER` seconds after the start (10) for
 //! `AUDIOSTRADA_RECORD_SECONDS` (10), then quits. `AUDIOSTRADA_RECORD_RECT=x,y,w,h` (points)
 //! crops it; with `AUDIOSTRADA_SCREENSHOT_WINDOW` set, the window on top is recorded alone.
+//! With `AUDIOSTRADA_SCREENSHOT_EFFECT`, the effect's editor is recorded alone. Recording one
+//! window, the script's positions count from its corner once the recording starts.
 //! `AUDIOSTRADA_RECORD_SCRIPT=<file.json>` plays gestures and commands, timed from the start of
 //! the recording, and draws a mouse cursor where they point.
 
@@ -52,6 +54,8 @@ pub(crate) struct Video {
     mods: egui::Modifiers,
     actions: Vec<String>,
     area: Option<Rect>,
+    /// Where the recorded window starts, in points: the script's positions count from there.
+    origin: egui::Vec2,
     out: Arc<Mutex<Output>>,
 }
 
@@ -111,6 +115,7 @@ impl Video {
             mods: egui::Modifiers::NONE,
             actions: Vec::new(),
             area: None,
+            origin: egui::Vec2::ZERO,
             out: Arc::new(Mutex::new(Output {
                 file: std::io::BufWriter::new(file),
                 written: 0,
@@ -151,10 +156,11 @@ impl Video {
                 events.push(egui::Event::ModifiersChanged(self.mods));
             }
             if let Some([x, y]) = step.to {
+                let to = pos2(x, y) + self.origin;
                 if step.dur > 0.0 {
-                    self.moving = Some((step.t, step.dur, self.pos, pos2(x, y)));
+                    self.moving = Some((step.t, step.dur, self.pos, to));
                 } else {
-                    self.pos = pos2(x, y);
+                    self.pos = to;
                     events.push(egui::Event::PointerMoved(self.pos));
                 }
             }
@@ -200,6 +206,12 @@ impl Video {
         }
         if t >= 0.0 {
             let scale = ctx.pixels_per_point();
+            if self.area.is_none() && crate::effect_shot::active() {
+                let Some(area) = crate::effect_shot::area() else {
+                    return std::mem::take(&mut self.actions);
+                };
+                self.area = Some(area * scale);
+            }
             let area = *self.area.get_or_insert_with(|| {
                 let top = self.window.then(|| {
                     ctx.memory(|m| {
@@ -215,6 +227,9 @@ impl Video {
                     .unwrap_or_else(|| ctx.content_rect())
                     * scale
             });
+            if self.window || crate::effect_shot::active() {
+                self.origin = area.min.to_vec2() / scale;
+            }
             let (out, fps) = (Arc::clone(&self.out), self.fps);
             ctx.request_screenshot(move |image| {
                 let Ok(mut out) = out.lock() else {

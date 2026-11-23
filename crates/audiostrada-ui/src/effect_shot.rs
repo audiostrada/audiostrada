@@ -1,7 +1,8 @@
 //! Development aid: with `AUDIOSTRADA_SCREENSHOT_EFFECT=<file.ppm>`, opens the editor of the
 //! built-in effect `AUDIOSTRADA_SCREENSHOT_ID` as soon as one is added (through `--control`) to
 //! the track `AUDIOSTRADA_SCREENSHOT_TRACK` (`master` for the master; any track if unset), drawn
-//! inside the main window, saves the editor a few seconds later and quits.
+//! inside the main window, saves the editor a few seconds later and quits. With
+//! `AUDIOSTRADA_RECORD` too, the recording shows the editor alone instead.
 
 use std::cell::Cell;
 
@@ -15,6 +16,16 @@ const SETTLE: u64 = 240;
 thread_local! {
     static TARGET: Cell<Option<(ViewportId, u64)>> = const { Cell::new(None) };
     static BASELINE: Cell<Option<u64>> = const { Cell::new(None) };
+    static AREA: Cell<Option<Rect>> = const { Cell::new(None) };
+}
+
+/// The editor's area once it is shown, for a recording of it.
+pub(crate) fn area() -> Option<Rect> {
+    AREA.get()
+}
+
+pub(crate) fn active() -> bool {
+    path().is_some()
 }
 
 fn path() -> Option<std::path::PathBuf> {
@@ -67,7 +78,13 @@ pub(crate) fn tick(ctx: &egui::Context, viewport: ViewportId, area: Rect) {
     let Some((target, opened)) = TARGET.get() else {
         return;
     };
-    if target != viewport || ctx.cumulative_frame_nr() != opened + SETTLE {
+    if target != viewport {
+        return;
+    }
+    AREA.set(Some(area));
+    if std::env::var_os("AUDIOSTRADA_RECORD").is_some()
+        || ctx.cumulative_frame_nr() != opened + SETTLE
+    {
         return;
     }
     let scale = ctx.pixels_per_point();
