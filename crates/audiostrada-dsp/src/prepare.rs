@@ -310,8 +310,23 @@ impl Instrument {
             return Some(Bass);
         }
         if has(&[
-            "piano", "pno", "keys", "key", "rhodes", "wurli", "organ", "orgue", "clav", "epiano",
-            "clavier", "claviers",
+            "piano",
+            "pno",
+            "keys",
+            "key",
+            "rhodes",
+            "wurli",
+            "organ",
+            "orgue",
+            "clav",
+            "epiano",
+            "clavier",
+            "claviers",
+            "keyboard",
+            "keyboards",
+            "kbd",
+            "kbds",
+            "kybd",
         ]) {
             return Some(Keys);
         }
@@ -2453,7 +2468,8 @@ fn spread_of(i: Instrument) -> Option<f32> {
     }
 }
 
-/// The side a track's name gives: -1 left, 1 right.
+/// The side a track's name gives: -1 left, 1 right; a stereo pair named both ("L/R") is
+/// neither.
 fn side(name: &str) -> f32 {
     let lower = name.to_lowercase();
     let words: Vec<&str> = lower
@@ -2461,12 +2477,13 @@ fn side(name: &str) -> f32 {
         .filter(|w| !w.is_empty())
         .collect();
     let has = |list: &[&str]| words.iter().any(|w| list.contains(w));
-    if has(&["l", "left", "gauche", "lft"]) {
-        -1.0
-    } else if has(&["r", "right", "droite", "rgt"]) {
-        1.0
-    } else {
-        0.0
+    match (
+        has(&["l", "left", "gauche", "lft"]),
+        has(&["r", "right", "droite", "rgt"]),
+    ) {
+        (true, false) => -1.0,
+        (false, true) => 1.0,
+        _ => 0.0,
     }
 }
 
@@ -2535,6 +2552,7 @@ mod tests {
         assert_eq!(name("Bass DI"), Some(Bass));
         assert_eq!(name("Lead gtr"), Some(ElectricGuitar));
         assert_eq!(name("Pad chaud"), Some(Synth));
+        assert_eq!(name("KEYBOARD L/R"), Some(Keys));
         assert_eq!(name("Take 3"), None);
         assert_eq!(name("Choeurs 2"), Some(BackingVocals));
         assert_eq!(name("BV high"), Some(BackingVocals));
@@ -2547,6 +2565,14 @@ mod tests {
         for i in Instrument::ALL {
             assert_eq!(Instrument::from_id(i.id()), Some(i));
         }
+    }
+
+    #[test]
+    fn a_stereo_pair_named_left_and_right_stays_centered() {
+        assert_eq!(side("Gtr L"), -1.0);
+        assert_eq!(side("OH right"), 1.0);
+        assert_eq!(side("KEYBOARD L/R"), 0.0);
+        assert_eq!(side("Piano"), 0.0);
     }
 
     #[test]
