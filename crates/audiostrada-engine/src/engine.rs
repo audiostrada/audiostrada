@@ -480,6 +480,11 @@ impl std::fmt::Debug for EngineProcessor {
 }
 
 impl EngineProcessor {
+    /// Moves the transport at once, for an offline render skipping what it does not keep.
+    pub fn locate(&mut self, position: u64) {
+        self.transport.position = position;
+    }
+
     /// Puts the worker threads of a render behind everything else, the audio first.
     pub fn lower_workers(&self) {
         self.pool.lower();

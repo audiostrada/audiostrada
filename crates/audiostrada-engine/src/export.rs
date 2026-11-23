@@ -20,6 +20,8 @@ const BLOCK: usize = 4096;
 pub struct OfflineRender {
     player: ProjectPlayer,
     worker: RenderWorker,
+    /// First project sample rendered.
+    start: u64,
 }
 
 /// The computing part of a render, which can run on any thread (see [`OfflineRender::split`]).
@@ -35,6 +37,11 @@ pub struct RenderWorker {
     rate: u32,
     /// Off for a render only measured, never heard nor written.
     evaluated: bool,
+    /// Only these spans are rendered and kept (engine samples from the start, sorted), when
+    /// set: the transport jumps over what lies between.
+    keep: Option<Vec<(u64, u64)>>,
+    /// The transport's position at the start, engine samples.
+    origin: u64,
 }
 
 /// The rendered audio and its measurements.
@@ -105,6 +112,7 @@ impl OfflineRender {
         player.engine_mut().play();
         let total =
             player.to_engine(end.saturating_sub(start)) + (tail.max(0.0) * f64::from(rate)) as u64;
+        let origin = player.to_engine(start);
         Self {
             player,
             worker: RenderWorker {
@@ -112,15 +120,15 @@ impl OfflineRender {
                 storage: ChannelBuffers::new(0, 2, BLOCK),
                 total,
                 rendered: 0,
-                channels: [
-                    Vec::with_capacity(total as usize),
-                    Vec::with_capacity(total as usize),
-                ],
+                channels: [Vec::new(), Vec::new()],
                 loudness: LoudnessAnalyzer::new(rate),
                 peak: 0.0,
                 rate,
                 evaluated: true,
+                keep: None,
+                origin,
             },
+            start,
         }
     }
 
@@ -128,6 +136,24 @@ impl OfflineRender {
     /// dropouts would only falsify the figures.
     pub fn measured_only(mut self) -> Self {
         self.worker.evaluated = false;
+        self
+    }
+
+    /// Keeps only what plays within `spans` (project samples, sorted, apart): a project's long
+    /// gaps are rendered but never held in memory, and the render stops after the last span.
+    pub fn keeping(mut self, spans: &[(u64, u64)]) -> Self {
+        let w = &mut self.worker;
+        let keep: Vec<(u64, u64)> = spans
+            .iter()
+            .map(|&(a, b)| {
+                let a = self.player.to_engine(a.saturating_sub(self.start));
+                let b = self.player.to_engine(b.saturating_sub(self.start));
+                (a.min(w.total), b.min(w.total))
+            })
+            .filter(|(a, b)| b > a)
+            .collect();
+        w.total = keep.last().map_or(0, |s| s.1);
+        w.keep = Some(keep);
         self
     }
 
@@ -153,8 +179,30 @@ impl OfflineRender {
 impl RenderWorker {
     /// Renders up to `frames` more frames; true once everything is rendered.
     pub fn render(&mut self, frames: u64) -> bool {
-        let target = (self.rendered + frames).min(self.total);
+        if self.rendered == 0 && self.channels[0].capacity() == 0 {
+            let kept = self
+                .keep
+                .as_ref()
+                .map_or(self.total, |k| k.iter().map(|(a, b)| b - a).sum());
+            for c in &mut self.channels {
+                c.reserve_exact(kept as usize);
+            }
+        }
+        let mut target = (self.rendered + frames).min(self.total);
         while self.rendered < target {
+            // Past a span kept: on to the next one, the silence between left unrendered.
+            if let Some(next) = self
+                .keep
+                .as_ref()
+                .and_then(|k| k.iter().find(|s| s.1 > self.rendered))
+                && next.0 > self.rendered
+            {
+                let skipped = next.0 - self.rendered;
+                self.processor.locate(self.origin + next.0);
+                self.rendered = next.0;
+                target = (target + skipped).min(self.total);
+                continue;
+            }
             let n = ((target - self.rendered) as usize).min(BLOCK);
             let mut buffers = self.storage.buffers(n);
             self.processor.render(&mut buffers);
@@ -165,10 +213,26 @@ impl RenderWorker {
                 evaluation::apply(&mut buffers, n, t, self.rate);
             }
             let (l, r) = (&self.storage.output(0)[..n], &self.storage.output(1)[..n]);
-            self.peak = l.iter().chain(r).fold(self.peak, |p, s| p.max(s.abs()));
-            self.loudness.push(l, r);
-            self.channels[0].extend_from_slice(l);
-            self.channels[1].extend_from_slice(r);
+            let block = (self.rendered, self.rendered + n as u64);
+            let kept: Vec<(usize, usize)> = match &self.keep {
+                None => vec![(0, n)],
+                Some(spans) => spans
+                    .iter()
+                    .filter(|s| s.0 < block.1 && s.1 > block.0)
+                    .map(|s| {
+                        let a = s.0.max(block.0) - block.0;
+                        let b = s.1.min(block.1) - block.0;
+                        (a as usize, b as usize)
+                    })
+                    .collect(),
+            };
+            for (a, b) in kept {
+                let (l, r) = (&l[a..b], &r[a..b]);
+                self.peak = l.iter().chain(r).fold(self.peak, |p, s| p.max(s.abs()));
+                self.loudness.push(l, r);
+                self.channels[0].extend_from_slice(l);
+                self.channels[1].extend_from_slice(r);
+            }
             self.rendered += n as u64;
         }
         self.rendered >= self.total

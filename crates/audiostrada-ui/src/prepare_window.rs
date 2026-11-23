@@ -106,7 +106,7 @@ enum State {
     /// Waiting for its turn to be rendered.
     Queued,
     Measuring(Box<Measuring>),
-    Analysing(std::thread::JoinHandle<Analysis>),
+    Analysing(std::thread::JoinHandle<Analysis>, Vec<(f64, f64)>),
     Ready(Box<Ready>),
     Failed(String),
 }
@@ -120,6 +120,8 @@ struct Choice {
 
 struct Ready {
     analysis: Analysis,
+    /// Where each part of the audio analysed starts in the project (seconds).
+    timeline: Vec<(f64, f64)>,
     instrument: Instrument,
     guess: Guess,
     steps: Vec<Choice>,
@@ -552,6 +554,15 @@ fn chosen(r: &Ready) -> Vec<Step> {
         .collect()
 }
 
+/// A time of the audio analysed, in the project: its gaps were left out (see `played`).
+fn project_time(timeline: &[(f64, f64)], at: f64) -> f64 {
+    timeline
+        .iter()
+        .rev()
+        .find(|(audio, _)| *audio <= at)
+        .map_or(at, |(audio, project)| project + (at - audio))
+}
+
 /// What a track's ticked steps write, for a track played `shift` dB louder (its input gain
 /// raised); `gain` keeps the level on the strip's output.
 fn preparation(
@@ -562,22 +573,21 @@ fn preparation(
     gain: f32,
 ) -> Preparation {
     let picked: Vec<Step> = chosen(r).iter().map(|s| s.shifted(shift)).collect();
-    let ride = picked
-        .iter()
-        .find_map(|s| match s {
-            Step::Ride(points) => Some(points),
-            _ => None,
-        })
-        .map(|points| {
-            std::iter::once((0, 0.0))
-                .chain(
-                    points
-                        .iter()
-                        .map(|&(s, db)| ((s * f64::from(rate)) as u64, db)),
-                )
-                .collect()
-        })
-        .unwrap_or_default();
+    let ride =
+        picked
+            .iter()
+            .find_map(|s| match s {
+                Step::Ride(points) => Some(points),
+                _ => None,
+            })
+            .map(|points| {
+                std::iter::once((0, 0.0))
+                    .chain(points.iter().map(|&(s, db)| {
+                        ((project_time(&r.timeline, s) * f64::from(rate)) as u64, db)
+                    }))
+                    .collect()
+            })
+            .unwrap_or_default();
     let mut inserts = Vec::new();
     for out in [false, true] {
         let part = picked.iter().filter(|s| s.brings_out() == out);
@@ -997,15 +1007,16 @@ impl PrepareWindow {
             row.state = match state {
                 State::Measuring(mut m) => match m.poll() {
                     None => State::Measuring(m),
-                    Some(Ok((left, right, rate))) => {
-                        State::Analysing(std::thread::spawn(move || {
+                    Some(Ok((left, right, rate))) => State::Analysing(
+                        std::thread::spawn(move || {
                             audiostrada_rt::thread::lower_current_thread();
                             rules::analyse(&left, &right, rate)
-                        }))
-                    }
+                        }),
+                        m.timeline(),
+                    ),
                     Some(Err(e)) => State::Failed(e),
                 },
-                State::Analysing(handle) if handle.is_finished() => match handle.join() {
+                State::Analysing(handle, timeline) if handle.is_finished() => match handle.join() {
                     Ok(analysis) if analysis.report.integrated.is_some() => {
                         let (instrument, guess) = match &row.bus {
                             Some(bus) => guess_bus(doc, row.track, &bus.members),
@@ -1022,6 +1033,7 @@ impl PrepareWindow {
                         row.heard = false;
                         self.dirty = true;
                         State::Ready(Box::new(Ready {
+                            timeline,
                             analysis,
                             instrument,
                             guess,
@@ -1039,7 +1051,7 @@ impl PrepareWindow {
             }
             busy += usize::from(matches!(
                 row.state,
-                State::Measuring(_) | State::Analysing(_)
+                State::Measuring(_) | State::Analysing(..)
             ));
         }
         // A bus is measured once the tracks it holds here are heard as proposed.
@@ -2510,7 +2522,7 @@ impl PrepareWindow {
         });
         match &mut row.state {
             State::Queued => waiting(ui, p, 0.0),
-            State::Analysing(_) => waiting(ui, p, 1.0),
+            State::Analysing(..) => waiting(ui, p, 1.0),
             State::Measuring(m) => waiting(ui, p, m.progress()),
             State::Failed(e) => {
                 ui.add_space(40.0);
@@ -2906,7 +2918,7 @@ fn track_row(
         state => {
             let progress = match state {
                 State::Measuring(m) => m.progress(),
-                State::Analysing(_) => 1.0,
+                State::Analysing(..) => 1.0,
                 _ => 0.0,
             };
             let text = if matches!(state, State::Queued) {
@@ -3063,7 +3075,7 @@ fn check_row(
         state => {
             let progress = match state {
                 State::Measuring(m) => m.progress(),
-                State::Analysing(_) => 1.0,
+                State::Analysing(..) => 1.0,
                 _ => 0.0,
             };
             let text = if matches!(state, State::Queued) {
@@ -4779,4 +4791,17 @@ pub fn every_track(doc: &Document) -> Vec<TrackId> {
         .filter(|t| t.kind == audiostrada_core::TrackKind::Audio)
         .map(|t| t.id)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::project_time;
+
+    #[test]
+    fn times_of_the_audio_measured_land_where_they_play_in_the_project() {
+        let timeline = [(0.0, 0.0), (102.0, 9_000.0)];
+        assert_eq!(project_time(&timeline, 40.0), 40.0);
+        assert_eq!(project_time(&timeline, 105.0), 9_003.0);
+        assert_eq!(project_time(&[], 7.0), 7.0);
+    }
 }

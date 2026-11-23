@@ -247,11 +247,18 @@ pub struct Measuring {
     player: audiostrada_engine::project::ProjectPlayer,
     progress: Arc<AtomicU32>,
     handle: Option<JoinHandle<Audio>>,
+    /// Where each span kept starts, in the audio and in the project (seconds).
+    timeline: Vec<(f64, f64)>,
 }
 
 impl Measuring {
     pub fn progress(&self) -> f32 {
         f32::from_bits(self.progress.load(Ordering::Relaxed))
+    }
+
+    /// Where each part of the audio measured starts in the project (see `played`).
+    pub fn timeline(&self) -> Vec<(f64, f64)> {
+        self.timeline.clone()
     }
 
     /// Keeps the render's plugins going; the audio once it is rendered.
@@ -375,6 +382,35 @@ fn write(
 
 /// A copy of the project where only `track` (with its folder content) is heard, after its
 /// inserts and before its fader.
+/// Where `project` is measured: from its start to its last clip, a gap longer than a minute
+/// kept to its first minute (its silence still counts). A clip left hours away adds a minute
+/// to measure, not hours.
+fn played(project: &Project) -> Vec<(u64, u64)> {
+    let rate = u64::from(project.sample_rate);
+    let (tail, gap) = (2 * rate, 60 * rate);
+    let mut clips: Vec<(u64, u64)> = project
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter().filter(|c| !c.muted))
+        .map(|c| (c.start, c.end() + tail))
+        .collect();
+    clips.sort_unstable();
+    let mut out: Vec<(u64, u64)> = vec![(0, 0)];
+    for (a, b) in clips {
+        let Some(last) = out.last_mut() else {
+            continue;
+        };
+        if a <= last.1 + gap {
+            last.1 = last.1.max(b);
+        } else {
+            last.1 += gap;
+            out.push((a, b));
+        }
+    }
+    out.retain(|s| s.1 > s.0);
+    out
+}
+
 fn isolate(project: &Project, track: TrackId) -> Option<Project> {
     let mut copy = project.clone();
     let inside = routing::subtree(project, track);
@@ -496,6 +532,17 @@ impl Document {
 
     fn start_render(&mut self, project: &Project) -> Measuring {
         let end = project.length();
+        let spans = played(project);
+        let rate = f64::from(project.sample_rate.max(1));
+        let mut kept = 0.0;
+        let timeline = spans
+            .iter()
+            .map(|&(a, b)| {
+                let at = (kept, a as f64 / rate);
+                kept += b.min(end).saturating_sub(a) as f64 / rate;
+                at
+            })
+            .collect();
         let render = OfflineRender::in_background(
             project,
             self.paths.as_ref(),
@@ -503,7 +550,8 @@ impl Document {
             self.player.plugins().clone(),
             0,
             end,
-        );
+        )
+        .keeping(&spans);
         let (player, mut render) = render.split();
         let progress = Arc::new(AtomicU32::new(0));
         let shared = Arc::clone(&progress);
@@ -525,6 +573,7 @@ impl Document {
             player,
             progress,
             handle: Some(handle),
+            timeline,
         }
     }
 
@@ -1148,4 +1197,29 @@ fn reverse_file(path: &std::path::Path) -> Result<(), String> {
         .collect();
     let reversed = audiostrada_media::AudioData::new(channels, data.sample_rate());
     audiostrada_media::write_wav(path, &reversed).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use audiostrada_core::Source;
+
+    #[test]
+    fn a_clip_left_hours_away_adds_a_minute_to_measure_not_hours() {
+        let mut p = Project::new("p", 1_000);
+        let t = p.add_track("t");
+        let s = p.add_source(Source {
+            path: "a.wav".into(),
+            channels: 1,
+            sample_rate: 1_000,
+            frames: 10_000,
+        });
+        for at in [5_000, 30_000, 9_000_000] {
+            p.add_clip(t, s, at);
+        }
+        // A song with gaps under a minute is measured whole, from its start.
+        assert_eq!(played(&p)[0], (0, 42_000 + 60_000));
+        assert_eq!(played(&p)[1], (9_000_000, 9_012_000));
+        assert_eq!(played(&p).len(), 2);
+    }
 }
