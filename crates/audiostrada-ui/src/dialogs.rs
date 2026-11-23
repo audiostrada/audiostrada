@@ -1,6 +1,7 @@
 //! Native file dialogs. They run on a thread of their own: waiting for them on the interface
 //! thread froze the window, and the system offered to kill AudioStrada.
 
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
@@ -107,18 +108,58 @@ pub fn ask<T: Send + 'static>(
     answer(ctx, id).flatten()
 }
 
+fn folders_file() -> Option<PathBuf> {
+    crate::config_dir().map(|d| d.join("audiostrada").join("folders.json"))
+}
+
+/// The folders files were last picked from, by kind, kept in `folders.json`.
+fn folders() -> BTreeMap<String, PathBuf> {
+    folders_file()
+        .and_then(|f| std::fs::read_to_string(f).ok())
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+fn last_folder(kind: &str) -> Option<PathBuf> {
+    folders().remove(kind).filter(|d| d.is_dir())
+}
+
+fn remember_folder(kind: &str, picked: &Path) {
+    let (Some(file), Some(dir)) = (folders_file(), picked.parent()) else {
+        return;
+    };
+    let mut all = folders();
+    all.insert(kind.to_owned(), dir.to_path_buf());
+    if let Some(parent) = file.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string_pretty(&all) {
+        let _ = std::fs::write(file, json);
+    }
+}
+
+fn audio_dialog(title: &str) -> rfd::FileDialog {
+    let dialog = rfd::FileDialog::new()
+        .set_title(title)
+        .add_filter(tr("Audio"), &AUDIO_EXTENSIONS);
+    match last_folder("audio") {
+        Some(dir) => dialog.set_directory(dir),
+        None => dialog,
+    }
+}
+
 pub fn pick_audio_file() -> Option<PathBuf> {
-    rfd::FileDialog::new()
-        .set_title(tr("Locate audio file"))
-        .add_filter(tr("Audio"), &AUDIO_EXTENSIONS)
-        .pick_file()
+    let file = audio_dialog(tr("Locate audio file")).pick_file()?;
+    remember_folder("audio", &file);
+    Some(file)
 }
 
 pub fn pick_audio_files() -> Option<Vec<PathBuf>> {
-    rfd::FileDialog::new()
-        .set_title(tr("Import audio"))
-        .add_filter(tr("Audio"), &AUDIO_EXTENSIONS)
-        .pick_files()
+    let files = audio_dialog(tr("Import audio")).pick_files()?;
+    if let Some(first) = files.first() {
+        remember_folder("audio", first);
+    }
+    Some(files)
 }
 
 pub fn pick_project() -> Option<PathBuf> {
@@ -185,6 +226,16 @@ pub fn save_audio_file(name: &str, extension: &str) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_folder_a_file_was_picked_from_is_offered_next_time() {
+        let dir = audiostrada_core::scratch::dir("last-folder");
+        std::fs::create_dir_all(&dir).unwrap();
+        remember_folder("test-audio", &dir.join("take.wav"));
+        assert_eq!(last_folder("test-audio"), Some(dir.clone()));
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(last_folder("test-audio"), None);
+    }
 
     #[test]
     fn projects_get_their_own_folder() {
