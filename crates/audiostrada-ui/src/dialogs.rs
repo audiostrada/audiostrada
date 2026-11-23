@@ -166,7 +166,26 @@ pub fn pick_project() -> Option<PathBuf> {
     rfd::FileDialog::new()
         .set_title(tr("Open project"))
         .add_filter(tr("AudioStrada project"), &[EXTENSION])
+        .add_filter(tr("Project of another DAW"), &OTHER_DAWS)
         .pick_file()
+}
+
+/// What `audiostrada_interchange` reads: DAWproject (Bitwig, Studio One, Cubase…) and Reaper.
+const OTHER_DAWS: [&str; 2] = ["dawproject", "rpp"];
+
+pub fn pick_other_project() -> Option<PathBuf> {
+    rfd::FileDialog::new()
+        .set_title(tr("Open a project of another DAW"))
+        .add_filter(tr("DAWproject or Reaper project"), &OTHER_DAWS)
+        .pick_file()
+}
+
+pub fn save_dawproject(name: &str) -> Option<PathBuf> {
+    rfd::FileDialog::new()
+        .set_title(tr("Export as DAWproject"))
+        .set_file_name(format!("{name}.dawproject"))
+        .add_filter("DAWproject", &["dawproject"])
+        .save_file()
 }
 
 pub fn save_project(name: &str) -> Option<ProjectPaths> {

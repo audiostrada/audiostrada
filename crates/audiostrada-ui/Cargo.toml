@@ -28,6 +28,7 @@ audiostrada-core.workspace = true
 audiostrada-dsp.workspace = true
 audiostrada-editors.workspace = true
 audiostrada-engine.workspace = true
+audiostrada-interchange.workspace = true
 audiostrada-io.workspace = true
 audiostrada-license.workspace = true
 audiostrada-media.workspace = true

@@ -32,6 +32,9 @@ pub enum ProjectError {
         "project saved by a newer AudioStrada (format {found}, this version reads up to {VERSION})"
     )]
     TooNew { found: u32 },
+    /// A project of another DAW that could not be read.
+    #[error("cannot import this project: {0}")]
+    Import(String),
 }
 
 #[derive(Serialize, Deserialize)]

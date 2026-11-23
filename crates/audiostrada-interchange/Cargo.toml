@@ -1,0 +1,18 @@
+[package]
+name = "audiostrada-interchange"
+description = "AudioStrada: projects of other DAWs, DAWproject in and out, Reaper in."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+audiostrada-core.workspace = true
+audiostrada-media.workspace = true
+flate2.workspace = true
+roxmltree.workspace = true
+
+[lints]
+workspace = true

@@ -45,6 +45,23 @@ add it on a new track.
 - File › *Archive project…* packs the project with all its files into one `.tar.gz` file, to
   send or keep, without changing the project.
 
+## Projects of other DAWs
+
+File › Import › *Open a project of another DAW…* (or *Open project*, choosing the file) reads a
+DAWproject (`.dawproject`, written by Bitwig Studio, Studio One, Cubase and others) or a Reaper
+project (`.rpp`). AudioStrada writes it as a project of its own, in a new folder next to the
+file, and opens it: tracks and folders (as buses), audio and MIDI clips, fades, volume, pan,
+mute, solo, sends, volume and pan automation, tempo, time signature and markers.
+
+- Plugins come back when they are installed here. Their settings come with them from a
+  DAWproject; from Reaper they start on their defaults.
+- The other DAW's own effects (its EQ, its reverb…) are left out, except the EQ, compressor,
+  gate and limiter of a DAWproject, which become Strada-EQ, Strada-Comp, Strada-Gate and
+  Strada-Limit. A message lists what was left out.
+
+File › Export › *Export as DAWproject…* writes the project for another DAW, its audio files and
+the plugins' settings inside. AudioStrada's own effects stay out: no other DAW has them.
+
 ## MIDI files
 
 File › *Import MIDI file* ([[Ctrl+Alt+I]]) creates a track per part. File › *Export MIDI file*

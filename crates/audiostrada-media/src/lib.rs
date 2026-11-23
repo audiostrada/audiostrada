@@ -10,7 +10,7 @@ mod wav;
 use std::path::Path;
 
 pub use data::AudioData;
-pub use decode::load;
+pub use decode::{load, probe};
 pub use encode::{Dither, FileFormat, encode, set_mp3_encoder};
 pub use peaks::{Peak, Peaks};
 pub use resample::resample;

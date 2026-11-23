@@ -998,6 +998,9 @@ impl AudioStradaApp {
                 ));
             }
         }
+        if let Some(Some(path)) = dialogs::answer::<PathBuf>(ctx, "export-dawproject") {
+            self.doc.borrow_mut().export_dawproject(&path);
+        }
         if let Some(Some(path)) = dialogs::answer::<PathBuf>(ctx, "export-midi") {
             let track = self.doc.borrow().focused_track();
             let result = self.doc.borrow().export_midi(&path, track);
@@ -1393,6 +1396,15 @@ impl AudioStradaApp {
             Action::ExportMidi => {
                 let name = self.doc.borrow().project().name.clone();
                 dialogs::start(ctx, "export-midi", move || dialogs::save_midi_file(&name));
+            }
+            Action::ImportDawProject => {
+                dialogs::start(ctx, "open-project", dialogs::pick_other_project);
+            }
+            Action::ExportDawProject => {
+                let name = self.doc.borrow().project().name.clone();
+                dialogs::start(ctx, "export-dawproject", move || {
+                    dialogs::save_dawproject(&name)
+                });
             }
             Action::Quit => self.quit(ctx),
             Action::Undo => {
@@ -2701,10 +2713,12 @@ impl AudioStradaApp {
                 ui.menu_button(tr("Import"), |ui| {
                     item(ui, &mut chosen, Action::ImportAudio, None, true);
                     item(ui, &mut chosen, Action::ImportMidi, None, true);
+                    item(ui, &mut chosen, Action::ImportDawProject, None, true);
                 });
                 ui.menu_button(tr("Export"), |ui| {
                     item(ui, &mut chosen, Action::Export, None, true);
                     item(ui, &mut chosen, Action::ExportMidi, None, true);
+                    item(ui, &mut chosen, Action::ExportDawProject, None, true);
                 });
                 ui.menu_button(tr("Project files"), |ui| {
                     item(ui, &mut chosen, Action::CollectMedia, None, true);

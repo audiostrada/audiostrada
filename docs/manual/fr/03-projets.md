@@ -49,6 +49,25 @@ timeline, ou double-cliquez dessus pour l'ajouter sur une nouvelle piste.
 - Fichier › *Archiver le projet…* emballe le projet et tous ses fichiers dans un seul fichier
   `.tar.gz`, à envoyer ou garder, sans changer le projet.
 
+## Projets d'autres logiciels
+
+Fichier › Importer › *Ouvrir un projet d'un autre logiciel…* (ou *Ouvrir un projet*, en
+choisissant le fichier) lit un DAWproject (`.dawproject`, écrit par Bitwig Studio, Studio One,
+Cubase et d'autres) ou un projet Reaper (`.rpp`). AudioStrada en fait un projet à lui, dans un
+nouveau dossier à côté du fichier, et l'ouvre : pistes et dossiers (en bus), clips audio et
+MIDI, fondus, volume, panoramique, mute, solo, envois, automation du volume et du panoramique,
+tempo, mesure et marqueurs.
+
+- Les plugins reviennent s'ils sont installés ici. Leurs réglages les suivent depuis un
+  DAWproject ; depuis Reaper, ils repartent de leurs valeurs par défaut.
+- Les effets propres à l'autre logiciel (son égaliseur, sa réverbe…) sont laissés de côté, sauf
+  l'égaliseur, le compresseur, le gate et le limiteur d'un DAWproject, qui deviennent
+  Strada-EQ, Strada-Comp, Strada-Gate et Strada-Limit. Un message dit ce qui a été laissé.
+
+Fichier › Exporter › *Exporter en DAWproject…* écrit le projet pour un autre logiciel, avec ses
+fichiers audio et les réglages des plugins. Les effets d'AudioStrada restent dehors : aucun
+autre logiciel ne les a.
+
 ## Fichiers MIDI
 
 Fichier › *Importer un fichier MIDI* ([[Ctrl+Alt+I]]) crée une piste par partie. Fichier ›
