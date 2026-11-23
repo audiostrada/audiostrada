@@ -523,7 +523,24 @@ impl Document {
 
     /// Writes the project as a DAWproject, for other DAWs; says what could not go.
     pub fn export_dawproject(&mut self, out: &Path) {
-        match audiostrada_interchange::dawproject::export(self.project(), self.paths(), out) {
+        // Plugins under their names, for the other DAW to show and find.
+        fn name(inserts: &mut [audiostrada_core::Insert], plugins: &Database) {
+            for i in inserts {
+                if let Some(p) = plugins.find(&i.effect) {
+                    i.name = Some(p.name.clone());
+                }
+                for b in &mut i.branches {
+                    name(&mut b.inserts, plugins);
+                }
+            }
+        }
+        let mut project = self.project().clone();
+        let plugins = self.player.plugins();
+        for t in &mut project.tracks {
+            name(&mut std::sync::Arc::make_mut(t).inserts, plugins);
+        }
+        name(&mut project.master.inserts, plugins);
+        match audiostrada_interchange::dawproject::export(&project, self.paths(), out) {
             Ok(warnings) => {
                 self.notify(trf!("Exported to {file}", file = out.display()));
                 for w in &warnings {

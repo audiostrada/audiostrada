@@ -744,6 +744,7 @@ pub fn add_insert(
         gain_db: 0.0,
         branches: Vec::new(),
         macros: Vec::new(),
+        name: None,
     });
     Some(id)
 }
@@ -1240,6 +1241,7 @@ mod tests {
             gain_db: 0.0,
             branches: Vec::new(),
             macros: Vec::new(),
+            name: None,
         };
         let copy = add_insert_copy(&mut p, ca, &saved).unwrap();
         let first = &inserts(&p, ca)[0];

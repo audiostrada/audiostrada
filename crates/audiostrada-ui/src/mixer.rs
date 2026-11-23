@@ -997,10 +997,26 @@ pub(crate) fn effect_name(doc: &Document, key: &str) -> String {
     if let Some(info) = audiostrada_dsp::info(key) {
         return tr(info.name).to_owned();
     }
-    doc.player()
-        .plugins()
-        .find(key)
-        .map_or_else(|| key.to_owned(), |p| p.name.clone())
+    if let Some(p) = doc.player().plugins().find(key) {
+        return p.name.clone();
+    }
+    // Not installed: the name the other DAW gave it, else its identifier.
+    fn named<'a>(inserts: &'a [audiostrada_core::Insert], key: &str) -> Option<&'a str> {
+        inserts.iter().find_map(|i| {
+            (i.effect == key)
+                .then_some(i.name.as_deref())
+                .flatten()
+                .or_else(|| i.branches.iter().find_map(|b| named(&b.inserts, key)))
+        })
+    }
+    let project = doc.project();
+    project
+        .tracks
+        .iter()
+        .map(|t| t.inserts.as_slice())
+        .chain([project.master.inserts.as_slice()])
+        .find_map(|inserts| named(inserts, key))
+        .map_or_else(|| key.to_owned(), str::to_owned)
 }
 
 /// A built-in instrument or an instrument plugin.

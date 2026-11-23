@@ -435,13 +435,16 @@ impl Import<'_> {
             return;
         }
         if effect.contains(':') && state.is_none() {
-            self.build.warn(Warning::NoSettings(name));
+            self.build.warn(Warning::NoSettings(name.clone()));
         }
         if let Some(insert) = routing::add_insert(&mut self.build.project, channel, &effect, params)
             && let Some(i) = routing::find_insert_mut(&mut self.build.project, channel, insert)
         {
             i.bypass = !enabled;
             i.state = state.map(|s| base64::encode(&s));
+            if effect.contains(':') {
+                i.name = Some(name);
+            }
         }
     }
 
@@ -941,7 +944,7 @@ pub fn export(
             x.push_str(&format!(
                 r#"<{tag} id="{device}" deviceID="{}" deviceName="{}" deviceRole="audioFX" loaded="true">"#,
                 esc(plugin),
-                esc(plugin)
+                esc(i.name.as_deref().unwrap_or(plugin))
             ));
             x.push_str(&format!(
                 r#"<Enabled id="{}" value="{}"/>"#,

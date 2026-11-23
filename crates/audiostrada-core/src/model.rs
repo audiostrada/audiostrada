@@ -677,6 +677,9 @@ pub struct Insert {
     /// Plugin parameters shown on the insert's face in the rack.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub macros: Vec<String>,
+    /// A plugin's name as another DAW gave it, shown while the plugin is not installed here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 /// A branch of a parallel chain: its inserts and its level in the mix.
@@ -1634,6 +1637,7 @@ mod tests {
             gain_db: 0.0,
             branches: Vec::new(),
             macros: Vec::new(),
+            name: None,
         };
         p.master.inserts.push(insert.clone());
         let track = p.track_mut(a).unwrap();

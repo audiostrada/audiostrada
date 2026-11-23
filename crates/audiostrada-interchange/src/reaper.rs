@@ -353,6 +353,7 @@ fn fx(build: &mut Build, chain: &Block, channel: Channel) {
                     && let Some(i) = routing::find_insert_mut(&mut build.project, channel, id)
                 {
                     i.bypass = bypass;
+                    i.name = Some(shown.clone());
                 }
                 build.warn(Warning::NoSettings(shown));
             }
