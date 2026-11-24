@@ -53,6 +53,10 @@ pub struct Args {
     /// Seconds a plugin runs idle in real time before the notes, to finish loading its samples
     /// and its settings: many do it in the background and stay silent meanwhile.
     pub warmup: f64,
+    /// The channel measured: `None` for the middle (left plus right). An instrument whose two
+    /// channels are a little apart in time (a stereo pickup or microphones) cancels itself in
+    /// the middle at some pitches: one side alone then measures it.
+    pub channel: Option<usize>,
     /// Settings of a built-in instrument, by parameter id.
     pub set: Vec<(String, f32)>,
 }
@@ -69,6 +73,7 @@ impl Default for Args {
             velocities: vec![20, 45, 70, 95, 120],
             hold: 4.0,
             warmup: 10.0,
+            channel: None,
             set: Vec::new(),
         }
     }
@@ -196,12 +201,16 @@ fn measure_source(
         .iter()
         .any(|t| t.id == track && t.inserts.iter().any(|i| i.effect.contains(':')));
     let audio = render(&mut doc, length, if plugin { args.warmup } else { 0.0 })?;
-    let mono: Vec<f32> = audio
-        .channel(0)
-        .iter()
-        .zip(audio.channel(audio.channels().min(2) - 1))
-        .map(|(l, r)| 0.5 * (l + r))
-        .collect();
+    let last = audio.channels().min(2) - 1;
+    let mono: Vec<f32> = match args.channel {
+        Some(side) => audio.channel(side.min(last)).to_vec(),
+        None => audio
+            .channel(0)
+            .iter()
+            .zip(audio.channel(last))
+            .map(|(l, r)| 0.5 * (l + r))
+            .collect(),
+    };
     let rate = audio.sample_rate();
     let print = InstrumentPrint {
         name: name.to_owned(),

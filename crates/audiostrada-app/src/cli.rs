@@ -43,13 +43,15 @@ Commands:
                      band, tail, modulation
   measure-instrument SOURCE... [--out DIR] [--wav DIR] [--track NAME] [--name NAME]
                      [--keys 28-100/7] [--velocities 20,45,70,95,120] [--hold S]
-                     [--warmup S] [--set PARAM=VALUE]...
+                     [--warmup S] [--channel left|right|mid] [--set PARAM=VALUE]...
                      Play test notes through instruments (a .strada project, its track holding
                      the instrument set up by hand, or a built-in one by id) and fingerprint
                      them: pitch, partials and their decay, loudness and brightness by
                      velocity, attack, release; a JSON file each, and with --wav what was
                      played and a phrase for listening, at the same level; a plugin first runs
-                     idle in real time for --warmup seconds (default 10) to finish loading
+                     idle in real time for --warmup seconds (default 10) to finish loading;
+                     --channel measures one side alone, for a stereo instrument whose sides
+                     cancel in the middle
   measure-instrument-report FILE.json|DIR... --output PAGE.html
                      Compare instrument fingerprints on one page of charts
   measure-presets --dump [EFFECT...]
@@ -408,6 +410,14 @@ fn parse_measure_instrument(mut args: impl Iterator<Item = String>) -> Result<Co
             "--name" => m.name = Some(value),
             "--hold" => m.hold = value.parse().map_err(|_| invalid())?,
             "--warmup" => m.warmup = value.parse().map_err(|_| invalid())?,
+            "--channel" => {
+                m.channel = match value.as_str() {
+                    "left" => Some(0),
+                    "right" => Some(1),
+                    "mid" => None,
+                    _ => return Err(invalid()),
+                }
+            }
             "--keys" => {
                 // FIRST-LAST/STEP, or keys apart by commas.
                 m.keys = if let Some((range, step)) = value.split_once('/') {
@@ -563,7 +573,7 @@ mod tests {
     #[test]
     fn measure_instrument_takes_its_sources_keys_and_settings() {
         let Ok(Command::MeasureInstrument(m)) = parse_str(
-            "measure-instrument ep80 song.strada --keys 40-64/12 --velocities 30,90 --set hammer=70 --warmup 3",
+            "measure-instrument ep80 song.strada --keys 40-64/12 --velocities 30,90 --set hammer=70 --warmup 3 --channel left",
         ) else {
             panic!("not parsed");
         };
@@ -572,6 +582,7 @@ mod tests {
         assert_eq!(m.velocities, [30, 90]);
         assert_eq!(m.set, [("hammer".to_owned(), 70.0)]);
         assert_eq!(m.warmup, 3.0);
+        assert_eq!(m.channel, Some(0));
         assert!(parse_str("measure-instrument").is_err());
         assert!(parse_str("measure-instrument ep80 --velocities 0").is_err());
     }
