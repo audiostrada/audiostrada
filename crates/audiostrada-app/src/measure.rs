@@ -251,19 +251,25 @@ fn summary(print: &Fingerprint, path: &Path) {
 
 // The comparison page.
 
-const COLORS: [&str; 8] = [
+pub(crate) const COLORS: [&str; 8] = [
     "#2f6fdb", "#d9480f", "#2b8a3e", "#ae3ec9", "#e67700", "#0c8599", "#c2255c", "#5c636e",
 ];
 
 /// One curve of a chart: a fingerprint's points.
-struct Series<'a> {
-    name: &'a str,
-    color: &'a str,
-    points: Vec<(f32, f32)>,
+pub(crate) struct Series<'a> {
+    pub name: &'a str,
+    pub color: &'a str,
+    pub points: Vec<(f32, f32)>,
 }
 
 /// A chart as inline SVG; `log` puts the x axis in octaves.
-fn chart(title: &str, x_label: &str, y_label: &str, log: bool, series: &[Series]) -> String {
+pub(crate) fn chart(
+    title: &str,
+    x_label: &str,
+    y_label: &str,
+    log: bool,
+    series: &[Series],
+) -> String {
     let (w, h, left, right, top, bottom) = (560.0, 300.0, 56.0, 16.0, 30.0, 40.0);
     let all = series.iter().flat_map(|s| s.points.iter());
     let (mut x0, mut x1, mut y0, mut y1) = (f32::MAX, f32::MIN, f32::MAX, f32::MIN);

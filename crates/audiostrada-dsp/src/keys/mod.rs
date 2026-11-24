@@ -7,6 +7,7 @@ pub(crate) mod rotary;
 pub(crate) mod voice;
 
 pub mod bass808;
+pub mod ep80;
 pub mod fmkeys;
 pub mod grain;
 pub mod mallets;
@@ -16,7 +17,10 @@ pub mod tonewheel;
 
 /// Whether built-in effect `id` is one of the electric pianos.
 pub fn is_piano(id: &str) -> bool {
-    matches!(id, "tines" | "reed" | "tonewheel" | "fmkeys" | "mallets")
+    matches!(
+        id,
+        "tines" | "reed" | "ep80" | "tonewheel" | "fmkeys" | "mallets"
+    )
 }
 
 /// Whether built-in effect `id` is one of the instruments drawn by the keyboards' editor.

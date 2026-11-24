@@ -9902,6 +9902,1837 @@
   ]
  },
  {
+  "category": "Instrument",
+  "description": "Electric piano of struck tines and tone bars, from bell-like to barking, with its suitcase amplifier, stereo tremolo, delay and reverb.",
+  "id": "tines",
+  "instrument": true,
+  "name": "Strada-Tines",
+  "params": [
+   {
+    "default": 0,
+    "id": "volume",
+    "max": 12,
+    "min": -24,
+    "name": "Volume",
+    "unit": "dB"
+   },
+   {
+    "default": 55,
+    "id": "voicing",
+    "max": 100,
+    "min": 0,
+    "name": "Tine voicing",
+    "unit": "%"
+   },
+   {
+    "default": 60,
+    "id": "bell",
+    "max": 100,
+    "min": 0,
+    "name": "Bell",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "decay",
+    "max": 200,
+    "min": 25,
+    "name": "Decay",
+    "unit": "%"
+   },
+   {
+    "default": 40,
+    "id": "damper",
+    "max": 100,
+    "min": 0,
+    "name": "Release",
+    "unit": "%"
+   },
+   {
+    "default": 25,
+    "id": "noise",
+    "max": 100,
+    "min": 0,
+    "name": "Mechanics",
+    "unit": "%"
+   },
+   {
+    "default": 50,
+    "id": "dynamics",
+    "max": 100,
+    "min": 0,
+    "name": "Velocity",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Soft",
+     "Normal",
+     "Hard"
+    ],
+    "default": 1,
+    "id": "curve",
+    "max": 2,
+    "min": 0,
+    "name": "Velocity curve",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "bass",
+    "max": 12,
+    "min": -12,
+    "name": "Bass",
+    "unit": "dB"
+   },
+   {
+    "default": 2,
+    "id": "treble",
+    "max": 12,
+    "min": -12,
+    "name": "Treble",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "drive",
+    "max": 100,
+    "min": 0,
+    "name": "Drive",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Amplitude"
+    ],
+    "default": 0,
+    "id": "tremolo",
+    "max": 1,
+    "min": 0,
+    "name": "Tremolo",
+    "unit": ""
+   },
+   {
+    "default": 4.5,
+    "id": "tremolo_rate",
+    "max": 10,
+    "min": 0.5,
+    "name": "Tremolo rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 35,
+    "id": "tremolo_depth",
+    "max": 100,
+    "min": 0,
+    "name": "Tremolo depth",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "phaser",
+    "max": 100,
+    "min": 0,
+    "name": "Phaser",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "chorus",
+    "max": 100,
+    "min": 0,
+    "name": "Chorus",
+    "unit": "%"
+   },
+   {
+    "default": 440,
+    "id": "tune",
+    "max": 450,
+    "min": 430,
+    "name": "Tuning",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "stretch",
+    "max": 100,
+    "min": 0,
+    "name": "Octave stretch",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "delay",
+    "max": 100,
+    "min": 0,
+    "name": "Delay",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 6,
+    "id": "delay_note",
+    "max": 14,
+    "min": 0,
+    "name": "Delay time",
+    "unit": ""
+   },
+   {
+    "default": 30,
+    "id": "delay_feedback",
+    "max": 90,
+    "min": 0,
+    "name": "Delay feedback",
+    "unit": "%"
+   },
+   {
+    "default": 15,
+    "id": "reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Reverb",
+    "unit": "%"
+   },
+   {
+    "default": 1.600000023841858,
+    "id": "reverb_decay",
+    "max": 6,
+    "min": 0.30000001192092896,
+    "name": "Reverb decay",
+    "unit": "s"
+   }
+  ]
+ },
+ {
+  "category": "Instrument",
+  "description": "Electric piano of struck steel reeds, from sweet to biting, with its built-in speakers, tremolo, delay and reverb.",
+  "id": "reed",
+  "instrument": true,
+  "name": "Strada-Reed",
+  "params": [
+   {
+    "default": 0,
+    "id": "volume",
+    "max": 12,
+    "min": -24,
+    "name": "Volume",
+    "unit": "dB"
+   },
+   {
+    "default": 60,
+    "id": "voicing",
+    "max": 100,
+    "min": 0,
+    "name": "Reed bark",
+    "unit": "%"
+   },
+   {
+    "default": 55,
+    "id": "hammer",
+    "max": 100,
+    "min": 0,
+    "name": "Hammer",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "decay",
+    "max": 200,
+    "min": 25,
+    "name": "Decay",
+    "unit": "%"
+   },
+   {
+    "default": 40,
+    "id": "damper",
+    "max": 100,
+    "min": 0,
+    "name": "Release",
+    "unit": "%"
+   },
+   {
+    "default": 25,
+    "id": "noise",
+    "max": 100,
+    "min": 0,
+    "name": "Mechanics",
+    "unit": "%"
+   },
+   {
+    "default": 55,
+    "id": "dynamics",
+    "max": 100,
+    "min": 0,
+    "name": "Velocity",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Soft",
+     "Normal",
+     "Hard"
+    ],
+    "default": 1,
+    "id": "curve",
+    "max": 2,
+    "min": 0,
+    "name": "Velocity curve",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "bass",
+    "max": 12,
+    "min": -12,
+    "name": "Bass",
+    "unit": "dB"
+   },
+   {
+    "default": 1,
+    "id": "treble",
+    "max": 12,
+    "min": -12,
+    "name": "Treble",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "drive",
+    "max": 100,
+    "min": 0,
+    "name": "Drive",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Line",
+     "Cabinet"
+    ],
+    "default": 0,
+    "id": "speaker",
+    "max": 1,
+    "min": 0,
+    "name": "Speaker",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Amplitude"
+    ],
+    "default": 1,
+    "id": "tremolo",
+    "max": 1,
+    "min": 0,
+    "name": "Tremolo",
+    "unit": ""
+   },
+   {
+    "default": 5.5,
+    "id": "tremolo_rate",
+    "max": 10,
+    "min": 0.5,
+    "name": "Tremolo rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 30,
+    "id": "tremolo_depth",
+    "max": 100,
+    "min": 0,
+    "name": "Tremolo depth",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "phaser",
+    "max": 100,
+    "min": 0,
+    "name": "Phaser",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "chorus",
+    "max": 100,
+    "min": 0,
+    "name": "Chorus",
+    "unit": "%"
+   },
+   {
+    "default": 440,
+    "id": "tune",
+    "max": 450,
+    "min": 430,
+    "name": "Tuning",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "stretch",
+    "max": 100,
+    "min": 0,
+    "name": "Octave stretch",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "delay",
+    "max": 100,
+    "min": 0,
+    "name": "Delay",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 6,
+    "id": "delay_note",
+    "max": 14,
+    "min": 0,
+    "name": "Delay time",
+    "unit": ""
+   },
+   {
+    "default": 30,
+    "id": "delay_feedback",
+    "max": 90,
+    "min": 0,
+    "name": "Delay feedback",
+    "unit": "%"
+   },
+   {
+    "default": 12,
+    "id": "reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Reverb",
+    "unit": "%"
+   },
+   {
+    "default": 1.399999976158142,
+    "id": "reverb_decay",
+    "max": 6,
+    "min": 0.30000001192092896,
+    "name": "Reverb decay",
+    "unit": "s"
+   }
+  ]
+ },
+ {
+  "category": "Instrument",
+  "description": "Electric grand piano of short strings and piezo pickups, bright and clangy, with its preamp, brilliance switch, tremolo, chorus, delay and reverb.",
+  "id": "ep80",
+  "instrument": true,
+  "name": "Strada-EP80",
+  "params": [
+   {
+    "default": 0,
+    "id": "volume",
+    "max": 12,
+    "min": -24,
+    "name": "Volume",
+    "unit": "dB"
+   },
+   {
+    "default": 55,
+    "id": "hammer",
+    "max": 100,
+    "min": 0,
+    "name": "Hammer",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "decay",
+    "max": 200,
+    "min": 25,
+    "name": "Decay",
+    "unit": "%"
+   },
+   {
+    "default": 40,
+    "id": "damper",
+    "max": 100,
+    "min": 0,
+    "name": "Release",
+    "unit": "%"
+   },
+   {
+    "default": 40,
+    "id": "unison",
+    "max": 100,
+    "min": 0,
+    "name": "String detune",
+    "unit": "%"
+   },
+   {
+    "default": 25,
+    "id": "noise",
+    "max": 100,
+    "min": 0,
+    "name": "Mechanics",
+    "unit": "%"
+   },
+   {
+    "default": 55,
+    "id": "dynamics",
+    "max": 100,
+    "min": 0,
+    "name": "Velocity",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Soft",
+     "Normal",
+     "Hard"
+    ],
+    "default": 1,
+    "id": "curve",
+    "max": 2,
+    "min": 0,
+    "name": "Velocity curve",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "bass",
+    "max": 12,
+    "min": -12,
+    "name": "Bass",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "middle",
+    "max": 12,
+    "min": -12,
+    "name": "Middle",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "treble",
+    "max": 12,
+    "min": -12,
+    "name": "Treble",
+    "unit": "dB"
+   },
+   {
+    "choices": [
+     "Mellow",
+     "Normal",
+     "Bright"
+    ],
+    "default": 1,
+    "id": "brilliance",
+    "max": 2,
+    "min": 0,
+    "name": "Brilliance",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "drive",
+    "max": 100,
+    "min": 0,
+    "name": "Drive",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Amplitude"
+    ],
+    "default": 0,
+    "id": "tremolo",
+    "max": 1,
+    "min": 0,
+    "name": "Tremolo",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "tremolo_rate",
+    "max": 10,
+    "min": 0.5,
+    "name": "Tremolo rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "tremolo_depth",
+    "max": 100,
+    "min": 0,
+    "name": "Tremolo depth",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "phaser",
+    "max": 100,
+    "min": 0,
+    "name": "Phaser",
+    "unit": "%"
+   },
+   {
+    "default": 20,
+    "id": "chorus",
+    "max": 100,
+    "min": 0,
+    "name": "Chorus",
+    "unit": "%"
+   },
+   {
+    "default": 440,
+    "id": "tune",
+    "max": 450,
+    "min": 430,
+    "name": "Tuning",
+    "unit": "Hz"
+   },
+   {
+    "default": 40,
+    "id": "stretch",
+    "max": 100,
+    "min": 0,
+    "name": "Octave stretch",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "delay",
+    "max": 100,
+    "min": 0,
+    "name": "Delay",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 6,
+    "id": "delay_note",
+    "max": 14,
+    "min": 0,
+    "name": "Delay time",
+    "unit": ""
+   },
+   {
+    "default": 30,
+    "id": "delay_feedback",
+    "max": 90,
+    "min": 0,
+    "name": "Delay feedback",
+    "unit": "%"
+   },
+   {
+    "default": 15,
+    "id": "reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Reverb",
+    "unit": "%"
+   },
+   {
+    "default": 1.600000023841858,
+    "id": "reverb_decay",
+    "max": 6,
+    "min": 0.30000001192092896,
+    "name": "Reverb decay",
+    "unit": "s"
+   }
+  ]
+ },
+ {
+  "category": "Instrument",
+  "description": "Tone wheel organ with its nine drawbars, percussion, key click, scanner vibrato and rotary speaker.",
+  "id": "tonewheel",
+  "instrument": true,
+  "name": "Strada-Tonewheel",
+  "params": [
+   {
+    "default": 0,
+    "id": "volume",
+    "max": 12,
+    "min": -24,
+    "name": "Volume",
+    "unit": "dB"
+   },
+   {
+    "default": 8,
+    "id": "bar_16",
+    "max": 8,
+    "min": 0,
+    "name": "Drawbar 16'",
+    "unit": ""
+   },
+   {
+    "default": 8,
+    "id": "bar_5_1_3",
+    "max": 8,
+    "min": 0,
+    "name": "Drawbar 5 1/3'",
+    "unit": ""
+   },
+   {
+    "default": 8,
+    "id": "bar_8",
+    "max": 8,
+    "min": 0,
+    "name": "Drawbar 8'",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "bar_4",
+    "max": 8,
+    "min": 0,
+    "name": "Drawbar 4'",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "bar_2_2_3",
+    "max": 8,
+    "min": 0,
+    "name": "Drawbar 2 2/3'",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "bar_2",
+    "max": 8,
+    "min": 0,
+    "name": "Drawbar 2'",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "bar_1_3_5",
+    "max": 8,
+    "min": 0,
+    "name": "Drawbar 1 3/5'",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "bar_1_1_3",
+    "max": 8,
+    "min": 0,
+    "name": "Drawbar 1 1/3'",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "bar_1",
+    "max": 8,
+    "min": 0,
+    "name": "Drawbar 1'",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Off",
+     "Second",
+     "Third"
+    ],
+    "default": 2,
+    "id": "percussion",
+    "max": 2,
+    "min": 0,
+    "name": "Percussion",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Fast",
+     "Slow"
+    ],
+    "default": 0,
+    "id": "perc_decay",
+    "max": 1,
+    "min": 0,
+    "name": "Percussion decay",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Normal",
+     "Soft"
+    ],
+    "default": 0,
+    "id": "perc_soft",
+    "max": 1,
+    "min": 0,
+    "name": "Percussion volume",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Off",
+     "V1",
+     "V2",
+     "V3",
+     "C1",
+     "C2",
+     "C3"
+    ],
+    "default": 6,
+    "id": "vibrato",
+    "max": 6,
+    "min": 0,
+    "name": "Vibrato and chorus",
+    "unit": ""
+   },
+   {
+    "default": 40,
+    "id": "click",
+    "max": 100,
+    "min": 0,
+    "name": "Key click",
+    "unit": "%"
+   },
+   {
+    "default": 25,
+    "id": "leakage",
+    "max": 100,
+    "min": 0,
+    "name": "Leakage",
+    "unit": "%"
+   },
+   {
+    "default": 20,
+    "id": "drive",
+    "max": 100,
+    "min": 0,
+    "name": "Drive",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Off",
+     "Stop",
+     "Slow",
+     "Fast"
+    ],
+    "default": 2,
+    "id": "rotary",
+    "max": 3,
+    "min": 0,
+    "name": "Rotary speaker",
+    "unit": ""
+   },
+   {
+    "default": 70,
+    "id": "rotary_width",
+    "max": 100,
+    "min": 0,
+    "name": "Rotary width",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "bass",
+    "max": 12,
+    "min": -12,
+    "name": "Bass",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "treble",
+    "max": 12,
+    "min": -12,
+    "name": "Treble",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "dynamics",
+    "max": 100,
+    "min": 0,
+    "name": "Velocity",
+    "unit": "%"
+   },
+   {
+    "default": 440,
+    "id": "tune",
+    "max": 450,
+    "min": 430,
+    "name": "Tuning",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "delay",
+    "max": 100,
+    "min": 0,
+    "name": "Delay",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 6,
+    "id": "delay_note",
+    "max": 14,
+    "min": 0,
+    "name": "Delay time",
+    "unit": ""
+   },
+   {
+    "default": 30,
+    "id": "delay_feedback",
+    "max": 90,
+    "min": 0,
+    "name": "Delay feedback",
+    "unit": "%"
+   },
+   {
+    "default": 12,
+    "id": "reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Reverb",
+    "unit": "%"
+   },
+   {
+    "default": 1.600000023841858,
+    "id": "reverb_decay",
+    "max": 6,
+    "min": 0.30000001192092896,
+    "name": "Reverb decay",
+    "unit": "s"
+   }
+  ]
+ },
+ {
+  "category": "Instrument",
+  "description": "Eighties FM electric piano, from glassy to bell-like, with its chorus, tremolo, delay and reverb.",
+  "id": "fmkeys",
+  "instrument": true,
+  "name": "Strada-FM Keys",
+  "params": [
+   {
+    "default": 0,
+    "id": "volume",
+    "max": 12,
+    "min": -24,
+    "name": "Volume",
+    "unit": "dB"
+   },
+   {
+    "default": 45,
+    "id": "tone",
+    "max": 100,
+    "min": 0,
+    "name": "Tone",
+    "unit": "%"
+   },
+   {
+    "default": 60,
+    "id": "tine",
+    "max": 100,
+    "min": 0,
+    "name": "Tine",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "decay",
+    "max": 200,
+    "min": 25,
+    "name": "Decay",
+    "unit": "%"
+   },
+   {
+    "default": 40,
+    "id": "damper",
+    "max": 100,
+    "min": 0,
+    "name": "Release",
+    "unit": "%"
+   },
+   {
+    "default": 35,
+    "id": "detune",
+    "max": 100,
+    "min": 0,
+    "name": "Detune",
+    "unit": "%"
+   },
+   {
+    "default": 60,
+    "id": "dynamics",
+    "max": 100,
+    "min": 0,
+    "name": "Velocity",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Soft",
+     "Normal",
+     "Hard"
+    ],
+    "default": 1,
+    "id": "curve",
+    "max": 2,
+    "min": 0,
+    "name": "Velocity curve",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Tine",
+     "Bell",
+     "Reed",
+     "Glass"
+    ],
+    "default": 0,
+    "id": "character",
+    "max": 3,
+    "min": 0,
+    "name": "Character",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "bass",
+    "max": 12,
+    "min": -12,
+    "name": "Bass",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "treble",
+    "max": 12,
+    "min": -12,
+    "name": "Treble",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "drive",
+    "max": 100,
+    "min": 0,
+    "name": "Drive",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Amplitude"
+    ],
+    "default": 0,
+    "id": "tremolo",
+    "max": 1,
+    "min": 0,
+    "name": "Tremolo",
+    "unit": ""
+   },
+   {
+    "default": 4.5,
+    "id": "tremolo_rate",
+    "max": 10,
+    "min": 0.5,
+    "name": "Tremolo rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "tremolo_depth",
+    "max": 100,
+    "min": 0,
+    "name": "Tremolo depth",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "phaser",
+    "max": 100,
+    "min": 0,
+    "name": "Phaser",
+    "unit": "%"
+   },
+   {
+    "default": 35,
+    "id": "chorus",
+    "max": 100,
+    "min": 0,
+    "name": "Chorus",
+    "unit": "%"
+   },
+   {
+    "default": 440,
+    "id": "tune",
+    "max": 450,
+    "min": 430,
+    "name": "Tuning",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "stretch",
+    "max": 100,
+    "min": 0,
+    "name": "Octave stretch",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "delay",
+    "max": 100,
+    "min": 0,
+    "name": "Delay",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 6,
+    "id": "delay_note",
+    "max": 14,
+    "min": 0,
+    "name": "Delay time",
+    "unit": ""
+   },
+   {
+    "default": 30,
+    "id": "delay_feedback",
+    "max": 90,
+    "min": 0,
+    "name": "Delay feedback",
+    "unit": "%"
+   },
+   {
+    "default": 15,
+    "id": "reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Reverb",
+    "unit": "%"
+   },
+   {
+    "default": 1.600000023841858,
+    "id": "reverb_decay",
+    "max": 6,
+    "min": 0.30000001192092896,
+    "name": "Reverb decay",
+    "unit": "s"
+   }
+  ]
+ },
+ {
+  "category": "Instrument",
+  "description": "Marimba, vibraphone, kalimba, celesta and music box, struck or plucked, with tremolo, delay and reverb.",
+  "id": "mallets",
+  "instrument": true,
+  "name": "Strada-Mallets",
+  "params": [
+   {
+    "default": 0,
+    "id": "volume",
+    "max": 12,
+    "min": -24,
+    "name": "Volume",
+    "unit": "dB"
+   },
+   {
+    "choices": [
+     "Marimba",
+     "Vibraphone",
+     "Kalimba",
+     "Celesta",
+     "Music box"
+    ],
+    "default": 0,
+    "id": "instrument",
+    "max": 4,
+    "min": 0,
+    "name": "Instrument",
+    "unit": ""
+   },
+   {
+    "default": 50,
+    "id": "hardness",
+    "max": 100,
+    "min": 0,
+    "name": "Mallet hardness",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "decay",
+    "max": 200,
+    "min": 25,
+    "name": "Decay",
+    "unit": "%"
+   },
+   {
+    "default": 40,
+    "id": "damper",
+    "max": 100,
+    "min": 0,
+    "name": "Release",
+    "unit": "%"
+   },
+   {
+    "default": 60,
+    "id": "resonance",
+    "max": 100,
+    "min": 0,
+    "name": "Resonance",
+    "unit": "%"
+   },
+   {
+    "default": 25,
+    "id": "noise",
+    "max": 100,
+    "min": 0,
+    "name": "Mechanics",
+    "unit": "%"
+   },
+   {
+    "default": 60,
+    "id": "dynamics",
+    "max": 100,
+    "min": 0,
+    "name": "Velocity",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Soft",
+     "Normal",
+     "Hard"
+    ],
+    "default": 1,
+    "id": "curve",
+    "max": 2,
+    "min": 0,
+    "name": "Velocity curve",
+    "unit": ""
+   },
+   {
+    "default": 0,
+    "id": "bass",
+    "max": 12,
+    "min": -12,
+    "name": "Bass",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "treble",
+    "max": 12,
+    "min": -12,
+    "name": "Treble",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "drive",
+    "max": 100,
+    "min": 0,
+    "name": "Drive",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Stereo",
+     "Amplitude"
+    ],
+    "default": 1,
+    "id": "tremolo",
+    "max": 1,
+    "min": 0,
+    "name": "Tremolo",
+    "unit": ""
+   },
+   {
+    "default": 5,
+    "id": "tremolo_rate",
+    "max": 10,
+    "min": 0.5,
+    "name": "Tremolo rate",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "tremolo_depth",
+    "max": 100,
+    "min": 0,
+    "name": "Tremolo depth",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "phaser",
+    "max": 100,
+    "min": 0,
+    "name": "Phaser",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "chorus",
+    "max": 100,
+    "min": 0,
+    "name": "Chorus",
+    "unit": "%"
+   },
+   {
+    "default": 440,
+    "id": "tune",
+    "max": 450,
+    "min": 430,
+    "name": "Tuning",
+    "unit": "Hz"
+   },
+   {
+    "default": 0,
+    "id": "stretch",
+    "max": 100,
+    "min": 0,
+    "name": "Octave stretch",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "delay",
+    "max": 100,
+    "min": 0,
+    "name": "Delay",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 6,
+    "id": "delay_note",
+    "max": 14,
+    "min": 0,
+    "name": "Delay time",
+    "unit": ""
+   },
+   {
+    "default": 30,
+    "id": "delay_feedback",
+    "max": 90,
+    "min": 0,
+    "name": "Delay feedback",
+    "unit": "%"
+   },
+   {
+    "default": 20,
+    "id": "reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Reverb",
+    "unit": "%"
+   },
+   {
+    "default": 1.7999999523162842,
+    "id": "reverb_decay",
+    "max": 6,
+    "min": 0.30000001192092896,
+    "name": "Reverb decay",
+    "unit": "s"
+   }
+  ]
+ },
+ {
+  "category": "Instrument",
+  "description": "808 sub bass with punch, click, glide and distortion that keeps the low end clean.",
+  "id": "bass808",
+  "instrument": true,
+  "name": "Strada-808",
+  "params": [
+   {
+    "default": 0,
+    "id": "volume",
+    "max": 12,
+    "min": -24,
+    "name": "Volume",
+    "unit": "dB"
+   },
+   {
+    "default": 0,
+    "id": "tune",
+    "max": 12,
+    "min": -12,
+    "name": "Tune",
+    "unit": "st"
+   },
+   {
+    "default": 7,
+    "id": "punch",
+    "max": 24,
+    "min": 0,
+    "name": "Punch",
+    "unit": "st"
+   },
+   {
+    "default": 40,
+    "id": "punch_time",
+    "max": 200,
+    "min": 5,
+    "name": "Punch time",
+    "unit": "ms"
+   },
+   {
+    "default": 1.2000000476837158,
+    "id": "length",
+    "max": 5,
+    "min": 0.10000000149011612,
+    "name": "Length",
+    "unit": "s"
+   },
+   {
+    "choices": [
+     "Follows key",
+     "Full"
+    ],
+    "default": 0,
+    "id": "gate",
+    "max": 1,
+    "min": 0,
+    "name": "Note length",
+    "unit": ""
+   },
+   {
+    "default": 60,
+    "id": "release",
+    "max": 500,
+    "min": 5,
+    "name": "Release",
+    "unit": "ms"
+   },
+   {
+    "default": 30,
+    "id": "click",
+    "max": 100,
+    "min": 0,
+    "name": "Click",
+    "unit": "%"
+   },
+   {
+    "default": 25,
+    "id": "body",
+    "max": 100,
+    "min": 0,
+    "name": "Body",
+    "unit": "%"
+   },
+   {
+    "default": 30,
+    "id": "drive",
+    "max": 100,
+    "min": 0,
+    "name": "Drive",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Soft",
+     "Hard",
+     "Fuzz",
+     "Tube"
+    ],
+    "default": 0,
+    "id": "shape",
+    "max": 3,
+    "min": 0,
+    "name": "Distortion",
+    "unit": ""
+   },
+   {
+    "default": 60,
+    "id": "clean",
+    "max": 100,
+    "min": 0,
+    "name": "Clean sub",
+    "unit": "%"
+   },
+   {
+    "default": 6000,
+    "id": "cutoff",
+    "max": 12000,
+    "min": 100,
+    "name": "Filter",
+    "unit": "Hz"
+   },
+   {
+    "default": 60,
+    "id": "glide",
+    "max": 500,
+    "min": 0,
+    "name": "Glide",
+    "unit": "ms"
+   },
+   {
+    "choices": [
+     "Mono",
+     "Poly"
+    ],
+    "default": 0,
+    "id": "mode",
+    "max": 1,
+    "min": 0,
+    "name": "Mode",
+    "unit": ""
+   },
+   {
+    "default": 40,
+    "id": "dynamics",
+    "max": 100,
+    "min": 0,
+    "name": "Velocity",
+    "unit": "%"
+   }
+  ]
+ },
+ {
+  "category": "Instrument",
+  "description": "Granular instrument: a sound, a source of its own or the live sidechain turned into textures, pads and frozen moments.",
+  "id": "grain",
+  "instrument": true,
+  "name": "Strada-Grain",
+  "params": [
+   {
+    "default": 0,
+    "id": "volume",
+    "max": 12,
+    "min": -24,
+    "name": "Volume",
+    "unit": "dB"
+   },
+   {
+    "choices": [
+     "File",
+     "Live",
+     "Choir",
+     "Strings",
+     "Organ",
+     "Wind",
+     "Bells",
+     "Felt piano",
+     "Glass"
+    ],
+    "default": 2,
+    "id": "source",
+    "max": 8,
+    "min": 0,
+    "name": "Source",
+    "unit": ""
+   },
+   {
+    "choices": [
+     "Keyboard",
+     "Continuous"
+    ],
+    "default": 0,
+    "id": "trigger",
+    "max": 1,
+    "min": 0,
+    "name": "Trigger",
+    "unit": ""
+   },
+   {
+    "default": 30,
+    "id": "position",
+    "max": 100,
+    "min": 0,
+    "name": "Position",
+    "unit": "%"
+   },
+   {
+    "default": 15,
+    "id": "spray",
+    "max": 100,
+    "min": 0,
+    "name": "Spray",
+    "unit": "%"
+   },
+   {
+    "default": 120,
+    "id": "size",
+    "max": 500,
+    "min": 10,
+    "name": "Grain size",
+    "unit": "ms"
+   },
+   {
+    "default": 30,
+    "id": "density",
+    "max": 100,
+    "min": 1,
+    "name": "Density",
+    "unit": "/s"
+   },
+   {
+    "default": 0,
+    "id": "scan",
+    "max": 100,
+    "min": -100,
+    "name": "Scan speed",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "Off",
+     "On"
+    ],
+    "default": 0,
+    "id": "freeze",
+    "max": 1,
+    "min": 0,
+    "name": "Freeze",
+    "unit": ""
+   },
+   {
+    "default": 10,
+    "id": "detune",
+    "max": 100,
+    "min": 0,
+    "name": "Detune",
+    "unit": "cents"
+   },
+   {
+    "default": 70,
+    "id": "width",
+    "max": 100,
+    "min": 0,
+    "name": "Width",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "reverse",
+    "max": 100,
+    "min": 0,
+    "name": "Reversed grains",
+    "unit": "%"
+   },
+   {
+    "default": 30,
+    "id": "shape",
+    "max": 100,
+    "min": 0,
+    "name": "Grain shape",
+    "unit": "%"
+   },
+   {
+    "default": 300,
+    "id": "attack",
+    "max": 10000,
+    "min": 1,
+    "name": "Attack",
+    "unit": "ms"
+   },
+   {
+    "default": 2000,
+    "id": "release",
+    "max": 10000,
+    "min": 10,
+    "name": "Release",
+    "unit": "ms"
+   },
+   {
+    "default": 40,
+    "id": "low_cut",
+    "max": 2000,
+    "min": 20,
+    "name": "Low cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 12000,
+    "id": "high_cut",
+    "max": 20000,
+    "min": 500,
+    "name": "High cut",
+    "unit": "Hz"
+   },
+   {
+    "default": 40,
+    "id": "dynamics",
+    "max": 100,
+    "min": 0,
+    "name": "Velocity",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "tune",
+    "max": 24,
+    "min": -24,
+    "name": "Tune",
+    "unit": "st"
+   },
+   {
+    "default": 0,
+    "id": "chorus",
+    "max": 100,
+    "min": 0,
+    "name": "Chorus",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "delay",
+    "max": 100,
+    "min": 0,
+    "name": "Delay",
+    "unit": "%"
+   },
+   {
+    "choices": [
+     "1/32",
+     "1/16 T",
+     "1/16",
+     "1/16 D",
+     "1/8 T",
+     "1/8",
+     "1/8 D",
+     "1/4 T",
+     "1/4",
+     "1/4 D",
+     "1/2",
+     "1 bar",
+     "1/2 T",
+     "1/2 D",
+     "2 bars"
+    ],
+    "default": 6,
+    "id": "delay_note",
+    "max": 14,
+    "min": 0,
+    "name": "Delay time",
+    "unit": ""
+   },
+   {
+    "default": 35,
+    "id": "delay_feedback",
+    "max": 90,
+    "min": 0,
+    "name": "Delay feedback",
+    "unit": "%"
+   },
+   {
+    "default": 35,
+    "id": "reverb",
+    "max": 100,
+    "min": 0,
+    "name": "Reverb",
+    "unit": "%"
+   },
+   {
+    "default": 3.5,
+    "id": "reverb_decay",
+    "max": 6,
+    "min": 0.30000001192092896,
+    "name": "Reverb decay",
+    "unit": "s"
+   }
+  ]
+ },
+ {
   "category": "Channel",
   "description": "Filters, gate, compressor, four-band EQ and drive, as on a console channel.",
   "id": "channel",
@@ -15515,6 +17346,76 @@
     "min": 0,
     "name": "Note",
     "unit": ""
+   }
+  ]
+ },
+ {
+  "category": "Modulation",
+  "description": "Rotary speaker cabinet: horn and drum turning slow or fast with their inertia, and the drive of its tube amplifier.",
+  "id": "rotary",
+  "instrument": false,
+  "name": "Strada-Rotary",
+  "params": [
+   {
+    "choices": [
+     "Stop",
+     "Slow",
+     "Fast"
+    ],
+    "default": 1,
+    "id": "speed",
+    "max": 2,
+    "min": 0,
+    "name": "Speed",
+    "unit": ""
+   },
+   {
+    "default": 15,
+    "id": "drive",
+    "max": 100,
+    "min": 0,
+    "name": "Drive",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "balance",
+    "max": 100,
+    "min": -100,
+    "name": "Horn and drum",
+    "unit": "%"
+   },
+   {
+    "default": 70,
+    "id": "width",
+    "max": 100,
+    "min": 0,
+    "name": "Width",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "inertia",
+    "max": 400,
+    "min": 25,
+    "name": "Inertia",
+    "unit": "%"
+   },
+   {
+    "default": 100,
+    "id": "mix",
+    "max": 100,
+    "min": 0,
+    "name": "Mix",
+    "unit": "%"
+   },
+   {
+    "default": 0,
+    "id": "output",
+    "max": 12,
+    "min": -12,
+    "name": "Output",
+    "unit": "dB"
    }
   ]
  },

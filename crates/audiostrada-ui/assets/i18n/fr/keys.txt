@@ -574,19 +574,19 @@ Freeze: Piano breath
 Gel : Souffle de piano
 
 Live: Frozen voice
-Direct : Voix gelée
+Live : Voix gelée
 
 Live: Grain cloud
-Direct : Nuage de grains
+Live : Nuage de grains
 
 Live: Granular delay
-Direct : Delay granulaire
+Live : Delay granulaire
 
 Live: Shimmer
-Direct : Scintillement
+Live : Scintillement
 
 Live: Stutter
-Direct : Bégaiement
+Live : Bégaiement
 
 Strada-Grain
 Strada-Grain
@@ -755,3 +755,72 @@ La mémoire est vide : rien n'a encore été entendu
 
 Cannot save {file}: {e}
 Impossible d'enregistrer {file} : {e}
+
+Strada-EP80
+Strada-EP80
+
+Electric grand piano of short strings and piezo pickups, bright and clangy, with its preamp, brilliance switch, tremolo, chorus, delay and reverb.
+Piano électrique à queue, cordes courtes et micros piézo, brillant et métallique, avec son préampli, son sélecteur de brillance, son trémolo, son chorus, son delay et sa réverbération.
+
+Brilliance
+Brillance
+
+String detune
+Désaccord des cordes
+
+Preamp
+Préampli
+
+Classic: Stage grand
+Classique : Grand de scène
+
+Classic: Pop rock
+Classique : Pop rock
+
+Classic: Bright and wide
+Classique : Brillant et large
+
+Classic: Prog
+Classique : Prog
+
+Clean: Dry and close
+Clair : Sec et proche
+
+Clean: Studio
+Clair : Studio
+
+Clean: Honky
+Clair : Bastringue
+
+Driven: Rock grand
+Saturé : Grand rock
+
+Driven: Crunch
+Saturé : Crunch
+
+Driven: New wave
+Saturé : New wave
+
+Driven: Gritty tremolo
+Saturé : Trémolo granuleux
+
+Driven: Hot preamp
+Saturé : Préampli chaud
+
+Lush: Chorus pad
+Ample : Nappe de chorus
+
+Lush: Tremolo dream
+Ample : Rêve en trémolo
+
+Lush: Ambient echoes
+Ample : Échos ambiants
+
+Lush: Big hall
+Ample : Grande salle
+
+Mellow
+Doux
+
+Bright
+Brillant

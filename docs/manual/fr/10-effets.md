@@ -317,6 +317,19 @@ Un phaser tourbillonnant de 4 à 12 étages, avec réinjection et écart stéré
 
 <!-- effect:phaser -->
 
+### Strada-Rotary
+
+![Strada-Rotary](img/fx/rotary.webp)
+
+La cabine rotative des orgues, pour toute piste : un pavillon pour les aigus et un tambour pour
+les graves, qui tournent chacun lentement ou vite et prennent leur temps pour changer de vitesse
+(le pavillon en un instant, le tambour en quelques secondes), entendus par deux micros. L'écran
+les montre vus de dessus, qui tournent comme ils tournent. *Stop* les laisse ralentir jusqu'à
+l'arrêt ; *Inertie* rend le changement plus rapide ou plus lent ; *Drive* pousse son ampli à
+lampes ; *Pavillon et tambour* règle leur équilibre.
+
+<!-- effect:rotary -->
+
 ### Strada-Mod
 
 ![Strada-Mod](img/fx/modulator.webp)

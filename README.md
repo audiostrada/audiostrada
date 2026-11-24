@@ -60,17 +60,20 @@ AudioStrada is in active development: features land quickly, and some rough edge
   Strada-Comp (Clean, Bus, Opto, FET), Strada-MB-Comp, Strada-Channel, Strada-Gate,
   Strada-Limit, Strada-Max (true peak), Strada-Transient, Strada-DeEss, Strada-Trigger,
   Strada-Correct (pitch correction), Strada-Pitch (pitch shifter), Strada-Doubler, Strada-Verb,
-  Strada-Delay, Strada-Chorus, Strada-Flanger, Strada-Phaser, Strada-Mod (tremolo, auto-pan),
-  Strada-Drive, Strada-Tape, Strada-Filter, Strada-Wide (stereo imager), Strada-Utility,
-  Strada-Scope (analyzer) and Strada-Tuner. Strada-Verb lets you drag how long each frequency
-  rings on the spectrum, Strada-Delay draws its echoes on the tempo grid, Strada-Drive goes
-  from a touch of color to fuzz.
+  Strada-Delay, Strada-Chorus, Strada-Flanger, Strada-Phaser, Strada-Rotary, Strada-Mod
+  (tremolo, auto-pan), Strada-Drive, Strada-Tape, Strada-Filter, Strada-Wide (stereo imager),
+  Strada-Utility, Strada-Scope (analyzer) and Strada-Tuner. Strada-Verb lets you drag how long
+  each frequency rings on the spectrum, Strada-Delay draws its echoes on the tempo grid,
+  Strada-Drive goes from a touch of color to fuzz.
 - **Guitar**: Strada-Amp, with 16 built-in models, 21 pedals and cabinet impulse responses,
   which also runs Neural Amp Modeler captures from your library or TONE3000.
-- **MIDI**: Strada-Synth (MPE, wavetables, drag-and-drop modulation), Strada-Drums, plugin
-  instruments, a piano roll with scale folding, chords and a chord track, ghost notes,
-  velocity, probability and MPE lanes, MIDI devices, overdub, MIDI learn, `.mid` import and
-  export.
+- **MIDI**: Strada-Synth (MPE, wavetables, drag-and-drop modulation), Strada-Drums, six
+  keyboards modeled from their physics (Strada-Tines and Strada-Reed electric pianos,
+  Strada-EP80 electric grand, Strada-Tonewheel organ with its rotary speaker, Strada-FM Keys,
+  Strada-Mallets), Strada-808 (sub bass with glide), Strada-Grain (granular, from a file, its
+  own sounds or a track it listens to), plugin instruments, a piano roll with scale folding,
+  chords and a chord track, ghost notes, velocity, probability and MPE lanes, MIDI devices,
+  overdub, MIDI learn, `.mid` import and export.
 - **Plugins**: CLAP, VST3, VST2 and LV2 with their own windows, each plugin in its own process so a
   crashing plugin cannot take the session with it.
 - **Export**: WAV, FLAC, MP3 and Opus, dither, peak or LUFS normalization, stems and a render

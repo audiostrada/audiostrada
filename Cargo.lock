@@ -545,6 +545,7 @@ dependencies = [
  "dirs",
  "getrandom 0.4.3",
  "libc",
+ "realfft",
  "serde",
  "serde_json",
  "toml",

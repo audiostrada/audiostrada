@@ -1,12 +1,13 @@
 # Instruments
 
-AudioStrada fournit deux instruments, **Strada-Synth** et **Strada-Drums**, et joue tout
-instrument CLAP, VST3, VST2 ou LV2. Une nouvelle piste instrument ouvre le navigateur sur les
-instruments pour choisir le sien. Les instruments sont en tête de leur piste ; plusieurs peuvent
-la mener, superposés : ils jouent les mêmes notes, leurs sons s'additionnent, et les effets qui
-suivent traitent le mélange. Clic droit sur l'insert d'un instrument › *Ajouter un instrument…*
-pour en superposer un autre, *Changer d'instrument…* pour remplacer le premier. Les pistes boîte
-à rythmes commencent avec Strada-Drums et se superposent de la même façon.
+AudioStrada fournit ses propres instruments (**Strada-Synth**, **Strada-Drums**, six claviers
+modélisés, **Strada-808** et **Strada-Grain**) et joue tout instrument CLAP, VST3, VST2 ou LV2.
+Une nouvelle piste instrument ouvre le navigateur sur les instruments pour choisir le sien. Les
+instruments sont en tête de leur piste ; plusieurs peuvent la mener, superposés : ils jouent les
+mêmes notes, leurs sons s'additionnent, et les effets qui suivent traitent le mélange. Clic
+droit sur l'insert d'un instrument › *Ajouter un instrument…* pour en superposer un autre,
+*Changer d'instrument…* pour remplacer le premier. Les pistes boîte à rythmes commencent avec
+Strada-Drums et se superposent de la même façon.
 
 ## Strada-Synth
 
@@ -64,6 +65,141 @@ de l'enveloppe, le désaccord, la vitesse et la profondeur des LFO.
   Osmose), qui envoient chaque note sur son propre canal.
 
 <!-- effect:synth -->
+
+## Claviers
+
+Six claviers sont modélisés d'après la physique des vrais instruments : ce qui frappe, ce qui
+vibre, le micro et l'ampli. Aucun échantillon : chaque note est calculée pendant qu'elle joue,
+si bien que la vélocité change le son lui-même, pas seulement son niveau, et que deux notes ne
+sont jamais tout à fait pareilles.
+
+Ils partagent une même fenêtre, dessinée dans le style de l'époque de chaque instrument :
+
+- **Simple** montre les réglages dont la plupart des sons ont besoin ; **Avancé** les montre
+  tous. *Panique*, à côté, arrête toute note restée en suspens.
+- **Le sélecteur** sur le couvercle (sur FM Keys et Mallets) choisit le caractère ou
+  l'instrument.
+- **Le clavier** joue l'instrument sans armer la piste : cliquez ou glissez sur les touches,
+  plus bas sur une touche joue plus fort ; les flèches à ses extrémités changent d'octave.
+- **Effets intégrés** : trémolo, phaser, chorus, un delay et une réverbération, après l'ampli et
+  la saturation de l'instrument. Changer un réglage ou un preset en jouant se fait en douceur,
+  sans clics.
+- **Presets** : vingt pour chacun, en quatre familles (*Classique*, *Clair*, *Saturé*, *Ample*).
+
+### Strada-Tines
+
+![Strada-Tines](img/fx/tines.webp)
+
+Le piano électrique à lames frappées : un marteau frappe une fine lame de métal à côté de sa
+barre de tonalité, et un micro magnétique l'entend. *Réglage des lames* rapproche le micro pour
+plus de mordant ; *Cloche* fait ressortir la frappe cristalline des octaves aiguës ;
+*Mécanique* ajoute le bruit des touches et des étouffoirs.
+
+<!-- effect:tines -->
+
+### Strada-Reed
+
+![Strada-Reed](img/fx/reed.webp)
+
+Le piano électrique à lames vibrantes : un marteau feutré frappe une lame d'acier, entendue par
+un micro électrostatique, à travers le petit ampli et les haut-parleurs logés dans son meuble.
+Plus nasal que Tines, il grogne quand on joue fort. *Mordant des lames* règle combien,
+*Haut-parleur* le fait sonner par ses propres haut-parleurs ou en ligne.
+
+<!-- effect:reed -->
+
+### Strada-EP80
+
+![Strada-EP80](img/fx/ep80.webp)
+
+Le piano électrique à queue : de vraies cordes de piano, courtes et raides, frappées par des
+marteaux feutrés et entendues par des micros piézo sous le chevalet, sans table d'harmonie.
+Plus brillant et plus métallique qu'un piano acoustique, il passe à travers un groupe ; ses
+partiels aigus sonnent un peu haut, le grave claque, et deux cordes légèrement écartées jouent
+chaque note, avec un léger battement (*Désaccord des cordes*). Son préampli a *Basses*,
+*Médiums* et *Aigus* et le sélecteur de *Brillance* à trois positions (*Doux*, *Normal*,
+*Brillant*) ; une touche de chorus donne son son classique.
+
+<!-- effect:ep80 -->
+
+### Strada-Tonewheel
+
+![Strada-Tonewheel](img/fx/tonewheel.webp)
+
+L'orgue à roues phoniques : neuf **tirettes** mélangent les harmoniques, de l'octave grave (16')
+à la plus aiguë (1') ; tirez une tirette pour la monter. *Percussions* ajoute à l'attaque une
+deuxième ou troisième harmonique qui s'éteint, *Vibrato et chorus* les six réglages du
+scanner, *Clic de touche* le clic des contacts et *Fuite des roues* le léger son des autres
+roues. La **cabine rotative** tourne lentement ou vite (la molette de modulation bascule), s'arrête,
+ou est retirée ; son pavillon accélère en un instant et son tambour en quelques secondes. La
+pédale d'expression (CC 11) pousse le préampli.
+
+<!-- effect:tonewheel -->
+
+### Strada-FM Keys
+
+![Strada-FM Keys](img/fx/fmkeys.webp)
+
+Le piano électrique des synthés FM des années 80, cristallin et brillant. Quatre caractères sur
+le couvercle (*Lame*, *Cloche*, *Lame vibrante*, *Verre*) ; *Tonalité* règle la brillance,
+*Lame* l'attaque métallique, *Désaccord* le léger battement entre les deux côtés.
+
+<!-- effect:fmkeys -->
+
+### Strada-Mallets
+
+![Strada-Mallets](img/fx/mallets.webp)
+
+Des lames frappées : **marimba**, **vibraphone**, **kalimba**, **célesta** et **boîte à
+musique**, choisis sur le couvercle. *Dureté de la mailloche* va de la laine douce au plastique
+dur, *Résonance* règle combien les tubes sous les lames portent la note ; le trémolo du
+vibraphone est le moteur qui tourne dans ses tubes.
+
+<!-- effect:mallets -->
+
+## Strada-808
+
+![Strada-808](img/fx/bass808.webp)
+
+La basse sub de la trap, de la drill et du hip-hop : une sinusoïde dont la hauteur tombe sur la
+note (*Punch*), un clic à la frappe, une longue chute ou une qui suit la touche, et une
+distorsion qui garde l'octave la plus grave propre (*Sub propre*), pour qu'elle porte sur de
+petits haut-parleurs sans perdre son poids.
+
+- **Glissé** : en *Mono*, une note jouée sur une note tenue glisse vers elle sans la refrapper,
+  comme les 808 de la trap. Sur une note presque éteinte, elle est refrappée.
+- **L'écran** dessine la note : son punch, sa durée, sa saturation.
+- **Les pads** jouent seize notes à partir de la première ; les flèches changent d'octave.
+- **Presets** : vingt, en quatre familles (*Trap*, *Drill*, *Sub*, *Sale*).
+
+<!-- effect:bass808 -->
+
+## Strada-Grain
+
+![Strada-Grain](img/fx/grain.webp)
+
+Un instrument granulaire : il rejoue un son en une multitude de courts grains superposés, pour
+des nappes, des textures et des instants figés. **L'écran** montre le son et la zone d'où
+viennent les grains : cliquez ou glissez dessus pour la déplacer. Il dit quoi faire quand il
+manque quelque chose.
+
+- **La source**, sous l'écran : un de ses sept sons (chœur, cordes, orgue, vent, cloches, piano
+  feutré, verre), un **Fichier** à vous (cliquez sur l'écran pour en choisir un, ou déposez un
+  fichier audio sur la fenêtre), ou **Live**.
+- **Live** écoute une autre piste : choisissez-la avec *Écoute* sur l'écran, ou avec *Sidechain*
+  en bas de la fenêtre. Strada-Grain garde les dix dernières secondes entendues ; *Position*
+  dit jusqu'où les grains remontent, le son le plus récent à droite. Choisir Live joue en
+  continu, comme un effet sur la piste écoutée.
+- **Mode** : *Clavier* joue les grains depuis les notes, transposés ; *Continu* les joue tout
+  seuls, à la hauteur du son.
+- **Geler** fige la zone : les grains rejouent cet instant. En Live, *Enregistrer comme son…*
+  enregistre la mémoire gelée dans un fichier WAV, qui se joue ensuite au clavier comme un
+  Fichier.
+- **Simple** réunit les réglages en quatre boutons (*Texture*, *Dérive*, *Espace*, *Fondu*),
+  qui en bougent chacun plusieurs de ceux qu'**Avancé** montre : taille des grains, densité,
+  dispersion, vitesse de défilement, désaccord, grains inversés, enveloppe, filtres et effets.
+
+<!-- effect:grain -->
 
 ## Strada-Drums
 

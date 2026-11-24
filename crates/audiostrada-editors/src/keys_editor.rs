@@ -115,6 +115,8 @@ enum Emblem {
     Drop,
     /// A cloud of grains.
     Cloud,
+    /// Strings over their bridge, the hammer under them.
+    Strings,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -124,6 +126,8 @@ enum Rail {
     Grilles,
     /// Covered, the plate across.
     Plain,
+    /// Covered, a black panel set into it, a chrome strip under it.
+    Inset,
 }
 
 fn face(id: &str) -> Face {
@@ -161,6 +165,26 @@ fn face(id: &str) -> Face {
             simple: &BASS_SIMPLE,
             top: &BASS_TOP,
             bottom: &BASS_BOTTOM,
+        },
+        "ep80" => Face {
+            word: "EP80",
+            emblem: Emblem::Strings,
+            covering: Color32::from_rgb(40, 40, 42),
+            material: Texture::Leather,
+            grain: 1.0,
+            plate: Color32::from_rgb(16, 16, 18),
+            ink: Color32::from_rgb(236, 236, 232),
+            print: Color32::from_rgb(200, 200, 196),
+            rail: Rail::Inset,
+            felt: (
+                Color32::from_rgb(120, 22, 26),
+                Color32::from_rgb(70, 10, 14),
+            ),
+            selector: None,
+            stripes: &[],
+            simple: &EP_SIMPLE,
+            top: &EP_TOP,
+            bottom: &EP_BOTTOM,
         },
         "fmkeys" => Face {
             word: "FM KEYS",
@@ -548,6 +572,71 @@ const ORGAN_BOTTOM: [Group; 5] = [
     ("Tuning", &[("tune", "A4")]),
 ];
 
+const EP_SIMPLE: [Group; 5] = [
+    ("Piano", &[("hammer", "Hammer"), ("decay", "Decay")]),
+    (
+        "Preamp",
+        &[
+            ("bass", "Bass"),
+            ("middle", "Middle"),
+            ("treble", "Treble"),
+            ("brilliance", "Brilliance"),
+        ],
+    ),
+    (
+        "Tremolo",
+        &[("tremolo_depth", "Depth"), ("tremolo_rate", "Speed")],
+    ),
+    ("Effects", &[("chorus", "Chorus"), ("reverb", "Reverb")]),
+    ("Output", &[("volume", "Volume")]),
+];
+
+const EP_TOP: [Group; 4] = [
+    (
+        "Strings",
+        &[
+            ("hammer", "Hammer"),
+            ("decay", "Decay"),
+            ("damper", "Release"),
+            ("unison", "Detune"),
+            ("noise", "Mechanics"),
+        ],
+    ),
+    ("Touch", &[("dynamics", "Velocity"), ("curve", "Curve")]),
+    ("Tuning", &[("tune", "A4"), ("stretch", "Octave stretch")]),
+    ("Amplifier", &[("drive", "Drive"), ("volume", "Volume")]),
+];
+
+const EP_BOTTOM: [Group; 5] = [
+    (
+        "Preamp",
+        &[
+            ("bass", "Bass"),
+            ("middle", "Middle"),
+            ("treble", "Treble"),
+            ("brilliance", "Brilliance"),
+        ],
+    ),
+    (
+        "Tremolo",
+        &[
+            ("tremolo", "Type"),
+            ("tremolo_rate", "Speed"),
+            ("tremolo_depth", "Depth"),
+        ],
+    ),
+    ("Modulation", &[("phaser", "Phaser"), ("chorus", "Chorus")]),
+    (
+        "Delay",
+        &[
+            ("delay", "Level"),
+            ("delay_note", "Time"),
+            ("delay_feedback", "Feedback"),
+        ],
+    ),
+    ("Reverb", &[("reverb", "Level"), ("reverb_decay", "Decay")]),
+];
+
 const REED_SIMPLE: [Group; 4] = [
     (
         "Piano",
@@ -716,7 +805,7 @@ pub fn show(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: &
         let rail = Rect::from_min_size(lid.left_bottom(), vec2(width, PLATE_ROWS));
         let plate = paint_rail(&painter, rail, &look, 12.0, 40.0);
         stripes(&painter, rail, &look);
-        paint_plate(&painter, plate, look.plate);
+        plate_for(&painter, plate, &look);
         let half = plate.height() / 2.0;
         let rows = [
             (
@@ -745,7 +834,7 @@ pub fn show(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: &
         let rail = Rect::from_min_size(lid.left_bottom(), vec2(width, RAIL));
         let plate = paint_rail(&painter, rail, &look, 14.0, 96.0);
         stripes(&painter, rail, &look);
-        paint_plate(&painter, plate, look.plate);
+        plate_for(&painter, plate, &look);
         controls(ui, &painter, params, plate, look.simple, 46.0, look.ink);
     }
     let felt = Rect::from_min_size(face.min + vec2(0.0, top), vec2(width, FELT));
@@ -1241,6 +1330,26 @@ fn paint_emblem(painter: &Painter, e: Rect, emblem: Emblem) {
                 painter.circle_filled(c, h * (0.09 - 0.05 * d), metal);
             }
         }
+        Emblem::Strings => {
+            // Three strings across a bridge, the felt hammer under them.
+            let bridge = Rect::from_min_size(
+                pos2(e.left() + e.width() * 0.62, e.top()),
+                vec2(e.width() * 0.12, h),
+            );
+            gear::sheen(painter, bridge, metal, dark);
+            for k in 0..3 {
+                let y = e.top() + h * (0.22 + 0.28 * k as f32);
+                painter.line_segment(
+                    [pos2(e.left(), y), pos2(e.right(), y)],
+                    Stroke::new((h * 0.07).max(1.2), metal),
+                );
+            }
+            let hammer = Rect::from_center_size(
+                pos2(e.left() + e.width() * 0.25, e.center().y),
+                vec2(e.width() * 0.16, h * 0.95),
+            );
+            painter.rect_filled(hammer, h * 0.08, Color32::from_rgb(190, 50, 48));
+        }
         Emblem::Bars => {
             // Four bars of falling length.
             for k in 0..4 {
@@ -1293,6 +1402,28 @@ fn paint_rail(painter: &Painter, rail: Rect, look: &Face, inset: f32, grilles: f
                 Color32::from_black_alpha(60),
             );
             rail.shrink2(vec2(18.0, inset))
+        }
+        Rail::Inset => {
+            leather(painter, rail, 0.0, look);
+            gear::sheen(
+                painter,
+                rail,
+                Color32::from_white_alpha(10),
+                Color32::from_black_alpha(50),
+            );
+            // The chrome strip along the bottom, over the keys.
+            let strip =
+                Rect::from_min_max(pos2(rail.left(), rail.bottom() - 7.0), rail.right_bottom());
+            gear::sheen(
+                painter,
+                strip,
+                Color32::from_rgb(232, 234, 238),
+                Color32::from_rgb(150, 152, 158),
+            );
+            Rect::from_min_max(
+                rail.min + vec2(40.0, inset),
+                rail.max - vec2(40.0, inset + 7.0),
+            )
         }
         Rail::Grilles => {
             leather(painter, rail, 0.0, look);
@@ -1355,6 +1486,29 @@ fn paint_ribs(painter: &Painter, rail: Rect) {
         Color32::from_black_alpha(70),
     );
     gear::bevel(painter, rail, 0.7);
+}
+
+/// The face's plate: aluminium screwed on the rail, or a black panel set into the covering.
+fn plate_for(painter: &Painter, plate: Rect, look: &Face) {
+    if matches!(look.rail, Rail::Inset) {
+        painter.rect_filled(plate.expand(4.0), 12.0, Color32::from_rgb(70, 70, 74));
+        painter.rect_filled(plate.expand(2.0), 11.0, Color32::from_black_alpha(220));
+        painter.rect_filled(plate, 10.0, look.plate);
+        gear::sheen(
+            painter,
+            Rect::from_min_size(plate.min, vec2(plate.width(), 14.0)),
+            Color32::from_black_alpha(120),
+            Color32::from_black_alpha(0),
+        );
+        gear::sheen(
+            painter,
+            Rect::from_min_max(pos2(plate.left(), plate.center().y), plate.max).shrink(3.0),
+            Color32::from_white_alpha(0),
+            Color32::from_white_alpha(10),
+        );
+    } else {
+        paint_plate(painter, plate, look.plate);
+    }
 }
 
 /// The brushed aluminium plate, screwed on the rail.
@@ -1531,6 +1685,16 @@ fn control(
         }
         (v != value).then_some(v)
     };
+    // The slide switch goes where it is clicked: its top, middle or bottom.
+    let changed = match response.interact_pointer_pos() {
+        Some(at) if id == "brilliance" && response.clicked() => {
+            let third = ((center.y + 22.0 - at.y) / 44.0 * 3.0)
+                .floor()
+                .clamp(0.0, 2.0);
+            Some(p.min + third)
+        }
+        _ => changed,
+    };
     let shown = changed.unwrap_or(value);
     let text = format_value(p, shown);
     let response = response.on_hover_text(trf!(
@@ -1544,15 +1708,17 @@ fn control(
     }
     if count == 2 {
         toggle(painter, center, shown >= p.min + 0.5);
+    } else if id == "brilliance" {
+        three_way(painter, center, (shown - p.min).round() as usize);
     } else {
-        let style = if params.info().id == "bass808" {
-            KnobStyle::Knurled
-        } else {
-            KnobStyle::Skirted
+        let style = match params.info().id {
+            "bass808" => KnobStyle::Knurled,
+            "ep80" => KnobStyle::Silver,
+            _ => KnobStyle::Skirted,
         };
         gear::knob(painter, center, diameter, to_unit(p, shown), style, ink);
     }
-    let below = if count > 0 {
+    let under = if count > 0 {
         tr(p.choices[(shown - p.min).round().clamp(0.0, count as f32 - 1.0) as usize]).to_owned()
     } else {
         text
@@ -1560,10 +1726,34 @@ fn control(
     painter.text(
         center + vec2(0.0, r + 14.0),
         Align2::CENTER_CENTER,
-        below,
+        under,
         FontId::monospace(10.0),
         ink.gamma_multiply(0.8),
     );
+}
+
+/// A slide switch of three positions, the lowest choice at the bottom.
+fn three_way(painter: &Painter, center: Pos2, at: usize) {
+    let slot = Rect::from_center_size(center, vec2(16.0, 44.0));
+    painter.rect_filled(slot.expand(3.0), 3.0, Color32::from_rgb(60, 60, 64));
+    painter.rect_filled(slot, 2.0, Color32::from_rgb(8, 8, 10));
+    let y = slot.bottom() - 8.0 - (slot.height() - 16.0) * at.min(2) as f32 / 2.0;
+    let lever = Rect::from_center_size(pos2(center.x, y), vec2(14.0, 14.0));
+    gear::sheen(
+        painter,
+        lever,
+        Color32::from_rgb(230, 230, 232),
+        Color32::from_rgb(130, 132, 136),
+    );
+    for dy in [-2.0, 0.0, 2.0] {
+        painter.line_segment(
+            [
+                pos2(lever.left() + 2.0, y + dy),
+                pos2(lever.right() - 2.0, y + dy),
+            ],
+            Stroke::new(0.8, Color32::from_black_alpha(90)),
+        );
+    }
 }
 
 /// A drawbar: its footage above its slot, the bar pulled out from 0 to 8 with the numbers

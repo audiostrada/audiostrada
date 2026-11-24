@@ -48,6 +48,7 @@ pub mod resample;
 pub mod retouch;
 pub mod reverb;
 pub mod rig;
+pub mod rotary;
 mod shift;
 mod spring;
 pub mod stomp;
@@ -363,6 +364,7 @@ const BASE: &[&EffectInfo] = &[
     &drums::INFO,
     &keys::tines::INFO,
     &keys::reed::INFO,
+    &keys::ep80::INFO,
     &keys::tonewheel::INFO,
     &keys::fmkeys::INFO,
     &keys::mallets::INFO,
@@ -392,6 +394,7 @@ const BASE: &[&EffectInfo] = &[
     &chorus::INFO,
     &flanger::INFO,
     &phaser::INFO,
+    &rotary::INFO,
     &modulator::INFO,
     &pitch::INFO,
     &doubler::INFO,
@@ -499,6 +502,7 @@ pub fn create(id: &str) -> Option<Box<dyn Effect>> {
         "synth" => Some(Box::new(synth::Synth::default())),
         "tines" => Some(Box::new(keys::tines::Tines::default())),
         "reed" => Some(Box::new(keys::reed::Reed::default())),
+        "ep80" => Some(Box::new(keys::ep80::Ep80::default())),
         "tonewheel" => Some(Box::new(keys::tonewheel::Tonewheel::default())),
         "fmkeys" => Some(Box::new(keys::fmkeys::FmKeys::default())),
         "mallets" => Some(Box::new(keys::mallets::Mallets::default())),
@@ -512,6 +516,7 @@ pub fn create(id: &str) -> Option<Box<dyn Effect>> {
         "chorus" => Some(Box::new(chorus::Chorus::default())),
         "flanger" => Some(Box::new(flanger::Flanger::default())),
         "phaser" => Some(Box::new(phaser::Phaser::default())),
+        "rotary" => Some(Box::new(rotary::RotaryEffect::default())),
         "modulator" => Some(Box::new(modulator::Modulator::default())),
         "pitch" => Some(Box::new(pitch::Pitch::default())),
         "doubler" => Some(Box::new(doubler::Doubler::default())),

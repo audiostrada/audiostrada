@@ -89,7 +89,7 @@ const effects = () => JSON.parse(read(effectsFile));
 const presets = (() => {
   const src = read(join(repo, "crates/audiostrada-editors/src/presets.rs"));
   const out = {};
-  const blocks = src.split(/\n        "([a-z_]+)" => vec!\[/);
+  const blocks = src.split(/\n        "([a-z0-9_]+)" => vec!\[/);
   for (let i = 1; i < blocks.length; i += 2) {
     out[blocks[i]] = [...blocks[i + 1].matchAll(/tr\("([^"]+)"\)/g)].map((m) => m[1]);
   }

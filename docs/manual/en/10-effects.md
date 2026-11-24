@@ -302,6 +302,18 @@ A swirling phaser of 4 to 12 stages, with feedback and stereo spread.
 
 <!-- effect:phaser -->
 
+### Strada-Rotary
+
+![Strada-Rotary](img/fx/rotary.webp)
+
+The rotary speaker of the organs, for any track: a horn for the highs and a drum for the lows,
+each turning slow or fast and taking its time to change speed (the horn in a moment, the drum
+in seconds), heard by two microphones. The screen shows them from above, turning as they turn.
+*Stop* lets them slow down to a halt; *Inertia* makes the change quicker or slower; *Drive*
+pushes its tube amplifier; *Horn and drum* sets their balance.
+
+<!-- effect:rotary -->
+
 ### Strada-Mod
 
 ![Strada-Mod](img/fx/modulator.webp)

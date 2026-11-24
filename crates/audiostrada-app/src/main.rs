@@ -1,6 +1,7 @@
 mod audio;
 mod cli;
 mod dynamics;
+mod instrument;
 mod license;
 mod logging;
 mod measure;
@@ -73,6 +74,8 @@ fn main() -> ExitCode {
         Command::MeasureDynamics { references, out } => dynamics::references(&references, &out),
         Command::PluginParams(query) => measure::plugin_params(&query),
         Command::MeasurePresets(args) => preset_report::run(&args),
+        Command::MeasureInstrument(args) => instrument::run(&args),
+        Command::MeasureInstrumentReport { files, output } => instrument::report(&files, &output),
         Command::License(cli::LicenseCommand::Keygen) => license::keygen(),
         Command::License(cli::LicenseCommand::Check { file, key }) => license::check(&file, &key),
         Command::License(cli::LicenseCommand::Issue {

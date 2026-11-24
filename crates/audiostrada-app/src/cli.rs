@@ -41,6 +41,16 @@ Commands:
                      Play every factory preset on a sound of its kind (vocal.wav, kick.wav,
                      mix.wav... of DIR) and on a tone: loudness, peaks, gain reduction, change by
                      band, tail, modulation
+  measure-instrument SOURCE... [--out DIR] [--wav DIR] [--track NAME] [--name NAME]
+                     [--keys 28-100/7] [--velocities 20,45,70,95,120] [--hold S]
+                     [--set PARAM=VALUE]...
+                     Play test notes through instruments (a .strada project, its track holding
+                     the instrument set up by hand, or a built-in one by id) and fingerprint
+                     them: pitch, partials and their decay, loudness and brightness by
+                     velocity, attack, release; a JSON file each, and with --wav what was
+                     played and a phrase for listening, at the same level
+  measure-instrument-report FILE.json|DIR... --output PAGE.html
+                     Compare instrument fingerprints on one page of charts
   measure-presets --dump [EFFECT...]
                      Print the factory presets as a file for --presets
   measure-presets --audio DIR --plugin NAME [--source SOUND] [--set PARAM=VALUE]...
@@ -106,6 +116,11 @@ pub enum Command {
     },
     PluginParams(String),
     MeasurePresets(crate::preset_report::Args),
+    MeasureInstrument(crate::instrument::Args),
+    MeasureInstrumentReport {
+        files: Vec<PathBuf>,
+        output: PathBuf,
+    },
 }
 
 /// What `measure` fingerprints: the references of a file, or one built-in console.
@@ -241,6 +256,27 @@ pub fn parse(mut args: impl Iterator<Item = String>) -> Result<Command, String> 
                 None => Err("'measure-dynamics' needs a references file".into()),
             };
         }
+        "measure-instrument" => return parse_measure_instrument(args),
+        "measure-instrument-report" => {
+            let (mut files, mut output) = (Vec::new(), None);
+            while let Some(arg) = args.next() {
+                match arg.as_str() {
+                    "--output" => output = args.next().map(PathBuf::from),
+                    other if other.starts_with("--") => {
+                        return Err(format!(
+                            "unknown option '{other}' for measure-instrument-report"
+                        ));
+                    }
+                    _ => files.push(arg.into()),
+                }
+            }
+            return match (files.is_empty(), output) {
+                (false, Some(output)) => Ok(Command::MeasureInstrumentReport { files, output }),
+                _ => {
+                    Err("'measure-instrument-report' needs fingerprints and --output <FILE>".into())
+                }
+            };
+        }
         "measure-presets" => {
             let mut m = crate::preset_report::Args::default();
             let mut audio = None;
@@ -353,6 +389,66 @@ pub fn parse(mut args: impl Iterator<Item = String>) -> Result<Command, String> 
     }
 }
 
+fn parse_measure_instrument(mut args: impl Iterator<Item = String>) -> Result<Command, String> {
+    let mut m = crate::instrument::Args::default();
+    while let Some(arg) = args.next() {
+        if !arg.starts_with("--") {
+            m.sources.push(arg);
+            continue;
+        }
+        let value = args
+            .next()
+            .ok_or_else(|| format!("missing value for {arg}"))?;
+        let invalid = || format!("invalid value '{value}' for {arg}");
+        match arg.as_str() {
+            "--out" => m.out = value.into(),
+            "--wav" => m.wav = Some(value.into()),
+            "--track" => m.track = Some(value),
+            "--name" => m.name = Some(value),
+            "--hold" => m.hold = value.parse().map_err(|_| invalid())?,
+            "--keys" => {
+                // FIRST-LAST/STEP, or keys apart by commas.
+                m.keys = if let Some((range, step)) = value.split_once('/') {
+                    let (a, b) = range.split_once('-').ok_or_else(invalid)?;
+                    let (a, b, step): (u8, u8, usize) = (
+                        a.parse().map_err(|_| invalid())?,
+                        b.parse().map_err(|_| invalid())?,
+                        step.parse().map_err(|_| invalid())?,
+                    );
+                    (a..=b).step_by(step.max(1)).collect()
+                } else {
+                    numbers(&value).ok_or_else(invalid)?
+                };
+            }
+            "--velocities" => m.velocities = numbers(&value).ok_or_else(invalid)?,
+            "--set" => {
+                let pair = value
+                    .rsplit_once('=')
+                    .and_then(|(k, v)| v.trim().parse().ok().map(|v| (k.trim().to_owned(), v)));
+                m.set.push(pair.ok_or_else(invalid)?);
+            }
+            other => return Err(format!("unknown option '{other}' for measure-instrument")),
+        }
+    }
+    if m.sources.is_empty() {
+        return Err("'measure-instrument' needs a project or a built-in instrument".into());
+    }
+    if m.name.is_some() && m.sources.len() > 1 {
+        return Err("'--name' names one source's fingerprint".into());
+    }
+    if m.keys.is_empty() || m.velocities.is_empty() || m.hold <= 0.0 {
+        return Err("'measure-instrument' needs keys, velocities and a hold time".into());
+    }
+    Ok(Command::MeasureInstrument(m))
+}
+
+/// Numbers apart by commas, each from 1 to 127.
+fn numbers(text: &str) -> Option<Vec<u8>> {
+    text.split(',')
+        .map(|v| v.trim().parse().ok().filter(|v| (1..=127).contains(v)))
+        .collect()
+}
+
 fn parse_measure(mut args: impl Iterator<Item = String>) -> Result<Command, String> {
     let mut m = MeasureArgs::default();
     while let Some(arg) = args.next() {
@@ -460,6 +556,21 @@ mod tests {
 
     fn parse_str(s: &str) -> Result<Command, String> {
         parse(s.split_whitespace().map(String::from))
+    }
+
+    #[test]
+    fn measure_instrument_takes_its_sources_keys_and_settings() {
+        let Ok(Command::MeasureInstrument(m)) = parse_str(
+            "measure-instrument ep80 song.strada --keys 40-64/12 --velocities 30,90 --set hammer=70",
+        ) else {
+            panic!("not parsed");
+        };
+        assert_eq!(m.sources, ["ep80", "song.strada"]);
+        assert_eq!(m.keys, [40, 52, 64]);
+        assert_eq!(m.velocities, [30, 90]);
+        assert_eq!(m.set, [("hammer".to_owned(), 70.0)]);
+        assert!(parse_str("measure-instrument").is_err());
+        assert!(parse_str("measure-instrument ep80 --velocities 0").is_err());
     }
 
     #[test]

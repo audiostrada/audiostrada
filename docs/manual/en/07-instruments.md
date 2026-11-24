@@ -1,11 +1,12 @@
 # Instruments
 
-AudioStrada comes with two instruments: **Strada-Synth** and **Strada-Drums**, and plays any
-CLAP, VST3, VST2 or LV2 instrument. A new instrument track opens the browser on the instruments to
-choose its own. Instruments go first on their track; several can lead it, layered: they play the
-same notes, their sounds add up, and the effects after them process the mix. Right-click an
-instrument's insert › *Add an instrument…* to layer another, *Change instrument…* to replace the
-first one. Drum tracks start with Strada-Drums and take layers the same way.
+AudioStrada comes with its own instruments (**Strada-Synth**, **Strada-Drums**, six modeled
+keyboards, **Strada-808** and **Strada-Grain**) and plays any CLAP, VST3, VST2 or LV2
+instrument. A new instrument track opens the browser on the instruments to choose its own.
+Instruments go first on their track; several can lead it, layered: they play the same notes,
+their sounds add up, and the effects after them process the mix. Right-click an instrument's
+insert › *Add an instrument…* to layer another, *Change instrument…* to replace the first one.
+Drum tracks start with Strada-Drums and take layers the same way.
 
 ## Strada-Synth
 
@@ -57,6 +58,135 @@ also reaches the effects, the envelope's times, the detune and the speed and dep
   which send each note on its own channel.
 
 <!-- effect:synth -->
+
+## Keyboards
+
+Six keyboards are modeled from the physics of the real instruments: what strikes, what
+vibrates, the pickup and the amplifier. No samples: every note is computed as it plays, so the
+velocity changes the sound itself, not only its level, and two notes are never quite the same.
+
+They share one window, drawn in the style of each instrument's era:
+
+- **Simple** shows the controls most sounds need; **Advanced** shows them all. *Panic*, beside
+  them, ends every note left sounding.
+- **The selector** on the lid (on FM Keys and Mallets) chooses the character or the instrument.
+- **The keyboard** plays the instrument without arming the track: click or drag across the
+  keys, lower on a key plays louder; the arrows at its ends change the octave.
+- **Built-in effects**: tremolo, phaser, chorus, a delay and a reverb, after the instrument's
+  own amplifier and drive. Changing a setting or a preset while playing glides, without clicks.
+- **Presets**: twenty for each, in four families (*Classic*, *Clean*, *Driven*, *Lush*).
+
+### Strada-Tines
+
+![Strada-Tines](img/fx/tines.webp)
+
+The electric piano with struck tines: a hammer hits a thin metal tine beside its tone bar, and
+a magnetic pickup hears it. *Tine voicing* moves the pickup closer for more bark; *Bell* brings
+out the bell-like strike of the top octaves; *Mechanics* adds the sound of the keys and the
+dampers.
+
+<!-- effect:tines -->
+
+### Strada-Reed
+
+![Strada-Reed](img/fx/reed.webp)
+
+The electric piano with struck reeds: a felt hammer hits a steel reed, heard by an
+electrostatic pickup, through the small amplifier and the speakers built into its case. Reedier
+and more nasal than Tines, it growls when played hard. *Reed bark* sets how much, *Speaker*
+plays it through its own speakers or straight out.
+
+<!-- effect:reed -->
+
+### Strada-EP80
+
+![Strada-EP80](img/fx/ep80.webp)
+
+The electric grand: real piano strings, short and stiff, struck by felt hammers and heard by
+piezo pickups under the bridge, without a soundboard. Brighter and more metallic than an
+acoustic piano, it cuts through a band; its upper partials ring a little sharp, the bass
+clangs, and two strings slightly apart sound each note, beating gently (*String detune*). Its
+preamp has *Bass*, *Middle* and *Treble* and the three-way *Brilliance* switch (*Mellow*,
+*Normal*, *Bright*); a touch of chorus is its classic sound.
+
+<!-- effect:ep80 -->
+
+### Strada-Tonewheel
+
+![Strada-Tonewheel](img/fx/tonewheel.webp)
+
+The tonewheel organ: nine **drawbars** mix the harmonics, from the sub octave (16') to the
+highest (1'); drag a drawbar out to raise it. *Percussion* adds a fading second or third
+harmonic to the attack, *Vibrato and chorus* the scanner's six settings, *Key click* the click
+of the contacts and *Leakage* the faint sound of the other wheels. The **rotary speaker** turns
+slow or fast (the mod wheel switches it), stops, or is left out; its horn speeds up in a moment
+and its drum in seconds. The expression pedal (CC 11) pushes the preamp.
+
+<!-- effect:tonewheel -->
+
+### Strada-FM Keys
+
+![Strada-FM Keys](img/fx/fmkeys.webp)
+
+The electric piano of the eighties' FM synthesizers, glassy and bright. Four characters on the
+lid (*Tine*, *Bell*, *Reed*, *Glass*); *Tone* sets the brightness, *Tine* the metallic attack,
+*Detune* the slight beating of the two sides.
+
+<!-- effect:fmkeys -->
+
+### Strada-Mallets
+
+![Strada-Mallets](img/fx/mallets.webp)
+
+Struck bars: **marimba**, **vibraphone**, **kalimba**, **celesta** and **music box**, chosen
+on the lid. *Mallet hardness* goes from soft yarn to hard plastic, *Resonance* sets how much the
+tubes under the bars carry the note; the vibraphone's tremolo is the motor turning in its
+tubes.
+
+<!-- effect:mallets -->
+
+## Strada-808
+
+![Strada-808](img/fx/bass808.webp)
+
+The sub bass of trap, drill and hip-hop: a sine whose pitch drops onto the note (*Punch*), a
+click at the strike, a long decay or one that follows the key, and distortion that keeps the
+lowest octave clean (*Clean sub*), so that it carries on small speakers without losing its
+weight.
+
+- **Glide**: in *Mono*, a note played over a held one slides to it without striking again, as
+  808s do in trap. Over a note that has nearly faded, it strikes again.
+- **The screen** draws the note: its punch, its length, its drive.
+- **The pads** play sixteen notes from the first one; the arrows change the octave.
+- **Presets**: twenty, in four families (*Trap*, *Drill*, *Sub*, *Dirty*).
+
+<!-- effect:bass808 -->
+
+## Strada-Grain
+
+![Strada-Grain](img/fx/grain.webp)
+
+A granular instrument: it plays a sound back as many short grains laid over each other, for
+pads, textures and frozen moments. The **screen** shows the sound and the region the grains
+come from: click or drag on it to move the region. It says what to do next when something is
+missing.
+
+- **The source**, under the screen: one of seven sounds of its own (choir, strings, organ,
+  wind, bells, felt piano, glass), a **File** of yours (click the screen to choose one, or drop
+  an audio file on the window), or **Live**.
+- **Live** listens to another track: choose it with *Listens to* on the screen, or with
+  *Sidechain* at the bottom of the window. Strada-Grain keeps the last ten seconds it heard;
+  *Position* says how far back the grains reach, the newest sound on the right. Choosing Live
+  plays continuously, as an effect over the track it listens to.
+- **Mode**: *Keyboard* plays the grains from the notes, transposed; *Continuous* plays them on
+  their own, at the sound's pitch.
+- **Freeze** holds the region: the grains keep playing that moment. Live, *Save as a sound…*
+  saves the frozen memory as a WAV file, which then plays from the keyboard as a File.
+- **Simple** gathers the settings in four knobs (*Texture*, *Drift*, *Space*, *Fade*), each
+  moving several of those **Advanced** shows: grain size, density, spray, scan speed, detune,
+  reversed grains, envelope, filters and effects.
+
+<!-- effect:grain -->
 
 ## Strada-Drums
 

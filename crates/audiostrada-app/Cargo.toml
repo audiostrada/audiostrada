@@ -18,6 +18,7 @@ official = ["audiostrada-license/official"]
 
 [dependencies]
 anyhow.workspace = true
+realfft.workspace = true
 dirs.workspace = true
 getrandom.workspace = true
 serde.workspace = true

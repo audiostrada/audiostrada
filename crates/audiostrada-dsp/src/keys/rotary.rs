@@ -13,6 +13,7 @@ use crate::line::Line;
 pub(crate) const SPEEDS: [&str; 4] = ["Off", "Stop", "Slow", "Fast"];
 pub(crate) const OFF: usize = 0;
 pub(crate) const STOP: usize = 1;
+pub(crate) const SLOW: usize = 2;
 pub(crate) const FAST: usize = 3;
 
 const CROSSOVER: f64 = 800.0;
@@ -29,6 +30,10 @@ struct Rotor {
     swing: f32,
     turn: f32,
     speed: f32,
+    /// How much its rise and fall times are stretched.
+    inertia: f32,
+    /// Its level in the sum.
+    gain: f32,
     line: Line,
 }
 
@@ -43,6 +48,8 @@ impl Rotor {
             swing,
             turn: 0.0,
             speed: slow,
+            inertia: 1.0,
+            gain: 1.0,
             line: Line::default(),
         }
     }
@@ -53,16 +60,17 @@ impl Rotor {
         let angle = TAU * self.turn + side;
         let (sin, cos) = angle.sin_cos();
         let level = 1.0 - self.swing * (0.5 - 0.5 * cos);
-        self.line.read(base + sweep * sin) * level
+        self.line.read(base + sweep * sin) * level * self.gain
     }
 
     #[inline]
     fn spin(&mut self, target: f32, rate: f32) {
-        let time = if target > self.speed {
-            self.rise
-        } else {
-            self.fall
-        };
+        let time = self.inertia
+            * if target > self.speed {
+                self.rise
+            } else {
+                self.fall
+            };
         self.speed += (target - self.speed) * (1.0 - (-1.0 / (time * rate)).exp());
         self.turn = (self.turn + self.speed / rate).fract();
     }
@@ -109,6 +117,28 @@ impl Rotary {
         self.horn.line = Line::new(frames);
         self.drum.line = Line::new(frames);
         self.reset();
+    }
+
+    /// Stretches the time the rotors take to change speed (1 as built).
+    pub fn set_inertia(&mut self, factor: f32) {
+        self.horn.inertia = factor.max(0.05);
+        self.drum.inertia = factor.max(0.05);
+    }
+
+    /// The horn against the drum, from -1 (drum alone) to 1 (horn alone).
+    pub fn set_balance(&mut self, balance: f32) {
+        self.horn.gain = (1.0 + balance).clamp(0.0, 1.0);
+        self.drum.gain = (1.0 - balance).clamp(0.0, 1.0);
+    }
+
+    /// Where the horn and the drum have turned (0 to 1) and their speeds (Hz).
+    pub fn motion(&self) -> [f32; 4] {
+        [
+            self.horn.turn,
+            self.drum.turn,
+            self.horn.speed,
+            self.drum.speed,
+        ]
     }
 
     pub fn reset(&mut self) {

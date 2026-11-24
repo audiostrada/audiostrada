@@ -657,6 +657,191 @@ pub fn builtin(effect: &str) -> Vec<Preset> {
                 ],
             ),
         ],
+        "ep80" => vec![
+            preset(
+                tr("Classic: Stage grand"),
+                &[
+                    ("hammer", 55.0),
+                    ("chorus", 20.0),
+                    ("brilliance", 1.0),
+                    ("reverb", 15.0),
+                ],
+            ),
+            preset(
+                tr("Classic: Eighties ballad"),
+                &[
+                    ("hammer", 60.0),
+                    ("chorus", 45.0),
+                    ("brilliance", 2.0),
+                    ("reverb", 30.0),
+                    ("reverb_decay", 2.5),
+                ],
+            ),
+            preset(
+                tr("Classic: Pop rock"),
+                &[
+                    ("hammer", 70.0),
+                    ("brilliance", 2.0),
+                    ("middle", 3.0),
+                    ("chorus", 15.0),
+                    ("drive", 10.0),
+                ],
+            ),
+            preset(
+                tr("Classic: Bright and wide"),
+                &[
+                    ("chorus", 60.0),
+                    ("brilliance", 2.0),
+                    ("treble", 3.0),
+                    ("reverb", 20.0),
+                    ("unison", 60.0),
+                ],
+            ),
+            preset(
+                tr("Classic: Prog"),
+                &[
+                    ("hammer", 65.0),
+                    ("phaser", 35.0),
+                    ("chorus", 20.0),
+                    ("brilliance", 2.0),
+                    ("delay", 15.0),
+                ],
+            ),
+            preset(
+                tr("Clean: Dry and close"),
+                &[("chorus", 0.0), ("reverb", 5.0), ("brilliance", 1.0)],
+            ),
+            preset(
+                tr("Clean: Mellow"),
+                &[
+                    ("hammer", 25.0),
+                    ("brilliance", 0.0),
+                    ("treble", -3.0),
+                    ("chorus", 10.0),
+                    ("reverb", 18.0),
+                ],
+            ),
+            preset(
+                tr("Clean: Studio"),
+                &[
+                    ("hammer", 50.0),
+                    ("chorus", 10.0),
+                    ("reverb", 12.0),
+                    ("middle", -2.0),
+                ],
+            ),
+            preset(
+                tr("Clean: Honky"),
+                &[
+                    ("unison", 100.0),
+                    ("hammer", 70.0),
+                    ("brilliance", 2.0),
+                    ("middle", 4.0),
+                    ("chorus", 0.0),
+                ],
+            ),
+            preset(
+                tr("Clean: Soft keys"),
+                &[
+                    ("hammer", 20.0),
+                    ("dynamics", 70.0),
+                    ("brilliance", 0.0),
+                    ("reverb", 25.0),
+                    ("decay", 120.0),
+                ],
+            ),
+            preset(
+                tr("Driven: Rock grand"),
+                &[
+                    ("drive", 45.0),
+                    ("hammer", 75.0),
+                    ("brilliance", 2.0),
+                    ("chorus", 10.0),
+                ],
+            ),
+            preset(
+                tr("Driven: Crunch"),
+                &[
+                    ("drive", 65.0),
+                    ("middle", 4.0),
+                    ("brilliance", 1.0),
+                    ("reverb", 10.0),
+                    ("chorus", 0.0),
+                ],
+            ),
+            preset(
+                tr("Driven: New wave"),
+                &[
+                    ("drive", 30.0),
+                    ("chorus", 50.0),
+                    ("brilliance", 2.0),
+                    ("delay", 20.0),
+                ],
+            ),
+            preset(
+                tr("Driven: Gritty tremolo"),
+                &[
+                    ("drive", 40.0),
+                    ("tremolo_depth", 45.0),
+                    ("tremolo_rate", 6.0),
+                    ("brilliance", 1.0),
+                    ("chorus", 0.0),
+                ],
+            ),
+            preset(
+                tr("Driven: Hot preamp"),
+                &[
+                    ("drive", 80.0),
+                    ("bass", 3.0),
+                    ("treble", 2.0),
+                    ("brilliance", 1.0),
+                    ("chorus", 0.0),
+                ],
+            ),
+            preset(
+                tr("Lush: Chorus pad"),
+                &[
+                    ("hammer", 40.0),
+                    ("chorus", 75.0),
+                    ("reverb", 40.0),
+                    ("reverb_decay", 3.5),
+                    ("decay", 150.0),
+                ],
+            ),
+            preset(
+                tr("Lush: Tremolo dream"),
+                &[
+                    ("tremolo_depth", 50.0),
+                    ("tremolo_rate", 4.0),
+                    ("chorus", 40.0),
+                    ("reverb", 35.0),
+                ],
+            ),
+            preset(
+                tr("Lush: Ambient echoes"),
+                &[
+                    ("hammer", 35.0),
+                    ("delay", 35.0),
+                    ("delay_feedback", 50.0),
+                    ("reverb", 45.0),
+                    ("reverb_decay", 4.0),
+                    ("chorus", 30.0),
+                ],
+            ),
+            preset(
+                tr("Lush: Phased"),
+                &[("phaser", 55.0), ("chorus", 30.0), ("reverb", 30.0)],
+            ),
+            preset(
+                tr("Lush: Big hall"),
+                &[
+                    ("reverb", 55.0),
+                    ("reverb_decay", 5.0),
+                    ("chorus", 25.0),
+                    ("decay", 150.0),
+                ],
+            ),
+        ],
         "tonewheel" => vec![
             preset(
                 tr("Classic: Jazz trio"),
@@ -5749,6 +5934,140 @@ pub fn builtin(effect: &str) -> Vec<Preset> {
                     ("drive", 7.0),
                     ("wow", 45.0),
                     ("hiss", 25.0),
+                    ("output", 0.0),
+                ],
+            ),
+        ],
+        "rotary" => vec![
+            preset(
+                tr("Organ: Slow chorale"),
+                &[
+                    ("speed", 1.0),
+                    ("drive", 15.0),
+                    ("balance", 0.0),
+                    ("width", 70.0),
+                    ("inertia", 100.0),
+                    ("mix", 100.0),
+                    ("output", 0.0),
+                ],
+            ),
+            preset(
+                tr("Organ: Fast tremolo"),
+                &[
+                    ("speed", 2.0),
+                    ("drive", 15.0),
+                    ("balance", 0.0),
+                    ("width", 70.0),
+                    ("inertia", 100.0),
+                    ("mix", 100.0),
+                    ("output", 0.0),
+                ],
+            ),
+            preset(
+                tr("Organ: Gritty rock"),
+                &[
+                    ("speed", 2.0),
+                    ("drive", 60.0),
+                    ("balance", 10.0),
+                    ("width", 80.0),
+                    ("inertia", 100.0),
+                    ("mix", 100.0),
+                    ("output", -2.0),
+                ],
+            ),
+            preset(
+                tr("Organ: Gospel"),
+                &[
+                    ("speed", 1.0),
+                    ("drive", 35.0),
+                    ("balance", 0.0),
+                    ("width", 75.0),
+                    ("inertia", 80.0),
+                    ("mix", 100.0),
+                    ("output", -1.0),
+                ],
+            ),
+            preset(
+                tr("Organ: Slow brake"),
+                &[
+                    ("speed", 0.0),
+                    ("drive", 20.0),
+                    ("balance", 0.0),
+                    ("width", 70.0),
+                    ("inertia", 180.0),
+                    ("mix", 100.0),
+                    ("output", 0.0),
+                ],
+            ),
+            preset(
+                tr("Guitar: Slow swirl"),
+                &[
+                    ("speed", 1.0),
+                    ("drive", 10.0),
+                    ("balance", 20.0),
+                    ("width", 80.0),
+                    ("inertia", 100.0),
+                    ("mix", 70.0),
+                    ("output", 0.0),
+                ],
+            ),
+            preset(
+                tr("Guitar: Fast warble"),
+                &[
+                    ("speed", 2.0),
+                    ("drive", 25.0),
+                    ("balance", 20.0),
+                    ("width", 80.0),
+                    ("inertia", 60.0),
+                    ("mix", 80.0),
+                    ("output", 0.0),
+                ],
+            ),
+            preset(
+                tr("Guitar: Psychedelic"),
+                &[
+                    ("speed", 2.0),
+                    ("drive", 45.0),
+                    ("balance", 30.0),
+                    ("width", 90.0),
+                    ("inertia", 140.0),
+                    ("mix", 100.0),
+                    ("output", -1.0),
+                ],
+            ),
+            preset(
+                tr("Keys: Electric piano"),
+                &[
+                    ("speed", 1.0),
+                    ("drive", 5.0),
+                    ("balance", 10.0),
+                    ("width", 90.0),
+                    ("inertia", 100.0),
+                    ("mix", 60.0),
+                    ("output", 0.0),
+                ],
+            ),
+            preset(
+                tr("Keys: Wide"),
+                &[
+                    ("speed", 1.0),
+                    ("drive", 0.0),
+                    ("balance", 0.0),
+                    ("width", 100.0),
+                    ("inertia", 120.0),
+                    ("mix", 80.0),
+                    ("output", 0.0),
+                ],
+            ),
+            preset(
+                tr("Keys: Subtle motion"),
+                &[
+                    ("speed", 1.0),
+                    ("drive", 0.0),
+                    ("balance", 30.0),
+                    ("width", 60.0),
+                    ("inertia", 100.0),
+                    ("mix", 30.0),
                     ("output", 0.0),
                 ],
             ),

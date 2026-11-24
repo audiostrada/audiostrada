@@ -383,6 +383,8 @@ pub enum KnobStyle {
     ChickenHead,
     /// Knurled black with a white line.
     Knurled,
+    /// Polished aluminium with a black line.
+    Silver,
 }
 
 /// A box covered in its material, with its sheen, piping-free.
@@ -611,6 +613,29 @@ pub fn knob(
             painter.line_segment(
                 [center + dir * r * 0.1, center + dir * r * 0.62],
                 Stroke::new(2.0, Color32::from_rgb(235, 235, 235)),
+            );
+        }
+        KnobStyle::Silver => {
+            painter.circle_filled(center, r, Color32::from_rgb(150, 152, 156));
+            painter.circle_filled(center, r * 0.9, Color32::from_rgb(214, 216, 220));
+            for k in 0..8 {
+                let ring = r * (0.86 - 0.1 * k as f32);
+                painter.circle_stroke(
+                    center,
+                    ring,
+                    Stroke::new(0.6, Color32::from_white_alpha(40)),
+                );
+            }
+            glow(
+                painter,
+                center - vec2(r * 0.25, r * 0.3),
+                r * 0.55,
+                Color32::from_white_alpha(130),
+                Color32::from_white_alpha(0),
+            );
+            painter.line_segment(
+                [center + dir * r * 0.1, center + dir * r * 0.88],
+                Stroke::new(2.2, Color32::from_rgb(20, 20, 22)),
             );
         }
         KnobStyle::GoldCap => {

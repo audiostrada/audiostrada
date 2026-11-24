@@ -16,6 +16,7 @@ pub mod mb_editor;
 pub mod mod_editor;
 pub mod pitch_editor;
 pub mod presets;
+pub mod rotary_editor;
 pub mod tape_deck;
 pub mod tape_editor;
 pub mod theme;
@@ -34,7 +35,9 @@ pub fn window_size(id: &str) -> [f32; 2] {
         "channel" => [1060.0, 720.0],
         "synth" => [1180.0, 720.0],
         "drums" => [1000.0, 720.0],
-        "tines" | "reed" | "tonewheel" | "fmkeys" | "mallets" | "bass808" => [1060.0, 660.0],
+        "tines" | "reed" | "ep80" | "tonewheel" | "fmkeys" | "mallets" | "bass808" => {
+            [1060.0, 660.0]
+        }
         "grain" => [1060.0, 900.0],
         "trigger" => [960.0, 760.0],
         "tape" => [980.0, 900.0],
@@ -56,6 +59,7 @@ pub fn window_size(id: &str) -> [f32; 2] {
         "reverb" => [980.0, 800.0],
         "maximizer" => [900.0, 730.0],
         "vintage_eq" => [820.0, 660.0],
+        "rotary" => [900.0, 560.0],
         _ => [760.0, 560.0],
     }
 }

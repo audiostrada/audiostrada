@@ -7965,3 +7965,63 @@ Harmonie : Quinte au-dessus, discrète
 
 Harmony: Octave below, doubled
 Harmonie : Octave en dessous, doublée
+
+Strada-Rotary
+Strada-Rotary
+
+Rotary speaker cabinet: horn and drum turning slow or fast with their inertia, and the drive of its tube amplifier.
+Cabine rotative : pavillon et tambour qui tournent lentement ou vite avec leur inertie, et la saturation de son ampli à lampes.
+
+Horn and drum
+Pavillon et tambour
+
+Inertia
+Inertie
+
+Horn
+Pavillon
+
+The rotors slow down to a stop
+Les rotors ralentissent jusqu'à l'arrêt
+
+The slow chorale
+Le choral lent
+
+The fast tremolo
+Le trémolo rapide
+
+Organ: Slow chorale
+Orgue : Choral lent
+
+Organ: Fast tremolo
+Orgue : Trémolo rapide
+
+Organ: Gritty rock
+Orgue : Rock saturé
+
+Organ: Gospel
+Orgue : Gospel
+
+Organ: Slow brake
+Orgue : Frein lent
+
+Guitar: Slow swirl
+Guitare : Tourbillon lent
+
+Guitar: Fast warble
+Guitare : Ondulation rapide
+
+Keys: Wide
+Claviers : Large
+
+Keys: Subtle motion
+Claviers : Mouvement discret
+
+Drum rotor
+Tambour
+
+Rotary cabinet
+Cabine
+
+Guitar: Psychedelic
+Guitare : Psychédélique

@@ -63,6 +63,7 @@ pub fn show(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: &
         "pitch" => crate::pitch_editor::pitch(ui, params),
         "doubler" => crate::pitch_editor::doubler(ui, params),
         "flanger" | "phaser" | "chorus" => modulation(ui, params),
+        "rotary" => crate::rotary_editor::show(ui, params, meters),
         "imager" => imager(ui, params, meters),
         "utility" => utility(ui, params, meters),
         "transient" => transient(ui, params, meters, state),
