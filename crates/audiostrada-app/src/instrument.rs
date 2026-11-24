@@ -825,7 +825,8 @@ mod tests {
         assert!(n.cents.abs() < 0.5, "{}", n.cents);
         let p2 = &n.partials[1];
         assert!((p2.ratio - 1.01).abs() < 0.002, "{p2:?}");
-        assert!((p2.level_db + 6.0).abs() < 1.0, "{p2:?}");
+        // Read 0.13 s in, where it has fallen 20 dB/s against the fundamental's 10.
+        assert!((p2.level_db + 7.3).abs() < 0.5, "{p2:?}");
         assert!((p2.t60.unwrap() - 3.0).abs() < 0.3, "{p2:?}");
         assert!(
             (n.partials[0].t60.unwrap() - 6.0).abs() < 0.6,
