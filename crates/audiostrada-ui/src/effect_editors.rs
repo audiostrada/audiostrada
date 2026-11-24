@@ -176,6 +176,122 @@ impl EditorParams for Params<'_> {
         self.doc.player().engine().sample_rate()
     }
 
+    fn panic(&mut self) {
+        self.doc.player_mut().panic();
+    }
+
+    fn file_name(&self, slot: &str) -> Option<String> {
+        let insert = routing::find_insert(self.doc.project(), self.channel, self.insert)?;
+        let path = insert.files.get(slot)?;
+        Some(path.file_stem()?.to_string_lossy().into_owned())
+    }
+
+    fn load_file(
+        &mut self,
+        ui: &Ui,
+        slot: &str,
+        ask: bool,
+        path: Option<std::path::PathBuf>,
+    ) -> bool {
+        let Some(slot) = self.info.files.iter().find(|f| f.id == slot) else {
+            return false;
+        };
+        let (name, extensions) = (slot.name, slot.extensions);
+        let id = ("effect-file", self.channel, self.insert, slot.id);
+        let chosen = crate::dialogs::ask(ui.ctx(), id, ask && path.is_none(), move || {
+            rfd::FileDialog::new()
+                .set_title(tr(name))
+                .add_filter(tr(name), extensions)
+                .pick_file()
+        });
+        let Some(file) = path.or(chosen) else {
+            return false;
+        };
+        match self
+            .doc
+            .set_effect_file(self.channel, self.insert, slot.id, Some(&file))
+        {
+            Ok(()) => true,
+            Err(e) => {
+                self.doc.notify(crate::trf!(
+                    "Cannot load {file}: {e}",
+                    file = file.display(),
+                    e = e
+                ));
+                false
+            }
+        }
+    }
+
+    fn sidechain_name(&self) -> Option<String> {
+        if !audiostrada_dsp::supports_sidechain(self.info.id) {
+            return None;
+        }
+        let insert = routing::find_insert(self.doc.project(), self.channel, self.insert)?;
+        let source = insert.sidechain.and_then(|id| {
+            crate::effect_frame::key_tracks(self.doc, self.channel)
+                .into_iter()
+                .find(|t| t.0 == id)
+                .map(|t| t.1)
+        });
+        Some(source.unwrap_or_else(|| tr("This track's input").to_owned()))
+    }
+
+    fn can_keep_recording(&self) -> bool {
+        self.doc.player().effect_recording(self.insert).is_some()
+    }
+
+    fn keep_recording(&mut self, ui: &Ui, slot: &str, ask: bool) -> bool {
+        let id = ("effect-recording", self.channel, self.insert);
+        let (title, name) = (
+            tr("Save the memory as a sound").to_owned(),
+            format!("{}.wav", tr("Grain memory")),
+        );
+        let chosen = crate::dialogs::ask(ui.ctx(), id, ask, move || {
+            rfd::FileDialog::new()
+                .set_title(title)
+                .set_file_name(name)
+                .add_filter("WAV", &["wav"])
+                .save_file()
+        });
+        let Some(path) = chosen else {
+            return false;
+        };
+        let Some(recording) = self.doc.player().effect_recording(self.insert) else {
+            return false;
+        };
+        let (samples, rate) = recording.read();
+        if samples.is_empty() {
+            self.doc
+                .notify(tr("The memory is empty: nothing was heard yet").to_owned());
+            return false;
+        }
+        let audio = audiostrada_media::AudioData::new(vec![samples], rate);
+        if let Err(e) = audiostrada_media::write_wav(&path, &audio) {
+            self.doc.notify(crate::trf!(
+                "Cannot save {file}: {e}",
+                file = path.display(),
+                e = e
+            ));
+            return false;
+        }
+        self.load_file(ui, slot, false, Some(path))
+    }
+
+    fn sidechain_menu(&mut self, ui: &mut Ui) {
+        if let Some(insert) =
+            routing::find_insert(self.doc.project(), self.channel, self.insert).cloned()
+        {
+            crate::effect_frame::sidechain_menu(ui, self.doc, self.channel, &insert);
+        }
+    }
+
+    fn play_key(&mut self, data: [u8; 3]) {
+        if let Channel::Track(track) = self.channel {
+            self.doc.player().play_key(track, data);
+        }
+    }
+
     fn tempo(&self) -> f64 {
         self.doc.project().tempo.bpm_at_beat(0.0)
     }
@@ -667,6 +783,8 @@ mod tests {
             // The synth shows its controls over its views, with the expert's.
             ctx.data_mut(|d| d.insert_temp(crate::synth_editor::View::expert_id(), true));
             let mut state = EditorState::default();
+            // The electric pianos show every setting in their advanced view.
+            state.effects.keys.advanced = true;
             SHOWN.with_borrow_mut(Vec::clear);
             for frame in 0..12usize {
                 ctx.data_mut(|d| d.insert_temp(crate::synth_editor::View::id(), frame / 2));

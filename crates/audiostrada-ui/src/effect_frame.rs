@@ -396,7 +396,10 @@ fn sidechain_button(
 }
 
 /// The tracks that can key an insert of `channel`: those carrying audio, but its own.
-fn key_tracks(doc: &Document, channel: Channel) -> Vec<(audiostrada_core::TrackId, String)> {
+pub(crate) fn key_tracks(
+    doc: &Document,
+    channel: Channel,
+) -> Vec<(audiostrada_core::TrackId, String)> {
     let own = channel.track(doc.project());
     doc.project()
         .tracks

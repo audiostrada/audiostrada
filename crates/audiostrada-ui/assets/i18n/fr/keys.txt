@@ -1,0 +1,757 @@
+# French: the electric pianos (Strada-Tines)
+
+Strada-Tines
+Strada-Tines
+
+Electric piano of struck tines and tone bars, from bell-like to barking, with its suitcase amplifier, stereo tremolo, delay and reverb.
+Piano électrique à lames frappées et barres de résonance, du cristallin au rugissant, avec son ampli de valise, son trémolo stéréo, un delay et une réverbération.
+
+Mechanics
+Mécanique
+
+Velocity curve
+Courbe de vélocité
+
+Hard
+Dur
+
+Amplitude
+Amplitude
+
+Tremolo rate
+Vitesse du trémolo
+
+Tremolo depth
+Profondeur du trémolo
+
+Octave stretch
+Octaves étirées
+
+Touch
+Toucher
+
+Amplifier
+Ampli
+
+A4
+La 4
+
+Octave down
+Octave en dessous
+
+Octave up
+Octave au-dessus
+
+Clean: Ballad
+Clair : Ballade
+
+Clean: Bright studio
+Clair : Studio brillant
+
+Clean: Soft and round
+Clair : Doux et rond
+
+Driven: Funk bark
+Saturé : Funk mordant
+
+Driven: Rock amp
+Saturé : Ampli rock
+
+Driven: Soul
+Saturé : Soul
+
+Lush: Suitcase tremolo
+Ample : Trémolo de valise
+
+Lush: Phased seventies
+Ample : Phaser années 70
+
+Lush: Lo-fi chorus
+Ample : Chorus lo-fi
+
+Tine voicing
+Réglage des lames
+
+Bark
+Mordant
+
+Tines
+Lames
+
+Piano
+Piano
+
+Classic: Suitcase seventies
+Classique : Valise années 70
+
+Classic: Stage
+Classique : Scène
+
+Classic: Jazz club
+Classique : Club de jazz
+
+Classic: Gospel
+Classique : Gospel
+
+Classic: Eighties bell
+Classique : Cloche années 80
+
+Clean: Neo-soul
+Clair : Néo-soul
+
+Clean: Felt and close
+Clair : Feutré et proche
+
+Driven: Blues growl
+Saturé : Grognement blues
+
+Driven: Overdriven amp
+Saturé : Ampli poussé
+
+Lush: Ambient pad
+Ample : Nappe ambiante
+
+Lush: Echo ballad
+Ample : Ballade en écho
+
+Panic
+Panique
+
+Every note off, for a note left stuck
+Coupe toutes les notes, pour une note restée bloquée
+
+Strada-Reed
+Strada-Reed
+
+Electric piano of struck steel reeds, from sweet to biting, with its built-in speakers, tremolo, delay and reverb.
+Piano électrique à lames d'acier frappées, du doux au mordant, avec ses haut-parleurs intégrés, son trémolo, un delay et une réverbération.
+
+Reed bark
+Mordant des lames
+
+Speaker
+Haut-parleur
+
+Line
+Ligne
+
+Reeds
+Lames vibrantes
+
+Classic: Seventies pop
+Classique : Pop années 70
+
+Classic: Built-in speaker
+Classique : Haut-parleur intégré
+
+Classic: Soul ballad
+Classique : Ballade soul
+
+Classic: Bright and nasal
+Classique : Brillant et nasal
+
+Classic: Live room
+Classique : Prise de salle
+
+Clean: Sweet
+Clair : Doux
+
+Clean: Studio direct
+Clair : Direct en studio
+
+Clean: Soft keys
+Clair : Touches douces
+
+Clean: Indie
+Clair : Indé
+
+Clean: Hushed
+Clair : Feutré
+
+Driven: Biting
+Saturé : Mordant
+
+Driven: Amp stack
+Saturé : Ampli à fond
+
+Driven: Funk
+Saturé : Funk
+
+Driven: Pushed speaker
+Saturé : Haut-parleur poussé
+
+Driven: Fuzzed
+Saturé : Fuzz
+
+Lush: Deep tremolo
+Ample : Trémolo profond
+
+Lush: Wide tremolo
+Ample : Trémolo large
+
+Lush: Phased
+Ample : Phasé
+
+Lush: Tape echo
+Ample : Écho à bande
+
+Lush: Ambient
+Ample : Ambiance
+
+Strada-Tonewheel
+Strada-Tonewheel
+
+Tone wheel organ with its nine drawbars, percussion, key click, scanner vibrato and rotary speaker.
+Orgue à roues phoniques avec ses neuf tirettes, sa percussion, son clic de touche, son vibrato à balayage et sa cabine rotative.
+
+Drawbar 16'
+Tirette 16'
+
+Drawbar 5 1/3'
+Tirette 5 1/3'
+
+Drawbar 8'
+Tirette 8'
+
+Drawbar 4'
+Tirette 4'
+
+Drawbar 2 2/3'
+Tirette 2 2/3'
+
+Drawbar 2'
+Tirette 2'
+
+Drawbar 1 3/5'
+Tirette 1 3/5'
+
+Drawbar 1 1/3'
+Tirette 1 1/3'
+
+Drawbar 1'
+Tirette 1'
+
+Percussion decay
+Déclin de la percussion
+
+Percussion volume
+Volume de la percussion
+
+Vibrato and chorus
+Vibrato et chorus
+
+Key click
+Clic de touche
+
+Leakage
+Fuite des roues
+
+Rotary speaker
+Cabine rotative
+
+Rotary width
+Largeur de la cabine
+
+Second
+Deuxième
+
+Third
+Troisième
+
+V1
+V1
+
+V2
+V2
+
+V3
+V3
+
+C1
+C1
+
+C2
+C2
+
+C3
+C3
+
+Drawbars
+Tirettes
+
+Rotary
+Cabine
+
+Leak
+Fuite
+
+Classic: Jazz trio
+Classique : Trio jazz
+
+Classic: Full organ
+Classique : Grand jeu
+
+Classic: Blues
+Classique : Blues
+
+Classic: Soft ballad
+Classique : Ballade douce
+
+Clean: Reggae bubble
+Clair : Bubble reggae
+
+Clean: Flute
+Clair : Flûte
+
+Clean: Church
+Clair : Église
+
+Clean: Pop chords
+Clair : Accords pop
+
+Clean: Percussive
+Clair : Percussif
+
+Driven: Rock organ
+Saturé : Orgue rock
+
+Driven: Screaming
+Saturé : Hurlant
+
+Driven: Prog lead
+Saturé : Solo prog
+
+Driven: Gritty blues
+Saturé : Blues granuleux
+
+Driven: Garage
+Saturé : Garage
+
+Lush: Slow rotary pad
+Ample : Nappe tournante
+
+Lush: Fast swirl
+Ample : Cabine rapide
+
+Lush: Cathedral
+Ample : Cathédrale
+
+Lush: Echo organ
+Ample : Orgue en écho
+
+Lush: Dreamy flutes
+Ample : Flûtes rêveuses
+
+Classic: Eighties ballad
+Classique : Ballade années 80
+
+Classic: City pop
+Classique : City pop
+
+Classic: Power ballad
+Classique : Grande ballade
+
+Classic: Soft R&B
+Classique : R&B doux
+
+Classic: Gospel keys
+Classique : Gospel
+
+Clean: Dry and direct
+Clair : Sec et direct
+
+Clean: Mellow
+Clair : Moelleux
+
+Clean: Glass keys
+Clair : Touches de verre
+
+Clean: Reed piano
+Clair : Piano à lames
+
+Driven: Gritty FM
+Saturé : FM granuleuse
+
+Driven: Synthwave
+Saturé : Synthwave
+
+Driven: Funk stab
+Saturé : Accords funk
+
+Driven: Bright attack
+Saturé : Attaque brillante
+
+Driven: Phased funk
+Saturé : Funk phasé
+
+Lush: Bells
+Ample : Cloches
+
+Lush: Dream keys
+Ample : Touches rêveuses
+
+Lush: Tremolo pad
+Ample : Nappe trémolo
+
+Lush: Crystal
+Ample : Cristal
+
+Lush: Lo-fi
+Ample : Lo-fi
+
+Classic: Marimba
+Classique : Marimba
+
+Classic: Jazz vibes
+Classique : Vibraphone jazz
+
+Classic: Kalimba
+Classique : Kalimba
+
+Classic: Celesta
+Classique : Célesta
+
+Classic: Music box
+Classique : Boîte à musique
+
+Clean: Soft marimba
+Clair : Marimba douce
+
+Clean: Bright marimba
+Clair : Marimba brillante
+
+Clean: Dry vibes
+Clair : Vibraphone sec
+
+Clean: Thumb piano
+Clair : Piano à pouces
+
+Clean: Toy bells
+Clair : Clochettes
+
+Driven: Trap marimba
+Saturé : Marimba trap
+
+Driven: Pluck
+Saturé : Pincé
+
+Driven: Crunchy box
+Saturé : Boîte granuleuse
+
+Driven: Hard vibes
+Saturé : Vibraphone dur
+
+Driven: Lo-fi kalimba
+Saturé : Kalimba lo-fi
+
+Lush: Motor vibes
+Ample : Vibraphone au moteur
+
+Lush: Celesta dream
+Ample : Célesta rêveur
+
+Lush: Echo marimba
+Ample : Marimba en écho
+
+Lush: Lullaby
+Ample : Berceuse
+
+Lush: Ambient kalimba
+Ample : Kalimba ambiante
+
+Strada-FM Keys
+Strada-FM Keys
+
+Eighties FM electric piano, from glassy to bell-like, with its chorus, tremolo, delay and reverb.
+Piano électrique FM des années 80, du verre à la cloche, avec son chorus, son trémolo, un delay et une réverbération.
+
+Strada-Mallets
+Strada-Mallets
+
+Marimba, vibraphone, kalimba, celesta and music box, struck or plucked, with tremolo, delay and reverb.
+Marimba, vibraphone, kalimba, célesta et boîte à musique, frappés ou pincés, avec trémolo, delay et réverbération.
+
+Tine
+Lame
+
+Reed
+Lame vibrante
+
+Glass
+Verre
+
+Mallet hardness
+Dureté de la mailloche
+
+Marimba
+Marimba
+
+Vibraphone
+Vibraphone
+
+Kalimba
+Kalimba
+
+Celesta
+Célesta
+
+Music box
+Boîte à musique
+
+Operators
+Opérateurs
+
+Mallets
+Mailloches
+
+Hardness
+Dureté
+
+Strada-808
+Strada-808
+
+808 sub bass with punch, click, glide and distortion that keeps the low end clean.
+Basse 808 avec attaque, clic, glissé et une distorsion qui garde le grave propre.
+
+Punch time
+Durée du punch
+
+Note length
+Durée de la note
+
+Full
+Entière
+
+Clean sub
+Sub propre
+
+Follows key
+Suit la touche
+
+Pad: Choir cloud
+Nappe : Nuage de chœur
+
+Pad: String haze
+Nappe : Brume de cordes
+
+Pad: Organ bloom
+Nappe : Orgue qui s'ouvre
+
+Pad: Glass air
+Nappe : Air de verre
+
+Pad: Felt dream
+Nappe : Piano rêveur
+
+Texture: Wind sheets
+Texture : Nappes de vent
+
+Texture: Shimmering bells
+Texture : Cloches scintillantes
+
+Texture: Reverse choir
+Texture : Chœur à l'envers
+
+Texture: Dust
+Texture : Poussière
+
+Texture: Drifting strings
+Texture : Cordes qui dérivent
+
+Freeze: Still choir
+Gel : Chœur immobile
+
+Freeze: Organ hold
+Gel : Orgue tenu
+
+Freeze: Bell moment
+Gel : Instant de cloche
+
+Freeze: Glass drone
+Gel : Bourdon de verre
+
+Freeze: Piano breath
+Gel : Souffle de piano
+
+Live: Frozen voice
+Direct : Voix gelée
+
+Live: Grain cloud
+Direct : Nuage de grains
+
+Live: Granular delay
+Direct : Delay granulaire
+
+Live: Shimmer
+Direct : Scintillement
+
+Live: Stutter
+Direct : Bégaiement
+
+Strada-Grain
+Strada-Grain
+
+Granular instrument: a sound, a source of its own or the live sidechain turned into textures, pads and frozen moments.
+Instrument granulaire : un son, une de ses sources ou la sidechain en direct changés en textures, nappes et instants gelés.
+
+Spray
+Dispersion
+
+Grain size
+Taille des grains
+
+Density
+Densité
+
+Scan speed
+Vitesse de défilement
+
+Reversed grains
+Grains à l'envers
+
+Grain shape
+Forme des grains
+
+Choir
+Chœur
+
+Wind
+Vent
+
+Bells
+Cloches
+
+Felt piano
+Piano feutré
+
+Grains
+Grains
+
+Live: the newest sound on the right
+Live : le son le plus récent à droite
+
+Drag to move where the grains play
+Glissez pour déplacer l'endroit où jouent les grains
+
+cents
+cents
+
+Texture
+Texture
+
+Smooth and held to the left, scattered and grainy to the right
+À gauche lisse et tenu, à droite dispersé et granuleux
+
+Still to the left; to the right the sound drifts through and the grains detune
+Immobile à gauche ; à droite le son défile et les grains se désaccordent
+
+Dry to the left, a vast space to the right
+Sec à gauche, un vaste espace à droite
+
+Notes start and end at once to the left, swell and fade slowly to the right
+À gauche les notes commencent et s'arrêtent net, à droite elles montent et s'éteignent lentement
+
+Continuous
+Continu
+
+Drop an audio file here, or click to choose one
+Déposez un fichier audio ici, ou cliquez pour en choisir un
+
+Nothing heard yet: choose the track to listen to, top right, and play the song
+Rien n'est encore entendu : choisissez la piste à écouter, en haut à droite, et lancez la lecture
+
+Nothing heard yet: send a track to the sidechain and play the song
+Rien n'est encore entendu : envoyez une piste en sidechain et lancez la lecture
+
+Frozen: the grains keep playing this moment
+Gelé : les grains rejouent cet instant
+
+Play notes on the keyboard to hear the grains
+Jouez des notes au clavier pour entendre les grains
+
+{name} · Change
+{name} · Changer
+
+Listens to: {track} ▾
+Écoute : {track} ▾
+
+Drop to play this sound
+Déposez pour jouer ce son
+
+This track's input
+Entrée de cette piste
+
+Trap: Long slide
+Trap : Longue glissée
+
+Trap: Hard hitting
+Trap : Qui cogne
+
+Trap: Distorted
+Trap : Distordue
+
+Trap: Dark
+Trap : Sombre
+
+Trap: Big slides
+Trap : Grandes glissées
+
+Drill: UK slide
+Drill : Glissée UK
+
+Drill: New York
+Drill : New York
+
+Drill: Sliding sub
+Drill : Sub glissant
+
+Drill: Short bounces
+Drill : Rebonds courts
+
+Drill: Dark glide
+Drill : Glissée sombre
+
+Dirty: Phonk
+Sale : Phonk
+
+Dirty: Fuzz
+Sale : Fuzz
+
+Dirty: Tube warmth
+Sale : Chaleur à lampes
+
+Dirty: Kick and bass
+Sale : Kick et basse
+
+Dirty: Old drum machine
+Sale : Vieille boîte à rythmes
+
+Sub: Pure
+Sub : Pur
+
+Sub: Round
+Sub : Rond
+
+Sub: Soft R&B
+Sub : R&B doux
+
+Sub: Deep boom
+Sub : Boum profond
+
+Sub: Plucked
+Sub : Pincé
+
+Save as a sound…
+Enregistrer comme son…
+
+Save the memory as a sound
+Enregistrer la mémoire comme son
+
+Grain memory
+Mémoire Grain
+
+The memory is empty: nothing was heard yet
+La mémoire est vide : rien n'a encore été entendu
+
+Cannot save {file}: {e}
+Impossible d'enregistrer {file} : {e}

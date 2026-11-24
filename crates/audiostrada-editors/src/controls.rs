@@ -1,6 +1,8 @@
 //! Controls shared by the effect editors (knobs, lists, switches, meters) and the parameters
 //! they change, through [`EditorParams`]: AudioStrada's document or a plugin's host.
 
+use std::path::PathBuf;
+
 use egui::{
     self, Align2, Color32, FontId, Pos2, Rect, Response, RichText, Sense, Shape, Stroke, Ui, pos2,
     vec2,
@@ -44,6 +46,34 @@ pub trait EditorParams {
     fn tempo(&self) -> f64;
     /// Tells the user something.
     fn notify(&mut self, _message: String) {}
+    /// Plays a MIDI message on the instrument, from its editor's keyboard.
+    fn play_key(&mut self, _data: [u8; 3]) {}
+    /// Lets go of every note, with the effects' tails: for a note left stuck.
+    fn panic(&mut self) {}
+    /// The name of the file loaded in `slot`; `None` without one, or when the host cannot load.
+    fn file_name(&self, _slot: &str) -> Option<String> {
+        None
+    }
+    /// Loads `path` into `slot`, or with `path` `None` and `ask` the file the user picks. Called
+    /// every frame so that the chooser's answer arrives; true once a file was loaded.
+    fn load_file(&mut self, _ui: &Ui, _slot: &str, _ask: bool, _path: Option<PathBuf>) -> bool {
+        false
+    }
+    /// The track the sidechain listens to, or "Off"; `None` where the host shows it itself.
+    fn sidechain_name(&self) -> Option<String> {
+        None
+    }
+    /// The choices of the sidechain, in a menu.
+    fn sidechain_menu(&mut self, _ui: &mut Ui) {}
+    /// Whether the audio the effect keeps (Strada-Grain's memory) can be saved.
+    fn can_keep_recording(&self) -> bool {
+        false
+    }
+    /// Saves the audio the effect keeps as a file the user names (asked with `ask`), loaded
+    /// into `slot`. Called every frame so that the chooser's answer arrives; true once done.
+    fn keep_recording(&mut self, _ui: &Ui, _slot: &str, _ask: bool) -> bool {
+        false
+    }
     /// Whether the full settings of `effect`, a stage of a chain, may be opened (a plugin
     /// needs that plugin's licence or its trial); `Err` says why not.
     fn stage_access(&self, _effect: &str) -> Result<(), String> {

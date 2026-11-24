@@ -131,6 +131,8 @@ struct Plugins {
     paths: Option<ProjectPaths>,
     /// What each built-in effect file turned out to be, or why it failed.
     files: HashMap<(InsertId, String), Result<String, String>>,
+    /// Audio built-in effects keep for the interface to save, gone with their effect.
+    recordings: HashMap<InsertId, std::sync::Weak<audiostrada_dsp::Recording>>,
     /// Low latency mode: inserts adding more than this many samples are bypassed.
     low_latency: Option<u32>,
     /// Inserts the low latency mode bypasses.
@@ -737,6 +739,7 @@ impl ProjectPlayer {
                 offline: false,
                 paths: None,
                 files: HashMap::new(),
+                recordings: HashMap::new(),
                 retired: Vec::new(),
                 restarting: Vec::new(),
                 feedback: Vec::new(),
@@ -906,6 +909,11 @@ impl ProjectPlayer {
                         plugins.files.insert((insert.id, slot.clone()), result);
                     }
                     effect.prepare(engine.sample_rate(), 1024);
+                    if let Some(recording) = effect.recording() {
+                        plugins
+                            .recordings
+                            .insert(insert.id, Arc::downgrade(&recording));
+                    }
                     // Its delay depends on its settings: apply them first.
                     for (i, v) in insert_values(insert, info, character, fast)
                         .into_iter()
@@ -2537,6 +2545,11 @@ impl ProjectPlayer {
     /// What a built-in effect loaded into `slot`, or why it failed.
     pub fn effect_file(&self, id: InsertId, slot: &str) -> Option<&Result<String, String>> {
         self.plugins.files.get(&(id, slot.to_owned()))
+    }
+
+    /// The audio a built-in effect keeps for the interface to save.
+    pub fn effect_recording(&self, id: InsertId) -> Option<Arc<audiostrada_dsp::Recording>> {
+        self.plugins.recordings.get(&id)?.upgrade()
     }
 
     /// Why a plugin insert could not be loaded.

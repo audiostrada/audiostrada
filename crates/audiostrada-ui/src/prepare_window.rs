@@ -458,6 +458,10 @@ fn guess(
     match t.inserts.first().map(|i| i.effect.as_str()) {
         Some("drums") => return (Instrument::Drums, Guess::Instrument),
         Some("synth") => return (Instrument::Synth, Guess::Instrument),
+        Some("bass808") => return (Instrument::Bass, Guess::Instrument),
+        Some(id) if audiostrada_dsp::keys::is_piano(id) => {
+            return (Instrument::Keys, Guess::Instrument);
+        }
         _ => {}
     }
     (Instrument::Other, Guess::Unknown)

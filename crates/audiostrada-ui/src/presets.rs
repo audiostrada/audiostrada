@@ -136,6 +136,50 @@ mod tests {
         }
     }
 
+    /// The keyboards' presets played as a chord, softly then hard: heard, never clipping.
+    #[test]
+    fn piano_presets_sound_without_clipping() {
+        let mut failed = Vec::new();
+        for info in audiostrada_dsp::EFFECTS.iter() {
+            if !audiostrada_dsp::keys::has_face(info.id) {
+                continue;
+            }
+            for preset in factory(info.id) {
+                // The live presets play what the sidechain brings: silent here.
+                if preset.params.get("source") == Some(&1.0) && info.id == "grain" {
+                    continue;
+                }
+                for velocity in [40, 110] {
+                    let mut fx = audiostrada_dsp::create(info.id).unwrap();
+                    fx.prepare(48_000, 256);
+                    for (i, p) in info.params.iter().enumerate() {
+                        fx.set_param(i, preset.params.get(p.id).copied().unwrap_or(p.default));
+                    }
+                    for key in [48, 55, 60, 64, 67] {
+                        fx.midi(&audiostrada_dsp::MidiEvent::note_on(0, 0, key, velocity));
+                    }
+                    let (mut peak, mut energy) = (0.0f32, 0.0f32);
+                    let (mut l, mut r) = (vec![0.0; 256], vec![0.0; 256]);
+                    for _ in 0..188 {
+                        fx.process(&mut l, &mut r);
+                        for s in l.iter().chain(&r) {
+                            peak = peak.max(s.abs());
+                            energy += s * s;
+                        }
+                    }
+                    let rms = (energy / (2.0 * 188.0 * 256.0)).sqrt();
+                    if peak >= 1.0 || rms < 0.003 {
+                        failed.push(format!(
+                            "{}: {} at {velocity} peaks at {peak}, rms {rms}",
+                            info.id, preset.name
+                        ));
+                    }
+                }
+            }
+        }
+        assert!(failed.is_empty(), "{}", failed.join("\n"));
+    }
+
     /// A song-like signal through every built-in effect preset: none clips, runs away or
     /// falls silent.
     #[test]
@@ -170,7 +214,8 @@ mod tests {
         let skip = rate as usize / 2;
         let reference = rms(&input[skip..]);
         let mut failed = Vec::new();
-        for info in audiostrada_dsp::EFFECTS.iter() {
+        // Instruments make their own sound: their presets are checked with notes.
+        for info in audiostrada_dsp::EFFECTS.iter().filter(|i| !i.instrument) {
             for preset in builtin(info.id) {
                 let Some(mut fx) = audiostrada_dsp::create(info.id) else {
                     continue;

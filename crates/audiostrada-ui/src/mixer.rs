@@ -6260,8 +6260,9 @@ impl MixerView {
                             routing::set_bypass(p, channel, id, bypass)
                         });
                     }
-                    // An instrument has no input to match.
-                    if !meter && !info.instrument {
+                    // An instrument has no input to match, unless it listens to a sidechain.
+                    if !meter && (!info.instrument || audiostrada_dsp::supports_sidechain(info.id))
+                    {
                         effect_frame::bottom(
                             ui,
                             doc,
@@ -6273,10 +6274,10 @@ impl MixerView {
                     }
                     effect_frame::song_row(ui, doc, channel, id);
                     fit.body(ui, |ui| {
-                        // The synth shows its wavetable files on its own face.
+                        // The synth and Strada-Grain show their files on their own faces.
                         if !rig
                             && !info.files.is_empty()
-                            && !matches!(info.id, "synth" | "drums" | "trigger")
+                            && !matches!(info.id, "synth" | "drums" | "trigger" | "grain")
                         {
                             effect_files(ui, doc, channel, insert, info);
                             ui.separator();

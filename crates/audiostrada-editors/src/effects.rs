@@ -34,6 +34,7 @@ pub struct EffectsState {
     pub drive: crate::drive_editor::DriveState,
     pub eq: crate::eq_editor::EqState,
     pub chain: crate::chain_editor::ChainState,
+    pub keys: crate::keys_editor::KeysState,
 }
 
 impl EffectsState {
@@ -71,6 +72,9 @@ pub fn show(ui: &mut Ui, params: &mut dyn EditorParams, meters: &[f32], state: &
         "drive" => crate::drive_editor::show(ui, params, meters, &mut state.drive),
         "gate" => gate(ui, params, meters, state),
         "limiter" => limiter(ui, params, meters, state),
+        id if audiostrada_dsp::keys::has_face(id) => {
+            crate::keys_editor::show(ui, params, meters, &mut state.keys)
+        }
         _ => knob_panel(ui, params, meters),
     }
 }

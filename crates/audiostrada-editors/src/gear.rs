@@ -23,6 +23,14 @@ pub enum Texture {
     Perforated,
     /// Horizontal brushing.
     Brushed,
+    /// Pebbled leather grain: small domes between creases, as on a keyboard's case.
+    Leather,
+    /// Fine satin brushing with long streaks.
+    Satin,
+    /// Varnished wood, its grain along the width.
+    Wood,
+    /// Matte molded plastic, a faint speckle.
+    Plastic,
 }
 
 const SIZE: usize = 256;
@@ -33,6 +41,20 @@ fn hash(x: i32, y: i32, period: i32, seed: u32) -> f32 {
     let mut h = x.wrapping_mul(374_761_393) ^ y.wrapping_mul(668_265_263) ^ seed;
     h = (h ^ (h >> 13)).wrapping_mul(1_274_126_177);
     ((h ^ (h >> 16)) & 0xffff) as f32 / 65_535.0
+}
+
+/// Smooth value noise in 0..1, tileable over the texture, `across` cells wide and `down`
+/// cells tall: stretched along the axis with fewer cells.
+fn stretched(x: f32, y: f32, (across, down): (i32, i32), seed: u32) -> f32 {
+    let (fx, fy) = (x * across as f32, y * down as f32);
+    let (ix, iy) = (fx.floor() as i32, fy.floor() as i32);
+    let (tx, ty) = (fx - ix as f32, fy - iy as f32);
+    let smooth = |t: f32| t * t * (3.0 - 2.0 * t);
+    let (sx, sy) = (smooth(tx), smooth(ty));
+    let at = |x: i32, y: i32| hash(x.rem_euclid(across), y.rem_euclid(down), 1 << 16, seed);
+    let top = at(ix, iy) + (at(ix + 1, iy) - at(ix, iy)) * sx;
+    let bottom = at(ix, iy + 1) + (at(ix + 1, iy + 1) - at(ix, iy + 1)) * sx;
+    top + (bottom - top) * sy
 }
 
 /// Smooth value noise in 0..1, tileable over the texture, `cells` across.
@@ -50,6 +72,31 @@ fn noise(x: f32, y: f32, cells: i32, seed: u32) -> f32 {
     let bottom = c + (d - c) * sx;
     top + (bottom - top) * sy
 }
+
+/// Distances to the nearest and second nearest of random points, one per cell, `cells`
+/// across, tileable; in cells.
+fn cellular(u: f32, v: f32, cells: i32, seed: u32) -> (f32, f32) {
+    let (fx, fy) = (u * cells as f32, v * cells as f32);
+    let (ix, iy) = (fx.floor() as i32, fy.floor() as i32);
+    let (mut f1, mut f2) = (f32::MAX, f32::MAX);
+    for dy in -1..=1 {
+        for dx in -1..=1 {
+            let (cx, cy) = (ix + dx, iy + dy);
+            let px = cx as f32 + hash(cx, cy, cells, seed);
+            let py = cy as f32 + hash(cx, cy, cells, seed ^ 0x9e37);
+            let d = ((px - fx).powi(2) + (py - fy).powi(2)).sqrt();
+            if d < f1 {
+                f2 = f1;
+                f1 = d;
+            } else if d < f2 {
+                f2 = d;
+            }
+        }
+    }
+    (f1, f2)
+}
+
+const TAU_F: f32 = std::f32::consts::TAU;
 
 /// The brightness (0..1) and opacity of a texture at (u, v) in 0..1.
 fn texel(texture: Texture, u: f32, v: f32) -> (f32, f32) {
@@ -134,6 +181,42 @@ fn texel(texture: Texture, u: f32, v: f32) -> (f32, f32) {
                 (0.7 + 0.1 * noise(u, v, 32, 17), 1.0)
             }
         }
+        Texture::Leather => {
+            // Domes lit from the top left, darker in the creases between them.
+            let h = |u: f32, v: f32| {
+                let (f1, f2) = cellular(u, v, 44, 41);
+                let (g1, _) = cellular(u, v, 88, 43);
+                (1.0 - f1 * f1 * 1.4).max(0.0) * 0.8 + (1.0 - g1).max(0.0) * 0.2
+                    - 0.3 * (1.0 - ((f2 - f1) * 5.0).min(1.0))
+            };
+            let e = 1.0 / SIZE as f32;
+            let slope = h(u - e, v - e) - h(u + e, v + e);
+            let (f1, f2) = cellular(u, v, 44, 41);
+            let crease = ((f2 - f1) * 4.0).min(1.0);
+            let light = (0.55 + 1.4 * slope).clamp(0.0, 1.0);
+            let base = 0.62 + 0.28 * light + 0.06 * noise(u, v, 128, 47);
+            ((base * (0.78 + 0.22 * crease)).clamp(0.0, 1.0), 1.0)
+        }
+        Texture::Plastic => {
+            let speckle = noise(u, v, 128, 89);
+            let cloud = noise(u, v, 8, 97);
+            (0.86 + 0.08 * speckle + 0.06 * cloud, 1.0)
+        }
+        Texture::Wood => {
+            // Growth rings wandering along the width, fine pores along them.
+            let wave = 0.9 * stretched(u, v, (2, 2), 71) + 0.25 * stretched(u, v, (4, 8), 73);
+            let rings = 0.5 + 0.5 * ((v * 6.0 + wave) * TAU_F).sin();
+            let fibers = stretched(u, v, (3, 96), 79);
+            let streaks = stretched(u, v, (2, 40), 83);
+            (0.72 + 0.08 * rings + 0.11 * fibers + 0.07 * streaks, 1.0)
+        }
+        Texture::Satin => {
+            let row = hash(0, (v * SIZE as f32) as i32, SIZE as i32, 53);
+            let streak = 0.45 * stretched(u, v, (2, 128), 59)
+                + 0.3 * stretched(u, v, (6, 192), 61)
+                + 0.25 * row;
+            (0.74 + 0.26 * streak, 1.0)
+        }
         Texture::Brushed => {
             let streak = 0.6 * noise(u * 0.05, v, 256, 23) + 0.4 * noise(u * 0.02, v, 128, 29);
             (0.78 + 0.22 * streak, 1.0)
@@ -182,6 +265,10 @@ fn grain(which: Texture) -> f32 {
         Texture::Cane => 1.2,
         Texture::Perforated => 0.8,
         Texture::Brushed => 1.0,
+        Texture::Leather => 0.75,
+        Texture::Satin => 1.0,
+        Texture::Wood => 1.0,
+        Texture::Plastic => 1.0,
     }
 }
 

@@ -50,6 +50,7 @@ const FRENCH_FILES: &[&str] = &[
     include_str!("../../audiostrada-ui/assets/i18n/fr/messages.txt"),
     include_str!("../../audiostrada-ui/assets/i18n/fr/piano.txt"),
     include_str!("../../audiostrada-ui/assets/i18n/fr/drums.txt"),
+    include_str!("../../audiostrada-ui/assets/i18n/fr/keys.txt"),
     include_str!("../../audiostrada-ui/assets/i18n/fr/dialogs.txt"),
     include_str!("../../audiostrada-ui/assets/i18n/fr/dialogs-a.txt"),
     include_str!("../../audiostrada-ui/assets/i18n/fr/dialogs-b.txt"),

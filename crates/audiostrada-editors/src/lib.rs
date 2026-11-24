@@ -11,6 +11,7 @@ pub mod eq_editor;
 pub mod frame;
 pub mod gear;
 pub mod i18n;
+pub mod keys_editor;
 pub mod mb_editor;
 pub mod mod_editor;
 pub mod pitch_editor;
@@ -33,6 +34,8 @@ pub fn window_size(id: &str) -> [f32; 2] {
         "channel" => [1060.0, 720.0],
         "synth" => [1180.0, 720.0],
         "drums" => [1000.0, 720.0],
+        "tines" | "reed" | "tonewheel" | "fmkeys" | "mallets" | "bass808" => [1060.0, 660.0],
+        "grain" => [1060.0, 900.0],
         "trigger" => [960.0, 760.0],
         "tape" => [980.0, 900.0],
         "mb_comp" => [1000.0, 860.0],

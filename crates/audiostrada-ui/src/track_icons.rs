@@ -640,6 +640,13 @@ fn detect_at(project: &Project, track: &Track, depth: usize) -> TrackIcon {
     if track
         .inserts
         .first()
+        .is_some_and(|i| audiostrada_dsp::keys::is_piano(&i.effect))
+    {
+        return TrackIcon::Piano;
+    }
+    if track
+        .inserts
+        .first()
         .and_then(|i| audiostrada_dsp::info(&i.effect))
         .is_some_and(|i| i.instrument)
         || track.clips.iter().any(|c| c.notes.is_some())

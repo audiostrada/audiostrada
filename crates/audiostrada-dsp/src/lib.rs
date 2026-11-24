@@ -28,6 +28,7 @@ pub mod flanger;
 pub mod gate;
 mod hall;
 pub mod imager;
+pub mod keys;
 pub mod limiter;
 mod line;
 pub mod loudness;
@@ -165,6 +166,51 @@ pub trait Effect: Send {
     /// description of what was loaded.
     fn load(&mut self, _slot: &str, _file: FileData) -> Result<String, String> {
         Err("this effect loads no files".into())
+    }
+    /// Audio the effect keeps that the interface may read and save, after `prepare`.
+    fn recording(&self) -> Option<std::sync::Arc<Recording>> {
+        None
+    }
+}
+
+/// A ring of mono audio written by the audio thread and read by the interface without locks.
+#[derive(Debug)]
+pub struct Recording {
+    samples: Box<[std::sync::atomic::AtomicU32]>,
+    write: std::sync::atomic::AtomicUsize,
+    rate: u32,
+}
+
+impl Recording {
+    pub fn new(len: usize, rate: u32) -> Self {
+        Self {
+            samples: (0..len).map(|_| Default::default()).collect(),
+            write: Default::default(),
+            rate,
+        }
+    }
+
+    /// Writes `x` at `at`, which becomes the newest sample.
+    #[inline]
+    pub fn store(&self, at: usize, x: f32) {
+        use std::sync::atomic::Ordering::Relaxed;
+        if let Some(s) = self.samples.get(at) {
+            s.store(x.to_bits(), Relaxed);
+            self.write.store((at + 1) % self.samples.len(), Relaxed);
+        }
+    }
+
+    /// The samples from the oldest to the newest, the silence before the first sound left
+    /// out, and their rate.
+    pub fn read(&self) -> (Vec<f32>, u32) {
+        use std::sync::atomic::Ordering::Relaxed;
+        let len = self.samples.len();
+        let write = self.write.load(Relaxed);
+        let samples: Vec<f32> = (0..len)
+            .map(|i| f32::from_bits(self.samples[(write + i) % len].load(Relaxed)))
+            .skip_while(|x| x.abs() < 1e-5)
+            .collect();
+        (samples, self.rate)
     }
 }
 
@@ -315,6 +361,13 @@ pub fn gain_to_db(gain: f32) -> f32 {
 const BASE: &[&EffectInfo] = &[
     &synth::INFO,
     &drums::INFO,
+    &keys::tines::INFO,
+    &keys::reed::INFO,
+    &keys::tonewheel::INFO,
+    &keys::fmkeys::INFO,
+    &keys::mallets::INFO,
+    &keys::bass808::INFO,
+    &keys::grain::INFO,
     &channel::INFO,
     &eq::INFO,
     &vintage_eq::INFO,
@@ -415,7 +468,7 @@ pub fn declared_latency(id: &str, values: &[f32], rate: u32) -> Option<u32> {
 
 /// Effects whose detection can listen to another track.
 pub fn supports_sidechain(id: &str) -> bool {
-    matches!(id, "compressor" | "gate")
+    matches!(id, "compressor" | "gate" | "grain")
 }
 
 pub fn info(id: &str) -> Option<&'static EffectInfo> {
@@ -444,6 +497,13 @@ pub fn create(id: &str) -> Option<Box<dyn Effect>> {
         "analyzer" => Some(Box::new(analyzer::Analyzer::default())),
         "drums" => Some(Box::new(drums::Drums::default())),
         "synth" => Some(Box::new(synth::Synth::default())),
+        "tines" => Some(Box::new(keys::tines::Tines::default())),
+        "reed" => Some(Box::new(keys::reed::Reed::default())),
+        "tonewheel" => Some(Box::new(keys::tonewheel::Tonewheel::default())),
+        "fmkeys" => Some(Box::new(keys::fmkeys::FmKeys::default())),
+        "mallets" => Some(Box::new(keys::mallets::Mallets::default())),
+        "bass808" => Some(Box::new(keys::bass808::Bass808::default())),
+        "grain" => Some(Box::new(keys::grain::GrainSynth::default())),
         "amp_rig" => Some(Box::new(rig::Rig::default())),
         "tuner" => Some(Box::new(tuner::Tuner::default())),
         "pitch_correct" => Some(Box::new(pitch_correct::PitchCorrect::default())),
