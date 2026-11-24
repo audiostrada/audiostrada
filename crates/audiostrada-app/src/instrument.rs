@@ -50,6 +50,9 @@ pub struct Args {
     pub velocities: Vec<u8>,
     /// How long each note is held, in seconds.
     pub hold: f64,
+    /// Seconds a plugin runs idle in real time before the notes, to finish loading its samples
+    /// and its settings: many do it in the background and stay silent meanwhile.
+    pub warmup: f64,
     /// Settings of a built-in instrument, by parameter id.
     pub set: Vec<(String, f32)>,
 }
@@ -65,6 +68,7 @@ impl Default for Args {
             keys: (28..=100).step_by(7).collect(),
             velocities: vec![20, 45, 70, 95, 120],
             hold: 4.0,
+            warmup: 10.0,
             set: Vec::new(),
         }
     }
@@ -171,6 +175,9 @@ fn measure_source(
     let length = phrase_at + PHRASE.len() as f64 * PHRASE_CHORD + PHRASE_TAIL;
     let track = target(&doc, args.track.as_deref())?;
     doc.history_mut().edit("Measure", |p| {
+        // A loop left in the project would play its range forever instead of the notes.
+        p.loop_range = None;
+        p.punch_range = None;
         for t in &mut p.tracks {
             let t = Arc::make_mut(t);
             if t.id == track {
@@ -182,7 +189,13 @@ fn measure_source(
         }
         p.add_midi_clip(track, 0, at(length), notes);
     });
-    let audio = render(&mut doc, length)?;
+    // Built-in instruments are ready at once.
+    let plugin = doc
+        .project()
+        .tracks
+        .iter()
+        .any(|t| t.id == track && t.inserts.iter().any(|i| i.effect.contains(':')));
+    let audio = render(&mut doc, length, if plugin { args.warmup } else { 0.0 })?;
     let mono: Vec<f32> = audio
         .channel(0)
         .iter()
@@ -268,7 +281,9 @@ fn target(doc: &Document, named: Option<&str>) -> Result<audiostrada_core::Track
         .context("no track with an instrument: name it with --track")
 }
 
-fn render(doc: &mut Document, seconds: f64) -> Result<AudioData> {
+fn render(doc: &mut Document, seconds: f64, warmup: f64) -> Result<AudioData> {
+    // Faster than real time, a plugin late on a block would leave it silent: let it take its time.
+    doc.player_mut().set_offline(true);
     let mut processor = doc.processor(RATE, BLOCK);
     if !doc.wait_loaded(std::time::Duration::from_secs(120)) {
         bail!("timed out preparing the project");
@@ -276,9 +291,19 @@ fn render(doc: &mut Document, seconds: f64) -> Result<AudioData> {
     for message in doc.take_messages() {
         println!("{message}");
     }
+    let mut storage = ChannelBuffers::new(0, 2, BLOCK);
+    let block = std::time::Duration::from_secs_f64(BLOCK as f64 / f64::from(RATE));
+    let warm = std::time::Instant::now();
+    // As in the window: the plugin's requests (a restart once its settings are loaded, values
+    // it changed) are answered between blocks.
+    while warm.elapsed().as_secs_f64() < warmup {
+        doc.update();
+        processor.render(&mut storage.buffers(BLOCK));
+        std::thread::sleep(block);
+    }
+    doc.update();
     doc.player_mut().engine_mut().play();
     let length = (seconds * f64::from(RATE)) as usize;
-    let mut storage = ChannelBuffers::new(0, 2, BLOCK);
     let mut channels: Vec<Vec<f32>> = (0..2).map(|_| Vec::with_capacity(length)).collect();
     while channels[0].len() < length {
         let frames = (length - channels[0].len()).min(BLOCK);

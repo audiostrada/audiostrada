@@ -43,12 +43,13 @@ Commands:
                      band, tail, modulation
   measure-instrument SOURCE... [--out DIR] [--wav DIR] [--track NAME] [--name NAME]
                      [--keys 28-100/7] [--velocities 20,45,70,95,120] [--hold S]
-                     [--set PARAM=VALUE]...
+                     [--warmup S] [--set PARAM=VALUE]...
                      Play test notes through instruments (a .strada project, its track holding
                      the instrument set up by hand, or a built-in one by id) and fingerprint
                      them: pitch, partials and their decay, loudness and brightness by
                      velocity, attack, release; a JSON file each, and with --wav what was
-                     played and a phrase for listening, at the same level
+                     played and a phrase for listening, at the same level; a plugin first runs
+                     idle in real time for --warmup seconds (default 10) to finish loading
   measure-instrument-report FILE.json|DIR... --output PAGE.html
                      Compare instrument fingerprints on one page of charts
   measure-presets --dump [EFFECT...]
@@ -406,6 +407,7 @@ fn parse_measure_instrument(mut args: impl Iterator<Item = String>) -> Result<Co
             "--track" => m.track = Some(value),
             "--name" => m.name = Some(value),
             "--hold" => m.hold = value.parse().map_err(|_| invalid())?,
+            "--warmup" => m.warmup = value.parse().map_err(|_| invalid())?,
             "--keys" => {
                 // FIRST-LAST/STEP, or keys apart by commas.
                 m.keys = if let Some((range, step)) = value.split_once('/') {
@@ -436,7 +438,7 @@ fn parse_measure_instrument(mut args: impl Iterator<Item = String>) -> Result<Co
     if m.name.is_some() && m.sources.len() > 1 {
         return Err("'--name' names one source's fingerprint".into());
     }
-    if m.keys.is_empty() || m.velocities.is_empty() || m.hold <= 0.0 {
+    if m.keys.is_empty() || m.velocities.is_empty() || m.hold <= 0.0 || m.warmup < 0.0 {
         return Err("'measure-instrument' needs keys, velocities and a hold time".into());
     }
     Ok(Command::MeasureInstrument(m))
@@ -561,7 +563,7 @@ mod tests {
     #[test]
     fn measure_instrument_takes_its_sources_keys_and_settings() {
         let Ok(Command::MeasureInstrument(m)) = parse_str(
-            "measure-instrument ep80 song.strada --keys 40-64/12 --velocities 30,90 --set hammer=70",
+            "measure-instrument ep80 song.strada --keys 40-64/12 --velocities 30,90 --set hammer=70 --warmup 3",
         ) else {
             panic!("not parsed");
         };
@@ -569,6 +571,7 @@ mod tests {
         assert_eq!(m.keys, [40, 52, 64]);
         assert_eq!(m.velocities, [30, 90]);
         assert_eq!(m.set, [("hammer".to_owned(), 70.0)]);
+        assert_eq!(m.warmup, 3.0);
         assert!(parse_str("measure-instrument").is_err());
         assert!(parse_str("measure-instrument ep80 --velocities 0").is_err());
     }
