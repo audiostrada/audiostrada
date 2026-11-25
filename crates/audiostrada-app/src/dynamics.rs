@@ -2,7 +2,7 @@
 //! by `audiostrada_dsp::measure_dynamics`, a JSON file each.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, anyhow, bail};
 use audiostrada_dsp::measure::{BLOCK, RATE};
@@ -47,6 +47,33 @@ struct Reference {
     /// Measure a tape echo instead (set to play its echo alone).
     #[serde(default)]
     echo: bool,
+    /// A project (`.strada`) holding this plugin set up by hand: its state is loaded before
+    /// `params` and `shown`, for what a plugin does not expose to the host (bands, modes).
+    #[serde(default)]
+    state: Option<PathBuf>,
+}
+
+/// The state saved for plugin `key` in `project`: its first insert, on a track or the master.
+fn saved_state(project: &Path, key: &str) -> anyhow::Result<Vec<u8>> {
+    let text = std::fs::read_to_string(project).with_context(|| project.display().to_string())?;
+    let json: serde_json::Value =
+        serde_json::from_str(&text).with_context(|| project.display().to_string())?;
+    let p = &json["project"];
+    let tracks = p["tracks"].as_array().into_iter().flatten();
+    let inserts = tracks
+        .chain(std::iter::once(&p["master"]))
+        .filter_map(|channel| channel["inserts"].as_array())
+        .flatten();
+    for insert in inserts {
+        if insert["effect"].as_str() == Some(key) {
+            let state = insert["state"]
+                .as_str()
+                .with_context(|| format!("{key} has no saved state in {}", project.display()))?;
+            return audiostrada_core::base64::decode(state)
+                .with_context(|| format!("unreadable state of {key} in {}", project.display()));
+        }
+    }
+    bail!("no {key} in {}", project.display())
 }
 
 fn eight() -> f32 {
@@ -209,6 +236,13 @@ fn one(reference: &Reference) -> anyhow::Result<Measured> {
         return builtin(reference, id);
     }
     let mut instance = crate::measure::load_plugin(&reference.plugin)?;
+    if let Some(project) = &reference.state {
+        let key = instance.descriptor().key();
+        let state = saved_state(project, &key)?;
+        if !instance.load_state(&state) {
+            bail!("{key} refused the state saved in {}", project.display());
+        }
+    }
     let params = instance.params();
     let find = |key: &str| {
         params
