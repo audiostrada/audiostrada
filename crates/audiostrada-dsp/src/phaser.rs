@@ -96,7 +96,9 @@ impl Effect for Phaser {
         let step = rate / self.rate;
         let offset = stereo / 360.0;
         let feedback = feedback / 100.0;
+        // Half dry, half all-passed at 50 %: the deepest notches. Level kept in power.
         let (wet, dry) = (mix / 100.0, 1.0 - mix / 100.0);
+        let level = 1.0 / (wet * wet + dry * dry).sqrt();
         for (l, r) in left.iter_mut().zip(right.iter_mut()) {
             let input = [*l, *r];
             let mut out = [0.0; 2];
@@ -117,8 +119,7 @@ impl Effect for Phaser {
                     x = y;
                 }
                 self.last[ch] = x.clamp(-4.0, 4.0);
-                // Dry plus all-passed, half each, makes the notches; mix fades it in.
-                out[ch] = input[ch] * dry + (input[ch] + x) * 0.5 * wet;
+                out[ch] = (input[ch] * dry + x * wet) * level;
             }
             *l = out[0];
             *r = out[1];

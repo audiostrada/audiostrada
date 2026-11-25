@@ -292,13 +292,15 @@ feedback it turns into a flanger.
 ### Strada-Flanger
 
 The classic jet flanger, with positive or negative feedback, stereo sweep and *Through zero*,
-the tape flanging of the sixties.
+the tape flanging of the sixties. At 50 % *Mix*, half dry and half delayed: the deepest
+notches.
 
 <!-- effect:flanger -->
 
 ### Strada-Phaser
 
-A swirling phaser of 4 to 12 stages, with feedback and stereo spread.
+A swirling phaser of 4 to 12 stages, with feedback and stereo spread. At 50 % *Mix*, half dry
+and half phased: the deepest notches.
 
 <!-- effect:phaser -->
 

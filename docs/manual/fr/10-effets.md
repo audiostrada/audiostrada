@@ -307,13 +307,15 @@ avec de la réinjection, il devient un flanger.
 ### Strada-Flanger
 
 Le flanger « avion à réaction » classique, avec réinjection positive ou négative, balayage stéréo
-et *Through zero*, le flanging à bande des années soixante.
+et *Through zero*, le flanging à bande des années soixante. À 50 % de *Mix*, moitié son direct
+et moitié retardé : les creux les plus profonds.
 
 <!-- effect:flanger -->
 
 ### Strada-Phaser
 
-Un phaser tourbillonnant de 4 à 12 étages, avec réinjection et écart stéréo.
+Un phaser tourbillonnant de 4 à 12 étages, avec réinjection et écart stéréo. À 50 % de *Mix*,
+moitié son direct et moitié déphasé : les creux les plus profonds.
 
 <!-- effect:phaser -->
 

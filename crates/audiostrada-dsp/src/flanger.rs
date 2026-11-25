@@ -141,8 +141,9 @@ impl Effect for Flanger {
         let step = hz / self.rate;
         let offset = stereo / 360.0;
         let feedback = feedback / 100.0;
+        // Half dry, half delayed at 50 %: the deepest notches. Level kept in power.
         let (wet, dry) = (mix / 100.0, 1.0 - mix / 100.0);
-        let gain = crate::db_to_gain(output);
+        let gain = crate::db_to_gain(output) / (wet * wet + dry * dry).sqrt();
         for (l, r) in left.iter_mut().zip(right.iter_mut()) {
             let mut input = [*l, *r];
             let mut out = [0.0; 2];
@@ -155,8 +156,8 @@ impl Effect for Flanger {
                     input[ch] = self.dry[ch].read(zero_at);
                 }
                 // Normalized so heavy feedback does not blow the level up.
-                let comb = (input[ch] + echo) / (1.0 + feedback.abs() * 0.5);
-                out[ch] = (input[ch] * dry + comb * wet) * gain;
+                let echo = echo / (1.0 + feedback.abs() * 0.5);
+                out[ch] = (input[ch] * dry + echo * wet) * gain;
             }
             *l = out[0];
             *r = out[1];
