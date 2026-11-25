@@ -422,8 +422,14 @@ mod tests {
         let (soft, hard) = (play(30), play(120));
         assert!(level(&hard[2400..], 220.0) > 5.0 * level(&hard[2400..], 233.0));
         assert!(rms(&hard) > 2.0 * rms(&soft));
-        let ping = |x: &[f32]| level(&x[..2400], 220.0 * 14.0) / level(&x[..2400], 220.0);
-        assert!(ping(&hard) > 2.0 * ping(&soft));
+        // Brighter: more of the body's third harmonic against its fundamental.
+        let bright = |x: &[f32]| level(&x[..2400], 660.0) / level(&x[..2400], 220.0);
+        assert!(
+            bright(&hard) > 2.0 * bright(&soft),
+            "{} {}",
+            bright(&hard),
+            bright(&soft)
+        );
     }
 
     #[test]

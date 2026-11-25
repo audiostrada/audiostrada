@@ -651,9 +651,11 @@ mod tests {
                 }
                 assert!(d >= last * 0.9, "{name} at {drive} %: {d} after {last}");
                 last = d;
+                // The fuzz squares the wave from low drives: louder for the same peak.
+                let most = if mode == 2 { 6.5 } else { 3.0 };
                 if drive <= 40.0 {
                     let db = crate::gain_to_db(level(&out, 220.0) / 0.3);
-                    assert!(db.abs() < 3.0, "{name} at {drive} %: {db} dB");
+                    assert!(db.abs() < most, "{name} at {drive} %: {db} dB");
                 }
             }
             assert!(last > 0.2, "{name} can be pushed hard: {last}");

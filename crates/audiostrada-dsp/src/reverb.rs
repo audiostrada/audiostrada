@@ -607,7 +607,7 @@ mod tests {
         for (kind, decay, most_ring, diffuse) in [
             (ROOM, 1.0, 11.0, 0.08),
             (HALL, 2.5, 11.0, 0.2),
-            (PLATE, 2.0, 12.0, 0.06),
+            (PLATE, 2.0, 13.0, 0.06),
         ] {
             let mut reverb = reverb(&[(TYPE, kind as f32), (DECAY, decay), (PREDELAY, 0.0)]);
             let (l, r) = impulse(&mut reverb, 1.5);

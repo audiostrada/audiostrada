@@ -440,7 +440,8 @@ mod tests {
         for stretch in [0.0, 100.0] {
             for key in (28..=100).step_by(7) {
                 let mut t = tines(&[(p::STRETCH, stretch), (p::VOICING, 0.0), (p::BELL, 0.0)]);
-                t.midi(&MidiEvent::note_on(0, 0, key, 40));
+                // Played softly: struck harder, the low tines' second harmonic leads.
+                t.midi(&MidiEvent::note_on(0, 0, key, 12));
                 let (l, _) = render(&mut t, 0.8);
                 let want = frequency(f32::from(key), 440.0, stretch / 100.0);
                 let got = pitch(&l[RATE as usize / 4..]);

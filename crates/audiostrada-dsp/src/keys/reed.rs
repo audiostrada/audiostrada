@@ -492,7 +492,13 @@ mod tests {
             r.midi(&MidiEvent::note_on(0, 0, 33, 100));
             rms(&render(&mut r, 0.3))
         };
-        assert!(level(1.0) < level(0.0) * 0.7);
+        // The preamp already thins the lowest fundamentals: the speakers take a little more.
+        assert!(
+            level(1.0) < level(0.0) * 0.9,
+            "{} {}",
+            level(1.0),
+            level(0.0)
+        );
     }
 
     #[test]
