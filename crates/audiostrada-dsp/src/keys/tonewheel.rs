@@ -163,6 +163,9 @@ pub struct Tonewheel {
     wheels: [(f32, f32); WHEELS],
     steps: [(f32, f32); WHEELS],
     tuned: f32,
+    /// Each wheel's level, and how much of the wheels an octave and a twelfth above it
+    /// cross into its output.
+    color: Box<[(f32, f32, f32); WHEELS]>,
     keys: Box<[Key; 128]>,
     /// The wheel of each key's contacts.
     table: Box<[[u8; 9]; 128]>,
@@ -196,6 +199,14 @@ impl Default for Tonewheel {
             wheels: [(1.0, 0.0); WHEELS],
             steps: [(1.0, 0.0); WHEELS],
             tuned: 0.0,
+            color: Box::new(std::array::from_fn(|w| {
+                let w = w as f32;
+                (
+                    crate::db_to_gain(-0.35 * (w - 55.0).max(0.0)),
+                    crate::db_to_gain((-17.0 - 0.55 * (w - 18.0)).min(-12.0)),
+                    crate::db_to_gain((-38.0 - 0.37 * (w - 18.0)).min(-32.0)),
+                )
+            })),
             keys: Box::new([Key::default(); 128]),
             table: Box::new(std::array::from_fn(|k| {
                 std::array::from_fn(|b| wheel(k as u8, b) as u8)
@@ -440,6 +451,19 @@ impl Effect for Tonewheel {
                 // The lowest wheels are not quite round: a touch of their third harmonic.
                 let impure = 0.05 * (1.0 - w as f32 / 36.0).max(0.0);
                 now[w] = ns + impure * (3.0 * ns - 4.0 * ns * ns * ns);
+            }
+            // The highest wheels come out softer, and each picks up a little of its upper
+            // neighbors in the generator: the organ's faint second and third harmonics.
+            for w in 0..WHEELS {
+                let (level, octave, twelfth) = self.color[w];
+                let mut x = now[w];
+                if w + 12 < WHEELS {
+                    x += octave * now[w + 12];
+                }
+                if w + 19 < WHEELS {
+                    x += twelfth * now[w + 19];
+                }
+                now[w] = x * level;
             }
             let mut sum = 0.0;
             for &i in &list[..count] {

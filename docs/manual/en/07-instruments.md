@@ -154,6 +154,8 @@ click at the strike, a long decay or one that follows the key, and distortion th
 lowest octave clean (*Clean sub*), so that it carries on small speakers without losing its
 weight.
 
+- **Length**: the decay at C3. Lower notes ring longer and higher ones shorter, as on the
+  808s it comes from.
 - **Glide**: in *Mono*, a note played over a held one slides to it without striking again, as
   808s do in trap. Over a note that has nearly faded, it strikes again.
 - **The screen** draws the note: its punch, its length, its drive.

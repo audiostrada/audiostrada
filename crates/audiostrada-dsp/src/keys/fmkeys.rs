@@ -120,7 +120,7 @@ const SHAPES: [Character; 4] = [
     },
 ];
 
-const OUTPUT: f32 = 0.34;
+const OUTPUT: f32 = 0.45;
 /// The detune between the pairs at full Detune, in cents.
 const DETUNE_CENTS: f32 = 7.0;
 
@@ -207,10 +207,11 @@ impl FmKeys {
         let hz = self.hz(key) * self.keys.bend(self.keys.slots[i].channel);
         let steps = self.steps(hz);
         let decay_scale = self.unit(p::DECAY);
-        let body_t60 = 9.0 * 2f32.powf(-(f32::from(key) - 48.0) / 18.0) * decay_scale * c.ring;
+        let body_t60 = 3.3 * 2f32.powf(-(f32::from(key) - 60.0) / 96.0) * decay_scale * c.ring;
         let tine_t60 = 0.6 * 2f32.powf(-(f32::from(key) - 60.0) / 24.0) * decay_scale;
         let tone = self.unit(p::TONE);
-        let index = (0.3 + 2.4 * tone) * (0.35 + 0.65 * v) * c.depth;
+        // The modulation thins out up the keyboard, as the classic patches scale it.
+        let index = (0.3 + 2.4 * tone) * (0.35 + 0.65 * v) * c.depth * 2f32.powf(-3.5 * k);
         let tine = self.unit(p::TINE) * (0.1 + 0.9 * v) * (1.0 - 0.5 * k);
         let voice = &mut self.voices[i];
         if !again {
@@ -222,7 +223,7 @@ impl FmKeys {
         voice.steps = steps;
         voice.damped = false;
         voice.loudness =
-            crate::db_to_gain(-30.0 * dynamics * (1.0 - v)) * crate::db_to_gain(3.0 * k);
+            crate::db_to_gain(-55.0 * dynamics * (1.0 - v)) * crate::db_to_gain(3.0 * k);
         voice.tine_level = tine;
         voice.body = 1.0;
         voice.body_index = index;
@@ -239,7 +240,7 @@ impl FmKeys {
 
     fn damp(&mut self, i: usize) {
         let rate = self.rate;
-        let release = 0.08 + 0.9 * self.unit(p::DAMPER);
+        let release = 0.15 + 2.1 * self.unit(p::DAMPER);
         let voice = &mut self.voices[i];
         voice.falls[0] = decay(release, rate);
         voice.falls[2] = decay(release.min(0.2), rate);
@@ -349,7 +350,7 @@ impl Effect for FmKeys {
                 voice.tine *= voice.falls[2];
                 voice.tine_index *= voice.falls[3];
             }
-            let floor = if voice.damped { 1e-4 } else { 3e-5 };
+            let floor = if voice.damped { 1e-5 } else { 1e-6 };
             if voice.body < floor && voice.tine < floor {
                 self.keys.finish(i);
             }

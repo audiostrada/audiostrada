@@ -166,6 +166,8 @@ note (*Punch*), un clic à la frappe, une longue chute ou une qui suit la touche
 distorsion qui garde l'octave la plus grave propre (*Sub propre*), pour qu'elle porte sur de
 petits haut-parleurs sans perdre son poids.
 
+- **Durée** : la chute au do 3. Les notes plus graves durent plus longtemps, les plus aiguës
+  moins, comme sur les 808 dont elle vient.
 - **Glissé** : en *Mono*, une note jouée sur une note tenue glisse vers elle sans la refrapper,
   comme les 808 de la trap. Sur une note presque éteinte, elle est refrappée.
 - **L'écran** dessine la note : son punch, sa durée, sa saturation.

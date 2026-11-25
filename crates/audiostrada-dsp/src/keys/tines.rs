@@ -89,8 +89,11 @@ const WEIGHTS: [f32; MODES] = [1.0, 0.22, 0.09, 0.025];
 const LOW: f32 = 28.0;
 const SPAN: f32 = 72.0;
 /// Swing of the tine at full strength, in widths of the pickup's field.
-const SWING: f32 = 0.95;
-const OUTPUT: f32 = 0.3;
+const SWING: f32 = 1.9;
+/// How much wider the low tines swing than the high ones, in dB across the keyboard: the
+/// bass barks and the treble rings almost pure.
+const SPREAD: f32 = 42.0;
+const OUTPUT: f32 = 0.2;
 /// The pickup's slope at the usual voicing: a tine set closer to the pole gives less
 /// fundamental and more growl, as on the real instrument.
 const SLOPE: f32 = 0.6;
@@ -109,6 +112,11 @@ struct Voice {
     /// The pickup's flux at the last sample.
     flux: f32,
     damped: bool,
+}
+
+/// Swing of a key against the middle of the keyboard (key 56), in dB.
+fn spread(key: u8) -> f32 {
+    SPREAD * (56.0 - f32::from(key)) / SPAN
 }
 
 /// Where the key sits on the keyboard, from 0 (lowest) to 1.
@@ -177,14 +185,13 @@ impl Tines {
         let rate = self.rate;
         let v = velocity(struck, self.value(p::CURVE));
         let dynamics = self.unit(p::DYNAMICS);
-        let k = place(key);
-        // Velocity spans up to 30 dB, as the instrument played from a touch to a blow.
-        let force =
-            SWING * crate::db_to_gain(-30.0 * dynamics * (1.0 - v)) * crate::db_to_gain(4.0 * k);
+        // About 30 dB from a touch to a blow at the default Velocity, after the pickup.
+        let force = SWING * crate::db_to_gain(-85.0 * dynamics * (1.0 - v).powf(1.3) + spread(key));
         let bell = self.unit(p::BELL);
         let hz = self.hz(key) * self.keys.bend(self.keys.slots[i].channel);
         let decay = self.unit(p::DECAY);
-        let t60 = 14.0 * 2f32.powf(-(f32::from(key) - LOW) / 20.0) * decay;
+        let u = f32::from(key) - LOW;
+        let t60 = 2f32.powf(5.0 - 0.028 * u - 6.7e-6 * u * u * u) * decay;
         let t60s = [
             t60,
             t60 * 1.5,
@@ -333,8 +340,9 @@ impl Effect for Tines {
                 }
             }
             // The pickup reads the tine's speed through the field: scaled back by the
-            // frequency, every key comes out at the same level for the same swing.
-            let gain = -OUTPUT * rate / (TAU * hz * SLOPE);
+            // frequency and the key's spread, every key comes out at about the same level.
+            let gain =
+                -OUTPUT * rate / (TAU * hz * SLOPE) * crate::db_to_gain(-0.95 * spread(voice.key));
             for (j, out) in left.iter_mut().enumerate() {
                 let push = voice.hammer.tick();
                 let mut x = 0.0;

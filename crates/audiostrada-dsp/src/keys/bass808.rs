@@ -50,7 +50,7 @@ const PARAMS: [ParamInfo; p::COUNT] = [
     param("tune", "Tune", -12.0, 12.0, 0.0, "st"),
     param("punch", "Punch", 0.0, 24.0, 7.0, "st"),
     param("punch_time", "Punch time", 5.0, 200.0, 40.0, "ms"),
-    param("length", "Length", 0.1, 5.0, 1.2, "s"),
+    param("length", "Length", 0.1, 5.0, 3.3, "s"),
     choice("gate", "Note length", &LENGTHS, 0.0),
     param("release", "Release", 5.0, 500.0, 60.0, "ms"),
     param("click", "Click", 0.0, 100.0, 30.0, "%"),
@@ -300,7 +300,11 @@ impl Effect for Bass808 {
         let rate = self.rate;
         let tune = self.value(p::TUNE).round();
         let punch_fall = (-1.0 / (self.value(p::PUNCH_TIME) * 0.001 * rate)).exp();
-        let full = super::modal::decay(self.value(p::LENGTH), rate);
+        // Length is the decay at C3: lower notes ring longer, higher ones shorter.
+        let length = self.value(p::LENGTH);
+        let fulls = self
+            .voices
+            .map(|v| super::modal::decay(length * 2f32.powf(-(v.target + 21.0) / 10.0), rate));
         let release = super::modal::decay(self.value(p::RELEASE) * 0.001, rate);
         let attack = 1.0 / (0.0008 * rate);
         let glide_ms = self.value(p::GLIDE);
@@ -310,14 +314,20 @@ impl Effect for Bass808 {
             1.0 - (-1.0 / (glide_ms * 0.001 * rate)).exp()
         };
         let body = self.unit(p::BODY);
-        let warm = 1.0 + 3.0 * body;
-        let warm_norm = 1.0 / warm.tanh();
+        // The body rounds the low notes, with an even harmonic, and leaves the high ones
+        // nearly pure.
+        let bodies = self.voices.map(|v| {
+            let low = v.target + 41.0;
+            let warm = 0.05 + 4.0 * body * 2f32.powf(-low / 28.0);
+            (warm, 2.8 * body * 2f32.powf(-low / 7.5), 1.0 / warm.tanh())
+        });
         let click = self.unit(p::CLICK) * 0.5;
         let click_fall = (-1.0 / (0.002 * rate)).exp();
         let a4 = 440.0 / rate;
         for out in left.iter_mut() {
             let mut sum = 0.0;
-            for v in &mut self.voices {
+            for ((v, &full), &(warm, even, norm)) in self.voices.iter_mut().zip(&fulls).zip(&bodies)
+            {
                 if !v.on {
                     continue;
                 }
@@ -326,7 +336,7 @@ impl Effect for Bass808 {
                 v.punch *= punch_fall;
                 v.phase = (v.phase + a4 * 2f32.powf(pitch / 12.0)).fract();
                 let sine = (v.phase * TAU).sin();
-                let tone = (sine * warm).tanh() * warm_norm;
+                let tone = ((sine * warm).tanh() + even * (sine * sine - 0.5)) * norm;
                 v.attack = (v.attack + attack).min(1.0);
                 v.level *= if v.releasing { release } else { full };
                 let mut x = tone * v.level * v.attack * v.gain;

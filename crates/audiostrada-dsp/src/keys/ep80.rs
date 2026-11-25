@@ -100,7 +100,7 @@ const LOWEST_HZ: f32 = 24.0;
 /// Where the hammer strikes, as a fraction of the string: the partials it lands on are
 /// missing, as on a piano.
 const STRIKE: f32 = 1.0 / 8.0;
-const OUTPUT: f32 = 31.0;
+const OUTPUT: f32 = 62.0;
 
 /// Where the key sits on the keyboard, from 0 (lowest) to 1.
 fn place(key: u8) -> f32 {
@@ -282,6 +282,9 @@ struct Voice {
     at: f32,
     /// The blow again, delayed to the strike point's reflection.
     echo: f32,
+    /// The pickup's darkening: a two-pole low-pass following the note and the blow.
+    shut: f32,
+    low: [f32; 2],
     thump: Thump,
     /// The last output, for the pickup's tilt, and a slow measure of the level.
     last: f32,
@@ -359,7 +362,9 @@ impl Ep80 {
     }
 
     fn t60(&self, key: u8) -> f32 {
-        14.0 * 2f32.powf(-(f32::from(key) - LOW) / 20.0) * self.unit(p::DECAY)
+        let u = f32::from(key) - LOW;
+        let past = (u - 20.0).max(0.0);
+        2f32.powf(5.6 - 0.0031 * past * past).max(3.0) * self.unit(p::DECAY)
     }
 
     fn tune_voice(&mut self, i: usize, hz: f32) {
@@ -398,10 +403,10 @@ impl Ep80 {
         let dynamics = self.unit(p::DYNAMICS);
         let hammer = self.unit(p::HAMMER);
         let hz = self.hz(key) * self.keys.bend(self.keys.slots[i].channel);
-        // The felt's contact: longer for a soft blow and a soft hammer, never past half a
+        // The felt's contact: longer for a soft blow and a soft hammer, never past 0.6 of a
         // period of the note.
-        let contact = ((0.0035 - 0.0028 * v) * (1.6 - 1.2 * hammer)).max(0.000_25);
-        let length = (contact * rate).min(0.5 * rate / hz).max(2.0);
+        let contact = ((0.0045 - 0.0036 * v) * (1.6 - 1.2 * hammer)).max(0.000_25);
+        let length = (contact * rate).min(0.6 * rate / hz).max(2.0);
         // Velocity spans up to 32 dB; the blow's height makes up for its length, so that
         // every key and every hammer starts the string at about the same swing.
         let height = crate::db_to_gain(-32.0 * dynamics * (1.0 - v)) * 2.0 / length
@@ -423,6 +428,11 @@ impl Ep80 {
         voice.blow = (length, height);
         voice.at = 0.0;
         voice.echo = STRIKE * rate / hz;
+        let fc = (hz * (1.0 + 0.8 * v)).min(0.4 * rate);
+        voice.shut = 1.0 - (-TAU * fc / rate).exp();
+        if !again {
+            voice.low = [0.0; 2];
+        }
         voice
             .thump
             .hit(noise * v * 0.002, 0.01, 700.0 + 1800.0 * v, rate);
@@ -586,7 +596,9 @@ impl Effect for Ep80 {
             }
             let voice = &mut self.voices[i];
             let count = voice.count.max(1);
-            let share = OUTPUT / count as f32;
+            // The treble comes out softer than the middle, as on the instrument.
+            let share = OUTPUT / count as f32
+                * crate::db_to_gain(-0.24 * (f32::from(voice.key) - 56.0).max(0.0));
             for out in left.iter_mut() {
                 // The blow, minus its reflection from the near end: the strike point.
                 let input = if voice.at < voice.blow.0 + voice.echo + 1.0 {
@@ -603,6 +615,9 @@ impl Effect for Ep80 {
                 // The piezo under the bridge reads its force: a little more of the highs.
                 let y = sum - 0.35 * voice.last;
                 voice.last = sum;
+                voice.low[0] += voice.shut * (y - voice.low[0]);
+                voice.low[1] += voice.shut * (voice.low[0] - voice.low[1]);
+                let y = voice.low[1];
                 voice.level += follow * (y.abs() - voice.level);
                 *out += y * share + voice.thump.tick() * OUTPUT;
             }

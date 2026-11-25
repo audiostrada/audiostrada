@@ -92,10 +92,10 @@ const WEIGHTS: [f32; MODES] = [1.0, 0.06, 0.015];
 const LOW: f32 = 33.0;
 const SPAN: f32 = 63.0;
 /// Swing of the reed at full strength, in fractions of its gap to the comb.
-const SWING: f32 = 0.9;
+const SWING: f32 = 1.8;
 /// Most of the swing: the reed's travel saturates past it.
 const LIMIT: f32 = 0.9;
-const OUTPUT: f32 = 0.5;
+const OUTPUT: f32 = 0.22;
 /// The narrowest the gap gets, as a fraction of its rest.
 const FLOOR: f32 = 0.38;
 
@@ -111,6 +111,11 @@ struct Voice {
     /// Frequency the modes are tuned to, bend included.
     hz: f32,
     damped: bool,
+}
+
+/// Swing of a key against the middle of the keyboard (key 56), in dB: low reeds swing wider.
+fn spread(key: u8) -> f32 {
+    24.0 * (56.0 - f32::from(key)) / 72.0
 }
 
 /// Where the key sits on the keyboard, from 0 (lowest) to 1.
@@ -139,7 +144,7 @@ pub struct Reed {
     voices: Box<[Voice; VOICES]>,
     /// How near the comb is as heard, gliding to the Bark: a knob turned never clicks.
     heard: f32,
-    /// The preamp's voicing: no rumble under the lowest notes, a forward middle.
+    /// The preamp's voicing: little of the lowest fundamentals, a forward middle.
     preamp: [Coefficients; 3],
     filters: [Biquad; 3],
     amp: Amp,
@@ -183,13 +188,13 @@ impl Reed {
         let v = velocity(struck, self.value(p::CURVE));
         let dynamics = self.unit(p::DYNAMICS);
         let k = place(key);
-        let force =
-            SWING * crate::db_to_gain(-30.0 * dynamics * (1.0 - v)) * crate::db_to_gain(2.0 * k);
+        let force = SWING
+            * crate::db_to_gain(-66.0 * dynamics * (1.0 - v).powf(1.3) + 2.0 * k + spread(key));
         let hammer = self.unit(p::HAMMER);
         let hz = self.hz(key) * self.keys.bend(self.keys.slots[i].channel);
         let decay = self.unit(p::DECAY);
         let below = f32::from(key) - LOW;
-        let t60 = 16.0 * 2f32.powf(-below / 20.0) * decay;
+        let t60 = 2f32.powf(4.7 - 0.074 * (f32::from(key) - 28.0)) * decay;
         let t60s = [t60, 0.5 * 2f32.powf(-below / 24.0) * decay, 0.06];
         // A harder blow and harder felt touch the reed for less time: a brighter strike.
         let contact = ((0.003 - 0.0025 * v) * (1.5 - hammer))
@@ -228,7 +233,7 @@ impl Reed {
         let rate = self.rate;
         let voice = &mut self.voices[i];
         let k = place(voice.key);
-        let release = (0.14 - 0.09 * k) * (0.3 + 1.7 * self.values[p::DAMPER] / 100.0);
+        let release = (0.235 - 0.06 * k) * (0.3 + 1.7 * self.values[p::DAMPER] / 100.0);
         for (m, mode) in voice.modes.iter_mut().enumerate() {
             mode.set_t60(if m >= 1 { release.min(0.05) } else { release }, rate);
         }
@@ -285,7 +290,7 @@ impl Effect for Reed {
         self.heard = f32::NAN;
         let rate = f64::from(sample_rate);
         self.preamp = [
-            Coefficients::design(FilterKind::HighPass, 45.0, 0.7, 0.0, rate),
+            Coefficients::design(FilterKind::HighPass, 110.0, 0.7, 0.0, rate),
             Coefficients::design(FilterKind::LowShelf, 220.0, 0.7, -2.0, rate),
             Coefficients::design(FilterKind::Peak, 800.0, 0.5, 3.5, rate),
         ];
@@ -341,6 +346,8 @@ impl Effect for Reed {
                     mode.tune(hz * RATIOS[m], rate);
                 }
             }
+            // The wider low swing brought back to an even level along the keyboard.
+            let level = crate::db_to_gain(-34.0 / 24.0 * spread(voice.key));
             for (j, out) in left.iter_mut().enumerate() {
                 let push = voice.hammer.tick();
                 let mut x = 0.0;
@@ -350,7 +357,7 @@ impl Effect for Reed {
                 let near = start + ramp * (j + 1) as f32;
                 // Louder for the same swing with the comb nearer: brought back to an even level.
                 let gain = OUTPUT / (1.0 + 2.0 * near);
-                *out += pickup(x, near) * gain + voice.thump.tick() * OUTPUT;
+                *out += pickup(x, near) * gain * level + voice.thump.tick() * OUTPUT;
             }
             if !voice.hammer.active() {
                 voice.hammer.clear();
