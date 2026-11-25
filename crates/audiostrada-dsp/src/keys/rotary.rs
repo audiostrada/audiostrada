@@ -83,6 +83,9 @@ pub(crate) struct Rotary {
     high: Coefficients,
     lows: [Biquad; 2],
     highs: [Biquad; 2],
+    /// The cabinet and its horn mouth: little above 8 kHz.
+    cabinet: Coefficients,
+    cabinets: [Biquad; 2],
     horn: Rotor,
     drum: Rotor,
     /// How much of the rotary is heard, gliding when it is switched on or off.
@@ -97,8 +100,11 @@ impl Default for Rotary {
             high: Coefficients::IDENTITY,
             lows: [Biquad::default(); 2],
             highs: [Biquad::default(); 2],
-            horn: Rotor::new(0.83, 6.75, (0.7, 0.9), 0.45, 0.6),
-            drum: Rotor::new(0.67, 5.9, (3.5, 4.5), 0.25, 0.35),
+            cabinet: Coefficients::IDENTITY,
+            cabinets: [Biquad::default(); 2],
+            // Level swings as measured on a cabinet: about 10 dB for the drum, more for the horn.
+            horn: Rotor::new(0.83, 6.75, (0.7, 0.9), 0.45, 0.8),
+            drum: Rotor::new(0.67, 5.9, (3.5, 4.5), 0.25, 0.68),
             share: 1.0,
         };
         rotary.prepare(48_000);
@@ -113,6 +119,7 @@ impl Rotary {
         // Two Butterworth stages each side: a Linkwitz-Riley crossover, flat when summed.
         self.low = Coefficients::design(FilterKind::LowPass, CROSSOVER, 0.707, 0.0, r);
         self.high = Coefficients::design(FilterKind::HighPass, CROSSOVER, 0.707, 0.0, r);
+        self.cabinet = Coefficients::design(FilterKind::LowPass, 5500.0, 0.707, 0.0, r);
         let frames = (0.012 * self.rate) as usize + 4;
         self.horn.line = Line::new(frames);
         self.drum.line = Line::new(frames);
@@ -144,6 +151,7 @@ impl Rotary {
     pub fn reset(&mut self) {
         self.lows = [Biquad::default(); 2];
         self.highs = [Biquad::default(); 2];
+        self.cabinets = [Biquad::default(); 2];
         self.horn.line.clear();
         self.drum.line.clear();
     }
@@ -179,6 +187,9 @@ impl Rotary {
             let mut hi = x;
             for f in &mut self.highs {
                 hi = f.process(&self.high, hi);
+            }
+            for f in &mut self.cabinets {
+                hi = f.process(&self.cabinet, hi);
             }
             self.horn.line.push(hi as f32);
             self.drum.line.push(lo as f32);
