@@ -111,11 +111,11 @@ impl Effect for Maximizer {
         let ceiling = db_to_gain(ceiling);
         let release_ms = release * [1.0, 0.5, 0.3][style];
         // Fast and slow recovery blended: transients recover fast, dense passages slowly,
-        // without pumping.
+        // without pumping. Transparent keeps a short tail, nearly exponential.
         let times = (
             crate::time_coefficient(release_ms, self.rate),
-            crate::time_coefficient(release_ms * 8.0, self.rate),
-            [0.5, 0.3, 0.0][style],
+            crate::time_coefficient(release_ms * [3.0, 8.0, 8.0][style], self.rate),
+            [0.3, 0.3, 0.0][style],
         );
         // Punchy and Loud shave the tallest peaks with a soft clipper before limiting.
         let clip: f32 = [0.0, 0.3, 0.7][style];
