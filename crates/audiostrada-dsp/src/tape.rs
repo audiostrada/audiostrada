@@ -56,7 +56,7 @@ const COUNT: usize = 10;
 const PARAMS: [ParamInfo; COUNT] = [
     param("drive", "Input", -12.0, 24.0, 0.0, "dB"),
     choice("speed", "Speed", &SPEEDS, 1.0),
-    param("bump", "Head bump", 0.0, 6.0, 1.5, "dB"),
+    param("bump", "Head bump", 0.0, 6.0, 1.0, "dB"),
     param("wow", "Wow & flutter", 0.0, 100.0, 0.0, "%"),
     param("hiss", "Hiss", 0.0, 100.0, 0.0, "%"),
     param("bias", "Bias", -100.0, 100.0, 0.0, "%"),
@@ -114,7 +114,7 @@ const MACHINE_SHAPES: [Machine; 4] = [
     Machine {
         bump: [45.0, 70.0, 110.0],
         bump_scale: 1.25,
-        rolloff: [8_000.0, 12_500.0, 15_000.0],
+        rolloff: [10_000.0, 16_000.0, 19_000.0],
         headroom: 1.2,
         hysteresis: 0.08,
         erasure: 0.8,
@@ -140,6 +140,8 @@ const MACHINE_SHAPES: [Machine; 4] = [
 /// Each tape: its headroom and memory relative to the machine's.
 const TAPE_SHAPES: [(f32, f32); 3] = [(1.35, 0.7), (1.0, 1.0), (0.75, 1.4)];
 const MAX_WOW_MS: f32 = 12.0;
+/// The tape's own asymmetry, before the Bias.
+const TILT: f32 = 0.05;
 const EMPHASIS_HZ: f64 = 3_000.0;
 /// 0 VU, as RMS.
 const REFERENCE: f32 = 0.125_9;
@@ -201,13 +203,21 @@ impl Default for Tape {
 }
 
 /// Saturation with memory: the previous output pulls the curve a little, a soft hysteresis.
-/// Linear at low levels, it bends gently towards the headroom; the bias tilts it.
+/// Clean at low levels, it bends near the headroom; tape's own slight asymmetry (and the bias)
+/// tilts it, for a second harmonic.
 #[inline]
 fn saturate(x: f32, memory: &mut f32, bias: f32, headroom: f32, hysteresis: f32) -> f32 {
-    let v = (x + hysteresis * *memory) / headroom + bias;
-    let y = (v.tanh() - bias.tanh()) * headroom;
+    let tilt = bias + TILT;
+    let v = (x + hysteresis * *memory) / headroom + tilt;
+    let y = (knee(v) - knee(tilt)) * headroom;
     *memory = y;
     y
+}
+
+/// A soft clip with a firmer knee than tanh: little distortion until near the top.
+#[inline]
+fn knee(u: f32) -> f32 {
+    u / (1.0 + u.abs().powi(3)).cbrt()
 }
 
 impl Tape {
