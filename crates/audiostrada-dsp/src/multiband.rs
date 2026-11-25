@@ -154,7 +154,7 @@ const fn params() -> [ParamInfo; COUNT] {
 }
 
 const PARAMS: [ParamInfo; COUNT] = params();
-const KNEE_DB: f32 = 6.0;
+const KNEE_DB: f32 = 10.0;
 /// Most an upward band lifts, and the level under which it stops lifting (the noise floor).
 const MAX_LIFT_DB: f32 = 24.0;
 const FLOOR_DB: f32 = -80.0;
@@ -340,7 +340,8 @@ impl Effect for MultibandComp {
                 ratio: self.band(b, p::RATIO),
                 below: self.band(b, p::BELOW),
                 up: self.band(b, p::UPWARD),
-                attack: coefficient(self.band(b, p::ATTACK)),
+                // On a rectified signal the follower is 2.5 times slower than its constant.
+                attack: coefficient(0.4 * self.band(b, p::ATTACK)),
                 release: coefficient(self.band(b, p::RELEASE)),
                 gain: self.band(b, p::GAIN),
                 bypass: self.band(b, p::BYPASS) >= 0.5,
