@@ -92,9 +92,9 @@ pub fn drive_db(percent: f32) -> f32 {
 }
 
 /// The gain into the clipping of a type at a drive, dB: the fuzz, whose curve already
-/// amplifies by nearly four, starts lower so that it saturates as the others do.
+/// amplifies by nearly four, saturates quiet signals already, as the classic pedals do.
 pub fn clip_db(mode: f32, percent: f32) -> f32 {
-    let trim = if mode.round() as u32 == 2 { 11.5 } else { 0.0 };
+    let trim = if mode.round() as u32 == 2 { -12.0 } else { 0.0 };
     drive_db(percent) - trim
 }
 
@@ -311,22 +311,23 @@ impl Default for Drive {
 
 fn shape(mode: u32, x: f32) -> f32 {
     match mode {
-        // Soft and slightly asymmetric, like a diode overdrive.
+        // Soft and nearly symmetric, like the diodes of an overdrive: odd harmonics first.
         0 => {
-            let y = (x + 0.2).tanh() - 0.2f32.tanh();
-            y / (1.0 + 0.2f32.tanh())
+            let y = (x + 0.02).tanh() - 0.02f32.tanh();
+            y / (1.0 + 0.02f32.tanh())
         }
         1 => x.clamp(-1.0, 1.0) * 0.9 + (x * 2.0).tanh() * 0.1,
         2 => {
             let y = (2.5 * x).tanh();
             (y * 1.5).clamp(-0.8, 1.0)
         }
-        // Grid current flattens the positive swing sooner than cutoff does the negative one.
+        // Grid current flattens the positive swing at a firm knee, long before cutoff touches
+        // the negative one: mostly even harmonics.
         3 => {
             if x >= 0.0 {
-                1.0 - (-x).exp()
+                x / (1.0 + x.powi(4)).sqrt().sqrt()
             } else {
-                ((1.6 * x).exp() - 1.0) / 1.6
+                x / (1.0 + 0.02 * x * x).sqrt()
             }
         }
         // Softer than tanh: the peaks round off slowly.
