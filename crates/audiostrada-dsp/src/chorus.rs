@@ -2,6 +2,7 @@
 //! ensemble), the sides apart by the stereo phase, a tone filter on the voices, the rate free or
 //! synced to the tempo; with feedback it turns into a flanger.
 
+use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::delay::{NOTE_NAMES, synced_seconds};
 use crate::line::Line;
 use crate::{Effect, EffectInfo, ParamInfo, choice, param, switch};
@@ -44,6 +45,9 @@ pub struct Chorus {
     phase: f32,
     /// The tone filter on each side's voices.
     tone: [f32; 2],
+    /// The bucket-brigade's filters: the voices are dark above 9 kHz, as on the classic units.
+    dark: Coefficients,
+    darks: [Biquad; 2],
 }
 
 impl Default for Chorus {
@@ -55,6 +59,8 @@ impl Default for Chorus {
             lines: Default::default(),
             phase: 0.0,
             tone: [0.0; 2],
+            dark: Coefficients::IDENTITY,
+            darks: [Biquad::default(); 2],
         };
         chorus.prepare(48_000, 0);
         chorus
@@ -66,6 +72,7 @@ impl Effect for Chorus {
         self.rate = sample_rate as f32;
         let frames = (MAX_MS * 0.001 * self.rate) as usize + 4;
         self.lines = [Line::new(frames), Line::new(frames)];
+        self.dark = Coefficients::design(FilterKind::LowPass, 9000.0, 0.707, 0.0, self.rate.into());
     }
 
     fn set_param(&mut self, index: usize, value: f32) {
@@ -117,7 +124,7 @@ impl Effect for Chorus {
                     let length = base * (1.0 + 0.15 * v as f32) + sweep * angle.sin();
                     echo += self.lines[ch].read(length.clamp(1.0, room));
                 }
-                let echo = echo * level;
+                let echo = self.darks[ch].process(&self.dark, f64::from(echo * level)) as f32;
                 self.tone[ch] = echo + pole * (self.tone[ch] - echo);
                 let echo = self.tone[ch];
                 self.lines[ch].push(dry[ch] + echo * feedback);
@@ -134,6 +141,7 @@ impl Effect for Chorus {
             line.clear();
         }
         self.tone = [0.0; 2];
+        self.darks = [Biquad::default(); 2];
     }
 }
 
