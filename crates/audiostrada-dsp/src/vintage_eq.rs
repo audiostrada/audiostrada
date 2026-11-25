@@ -1,7 +1,8 @@
 //! Program equalizer in the manner of the passive tube units: a low boost and a low
-//! attenuation shelf on the same frequency (together they make the bump with a dip above),
-//! a high boost with a bandwidth, a high attenuation shelf, and a tube stage run at four
-//! times the rate. The curves keep their analog shape up to Nyquist and settings glide.
+//! attenuation on the same frequency (together, the bump with a dip above), a high boost with
+//! a bandwidth, a high attenuation shelf, and a tube stage run at four times the rate. The
+//! passive network's gentle first-order shelves turn their corner as the knobs turn; the
+//! curves were fitted on measured units and settings glide.
 
 use crate::biquad::{Biquad, Coefficients, FilterKind};
 use crate::drive::{Oversampler, Taps};
@@ -26,11 +27,14 @@ pub const HIGH_FREQS: [&str; 7] = [
 const HIGH_HZ: [f32; 7] = [3000.0, 4000.0, 5000.0, 8000.0, 10_000.0, 12_000.0, 16_000.0];
 pub const CUT_FREQS: [&str; 3] = ["5 kHz", "10 kHz", "20 kHz"];
 const CUT_HZ: [f32; 3] = [5000.0, 10_000.0, 20_000.0];
-/// Most boost or attenuation of each knob at 10, in dB, as on the hardware.
-const LOW_BOOST_DB: f64 = 13.5;
-const LOW_ATTEN_DB: f64 = 17.5;
-const HIGH_BOOST_DB: f64 = 18.0;
-const HIGH_ATTEN_DB: f64 = 16.0;
+/// Most boost or attenuation of each knob at 10, in dB, as measured on the units.
+const LOW_BOOST_DB: f64 = 16.2;
+const LOW_ATTEN_DB: f64 = 18.3;
+const HIGH_BOOST_DB: f64 = 13.0;
+const HIGH_ATTEN_DB: f64 = 18.0;
+/// The units' level set flat.
+const MAKEUP_DB: f32 = 0.9;
+const STAGES: usize = 5;
 const COUNT: usize = 10;
 const SUB_BLOCK: usize = 32;
 const GLIDE_MS: f32 = 25.0;
@@ -48,40 +52,46 @@ const PARAMS: [ParamInfo; COUNT] = [
     param("output", "Output", -12.0, 12.0, 0.0, "dB"),
 ];
 
-/// The four stages for `values` (in [`INFO`] order): low boost shelf, low attenuation shelf
-/// a little higher and gentler, high peak, high attenuation shelf.
-fn stages(values: &[f32], rate: f64) -> [Coefficients; 4] {
+/// The five stages for `values` (in [`INFO`] order): low boost shelf, low attenuation shelf,
+/// the dip the attenuation digs above a boost, high peak, high attenuation shelf.
+fn stages(values: &[f32], rate: f64) -> [Coefficients; STAGES] {
     let v = |i: usize| f64::from(values.get(i).copied().unwrap_or(PARAMS[i].default));
     let index = |i: usize, n: usize| (v(i).round().max(0.0) as usize).min(n - 1);
     let low = f64::from(LOW_HZ[index(0, 4)]);
     let high = f64::from(HIGH_HZ[index(3, 7)]);
     let cut = f64::from(CUT_HZ[index(6, 3)]);
-    // Bandwidth 0 is sharp, 10 broad.
-    let q = 0.3 + (10.0 - v(5)) * 0.25;
+    let (boost, atten) = (v(1) / 10.0, v(2) / 10.0);
+    // The boost's corner climbs as it turns down: at 5 it still lifts the low mids.
+    let boost_db = LOW_BOOST_DB * boost.powf(1.25);
+    let boost_corner = low * 4.6f64.powf(2.0 * (1.0 - boost));
+    // With the boost up, the attenuation no longer reaches the lows: it digs a dip above.
+    let atten_db = -LOW_ATTEN_DB * atten.powf(1.712);
+    let atten_corner = low * 13.1 * 1.698f64.powf(2.0 * (1.0 - atten));
+    let dip_db = -6.93 * atten.powf(0.865) * boost;
+    // Bandwidth 0 is sharp and highest, 10 broad and lower, as on the units.
+    let (q, reach) = bandwidth(v(5));
+    let high_db = HIGH_BOOST_DB * (v(4) / 10.0).powf(2.1) * reach;
+    let high_atten = -HIGH_ATTEN_DB * (v(7) / 10.0).powf(2.433);
     [
-        Coefficients::matched(
-            FilterKind::LowShelf,
-            low,
-            1.0,
-            v(1) * LOW_BOOST_DB / 10.0,
-            rate,
-        ),
-        Coefficients::matched(
-            FilterKind::LowShelf,
-            low * 1.5,
-            0.5,
-            -v(2) * LOW_ATTEN_DB / 10.0,
-            rate,
-        ),
-        Coefficients::matched(FilterKind::Peak, high, q, v(4) * HIGH_BOOST_DB / 10.0, rate),
-        Coefficients::matched(
-            FilterKind::HighShelf,
-            cut,
-            0.6,
-            -v(7) * HIGH_ATTEN_DB / 10.0,
-            rate,
-        ),
+        Coefficients::first_order_shelf(boost_db, 0.0, boost_corner, rate),
+        Coefficients::first_order_shelf(atten_db * (1.0 - boost), 0.0, atten_corner, rate),
+        Coefficients::matched(FilterKind::Peak, low * 8.6, 0.54, dip_db, rate),
+        Coefficients::matched(FilterKind::Peak, high, q, high_db, rate),
+        Coefficients::first_order_shelf(0.0, high_atten, cut / 7.28, rate),
     ]
+}
+
+/// The high boost's Q and its height against bandwidth 5, for a bandwidth from 0 to 10.
+fn bandwidth(bw: f64) -> (f64, f64) {
+    let t = (bw / 5.0).clamp(0.0, 2.0);
+    let lerp = |a: f64, b: f64, c: f64| {
+        if t <= 1.0 {
+            a + (b - a) * t
+        } else {
+            b + (c - b) * (t - 1.0)
+        }
+    };
+    (lerp(0.608, 0.468, 0.337), lerp(1.345, 1.0, 0.797))
 }
 
 /// Gain of the equalizer at `freq` for parameter `values` (in [`INFO`] order), in dB.
@@ -98,8 +108,8 @@ pub struct VintageEq {
     targets: [f32; COUNT],
     current: [f32; COUNT],
     settled: bool,
-    coefficients: [Coefficients; 4],
-    filters: [[Biquad; 4]; 2],
+    coefficients: [Coefficients; STAGES],
+    filters: [[Biquad; STAGES]; 2],
     tubes: [Oversampler; 2],
     /// DC blocker after the tube: last input and output of each channel.
     dc: [(f32, f32); 2],
@@ -114,7 +124,7 @@ impl Default for VintageEq {
             current: values,
             settled: true,
             coefficients: stages(&values, 48_000.0),
-            filters: [[Biquad::default(); 4]; 2],
+            filters: [[Biquad::default(); STAGES]; 2],
             tubes: [Oversampler::new(Taps::Long), Oversampler::new(Taps::Long)],
             dc: [(0.0, 0.0); 2],
         }
@@ -166,13 +176,13 @@ impl Effect for VintageEq {
                 self.glide(end - start);
             }
             let warmth = self.current[8] / 100.0;
-            let output = db_to_gain(self.current[9]);
+            let output = db_to_gain(self.current[9] + MAKEUP_DB);
             let drive = 1.0 + warmth * 2.5;
             let bias = 0.1 * warmth;
             // A touch of even harmonics from the bias, level-matched.
             let tube = |u: f32| {
                 let t = ((u * drive + bias).tanh() - bias.tanh()) / drive;
-                u + (t - u) * warmth
+                u + (t - u) * warmth * warmth
             };
             let buffers = [&mut left[start..end], &mut right[start..end]];
             for (ch, buffer) in buffers.into_iter().enumerate() {
@@ -194,7 +204,7 @@ impl Effect for VintageEq {
     }
 
     fn reset(&mut self) {
-        self.filters = [[Biquad::default(); 4]; 2];
+        self.filters = [[Biquad::default(); STAGES]; 2];
         for tube in &mut self.tubes {
             tube.clear();
         }
@@ -224,18 +234,19 @@ mod tests {
 
     #[test]
     fn boost_and_cut_make_a_bump_with_a_dip_above() {
-        let v = values(&[("low_boost", 8.0), ("low_cut", 4.0), ("high_boost", 0.0)]);
+        let v = values(&[("low_boost", 10.0), ("low_cut", 10.0), ("high_boost", 0.0)]);
         let response = |f: f32| response_db(&v, 48_000.0, f);
-        assert!(response(30.0) > 3.0, "bump: {}", response(30.0));
-        assert!(response(120.0) < -2.0, "dip above: {}", response(120.0));
-        assert!(response(2000.0).abs() < 0.5, "mids: {}", response(2000.0));
+        // As measured on the units: +13 to +15 dB under 60 Hz, about -5 dB near 500 Hz.
+        assert!(response(30.0) > 12.0, "bump: {}", response(30.0));
+        assert!(response(500.0) < -4.0, "dip above: {}", response(500.0));
+        assert!(response(5000.0).abs() < 0.5, "highs: {}", response(5000.0));
     }
 
     #[test]
     fn the_knobs_reach_the_hardware_range() {
         let low = values(&[("low_boost", 0.0), ("low_cut", 10.0), ("high_boost", 0.0)]);
         let atten = response_db(&low, 48_000.0, 10.0);
-        assert!((atten + 17.5).abs() < 1.0, "low atten {atten}");
+        assert!((atten + 18.3).abs() < 1.0, "low atten {atten}");
         let high = values(&[
             ("low_boost", 0.0),
             ("low_cut", 0.0),
@@ -243,7 +254,7 @@ mod tests {
             ("high_boost", 10.0),
         ]);
         let boost = response_db(&high, 48_000.0, 16_000.0);
-        assert!((boost - 18.0).abs() < 0.2, "16 kHz boost {boost}");
+        assert!((boost - 13.0).abs() < 0.3, "16 kHz boost {boost}");
     }
 
     #[test]

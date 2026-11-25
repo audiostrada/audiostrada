@@ -167,6 +167,16 @@ impl Coefficients {
         }
     }
 
+    /// First-order shelf from `low_db` (at DC) to `high_db` (at Nyquist), its pole at `corner`.
+    pub fn first_order_shelf(low_db: f64, high_db: f64, corner: f64, rate: f64) -> Self {
+        let k = (PI * corner.clamp(1.0, rate * 0.49) / rate).tan();
+        let (dc, hf) = (10f64.powf(low_db / 20.0), 10f64.powf(high_db / 20.0));
+        Self {
+            b: [(hf + dc * k) / (1.0 + k), (dc * k - hf) / (1.0 + k), 0.0],
+            a: [(k - 1.0) / (k + 1.0), 0.0],
+        }
+    }
+
     /// First-order low-pass (or high-pass) at `freq`: 6 dB per octave.
     pub fn first_order(high: bool, freq: f64, rate: f64) -> Self {
         let k = (PI * freq.clamp(1.0, rate * 0.49) / rate).tan();

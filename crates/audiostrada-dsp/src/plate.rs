@@ -200,7 +200,8 @@ impl Effect for Plate {
                 self.delay_b[0].tap(self.delay_b[0].len() - 1),
             ];
             for side in 0..2 {
-                let mut v = x + decay * feedback[side];
+                // The decay is applied once per half, after the damping, as in the paper.
+                let mut v = x + feedback[side];
                 v = self.mod_ap[side].process(v, -decay_1, offsets[side]);
                 self.delay_a[side].push(v);
                 let delayed = self.delay_a[side].tap(self.delay_a[side].len() - 1);
