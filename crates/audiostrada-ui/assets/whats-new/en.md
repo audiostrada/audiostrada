@@ -1,3 +1,20 @@
+## 0.3.0
+
+- Keyboard instruments: Strada-Tines, Strada-Reed and Strada-EP80 electric pianos, Strada-Tonewheel organ with the Strada-Rotary effect, Strada-FM Keys, Strada-Mallets, Strada-808 bass and Strada-Grain.
+- Other DAWs: DAWproject import and export, Reaper project import. Plugins keep their names, even while not installed.
+- MIDI files are imported onto the selected instrument track, or dropped on the timeline.
+- Help › Check for updates.
+- Effects re-voiced on measured references: compressor characters, channel strip EQs, Tube EQ, Tape, Drive, Chorus, Phaser, Flanger, Rotary, Verb, MB-Comp and Max.
+- Playback keeps decoded audio in memory: no more gaps when the system is short of memory, and a warning when a project exceeds the budget.
+- Express Mix recognizes keyboard tracks and keeps a stereo pair named L/R centered.
+- File dialogs open where that kind of file was last picked.
+- Plugins installed while AudioStrada runs are found without restarting it.
+- Dialogs open in windows of their own; editors, the browser and plugin windows stay above the detached panels, the last one clicked in front.
+- A window covering an open menu steps aside until the menu closes; a detached panel minimized docks back into the main window.
+- macOS: floating windows hide with the main window and show in full screen; clicking a plugin's slot brings its window to the front again.
+- Linux: AudioStrada no longer comes back in front of another application.
+- Windows: the installer shows AudioStrada's logo; the plugin sandbox no longer stalls while a plugin shows its own dialog.
+
 ## 0.2.1
 
 - The AppImage installs itself: at its first start, AudioStrada offers to put it in your programs and the applications menu, with no administrator password, and to open `.strada` files with it. Preferences › General installs or uninstalls it later.

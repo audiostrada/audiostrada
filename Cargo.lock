@@ -529,7 +529,7 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-app"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "audiostrada-core",
@@ -557,7 +557,7 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-core"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "dirs",
  "serde",
@@ -568,7 +568,7 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-dsp"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "audiostrada-midi",
  "nam-rs",
@@ -580,7 +580,7 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-editors"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "audiostrada-core",
  "audiostrada-dsp",
@@ -591,7 +591,7 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-engine"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "audiostrada-core",
  "audiostrada-dsp",
@@ -610,7 +610,7 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-interchange"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "audiostrada-core",
  "audiostrada-media",
@@ -620,7 +620,7 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-io"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "alsa",
  "audiostrada-rt",
@@ -638,7 +638,7 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-license"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "base64",
  "dirs",
@@ -649,7 +649,7 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-media"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "audiostrada-core",
  "flacenc",
@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-midi"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "midir",
  "midly",
@@ -672,7 +672,7 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-mp3"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "audiostrada-core",
  "audiostrada-media",
@@ -681,7 +681,7 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-plugins"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "audiostrada-core",
  "audiostrada-midi",
@@ -708,7 +708,7 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-rt"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "assert_no_alloc",
  "criterion",
@@ -720,14 +720,14 @@ dependencies = [
 
 [[package]]
 name = "audiostrada-test-plugin"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "clap-sys",
 ]
 
 [[package]]
 name = "audiostrada-ui"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "ab_glyph",
  "audiostrada-core",
