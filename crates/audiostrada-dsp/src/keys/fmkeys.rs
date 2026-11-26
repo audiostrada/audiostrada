@@ -212,7 +212,10 @@ impl FmKeys {
         let tone = self.unit(p::TONE);
         // The modulation thins out up the keyboard, as the classic patches scale it.
         let index = (0.3 + 2.4 * tone) * (0.35 + 0.65 * v) * c.depth * 2f32.powf(-3.5 * k);
-        let tine = self.unit(p::TINE) * (0.1 + 0.9 * v) * (1.0 - 0.5 * k);
+        // The tine fades up the keyboard before its modulator climbs past 6 kHz: higher, it
+        // only rings glassy and folds back.
+        let reach = (6000.0 / (hz * c.tine.1)).min(1.0);
+        let tine = self.unit(p::TINE) * (0.1 + 0.9 * v) * (1.0 - 0.5 * k) * reach * reach;
         let voice = &mut self.voices[i];
         if !again {
             *voice = Voice::default();
@@ -229,7 +232,7 @@ impl FmKeys {
         voice.body_index = index;
         voice.body_floor = index * 0.25;
         voice.tine = 1.0;
-        voice.tine_index = 1.0 + 2.5 * v;
+        voice.tine_index = (0.7 + 1.8 * v) * reach.sqrt();
         voice.falls = [
             decay(body_t60, rate),
             decay(0.9, rate),
