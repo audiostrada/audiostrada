@@ -435,7 +435,7 @@ impl Ep80 {
         }
         voice
             .thump
-            .hit(noise * v * 0.002, 0.01, 700.0 + 1800.0 * v, rate);
+            .hit(noise * v * 0.0006, 0.01, 350.0 + 700.0 * v, rate);
         self.tune_voice(i, hz);
     }
 
@@ -453,7 +453,7 @@ impl Ep80 {
         for line in voice.strings.iter_mut().take(voice.count) {
             line.set_t60(release, hz, rate);
         }
-        voice.thump.hit(noise * 0.0003, 0.02, 500.0, rate);
+        voice.thump.hit(noise * 0.00015, 0.02, 400.0, rate);
     }
 
     fn apply(&mut self, change: Change) {
