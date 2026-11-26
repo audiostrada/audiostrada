@@ -64,5 +64,7 @@ the plugins' settings inside. AudioStrada's own effects stay out: no other DAW h
 
 ## MIDI files
 
-File › *Import MIDI file* ([[Ctrl+Alt+I]]) creates a track per part. File › *Export MIDI file*
-writes the selected track, or all of them.
+File › *Import MIDI file* ([[Ctrl+Alt+I]]) puts the file at the playhead on the selected
+instrument track, all its parts in one clip; with no instrument track selected, it creates a
+track per part. A MIDI file dropped on the timeline lands the same way, where it is dropped.
+File › *Export MIDI file* writes the selected track, or all of them.

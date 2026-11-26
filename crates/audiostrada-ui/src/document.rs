@@ -1957,14 +1957,35 @@ impl Document {
 
     /// Imports a `.mid` file at the playhead: one instrument track (built-in Synth) per part.
     pub fn import_midi(&mut self, path: &Path) -> Result<usize, String> {
+        let position = self.player.position();
+        self.import_midi_at(path, None, position)
+    }
+
+    /// Imports a `.mid` file at `position`: onto `track` when it plays an instrument, its parts
+    /// in one clip, else one instrument track (built-in Synth) per part. Returns the parts.
+    pub fn import_midi_at(
+        &mut self,
+        path: &Path,
+        track: Option<TrackId>,
+        position: u64,
+    ) -> Result<usize, String> {
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-        let tracks = audiostrada_midi::file::import(&bytes)?;
+        let mut tracks = audiostrada_midi::file::import(&bytes)?;
         if tracks.is_empty() {
             return Err(tr("the file has no notes").into());
         }
-        let position = self.player.position();
         let rate = f64::from(self.project().sample_rate);
         let count = tracks.len();
+        let onto = track.filter(|&t| self.is_instrument_track(t));
+        if onto.is_some() {
+            let mut first = tracks.remove(0);
+            for t in tracks {
+                first.notes.extend(t.notes);
+                first.controls.extend(t.controls);
+            }
+            first.controls.sort_by(|a, b| a.0.total_cmp(&b.0));
+            tracks = vec![first];
+        }
         self.history.edit(tr("Import MIDI"), |p| {
             for track in tracks {
                 let notes: Vec<Note> = track
@@ -1992,13 +2013,19 @@ impl Document {
                     .chain(controls.iter().map(|c| c.time + 1))
                     .max()
                     .unwrap_or(1);
-                let t = p.add_track(&track.name);
-                audiostrada_core::routing::add_insert(
-                    p,
-                    Channel::Track(t),
-                    "synth",
-                    Default::default(),
-                );
+                let t = match onto {
+                    Some(t) => t,
+                    None => {
+                        let t = p.add_track(&track.name);
+                        audiostrada_core::routing::add_insert(
+                            p,
+                            Channel::Track(t),
+                            "synth",
+                            Default::default(),
+                        );
+                        t
+                    }
+                };
                 if let Some(clip) = p.add_midi_clip(t, position, length, notes) {
                     edit::set_controls(p, clip, controls);
                 }
@@ -3932,6 +3959,55 @@ mod tests {
             ),
             (72_000, 12_000, 62, 99)
         );
+    }
+
+    #[test]
+    fn a_midi_file_lands_on_the_chosen_instrument_track_only() {
+        let mut doc = Document::new(AppDirs::default());
+        let note = |key| Note {
+            start: 0,
+            length: 12_000,
+            key,
+            velocity: 90,
+            channel: 0,
+            ..Default::default()
+        };
+        doc.history_mut().edit("Parts", |p| {
+            let keys = p.add_track("Keys");
+            p.add_midi_clip(keys, 0, 48_000, vec![note(60)]);
+            let bass = p.add_track("Bass");
+            p.add_midi_clip(bass, 0, 48_000, vec![note(36)]);
+        });
+        let path = temp("midi-onto").join("parts.mid");
+        doc.export_midi(&path, None).unwrap();
+        let (mut piano, mut plain) = (TrackId(0), TrackId(0));
+        doc.history_mut().edit("Targets", |p| {
+            piano = p.add_track("Piano");
+            audiostrada_core::routing::add_insert(
+                p,
+                Channel::Track(piano),
+                "tines",
+                Default::default(),
+            );
+            plain = p.add_track("Plain");
+        });
+        let tracks = doc.project().tracks.len();
+        assert_eq!(doc.import_midi_at(&path, Some(piano), 96_000), Ok(2));
+        assert_eq!(doc.project().tracks.len(), tracks, "no new track");
+        let clip = &doc.project().track(piano).unwrap().clips[0];
+        assert_eq!(clip.start, 96_000);
+        let mut keys: Vec<u8> = clip
+            .notes
+            .iter()
+            .flat_map(|n| n.iter())
+            .map(|n| n.key)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(keys, vec![36, 60], "both parts in one clip");
+        // A track without an instrument gets new instrument tracks instead.
+        assert_eq!(doc.import_midi_at(&path, Some(plain), 0), Ok(2));
+        assert_eq!(doc.project().tracks.len(), tracks + 2);
+        assert!(doc.project().track(plain).unwrap().clips.is_empty());
     }
 
     #[test]

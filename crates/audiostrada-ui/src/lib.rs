@@ -989,7 +989,11 @@ impl AudioStradaApp {
             }
         }
         if let Some(Some(path)) = dialogs::answer::<PathBuf>(ctx, "import-midi") {
-            let result = self.doc.borrow_mut().import_midi(&path);
+            // Onto the selected instrument track at the playhead, else new tracks.
+            let mut doc = self.doc.borrow_mut();
+            let (track, at) = (doc.focused_track(), doc.player().position());
+            let result = doc.import_midi_at(&path, track, at);
+            drop(doc);
             if let Err(e) = result {
                 self.error = Some(trf!(
                     "Cannot import {file}: {error}",
@@ -3979,14 +3983,31 @@ impl eframe::App for AudioStradaApp {
                 None => media.push(path),
             }
         }
-        let dropped = media;
-        if !dropped.is_empty() {
+        let (midi, dropped): (Vec<PathBuf>, Vec<PathBuf>) =
+            media.into_iter().partition(|p| is_midi_file(p));
+        if !dropped.is_empty() || !midi.is_empty() {
             let target = ctx
                 .input(|i| i.pointer.latest_pos())
                 .and_then(|pos| self.views.borrow().timeline.drop_target(pos, &self.edit));
-            match target {
-                Some((track, at)) => self.doc.borrow_mut().import_at(&dropped, track, at),
-                None => self.doc.borrow_mut().import(&dropped),
+            if !dropped.is_empty() {
+                match target {
+                    Some((track, at)) => self.doc.borrow_mut().import_at(&dropped, track, at),
+                    None => self.doc.borrow_mut().import(&dropped),
+                }
+            }
+            // MIDI files: onto the instrument track under the pointer, else new tracks.
+            for path in midi {
+                let mut doc = self.doc.borrow_mut();
+                let (track, at) = target.unwrap_or((None, doc.player().position()));
+                let result = doc.import_midi_at(&path, track, at);
+                drop(doc);
+                if let Err(e) = result {
+                    self.error = Some(trf!(
+                        "Cannot import {file}: {error}",
+                        file = path.display(),
+                        error = e
+                    ));
+                }
             }
         }
 
@@ -4332,6 +4353,13 @@ pub fn run(mut app: AudioStradaApp) -> eframe::Result {
 }
 
 /// The text of a license file dropped on the window.
+/// A standard MIDI file, by its extension.
+fn is_midi_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("mid") || e.eq_ignore_ascii_case("midi"))
+}
+
 fn license_file(path: &Path) -> Option<String> {
     let small = std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.len() < 16_384);
     let text = small

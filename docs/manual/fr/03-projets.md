@@ -70,5 +70,8 @@ autre logiciel ne les a.
 
 ## Fichiers MIDI
 
-Fichier › *Importer un fichier MIDI* ([[Ctrl+Alt+I]]) crée une piste par partie. Fichier ›
-*Exporter un fichier MIDI* écrit la piste sélectionnée, ou toutes.
+Fichier › *Importer un fichier MIDI* ([[Ctrl+Alt+I]]) place le fichier à la tête de lecture
+sur la piste instrument sélectionnée, toutes ses parties dans un clip ; sans piste instrument
+sélectionnée, il crée une piste par partie. Un fichier MIDI glissé sur la timeline arrive de
+même, là où il est déposé. Fichier › *Exporter un fichier MIDI* écrit la piste sélectionnée, ou
+toutes.
