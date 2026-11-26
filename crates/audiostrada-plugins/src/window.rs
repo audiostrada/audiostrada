@@ -2881,6 +2881,13 @@ mod windows_tests {
         unsafe { DefWindowProcW(h, m, w, l) }
     }
 
+    /// The foreground and the order of windows are the desktop's: tests run in parallel would
+    /// activate or move each other's windows.
+    fn serial() -> std::sync::MutexGuard<'static, ()> {
+        static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        SERIAL.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// A window of winit's class, as AudioStrada's are, shown without the focus.
     fn window(title: &str, x: i32) -> HWND {
         static REGISTER: std::sync::Once = std::sync::Once::new();
@@ -2945,6 +2952,7 @@ mod windows_tests {
     /// staying in front.
     #[test]
     fn floating_windows_are_owned_by_the_main_window_and_float_above_panels() {
+        let _serial = serial();
         let main = window("Main — float", 0);
         let mixer = window("Mixer — float", 2000);
         let browser = window("Browser — float", 2100);
@@ -2996,6 +3004,7 @@ mod windows_tests {
     /// the menu on the main window.
     #[test]
     fn windows_over_a_menu_step_aside_until_it_closes() {
+        let _serial = serial();
         let main = window("Main — menu", 0);
         let over = window("Over — menu", 100);
         let away = window("Away — menu", 2100);
@@ -3041,6 +3050,7 @@ mod windows_tests {
     /// when the main window comes back.
     #[test]
     fn a_maximized_panel_comes_back_maximized_with_the_main_window() {
+        let _serial = serial();
         let main = window("Main — zoom", 0);
         let mixer = window("Mixer — zoom", 2000);
         let (main_id, panels) = (main.0 as u64, vec!["Mixer — zoom".to_owned()]);
@@ -3065,6 +3075,7 @@ mod windows_tests {
     /// main window minimized are not.
     #[test]
     fn a_minimized_panel_is_told_to_dock_back() {
+        let _serial = serial();
         let main = window("Main — dock", 0);
         let mixer = window("Mixer — dock", 2000);
         let (main_id, panels) = (main.0 as u64, vec!["Mixer — dock".to_owned()]);
@@ -3109,6 +3120,7 @@ mod windows_tests {
 
     #[test]
     fn plugin_windows_hand_back_audiostradas_keys() {
+        let _serial = serial();
         set_grabbed_keys(vec![(0x20, 0)]);
         let mut host = HostWindow::new("keys", 300, 200).unwrap();
         let NativeHandle::Win32(frame) = host.handle() else {
