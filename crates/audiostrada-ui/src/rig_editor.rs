@@ -1692,9 +1692,12 @@ fn cabinet(ui: &mut Ui, params: &mut Params, area: Rect, size: egui::Vec2) {
         let open = ui.put(button, egui::Button::new(text)).clicked();
         let id = ("rig-ir", params.channel, params.insert);
         if let Some(file) = crate::dialogs::ask(ui.ctx(), id, open, || {
-            rfd::FileDialog::new()
-                .add_filter(tr("Impulse response"), &["wav", "flac", "aif", "aiff"])
-                .pick_file()
+            let dialog = rfd::FileDialog::new()
+                .add_filter(tr("Impulse response"), &["wav", "flac", "aif", "aiff"]);
+            crate::dialogs::remembered(
+                "impulse",
+                crate::dialogs::in_last_folder(dialog, "impulse").pick_file(),
+            )
         }) && let Err(e) =
             params
                 .doc
@@ -2018,9 +2021,12 @@ fn library(ui: &mut Ui, state: &mut RigState, place: Place) -> Option<(PathBuf, 
             ))
             .clicked();
         if let Some(files) = crate::dialogs::ask(ui.ctx(), "nam-captures", open, || {
-            rfd::FileDialog::new()
-                .add_filter(tr("NAM captures"), &["nam"])
-                .pick_files()
+            let dialog = rfd::FileDialog::new().add_filter(tr("NAM captures"), &["nam"]);
+            let files = crate::dialogs::in_last_folder(dialog, "nam").pick_files();
+            if let Some(first) = files.as_ref().and_then(|f| f.first()) {
+                crate::dialogs::remember_folder("nam", first);
+            }
+            files
         }) {
             match captures::import(&files) {
                 Ok(added) => {
@@ -2043,7 +2049,8 @@ fn library(ui: &mut Ui, state: &mut RigState, place: Place) -> Option<(PathBuf, 
             .on_hover_text(tr("Use the captures of a folder where they are"))
             .clicked();
         if let Some(dir) = crate::dialogs::ask(ui.ctx(), "nam-folder", open, || {
-            rfd::FileDialog::new().pick_folder()
+            let dialog = crate::dialogs::in_last_folder(rfd::FileDialog::new(), "nam-folder");
+            crate::dialogs::remembered_dir("nam-folder", dialog.pick_folder())
         }) {
             crate::nam_library::add_dir(dir);
             rescan = true;

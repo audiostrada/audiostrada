@@ -124,8 +124,38 @@ fn last_folder(kind: &str) -> Option<PathBuf> {
     folders().remove(kind).filter(|d| d.is_dir())
 }
 
-fn remember_folder(kind: &str, picked: &Path) {
-    let (Some(file), Some(dir)) = (folders_file(), picked.parent()) else {
+/// `dialog` opening where files of `kind` were last picked or saved.
+pub fn in_last_folder(dialog: rfd::FileDialog, kind: &str) -> rfd::FileDialog {
+    match last_folder(kind) {
+        Some(dir) => dialog.set_directory(dir),
+        None => dialog,
+    }
+}
+
+/// Remembers the folder of `picked` for the next dialog of `kind`, and gives it back.
+pub fn remembered(kind: &str, picked: Option<PathBuf>) -> Option<PathBuf> {
+    if let Some(file) = &picked {
+        remember_folder(kind, file);
+    }
+    picked
+}
+
+/// Remembers the folder `dir` itself, picked as a folder, for the next dialog of `kind`.
+pub fn remembered_dir(kind: &str, picked: Option<PathBuf>) -> Option<PathBuf> {
+    if let Some(dir) = &picked {
+        store_folder(kind, dir);
+    }
+    picked
+}
+
+pub(crate) fn remember_folder(kind: &str, picked: &Path) {
+    if let Some(dir) = picked.parent() {
+        store_folder(kind, dir);
+    }
+}
+
+fn store_folder(kind: &str, dir: &Path) {
+    let Some(file) = folders_file() else {
         return;
     };
     let mut all = folders();
@@ -142,10 +172,7 @@ fn audio_dialog(title: &str) -> rfd::FileDialog {
     let dialog = rfd::FileDialog::new()
         .set_title(title)
         .add_filter(tr("Audio"), &AUDIO_EXTENSIONS);
-    match last_folder("audio") {
-        Some(dir) => dialog.set_directory(dir),
-        None => dialog,
-    }
+    in_last_folder(dialog, "audio")
 }
 
 pub fn pick_audio_file() -> Option<PathBuf> {
@@ -163,39 +190,53 @@ pub fn pick_audio_files() -> Option<Vec<PathBuf>> {
 }
 
 pub fn pick_project() -> Option<PathBuf> {
-    rfd::FileDialog::new()
+    let dialog = rfd::FileDialog::new()
         .set_title(tr("Open project"))
         .add_filter(tr("AudioStrada project"), &[EXTENSION])
-        .add_filter(tr("Project of another DAW"), &OTHER_DAWS)
-        .pick_file()
+        .add_filter(tr("Project of another DAW"), &OTHER_DAWS);
+    // A project sits in a folder of its own: the next one is offered from the folder above.
+    let file = in_last_folder(dialog, "project").pick_file()?;
+    remember_folder("project", file.parent().unwrap_or(&file));
+    Some(file)
 }
 
 /// What `audiostrada_interchange` reads: DAWproject (Bitwig, Studio One, Cubase…) and Reaper.
 const OTHER_DAWS: [&str; 2] = ["dawproject", "rpp"];
 
 pub fn pick_other_project() -> Option<PathBuf> {
-    rfd::FileDialog::new()
+    let dialog = rfd::FileDialog::new()
         .set_title(tr("Open a project of another DAW"))
-        .add_filter(tr("DAWproject or Reaper project"), &OTHER_DAWS)
-        .pick_file()
+        .add_filter(tr("DAWproject or Reaper project"), &OTHER_DAWS);
+    remembered(
+        "other-project",
+        in_last_folder(dialog, "other-project").pick_file(),
+    )
 }
 
 pub fn save_dawproject(name: &str) -> Option<PathBuf> {
-    rfd::FileDialog::new()
+    let dialog = rfd::FileDialog::new()
         .set_title(tr("Export as DAWproject"))
         .set_file_name(format!("{name}.dawproject"))
-        .add_filter("DAWproject", &["dawproject"])
-        .save_file()
+        .add_filter("DAWproject", &["dawproject"]);
+    remembered(
+        "other-project",
+        in_last_folder(dialog, "other-project").save_file(),
+    )
 }
 
 pub fn save_project(name: &str) -> Option<ProjectPaths> {
-    rfd::FileDialog::new()
+    let dialog = rfd::FileDialog::new()
         .set_title(tr("Save project"))
         .add_filter(tr("AudioStrada project"), &[EXTENSION])
         .set_file_name(format!("{name}.{EXTENSION}"))
-        .set_can_create_directories(true)
-        .save_file()
-        .map(|chosen| project_location(&chosen))
+        .set_can_create_directories(true);
+    let chosen = in_last_folder(dialog, "project").save_file()?;
+    let location = project_location(&chosen);
+    // Where the project's folder was made, for the next one.
+    if let Some(folder) = location.file.parent() {
+        remember_folder("project", folder);
+    }
+    Some(location)
 }
 
 /// Where a project chosen as `chosen` is stored: in a folder of its own name, unless the user
@@ -212,34 +253,34 @@ pub fn project_location(chosen: &Path) -> ProjectPaths {
 }
 
 pub fn pick_midi_file() -> Option<PathBuf> {
-    rfd::FileDialog::new()
+    let dialog = rfd::FileDialog::new()
         .set_title(tr("Import MIDI file"))
-        .add_filter(tr("MIDI file"), &["mid", "midi"])
-        .pick_file()
+        .add_filter(tr("MIDI file"), &["mid", "midi"]);
+    remembered("midi", in_last_folder(dialog, "midi").pick_file())
 }
 
 pub fn save_midi_file(name: &str) -> Option<PathBuf> {
-    rfd::FileDialog::new()
+    let dialog = rfd::FileDialog::new()
         .set_title(tr("Export MIDI file"))
         .set_file_name(format!("{name}.mid"))
-        .add_filter(tr("MIDI file"), &["mid"])
-        .save_file()
+        .add_filter(tr("MIDI file"), &["mid"]);
+    remembered("midi", in_last_folder(dialog, "midi").save_file())
 }
 
 pub fn save_archive(name: &str) -> Option<PathBuf> {
-    rfd::FileDialog::new()
+    let dialog = rfd::FileDialog::new()
         .set_title(tr("Archive project"))
         .set_file_name(format!("{name}.tar.gz"))
-        .add_filter(tr("Project archive"), &["gz"])
-        .save_file()
+        .add_filter(tr("Project archive"), &["gz"]);
+    remembered("archive", in_last_folder(dialog, "archive").save_file())
 }
 
 pub fn save_audio_file(name: &str, extension: &str) -> Option<PathBuf> {
-    rfd::FileDialog::new()
+    let dialog = rfd::FileDialog::new()
         .set_title(tr("Export track"))
         .set_file_name(format!("{name}.{extension}"))
-        .add_filter(tr("Audio file"), &[extension])
-        .save_file()
+        .add_filter(tr("Audio file"), &[extension]);
+    remembered("export", in_last_folder(dialog, "export").save_file())
 }
 
 #[cfg(test)]

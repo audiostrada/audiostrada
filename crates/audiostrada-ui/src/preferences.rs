@@ -1505,9 +1505,11 @@ fn plugins_tab(
             }
             let open = ui.button(tr("Add folder…")).clicked();
             if let Some(dir) = crate::dialogs::ask(ui.ctx(), "plugin-folder", open, || {
-                rfd::FileDialog::new()
-                    .set_title(tr("Plugin folder"))
-                    .pick_folder()
+                let dialog = rfd::FileDialog::new().set_title(tr("Plugin folder"));
+                crate::dialogs::remembered_dir(
+                    "plugin-folder",
+                    crate::dialogs::in_last_folder(dialog, "plugin-folder").pick_folder(),
+                )
             }) && !prefs.plugin_dirs.contains(&dir)
             {
                 prefs.plugin_dirs.push(dir);

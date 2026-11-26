@@ -1111,10 +1111,12 @@ pub(crate) fn load_button(
     let id = ("effect-file", channel, insert, slot.id);
     let Some(file) = crate::dialogs::ask(ui.ctx(), id, open, move || {
         let dialog = rfd::FileDialog::new().set_title(tr(name));
+        let dialog = crate::dialogs::in_last_folder(dialog, "effect-file");
         if pack {
-            dialog.pick_folder()
+            crate::dialogs::remembered_dir("effect-file", dialog.pick_folder())
         } else {
-            dialog.add_filter(tr(name), extensions).pick_file()
+            let picked = dialog.add_filter(tr(name), extensions).pick_file();
+            crate::dialogs::remembered("effect-file", picked)
         }
     }) else {
         return false;

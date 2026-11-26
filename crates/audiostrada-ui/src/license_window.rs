@@ -95,7 +95,11 @@ impl LicenseWindow {
                         }
                         let pick = ui.button(tr("Open a file…")).clicked();
                         if let Some(path) = crate::dialogs::ask(ui.ctx(), "license", pick, || {
-                            rfd::FileDialog::new().pick_file()
+                            let dialog = rfd::FileDialog::new();
+                            crate::dialogs::remembered(
+                                "license",
+                                crate::dialogs::in_last_folder(dialog, "license").pick_file(),
+                            )
                         }) {
                             match std::fs::read_to_string(&path) {
                                 Ok(text) => {

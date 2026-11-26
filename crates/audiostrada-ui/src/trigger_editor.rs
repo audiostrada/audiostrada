@@ -741,9 +741,12 @@ fn add_dialog(ui: &Ui, params: &mut Params, state: &mut TriggerState) {
                         let open = ui.button(tr("Choose a file…")).clicked();
                         if let Some(file) =
                             crate::dialogs::ask(ui.ctx(), "trigger-own-file", open, || {
-                                rfd::FileDialog::new()
-                                    .add_filter(tr("Audio"), SLOTS[0].extensions)
-                                    .pick_file()
+                                let dialog = rfd::FileDialog::new()
+                                    .add_filter(tr("Audio"), SLOTS[0].extensions);
+                                crate::dialogs::remembered(
+                                    "audio",
+                                    crate::dialogs::in_last_folder(dialog, "audio").pick_file(),
+                                )
                             })
                         {
                             if draft.name.trim().is_empty()

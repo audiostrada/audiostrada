@@ -199,10 +199,13 @@ impl EditorParams for Params<'_> {
         let (name, extensions) = (slot.name, slot.extensions);
         let id = ("effect-file", self.channel, self.insert, slot.id);
         let chosen = crate::dialogs::ask(ui.ctx(), id, ask && path.is_none(), move || {
-            rfd::FileDialog::new()
+            let dialog = rfd::FileDialog::new()
                 .set_title(tr(name))
-                .add_filter(tr(name), extensions)
-                .pick_file()
+                .add_filter(tr(name), extensions);
+            crate::dialogs::remembered(
+                "effect-file",
+                crate::dialogs::in_last_folder(dialog, "effect-file").pick_file(),
+            )
         });
         let Some(file) = path.or(chosen) else {
             return false;
@@ -248,11 +251,14 @@ impl EditorParams for Params<'_> {
             format!("{}.wav", tr("Grain memory")),
         );
         let chosen = crate::dialogs::ask(ui.ctx(), id, ask, move || {
-            rfd::FileDialog::new()
+            let dialog = rfd::FileDialog::new()
                 .set_title(title)
                 .set_file_name(name)
-                .add_filter("WAV", &["wav"])
-                .save_file()
+                .add_filter("WAV", &["wav"]);
+            crate::dialogs::remembered(
+                "export",
+                crate::dialogs::in_last_folder(dialog, "export").save_file(),
+            )
         });
         let Some(path) = chosen else {
             return false;

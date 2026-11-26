@@ -103,11 +103,14 @@ impl ExportWindow {
         let dialog = |title: &'static str| {
             let name = name.clone();
             move || {
-                rfd::FileDialog::new()
+                let dialog = rfd::FileDialog::new()
                     .set_title(title)
                     .set_file_name(format!("{name}.{ext}"))
-                    .add_filter(format, &[ext])
-                    .save_file()
+                    .add_filter(format, &[ext]);
+                crate::dialogs::remembered(
+                    "export",
+                    crate::dialogs::in_last_folder(dialog, "export").save_file(),
+                )
             }
         };
         if let Some(path) = crate::dialogs::ask(ctx, "export", asked.export, dialog(tr("Export"))) {
