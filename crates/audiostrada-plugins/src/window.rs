@@ -80,7 +80,21 @@ mod imp {
             return;
         };
         let root = connection.setup().roots[screen].root;
-        activate(&connection, root, parent);
+        if in_front(&connection, root, parent) {
+            activate(&connection, root, parent);
+        }
+    }
+
+    /// Whether AudioStrada is the application in use: its window, one of this process, or a
+    /// window transient for its main one (a plugin's) is active. Another application in front
+    /// keeps the focus: AudioStrada never takes it back by itself.
+    fn in_front(connection: &RustConnection, root: u32, main: u32) -> bool {
+        let Some(&active) = cardinals(connection, root, b"_NET_ACTIVE_WINDOW").first() else {
+            return false;
+        };
+        active == main
+            || cardinals(connection, active, b"_NET_WM_PID").first() == Some(&std::process::id())
+            || cardinals(connection, active, b"WM_TRANSIENT_FOR").first() == Some(&main)
     }
 
     /// Brings the window of this process titled `title` to the front, as [`raise_parent`].
@@ -89,6 +103,10 @@ mod imp {
             return;
         };
         let root = connection.setup().roots[screen].root;
+        let main = u32::try_from(super::parent()).unwrap_or(0);
+        if !in_front(&connection, root, main) {
+            return;
+        }
         if let Some(window) = own_clients(&connection, root)
             .into_iter()
             .find(|&w| name_of(&connection, w).as_deref() == Some(title))
