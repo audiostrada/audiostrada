@@ -63,7 +63,7 @@ const PARAMS: [ParamInfo; p::COUNT] = [
     param("dynamics", "Velocity", 0.0, 100.0, 50.0, "%"),
     choice("curve", "Velocity curve", &CURVES, 1.0),
     param("bass", "Bass", -12.0, 12.0, 0.0, "dB"),
-    param("treble", "Treble", -12.0, 12.0, 2.0, "dB"),
+    param("treble", "Treble", -12.0, 12.0, 0.0, "dB"),
     param("drive", "Drive", 0.0, 100.0, 0.0, "%"),
     choice("tremolo", "Tremolo", &TREMOLOS, 0.0),
     param("tremolo_rate", "Tremolo rate", 0.5, 10.0, 4.5, "Hz"),
@@ -80,19 +80,31 @@ const PARAMS: [ParamInfo; p::COUNT] = [
 ];
 
 /// The tine and its tone bar: the fundamental, the tone bar a hair above it, the bell (the
-/// clamped bar's second mode) and its third mode, by frequency ratio and weight.
+/// tine's second mode, raised by the tuning spring at its tip) and the glassy third mode, by
+/// weight. Their ratios come from `ratios`.
 const MODES: usize = 4;
-const RATIOS: [f32; MODES] = [1.0, 1.000_23, 6.267, 17.55];
-const WEIGHTS: [f32; MODES] = [1.0, 0.22, 0.09, 0.025];
+const WEIGHTS: [f32; MODES] = [1.0, 0.22, 0.012, 0.0035];
+/// How much of the bell and the glass a soft blow keeps: the felt's long contact smooths
+/// them far less than it would a plain pulse's, as the tine's tip is struck on its own.
+const KEEP: f32 = 0.8;
+
+/// The ratio of each mode to the fundamental: the bell a little more than seven times
+/// higher, the glass nearly twenty times, both a little lower in the treble.
+fn ratios(key: u8) -> [f32; MODES] {
+    let k = f32::from(key);
+    let bell = (7.45 - 0.011 * (k - 45.0)).clamp(7.0, 7.6);
+    let glass = (19.6 - 0.21 * (k - 63.0).max(0.0)).max(15.0);
+    [1.0, 1.000_23, bell, glass]
+}
 
 /// The lowest and highest keys of the instrument, for what varies along the keyboard.
 const LOW: f32 = 28.0;
 const SPAN: f32 = 72.0;
 /// Swing of the tine at full strength, in widths of the pickup's field.
-const SWING: f32 = 1.9;
+const SWING: f32 = 1.07;
 /// How much wider the low tines swing than the high ones, in dB across the keyboard: the
 /// bass barks and the treble rings almost pure.
-const SPREAD: f32 = 42.0;
+const SPREAD: f32 = 59.0;
 const OUTPUT: f32 = 0.2;
 /// The pickup's slope at the usual voicing: a tine set closer to the pole gives less
 /// fundamental and more growl, as on the real instrument.
@@ -107,8 +119,9 @@ struct Voice {
     thump: Thump,
     key: u8,
     channel: u8,
-    /// Frequency the modes are tuned to, bend included.
+    /// Frequency the modes are tuned to, bend included, and their ratios to it.
     hz: f32,
+    ratios: [f32; MODES],
     /// The pickup's flux at the last sample.
     flux: f32,
     damped: bool,
@@ -195,8 +208,8 @@ impl Tines {
         let t60s = [
             t60,
             t60 * 1.5,
-            0.6 * 2f32.powf(-(f32::from(key) - LOW) / 24.0) * decay,
-            0.08,
+            1.2 * 2f32.powf(-(f32::from(key) - 40.0) / 30.0) * decay,
+            1.5 * 2f32.powf(-(f32::from(key) - 40.0) / 36.0) * decay,
         ];
         // A harder blow and a harder tip touch the tine for less time: a brighter strike.
         let contact = ((0.004 - 0.0034 * v) * (1.5 - bell))
@@ -213,24 +226,34 @@ impl Tines {
         voice.channel = self.keys.slots[i].channel;
         voice.damped = false;
         voice.hz = hz;
+        voice.ratios = ratios(key);
         for (m, mode) in voice.modes.iter_mut().enumerate() {
-            mode.tune(hz * RATIOS[m], rate);
+            mode.tune(hz * voice.ratios[m], rate);
             mode.set_t60(t60s[m], rate);
         }
         voice.hammer.strike(force, contact, rate);
         let norm = voice.hammer.response(hz, rate);
         for m in 0..MODES {
-            let f = hz * RATIOS[m];
-            let tip = if m >= 2 { 0.2 + 1.6 * bell } else { 1.0 };
-            voice.push[m] = if f < rate * 0.45 {
-                WEIGHTS[m] * tip / norm
-            } else {
+            let f = hz * voice.ratios[m];
+            voice.push[m] = if f >= rate * 0.45 {
                 0.0
+            } else if m >= 2 {
+                // The bell and the glass, as loud against the fundamental for every blow.
+                let smooth = (voice.hammer.response(f, rate) / norm).max(1e-6);
+                // The glass thins out above the middle of the keyboard.
+                let fade = if m == 3 {
+                    2f32.powf(-(f32::from(key) - 60.0).max(0.0) / 8.0)
+                } else {
+                    1.0
+                };
+                WEIGHTS[m] * (0.2 + 1.6 * bell) * fade / norm / smooth.powf(KEEP)
+            } else {
+                WEIGHTS[m] / norm
             };
         }
         voice
             .thump
-            .hit(noise * v * 0.02, 0.012, 900.0 + 1500.0 * v, rate);
+            .hit_felt(noise * v * 0.02, 0.012, 900.0 + 1500.0 * v, rate);
     }
 
     fn damp(&mut self, i: usize) {
@@ -243,7 +266,7 @@ impl Tines {
         }
         voice.damped = true;
         let noise = self.values[p::NOISE] / 100.0;
-        voice.thump.hit(noise * 0.004, 0.02, 500.0, rate);
+        voice.thump.hit_felt(noise * 0.004, 0.02, 500.0, rate);
     }
 
     fn apply(&mut self, change: Change) {
@@ -336,7 +359,7 @@ impl Effect for Tines {
             if hz != voice.hz {
                 voice.hz = hz;
                 for (m, mode) in voice.modes.iter_mut().enumerate() {
-                    mode.tune(hz * RATIOS[m], rate);
+                    mode.tune(hz * voice.ratios[m], rate);
                 }
             }
             // The pickup reads the tine's speed through the field: scaled back by the

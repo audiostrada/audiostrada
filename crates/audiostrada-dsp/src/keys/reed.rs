@@ -83,21 +83,30 @@ const PARAMS: [ParamInfo; p::COUNT] = [
 ];
 
 /// The reed's fundamental, its second and third modes (a clamped bar weighted at its tip), by
-/// frequency ratio and weight.
+/// weight; their ratios come from `ratios`. The second is the bell heard in the attack.
 const MODES: usize = 3;
-const RATIOS: [f32; MODES] = [1.0, 6.8, 18.3];
-const WEIGHTS: [f32; MODES] = [1.0, 0.06, 0.015];
+const WEIGHTS: [f32; MODES] = [1.0, 0.1, 0.002];
+/// How much of the bell a soft blow keeps: the felt's long contact smooths it far less than
+/// it would a plain pulse's.
+const KEEP: f32 = 0.8;
+
+/// The ratio of each mode to the fundamental: the solder at the tip puts the bell about nine
+/// times higher in the bass and middle, a little lower in the treble.
+fn ratios(key: u8) -> [f32; MODES] {
+    let bell = (9.3 - 0.045 * (f32::from(key) - 62.0).max(0.0)).max(8.2);
+    [1.0, bell, 24.0]
+}
 
 /// The lowest key of the instrument and its span, for what varies along the keyboard.
 const LOW: f32 = 33.0;
 const SPAN: f32 = 63.0;
 /// Swing of the reed at full strength, in fractions of its gap to the comb.
-const SWING: f32 = 1.8;
-/// Most of the swing: the reed's travel saturates past it.
-const LIMIT: f32 = 0.9;
-const OUTPUT: f32 = 0.22;
+const SWING: f32 = 1.75;
+/// Most of the swing: the reed's travel rounds off softly past it.
+const LIMIT: f32 = 1.0;
+const OUTPUT: f32 = 0.13;
 /// The narrowest the gap gets, as a fraction of its rest.
-const FLOOR: f32 = 0.38;
+const FLOOR: f32 = 0.15;
 
 #[derive(Clone, Copy, Debug, Default)]
 struct Voice {
@@ -108,14 +117,17 @@ struct Voice {
     thump: Thump,
     key: u8,
     channel: u8,
-    /// Frequency the modes are tuned to, bend included.
+    /// Frequency the modes are tuned to, bend included, and their ratios to it.
     hz: f32,
+    ratios: [f32; MODES],
+    /// The level heard against the swing: the bark spans more than the loudness.
+    gain: f32,
     damped: bool,
 }
 
 /// Swing of a key against the middle of the keyboard (key 56), in dB: low reeds swing wider.
 fn spread(key: u8) -> f32 {
-    24.0 * (56.0 - f32::from(key)) / 72.0
+    36.0 * (56.0 - f32::from(key)) / 72.0
 }
 
 /// Where the key sits on the keyboard, from 0 (lowest) to 1.
@@ -128,11 +140,11 @@ fn place(key: u8) -> f32 {
 /// comb ends in a sharp peak, the reed's bite. About `x` for small swings.
 #[inline]
 fn pickup(x: f32, near: f32) -> f32 {
-    let x = x / (1.0 + (x / LIMIT).powi(6)).powf(1.0 / 6.0);
+    let x = x / (1.0 + (x / LIMIT) * (x / LIMIT)).sqrt();
     // The gap closes softly to a floor: the peaks stay round enough not to alias into a
     // harsh buzz on the hardest blows.
     let over = 1.0 - near * x - FLOOR;
-    let gap = FLOOR + 0.5 * (over + (over * over + 0.02).sqrt());
+    let gap = FLOOR + 0.5 * (over + (over * over + 0.01).sqrt());
     (1.0 / (gap * gap) - 1.0) / (2.0 * near)
 }
 
@@ -144,9 +156,9 @@ pub struct Reed {
     voices: Box<[Voice; VOICES]>,
     /// How near the comb is as heard, gliding to the Bark: a knob turned never clicks.
     heard: f32,
-    /// The preamp's voicing: little of the lowest fundamentals, a forward middle.
-    preamp: [Coefficients; 3],
-    filters: [Biquad; 3],
+    /// The preamp's voicing: no rumble under the lowest notes, a forward middle.
+    preamp: [Coefficients; 2],
+    filters: [Biquad; 2],
     amp: Amp,
 }
 
@@ -158,8 +170,8 @@ impl Default for Reed {
             keys: Keyboard::default(),
             voices: Box::new([Voice::default(); VOICES]),
             heard: f32::NAN,
-            preamp: [Coefficients::IDENTITY; 3],
-            filters: [Biquad::default(); 3],
+            preamp: [Coefficients::IDENTITY; 2],
+            filters: [Biquad::default(); 2],
             amp: Amp::default(),
         }
     }
@@ -188,14 +200,16 @@ impl Reed {
         let v = velocity(struck, self.value(p::CURVE));
         let dynamics = self.unit(p::DYNAMICS);
         let k = place(key);
-        let force = SWING
-            * crate::db_to_gain(-66.0 * dynamics * (1.0 - v).powf(1.3) + 2.0 * k + spread(key));
+        // A touch barely moves the reed and gives a pure tone; a blow swings it into the comb's
+        // field, where the bark grows much faster than the level.
+        let touch = -110.0 * dynamics * (1.0 - v) * (1.0 - v);
+        let force = SWING * crate::db_to_gain(touch + 2.0 * k + spread(key));
         let hammer = self.unit(p::HAMMER);
         let hz = self.hz(key) * self.keys.bend(self.keys.slots[i].channel);
         let decay = self.unit(p::DECAY);
         let below = f32::from(key) - LOW;
         let t60 = 2f32.powf(4.7 - 0.074 * (f32::from(key) - 28.0)) * decay;
-        let t60s = [t60, 0.5 * 2f32.powf(-below / 24.0) * decay, 0.06];
+        let t60s = [t60, 1.6 * 2f32.powf(-below / 36.0) * decay, 0.06];
         // A harder blow and harder felt touch the reed for less time: a brighter strike.
         let contact = ((0.003 - 0.0025 * v) * (1.5 - hammer))
             .max(0.000_12)
@@ -209,24 +223,29 @@ impl Reed {
         voice.channel = self.keys.slots[i].channel;
         voice.damped = false;
         voice.hz = hz;
+        voice.ratios = ratios(key);
+        voice.gain = crate::db_to_gain(-0.3 * touch);
         for (m, mode) in voice.modes.iter_mut().enumerate() {
-            mode.tune(hz * RATIOS[m], rate);
+            mode.tune(hz * voice.ratios[m], rate);
             mode.set_t60(t60s[m], rate);
         }
         voice.hammer.strike(force, contact, rate);
         let norm = voice.hammer.response(hz, rate);
         for m in 0..MODES {
-            let f = hz * RATIOS[m];
-            let felt = if m >= 1 { 0.3 + 1.4 * hammer } else { 1.0 };
-            voice.push[m] = if f < rate * 0.45 {
-                WEIGHTS[m] * felt / norm
-            } else {
+            let f = hz * voice.ratios[m];
+            voice.push[m] = if f >= rate * 0.45 {
                 0.0
+            } else if m >= 1 {
+                // The bell as loud against the fundamental for every blow, more with harder felt.
+                let smooth = (voice.hammer.response(f, rate) / norm).max(1e-6);
+                WEIGHTS[m] * (0.3 + 1.4 * hammer) / norm / smooth.powf(KEEP)
+            } else {
+                WEIGHTS[m] / norm
             };
         }
         voice
             .thump
-            .hit(noise * v * 0.025, 0.01, 1200.0 + 1800.0 * v, rate);
+            .hit_felt(noise * v * 0.025, 0.01, 1200.0 + 1800.0 * v, rate);
     }
 
     fn damp(&mut self, i: usize) {
@@ -239,7 +258,7 @@ impl Reed {
         }
         voice.damped = true;
         let noise = self.values[p::NOISE] / 100.0;
-        voice.thump.hit(noise * 0.005, 0.015, 700.0, rate);
+        voice.thump.hit_felt(noise * 0.005, 0.015, 700.0, rate);
     }
 
     fn apply(&mut self, change: Change) {
@@ -290,11 +309,10 @@ impl Effect for Reed {
         self.heard = f32::NAN;
         let rate = f64::from(sample_rate);
         self.preamp = [
-            Coefficients::design(FilterKind::HighPass, 110.0, 0.7, 0.0, rate),
-            Coefficients::design(FilterKind::LowShelf, 220.0, 0.7, -2.0, rate),
+            Coefficients::design(FilterKind::HighPass, 45.0, 0.7, 0.0, rate),
             Coefficients::design(FilterKind::Peak, 800.0, 0.5, 3.5, rate),
         ];
-        self.filters = [Biquad::default(); 3];
+        self.filters = [Biquad::default(); 2];
         self.amp.prepare(sample_rate, max_frames);
     }
 
@@ -343,11 +361,13 @@ impl Effect for Reed {
             if hz != voice.hz {
                 voice.hz = hz;
                 for (m, mode) in voice.modes.iter_mut().enumerate() {
-                    mode.tune(hz * RATIOS[m], rate);
+                    mode.tune(hz * voice.ratios[m], rate);
                 }
             }
             // The wider low swing brought back to an even level along the keyboard.
-            let level = crate::db_to_gain(-34.0 / 24.0 * spread(voice.key));
+            let spread = spread(voice.key);
+            let level =
+                crate::db_to_gain(if spread > 0.0 { -0.7 } else { -1.3 } * spread) * voice.gain;
             for (j, out) in left.iter_mut().enumerate() {
                 let push = voice.hammer.tick();
                 let mut x = 0.0;
@@ -393,7 +413,7 @@ impl Effect for Reed {
         for v in self.voices.iter_mut() {
             *v = Voice::default();
         }
-        self.filters = [Biquad::default(); 3];
+        self.filters = [Biquad::default(); 2];
         self.amp.reset();
     }
 }
@@ -492,7 +512,7 @@ mod tests {
             r.midi(&MidiEvent::note_on(0, 0, 33, 100));
             rms(&render(&mut r, 0.3))
         };
-        // The preamp already thins the lowest fundamentals: the speakers take a little more.
+        // The small speakers take the lowest fundamentals away.
         assert!(
             level(1.0) < level(0.0) * 0.9,
             "{} {}",

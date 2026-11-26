@@ -14,6 +14,9 @@ pub(crate) struct Thump {
     fall: f32,
     low: f32,
     smooth: f32,
+    /// A second smoothing stage for a felt's soft thump, and whether it is on.
+    lower: f32,
+    felt: bool,
 }
 
 impl Thump {
@@ -25,6 +28,13 @@ impl Thump {
         self.level += level;
         self.fall = crate::time_coefficient(seconds * 1000.0, rate);
         self.smooth = crate::lowpass_coefficient(hz, rate);
+        self.felt = false;
+    }
+
+    /// `hit`, smoothed twice: a felt hammer's thump, with nothing left of a hiss above it.
+    pub fn hit_felt(&mut self, level: f32, seconds: f32, hz: f32, rate: f32) {
+        self.hit(level, seconds, hz, rate);
+        self.felt = true;
     }
 
     #[inline]
@@ -39,6 +49,10 @@ impl Thump {
         let noise = self.seed as f32 / u32::MAX as f32 * 2.0 - 1.0;
         self.low += self.smooth * (noise - self.low);
         self.level *= self.fall;
+        if self.felt {
+            self.lower += self.smooth * (self.low - self.lower);
+            return self.lower * self.level;
+        }
         self.low * self.level
     }
 
@@ -189,8 +203,8 @@ const GLIDE_MS: f32 = 20.0;
 const STRETCH: usize = 32;
 /// The limiter keeps loud chords under this level by turning them down, not by clipping.
 const CEILING: f32 = 0.75;
-const LIMIT_HOLD_MS: f32 = 5.0;
-const LIMIT_ATTACK_MS: f32 = 1.5;
+const LIMIT_HOLD_MS: f32 = 30.0;
+const LIMIT_ATTACK_MS: f32 = 0.2;
 const LIMIT_RELEASE_MS: f32 = 150.0;
 
 impl Amp {

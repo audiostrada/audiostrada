@@ -100,7 +100,13 @@ const LOWEST_HZ: f32 = 24.0;
 /// Where the hammer strikes, as a fraction of the string: the partials it lands on are
 /// missing, as on a piano.
 const STRIKE: f32 = 1.0 / 8.0;
-const OUTPUT: f32 = 62.0;
+const OUTPUT: f32 = 35.0;
+
+/// The hammer's flight before it reaches the string, in seconds: up to 1.5 ms, spread over
+/// the keys so that octaves and fifths land apart.
+fn flight(key: u8) -> f32 {
+    0.0015 * (f32::from(key) * 0.618_034).fract()
+}
 
 /// Where the key sits on the keyboard, from 0 (lowest) to 1.
 fn place(key: u8) -> f32 {
@@ -426,7 +432,9 @@ impl Ep80 {
         voice.count = if key < UNISON_FROM { 1 } else { 2 };
         voice.damped = false;
         voice.blow = (length, height);
-        voice.at = 0.0;
+        // Each key's hammer takes its own time to fly to the string: struck together, the
+        // notes of a chord do not send their first pulses at the same instant.
+        voice.at = -flight(key) * rate;
         voice.echo = STRIKE * rate / hz;
         let fc = (hz * (1.0 + 0.8 * v)).min(0.4 * rate);
         voice.shut = 1.0 - (-TAU * fc / rate).exp();
