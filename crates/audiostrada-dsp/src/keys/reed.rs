@@ -125,9 +125,11 @@ struct Voice {
     damped: bool,
 }
 
-/// Swing of a key against the middle of the keyboard (key 56), in dB: low reeds swing wider.
+/// Swing of a key against the middle of the keyboard (key 56), in dB: the high reeds swing
+/// less, the low ones only a little more, so that the bark does not grow down the keyboard.
 fn spread(key: u8) -> f32 {
-    36.0 * (56.0 - f32::from(key)) / 72.0
+    let below = 56.0 - f32::from(key);
+    (if below > 0.0 { 8.0 } else { 36.0 }) * below / 72.0
 }
 
 /// Where the key sits on the keyboard, from 0 (lowest) to 1.

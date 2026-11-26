@@ -102,9 +102,10 @@ const LOW: f32 = 28.0;
 const SPAN: f32 = 72.0;
 /// Swing of the tine at full strength, in widths of the pickup's field.
 const SWING: f32 = 1.07;
-/// How much wider the low tines swing than the high ones, in dB across the keyboard: the
-/// bass barks and the treble rings almost pure.
+/// How much wider the middle tines swing than the high ones, in dB across the keyboard.
 const SPREAD: f32 = 59.0;
+/// The same below the middle of the keyboard.
+const BASS_SPREAD: f32 = 12.0;
 const OUTPUT: f32 = 0.2;
 /// The pickup's slope at the usual voicing: a tine set closer to the pole gives less
 /// fundamental and more growl, as on the real instrument.
@@ -127,9 +128,12 @@ struct Voice {
     damped: bool,
 }
 
-/// Swing of a key against the middle of the keyboard (key 56), in dB.
+/// Swing of a key against the middle of the keyboard (key 56), in dB: the treble swings less
+/// and rings almost pure, the bass only a little more than the middle, so that the bark does
+/// not grow down the keyboard.
 fn spread(key: u8) -> f32 {
-    SPREAD * (56.0 - f32::from(key)) / SPAN
+    let below = 56.0 - f32::from(key);
+    (if below > 0.0 { BASS_SPREAD } else { SPREAD }) * below / SPAN
 }
 
 /// Where the key sits on the keyboard, from 0 (lowest) to 1.
