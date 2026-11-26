@@ -97,7 +97,7 @@ const PARAMS: [ParamInfo; p::COUNT] = [
     choice("vibrato", "Vibrato and chorus", &SCANNER, 6.0),
     param("click", "Key click", 0.0, 100.0, 40.0, "%"),
     param("leakage", "Leakage", 0.0, 100.0, 25.0, "%"),
-    param("drive", "Drive", 0.0, 100.0, 20.0, "%"),
+    param("drive", "Drive", 0.0, 100.0, 10.0, "%"),
     choice("rotary", "Rotary speaker", &SPEEDS, 2.0),
     param("rotary_width", "Rotary width", 0.0, 100.0, 70.0, "%"),
     param("bass", "Bass", -12.0, 12.0, 0.0, "dB"),
@@ -107,7 +107,7 @@ const PARAMS: [ParamInfo; p::COUNT] = [
     param("delay", "Delay", 0.0, 100.0, 0.0, "%"),
     choice("delay_note", "Delay time", &NOTE_NAMES, 6.0),
     param("delay_feedback", "Delay feedback", 0.0, 90.0, 30.0, "%"),
-    param("reverb", "Reverb", 0.0, 100.0, 12.0, "%"),
+    param("reverb", "Reverb", 0.0, 100.0, 8.0, "%"),
     param("reverb_decay", "Reverb decay", 0.3, 6.0, 1.6, "s"),
 ];
 
@@ -293,7 +293,7 @@ impl Tonewheel {
             k.wait = waits;
         }
         k.percussion = if percussion { 1.0 } else { 0.0 };
-        self.thump.hit(click * 0.012, 0.004, 4000.0, rate);
+        self.thump.hit(click * 0.2, 0.0035, 6000.0, rate);
     }
 
     fn release(&mut self, key: u8) {
@@ -421,7 +421,7 @@ impl Effect for Tonewheel {
             0.9
         };
         let perc_fall = super::modal::decay(perc_t60, rate);
-        let attack = 1.0 / ((0.004 * (1.0 - click) + 0.000_05) * rate);
+        let attack = 1.0 / ((0.0015 * (1.0 - click) + 0.000_05) * rate);
         let fall = 1.0 / ((0.008 * (1.0 - click) + 0.000_3) * rate);
         let leak_level = self.unit(p::LEAKAGE) * 0.0012;
         let glide = 1.0 - (-1.0 / (0.02 * rate)).exp();
