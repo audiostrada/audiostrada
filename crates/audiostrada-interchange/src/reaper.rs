@@ -525,9 +525,15 @@ fn item(build: &mut Build, dir: &Path, item: &Block, track: TrackId, tempo: &Tem
     };
     let offset = item.num("SOFFS", 0).unwrap_or(0.0).max(0.0);
     let gain = item.num("VOLPAN", 2).map_or(0.0, db);
-    let id = build.project.new_clip_id();
-    let clip = Clip {
-        id,
+    let duration = build
+        .project
+        .sources
+        .get(&src)
+        .filter(|s| s.sample_rate > 0)
+        .map_or(0.0, |s| s.frames as f64 / f64::from(s.sample_rate));
+    let looped = item.num("LOOP", 0).is_some_and(|l| l > 0.0);
+    let template = Clip {
+        id: build.project.new_clip_id(),
         source: src,
         name: name.unwrap_or_else(|| {
             path.file_stem()
@@ -553,10 +559,75 @@ fn item(build: &mut Build, dir: &Path, item: &Block, track: TrackId, tempo: &Tem
         automation: Vec::new(),
         edits: None,
     };
+    let clips = if looped && duration > 0.0 && offset + length * speed > duration {
+        let fades = (
+            item.num("FADEIN", 1).unwrap_or(0.0),
+            item.num("FADEOUT", 1).unwrap_or(0.0),
+        );
+        looped_pieces(offset, length, speed, duration, fades)
+            .into_iter()
+            .filter_map(|p| {
+                let start = samples(position + p.at);
+                let len = samples(position + p.at + p.length).saturating_sub(start);
+                (len > 0).then(|| Clip {
+                    id: build.project.new_clip_id(),
+                    start,
+                    offset: (p.offset * stretch * f64::from(rate)).round() as u64,
+                    length: len,
+                    fade_in: samples(p.fade_in).min(len),
+                    fade_out: samples(p.fade_out).min(len),
+                    ..template.clone()
+                })
+            })
+            .collect()
+    } else {
+        vec![template]
+    };
     if let Some(t) = build.project.track_mut(track) {
-        t.clips.push(clip);
+        t.clips.extend(clips);
         t.clips.sort_by_key(|c| (c.start, c.id));
     }
+}
+
+/// A part of a looping item, in seconds: where it starts in the item, where it reads in the
+/// source, and its share of the item's fades.
+#[derive(Debug, PartialEq)]
+struct Piece {
+    at: f64,
+    offset: f64,
+    length: f64,
+    fade_in: f64,
+    fade_out: f64,
+}
+
+/// A looping item as Reaper plays it: its source read from `offset` (taken within the source)
+/// to its end, then again from its start, until the item ends. Each part keeps the stretch of
+/// the item's fades that falls on it.
+fn looped_pieces(
+    offset: f64,
+    length: f64,
+    speed: f64,
+    duration: f64,
+    (fade_in, fade_out): (f64, f64),
+) -> Vec<Piece> {
+    let mut pieces = Vec::new();
+    let mut at = 0.0;
+    let mut from = offset % duration;
+    // A source of a few samples looped over minutes is left at its first round.
+    while at < length && pieces.len() < 256 {
+        let part = ((duration - from) / speed).min(length - at);
+        let end = at + part;
+        pieces.push(Piece {
+            at,
+            offset: from,
+            length: part,
+            fade_in: (fade_in - at).clamp(0.0, part),
+            fade_out: (end - (length - fade_out).max(at)).clamp(0.0, part),
+        });
+        at = end;
+        from = 0.0;
+    }
+    pieces
 }
 
 #[cfg(test)]
@@ -574,6 +645,28 @@ mod tests {
         assert_eq!(track.line("NAME").unwrap()[0], "Lead vocal");
         assert_eq!(track.num("VOLPAN", 1), Some(-0.25));
         assert!(parse("<OTHER\n>").is_none());
+    }
+
+    #[test]
+    fn a_looping_item_reads_its_source_round_and_round() {
+        // Read from past the end of a 10 s source: Reaper takes it within, then loops.
+        let pieces = looped_pieces(28.0, 15.0, 1.0, 10.0, (3.0, 4.0));
+        let round = |p: &Piece| [p.at, p.offset, p.length, p.fade_in, p.fade_out];
+        let got: Vec<_> = pieces.iter().map(round).collect();
+        assert_eq!(
+            got,
+            [
+                [0.0, 8.0, 2.0, 2.0, 0.0],
+                [2.0, 0.0, 10.0, 1.0, 1.0],
+                [12.0, 0.0, 3.0, 0.0, 3.0],
+            ]
+        );
+        // Twice as fast, the source lasts half as long in the item.
+        let fast = looped_pieces(0.0, 8.0, 2.0, 10.0, (0.0, 0.0));
+        assert_eq!(
+            fast.iter().map(|p| p.length).collect::<Vec<_>>(),
+            [5.0, 3.0]
+        );
     }
 
     #[test]
