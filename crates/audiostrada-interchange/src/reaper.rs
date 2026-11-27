@@ -1,7 +1,7 @@
 //! Reaper's `.rpp` projects: nested `<TAG …>` blocks of text lines. Tracks, folders (as buses),
 //! audio and MIDI items, fades, play rate, volume, pan, mute, solo, receives, plugins (CLAP and
-//! VST3, without their settings: Reaper keeps them in its own form), volume and pan envelopes,
-//! tempo, time signature and markers.
+//! VST3, with the settings of VST3 ones), volume and pan envelopes, tempo, time signature and
+//! markers.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -10,8 +10,8 @@ use audiostrada_core::automation::AutomationTarget;
 use audiostrada_core::file::ProjectPaths;
 use audiostrada_core::routing::{self, Channel};
 use audiostrada_core::tempo::{TempoMap, TempoPoint, TimeSignature};
-use audiostrada_core::vst3_id;
 use audiostrada_core::{Clip, FadeShape, Marker, Note, Project, TrackId, TrackKind, TrackSend};
+use audiostrada_core::{base64, vst3_id};
 
 use crate::{Build, Warning, db};
 
@@ -349,14 +349,18 @@ fn fx(build: &mut Build, chain: &Block, channel: Channel) {
             .to_owned();
         match key {
             Some(key) if !label.contains("(Cockos)") => {
+                let state = key.starts_with("vst3:").then(|| vst3_state(b)).flatten();
+                if state.is_none() {
+                    build.warn(Warning::NoSettings(shown.clone()));
+                }
                 if let Some(id) =
                     routing::add_insert(&mut build.project, channel, &key, BTreeMap::new())
                     && let Some(i) = routing::find_insert_mut(&mut build.project, channel, id)
                 {
                     i.bypass = bypass;
-                    i.name = Some(shown.clone());
+                    i.name = Some(shown);
+                    i.state = state.map(|s| base64::encode(&s));
                 }
-                build.warn(Warning::NoSettings(shown));
             }
             _ => build.warn(Warning::Left(if shown.is_empty() {
                 b.tag.clone()
@@ -365,6 +369,44 @@ fn fx(build: &mut Build, chain: &Block, channel: Channel) {
             })),
         }
     }
+}
+
+/// A VST3's settings as Reaper keeps them, in AudioStrada's form (see `vstpreset`). The
+/// first base64 line is a header (plugin id, magic, pins, data size), the next ones the
+/// data: the component state then the controller state, each after its size and a flag;
+/// the last line, the program name, is past the data.
+fn vst3_state(b: &Block) -> Option<Vec<u8>> {
+    let int = |d: &[u8], at: usize| {
+        usize::try_from(i32::from_le_bytes(d.get(at..at + 4)?.try_into().ok()?)).ok()
+    };
+    let mut lines = b.lines.iter().filter_map(|l| l.first());
+    let header = base64::decode(lines.next()?)?;
+    if header.get(4..8)? != [0xEE, 0x5E, 0xED, 0xFE] {
+        return None;
+    }
+    let outs_at = 12 + 8 * int(&header, 8)?;
+    let size = int(&header, outs_at + 4 + 8 * int(&header, outs_at)?)?;
+    let mut data = Vec::with_capacity(size);
+    for line in lines {
+        if data.len() >= size {
+            break;
+        }
+        data.extend(base64::decode(line)?);
+    }
+    let component = int(&data, 0)?;
+    if data.len() < size || int(&data, 4)? != 1 {
+        return None;
+    }
+    let controller = int(&data, 8 + component)?;
+    let end = 16 + component + controller;
+    if end > size {
+        return None;
+    }
+    let mut out = b"SV3\0".to_vec();
+    out.extend_from_slice(&u32::try_from(component).ok()?.to_le_bytes());
+    out.extend_from_slice(&data[8..8 + component]);
+    out.extend_from_slice(&data[16 + component..end]);
+    Some(out)
 }
 
 fn item(build: &mut Build, dir: &Path, item: &Block, track: TrackId, tempo: &TempoMap, rate: u32) {
@@ -532,5 +574,42 @@ mod tests {
         assert_eq!(track.line("NAME").unwrap()[0], "Lead vocal");
         assert_eq!(track.num("VOLPAN", 1), Some(-0.25));
         assert!(parse("<OTHER\n>").is_none());
+    }
+
+    #[test]
+    fn a_vst3_keeps_its_settings_from_reaper() {
+        let int = |v: i32| v.to_le_bytes().to_vec();
+        // Header: id, magic, two inputs and two outputs with their masks, data size, flags.
+        let mut header = [int(1361804350), vec![0xEE, 0x5E, 0xED, 0xFE], int(2)].concat();
+        header.extend([0u8; 16]);
+        header.extend(int(2));
+        header.extend([0u8; 16]);
+        let data = [
+            int(5),
+            int(1),
+            b"comp!".to_vec(),
+            int(3),
+            int(0),
+            b"ctl".to_vec(),
+        ]
+        .concat();
+        header.extend(int(data.len() as i32));
+        header.extend([1, 0, 0, 0, 0xFF, 0xFF, 0x10, 0]);
+        let (first, second) = data.split_at(10);
+        let text = format!(
+            "<REAPER_PROJECT\n<VST \"VST3: X\" x.vst3 0 \"\" 1{{00}} \"\"\n{}\n{}\n{}\n{}\n>\n>",
+            base64::encode(&header),
+            base64::encode(first),
+            base64::encode(second),
+            base64::encode(b"\0Program 1\0\x10\0\0\0"),
+        );
+        let root = parse(&text).unwrap();
+        let mut want = b"SV3\0".to_vec();
+        want.extend(5u32.to_le_bytes());
+        want.extend(b"comp!ctl");
+        assert_eq!(vst3_state(&root.children[0]), Some(want));
+        // Anything else stays at its defaults.
+        let other = parse("<REAPER_PROJECT\n<VST x\nAAAA\n>\n>").unwrap();
+        assert_eq!(vst3_state(&other.children[0]), None);
     }
 }
