@@ -1,7 +1,7 @@
 //! Reaper's `.rpp` projects: nested `<TAG …>` blocks of text lines. Tracks, folders (as buses),
-//! audio and MIDI items, fades, play rate, volume, pan, mute, solo, receives, plugins (CLAP and
-//! VST3, with the settings of VST3 ones), volume and pan envelopes, tempo, time signature and
-//! markers.
+//! audio and MIDI items, fades, play rate, volume, pan, mute, solo, receives, plugins (CLAP, VST2
+//! and VST3, with the settings of VST2 and VST3 ones), volume and pan envelopes, tempo, time
+//! signature and markers.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -341,6 +341,12 @@ fn fx(build: &mut Build, chain: &Block, channel: Channel) {
                 (inner.len() == 32 && inner.chars().all(|c| c.is_ascii_hexdigit()))
                     .then(|| format!("vst3:{}", vst3_id::from_canonical(inner)))
             }),
+            // The plugin's id as a number, before Reaper's own id of it: `2019639636<…>`.
+            "VST" if label.starts_with("VST:") || label.starts_with("VSTi:") => b
+                .args
+                .get(4)
+                .and_then(|a| a.split('<').next()?.parse::<i64>().ok())
+                .map(|id| format!("vst2:{:08X}", id as u32)),
             _ => None,
         };
         let shown = label
@@ -349,7 +355,13 @@ fn fx(build: &mut Build, chain: &Block, channel: Channel) {
             .to_owned();
         match key {
             Some(key) if !label.contains("(Cockos)") => {
-                let state = key.starts_with("vst3:").then(|| vst3_state(b)).flatten();
+                let state = if key.starts_with("vst3:") {
+                    vst3_state(b)
+                } else if key.starts_with("vst2:") {
+                    vst2_state(b)
+                } else {
+                    None
+                };
                 if state.is_none() {
                     build.warn(Warning::NoSettings(shown.clone()));
                 }
@@ -371,30 +383,61 @@ fn fx(build: &mut Build, chain: &Block, channel: Channel) {
     }
 }
 
-/// A VST3's settings as Reaper keeps them, in AudioStrada's form (see `vstpreset`). The
-/// first base64 line is a header (plugin id, magic, pins, data size), the next ones the
-/// data: the component state then the controller state, each after its size and a flag;
-/// the last line, the program name, is past the data.
-fn vst3_state(b: &Block) -> Option<Vec<u8>> {
-    let int = |d: &[u8], at: usize| {
-        usize::try_from(i32::from_le_bytes(d.get(at..at + 4)?.try_into().ok()?)).ok()
-    };
-    let mut lines = b.lines.iter().filter_map(|l| l.first());
-    let header = base64::decode(lines.next()?)?;
-    if header.get(4..8)? != [0xEE, 0x5E, 0xED, 0xFE] {
-        return None;
-    }
-    let outs_at = 12 + 8 * int(&header, 8)?;
-    let size = int(&header, outs_at + 4 + 8 * int(&header, outs_at)?)?;
-    let mut data = Vec::with_capacity(size);
-    for line in lines {
-        if data.len() >= size {
-            break;
+/// A little-endian `i32` at `at`, as a size or a count.
+fn int(d: &[u8], at: usize) -> Option<usize> {
+    usize::try_from(i32::from_le_bytes(d.get(at..at + 4)?.try_into().ok()?)).ok()
+}
+
+/// The data Reaper keeps for a VST, and whether it is the plugin's own chunk (rather than
+/// its parameter values). Its base64 lines hold a header (plugin id, magic, the pins, the
+/// data size, that kind), the data, then the program name.
+fn vst_data(b: &Block) -> Option<(Vec<u8>, bool)> {
+    let mut bytes = Vec::new();
+    let mut size = None;
+    for line in b.lines.iter().filter_map(|l| l.first()) {
+        bytes.extend(base64::decode(line)?);
+        if size.is_none() && bytes.len() >= 12 {
+            if bytes.get(4..8)? != [0xEE, 0x5E, 0xED, 0xFE] {
+                return None;
+            }
+            let outs_at = 12 + 8 * int(&bytes, 8)?;
+            // The header may run over several lines.
+            if let Some(outs) = int(&bytes, outs_at) {
+                let size_at = outs_at + 4 + 8 * outs;
+                if bytes.len() >= size_at + 12 {
+                    size = Some((size_at + 12, int(&bytes, size_at)?));
+                }
+            }
         }
-        data.extend(base64::decode(line)?);
+        if let Some((start, size)) = size
+            && bytes.len() >= start + size
+        {
+            let chunk = int(&bytes, start - 8)? == 1;
+            return Some((bytes[start..start + size].to_vec(), chunk));
+        }
     }
+    None
+}
+
+/// A VST2's settings as Reaper keeps them, in AudioStrada's form: the plugin's chunk, or
+/// its parameter values after a magic number.
+fn vst2_state(b: &Block) -> Option<Vec<u8>> {
+    let (data, chunk) = vst_data(b)?;
+    if chunk {
+        return Some([b"AS2C".as_slice(), &data].concat());
+    }
+    let values = data.strip_prefix(&[0xEF, 0xBE, 0xAD, 0xDE, 0x0D, 0xF0, 0xAD, 0xDE])?;
+    // The current program, then the values.
+    Some([b"AS2P".as_slice(), &0i32.to_le_bytes(), values].concat())
+}
+
+/// A VST3's settings as Reaper keeps them, in AudioStrada's form (see `vstpreset`): the
+/// component state then the controller state, each after its size and a flag.
+fn vst3_state(b: &Block) -> Option<Vec<u8>> {
+    let (data, _) = vst_data(b)?;
+    let size = data.len();
     let component = int(&data, 0)?;
-    if data.len() < size || int(&data, 4)? != 1 {
+    if int(&data, 4)? != 1 {
         return None;
     }
     let controller = int(&data, 8 + component)?;
@@ -704,5 +747,42 @@ mod tests {
         // Anything else stays at its defaults.
         let other = parse("<REAPER_PROJECT\n<VST x\nAAAA\n>\n>").unwrap();
         assert_eq!(vst3_state(&other.children[0]), None);
+    }
+
+    #[test]
+    fn a_vst2_keeps_its_settings_from_reaper() {
+        let int = |v: i32| v.to_le_bytes().to_vec();
+        // One input, eighteen outputs: the header runs over two lines.
+        let block = |data: &[u8], chunk: i32| {
+            let mut header = [int(2019639636), vec![0xEE, 0x5E, 0xED, 0xFE], int(1)].concat();
+            header.extend([0u8; 8]);
+            header.extend(int(18));
+            header.extend([0u8; 18 * 8]);
+            header.extend(int(data.len() as i32));
+            header.extend(int(chunk));
+            header.extend([0, 0, 0x10, 0]);
+            let (first, second) = header.split_at(96);
+            format!(
+                "<VST \"VST: Addictive Trigger (XLN Audio)\" \"Addictive Trigger.dll\" 0 \"\" \
+                 2019639636<56535478614154616464696374697665> \"\"\n{}\n{}\n{}\nAAAQAAAA\n>",
+                base64::encode(first),
+                base64::encode(second),
+                base64::encode(data),
+            )
+        };
+        let text = format!("<REAPER_PROJECT\n{}\n>", block(b"COTTstate", 1));
+        let root = parse(&text).unwrap();
+        assert_eq!(vst2_state(&root.children[0]).unwrap(), b"AS2CCOTTstate");
+        let values = [
+            vec![0xEF, 0xBE, 0xAD, 0xDE, 0x0D, 0xF0, 0xAD, 0xDE],
+            0.5f32.to_le_bytes().to_vec(),
+        ]
+        .concat();
+        let text = format!("<REAPER_PROJECT\n{}\n>", block(&values, 0));
+        let root = parse(&text).unwrap();
+        let mut want = b"AS2P".to_vec();
+        want.extend(int(0));
+        want.extend(0.5f32.to_le_bytes());
+        assert_eq!(vst2_state(&root.children[0]), Some(want));
     }
 }
