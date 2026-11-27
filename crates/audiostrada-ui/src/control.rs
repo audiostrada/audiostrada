@@ -647,7 +647,7 @@ pub fn call_tool(
             let channel = track_ref(doc, arg("track"))?;
             let effect = string("effect").ok_or("`effect` is needed")?;
             let plugin = audiostrada_plugins::parse_key(effect).is_some()
-                && doc.player().plugins().plugins().any(|p| p.key() == effect);
+                && doc.player().plugins().find(effect).is_some();
             if audiostrada_dsp::info(effect).is_none() && !plugin {
                 return Err(format!(
                     "no built-in effect or installed plugin {effect} (see list_effects, list_plugins)"

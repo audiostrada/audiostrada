@@ -10,6 +10,7 @@ use audiostrada_core::automation::AutomationTarget;
 use audiostrada_core::file::ProjectPaths;
 use audiostrada_core::routing::{self, Channel};
 use audiostrada_core::tempo::{TempoMap, TempoPoint, TimeSignature};
+use audiostrada_core::vst3_id;
 use audiostrada_core::{Clip, FadeShape, Marker, Note, Project, TrackId, TrackKind, TrackSend};
 
 use crate::{Build, Warning, db};
@@ -338,7 +339,7 @@ fn fx(build: &mut Build, chain: &Block, channel: Channel) {
             "VST" if label.starts_with("VST3") => b.args.iter().find_map(|a| {
                 let inner = a.split_once('{')?.1.trim_end_matches('}');
                 (inner.len() == 32 && inner.chars().all(|c| c.is_ascii_hexdigit()))
-                    .then(|| format!("vst3:{}", inner.to_ascii_uppercase()))
+                    .then(|| format!("vst3:{}", vst3_id::from_canonical(inner)))
             }),
             _ => None,
         };

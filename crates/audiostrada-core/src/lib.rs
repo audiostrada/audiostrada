@@ -18,6 +18,7 @@ pub mod scratch;
 pub mod section;
 pub mod snapshot;
 pub mod tempo;
+pub mod vst3_id;
 
 pub use file::{ProjectError, ProjectPaths};
 pub use history::History;

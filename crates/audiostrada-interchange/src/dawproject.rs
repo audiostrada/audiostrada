@@ -10,6 +10,7 @@ use audiostrada_core::automation::{AutomationTarget, CurveShape};
 use audiostrada_core::file::ProjectPaths;
 use audiostrada_core::routing::{self, Channel};
 use audiostrada_core::tempo::{TempoMap, TempoPoint, TimeSignature};
+use audiostrada_core::vst3_id;
 use audiostrada_core::{
     Clip, FadeShape, Insert, Marker, Note, Project, TrackId, TrackKind, TrackSend, base64,
 };
@@ -414,7 +415,7 @@ impl Import<'_> {
             "Vst3Plugin" => {
                 let state = state.and_then(|s| vstpreset::from_preset(&s));
                 (
-                    format!("vst3:{}", id.to_ascii_uppercase()),
+                    format!("vst3:{}", vst3_id::from_canonical(&id)),
                     state,
                     BTreeMap::new(),
                 )
@@ -940,6 +941,13 @@ pub fn export(
                     continue;
                 }
             };
+            // Other hosts know a VST3 by its canonical class id.
+            let plugin = if format == "vst3" {
+                vst3_id::to_canonical(plugin)
+            } else {
+                plugin.to_owned()
+            };
+            let plugin = plugin.as_str();
             let device = id();
             x.push_str(&format!(
                 r#"<{tag} id="{device}" deviceID="{}" deviceName="{}" deviceRole="audioFX" loaded="true">"#,

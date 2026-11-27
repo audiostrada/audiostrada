@@ -205,6 +205,22 @@ fn settling(stamp: u64, now: u64, settle: u64) -> bool {
     stamp <= now && now - stamp < settle
 }
 
+/// A VST3 class id (32 hex digits) with its first three fields (4, 2 and 2 bytes)
+/// byte-reversed: Steinberg's canonical form, written by other hosts and on macOS and Linux,
+/// against the bytes of a Windows plugin, COM style. As `audiostrada_core::vst3_id::swapped`.
+fn vst3_swapped(id: &str) -> Option<String> {
+    if id.len() != 32 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    let order = [3, 2, 1, 0, 5, 4, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15];
+    Some(
+        order
+            .iter()
+            .map(|&i: &usize| id[i * 2..i * 2 + 2].to_ascii_uppercase())
+            .collect(),
+    )
+}
+
 fn modified(path: &Path) -> u64 {
     std::fs::metadata(path)
         .and_then(|m| m.modified())
@@ -262,9 +278,14 @@ impl Database {
             .filter_map(|(p, f)| f.result.as_ref().err().map(|e| (p.as_path(), e.as_str())))
     }
 
-    /// Finds a plugin by its project identifier (`clap:...`).
+    /// Finds a plugin by its project identifier (`clap:...`). A VST3 id is also found in
+    /// the other byte order, for a project saved on another system or imported as written
+    /// by another host.
     pub fn find(&self, key: &str) -> Option<&PluginDescriptor> {
-        self.plugins().find(|p| p.key() == key)
+        self.plugins().find(|p| p.key() == key).or_else(|| {
+            let other = format!("vst3:{}", vst3_swapped(key.strip_prefix("vst3:")?)?);
+            self.plugins().find(|p| p.key() == other)
+        })
     }
 
     /// Files to scan: new or modified since the last scan. Removed files are forgotten.
